@@ -25,7 +25,7 @@ done
 # installation has, so code that resolves the default extensions root finds it.
 mkdir -p "${workspace}/extensions"
 for path in AGENTS.md CODE_OF_CONDUCT.md CONTRIBUTING.md Dockerfile \
-  LICENSE NOTICE README.md SECURITY.md TRADEMARK_POLICY.md VERSION babel.cfg \
+  LICENSE NOTICE README.md SECURITY.md VERSION babel.cfg \
   cli.py eslint.config.mjs install.sh package.json package-lock.json pyproject.toml \
   pytest.ini requirements-audit.txt requirements-cli.lock requirements-cli.txt \
   requirements-mcp.lock requirements-mcp.txt \
