@@ -363,6 +363,33 @@ def test_fresh_handoff_persists_custom_release_sources_for_child_resume(
     assert environment["FS_RELEASE_REGISTRIES"] == "registry.example/flow,mirror.example/flow"
 
 
+def test_handoff_hands_the_target_installer_the_published_postgres_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("POSTGRES_IMAGE", raising=False)
+    published = _release(version="0.9.2")
+    digest = published.images[0].index_digest
+    postgres = ReleaseImageIdentity(
+        role="postgres",
+        registry_ref=f"ghcr.io/flow-steward/flow-steward-postgres@{digest}",
+        index_digest=digest,
+        manifest_digest=digest,
+        config_digest=digest,
+        revision=published.commit_sha,
+        platform="linux/amd64",
+    )
+    with_postgres = published.model_copy(update={"images": (*published.images, postgres)})
+    handoff = InstallerReleaseHandoff(
+        repo_root=tmp_path,
+        state=InstallerStateStore(tmp_path / "state"),
+        git_runner=FakeGit(published),
+    )
+
+    assert handoff._installer_environment(with_postgres)["POSTGRES_IMAGE"] == postgres.registry_ref
+    # Resolved by an updater that predates the role: the installation's own image stays.
+    assert "POSTGRES_IMAGE" not in handoff._installer_environment(published)
+
+
 def test_verified_handoff_lends_locks_and_only_private_installer_publishes_runtime(
     tmp_path: Path,
 ) -> None:

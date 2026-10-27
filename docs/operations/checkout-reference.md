@@ -235,7 +235,9 @@ databases through `db/migrations/` and `database upgrade` (ADR 0012).
 
 Canonical memory, vector search, and graph search run in PostgreSQL. The base
 Compose stack builds the canonical PostgreSQL image with Apache AGE + pgvector,
-so the standard stack does not need extra database overlays.
+so the standard stack does not need extra database overlays. Official installs and
+release upgrades pull the same image, published as `flow-steward-postgres`, by
+digest instead of building it.
 
 Use the guided `./install.sh` flow to select the supported first-release stack.
 Production uses the unified Postgres profile with Apache AGE, pgvector,
@@ -468,7 +470,11 @@ installation. The handoff is resumable and keeps maintenance enabled on success
 or failure; follow its printed recovery action and rerun the same command.
 Official release upgrades resolve the complete role set from GHCR,
 then Docker Hub as a whole-set fallback. They never mix registries, use floating
-tags, or build product images locally. Development source builds remain separate.
+tags, or build product images locally. From 0.9.2 the set includes the PostgreSQL
+image; the data volume is kept, and the database restarts on the pulled image,
+which is built from the same Dockerfile (same PostgreSQL 17, pgvector and AGE). An
+upgrade run by a 0.9.1 CLI resolves its target without that image and keeps the
+installation's own PostgreSQL image; the next upgrade switches it. Development source builds remain separate.
 Override the ordered namespaces only when required with the comma-separated
 `FS_RELEASE_REGISTRIES`; override GitHub discovery with `FS_RELEASE_REPOSITORY`.
 

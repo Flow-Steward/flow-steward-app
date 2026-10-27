@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from core.application.release.contracts import ReleaseIdentity
-from core.application.release.images import all_product_roles
+from core.application.release.images import all_release_roles
 
 _LEGACY_ROLE_NAMES = {
     "fs-app": "app",
@@ -29,10 +29,15 @@ _REVISION_VARIABLES = {
 
 def release_runtime_environment(release: ReleaseIdentity) -> dict[str, str]:
     """Project a verified release aggregate without re-deriving its identity."""
-    role_variables = {role.role: role.environment_variable for role in all_product_roles()}
+    role_variables = {role.role: role.environment_variable for role in all_release_roles()}
     values = {"FS_BUILD_SHA": release.commit_sha}
     for image in release.images:
         values[role_variables[image.role]] = image.registry_ref
+        if image.role == "postgres":
+            # POSTGRES_IMAGE alone: a dependency image has no runtime revision or
+            # digest variables. A release without this role leaves POSTGRES_IMAGE
+            # to the installation, which builds it locally as a source install does.
+            continue
         if image.role == "compact-runtime":
             values.update(
                 {

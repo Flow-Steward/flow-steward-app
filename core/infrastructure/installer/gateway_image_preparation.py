@@ -188,6 +188,12 @@ class ImagePreparationOperations:
                 raise self._production_provenance_failure(
                     f"Materialized official image {image.role} does not match pending identity."
                 )
+            if image.role == "postgres":
+                # The pulled digest is what Compose runs: core dependency preparation
+                # builds only the unpinned registry default, and start runs
+                # --no-build --pull never.
+                updates["POSTGRES_IMAGE"] = identity.registry_ref
+                continue
             legacy_role = role_names[image.role]
             updates[_EXACT_IMAGE_KEYS[legacy_role]] = identity.registry_ref
             updates[_EXACT_IMAGE_REVISION_KEYS[legacy_role]] = identity.revision
@@ -208,6 +214,14 @@ class ImagePreparationOperations:
         self.state_store.update_env_values(env_path, updates)
         self._environment = {**self._environment, **updates}
         log.write("Resolved the complete official release image set without local builds.")
+        if "POSTGRES_IMAGE" not in updates:
+            # ADR 0030 (0.9.2): a release that predates the published PostgreSQL image,
+            # or one resolved by an updater that predates it, keeps this installation's
+            # own PostgreSQL image, built locally when absent exactly as before.
+            log.write(
+                f"Release {release.tag} names no official PostgreSQL image; this "
+                "installation's PostgreSQL image is kept, and built locally if absent."
+            )
         return compact_identity
 
     def _require_resolvable_source_revision(

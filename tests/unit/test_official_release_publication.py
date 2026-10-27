@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from core.application.release.images import all_product_roles
+from core.application.release.images import all_release_roles
 from scripts.release import official_release
 
 _REVISION = "1" * 40
@@ -142,15 +142,11 @@ def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
             )
             return "linux/amd64\n"
         output = next(item for item in command if item.startswith("type=oci,dest="))
-        target = command[command.index("--target") + 1]
-        role = {
-            "compact-runtime": "compact-runtime",
-            "app-runtime": "fs-app",
-            "worker-runtime": "fs-worker",
-            "control-runtime": "control-plane",
-            "cli": "fs-cli",
-            "runtime": "fs-mcp",
-        }[target]
+        role = next(
+            item.removeprefix("org.opencontainers.image.role=")
+            for item in command
+            if item.startswith("org.opencontainers.image.role=")
+        )
         _write_oci_artifact(
             Path(output.removeprefix("type=oci,dest=")),
             platform_name="linux/amd64",
@@ -166,8 +162,10 @@ def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
     official_release.build(tmp_path, "1.2.3", _REVISION, "linux/amd64", output)
 
     builds = [command for command in commands if command[:3] == ("docker", "buildx", "build")]
-    assert len(builds) == len(all_product_roles())
-    assert {command[command.index("--target") + 1] for command in builds} == {
+    assert len(builds) == len(all_release_roles())
+    assert {
+        command[command.index("--target") + 1] for command in builds if "--target" in command
+    } == {
         "compact-runtime",
         "app-runtime",
         "worker-runtime",
@@ -175,13 +173,21 @@ def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
         "cli",
         "runtime",
     }
+    postgres = next(
+        command for command in builds if "org.opencontainers.image.role=postgres" in command
+    )
+    assert "--target" not in postgres
+    assert postgres[postgres.index("--file") + 1] == "infra/docker/postgres-extended/Dockerfile"
+    assert "AGE_REF=PG17/v1.6.0-rc0" in postgres
+    assert f"org.opencontainers.image.revision={_REVISION}" in postgres
+    assert postgres[-1] == "."
     compact = next(command for command in builds if "compact-runtime" in command)
     assert f"BUILD_SHA={_REVISION}" in compact
     platform_argument = "FS_IMAGE_" + "PLATFORM=linux/amd64"
     assert platform_argument in compact
     assert all(platform_argument not in command for command in builds if command is not compact)
     metadata = json.loads((output / "build-amd64.json").read_text(encoding="utf-8"))
-    assert len(metadata["images"]) == len(all_product_roles())
+    assert len(metadata["images"]) == len(all_release_roles())
     assert all(item["sha256"] for item in metadata["images"])
 
 
@@ -265,7 +271,7 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
     for platform_name in ("linux/amd64", "linux/arm64"):
         architecture = platform_name.split("/", 1)[1]
         images = []
-        for role in all_product_roles():
+        for role in all_release_roles():
             artifact = tmp_path / f"{role.role}-{architecture}.oci.tar"
             artifact.write_bytes(f"{role.role}-{architecture}".encode())
             child = f"{role.role}-{architecture}"
@@ -304,7 +310,7 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
             reference = command[-1].removeprefix("docker://")
             leaf = reference.rsplit("/", 1)[1]
             repository, architecture = leaf.rsplit(":1.2.3-", 1)
-            role = next(item.role for item in all_product_roles() if item.repository == repository)
+            role = next(item.role for item in all_release_roles() if item.repository == repository)
             return child_raws[f"{role}-{architecture}"]
         return ""
 
@@ -314,8 +320,12 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
 
     copies = [command for command in commands if command[:2] == ("skopeo", "copy")]
     indexes = [command for command in commands if command[:3] == ("docker", "buildx", "imagetools")]
-    assert len(copies) == 2 * 2 * len(all_product_roles())
-    assert len(indexes) == 2 * len(all_product_roles())
+    assert len(copies) == 2 * 2 * len(all_release_roles())
+    assert len(indexes) == 2 * len(all_release_roles())
+    assert {command[command.index("--tag") + 1] for command in indexes} >= {
+        "ghcr.io/example/flow-steward-postgres:1.2.3",
+        "docker.io/example/flow-steward-postgres:1.2.3",
+    }
     assert not any(part == "build" for command in copies for part in command)
     for command in copies:
         architecture = command[command.index("--override-arch") + 1]
@@ -333,7 +343,7 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
         tag_index = command.index("--tag")
         tagged_repository = command[tag_index + 1].rsplit(":", 1)[0]
         repository = tagged_repository.rsplit("/", 1)[1]
-        role = next(item.role for item in all_product_roles() if item.repository == repository)
+        role = next(item.role for item in all_release_roles() if item.repository == repository)
         expected = tuple(
             f"{tagged_repository}@sha256:"
             + hashlib.sha256(child_raws[f"{role}-{architecture}"].encode()).hexdigest()
@@ -388,7 +398,7 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
             )
             operating_system, architecture = platform_name.split("/", 1)
             expected_role = next(
-                item.role for item in all_product_roles() if item.repository == role
+                item.role for item in all_release_roles() if item.repository == role
             )
             return json.dumps(
                 {
@@ -420,7 +430,10 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
         "verified",
         "incomplete",
     ]
-    assert len(result["registries"][0]["images"]) == len(all_product_roles())
+    assert len(result["registries"][0]["images"]) == len(all_release_roles())
+    assert {(item["role"], item["reference"]) for item in result["registries"][0]["images"]} >= {
+        ("postgres", "ghcr.io/example/flow-steward-postgres:1.2.3")
+    }
     assert result["registries"][0]["images"][0]["platforms"] == {
         "linux/amd64": {
             "config_digest": "sha256:" + "e" * 64,
@@ -505,7 +518,7 @@ def test_verification_marks_a_complete_but_digest_divergent_mirror_incomplete(
             )
             operating_system, architecture = platform_name.split("/", 1)
             expected_role = next(
-                item.role for item in all_product_roles() if item.repository == repository
+                item.role for item in all_release_roles() if item.repository == repository
             )
             return json.dumps(
                 {
@@ -553,3 +566,22 @@ def test_verification_marks_a_complete_but_digest_divergent_mirror_incomplete(
         "incomplete",
     ]
     assert "does not match verified child digests" in result["failures"][0]
+
+
+def test_postgres_release_build_uses_the_age_ref_every_compose_build_uses() -> None:
+    """The published PostgreSQL image must be the image a source install builds."""
+    root = Path(__file__).resolve().parents[2]
+    age_ref = official_release._POSTGRES_AGE_REF
+    for compose in (
+        "infra/docker/docker-compose.yaml",
+        "infra/docker/docker-compose.prod.yaml",
+        "infra/docker/docker-compose.postgres-extended.yaml",
+    ):
+        text = (root / compose).read_text(encoding="utf-8")
+        assert "AGE_REF: ${AGE_REF:-" + age_ref + "}" in text, compose
+    dockerfile = root / "infra/docker/postgres-extended/Dockerfile"
+    assert f"ARG AGE_REF={age_ref}\n" in dockerfile.read_text(encoding="utf-8")
+
+
+def test_every_release_role_has_a_build_target() -> None:
+    assert set(official_release._TARGETS) == {role.role for role in all_release_roles()}

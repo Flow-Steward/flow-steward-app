@@ -23,7 +23,7 @@ from core.application.installer import (
 )
 from core.application.installer.errors import InstallerFailure
 from core.application.lifecycle.contracts import DeploymentConfig
-from core.application.release.images import required_product_roles
+from core.application.release.images import all_release_roles, required_product_roles
 from core.infrastructure.config.env_registry import registry_default_value
 from core.infrastructure.installer import gateway as gateway_module
 from core.infrastructure.installer import (
@@ -640,8 +640,12 @@ def test_installer_readiness_reconciliation_preserves_scan_failure(tmp_path: Pat
 
 
 def _stage_official_release(
-    gateway: DockerInstallerGateway, deployment_profile: str
+    gateway: DockerInstallerGateway, deployment_profile: str, *, with_postgres: bool = False
 ) -> ReleaseIdentity:
+    roles = list(required_product_roles(deployment_profile))
+    if with_postgres:
+        roles.append(next(role for role in all_release_roles() if role.role == "postgres"))
+    version = "0.9.2" if with_postgres else "0.1.0"
     images = tuple(
         ReleaseImageIdentity(
             role=role.role,
@@ -652,11 +656,11 @@ def _stage_official_release(
             revision=_FULL_REVISION,
             platform=_HOST_PLATFORM,
         )
-        for index, role in enumerate(required_product_roles(deployment_profile), start=1)
+        for index, role in enumerate(roles, start=1)
     )
     release = ReleaseIdentity(
-        version="0.1.0",
-        tag="v0.1.0",
+        version=version,
+        tag=f"v{version}",
         commit_sha=_FULL_REVISION,
         registry="registry.example/official",
         profile=deployment_profile,
@@ -1765,6 +1769,101 @@ def test_official_transition_materializes_registry_refs_despite_local_source_ids
     for image in release.images:
         assert persisted[image_keys[image.role]] == image.registry_ref
     assert persisted["FS_BUILD_SHA"] == _FULL_REVISION
+
+
+def _official_identity_resolver(release: ReleaseIdentity):
+    def resolve(**values):
+        selected = next(image for image in release.images if image.role == values["expected_role"])
+        assert values["registry_ref"] == (
+            f"{selected.registry_ref.partition('@')[0]}@{selected.index_digest}"
+        )
+        return RegistryImageIdentity(
+            registry_ref=selected.registry_ref,
+            index_digest=selected.index_digest,
+            manifest_digest=selected.manifest_digest,
+            config_digest=selected.config_digest,
+            revision=selected.revision,
+            role=selected.role,
+            platform=selected.platform,
+            local_image_id=selected.manifest_digest,
+        )
+
+    return resolve
+
+
+class _ComposeReadsPostgresImage(FakeProcessExecutor):
+    """Compose resolves pg-fs from .env.prod; the locally built default is absent."""
+
+    def __init__(self, env_path: Path) -> None:
+        super().__init__()
+        self.env_path = env_path
+        self.read_env = None
+
+    def run(self, command, **kwargs):
+        key = tuple(command)
+        if key[-3:] == ("config", "--format", "json"):
+            self.commands.append(key)
+            values = self.read_env(self.env_path)
+            images = {"rabbitmq-fs": "rabbit:test", "pg-fs": values["POSTGRES_IMAGE"]}
+            return ProcessOutcome(
+                command=key,
+                returncode=0,
+                stdout=json.dumps({"services": {k: {"image": v} for k, v in images.items()}}),
+            )
+        if key == ("docker", "image", "inspect", registry_default_value("POSTGRES_IMAGE")):
+            self.commands.append(key)
+            return ProcessOutcome(command=key, returncode=1)
+        return super().run(command, **kwargs)
+
+
+@pytest.mark.parametrize("profile", ("compact", "scalable"))
+@pytest.mark.parametrize("with_postgres", (True, False))
+def test_official_install_pulls_the_published_postgres_image_instead_of_building_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, with_postgres: bool
+) -> None:
+    env_path = tmp_path / ".env.prod"
+    process = _ComposeReadsPostgresImage(env_path)
+    gateway = _gateway(tmp_path, process)
+    process.read_env = gateway.state_store.read_env_values
+    release = _stage_official_release(gateway, profile, with_postgres=with_postgres)
+    local_default = registry_default_value("POSTGRES_IMAGE")
+    _write_env_values(env_path, {"POSTGRES_IMAGE": local_default})
+    monkeypatch.setattr(
+        registry_image_resolver, "resolve_digest_pinned_image", _official_identity_resolver(release)
+    )
+    monkeypatch.setattr(gateway, "_prepare_exact_prebuilt_provenance", lambda *_a, **_kw: None)
+    monkeypatch.setattr(gateway, "_resolve_compact_registry_image", lambda *_a, **_kw: None)
+    config = InstallConfig(
+        environment="production",
+        deployment_profile=profile,
+        file_storage="local_fs",
+        ingress_mode="external_proxy",
+        tls_mode="reverse_proxy",
+    )
+    log = gateway.state_store.open_log("official-postgres")
+    try:
+        gateway.prepare_core(config, log=log)
+    finally:
+        log.close()
+
+    persisted = gateway.state_store.read_env_values(env_path)
+    builds = [
+        command for command in process.commands if command[:3] == ("docker", "buildx", "build")
+    ]
+    text = log.path.read_text(encoding="utf-8")
+    if with_postgres:
+        postgres = next(image for image in release.images if image.role == "postgres")
+        assert persisted["POSTGRES_IMAGE"] == postgres.registry_ref
+        assert builds == []
+        assert "names no official PostgreSQL image" not in text
+    else:
+        # A release that predates the published image (0.9.0/0.9.1, or one resolved by
+        # an updater that predates it) keeps the installation's own image and builds it
+        # locally when absent, exactly as before.
+        assert persisted["POSTGRES_IMAGE"] == local_default
+        assert [command[command.index("--tag") + 1] for command in builds] == [local_default]
+        assert f"Release {release.tag} names no official PostgreSQL image" in text
+    assert not any(command[:2] == ("docker", "pull") for command in process.commands)
 
 
 def test_compact_registry_prepare_preserves_validated_parent_index(

@@ -19,20 +19,27 @@ _DEFAULT_ROOT = Path(__file__).resolve().parents[2]
 if str(_DEFAULT_ROOT) not in sys.path:
     sys.path.insert(0, str(_DEFAULT_ROOT))
 
-from core.application.release.images import all_product_roles  # noqa: E402
+from core.application.release.images import all_release_roles  # noqa: E402
 
 _VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _PLATFORMS = ("linux/amd64", "linux/arm64")
-_TARGETS = {
+# role -> (Dockerfile, build target or None for a single-stage file, the build
+# argument that receives the source revision or None when the image has none).
+_TARGETS: dict[str, tuple[str, str | None, str | None]] = {
     "compact-runtime": ("infra/docker/Dockerfile", "compact-runtime", "BUILD_SHA"),
     "fs-app": ("infra/docker/Dockerfile", "app-runtime", "BUILD_SHA"),
     "fs-worker": ("infra/docker/Dockerfile", "worker-runtime", "BUILD_SHA"),
     "control-plane": ("infra/docker/Dockerfile", "control-runtime", "BUILD_SHA"),
     "fs-cli": ("infra/docker/Dockerfile", "cli", "FS_BUILD_REVISION"),
     "fs-mcp": ("infra/mcp/Dockerfile", "runtime", "FS_BUILD_REVISION"),
+    "postgres": ("infra/docker/postgres-extended/Dockerfile", None, None),
 }
+# The Apache AGE ref every Compose file builds the PostgreSQL image with
+# (`${AGE_REF:-...}`); the published image must be the same image a source
+# install builds. tests/unit/test_official_release_publication.py pins the match.
+_POSTGRES_AGE_REF = "PG17/v1.6.0-rc0"
 
 
 def _run(command: Sequence[str], *, cwd: Path) -> str:
@@ -191,12 +198,15 @@ def build(root: Path, version: str, revision: str, requested_platform: str, outp
     output.mkdir(parents=True, exist_ok=True)
     architecture = requested_platform.split("/", 1)[1]
     records: list[dict[str, str]] = []
-    for role in all_product_roles():
+    for role in all_release_roles():
         dockerfile, target, build_arg = _TARGETS[role.role]
         artifact = output / f"{role.role}-{architecture}.oci.tar"
-        build_arguments = ["--build-arg", f"{build_arg}={revision}"]
+        build_arguments = [] if build_arg is None else ["--build-arg", f"{build_arg}={revision}"]
         if role.role == "compact-runtime":
             build_arguments.extend(("--build-arg", f"FS_IMAGE_PLATFORM={requested_platform}"))
+        if role.role == "postgres":
+            build_arguments.extend(("--build-arg", f"AGE_REF={_POSTGRES_AGE_REF}"))
+        target_arguments = () if target is None else ("--target", target)
         _run(
             (
                 "docker",
@@ -205,8 +215,7 @@ def build(root: Path, version: str, revision: str, requested_platform: str, outp
                 "--platform",
                 requested_platform,
                 "--provenance=false",
-                "--target",
-                target,
+                *target_arguments,
                 *build_arguments,
                 "--label",
                 f"org.opencontainers.image.revision={revision}",
@@ -277,7 +286,7 @@ def publish(root: Path, version: str, revision: str, artifact_dir: Path) -> None
     by_platform = {item["platform"]: item for item in manifests}
     if set(by_platform) != set(_PLATFORMS):
         raise ValueError("publication requires exactly the two supported native builds")
-    expected_roles = {role.role: role.repository for role in all_product_roles()}
+    expected_roles = {role.role: role.repository for role in all_release_roles()}
     for platform_name, manifest in by_platform.items():
         records = manifest.get("images")
         if not isinstance(records, list):
@@ -295,7 +304,7 @@ def publish(root: Path, version: str, revision: str, artifact_dir: Path) -> None
             ):
                 raise ValueError(f"native build {platform_name} has invalid {role} identity")
     for namespace in _namespaces():
-        for role in all_product_roles():
+        for role in all_release_roles():
             children: list[str] = []
             for platform_name in _PLATFORMS:
                 architecture = platform_name.split("/", 1)[1]
@@ -428,7 +437,7 @@ def verify(root: Path, version: str, revision: str, evidence: Path) -> None:
         registry_record: dict[str, object] = {"namespace": namespace, "images": []}
         try:
             registry_children: dict[str, dict[str, dict[str, str]]] = {}
-            for role in all_product_roles():
+            for role in all_release_roles():
                 reference = f"{namespace}/{role.repository}:{version}"
                 raw = _run(("skopeo", "inspect", "--raw", f"docker://{reference}"), cwd=root)
                 document = json.loads(raw)
