@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "flow-steward",
+  "version": "1.1.0",
+  "description": "Use Flow Steward workflows and operational reports, build and publish extensions and workflow templates, report issues, and contribute code to the core repository.",
+  "author": {
+    "name": "Flow Steward"
+  }
+}

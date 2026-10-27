@@ -1,0 +1,177 @@
+/*
+ * Layout of the stages inside the catalog variant of DsDialog. Every surface,
+ * colour and control is an existing design-system class or token; these rules
+ * only place them: the tab and search rows, the stage scrollers, set-up and
+ * the result. The browse layout and the details columns it shares with the
+ * Extensions Marketplace live in components/shared/catalog-browse.css.
+ */
+.fs-catalog-toprow {
+  display: flex;
+  align-items: flex-end;
+  min-height: 36px;
+  padding: 0 var(--fs-space-300);
+  border-bottom: 1px solid var(--fs-form-dialog-zone-border);
+}
+
+.fs-catalog-toprow.is-tabs {
+  border-bottom: var(--fs-tabs-panel-accent-width) solid var(--fs-tabs-panel-accent);
+}
+
+.fs-catalog-toprow:not(.is-tabs) {
+  align-items: center;
+}
+
+.fs-catalog-searchrow {
+  padding: var(--fs-space-150) var(--fs-space-300);
+  border-bottom: 1px solid var(--fs-form-dialog-zone-border);
+}
+
+.fs-catalog-searchrow .fs-search {
+  width: 100%;
+  margin-left: 0;
+}
+
+.fs-catalog-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.fs-catalog-stage {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--fs-space-250) var(--fs-space-300) var(--fs-space-300);
+}
+
+.fs-catalog-footer-note {
+  margin-right: auto;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+/* ---- Details, set-up and result ---------------------------------------- */
+
+.fs-catalog-setup,
+.fs-catalog-setup-section,
+.fs-catalog-done {
+  display: grid;
+  gap: var(--fs-space-200);
+  min-width: 0;
+}
+
+.fs-catalog-setup {
+  max-width: 760px;
+}
+
+.fs-catalog-resolution {
+  display: grid;
+  gap: var(--fs-space-100);
+}
+
+/* The shared resolution row lays itself out for the full-width import page;
+   inside the dialog it is two columns. */
+.fs-catalog-resolution .fs-surface-inset {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fs-catalog-resolution .fs-surface-inset > * {
+  grid-column: auto;
+}
+
+.fs-catalog-resolution .fs-surface-inset > :first-child,
+.fs-catalog-resolution .fs-surface-inset > :last-child {
+  grid-column: 1 / -1;
+}
+
+.fs-catalog-review {
+  margin: 0;
+  padding: var(--fs-space-150) var(--fs-space-200);
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-card-radius);
+  background: var(--fs-bg-surface-muted);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.6;
+}
+
+.fs-catalog-done {
+  justify-items: start;
+  max-width: 560px;
+}
+
+@media (width < 640px) {
+  .fs-catalog-toprow,
+  .fs-catalog-searchrow,
+  .fs-catalog-stage {
+    padding-left: var(--fs-space-200);
+    padding-right: var(--fs-space-200);
+  }
+
+  .fs-catalog-toprow .fs-tabs-scroll,
+  .fs-catalog-toprow .fs-tabs-list {
+    width: 100%;
+  }
+
+  .fs-catalog-toprow .fs-tab {
+    flex: 1;
+  }
+
+  .fs-dialog.catalog .fs-dialog-footer {
+    flex-wrap: wrap;
+  }
+
+  .fs-dialog.catalog .fs-dialog-footer .fs-button {
+    flex: 1;
+  }
+
+  .fs-catalog-footer-note {
+    flex-basis: 100%;
+  }
+}
+
+/* On a touch screen every target is 44px without the control growing: the hit
+   area extends past the drawn box. */
+@media (pointer: coarse) {
+  .fs-dialog.catalog :is(.fs-button, .fs-icon-button, .fs-pagination-button, .fs-clear-filters, .fs-catalog-back) {
+    position: relative;
+  }
+
+  .fs-dialog.catalog :is(.fs-button, .fs-icon-button, .fs-pagination-button, .fs-clear-filters, .fs-catalog-back)::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+}
+
+/* The Catalog tab of the workflow list: the steps drawn in the page. */
+.fs-workflow-catalog-inline {
+  display: grid;
+  gap: var(--fs-space-200);
+}
+
+.fs-workflow-catalog-inline .fs-catalog-searchrow .fs-search {
+  margin: 0;
+  width: 100%;
+}
+
+.fs-workflow-catalog-inline-actions {
+  align-items: center;
+  border-top: 1px solid var(--fs-border-subtle, var(--fs-card-border));
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-100);
+  justify-content: flex-end;
+  padding-top: var(--fs-space-200);
+}
+
+/* On the page the stages flow with it, and "← Catalog" sits on the panel
+   without the dialog's rule under it. */
+.fs-workflow-catalog-inline .fs-catalog-toprow:not(.is-tabs) {
+  min-height: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.fs-workflow-catalog-inline .fs-catalog-stage {
+  overflow: visible;
+  padding: 0;
+}

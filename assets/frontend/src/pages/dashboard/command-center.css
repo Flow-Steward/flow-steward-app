@@ -1,0 +1,251 @@
+/* Command center — dashboard entry block.
+ *
+ * Published --fs-* roles only: the right-context rail for the surface and
+ * Badge for the queue statuses.
+ *
+ * One Design System gap this surface still assembles by hand, worth closing
+ * upstream: there is no two-level list row (title over context + status)
+ * anywhere in the catalog.
+ */
+
+.fs-cc {
+  display: grid;
+  min-width: 0;
+}
+
+.fs-cc__queue-link svg {
+  width: var(--fs-icon-size-supporting);
+  height: var(--fs-icon-size-supporting);
+  flex: none;
+  stroke-width: var(--fs-icon-stroke);
+}
+
+/* ---------- attention queue ---------- */
+
+.fs-cc__queue {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-right-context-rail-border);
+  border-radius: var(--fs-right-context-rail-radius);
+  background: var(--fs-elevation-surface-sunken);
+}
+
+.fs-cc__queue-title-head {
+  margin: 0;
+  font-family: var(--ff-display);
+  font-size: var(--fs-card-title-size);
+  line-height: var(--fs-type-h3-line-height);
+  font-weight: var(--fs-card-title-weight);
+  color: var(--fs-text-primary);
+}
+
+.fs-cc__queue-caption {
+  margin: var(--fs-space-025) 0 0;
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  color: var(--fs-text-tertiary);
+}
+
+.fs-cc__queue-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--fs-space-100);
+}
+
+/* Two-level row: at 240px a single line cannot hold title, context and status.
+   Grid is icon column + content column, icon aligned to the first text line. */
+.fs-cc__queue-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--fs-space-100);
+  min-width: 0;
+  padding: var(--fs-space-100);
+  border-radius: var(--fs-radius-control);
+  text-decoration: none;
+  transition: background var(--fs-motion-background-hover);
+}
+
+/* Hover changes background only. Raised elevation is for movable or
+   intentionally lifted content, which a list row is not. */
+.fs-cc__queue-row:hover {
+  background: var(--fs-dropdown-item-hover-bg);
+}
+
+.fs-cc__queue-row:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-cc__queue-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--fs-text-tertiary);
+}
+
+.fs-cc__queue-icon svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.fs-cc__queue-body {
+  display: grid;
+  gap: var(--fs-space-025);
+  min-width: 0;
+}
+
+.fs-cc__queue-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+  color: var(--fs-text-secondary);
+}
+
+.fs-cc__queue-row:hover .fs-cc__queue-title {
+  color: var(--fs-text-primary);
+}
+
+.fs-cc__queue-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  min-width: 0;
+}
+
+/* Caption 12px, not the 11px micro step: micro is the uppercase label role. */
+.fs-cc__queue-context {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  color: var(--fs-text-tertiary);
+}
+
+.fs-cc__queue-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin-left: auto;
+  height: var(--fs-badge-height-sm);
+  padding: var(--fs-badge-padding-sm);
+  border: 1px solid var(--fs-badge-neutral-border);
+  border-radius: var(--fs-badge-radius);
+  background: var(--fs-badge-neutral-bg);
+  color: var(--fs-badge-neutral-text);
+  font-family: var(--fs-badge-font);
+  font-size: var(--fs-badge-font-size-sm);
+  font-weight: var(--fs-badge-font-weight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Orange means a human needs to look; red means it broke. */
+.fs-cc__queue-row[data-tone="attention"] .fs-cc__queue-badge {
+  border-color: var(--fs-badge-orange-border);
+  background: var(--fs-badge-orange-bg);
+  color: var(--fs-badge-orange-text);
+}
+
+.fs-cc__queue-row[data-tone="attention"] .fs-cc__queue-icon {
+  color: var(--fs-text-attention);
+}
+
+.fs-cc__queue-row[data-tone="danger"] .fs-cc__queue-badge {
+  border-color: var(--fs-badge-danger-border);
+  background: var(--fs-badge-danger-bg);
+  color: var(--fs-badge-danger-text);
+}
+
+.fs-cc__queue-row[data-tone="danger"] .fs-cc__queue-icon {
+  color: var(--fs-status-danger);
+}
+
+.fs-cc__queue-more {
+  margin: var(--fs-space-100) 0 0;
+  padding: 0 var(--fs-space-100);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  color: var(--fs-text-tertiary);
+}
+
+/* Empty states are plain blocks, never a chip or a badge. */
+.fs-cc__queue-clear {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--fs-space-050);
+  padding: var(--fs-space-200) var(--fs-space-100);
+}
+
+.fs-cc__queue-mark {
+  display: grid;
+  place-items: center;
+  width: var(--fs-avatar-size-xs);
+  height: var(--fs-avatar-size-xs);
+  border-radius: var(--fs-radius-full);
+  background: var(--fs-action-primary);
+  color: var(--fs-text-inverse);
+}
+
+.fs-cc__queue-mark svg {
+  width: var(--fs-icon-size-supporting);
+  height: var(--fs-icon-size-supporting);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.fs-cc__queue-clear-title {
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+  font-weight: var(--fs-type-weight-medium);
+  color: var(--fs-text-primary);
+}
+
+.fs-cc__queue-clear-note {
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  color: var(--fs-text-tertiary);
+}
+
+/* Pinned so the link sits on one line whatever the row count. */
+.fs-cc__queue-foot {
+  margin-top: auto;
+  padding-top: var(--fs-space-150);
+}
+
+.fs-cc__queue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  border-radius: var(--fs-radius-micro);
+  color: var(--fs-text-brand);
+  font-size: var(--fs-type-caption-size);
+  font-weight: var(--fs-type-weight-medium);
+  text-decoration: none;
+}
+
+.fs-cc__queue-link:hover {
+  text-decoration: underline;
+}
+
+.fs-cc__queue-link:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+/* Below the rail breakpoint the queue moves under the composer rather than
+   squeezing into an unreadable column. */
+@media (prefers-reduced-motion: reduce) {
+  .fs-cc__queue-row {
+    transition-duration: var(--fs-duration-reduced);
+  }
+}

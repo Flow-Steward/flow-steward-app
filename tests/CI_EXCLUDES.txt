@@ -1,0 +1,56 @@
+# tests/CI_EXCLUDES.txt
+#
+# Single source of truth for tests that CI skips via pytest --deselect.
+#
+# Policy:
+#   - CI runs the ENTIRE tests/ tree by default.
+#   - This file may contain only current, reproducible red node ids.
+#   - Blank lines and lines starting with "#" are ignored.
+#   - Revalidate against `pytest --collect-only` before adding or keeping entries.
+#
+# Baseline refreshed on 2026-04-12:
+#   - previous file: 121 entries
+#   - current live excludes after cleanup: 0
+#   - stale node ids removed: 110
+#   - live-but-green/skip entries removed: 11
+#
+# No active CI deselects remain.
+#
+# ── Non-file masking vectors (W7 audit, 2026-04-12) ─────────────────────────
+#
+# This file covers only pytest --deselect bypasses.  Other deselection
+# mechanisms are documented below so the full bypass surface is visible in
+# one place.
+#
+# 1) pytest.skip() in fixture bodies (tests/conftest.py, tests/ui/conftest.py,
+#    tests/e2e/conftest.py, tests/e2e/helpers.py)
+#    - All occurrences are infrastructure-availability guards: they skip when
+#      FS_DB_DSN is unset, when the Flow Steward server is unreachable, when
+#      optional database / langchain_core packages are not installed, or when the
+#      registry graph cannot be built.
+#    - These are NOT product regressions; they reflect missing environment
+#      prerequisites in unit/offline runs.
+#    - No test skips for product behaviour with "if not real failure → skip".
+#
+# 2) pytest filterwarnings (pyproject.toml [tool.pytest.ini_options])
+#    Four suppressors, all vendor/framework noise:
+#      a) DeprecationWarning:httpx — starlette TestClient uses deprecated
+#         data= kwarg in internal httpx encoding; not actionable from our code.
+#      b) PytestUnraisableExceptionWarning — starlette/httpx SpooledTemporaryFile
+#         GC ResourceWarning; vendor issue.
+#      c) "schema columns have no Python mention" — test_dead_field_detector
+#         informational budget notices.
+#      d) "test names appear in" — test_dead_test_detector informational notices.
+#    All four are annotated inline in pyproject.toml.
+#
+# 3) sonar.test.exclusions (sonar-project.py.properties)
+#    Ten test files are excluded from Sonar's Python semantic analyser
+#    (scanner capacity + suite-health hold).  They ARE still executed by pytest
+#    in CI.  The exclusions remain temporary and must be revalidated before
+#    release hardening or any change to the quality-gate scope.
+#
+# 4) No pytest_collection_modifyitems hooks exist in project code.
+#    (Only .venv/site-packages hooks are present — standard pytest internals.)
+#
+# 5) No addopts / --ignore / --deselect flags in pyproject.toml.
+#    pytest ini options contain only filterwarnings (see item 2 above).

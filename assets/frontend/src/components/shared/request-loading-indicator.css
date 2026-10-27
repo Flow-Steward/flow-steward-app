@@ -1,0 +1,41 @@
+.fs-request-loading {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  outline: none;
+  touch-action: none;
+}
+
+.fs-request-loading[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fs-request-loading::backdrop {
+  background: transparent;
+}
+
+.fs-request-loading--visible::backdrop {
+  background: var(--fs-overlay-scrim);
+}
+
+/* Leave inline overflow ownership to product dialogs opened during a request. */
+body:has(> .fs-request-loading[open]) {
+  overflow: hidden !important;
+}
+
+.fs-brand-loader {
+  display: block;
+  flex: none;
+  width: 70px;
+  height: 24px;
+}

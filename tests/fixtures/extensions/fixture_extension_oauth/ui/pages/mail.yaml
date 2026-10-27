@@ -1,0 +1,13 @@
+page_id: mail
+title: Mail
+description: Connect a fixture mail account.
+components:
+  - component_id: fixture_mail_oauth_connections
+    type: connection_form
+    title: Mail accounts
+    description: Add a fixture mail account for this project.
+    data:
+      oauth_provider_id: example
+      connection_type: example_mail
+      oauth_intent: connect
+      test_action: test_runtime_connection

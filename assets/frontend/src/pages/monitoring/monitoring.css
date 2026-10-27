@@ -1,0 +1,122 @@
+/*
+ * Feature-scoped. The status strip and the orphan header actions need a
+ * left-aligned wrapping row; `.fs-badge-row` is right-aligned and unlayered,
+ * so a Tailwind `justify-start` on it would be silently dead.
+ */
+.fs-monitoring-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075);
+  min-width: 0;
+}
+
+/* A reference value with its label: the label is secondary copy, the value
+   keeps the published chip. */
+.fs-monitoring-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-monitoring-health-table .fs-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.fs-monitoring-health-table .fs-table td:last-child {
+  position: static;
+  width: auto;
+}
+
+.fs-monitoring-health-table .fs-user-copy span {
+  overflow: visible;
+}
+
+/* Events filters: four controls a row, stepping down with the page width. */
+.fs-monitoring-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--fs-dashboard-grid-gap);
+  align-items: center;
+}
+
+@media (width <= 1100px) {
+  .fs-monitoring-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (width <= 720px) {
+  .fs-monitoring-filters { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The chip's label is a link to the workflow; it keeps the chip's ink. */
+.fs-applied-filter a { padding: 0 9px 0 11px; color: inherit; text-decoration: none; }
+.fs-applied-filter a:hover { text-decoration: underline; }
+
+/* Events list: one selectable row per event. Selection is an edge plus the
+   selected wash, the published row-selection idiom. */
+.fs-monitoring-event-list {
+  display: grid;
+  gap: var(--fs-space-100);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-monitoring-event {
+  display: grid;
+  gap: var(--fs-space-075);
+  padding: var(--fs-space-150) var(--fs-space-200);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+  background: var(--fs-bg-surface);
+}
+
+.fs-monitoring-event:hover { border-color: var(--fs-border-default); }
+
+.fs-monitoring-event[data-selected] {
+  border-color: var(--fs-border-selected);
+  background: var(--fs-action-primary-wash);
+}
+
+.fs-monitoring-event-main {
+  display: grid;
+  gap: var(--fs-space-050);
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-monitoring-event-main:focus-visible {
+  outline: 0;
+  border-radius: var(--fs-radius-compact);
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-monitoring-event-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-primary);
+}
+
+.fs-monitoring-event-head strong { min-width: 0; font-weight: var(--fs-type-weight-medium); overflow-wrap: anywhere; }
+
+.fs-monitoring-event-meta {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  overflow-wrap: anywhere;
+}
+
+.fs-monitoring-event .fs-link { justify-self: start; font-size: var(--fs-type-caption-size); }

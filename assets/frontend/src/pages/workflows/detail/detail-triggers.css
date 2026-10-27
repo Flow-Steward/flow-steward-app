@@ -1,0 +1,220 @@
+/* Workflow settings › Triggers: the two lists first, then one trigger at a time.
+   Tokens only; the disclosures are the published Settings section. */
+
+.workflow-triggers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-200);
+}
+
+.workflow-triggers-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-150);
+}
+
+.workflow-triggers-group + .workflow-triggers-group {
+  padding-top: var(--fs-space-200);
+  border-top: 1px solid var(--fs-border-subtle);
+}
+
+.workflow-triggers-micro {
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.workflow-triggers-help {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.5;
+}
+
+.workflow-triggers-help[data-tone="attention"] { color: var(--fs-status-attention-ink); }
+
+.workflow-triggers-block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+}
+
+.workflow-triggers-block-title {
+  color: var(--fs-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.workflow-triggers-caption {
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-triggers-empty {
+  margin: 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.workflow-triggers-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-075);
+}
+
+.workflow-triggers-rows:empty { display: none; }
+
+.workflow-triggers-row {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  width: 100%;
+  min-height: var(--fs-hit-target-compact);
+  padding: var(--fs-space-100) var(--fs-space-150);
+  border: 1px solid var(--fs-border-default);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fs-motion-background-hover), border-color var(--fs-motion-background-hover);
+}
+
+.workflow-triggers-row:hover {
+  border-color: var(--fs-border-selected);
+  background: var(--fs-bg-surface-muted);
+}
+
+.workflow-triggers-row:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.workflow-triggers-row:disabled { cursor: not-allowed; color: var(--fs-text-tertiary); }
+
+.workflow-triggers-row svg {
+  flex: none;
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  color: var(--fs-text-tertiary);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.workflow-triggers-row-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--fs-space-025);
+  min-width: 0;
+}
+
+.workflow-triggers-row-title {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-triggers-row-sub {
+  overflow-wrap: anywhere;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.workflow-triggers-row-sub code,
+.workflow-triggers-url code {
+  font-family: var(--ff-code);
+}
+
+/* One choice per card: a published radio inside a bordered, full-width label. */
+.workflow-triggers-choices {
+  display: grid;
+  gap: var(--fs-space-075);
+}
+
+.workflow-triggers-choice {
+  border: 1px solid var(--fs-border-default);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+  transition: background var(--fs-motion-background-hover), border-color var(--fs-motion-background-hover);
+}
+
+.workflow-triggers-choice:hover { border-color: var(--fs-border-selected); }
+
+.workflow-triggers-choice[data-checked="true"] {
+  border-color: var(--fs-border-selected);
+  background: var(--fs-action-primary-wash);
+}
+
+.workflow-triggers-choice[data-disabled="true"] { opacity: 0.6; }
+
+.workflow-triggers-choice > .fs-radio-label {
+  display: flex;
+  width: 100%;
+  padding: var(--fs-space-100) var(--fs-space-150);
+}
+
+.workflow-triggers-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-025);
+  color: var(--fs-text-primary);
+}
+
+.workflow-triggers-choice-help {
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.workflow-triggers-url {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.workflow-triggers-url code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.workflow-triggers-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+}
+
+.workflow-triggers-actions-space { flex: 1 1 auto; }
+
+.workflow-triggers-pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: var(--fs-space-100);
+  border-radius: var(--fs-radius-compact);
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-primary);
+  font-family: var(--ff-code);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.workflow-triggers-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+}
+
+.workflow-triggers-back { align-self: flex-start; }

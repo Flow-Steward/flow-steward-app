@@ -1,0 +1,472 @@
+services:
+  oauth-app-volumes-init:
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    user: "0:0"
+    command:
+      - sh
+      - -euc
+      - |
+        find /w/extensions -mindepth 1 -maxdepth 1 -exec rm -r -- {} +
+        cp -R /app/extensions/. /w/extensions/
+        python -m tests.fixtures.preprovision_extension_oauth_browser \
+          --source /app/tests/fixtures/extensions/fixture_extension_oauth \
+          --extensions-root /w/extensions \
+          --provider-base-url ${FS_OAUTH_PROVIDER_BASE_URL:-https://oauth-provider:4187}
+        chown -R 1000:1000 /w/extensions /w/runtime /w/logs
+        chmod 0755 /w/extensions /w/runtime /w/logs
+    volumes:
+      - oauth-browser-extensions:/w/extensions
+      - oauth-browser-runtime:/w/runtime
+      - oauth-browser-logs:/w/logs
+    restart: "no"
+
+  oauth-cert-init:
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    user: "0:0"
+    volumes:
+      - oauth-browser-certs:/certs
+    command:
+      - sh
+      - -euc
+      - |
+        rm -f /certs/*
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+          -subj '/CN=Flow Steward OAuth Acceptance CA' \
+          -keyout /certs/ca.key -out /certs/ca.crt >/dev/null 2>&1
+        openssl req -newkey rsa:2048 -nodes \
+          -subj '/CN=oauth-provider' \
+          -keyout /certs/server.key -out /certs/server.csr >/dev/null 2>&1
+        printf '%s\n' \
+          'subjectAltName=DNS:oauth-provider,DNS:traefik,DNS:oauth.127.0.0.1.nip.io,DNS:flow-steward.localhost,DNS:localhost,IP:127.0.0.1' \
+          'extendedKeyUsage=serverAuth' >/certs/server.ext
+        openssl x509 -req -days 1 -sha256 \
+          -in /certs/server.csr -CA /certs/ca.crt -CAkey /certs/ca.key \
+          -CAcreateserial -extfile /certs/server.ext -out /certs/server.crt \
+          >/dev/null 2>&1
+        cp /certs/server.crt /certs/cert.pem
+        cp /certs/server.key /certs/key.pem
+        cat >/certs/fs.dynamic.yaml <<'YAML'
+        http:
+          routers:
+            fs-mcp:
+              rule: "Path(`/mcp`) || PathPrefix(`/mcp/`)"
+              priority: 100
+              entryPoints: [websecure]
+              service: fs-mcp
+              tls: {}
+            fs:
+              rule: "PathPrefix(`/`)"
+              entryPoints: [websecure]
+              service: fs
+              middlewares: [fs-compress]
+              tls: {}
+          services:
+            fs-mcp:
+              loadBalancer:
+                passHostHeader: true
+                servers:
+                  - url: "http://fs-mcp:8100"
+            fs:
+              loadBalancer:
+                passHostHeader: true
+                servers:
+                  - url: "http://fs-app:8099"
+          middlewares:
+            fs-compress:
+              compress:
+                encodings: [br, gzip]
+                minResponseBodyBytes: 1024
+        tls:
+          stores:
+            default:
+              defaultCertificate:
+                certFile: /etc/traefik/certs/cert.pem
+                keyFile: /etc/traefik/certs/key.pem
+        YAML
+        chmod 0644 /certs/ca.crt /certs/server.crt /certs/cert.pem
+        chmod 0600 /certs/ca.key /certs/server.key /certs/key.pem
+    restart: "no"
+
+  oauth-provider:
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    user: "0:0"
+    working_dir: /app
+    command:
+      - python
+      - tests/fixtures/oauth_provider.py
+      - --host
+      - 0.0.0.0
+      - --port
+      - ${FS_OAUTH_PROVIDER_INTERNAL_PORT:-4187}
+      - --cert-file
+      - /certs/server.crt
+      - --key-file
+      - /certs/server.key
+    volumes:
+      - oauth-browser-certs:/certs:ro
+    depends_on:
+      oauth-cert-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          SSL_CERT_FILE=/certs/ca.crt python -c
+          "import urllib.request; urllib.request.urlopen('https://oauth-provider:${FS_OAUTH_PROVIDER_INTERNAL_PORT:-4187}/health', timeout=2)"
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: "no"
+
+  oauth-db-schema-init:
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    user: "0:0"
+    command:
+      - sh
+      - -euc
+      - |
+        find /schema -mindepth 1 -maxdepth 1 -exec rm -r -- {} +
+        cp -R /app/db/schema/. /schema/
+        chmod -R a+rX /schema
+    volumes:
+      - oauth-browser-db-schema:/schema
+    restart: "no"
+
+  oauth-db-upgrade:
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    working_dir: /app
+    command:
+      - python
+      - -m
+      - core.entrypoints.cli.click_app
+      - database
+      - upgrade
+      - --author
+      - oauth-browser-acceptance
+      - --maintenance-confirmed
+      - --confirm
+    environment:
+      FS_STACK_ENVIRONMENT: development
+      FS_DB_DSN: dbname=flow_steward user=flow_steward password=flow-steward-pass host=pg-fs port=5432
+      FS_LOAD_REPO_DOTENV: "0"
+    volumes:
+      - oauth-browser-extensions:/app/extensions:ro
+    depends_on:
+      oauth-app-volumes-init:
+        condition: service_completed_successfully
+      pg-fs:
+        condition: service_healthy
+    restart: "no"
+
+  frontend-build:
+    build: !reset null
+    image: ${FS_OAUTH_ACCEPTANCE_FRONTEND_IMAGE:?set FS_OAUTH_ACCEPTANCE_FRONTEND_IMAGE}
+    pull_policy: never
+    user: "0:0"
+    working_dir: /app/assets/frontend
+    command: ["npm", "run", "build"]
+    volumes:
+      - fs-frontend-node-modules:/app/assets/frontend/node_modules
+      - oauth-browser-frontend-dist:/app/assets/frontend/dist
+    restart: "no"
+
+  traefik:
+    # This lane has no host port publishing and uses a fixed internal listener because
+    # the seed URL and app port are fixed independently of the outer gate environment.
+    command: !override
+      - --providers.file.filename=/etc/traefik/dynamic/fs.dynamic.yaml
+      - --entrypoints.web.address=:8080
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:8099
+      - --entrypoints.websecure.http3=true
+      - --log.level=INFO
+    # docker-compose.prod.yaml gates traefik behind the bundled-ingress profile, and this
+    # overlay is the bundled-ingress case: it mints the certificates traefik serves and
+    # points the app at https://traefik:8099. Clearing the profile opts the service back
+    # in, without which the rendered project has fs-app depending on a service that was
+    # filtered out.
+    profiles: !reset []
+    ports: !reset []
+    volumes: !override
+      - oauth-browser-certs:/etc/traefik/dynamic:ro
+      - oauth-browser-certs:/etc/traefik/certs:ro
+    depends_on:
+      oauth-cert-init:
+        condition: service_completed_successfully
+
+  fs-app:
+    build: !reset null
+    image: ${FS_OAUTH_ACCEPTANCE_APP_IMAGE:?set FS_OAUTH_ACCEPTANCE_APP_IMAGE}
+    pull_policy: never
+    # This lane initializes writable named volumes as 1000:1000 below. Do not
+    # inherit a developer's host UID/GID from the base Compose file.
+    user: "1000:1000"
+    environment: !override
+      # AC17-R129 made an app that is never told its environment read the silence as
+      # production. This lane is the one place with no other source for it: !override
+      # drops the base environment, there is no env_file, and FS_LOAD_REPO_DOTENV is 0
+      # below. It extends the development base and ran as development until then, so
+      # it says so -- rather than being read as a production deployment and refused
+      # for want of a SECURITY_PII_SALT it was never meant to need.
+      FS_STACK_ENVIRONMENT: development
+      ARTIFACT_LOCAL_ROOT_DIR: /app/logs/artifacts
+      ARTIFACT_STORAGE_BACKEND: local_fs
+      CONTROL_LOOPS_ENABLED: "0"
+      ENCRYPTION_KEY: oauth-browser-disposable-encryption-key
+      FS_ALLOW_PRIVATE_REMOTE_URLS: "1"
+      FS_AUTH_BOOTSTRAP_ALLOW_TRUSTED_PROXY: "1"
+      FS_AUTH_BOOTSTRAP_ENABLED: "1"
+      FS_AUTH_BOOTSTRAP_LOCALHOST_ONLY: "0"
+      FS_AUTH_BOOTSTRAP_TOKEN: oauth-browser-bootstrap-token
+      FS_AUTH_BOOTSTRAP_TOKEN_EXPIRES_AT: "2099-01-01T00:00:00+00:00"
+      FS_AUTH_COOKIE_SECURE: "1"
+      FS_AUTH_TRUSTED_ORIGINS: https://traefik:8099
+      FS_DB_DSN: dbname=flow_steward user=flow_steward password=flow-steward-pass host=pg-fs port=5432
+      FS_EXTENSION_DEPS_FETCH: "0"
+      FS_EXTENSIONS_ROOT: /app/extensions
+      FS_GZIP_ENABLED: "0"
+      FS_LOAD_REPO_DOTENV: "0"
+      FS_LOCAL_AUTH_ENABLED: "1"
+      FS_LOG_FORMAT: text
+      FS_LOG_LEVEL: INFO
+      FS_PUBLIC_BASE_URL: https://traefik:8099
+      FS_SECRET_KEY: oauth-browser-disposable-secret-key
+      FS_SERVE_SSL: "0"
+      HOME: /tmp
+      LANGGRAPH_POSTGRES_URI: postgresql://flow_steward:flow-steward-pass@pg-fs:5432/flow_steward
+      MCP_URL: http://fs-mcp:8100/mcp
+      PORT: "8099"
+      PYTHONPYCACHEPREFIX: /app/logs/tool-cache/python/pycache
+      RABBITMQ_URL: amqp://flow_steward:flow-steward-pass@rabbitmq-fs:5672/
+      FS_RABBITMQ_TRANSPORT_MODE: compose-local
+      SSL_CERT_FILE: /certs/ca.crt
+      WORKERS: "1"
+    volumes: !override
+      - oauth-browser-extensions:/app/extensions:ro
+      - oauth-browser-frontend-dist:/app/assets/frontend/dist:ro
+      - oauth-browser-runtime:/run/flow-steward-runtime
+      - oauth-browser-logs:/app/logs
+      - oauth-browser-certs:/certs:ro
+    # Replaced, not extended. Merging leaves the base graph in place, and the
+    # base builds the frontend through `frontend-assets`, which bind-mounts the
+    # repository from the host. This lane builds its own frontend into a volume
+    # via `frontend-build`, so inheriting the other one both duplicates the work
+    # and drags a host bind into an isolated stack — the daemon then refuses it
+    # as "mounts denied", because the lane runs where /app is not a host path.
+    depends_on: !override
+      oauth-app-volumes-init:
+        condition: service_completed_successfully
+      frontend-build:
+        condition: service_completed_successfully
+      oauth-db-upgrade:
+        condition: service_completed_successfully
+      oauth-provider:
+        condition: service_healthy
+      oauth-runtime-permission-probe:
+        condition: service_completed_successfully
+      # Carried over from the base graph deliberately, because replacing it
+      # replaces all of it. `frontend-assets` is the one entry left out: this
+      # lane builds its own frontend into a volume above.
+      extension-dependencies:
+        condition: service_completed_successfully
+      traefik:
+        condition: service_started
+      pg-fs:
+        condition: service_healthy
+      # AC17-R134: rabbitmq-fs keeps the base file's healthcheck here (only its ports
+      # are reset), so this lane can wait for the broker like every other stack.
+      rabbitmq-fs:
+        condition: service_healthy
+      fs-mcp:
+        condition: service_started
+
+  pg-fs:
+    ports: !reset []
+    environment: !override
+      POSTGRES_DB: flow_steward
+      POSTGRES_USER: flow_steward
+      POSTGRES_PASSWORD: flow-steward-pass  # pragma: allowlist secret -- disposable OAuth acceptance DB
+    volumes: !override
+      - fs-postgres:/var/lib/postgresql/data
+      - oauth-browser-db-schema:/docker-entrypoint-initdb.d:ro
+    depends_on:
+      oauth-db-schema-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          psql -U flow_steward -d flow_steward -v ON_ERROR_STOP=1 -tAc
+          "SELECT 1 FROM pg_constraint AS constraint_state
+          WHERE constraint_state.conname = 'workflow_runtime_dependencies_workflow_id_fkey'
+          AND constraint_state.contype = 'f'
+          AND constraint_state.conrelid = 'public.workflow_runtime_dependencies'::regclass
+          AND constraint_state.confrelid = 'public.registry_workflows'::regclass"
+          | grep -qx 1
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq-fs:
+    ports: !reset []
+
+  fs-mcp:
+    build: !reset null
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    ports: !reset []
+    command: ["python", "-m", "http.server", "8100"]
+
+  extension-dependencies:
+    build: !reset null
+    image: ${FS_OAUTH_ACCEPTANCE_APP_IMAGE:?set FS_OAUTH_ACCEPTANCE_APP_IMAGE}
+    pull_policy: never
+    user: "1000:1000"
+    volumes: !override
+      - oauth-browser-extensions:/app/extensions
+    depends_on:
+      oauth-app-volumes-init:
+        condition: service_completed_successfully
+
+  oauth-runtime-permission-probe:
+    image: ${FS_OAUTH_ACCEPTANCE_APP_IMAGE:?set FS_OAUTH_ACCEPTANCE_APP_IMAGE}
+    pull_policy: never
+    user: "1000:1000"
+    command:
+      - python
+      - -c
+      - |
+        from contextlib import suppress
+        from pathlib import Path
+
+        manifests = sorted(Path("/app/extensions").glob("*/extension.yaml"))
+        assert manifests, "acceptance extensions are missing"
+        targets = [manifests[0]]
+        denied = []
+        for target in targets:
+            try:
+                target.chmod(0o644)
+            except OSError:
+                denied.append((str(target), "chmod"))
+            try:
+                target.write_text("attacker-controlled")
+            except OSError:
+                denied.append((str(target), "write"))
+            replacement = target.with_name(target.name + ".attacker")
+            try:
+                replacement.write_text("attacker-controlled")
+                replacement.replace(target)
+            except OSError:
+                denied.append((str(target), "replace"))
+            finally:
+                with suppress(OSError):
+                    replacement.unlink()
+        assert len(denied) == len(targets) * 3, denied
+    volumes:
+      - oauth-browser-extensions:/app/extensions:ro
+    depends_on:
+      extension-dependencies:
+        condition: service_completed_successfully
+    restart: "no"
+
+  oauth-browser-seed:
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    user: "0:0"
+    working_dir: /app
+    command:
+      - python
+      - tests/fixtures/seed_extension_oauth_browser.py
+      - --base-url
+      - https://traefik:8099
+      - --bootstrap-token
+      - oauth-browser-bootstrap-token
+      - --consumer-extensions-root
+      - /app/extensions
+      - --output
+      - /state/acceptance.json
+    volumes:
+      - oauth-browser-certs:/certs:ro
+      - oauth-browser-state:/state
+    environment:
+      SSL_CERT_FILE: /certs/ca.crt
+    depends_on:
+      fs-app:
+        condition: service_started
+    restart: "no"
+
+  oauth-browser:
+    image: ${FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE:?set FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE}
+    pull_policy: never
+    user: "0:0"
+    working_dir: /app/assets/frontend
+    environment:
+      HOME: /run/oauth-browser-home
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
+      PLAYWRIGHT_BASE_URL: https://traefik:8099
+      FS_OAUTH_EXPECTED_PUBLIC_BASE_URL: https://traefik:8099
+      FS_OAUTH_ACCEPTANCE_STATE: /state/acceptance.json
+      E2E_OPERATOR_USERNAME: oauth-operator@example.test
+      E2E_OPERATOR_PASSWORD: OAuthAcceptanceOperator_123!
+      E2E_VIEWER_USERNAME: oauth-viewer@example.test
+      E2E_VIEWER_PASSWORD: OAuthAcceptanceViewer_123!
+    command:
+      - sh
+      - -euc
+      - |
+        cp /certs/ca.crt /usr/local/share/ca-certificates/oauth-browser-ca.crt
+        update-ca-certificates >/dev/null
+        mkdir -p "$${HOME}/.local/share/pki/nssdb"
+        certutil -d "sql:$${HOME}/.local/share/pki/nssdb" -N --empty-password
+        certutil -d "sql:$${HOME}/.local/share/pki/nssdb" -A -t "C,," -n "Flow Steward OAuth Browser CA" -i /certs/ca.crt
+        PLAYWRIGHT_PACKAGE_VERSION="$$(node -p "require('@playwright/test/package.json').version")"
+        PYTHON_PLAYWRIGHT_VERSION="$$(python -c "from importlib.metadata import version; print(version('playwright'))")"
+        test "$${PLAYWRIGHT_PACKAGE_VERSION}" = "$${PYTHON_PLAYWRIGHT_VERSION}"
+        PLAYWRIGHT_CHROMIUM_EXECUTABLE="$$(node -e "console.log(require('playwright').chromium.executablePath())")"
+        test -x "$${PLAYWRIGHT_CHROMIUM_EXECUTABLE}"
+        export PLAYWRIGHT_CHROMIUM_EXECUTABLE
+        consumer_specs=tests/e2e/extension-consumers
+        rm -rf "$${consumer_specs}"
+        mkdir -p "$${consumer_specs}"
+        # Core ships no extensions: consumer specs exist only when an installed
+        # extension brings one, and the platform's own OAuth spec always runs.
+        find /app/extensions -path '*/tests/e2e/*oauth*.spec.ts' -type f -print | sort > /tmp/oauth-consumer-specs
+        consumer_count=0
+        while IFS= read -r spec; do
+          consumer_count=$$((consumer_count + 1))
+          cp "$${spec}" "$${consumer_specs}/consumer-$${consumer_count}.spec.ts"
+        done < /tmp/oauth-consumer-specs
+        if [ "$${consumer_count}" -gt 0 ]; then
+          npm run test:e2e -- extension-oauth.spec.ts extension-consumers
+        else
+          npm run test:e2e -- extension-oauth.spec.ts
+        fi
+    volumes:
+      - fs-frontend-node-modules:/app/assets/frontend/node_modules
+      - oauth-browser-certs:/certs:ro
+      - oauth-browser-state:/state:ro
+    depends_on:
+      oauth-browser-seed:
+        condition: service_completed_successfully
+    restart: "no"
+
+networks:
+  default:
+    internal: true
+
+volumes:
+  fs-frontend-node-modules:
+  oauth-browser-certs:
+  oauth-browser-db-schema:
+  oauth-browser-extensions:
+  oauth-browser-frontend-dist:
+  oauth-browser-logs:
+  oauth-browser-runtime:
+  oauth-browser-state:

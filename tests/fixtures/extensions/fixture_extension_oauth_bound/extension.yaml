@@ -1,0 +1,91 @@
+manifest_version: 2
+lifecycle: {data_schema_version: 1, data_migrations: []}
+extension_id: fixture.extension-oauth-bound
+kind: tool_provider
+version: 1.0.0
+display_name: Neutral Bound OAuth Fixture
+description: Synthetic neutral OAuth provider whose endpoints are built from a verified origin and whose callback is signed.
+vendor: {name: Flow Steward Test Fixtures}
+features: [tool]
+required_scopes: [extension:invoke]
+account_scope:
+  scope_type: project
+  description: OAuth grants and tokens are connection-local within each project.
+entrypoint: {mode: subprocess, command: [python3, main.py]}
+health: {command: [python3, health.py], timeout_seconds: 5}
+ui_manifest: ui/ui_manifest.yaml
+action_manifest: ui/actions/actions.yaml
+callbacks:
+  - callback_id: oauth_authorization
+    purpose: oauth_authorization
+    methods: [GET]
+    connection_scoped: false
+runtime:
+  contract_version: extension_host_v2
+  extension_contract_v2:
+    oauth_providers:
+      - provider_id: bound_example
+        display_name: Bound Example Identity
+        description: Neutral provider exercising per-tenant origins, comma scopes, no PKCE, and a signed callback.
+        setup_page_id: oauth_setup
+        help_page_id: oauth_help
+        error_help_anchors:
+          invalid_client: client-credentials
+          authorization_required: authorize-again
+        flow: {type: authorization_code, pkce: none}
+        scope_separator: comma
+        unique_subject_per_configuration: true
+        origin_binding:
+          binding_id: tenant_origin
+          input_id: tenant_domain
+          host_suffix: .identity.example.test
+          label: {charset: lowercase_alnum_hyphen, min_length: 1, max_length: 60}
+        credential_fields:
+          - field_id: client_id
+            value_type: text
+            required: true
+            secret: false
+            change_policy: reauthorization_required
+            label: Client ID
+            help_text: Enter the OAuth application client ID.
+            autocomplete: username
+            validation: {min_length: 1, max_length: 512}
+          - field_id: client_secret
+            value_type: secret
+            required: true
+            secret: true
+            change_policy: runtime_revalidate
+            label: Client secret
+            help_text: Enter the OAuth application client secret.
+            autocomplete: current-password
+            validation: {min_length: 1, max_length: 4096}
+        authorization_endpoint: {origin_binding: tenant_origin, path: /oauth/authorize}
+        token_endpoint: {origin_binding: tenant_origin, path: /oauth/token, client_auth_method: client_secret_post}
+        code_exchange:
+          include_grant_type: false
+          include_redirect_uri: false
+          static_parameters: {expiring: "1"}
+          implicit_token_type: bearer
+          required_response_fields:
+            - access_token
+            - scope
+            - expires_in
+            - refresh_token
+            - refresh_token_expires_in
+        callback_verification:
+          signature_parameter: signature
+          algorithm: hmac_sha256
+          digest: hex
+          message: sorted_query_excluding_signature
+          secret_source: client_secret  # pragma: allowlist secret
+          subject_parameter: tenant
+          subject_binding: tenant_origin
+        callback_id: oauth_authorization
+        authorization_intents:
+          - intent_id: connect
+            static_parameters: {}
+            user_inputs:
+              - {input_id: tenant_domain, origin_binding: tenant_origin, validation: {type: hostname_label, max_length: 80}}
+    connection_types:
+      - connection_type_id: bound_mail
+        auth: {type: oauth2, provider_id: bound_example, scopes: {required: [mail.read], optional: [mail.write]}}

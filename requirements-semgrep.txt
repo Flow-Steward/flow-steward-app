@@ -1,0 +1,4 @@
+# Semgrep has a dedicated dependency environment because its CLI pins versions
+# that intentionally differ from the application runtime dependency graph.
+setuptools==84.1.0
+semgrep==1.179.0

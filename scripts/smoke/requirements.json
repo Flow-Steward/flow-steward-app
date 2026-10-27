@@ -1,0 +1,90 @@
+{
+  "schema_version": "flow-steward-smoke-requirements-v1",
+  "group": "shared",
+  "sources": ["run_referenced_group.sh", "candidate_semantic_checks.py", "candidate_residue_check.py"],
+  "common": {
+    "required_env": ["FS_SMOKE_BASE", "FS_SMOKE_BEARER_TOKEN"],
+    "optional_env": ["FS_SMOKE_CLEANUP_TIMEOUT_SECONDS", "FS_SMOKE_EXTENSIONS_ROOT", "FS_SMOKE_MAILPIT_BASE"],
+    "services": ["fs-app"],
+    "scopes": [],
+    "mutable_resources": [],
+    "cleanup_obligations": []
+  },
+  "checks": {
+    "A05": {},
+    "A06": {
+      "required_env": ["FS_SMOKE_APP_CONTAINER", "FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_PASSWORD"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_EXTENSION_HEALTH_SCRIPT"]
+    },
+    "A07": {},
+    "A13": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_DATASET_INPUT_SCRIPT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER"]
+    },
+    "A14": {},
+    "A18": {},
+    "A19": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_TRACE_REACTION_SCRIPT"]
+    },
+    "A20": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_EXECUTION_ENVELOPE_SCRIPT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER"]
+    },
+    "A21": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_WORKFLOW_REUSE_SCRIPT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER"]
+    },
+    "A22": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER", "FS_SMOKE_SCHEDULE_LOCK_SCRIPT"]
+    },
+    "A23": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_HITL_SCRIPT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER"]
+    },
+    "A24": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MCP_CA_FILE", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_MCP_URL", "FS_SMOKE_PUBLIC_MCP_SCRIPT"]
+    },
+    "A25": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_CALLBACK_SCRIPT"]
+    },
+    "A26": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_GUARDRAIL_SCRIPT"]
+    },
+    "A27": {
+      "required_env": ["FS_SMOKE_APP_CONTAINER", "FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER", "FS_SMOKE_POPULATED_DELETE_SCRIPT"]
+    },
+    "A29": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER"]
+    },
+    "D09": {
+      "required_env": ["FS_SMOKE_APP_CONTAINER", "FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_COMPOSE_PROJECT", "FS_SMOKE_DB_HOST", "FS_SMOKE_DB_PASSWORD", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER", "FS_SMOKE_PG_PORT", "FS_SMOKE_RABBITMQ_CONTAINER", "FS_SMOKE_WORKER_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER"]
+    },
+    "E06": {},
+    "E12": {
+      "required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_CLI_CONTAINER", "FS_SMOKE_EMAIL", "FS_SMOKE_INTERNAL_BASE", "FS_SMOKE_ISOLATED", "FS_SMOKE_MODEL", "FS_SMOKE_MODEL_PROVIDER", "FS_SMOKE_PASSWORD", "FS_SMOKE_RABBITMQ_CONTAINER"],
+      "services": ["rabbitmq"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_CUTOVER_BASE", "FS_SMOKE_CUTOVER_POLL_SECONDS", "FS_SMOKE_CUTOVER_TIMEOUT_SECONDS"]
+    },
+    "E13": {}
+  }
+}

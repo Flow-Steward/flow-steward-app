@@ -1,0 +1,4 @@
+services:
+  compact-runtime:
+    ports:
+      - "${PORT:-8080}:${FS_RUNTIME_HTTP_PORT:-8080}"

@@ -1,0 +1,16 @@
+{
+  "schema_version": "flow-steward-smoke-requirements-v1",
+  "group": "E",
+  "sources": ["smoke_E.sh"],
+  "common": {},
+  "checks": {
+    "E01": {"required_env": ["FS_SMOKE_BEARER_TOKEN", "FS_SMOKE_CLI_CONTAINER"], "services": ["fs-cli"]},
+    "E06": {},
+    "E09": {"required_env": ["FS_SMOKE_UPGRADE_SCRIPT"]},
+    "E10": {"required_env": ["FS_SMOKE_CLI_CONTAINER", "FS_SMOKE_ROLLBACK_SCRIPT"], "services": ["fs-cli"]},
+    "E11": {"required_env": ["FS_SMOKE_APP_CONTAINER", "FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_COMPOSE_PROJECT", "FS_SMOKE_REBUILD_SCRIPT"], "services": ["fs-app"]},
+    "E12": {"required_env": ["FS_SMOKE_BASE", "FS_SMOKE_INTERNAL_BASE", "FS_SMOKE_RESTART_SCRIPT"], "optional_env": ["FS_SMOKE_CUTOVER_SCRIPT"]},
+    "E13": {},
+    "E14": {"required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_COMPOSE_PROJECT"]}
+  }
+}

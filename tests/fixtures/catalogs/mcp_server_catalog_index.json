@@ -1,0 +1,1393 @@
+{
+  "schema_version": "mcp_server_catalog/v1",
+  "catalog_revision": "2026-10-10.fdb609ff",
+  "published_at": "2026-10-10T12:49:13Z",
+  "category_labels": {
+    "ai": "AI",
+    "cms": "CMS",
+    "crm": "CRM",
+    "data": "Data",
+    "developer-tools": "Developer tools",
+    "documents": "Documents",
+    "ecommerce": "E-commerce",
+    "email": "Email",
+    "finance": "Finance",
+    "hr": "HR",
+    "inventory": "Inventory",
+    "it": "IT",
+    "marketing": "Marketing",
+    "media": "Media",
+    "messaging": "Messaging",
+    "operations": "Operations",
+    "other": "Other",
+    "productivity": "Productivity",
+    "sales": "Sales",
+    "support": "Support"
+  },
+  "servers": [
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "description": "Official Airtable MCP server — database and operations layer for agents.",
+        "name": "com.airtable/mcp",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.airtable.com/mcp"
+          }
+        ],
+        "version": "0.1.0",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "airtable",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "com.airtable/mcp",
+              "version": "0.1.0"
+            },
+            "title": "Airtable",
+            "summary": "Read and write Airtable records, inspect base schemas, and create tables and fields in the bases you authorize.",
+            "description": "Read and write Airtable records, inspect base schemas, and create tables and fields in the bases you authorize.",
+            "category": "data",
+            "website_url": "https://www.airtable.com",
+            "help_url": "https://airtable.com/developers/agents/mcp/getting-started",
+            "preview_note": "",
+            "official": {
+              "vendor": "Airtable",
+              "evidence_url": "https://airtable.com/developers/agents/mcp/getting-started"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/airtable/icon.png",
+              "sha256": "",
+              "bytes": 1264,
+              "mime_type": "image/png",
+              "size": "48x48"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Airtable",
+                "url": "https://mcp.airtable.com/mcp",
+                "allowed_hosts": [
+                  "mcp.airtable.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://airtable.com/developers/agents/mcp/getting-started"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/airtable",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2026-05-08T19:18:18.585221Z",
+          "status": "active",
+          "statusChangedAt": "2026-05-08T19:18:18.585221Z",
+          "updatedAt": "2026-05-08T19:18:18.585221Z"
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "description": "Connect to Atlassian Jira, Confluence, Loom, and more to search, create, and manage your work.",
+        "name": "com.atlassian/atlassian-mcp-server",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.atlassian.com/v2/mcp"
+          },
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+          }
+        ],
+        "repository": {
+          "source": "github",
+          "url": "https://github.com/atlassian/atlassian-mcp-server"
+        },
+        "title": "Atlassian Rovo MCP Server",
+        "version": "2.0.0",
+        "websiteUrl": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "atlassian",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "com.atlassian/atlassian-mcp-server",
+              "version": "2.0.0"
+            },
+            "title": "Atlassian (Jira and Confluence)",
+            "summary": "Search and update Jira issues and Confluence pages through the Atlassian Rovo MCP server, with the permissions of the signed-in user.",
+            "description": "Search and update Jira issues and Confluence pages through the Atlassian Rovo MCP server, with the permissions of the signed-in user.",
+            "category": "productivity",
+            "website_url": "https://www.atlassian.com",
+            "help_url": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/",
+            "preview_note": "",
+            "official": {
+              "vendor": "Atlassian",
+              "evidence_url": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/atlassian/icon.png",
+              "sha256": "",
+              "bytes": 5328,
+              "mime_type": "image/png",
+              "size": "128x128"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Atlassian (Jira and Confluence)",
+                "url": "https://mcp.atlassian.com/v2/mcp",
+                "allowed_hosts": [
+                  "mcp.atlassian.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/atlassian",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2026-09-09T17:53:32.01107Z",
+          "status": "active",
+          "statusChangedAt": "2026-09-09T17:53:32.01107Z",
+          "updatedAt": "2026-09-09T17:53:32.01107Z"
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+        "description": "Official GitLab MCP Server",
+        "name": "com.gitlab/mcp",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://gitlab.com/api/v4/mcp"
+          }
+        ],
+        "repository": {
+          "source": "gitlab",
+          "url": "https://gitlab.com/gitlab-org/gitlab"
+        },
+        "version": "0.0.1",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "gitlab",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "com.gitlab/mcp",
+              "version": "0.0.1"
+            },
+            "title": "GitLab",
+            "summary": "Work with GitLab.com projects: read and create issues and merge requests, search code, and inspect pipelines.",
+            "description": "Work with GitLab.com projects: read and create issues and merge requests, search code, and inspect pipelines.",
+            "category": "developer-tools",
+            "website_url": "https://about.gitlab.com",
+            "help_url": "https://docs.gitlab.com/user/model_context_protocol/mcp_server/",
+            "preview_note": "MCP access must be turned on for the top-level group on GitLab.com.",
+            "official": {
+              "vendor": "GitLab",
+              "evidence_url": "https://docs.gitlab.com/user/model_context_protocol/mcp_server/"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/gitlab/icon.png",
+              "sha256": "",
+              "bytes": 7476,
+              "mime_type": "image/png",
+              "size": "128x128"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "GitLab",
+                "url": "https://gitlab.com/api/v4/mcp",
+                "allowed_hosts": [
+                  "gitlab.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://docs.gitlab.com/user/model_context_protocol/mcp_server/"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/gitlab",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2025-10-02T04:59:37.530539Z",
+          "status": "active",
+          "statusChangedAt": "2025-10-02T04:59:37.530539Z",
+          "updatedAt": "2025-10-02T04:59:37.530539Z"
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-gmail",
+        "title": "Gmail",
+        "description": "Gmail MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://gmailmcp.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-gmail",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-gmail",
+              "version": "1.0.0"
+            },
+            "title": "Gmail",
+            "summary": "Read mail, search threads, compose drafts, and organize messages and labels in Gmail.",
+            "description": "Read mail, search threads, compose drafts, and organize messages and labels in Gmail. Organizing or deleting mail needs Gmail modify access.",
+            "category": "email",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-gmail/icon.png",
+              "sha256": "",
+              "bytes": 1595,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Gmail",
+                "url": "https://gmailmcp.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "gmailmcp.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/gmail.readonly",
+                    "https://www.googleapis.com/auth/gmail.compose",
+                    "https://www.googleapis.com/auth/gmail.modify"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-gmail",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-calendar",
+        "title": "Google Calendar",
+        "description": "Google Calendar MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://calendarmcp.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-calendar",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-calendar",
+              "version": "1.0.0"
+            },
+            "title": "Google Calendar",
+            "summary": "Read calendars and events and check free/busy time in Google Calendar.",
+            "description": "Read calendars and events and check free/busy time in Google Calendar. Read-only access.",
+            "category": "productivity",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-calendar/icon.png",
+              "sha256": "",
+              "bytes": 1369,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Google Calendar",
+                "url": "https://calendarmcp.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "calendarmcp.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+                    "https://www.googleapis.com/auth/calendar.events.freebusy",
+                    "https://www.googleapis.com/auth/calendar.events.readonly"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-calendar",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-chat",
+        "title": "Google Chat",
+        "description": "Google Chat MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://chatmcp.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-chat",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-chat",
+              "version": "1.0.0"
+            },
+            "title": "Google Chat",
+            "summary": "Read Google Chat spaces, members, and messages, and post new messages to spaces.",
+            "description": "Read Google Chat spaces, members, and messages, and post new messages to spaces.",
+            "category": "messaging",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-chat/icon.png",
+              "sha256": "",
+              "bytes": 801,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Google Chat",
+                "url": "https://chatmcp.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "chatmcp.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/chat.spaces.readonly",
+                    "https://www.googleapis.com/auth/chat.memberships.readonly",
+                    "https://www.googleapis.com/auth/chat.messages.readonly",
+                    "https://www.googleapis.com/auth/chat.messages.create",
+                    "https://www.googleapis.com/auth/chat.users.readstate"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-chat",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-docs",
+        "title": "Google Docs",
+        "description": "Google Docs MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://docsmcp.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-docs",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-docs",
+              "version": "1.0.0"
+            },
+            "title": "Google Docs",
+            "summary": "Read and edit Google Docs documents: find a document, read its content, and write changes back.",
+            "description": "Read and edit Google Docs documents: find a document, read its content, and write changes back.",
+            "category": "documents",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-docs/icon.png",
+              "sha256": "",
+              "bytes": 537,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Google Docs",
+                "url": "https://docsmcp.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "docsmcp.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/drive.readonly",
+                    "https://www.googleapis.com/auth/drive.file",
+                    "https://www.googleapis.com/auth/documents.readonly",
+                    "https://www.googleapis.com/auth/documents"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-docs",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-drive",
+        "title": "Google Drive",
+        "description": "Google Drive MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://drivemcp.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-drive",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-drive",
+              "version": "1.0.0"
+            },
+            "title": "Google Drive",
+            "summary": "Search, read, and create files in Google Drive, limited to files the connection opens or creates for writing.",
+            "description": "Search, read, and create files in Google Drive, limited to files the connection opens or creates for writing.",
+            "category": "documents",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-drive/icon.png",
+              "sha256": "",
+              "bytes": 2698,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Google Drive",
+                "url": "https://drivemcp.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "drivemcp.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/drive.readonly",
+                    "https://www.googleapis.com/auth/drive.file"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-drive",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-people",
+        "title": "Google People",
+        "description": "Google People MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://people.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-people",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-people",
+              "version": "1.0.0"
+            },
+            "title": "Google People",
+            "summary": "Look up people in your Google contacts and your organization directory.",
+            "description": "Look up people in your Google contacts and your organization directory.",
+            "category": "productivity",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-people/icon.png",
+              "sha256": "",
+              "bytes": 1634,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Google People",
+                "url": "https://people.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "people.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/directory.readonly",
+                    "https://www.googleapis.com/auth/userinfo.profile",
+                    "https://www.googleapis.com/auth/contacts.readonly"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-people",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-sheets",
+        "title": "Google Sheets",
+        "description": "Google Sheets MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://sheetsmcp.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-sheets",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-sheets",
+              "version": "1.0.0"
+            },
+            "title": "Google Sheets",
+            "summary": "Read and update Google Sheets spreadsheets: look up ranges, append rows, and write values back.",
+            "description": "Read and update Google Sheets spreadsheets: look up ranges, append rows, and write values back.",
+            "category": "data",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-sheets/icon.png",
+              "sha256": "",
+              "bytes": 596,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Google Sheets",
+                "url": "https://sheetsmcp.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "sheetsmcp.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/drive.readonly",
+                    "https://www.googleapis.com/auth/drive.file",
+                    "https://www.googleapis.com/auth/spreadsheets.readonly",
+                    "https://www.googleapis.com/auth/spreadsheets"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-sheets",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.flow-steward/google-slides",
+        "title": "Google Slides",
+        "description": "Google Slides MCP server from Google Workspace (Developer Preview).",
+        "version": "1.0.0",
+        "websiteUrl": "https://workspace.google.com",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://slidesmcp.googleapis.com/mcp/v1"
+          }
+        ],
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "google-slides",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "catalog": "io.github.flow-steward/google-slides",
+              "version": "1.0.0"
+            },
+            "title": "Google Slides",
+            "summary": "Read and edit Google Slides presentations: list slides, read their content, and update them.",
+            "description": "Read and edit Google Slides presentations: list slides, read their content, and update them.",
+            "category": "documents",
+            "website_url": "https://workspace.google.com",
+            "help_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+            "preview_note": "Developer Preview",
+            "official": {
+              "vendor": "Google",
+              "evidence_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/google-slides/icon.png",
+              "sha256": "",
+              "bytes": 524,
+              "mime_type": "image/png",
+              "size": "96x96"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Google Slides",
+                "url": "https://slidesmcp.googleapis.com/mcp/v1",
+                "allowed_hosts": [
+                  "slidesmcp.googleapis.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "user_supplied",
+                  "requested_scopes": [
+                    "https://www.googleapis.com/auth/drive.readonly",
+                    "https://www.googleapis.com/auth/drive.file",
+                    "https://www.googleapis.com/auth/presentations.readonly",
+                    "https://www.googleapis.com/auth/presentations"
+                  ],
+                  "authorization_parameters": {
+                    "access_type": "offline",
+                    "prompt": "consent",
+                    "include_granted_scopes": "true"
+                  },
+                  "refresh_token_required": true,
+                  "setup_url": "https://developers.google.com/workspace/guides/configure-mcp-servers"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/google-slides",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "description": "MCP server for Linear project management and issue tracking",
+        "name": "app.linear/linear",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.linear.app/mcp"
+          }
+        ],
+        "title": "Linear",
+        "version": "1.0.1",
+        "websiteUrl": "https://linear.app",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "linear",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "app.linear/linear",
+              "version": "1.0.1"
+            },
+            "title": "Linear",
+            "summary": "Find, create, and update Linear issues, projects, and comments, and read team and cycle information.",
+            "description": "Find, create, and update Linear issues, projects, and comments, and read team and cycle information.",
+            "category": "productivity",
+            "website_url": "https://linear.app",
+            "help_url": "https://linear.app/docs/mcp",
+            "preview_note": "",
+            "official": {
+              "vendor": "Linear",
+              "evidence_url": "https://linear.app/docs/mcp"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/linear/icon.png",
+              "sha256": "",
+              "bytes": 19748,
+              "mime_type": "image/png",
+              "size": "128x128"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Linear",
+                "url": "https://mcp.linear.app/mcp",
+                "allowed_hosts": [
+                  "mcp.linear.app"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://linear.app/docs/mcp"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/linear",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2026-08-04T09:59:17.029443Z",
+          "status": "active",
+          "statusChangedAt": "2026-08-04T09:59:17.029443Z",
+          "updatedAt": "2026-08-04T09:59:17.029443Z"
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+        "description": "MCP server for monday.com integration.",
+        "name": "com.monday/monday.com",
+        "remotes": [
+          {
+            "headers": [
+              {
+                "description": "monday.com API token (format: 'Bearer your_token_here' or just 'your_token_here')",
+                "isSecret": true,
+                "name": "Authorization"
+              }
+            ],
+            "type": "streamable-http",
+            "url": "https://mcp.monday.com/mcp"
+          },
+          {
+            "headers": [
+              {
+                "description": "monday.com API token (format: 'Bearer your_token_here' or just 'your_token_here')",
+                "isSecret": true,
+                "name": "Authorization"
+              }
+            ],
+            "type": "sse",
+            "url": "https://mcp.monday.com/sse"
+          }
+        ],
+        "repository": {
+          "source": "github",
+          "url": "https://github.com/mondaycom/mcp"
+        },
+        "version": "0.0.1",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "monday",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "com.monday/monday.com",
+              "version": "0.0.1"
+            },
+            "title": "monday.com",
+            "summary": "Read and update monday.com boards, items, and updates, and create new items in the workspaces you authorize.",
+            "description": "Read and update monday.com boards, items, and updates, and create new items in the workspaces you authorize.",
+            "category": "productivity",
+            "website_url": "https://monday.com",
+            "help_url": "https://developer.monday.com/api-reference/docs/integrate-with-monday-mcp",
+            "preview_note": "An account administrator may need to approve the connection. Tool calls count toward the daily API limit.",
+            "official": {
+              "vendor": "monday.com",
+              "evidence_url": "https://developer.monday.com/api-reference/docs/integrate-with-monday-mcp"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/monday/icon.png",
+              "sha256": "",
+              "bytes": 4814,
+              "mime_type": "image/png",
+              "size": "128x128"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Sign in with monday.com",
+                "url": "https://mcp.monday.com/mcp",
+                "allowed_hosts": [
+                  "mcp.monday.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://developer.monday.com/api-reference/docs/integrate-with-monday-mcp"
+                }
+              },
+              {
+                "remote_id": "api-token",
+                "label": "monday.com API token",
+                "url": "https://mcp.monday.com/mcp",
+                "allowed_hosts": [
+                  "mcp.monday.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "headers",
+                  "setup_url": "https://developer.monday.com/api-reference/docs/integrate-with-monday-mcp"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/monday",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2025-10-23T14:57:35.277178Z",
+          "status": "active",
+          "statusChangedAt": "2025-10-23T14:57:35.277178Z",
+          "updatedAt": "2025-10-23T14:57:35.277178Z"
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+        "description": "Official Notion MCP server",
+        "name": "com.notion/mcp",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.notion.com/mcp"
+          },
+          {
+            "type": "sse",
+            "url": "https://mcp.notion.com/sse"
+          }
+        ],
+        "repository": {},
+        "version": "1.0.1",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "notion",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "com.notion/mcp",
+              "version": "1.0.1"
+            },
+            "title": "Notion",
+            "summary": "Search, read, and update Notion pages and databases, and create new pages in the workspaces you authorize.",
+            "description": "Search, read, and update Notion pages and databases, and create new pages in the workspaces you authorize.",
+            "category": "productivity",
+            "website_url": "https://www.notion.com",
+            "help_url": "https://developers.notion.com/docs/get-started-with-mcp",
+            "preview_note": "The user signs in to Notion and picks the pages the connection may use.",
+            "official": {
+              "vendor": "Notion",
+              "evidence_url": "https://developers.notion.com/docs/get-started-with-mcp"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/notion/icon.png",
+              "sha256": "",
+              "bytes": 5483,
+              "mime_type": "image/png",
+              "size": "128x128"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Notion",
+                "url": "https://mcp.notion.com/mcp",
+                "allowed_hosts": [
+                  "mcp.notion.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://developers.notion.com/docs/get-started-with-mcp"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/notion",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2025-09-11T22:25:50.737872Z",
+          "status": "active",
+          "statusChangedAt": "2025-09-11T22:25:50.737872Z",
+          "updatedAt": "2025-09-11T22:25:50.737872Z"
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+        "description": "MCP server integrating with Stripe - tools for customers, products, payments, and more.",
+        "name": "com.stripe/mcp",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.stripe.com"
+          }
+        ],
+        "repository": {
+          "source": "github",
+          "url": "https://github.com/stripe/agent-toolkit"
+        },
+        "version": "0.2.4",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "stripe",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "com.stripe/mcp",
+              "version": "0.2.4"
+            },
+            "title": "Stripe",
+            "summary": "Work with your Stripe account: look up customers, payments, and invoices, create products and payment links, and search Stripe documentation.",
+            "description": "Work with your Stripe account: look up customers, payments, and invoices, create products and payment links, and search Stripe documentation.",
+            "category": "finance",
+            "website_url": "https://stripe.com",
+            "help_url": "https://docs.stripe.com/mcp",
+            "preview_note": "Some write actions, such as refunds, ask a person to approve them through a link.",
+            "official": {
+              "vendor": "Stripe",
+              "evidence_url": "https://docs.stripe.com/mcp"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/stripe/icon.png",
+              "sha256": "",
+              "bytes": 3130,
+              "mime_type": "image/png",
+              "size": "128x128"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Stripe",
+                "url": "https://mcp.stripe.com",
+                "allowed_hosts": [
+                  "mcp.stripe.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://docs.stripe.com/mcp"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/stripe",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2025-10-28T22:06:18.495159Z",
+          "status": "active",
+          "statusChangedAt": "2025-10-28T22:06:18.495159Z",
+          "updatedAt": "2025-10-28T22:06:18.495159Z"
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "description": "MCP server for interacting with the Supabase platform",
+        "icons": [
+          {
+            "mimeType": "image/png",
+            "sizes": [
+              "16x16"
+            ],
+            "src": "https://supabase.com/favicon/favicon-16x16.png"
+          },
+          {
+            "mimeType": "image/png",
+            "sizes": [
+              "32x32"
+            ],
+            "src": "https://supabase.com/favicon/favicon-32x32.png"
+          },
+          {
+            "mimeType": "image/png",
+            "sizes": [
+              "48x48"
+            ],
+            "src": "https://supabase.com/favicon/favicon-48x48.png"
+          },
+          {
+            "mimeType": "image/png",
+            "sizes": [
+              "96x96"
+            ],
+            "src": "https://supabase.com/favicon/favicon-96x96.png"
+          },
+          {
+            "mimeType": "image/png",
+            "sizes": [
+              "128x128"
+            ],
+            "src": "https://supabase.com/favicon/favicon-128.png"
+          },
+          {
+            "mimeType": "image/png",
+            "sizes": [
+              "180x180"
+            ],
+            "src": "https://supabase.com/favicon/favicon-180x180.png"
+          },
+          {
+            "mimeType": "image/png",
+            "sizes": [
+              "196x196"
+            ],
+            "src": "https://supabase.com/favicon/favicon-196x196.png"
+          }
+        ],
+        "name": "com.supabase/mcp",
+        "packages": [
+          {
+            "environmentVariables": [
+              {
+                "description": "Personal access token for Supabase API",
+                "format": "string",
+                "isRequired": true,
+                "isSecret": true,
+                "name": "SUPABASE_ACCESS_TOKEN"
+              }
+            ],
+            "identifier": "@supabase/mcp-server-supabase",
+            "registryBaseUrl": "https://registry.npmjs.org",
+            "registryType": "npm",
+            "runtimeArguments": [
+              {
+                "description": "Supabase project reference ID",
+                "format": "string",
+                "name": "--project-ref",
+                "type": "named"
+              },
+              {
+                "description": "Enable read-only mode",
+                "format": "boolean",
+                "name": "--read-only",
+                "type": "named"
+              },
+              {
+                "description": "Comma-separated list of features to enable",
+                "format": "string",
+                "name": "--features",
+                "type": "named"
+              },
+              {
+                "description": "Custom API URL",
+                "format": "string",
+                "name": "--api-url",
+                "type": "named"
+              }
+            ],
+            "runtimeHint": "npx",
+            "transport": {
+              "type": "stdio"
+            },
+            "version": "0.13.0"
+          }
+        ],
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://mcp.supabase.com/mcp"
+          }
+        ],
+        "repository": {
+          "source": "github",
+          "subfolder": "packages/mcp-server-supabase",
+          "url": "https://github.com/supabase/mcp"
+        },
+        "title": "Supabase",
+        "version": "0.13.0",
+        "websiteUrl": "https://supabase.com/mcp",
+        "_meta": {
+          "io.github.flow-steward/catalog": {
+            "id": "supabase",
+            "revision": 1,
+            "status": "active",
+            "source": {
+              "registry": "com.supabase/mcp",
+              "version": "0.13.0"
+            },
+            "title": "Supabase",
+            "summary": "Manage Supabase projects: query and change database tables, run migrations, read logs, and look up project settings.",
+            "description": "Manage Supabase projects: query and change database tables, run migrations, read logs, and look up project settings.",
+            "category": "developer-tools",
+            "website_url": "https://supabase.com",
+            "help_url": "https://supabase.com/docs/guides/getting-started/mcp",
+            "preview_note": "",
+            "official": {
+              "vendor": "Supabase",
+              "evidence_url": "https://supabase.com/docs/guides/getting-started/mcp"
+            },
+            "icon": {
+              "url": "https://raw.githubusercontent.com/Flow-Steward/mcps/a598ec0e495e7ed8e033f8857ef98cad022099f5/servers/supabase/icon.png",
+              "sha256": "",
+              "bytes": 4138,
+              "mime_type": "image/png",
+              "size": "128x128"
+            },
+            "remotes": [
+              {
+                "remote_id": "default",
+                "label": "Supabase",
+                "url": "https://mcp.supabase.com/mcp",
+                "allowed_hosts": [
+                  "mcp.supabase.com"
+                ],
+                "user_defined_host": false,
+                "auth": {
+                  "mode": "oauth2",
+                  "client_registration": "dcr",
+                  "requested_scopes": [],
+                  "authorization_parameters": {},
+                  "refresh_token_required": false,
+                  "setup_url": "https://supabase.com/docs/guides/getting-started/mcp"
+                }
+              }
+            ],
+            "entry_url": "https://github.com/Flow-Steward/mcps/tree/main/servers/supabase",
+            "added_at": "2026-10-10T12:49:13Z",
+            "updated_at": "2026-10-10T12:49:13Z"
+          }
+        }
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "isLatest": true,
+          "publishedAt": "2026-09-17T13:43:48.019874Z",
+          "status": "active",
+          "statusChangedAt": "2026-09-17T13:43:48.019874Z",
+          "updatedAt": "2026-09-17T13:43:48.019874Z"
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "count": 16
+  }
+}

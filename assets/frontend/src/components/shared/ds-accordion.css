@@ -1,0 +1,88 @@
+/* Bare published list: its consuming section owns the surrounding surface. */
+.fs-accordion-list { display: grid; gap: 6px; padding: 12px; }
+
+.fs-accordion-item {
+  min-width: 0;
+  border: 1px solid var(--fs-accordion-closed-border);
+  border-radius: var(--fs-accordion-item-radius);
+  background: var(--fs-accordion-closed-bg);
+}
+
+.fs-accordion-item[data-open="true"] {
+  border-color: var(--fs-accordion-open-border);
+  border-top: 3px solid var(--fs-accordion-open-accent);
+  background: var(--fs-accordion-open-bg);
+}
+.fs-accordion-header { position: relative; }
+
+.fs-accordion-trigger {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--fs-accordion-trigger-height);
+  border: 0;
+  border-radius: var(--fs-accordion-item-radius);
+  padding: 0 12px;
+  background: transparent;
+  color: var(--fs-accordion-closed-text);
+  font-family: var(--ff-body);
+  font-size: 13px;
+  font-weight: var(--fs-type-weight-medium);
+  text-align: left;
+  cursor: pointer;
+}
+.fs-accordion-trigger:hover { background: var(--fs-accordion-closed-hover-bg); }
+.fs-accordion-item[data-open="true"] .fs-accordion-trigger { color: var(--fs-accordion-open-text); }
+.fs-accordion-item[data-open="true"] .fs-accordion-trigger:hover { background: transparent; }
+.fs-accordion-trigger:focus-visible { outline: 0; box-shadow: var(--fs-accordion-focus-ring); }
+
+.fs-accordion-trigger svg {
+  width: 15px;
+  height: 15px;
+  color: var(--fs-accordion-icon-text);
+  stroke-width: var(--fs-icon-stroke);
+  transition: transform var(--fs-motion-layout);
+}
+.fs-accordion-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+/* The trigger reserves 10px after the text, the 42px Switch slot, then 12px. */
+.fs-accordion-header[data-has-accessory="true"] .fs-accordion-trigger {
+  grid-template-columns: minmax(0, 1fr) 10px var(--fs-switch-track-width) 12px 15px;
+  column-gap: 0;
+}
+.fs-accordion-header[data-has-accessory="true"] .fs-accordion-trigger svg { grid-column: 5; }
+
+.fs-accordion-accessory {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: calc(12px + 15px + 12px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--fs-switch-track-width);
+  transform: translateY(-50%);
+}
+.fs-accordion-header:has(.fs-switch-input:not(:checked)) .fs-accordion-trigger { color: var(--fs-text-tertiary); }
+.fs-accordion-header:has(.fs-switch-input:not(:checked)) .fs-accordion-trigger:hover { color: var(--fs-text-secondary); }
+.fs-accordion-panel { padding: 0 12px 12px; color: var(--fs-accordion-panel-text); font-family: var(--ff-body); font-size: 12px; line-height: 1.55; }
+.fs-accordion-panel p { margin: 0; }
+
+@media (pointer: coarse) {
+  .fs-accordion-trigger::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: max(100%, var(--fs-hit-target));
+    transform: translate(-50%, -50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-accordion-trigger svg { transition: none; }
+}

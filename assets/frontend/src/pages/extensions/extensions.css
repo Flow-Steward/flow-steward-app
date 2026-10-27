@@ -1,0 +1,264 @@
+/*
+ * Extensions hub, feature-scoped and tokens only. Each rule exists because canon
+ * publishes no class for it; the name cell follows canon's two-line user cell
+ * (03_components/data-display/data-table-previews.css, .management-user-copy).
+ */
+
+/* Name, then description, then id. The cell has a measure so a long
+   description wraps inside it instead of widening the whole table, and a floor
+   so a narrow screen scrolls the table rather than squeezing the name away. */
+.fs-extensions-name-cell {
+  display: grid;
+  gap: var(--fs-space-025);
+  max-width: calc(var(--fs-space-400) * 11);
+  line-height: 1.25;
+  white-space: normal;
+}
+
+/* The floor, stated where the logo lockup's `> :last-child { min-width: 0 }`
+   cannot beat it. Written on the cell alone it lost to that rule, and at about
+   1024px the column shrank to a few pixels: the name read "H…" and the
+   description wrapped word by word. With the floor the table scrolls under its
+   frozen Extension column instead, as the Marketplace list does. */
+.fs-table .fs-catalog-icon-lockup > .fs-extensions-name-cell {
+  min-width: calc(var(--fs-space-400) * 6);
+}
+
+.fs-extensions-name-line {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  min-width: 0;
+}
+
+.fs-extensions-name-line a {
+  overflow: hidden;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-field-label-size);
+  font-weight: var(--fs-type-weight-medium);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-extensions-name-line a:hover { color: var(--fs-text-brand); }
+
+.fs-extensions-name-cell small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.fs-extensions-id {
+  overflow: hidden;
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-code);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-extensions-name-cell small.fs-extensions-id { display: block; }
+
+.fs-extensions-version { font-family: var(--ff-code); }
+
+/* The state pill, and the latest status line under it. */
+.fs-extensions-status-cell {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-050);
+  white-space: normal;
+}
+
+.fs-extensions-status-cell small {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.3;
+}
+
+.fs-extensions-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--fs-space-075);
+}
+
+.fs-extensions-uninstall:not(:disabled) { color: var(--fs-icon-button-danger-text); }
+.fs-extensions-uninstall:not(:disabled):hover { background: var(--fs-icon-button-danger-bg-hover); }
+
+.fs-extensions-count {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The table card is also the drop target for a `.zip` package. */
+.fs-table-card.is-drop-target {
+  border-color: var(--fs-border-selected);
+  background: var(--fs-action-primary-wash);
+}
+
+/* ---------- Detail panel ---------- */
+
+.fs-extension-detail-body {
+  display: grid;
+  gap: var(--fs-space-200);
+}
+
+/* Identity facts and outbound links on one wrapping row. */
+.fs-extension-detail-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+}
+
+.fs-extension-detail-facts .fs-link { font-size: var(--fs-type-field-label-size); }
+
+.fs-extension-detail-actions {
+  display: grid;
+  gap: var(--fs-space-100);
+}
+
+.fs-extension-detail-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-100);
+}
+
+.fs-extension-detail-note {
+  margin: 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+/* Project scope is one field, so it stays at a field's measure. */
+.fs-extension-detail-scope { max-width: var(--fs-form-block-measure); }
+
+/* The tab row sits directly on its panel (canon tabs.md): the wrapper adds no
+   gap, and the panel is .fs-tabs-panel with the 3px strip the tab meets. */
+.fs-extension-detail-pages { min-width: 0; }
+
+.fs-extension-detail-page {
+  display: grid;
+  gap: var(--fs-space-150);
+}
+
+.fs-extension-detail-page-description {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-field-label-size);
+}
+
+/* A manifest page locked behind provider setup reads as unavailable. */
+.fs-extension-detail-pages .fs-tab:disabled {
+  color: var(--fs-text-tertiary);
+  cursor: not-allowed;
+}
+
+.fs-extension-detail-manifest {
+  max-height: calc(var(--fs-space-400) * 7);
+  overflow: auto;
+  margin: 0;
+  color: var(--fs-text-primary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Action result ---------- */
+
+.fs-extension-result {
+  display: grid;
+  gap: var(--fs-space-100);
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+}
+
+.fs-extension-result[data-outcome="failed"] { border-color: var(--fs-status-danger-border); }
+
+.fs-extension-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+  font-size: var(--fs-type-field-label-size);
+}
+
+.fs-extension-result-head strong { font-weight: var(--fs-type-weight-medium); }
+
+.fs-extension-result-error {
+  margin: 0;
+  color: var(--fs-status-danger);
+  font-size: var(--fs-type-field-label-size);
+}
+
+/* ---------- Markdown ---------- */
+
+.fs-markdown-paragraph,
+.fs-markdown-item {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-body-size);
+  line-height: var(--fs-type-body-line-height);
+}
+
+.fs-markdown-heading {
+  margin: var(--fs-space-200) 0 0;
+  color: var(--fs-text-primary);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-markdown-heading:first-child { margin-top: 0; }
+
+/* The scale steps down one level: a heading inside a panel must not outrank
+   the page title above it. */
+.fs-markdown-heading.h1 { font-size: var(--fs-type-h3-size); }
+.fs-markdown-heading.h2 { font-size: var(--fs-type-body-size); }
+.fs-markdown-heading.h3 { font-size: var(--fs-type-field-label-size); }
+
+.fs-markdown-heading.h4,
+.fs-markdown-heading.h5,
+.fs-markdown-heading.h6 { font-size: var(--fs-type-caption-size); }
+
+.fs-markdown-list {
+  display: grid;
+  gap: var(--fs-space-050);
+  margin: 0;
+  padding-left: var(--fs-space-250);
+}
+
+ol.fs-markdown-list { list-style-type: decimal; }
+ul.fs-markdown-list { list-style-type: disc; }
+
+.fs-markdown-strong {
+  color: var(--fs-text-primary);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-markdown-code {
+  padding: 0 var(--fs-space-050);
+  border-radius: var(--fs-radius-compact);
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-primary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+}
+
+.fs-markdown-link { text-decoration: underline; }
+
+.fs-markdown-pre {
+  overflow-x: auto;
+  margin: 0;
+  padding: var(--fs-space-150);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-primary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+}

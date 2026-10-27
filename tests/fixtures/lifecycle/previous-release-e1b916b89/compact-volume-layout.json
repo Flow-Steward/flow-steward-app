@@ -1,0 +1,77 @@
+{
+  "source": "core/infrastructure/runtime/compact/volume.py at e1b916b89, the release before item 5",
+  "directories": [
+    {
+      "path": "extensions",
+      "mode": "0o750"
+    },
+    {
+      "path": "artifacts",
+      "mode": "0o2770"
+    },
+    {
+      "path": "logs",
+      "mode": "0o755"
+    },
+    {
+      "path": "logs/app",
+      "mode": "0o700"
+    },
+    {
+      "path": "logs/worker",
+      "mode": "0o700"
+    },
+    {
+      "path": "logs/control",
+      "mode": "0o700"
+    },
+    {
+      "path": "logs/installer",
+      "mode": "0o700"
+    },
+    {
+      "path": "logs/mcp",
+      "mode": "0o700"
+    },
+    {
+      "path": "logs/router",
+      "mode": "0o700"
+    },
+    {
+      "path": "projects",
+      "mode": "0o2770"
+    },
+    {
+      "path": "state",
+      "mode": "0o750"
+    },
+    {
+      "path": "state/.flow-steward",
+      "mode": "0o750"
+    },
+    {
+      "path": "state/.flow-steward/runtime",
+      "mode": "0o2750"
+    },
+    {
+      "path": "backups",
+      "mode": "0o700"
+    }
+  ],
+  "extension_tree": {
+    "bundled": {
+      "directory": "0o2750",
+      "file": "0o640",
+      "executable": "0o755"
+    },
+    "installed_release": {
+      "directory": "0o755",
+      "file": "0o644",
+      "executable": "0o755"
+    },
+    "private": {
+      "record": "0o600",
+      "staging_directory": "0o700"
+    }
+  }
+}

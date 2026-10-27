@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+# Inside the Compact container, call the packaged management CLI directly.
+# The repository-root launcher is for hosts and would try to start Docker.
+exec python -m core.entrypoints.cli.compact_container_cli "$@"

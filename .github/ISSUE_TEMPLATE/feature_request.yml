@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an improvement or a new capability.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What would you like Flow Steward to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: For custom logic in a workflow, an extension tool is the supported way; say if that does not fit.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: System Diagnostics report (optional)
+      description: Attach it if the request depends on your setup (Monitoring → Download diagnostics, or `./flow-steward reports diagnostics`).

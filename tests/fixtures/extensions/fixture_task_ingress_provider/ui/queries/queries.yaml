@@ -1,0 +1,17 @@
+queries:
+  - query_id: provider_health
+    title: Provider health
+    description: Return synthetic provider health.
+    required_scopes:
+      - read:projects
+    result_fields:
+      - result.status
+      - result.configured
+    error_codes:
+      - not_configured
+      - authentication_failed
+      - provider_unavailable
+      - timeout
+      - internal_error
+    handler:
+      mode: extension

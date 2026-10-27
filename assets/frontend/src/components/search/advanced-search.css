@@ -1,0 +1,744 @@
+/*
+ * Advanced Search - transferred from the design system pattern
+ * nav/Advanced Search (03_components/navigation/advanced-search-preview.html).
+ *
+ * Structure follows the canonical preview so the two stay diffable; only the class names
+ * are namespaced for the product. Every value resolves through --fs-advanced-search-*.
+ */
+
+.fs-advanced-search {
+  width: min(var(--fs-advanced-search-width, 720px), calc(100vw - 24px));
+  max-width: none;
+  max-height: var(--fs-advanced-search-max-height, min(610px, calc(100vh - 64px)));
+  margin: clamp(32px, 9vh, 100px) auto auto;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid var(--fs-advanced-search-border);
+  border-radius: var(--fs-advanced-search-radius, 12px);
+  background: var(--fs-advanced-search-surface);
+  color: var(--fs-advanced-search-text);
+  box-shadow: var(--fs-advanced-search-shadow);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity var(--fs-advanced-search-enter), transform var(--fs-advanced-search-enter);
+}
+
+.fs-advanced-search::backdrop {
+  background: var(--fs-advanced-search-scrim);
+}
+
+.fs-advanced-search[data-state="open"] {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.fs-advanced-search[data-state="closing"] {
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--fs-advanced-search-exit), transform var(--fs-advanced-search-exit);
+}
+
+/* The locked icon contract: 16px on the canonical grid with a 2px stroke. Enforced here so
+   an icon component's own attributes cannot reduce it locally. */
+.fs-advanced-search svg {
+  display: block;
+  flex: none;
+  width: var(--fs-advanced-search-icon-size, 16px);
+  height: var(--fs-advanced-search-icon-size, 16px);
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: var(--fs-advanced-search-icon-stroke, 2);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fs-advanced-search__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+  overflow: visible;
+  border-radius: inherit;
+  background: inherit;
+}
+
+.fs-advanced-search__search-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: var(--fs-advanced-search-search-height, 56px);
+  padding: 0 14px;
+  border-bottom: 1px solid var(--fs-advanced-search-border);
+}
+
+.fs-advanced-search__search-row > svg {
+  color: var(--fs-advanced-search-muted-text);
+}
+
+.fs-advanced-search__input {
+  min-width: 0;
+  flex: 1;
+  padding: 1px 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fs-advanced-search-text);
+  font-family: var(--ff-body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: normal;
+}
+
+.fs-advanced-search__input::placeholder {
+  color: var(--fs-advanced-search-muted-text);
+  font-weight: 400;
+  opacity: 1;
+}
+
+.fs-advanced-search__input::-webkit-search-decoration,
+.fs-advanced-search__input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.fs-advanced-search__clear,
+.fs-advanced-search__escape {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--fs-radius-micro, 4px);
+  background: transparent;
+  color: var(--fs-advanced-search-muted-text);
+  cursor: pointer;
+  transition: var(--fs-advanced-search-transition);
+}
+
+/* Neutralize the default button padding so the 16px glyph stays centred in its square. */
+.fs-advanced-search__clear {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+
+.fs-advanced-search__escape {
+  min-width: 28px;
+  height: 26px;
+  padding: 0;
+  font-family: var(--fs-shortcut-hint-font, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.fs-advanced-search__clear:hover,
+.fs-advanced-search__escape:hover {
+  background: var(--fs-advanced-search-control-hover-bg);
+  color: var(--fs-advanced-search-text);
+}
+
+.fs-advanced-search__clear:focus-visible,
+.fs-advanced-search__escape:focus-visible,
+.fs-advanced-search__token-value:focus-visible,
+.fs-advanced-search__token-remove:focus-visible,
+.fs-advanced-search__add-filter:focus-visible,
+.fs-advanced-search__clear-filters:focus-visible,
+.fs-advanced-search__menu button:focus-visible,
+.fs-advanced-search__tab:focus-visible,
+.fs-advanced-search__load-more:focus-visible,
+.fs-advanced-search__retry:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-advanced-search-focus-ring);
+}
+
+.fs-advanced-search__filter-zone {
+  position: relative;
+  border-bottom: 1px solid var(--fs-advanced-search-border);
+}
+
+.fs-advanced-search__filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 46px;
+  padding: 10px 14px;
+}
+
+/* The token clips its own overflow for the segmented pill, so its menu is anchored to this
+   wrapper instead and stays unclipped. */
+.fs-advanced-search__anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.fs-advanced-search__token {
+  display: inline-flex;
+  align-items: center;
+  height: var(--fs-advanced-search-filter-height, 26px);
+  overflow: hidden;
+  border: 1px solid var(--fs-advanced-search-control-border);
+  border-radius: var(--fs-radius-control, 6px);
+  background: var(--fs-advanced-search-control-bg);
+}
+
+.fs-advanced-search__token-key {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 7px;
+  background: var(--fs-advanced-search-control-hover-bg);
+  color: var(--fs-advanced-search-muted-text);
+  font-family: var(--ff-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.fs-advanced-search__token-value,
+.fs-advanced-search__token-remove,
+.fs-advanced-search__add-filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--fs-advanced-search-transition);
+}
+
+.fs-advanced-search__token-value {
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--fs-advanced-search-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fs-advanced-search__token-remove {
+  width: 22px;
+
+  /* Offset the 1px separator so the glyph stays centred in the 22px square. */
+  padding: 0 1px 0 0;
+  border-left: 1px solid var(--fs-advanced-search-border);
+  color: var(--fs-advanced-search-muted-text);
+}
+
+.fs-advanced-search__token-value:hover,
+.fs-advanced-search__token-remove:hover {
+  background: var(--fs-advanced-search-control-hover-bg);
+  color: var(--fs-advanced-search-text);
+}
+
+.fs-advanced-search__token.is-open .fs-advanced-search__token-value,
+.fs-advanced-search__add-filter.is-open {
+  background: var(--fs-advanced-search-result-active-bg);
+  color: var(--fs-advanced-search-tab-selected-text);
+}
+
+/* Dashed is the add/create placeholder role, not decoration: the empty slot the
+   user is about to fill. Every other interactive border here is solid. */
+.fs-advanced-search__add-filter {
+  gap: 5px;
+  height: var(--fs-advanced-search-filter-height, 26px);
+  padding: 0 9px;
+  border: 1px dashed var(--fs-advanced-search-control-border);
+  border-radius: var(--fs-radius-control, 6px);
+  color: var(--fs-advanced-search-secondary-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fs-advanced-search__add-filter:hover {
+  background: var(--fs-advanced-search-control-hover-bg);
+  color: var(--fs-advanced-search-text);
+}
+
+.fs-advanced-search__add-filter.is-open {
+  border-color: var(--fs-advanced-search-tab-selected-text);
+  background: var(--fs-advanced-search-result-active-bg);
+  color: var(--fs-advanced-search-tab-selected-text);
+}
+
+.fs-advanced-search__clear-filters {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fs-advanced-search-muted-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fs-advanced-search__clear-filters:hover {
+  color: var(--fs-advanced-search-text);
+  text-decoration: underline;
+}
+
+.fs-advanced-search__menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: var(--fs-z-modal-popup, 520);
+  min-width: 212px;
+  padding: 5px;
+  border: 1px solid var(--fs-advanced-search-border);
+  border-radius: var(--fs-radius-container, 8px);
+  background: var(--fs-advanced-search-surface);
+  box-shadow: var(--fs-shadow-overlay);
+  transform-origin: top left;
+  animation: fs-advanced-search-menu-in 130ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fs-advanced-search-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fs-advanced-search__menu-label {
+  padding: 7px 9px 5px;
+  color: var(--fs-advanced-search-muted-text);
+  font-family: var(--ff-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.fs-advanced-search__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--fs-radius-control, 6px);
+  background: transparent;
+  color: var(--fs-advanced-search-secondary-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fs-motion-background-hover);
+}
+
+.fs-advanced-search__menu-item:hover {
+  background: var(--fs-advanced-search-control-hover-bg);
+  color: var(--fs-advanced-search-text);
+}
+
+/* A selected option is marked by a green check, never by a green row fill. */
+.fs-advanced-search__menu-item.is-selected {
+  color: var(--fs-advanced-search-text);
+  font-weight: 500;
+}
+
+.fs-advanced-search__menu-check {
+  margin-left: auto;
+  opacity: 0;
+}
+
+.fs-advanced-search__menu-item.is-selected .fs-advanced-search__menu-check {
+  opacity: 1;
+  color: var(--fs-advanced-search-tab-selected-text);
+}
+
+.fs-advanced-search__tabs-zone {
+  position: relative;
+  border-bottom: 1px solid var(--fs-advanced-search-border);
+}
+
+.fs-advanced-search__tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--fs-advanced-search-tab-height, 47px);
+  padding: 10px 14px;
+  overflow-x: auto;
+  scroll-padding-inline: 14px;
+  scrollbar-width: none;
+}
+
+.fs-advanced-search__tabs::-webkit-scrollbar { display: none; }
+
+/* The full published configuration is wider than the canonical panel, so the row scrolls.
+   The masked edge marks the cut; without it a clipped label reads as a broken layout. The
+   border lives on the zone so the mask never fades the hairline. */
+.fs-advanced-search__tabs-zone[data-overflow="end"] .fs-advanced-search__tabs {
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+
+.fs-advanced-search__tabs-zone[data-overflow="start"] .fs-advanced-search__tabs {
+  mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+
+.fs-advanced-search__tabs-zone[data-overflow="both"] .fs-advanced-search__tabs {
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
+.fs-advanced-search__tab {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--fs-radius-control, 6px);
+  background: transparent;
+  color: var(--fs-advanced-search-secondary-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--fs-motion-background-hover), background var(--fs-motion-background-hover);
+}
+
+.fs-advanced-search__tab-count {
+  min-width: 10px;
+  color: var(--fs-advanced-search-muted-text);
+  font-family: var(--ff-data);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+}
+
+.fs-advanced-search__tab[aria-selected="true"] .fs-advanced-search__tab-count {
+  color: currentcolor;
+}
+
+.fs-advanced-search__tab:hover {
+  color: var(--fs-advanced-search-secondary-text);
+  background: var(--fs-advanced-search-control-hover-bg);
+}
+
+.fs-advanced-search__tab[aria-selected="true"] {
+  background: var(--fs-advanced-search-result-active-bg);
+  color: var(--fs-advanced-search-tab-selected-text);
+}
+
+.fs-advanced-search__results {
+  min-height: 0;
+  max-height: min(420px, 52vh);
+  flex: 0 1 auto;
+  overflow: auto;
+
+  /* The opaque results surface is the panel's bottom edge, so it carries the container
+     radius itself; the panel stays overflow-visible for filter menus. */
+  border-bottom-right-radius: inherit;
+  border-bottom-left-radius: inherit;
+  background: var(--fs-advanced-search-surface);
+  scrollbar-color: var(--fs-border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.fs-advanced-search__results::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fs-advanced-search__results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fs-advanced-search__results::-webkit-scrollbar-thumb {
+  border: 2px solid var(--fs-advanced-search-surface);
+  border-radius: 999px;
+  background: var(--fs-border-strong);
+}
+
+.fs-advanced-search__result-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.fs-advanced-search__group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 6px;
+  color: var(--fs-advanced-search-muted-text);
+  font-family: var(--ff-data);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.fs-advanced-search__group::after {
+  flex: 1;
+  height: 1px;
+  background: var(--fs-advanced-search-border);
+  content: "";
+}
+
+.fs-advanced-search__result {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 0;
+  padding: 9px 10px;
+  overflow: visible;
+  border: 0;
+  border-radius: var(--fs-radius-control, 6px);
+  background: transparent;
+  color: var(--fs-advanced-search-text);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--fs-advanced-search-transition);
+}
+
+.fs-advanced-search__result::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 22px;
+  border-radius: 0 2px 2px 0;
+  background: var(--fs-advanced-search-result-active-marker);
+  opacity: 0;
+  transform: translateY(-50%);
+  content: "";
+}
+
+.fs-advanced-search__result:hover {
+  background: var(--fs-advanced-search-result-hover-bg);
+}
+
+.fs-advanced-search__result[aria-selected="true"] {
+  background: var(--fs-advanced-search-result-active-bg);
+}
+
+.fs-advanced-search__result[aria-selected="true"]::before {
+  opacity: 1;
+}
+
+.fs-advanced-search__result-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  color: var(--fs-advanced-search-secondary-text);
+}
+
+.fs-advanced-search__result[aria-selected="true"] .fs-advanced-search__result-icon {
+  color: var(--fs-advanced-search-tab-selected-text);
+}
+
+.fs-advanced-search__result-copy {
+  display: flex;
+  align-items: baseline;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.fs-advanced-search__result-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fs-advanced-search__status {
+  display: block;
+  padding: 1px 7px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fs-advanced-search-status-neutral-bg);
+  color: var(--fs-advanced-search-status-neutral-text);
+  font-family: var(--ff-data);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: normal;
+  white-space: nowrap;
+}
+
+.fs-advanced-search__status.is-success {
+  background: var(--fs-advanced-search-status-success-bg);
+  color: var(--fs-advanced-search-status-success-text);
+}
+
+.fs-advanced-search__status.is-danger {
+  background: var(--fs-advanced-search-status-danger-bg);
+  color: var(--fs-advanced-search-status-danger-text);
+}
+
+.fs-advanced-search__open-hint {
+  display: inline;
+  color: var(--fs-advanced-search-muted-text);
+  font-family: var(--fs-shortcut-hint-font, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.fs-advanced-search__result[aria-selected="true"] .fs-advanced-search__open-hint {
+  opacity: 1;
+}
+
+.fs-advanced-search__result-title {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fs-advanced-search-text);
+  font-family: var(--ff-body);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-advanced-search__result-meta {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fs-advanced-search-muted-text);
+  font-size: 12px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-advanced-search__result-meta strong {
+  color: var(--fs-advanced-search-secondary-text);
+  font-weight: 500;
+}
+
+.fs-advanced-search__match {
+  background: transparent;
+  color: var(--fs-advanced-search-match-text);
+  font-weight: 500;
+}
+
+/* Cursor continuation belongs to a selected category only, so the control is a full-width
+   block that cannot shift the rows above it while it loads. */
+.fs-advanced-search__load-more {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  margin-top: 2px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--fs-radius-control, 6px);
+  background: transparent;
+  color: var(--fs-advanced-search-secondary-text);
+  font-family: var(--ff-body);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--fs-advanced-search-transition);
+}
+
+.fs-advanced-search__load-more:hover {
+  background: var(--fs-advanced-search-result-hover-bg);
+}
+
+.fs-advanced-search__load-more[data-loading="true"] {
+  color: var(--fs-advanced-search-muted-text);
+  cursor: default;
+}
+
+.fs-advanced-search__message {
+  display: grid;
+  min-height: 160px;
+  place-items: center;
+  padding: 32px;
+  color: var(--fs-advanced-search-muted-text);
+  text-align: center;
+}
+
+.fs-advanced-search__message-inner {
+  max-width: 360px;
+}
+
+.fs-advanced-search__message svg {
+  margin: 0 auto 10px;
+  color: var(--fs-advanced-search-muted-text);
+}
+
+.fs-advanced-search__message strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--fs-advanced-search-text);
+  font-family: var(--ff-display);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.fs-advanced-search__message p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.fs-advanced-search__spinner {
+  animation: fs-advanced-search-spin 700ms linear infinite;
+}
+
+@keyframes fs-advanced-search-spin {
+  to { transform: rotate(360deg); }
+}
+
+.fs-advanced-search__error {
+  margin: 16px;
+  padding: 14px;
+  border: 1px solid var(--fs-advanced-search-error-border);
+  border-radius: var(--fs-radius-compact, 6px);
+  background: var(--fs-advanced-search-error-bg);
+  color: var(--fs-advanced-search-error-text);
+  text-align: left;
+}
+
+.fs-advanced-search__error strong { color: inherit; }
+
+.fs-advanced-search__retry {
+  height: 32px;
+  margin-top: 10px;
+  padding: 0 10px;
+  border: 1px solid currentcolor;
+  border-radius: var(--fs-radius-compact, 6px);
+  background: transparent;
+  color: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fs-advanced-search__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-advanced-search,
+  .fs-advanced-search[data-state="open"],
+  .fs-advanced-search[data-state="closing"] {
+    transform: none;
+    transition-duration: var(--fs-duration-reduced, 1ms);
+  }
+
+  .fs-advanced-search__menu { animation-duration: var(--fs-duration-reduced, 1ms); }
+  .fs-advanced-search__spinner { animation-duration: 1.4s; }
+}

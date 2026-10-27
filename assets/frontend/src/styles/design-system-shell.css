@@ -1,0 +1,1287 @@
+/* Declare rail width on the root, not the shell: bulk actions are portaled to
+   document.body and cannot inherit from .fs-shell-layout. Keep one declaration
+   per state so duplicated values cannot drift. */
+:root {
+  --fs-shell-sidebar-width: var(--fs-sidebar-width-expanded);
+}
+
+:root:has(.fs-shell-layout[data-rail-state="collapsed"]) {
+  --fs-shell-sidebar-width: var(--fs-sidebar-width-collapsed);
+}
+
+.fs-shell-layout {
+  min-height: 100dvh;
+  background: var(--fs-bg-page);
+  color: var(--fs-text-primary);
+  font-family: var(--ff-body);
+  font-size: var(--fs-type-body-size);
+  line-height: var(--fs-type-body-line-height);
+}
+
+.fs-shell-main {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  padding: 24px;
+}
+
+@media (width < theme(--breakpoint-md)) {
+  .fs-shell-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .fs-shell-sidebar-frame {
+    position: static;
+    order: 2;
+    width: auto;
+    overflow: visible;
+  }
+
+  .fs-shell-inset {
+    order: 1;
+    min-width: 0;
+    margin-left: 0;
+  }
+}
+
+@media (width >= theme(--breakpoint-md)) {
+  .fs-shell-sidebar-frame {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: calc(var(--fs-shell-sidebar-width) + 1px);
+    overflow: visible;
+    border-right: 1px solid var(--fs-sidebar-border);
+    background: var(--fs-sidebar-rail-bg);
+    transition: width var(--fs-sidebar-motion-rail) var(--fs-sidebar-ease-enter);
+  }
+
+  .fs-shell-inset {
+    min-width: 0;
+    min-height: 100dvh;
+    margin-left: calc(var(--fs-shell-sidebar-width) + 1px);
+    transition: margin-left var(--fs-sidebar-motion-rail) var(--fs-sidebar-ease-enter);
+  }
+
+  .fs-shell-header-frame {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+
+    /* Explicit, not just inherited from the app's universal reset: this is
+       load-bearing for min-height to count the border-bottom (below) inside
+       the 64px floor instead of stacking it underneath. */
+    box-sizing: border-box;
+    min-height: var(--fs-header-height);
+    background: var(--fs-header-bg);
+  }
+
+  .fs-shell-main {
+    min-height: calc(100dvh - var(--fs-header-height));
+  }
+}
+
+@media (width < theme(--breakpoint-lg)) {
+  .fs-shell-main {
+    padding: 16px;
+  }
+}
+
+/* The header border belongs to the full-width frame, not its capped content
+   row: on wide screens the line must still reach the edge. */
+.fs-shell-header-frame {
+  border-bottom: 1px solid var(--fs-header-border);
+}
+
+.fs-app-sidebar {
+  position: relative;
+  display: grid;
+  grid-template-rows: var(--fs-sidebar-brand-height) auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100dvh;
+  color: var(--fs-sidebar-text-primary);
+  background: var(--fs-sidebar-rail-bg);
+  font-family: var(--ff-body);
+}
+
+.fs-app-sidebar__brand-header,
+.fs-app-sidebar__workspace-section,
+.fs-app-sidebar__footer {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--fs-sidebar-header-padding);
+}
+
+.fs-app-sidebar__brand-header {
+  position: relative;
+  z-index: var(--fs-z-local-sticky);
+  height: var(--fs-sidebar-brand-height);
+  border-bottom: 1px solid var(--fs-sidebar-border);
+}
+
+.fs-app-sidebar__brand {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  gap: var(--fs-sidebar-logo-gap);
+  padding: 0 var(--fs-sidebar-logo-horizontal-padding);
+  box-sizing: border-box;
+  color: var(--fs-sidebar-logo-text);
+}
+
+/* The mark's curves reach just past its 121×57 box, so it may not clip them. */
+.fs-app-sidebar__brand-mark {
+  display: block;
+  width: auto;
+  height: var(--fs-sidebar-logo-mark-height);
+  flex: none;
+  margin-bottom: var(--fs-sidebar-logo-baseline-nudge);
+  overflow: visible;
+}
+
+/* Collapsed rail: a 40×32 button covers the 35px-wide mark. It takes the shell's
+   shared focus ring (.fs-app-sidebar button:focus-visible) and no tooltip. */
+.fs-app-sidebar__brand-expand {
+  display: grid;
+  width: 40px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fs-sidebar-control-radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* The rail edge: a 16px strip centred on the rail's 1px border, which sits
+   just outside the 260px (canon navigation/sidebar.md). */
+.fs-app-sidebar__rail-edge {
+  position: absolute;
+  inset-block: 0;
+  right: calc(var(--fs-sidebar-rail-hit-area) / -2 - 0.5px);
+  z-index: var(--fs-z-local-active);
+  width: var(--fs-sidebar-rail-hit-area);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: w-resize;
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__rail-edge {
+  cursor: e-resize;
+}
+
+.fs-app-sidebar__rail-edge::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: var(--fs-sidebar-rail-line-width);
+  background: transparent;
+  transform: translateX(-50%);
+  transition: background var(--fs-sidebar-motion-hover) ease;
+}
+
+.fs-app-sidebar__rail-edge:hover::after {
+  background: var(--fs-sidebar-border-strong);
+}
+
+.fs-app-sidebar__rail-edge:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.fs-app-sidebar__rail-tip {
+  position: absolute;
+  top: var(--fs-rail-tip-y, 50%);
+  left: calc(100% + var(--fs-space-100));
+  z-index: var(--fs-z-tooltip);
+  padding: var(--fs-space-075) var(--fs-space-100);
+  border-radius: var(--fs-tooltip-radius);
+  color: var(--fs-sidebar-tooltip-fg);
+  background: var(--fs-sidebar-tooltip-bg);
+  font-size: 12px;
+  font-weight: var(--fs-type-weight-medium);
+  line-height: normal;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%) translateX(-4px);
+  transition:
+    opacity var(--fs-motion-popup-exit),
+    transform var(--fs-motion-popup-exit);
+}
+
+.fs-app-sidebar__rail-tip::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  border: 5px solid transparent;
+  border-right-color: var(--fs-sidebar-tooltip-bg);
+  transform: translateY(-50%);
+}
+
+.fs-app-sidebar__rail-edge:hover .fs-app-sidebar__rail-tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+  transition:
+    opacity var(--fs-motion-popup-enter),
+    transform var(--fs-motion-popup-enter);
+  transition-delay: var(--fs-sidebar-rail-tooltip-delay);
+}
+
+/* Touch has no hover to name the edge, and below md the rail is stacked under
+   the page, where there is nothing to collapse. */
+@media (hover: none) {
+  .fs-app-sidebar__rail-tip {
+    display: none;
+  }
+}
+
+@media (width < theme(--breakpoint-md)) {
+  .fs-app-sidebar__rail-edge {
+    display: none;
+  }
+}
+
+.fs-app-sidebar__brand-wordmark {
+  overflow: hidden;
+  color: var(--fs-sidebar-logo-text);
+  font-family: var(--fs-sidebar-logo-font);
+  font-size: var(--fs-sidebar-logo-font-size);
+  font-weight: var(--fs-sidebar-logo-font-weight);
+  letter-spacing: var(--fs-sidebar-logo-letter-spacing);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-app-sidebar__workspace-section {
+  position: relative;
+}
+
+.fs-app-sidebar__footer {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--fs-sidebar-border);
+}
+
+.fs-app-sidebar__content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--fs-sidebar-group-padding);
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__content {
+  overflow: visible;
+}
+
+.fs-app-sidebar__group + .fs-app-sidebar__group {
+  margin-top: var(--fs-sidebar-content-gap);
+}
+
+.fs-app-sidebar__group-label {
+  display: flex;
+  align-items: center;
+  height: var(--fs-sidebar-group-label-height);
+  color: var(--fs-sidebar-text-tertiary);
+  font-size: var(--fs-sidebar-group-label-size);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-app-sidebar__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--fs-sidebar-nav-item-height);
+  padding: 0 8px;
+  border-radius: var(--fs-sidebar-item-radius);
+  color: var(--fs-sidebar-text-secondary);
+  font-size: var(--fs-sidebar-menu-text-size);
+  text-decoration: none;
+}
+
+.fs-app-sidebar__item:hover {
+  background: var(--fs-sidebar-item-hover-bg);
+}
+
+.fs-app-sidebar__item[data-active="true"] {
+  color: var(--fs-sidebar-active-text);
+  background: var(--fs-sidebar-active-bg);
+}
+
+.fs-app-sidebar__item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  left: var(--fs-sidebar-active-marker-offset);
+  width: var(--fs-sidebar-active-marker-width);
+  height: var(--fs-sidebar-active-marker-height);
+  border-radius: var(--fs-sidebar-active-marker-radius);
+  background: var(--fs-sidebar-active-marker);
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__group-label,
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__label,
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-meta,
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-chevron,
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-meta,
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-chevron {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__item {
+  justify-content: center;
+  width: var(--fs-sidebar-collapsed-button-size);
+  margin-inline: auto;
+  padding: 0;
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__brand {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__item[data-active="true"]::before {
+  left: var(--fs-sidebar-collapsed-active-marker-offset);
+}
+
+.fs-shell-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.fs-shell-menu-panel {
+  position: absolute;
+  left: calc(100% + 4px);
+  bottom: 0;
+  z-index: 60;
+  width: 224px;
+  box-sizing: border-box;
+  max-height: min(420px, calc(100dvh - 16px));
+  overflow: auto;
+  padding: var(--fs-form-dialog-select-menu-padding);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-form-dialog-select-menu-radius);
+  background: var(--fs-bg-surface);
+  box-shadow: var(--fs-form-dialog-select-menu-shadow);
+}
+
+.fs-app-sidebar__workspace-panel {
+  top: 0;
+  bottom: auto;
+}
+
+.fs-app-sidebar__account-panel {
+  top: auto;
+  bottom: 0;
+}
+
+.fs-app-sidebar__workspace-trigger,
+.fs-app-sidebar__account-trigger,
+.fs-shell-menu__item,
+.fs-shell-menu__action {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.fs-app-sidebar__workspace-trigger,
+.fs-app-sidebar__account-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: var(--fs-sidebar-workspace-height);
+  padding: 0 8px;
+  border-radius: var(--fs-sidebar-control-radius);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.fs-app-sidebar__account-trigger {
+  height: var(--fs-sidebar-profile-height);
+}
+
+.fs-app-sidebar__workspace-trigger:hover,
+.fs-app-sidebar__account-trigger:hover {
+  background: var(--fs-sidebar-item-hover-bg);
+}
+
+.fs-shell-menu__item:hover,
+.fs-shell-menu__action:hover {
+  background: var(--fs-dropdown-item-hover-bg);
+}
+
+.fs-app-sidebar__workspace-logo,
+.fs-app-sidebar__account-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+/* The workspace mark: the workspace's initial, never a generic icon on a plate
+   (canon navigation/sidebar.md, "The workspace mark"). */
+.fs-app-sidebar__workspace-logo {
+  width: var(--fs-sidebar-workspace-mark-size);
+  height: var(--fs-sidebar-workspace-mark-size);
+  border-radius: var(--fs-sidebar-workspace-mark-radius);
+  color: var(--fs-sidebar-workspace-mark-text);
+  background: var(--fs-sidebar-workspace-mark-bg);
+  font-family: var(--ff-display);
+  font-size: var(--fs-sidebar-workspace-mark-font-size);
+  font-weight: var(--fs-sidebar-workspace-mark-font-weight);
+  line-height: 1;
+}
+
+/* The ring keeps the plate visible: on the light rail the muted plate alone is
+   #F5F5F5 on #F7F7F7, 1.018:1 (canon navigation/sidebar.md). */
+.fs-app-sidebar__account-avatar {
+  color: var(--fs-sidebar-text-primary);
+  background: var(--fs-sidebar-muted-bg);
+  box-shadow: inset 0 0 0 1px var(--fs-avatar-ring);
+  font-family: var(--fs-avatar-font);
+  font-size: 11px;
+  font-weight: var(--fs-avatar-font-weight);
+}
+
+.fs-app-sidebar__workspace-meta,
+.fs-app-sidebar__account-meta {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.fs-app-sidebar__workspace-meta {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.fs-app-sidebar__account-meta {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.fs-app-sidebar__workspace-name,
+.fs-app-sidebar__account-name,
+.fs-app-sidebar__workspace-key,
+.fs-app-sidebar__account-secondary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-app-sidebar__workspace-name {
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-app-sidebar__account-trigger .fs-app-sidebar__account-name {
+  font-weight: 500;
+}
+
+.fs-shell-menu__identity .fs-app-sidebar__account-name {
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-app-sidebar__workspace-key,
+.fs-app-sidebar__account-secondary {
+  color: var(--fs-sidebar-text-tertiary);
+  font-size: 12px;
+}
+
+.fs-shell-menu__identity .fs-app-sidebar__account-secondary {
+  font-size: 11px;
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-trigger,
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-trigger {
+  justify-content: center;
+  width: var(--fs-sidebar-collapsed-button-size);
+  margin-inline: auto;
+  padding: 0;
+}
+
+/* Canon: the collapsed switcher is a centred 32x32 square, like every other
+   rail target. The block margin keeps the row at its expanded height, so the
+   avatar's centre does not move when the rail collapses. */
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-trigger {
+  justify-content: center;
+  width: var(--fs-sidebar-collapsed-button-size);
+  height: var(--fs-sidebar-collapsed-button-size);
+  margin-block: calc((var(--fs-sidebar-workspace-height) - var(--fs-sidebar-collapsed-button-size)) / 2);
+  margin-inline: auto;
+  padding: 0;
+}
+
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-trigger {
+  height: var(--fs-sidebar-collapsed-button-size);
+}
+
+.fs-shell-menu__item,
+.fs-shell-menu__action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--fs-sidebar-nav-item-height);
+  padding: 6px 8px;
+  border-radius: var(--fs-sidebar-item-radius);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-sidebar-menu-text-size);
+  text-align: left;
+  text-decoration: none;
+}
+
+.fs-app-sidebar__workspace-option {
+  min-height: 36px;
+  padding-block: 4px;
+}
+
+.fs-app-sidebar__workspace-option[aria-checked="true"] {
+  background: var(--fs-dropdown-item-hover-bg);
+}
+
+.fs-shell-menu__label {
+  margin: 0;
+  padding: 4px 8px;
+  color: var(--fs-sidebar-text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.fs-shell-menu__identity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 7px;
+}
+
+.fs-shell-menu__separator {
+  height: 1px;
+  border: 0;
+  margin: 4px calc(var(--fs-form-dialog-select-menu-padding) * -1);
+  background: var(--fs-sidebar-border);
+}
+
+.fs-shell-menu__icon,
+.fs-shell-menu__workspace-initial {
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+
+.fs-shell-menu__icon {
+  width: var(--fs-sidebar-menu-icon-size);
+  height: var(--fs-sidebar-menu-icon-size);
+  color: var(--fs-sidebar-text-tertiary);
+}
+
+/* A menu row's mark, as the canon preview draws it: the same initial at 24px,
+   quiet until its row is the chosen workspace, then in the mark's own roles. */
+.fs-shell-menu__workspace-initial {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--fs-sidebar-workspace-mark-radius);
+  color: var(--fs-sidebar-text-secondary);
+  background: var(--fs-sidebar-muted-bg);
+  font-family: var(--ff-display);
+  font-size: 11px;
+  font-weight: var(--fs-sidebar-workspace-mark-font-weight);
+  line-height: 1;
+}
+
+.fs-app-sidebar__workspace-option[aria-checked="true"] .fs-shell-menu__workspace-initial {
+  color: var(--fs-sidebar-workspace-mark-text);
+  background: var(--fs-sidebar-workspace-mark-bg);
+}
+
+.fs-shell-menu__item-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-shell-menu__item-shortcut {
+  flex: none;
+  color: var(--fs-sidebar-text-tertiary);
+  font-size: 12px;
+}
+
+.fs-shell-menu__item[aria-checked="true"] > .lucide-check {
+  flex: none;
+  color: var(--fs-text-brand);
+}
+
+.fs-shell-menu__action {
+  justify-content: flex-start;
+  margin-top: 4px;
+}
+
+.fs-shell-menu__section {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fs-shell-menu__status {
+  padding: 6px 8px;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-sidebar-group-label-size);
+}
+
+.fs-app-sidebar__account-status {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-sidebar-group-label-size);
+}
+
+@media (width >= theme(--breakpoint-md)) {
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-status {
+    position: absolute;
+    left: calc(100% + 4px);
+    bottom: var(--fs-sidebar-header-padding);
+    z-index: 60;
+    width: 240px;
+    max-width: calc(100vw - var(--fs-sidebar-width-collapsed) - 12px);
+    border: 1px solid var(--fs-border-subtle);
+    border-radius: var(--fs-form-dialog-select-menu-radius);
+    background: var(--fs-bg-surface);
+    box-shadow: var(--fs-form-dialog-select-menu-shadow);
+  }
+}
+
+.fs-shell-menu__item--danger {
+  color: var(--fs-status-danger);
+}
+
+.fs-app-sidebar button:focus-visible,
+.fs-app-sidebar a:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-icon-button-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.fs-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: var(--fs-icon-button-size-md);
+  height: var(--fs-icon-button-size-md);
+  padding: 0;
+  border: 1px solid var(--fs-icon-button-secondary-border);
+  border-radius: var(--fs-icon-button-radius-md);
+  color: var(--fs-icon-button-secondary-text);
+  background: var(--fs-icon-button-secondary-bg);
+  cursor: pointer;
+  transition: var(--fs-icon-button-transition);
+}
+
+.fs-icon-button[data-size="small"] {
+  width: var(--fs-icon-button-size-sm);
+  height: var(--fs-icon-button-size-sm);
+  border-radius: var(--fs-icon-button-radius-sm);
+}
+
+.fs-icon-button:hover {
+  color: var(--fs-icon-button-secondary-text-hover);
+  background: var(--fs-icon-button-secondary-bg-hover);
+}
+
+.fs-icon-button:active {
+  transform: scale(var(--fs-icon-button-active-scale));
+}
+
+.fs-icon-button:focus-visible {
+  outline: 0;
+  box-shadow: var(--fs-icon-button-focus-ring);
+}
+
+.fs-icon-button:disabled {
+  border-color: var(--fs-icon-button-disabled-border);
+  color: var(--fs-icon-button-disabled-text);
+  background: var(--fs-icon-button-disabled-bg);
+  cursor: not-allowed;
+  opacity: var(--fs-icon-button-disabled-opacity);
+}
+
+.fs-icon-button-wrap > .fs-shell-tooltip {
+  top: calc(100% + var(--fs-tooltip-offset));
+  left: 50%;
+  z-index: 70;
+  max-width: var(--fs-tooltip-max-width);
+  padding: var(--fs-tooltip-padding);
+  border: 1px solid var(--fs-tooltip-border);
+  border-radius: var(--fs-tooltip-radius);
+  color: var(--fs-tooltip-text);
+  background: var(--fs-tooltip-bg);
+  box-shadow: var(--fs-tooltip-shadow);
+  font-size: var(--fs-tooltip-font-size);
+  line-height: var(--fs-tooltip-line-height);
+  opacity: 1;
+  transform: translateX(-50%);
+}
+
+/* Height is the band minus the frame's own border-bottom (below), so the
+   frame's total rendered height - row plus rule - stays on the 64px track
+   instead of adding a pixel on top of it.
+   The row spans the whole inset (canon header.md) and takes no ceiling from the
+   page: the sidebar toggle and breadcrumb stay by the rail, Search and
+   notifications by the window edge, whatever width the page below declares. */
+.fs-app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-header-gap);
+  width: 100%;
+  height: calc(var(--fs-header-height) - 1px);
+  padding-inline: var(--fs-header-padding-inline);
+  box-sizing: border-box;
+  color: var(--fs-header-text);
+  background: var(--fs-header-bg);
+  font-family: var(--ff-body);
+}
+
+.fs-app-header__trigger {
+  border-color: transparent;
+  color: var(--fs-header-text);
+  background: transparent;
+}
+
+.fs-app-header__separator {
+  flex: none;
+  width: 1px;
+  height: var(--fs-header-separator-height);
+  background: var(--fs-header-border);
+}
+
+.fs-app-header__breadcrumbs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--fs-header-breadcrumb-text);
+  font-size: var(--fs-header-breadcrumb-size);
+  font-weight: var(--fs-header-breadcrumb-weight);
+  white-space: nowrap;
+}
+
+.fs-app-header__breadcrumbs > a,
+.fs-app-header__breadcrumbs > span {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.fs-app-header__breadcrumbs > a {
+  color: var(--fs-header-muted-text);
+}
+
+.fs-app-header__breadcrumbs > svg {
+  flex: none;
+  color: var(--fs-header-muted-text);
+}
+
+.fs-app-header__search-slot {
+  display: flex;
+  width: var(--fs-header-search-trigger-width);
+  flex: none;
+  margin-left: auto;
+}
+
+.fs-app-header__search-trigger-wrap {
+  position: relative;
+  display: flex;
+  width: 100%;
+}
+
+.fs-app-header__search-trigger {
+  display: flex;
+  width: 100%;
+  height: var(--fs-header-search-height);
+  align-items: center;
+  gap: 8px;
+  padding-inline: 12px;
+  border: 1px solid var(--fs-header-search-border);
+  border-radius: var(--fs-button-radius);
+  color: var(--fs-header-search-text);
+  background: var(--fs-header-search-bg);
+  cursor: pointer;
+  transition: var(--fs-icon-button-transition);
+}
+
+.fs-app-header__search-trigger:hover {
+  background: var(--fs-bg-surface-muted);
+}
+
+.fs-app-header__search-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-app-header__search-trigger > svg {
+  flex: none;
+  color: var(--fs-header-muted-text);
+}
+
+.fs-app-header__search-label {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+}
+
+.fs-app-header__search-shortcut {
+  flex: none;
+  padding: 2px 4px;
+  border: 1px solid var(--fs-header-border);
+  border-radius: var(--fs-command-radius);
+  color: var(--fs-header-muted-text);
+  background: var(--fs-header-bg);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: var(--fs-type-weight-medium);
+  line-height: 1;
+}
+
+.fs-app-header__search-tooltip {
+  display: none;
+}
+
+.fs-app-header__approvals {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.fs-app-header__approval-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 4px;
+  border: 1px solid var(--fs-header-bg);
+  border-radius: 999px;
+  color: var(--fs-header-approval-count-text);
+  background: var(--fs-header-approval-count-bg);
+  font-family: var(--fs-count-pill-font);
+  font-size: var(--fs-count-pill-font-size);
+  font-weight: var(--fs-count-pill-font-weight);
+  line-height: var(--fs-count-pill-line-height);
+}
+
+.fs-app-header__approval-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  z-index: 60;
+  display: grid;
+  gap: 6px;
+  width: 288px;
+  max-width: none;
+  max-height: min(420px, calc(100dvh - var(--fs-header-height) - 16px));
+  overflow-y: auto;
+  padding: 8px;
+  margin: 0;
+  border: 1px solid var(--fs-command-border);
+  border-radius: var(--fs-command-card-radius);
+  color: var(--fs-command-text);
+  background: var(--fs-command-surface);
+  box-shadow: var(--fs-command-shadow);
+  font-size: var(--fs-command-font-size);
+}
+
+.fs-app-header__approval-menu button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--fs-command-item-padding);
+  border: 0;
+  border-radius: var(--fs-command-item-radius);
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.fs-app-header__approval-menu button:hover {
+  background: var(--fs-dropdown-item-hover-bg);
+}
+
+.fs-app-header__approval-menu button:focus-visible {
+  outline: 0;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-app-header__approval-menu button span + span {
+  color: var(--fs-command-muted-text);
+  font-size: 11px;
+}
+
+.fs-command-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.fs-command-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--fs-overlay-scrim);
+}
+
+.fs-command-dialog {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  width: min(100%, 720px);
+  border: 1px solid var(--fs-command-border);
+  border-radius: var(--fs-command-card-radius);
+  color: var(--fs-command-text);
+  background: var(--fs-command-surface);
+  box-shadow: var(--fs-command-shadow);
+  font-family: var(--ff-body);
+  font-size: var(--fs-command-font-size);
+}
+
+.fs-command-dialog:focus-within {
+  box-shadow: var(--fs-command-shadow), var(--fs-command-focus-ring);
+}
+
+.fs-command-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(140px, auto);
+  align-items: center;
+  gap: var(--fs-command-search-gap);
+  padding: var(--fs-command-search-padding);
+  border-bottom: 1px solid var(--fs-command-border);
+  color: var(--fs-command-muted-text);
+}
+
+.fs-command-search input,
+.fs-command-search select {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--fs-command-text);
+  background: transparent;
+  font: inherit;
+}
+
+.fs-command-search select {
+  padding: 4px 6px;
+  border: 1px solid var(--fs-command-border);
+  border-radius: var(--fs-command-radius);
+}
+
+.fs-command-summary,
+.fs-command-group__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--fs-command-muted-text);
+}
+
+.fs-command-summary {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+}
+
+.fs-command-summary p {
+  margin: 0;
+}
+
+.fs-command-summary button,
+.fs-command-secondary-action {
+  padding: 4px 8px;
+  border: 1px solid var(--fs-command-border);
+  border-radius: var(--fs-command-radius);
+  color: var(--fs-command-text);
+  background: transparent;
+  font: inherit;
+}
+
+.fs-command-list {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding: var(--fs-command-list-padding);
+}
+
+.fs-command-group + .fs-command-group {
+  margin-top: 4px;
+}
+
+.fs-command-group__heading {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.fs-command-option {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--fs-command-item-padding);
+  border: 0;
+  border-radius: var(--fs-command-item-radius);
+  color: var(--fs-command-text);
+  background: transparent;
+  font-family: var(--ff-body);
+  font-size: var(--fs-command-font-size);
+  font-weight: var(--fs-command-item-weight);
+  text-align: left;
+  cursor: default;
+  transition: var(--fs-command-transition);
+}
+
+.fs-command-option > span + span {
+  color: var(--fs-command-muted-text);
+  font-size: 11px;
+  font-weight: var(--fs-command-item-weight);
+}
+
+.fs-command-option[aria-selected="true"] {
+  color: var(--fs-command-highlight-text);
+  background: var(--fs-command-highlight-bg);
+  font-weight: var(--fs-command-highlight-weight);
+}
+
+.fs-command-option:focus-visible,
+.fs-command-summary button:focus-visible,
+.fs-command-secondary-action:focus-visible,
+.fs-command-search select:focus-visible {
+  outline: 0;
+  box-shadow: var(--fs-command-focus-ring);
+}
+
+.fs-command-secondary-action {
+  margin: 4px 10px 8px;
+}
+
+.fs-command-status,
+.fs-command-hint {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--fs-command-empty-text);
+}
+
+.fs-command-status--error {
+  color: var(--fs-status-danger);
+  background: var(--fs-status-danger-bg);
+}
+
+.fs-command-hint {
+  padding-top: 0;
+  font-size: 11px;
+}
+
+@media (width < theme(--breakpoint-lg)) {
+  .fs-app-header__search-slot {
+    width: var(--fs-icon-button-size-md);
+  }
+
+  .fs-app-header__search-trigger {
+    width: 32px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .fs-app-header__search-label,
+  .fs-app-header__search-shortcut {
+    display: none;
+  }
+
+  .fs-app-header__search-tooltip {
+    display: block;
+    top: calc(100% + 8px);
+    left: 50%;
+    z-index: 70;
+    padding: var(--fs-tooltip-padding);
+    border: 1px solid var(--fs-tooltip-border);
+    border-radius: var(--fs-tooltip-radius);
+    color: var(--fs-tooltip-text);
+    background: var(--fs-tooltip-bg);
+    box-shadow: var(--fs-tooltip-shadow);
+    font-size: var(--fs-tooltip-font-size);
+    line-height: var(--fs-tooltip-line-height);
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+
+  }
+
+.fs-shell-tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  z-index: 70;
+  width: max-content;
+  max-width: 240px;
+  padding: 4px 8px;
+  border-radius: var(--fs-tooltip-radius);
+  color: var(--fs-sidebar-tooltip-fg);
+  background: var(--fs-sidebar-tooltip-bg);
+  font-size: var(--fs-sidebar-group-label-size);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--fs-sidebar-motion-hover),
+    transform var(--fs-sidebar-motion-hover);
+}
+
+.fs-app-sidebar__tooltip {
+  left: calc(100% + 10px);
+  top: 50%;
+  padding: 5px 10px;
+  border-radius: var(--fs-tooltip-radius);
+  font-size: 12px;
+  font-weight: var(--fs-type-weight-medium);
+  line-height: normal;
+  white-space: nowrap;
+  transform: translateY(-50%) translateX(-4px);
+  transition:
+    opacity var(--fs-sidebar-motion-hover) ease,
+    transform var(--fs-sidebar-motion-hover) var(--fs-sidebar-ease-enter);
+}
+
+.fs-app-sidebar__tooltip::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  border: 5px solid transparent;
+  border-right-color: var(--fs-sidebar-tooltip-bg);
+  transform: translateY(-50%);
+}
+
+.fs-app-sidebar__item:hover .fs-app-sidebar__tooltip,
+.fs-app-sidebar__item:focus-visible .fs-app-sidebar__tooltip,
+.fs-app-sidebar button:hover .fs-app-sidebar__tooltip,
+.fs-app-sidebar button:focus-visible .fs-app-sidebar__tooltip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+@media (width < theme(--breakpoint-md)) {
+  .fs-shell-menu-panel {
+    max-width: calc(100vw - 64px);
+  }
+}
+
+@media (width < theme(--breakpoint-md)) {
+  .fs-app-sidebar {
+    height: auto;
+  }
+
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__group-label,
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__label,
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-meta,
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-chevron,
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-meta,
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-chevron {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__item {
+    justify-content: flex-start;
+    width: 100%;
+    margin-inline: 0;
+    padding: 0 8px;
+  }
+
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-trigger,
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-trigger {
+    justify-content: flex-start;
+    width: 100%;
+    margin-inline: 0;
+    padding: 0 8px;
+  }
+
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-trigger {
+    justify-content: flex-start;
+    width: 100%;
+    height: var(--fs-sidebar-workspace-height);
+    margin: 0;
+    padding: 0 8px;
+  }
+
+  .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__account-trigger {
+    height: var(--fs-sidebar-profile-height);
+  }
+
+  .fs-shell-menu-panel {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: 100%;
+  }
+
+  .fs-app-sidebar__workspace-panel {
+    top: calc(100% + 4px);
+  }
+
+  .fs-app-sidebar__account-panel {
+    bottom: calc(100% + 4px);
+  }
+
+  .fs-app-sidebar__account-status {
+    position: static;
+    width: auto;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Instance-specific gradient authority stays in the allowed style attribute;
+     the rule is external so the mark also respects strict style-src CSP. */
+  .fs-flow-mark__shape {
+    fill: var(--fs-logo-still-fill);
+  }
+
+  .fs-shell-sidebar-frame,
+  .fs-shell-inset,
+  .fs-shell-tooltip {
+    transition: none;
+  }
+}

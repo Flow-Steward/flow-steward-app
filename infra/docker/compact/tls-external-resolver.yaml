@@ -1,0 +1,4 @@
+services:
+  compact-runtime:
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact.tls.certresolver=${FS_TRAEFIK_CERT_RESOLVER:?FS_TRAEFIK_CERT_RESOLVER is required}"

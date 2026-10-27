@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2024"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "ignoreDeprecations": "6.0",
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@flow-steward/frontend-extension-manifest": ["./src/app/extension-manifest-empty.tsx"],
+      "@testing-library/react": ["./node_modules/@testing-library/react"],
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client", "node", "vitest/globals"]
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ],
+  "references": []
+}

@@ -1,0 +1,3 @@
+# Preserve the two upstream Google Fonts OFL byte streams exactly; both sources contain one intentional trailing ASCII space.
+assets/frontend/src/design-system/assets/fonts/nunito/OFL.txt whitespace=-blank-at-eol
+assets/frontend/src/design-system/assets/fonts/nunito-sans/OFL.txt whitespace=-blank-at-eol

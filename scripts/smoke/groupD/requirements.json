@@ -1,0 +1,24 @@
+{
+  "schema_version": "flow-steward-smoke-requirements-v1",
+  "group": "D",
+  "sources": ["smoke_D.sh", "smoke_common.sh"],
+  "common": {
+    "required_env": ["FS_SMOKE_BASE", "FS_SMOKE_EMAIL", "FS_SMOKE_ISOLATED", "FS_SMOKE_PASSWORD", "FS_SMOKE_PG_CONTAINER"],
+    "optional_env": ["FS_SMOKE_APP_CONTAINER"],
+    "services": ["fs-app", "pg-fs"],
+    "mutable_resources": ["extension-fixtures"],
+    "cleanup_obligations": ["remove-owned-d-extensions"]
+  },
+  "checks": {
+    "D01": {},
+    "D02": {"required_env": ["FS_SMOKE_APP_CONTAINER"]},
+    "D03": {}, "D04": {},
+    "D05": {"required_env": ["FS_SMOKE_RABBITMQ_CONTAINER"], "optional_env": ["FS_SMOKE_JOB_TIMEOUT_SECONDS", "FS_SMOKE_POLL_SECONDS"], "services": ["rabbitmq"]},
+    "D06": {"required_env": ["FS_SMOKE_RABBITMQ_CONTAINER"], "services": ["rabbitmq"]},
+    "D07": {"required_env": ["FS_SMOKE_WORKER_CONTAINER"], "services": ["fs-worker"]},
+    "D08": {"required_env": ["FS_SMOKE_APP_CONTAINER"]},
+    "D09": {"required_env": ["FS_SMOKE_CANDIDATE_COMMIT"]},
+    "D10": {"required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_APP_CONTAINER", "FS_SMOKE_MAILPIT_BASE"], "services": ["fs-app", "mailpit"]},
+    "D11": {"required_env": ["FS_SMOKE_CANDIDATE_COMMIT", "FS_SMOKE_RABBITMQ_CONTAINER"], "services": ["fs-worker", "rabbitmq"]}
+  }
+}

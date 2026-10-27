@@ -1,0 +1,52 @@
+http:
+  routers:
+    fs-mcp:
+      # P1-5: OAuth protected-resource discovery is served by the MCP process, and RFC
+      # 9728 puts it outside /mcp -- the SDK registers it at
+      # /.well-known/oauth-protected-resource + the resource path. Routed to the app it
+      # answered 404. Same narrow prefix as Compact's router.
+      rule: "Path(`/mcp`) || PathPrefix(`/mcp/`) || PathPrefix(`/.well-known/oauth-protected-resource`)"
+      priority: 100
+      entryPoints:
+        - websecure
+      service: fs-mcp
+      tls: {}
+
+    fs:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - websecure
+      service: fs
+      middlewares:
+        - fs-compress
+      tls: {}
+
+  services:
+    fs-mcp:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://fs-mcp:8100"
+
+    fs:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://fs-app:8099"
+
+  middlewares:
+    fs-compress:
+      compress:
+        encodings:
+          - br
+          - gzip
+        minResponseBodyBytes: 1024
+
+tls:
+  stores:
+    default:
+      # Keep localhost on the repo-managed cert instead of Traefik's generated
+      # fallback certificate, which browsers reject during local auth flows.
+      defaultCertificate:
+        certFile: /etc/traefik/certs/cert.pem
+        keyFile: /etc/traefik/certs/key.pem

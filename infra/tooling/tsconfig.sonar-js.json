@@ -1,0 +1,27 @@
+{
+  "extends": "../../assets/frontend/tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "noEmit": true
+  },
+  "include": [
+    "../../assets/frontend/src/**/*.ts",
+    "../../assets/frontend/src/**/*.tsx",
+    "../../assets/frontend/vite.config.ts",
+    "../../assets/frontend/vitest.config.ts",
+    "../../assets/frontend/playwright.config.ts"
+  ],
+  "exclude": [
+    "../../**/node_modules/**",
+    "../../assets/frontend/dist/**",
+    "../../assets/frontend/test-results/**",
+    "../../assets/vendor/**",
+    "../../assets/frontend/src/test/**",
+    "../../assets/frontend/src/**/*.test.ts",
+    "../../assets/frontend/src/**/*.test.tsx",
+    "../../assets/frontend/src/**/*.spec.ts",
+    "../../assets/frontend/src/**/*.spec.tsx",
+    "../../**/*.min.js"
+  ]
+}

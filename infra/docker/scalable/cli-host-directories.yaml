@@ -1,0 +1,16 @@
+# Installed Clone captures/publishes the retained host extensions tree and uses
+# a persistent transfer directory distinct from the PostgreSQL backup adapter.
+# Selected only for Scalable host_directories; volume placement uses its helper.
+services:
+  fs-cli:
+    volumes:
+      - type: bind
+        source: ${FS_EXTENSIONS_DIR:-../../extensions}
+        target: /app/extensions
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${FS_BACKUPS_DIR:-../../backups}
+        target: /app/backups
+        bind:
+          create_host_path: false

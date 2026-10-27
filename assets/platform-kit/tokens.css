@@ -1,0 +1,50 @@
+/* ═══════════════════════════════════════════════════════════════
+   Platform Design Tokens — Shared by all platform-* Web Components
+   Inherits shell.css :root tokens via CSS custom property cascade.
+   Component shadow roots adopt this sheet so tokens resolve inside.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Component-kit tokens (extend shell.css) ── */
+:host {
+  /* Spacing */
+  --bk-gap-xs: 4px;
+  --bk-gap-sm: 8px;
+  --bk-gap-md: 12px;
+  --bk-gap-lg: 16px;
+  --bk-gap-xl: 24px;
+
+  /* Typography */
+  --bk-font-xs: 11px;
+  --bk-font-sm: 12px;
+  --bk-font-md: 13px;
+  --bk-font-base: 14px;
+  --bk-font-lg: 16px;
+  --bk-font-xl: 18px;
+  --bk-font-2xl: 22px;
+  --bk-mono: 'Geist Mono', monospace;
+
+  /* Inherited from shell.css :root — listed here for reference.
+     These resolve automatically via CSS custom property inheritance
+     through the shadow boundary:
+       --bg, --surface, --elevated, --border, --hover, --content-bg
+       --text-1, --text-2, --text-3
+       --accent, --accent-soft, --accent-border
+       --green, --green-soft, --green-border
+       --red, --red-soft, --red-border
+       --amber, --amber-soft, --amber-border
+       --neutral, --neutral-soft, --neutral-border
+       --r-sm, --r-md, --r-lg
+       --shadow-sm, --shadow-md, --shadow-lg
+  */
+
+  font-family: Geist, system-ui, -apple-system, sans-serif;
+  font-size: var(--bk-font-base);
+  line-height: 1.4286;
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}

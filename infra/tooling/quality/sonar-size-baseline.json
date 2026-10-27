@@ -1,0 +1,5 @@
+{
+  "description": "Files already over the Sonar S104 limit. Sonar's gate fails only on new issues, so these are reported, not failed. Remove an entry when its file drops under the limit; never add one to silence a new finding.",
+  "maximum": 1000,
+  "files": []
+}

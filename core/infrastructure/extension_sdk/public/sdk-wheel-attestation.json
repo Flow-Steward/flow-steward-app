@@ -1,0 +1,15 @@
+{
+  "architectures": [
+    "any"
+  ],
+  "project": "flowsteward-extension-sdk",
+  "python_requires": ">=3.11",
+  "schema": "flow-steward-extension-sdk-wheel-v2",
+  "source_sha256": "1c569a38d272f9bb01a9de606eef5794519324bdabafff474975db40cbee61e0",
+  "version": "0.4.0",
+  "wheel_filename": "flowsteward_extension_sdk-0.4.0-py3-none-any.whl",
+  "wheel_sha256": "ffb5f3764d5a384b4441f6e3c0c4e66f5887d57c156fdc93abf70b5d0eeb22af",
+  "wheel_tags": [
+    "py3-none-any"
+  ]
+}

@@ -1,0 +1,4 @@
+# Thin MCP protocol adapter. Product dependencies belong to fs-app.
+mcp==2.2.0
+httpx==0.28.1
+pyjwt[crypto]==2.15.1

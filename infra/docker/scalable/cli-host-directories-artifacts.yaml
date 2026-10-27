@@ -1,0 +1,10 @@
+# Remote/bundled artifact storage has no host artifact tree. Only local_fs
+# selects this subtree, without giving the CLI access to unrelated runtime logs.
+services:
+  fs-cli:
+    volumes:
+      - type: bind
+        source: ${FS_LOGS_DIR:-../../logs}/artifacts
+        target: /app/logs/artifacts
+        bind:
+          create_host_path: false

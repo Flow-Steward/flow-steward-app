@@ -1,0 +1,7 @@
+services:
+  fs-app:
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.tls.certresolver=${FS_TRAEFIK_CERT_RESOLVER:?FS_TRAEFIK_CERT_RESOLVER is required}"
+  fs-mcp:
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.tls.certresolver=${FS_TRAEFIK_CERT_RESOLVER:?FS_TRAEFIK_CERT_RESOLVER is required}"

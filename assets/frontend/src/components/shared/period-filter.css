@@ -1,0 +1,48 @@
+/*
+ * Period filter, tokens only. Canon: 03_components/forms/date-field.md
+ * ("Period filter") and date-field-preview.html. The trigger and the rows are
+ * the published Select trigger and option; this file adds only what they lack.
+ */
+
+/* Fill the grid cell the way a Select does. */
+.fs-period-filter,
+.fs-period-filter > .fs-popover-anchor {
+  display: grid;
+  min-width: 0;
+}
+
+.fs-period-filter [role="radiogroup"] { display: grid; }
+
+/* The rows are radios, so the Select check follows aria-checked here. */
+.fs-period-option[aria-checked="true"] .fs-select-check { opacity: 1; }
+
+.fs-period-custom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fs-space-100);
+  padding: var(--fs-space-150);
+  border-top: 1px solid var(--fs-popover-footer-border);
+}
+
+.fs-period-bounds {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-range-field-gap);
+}
+
+/* A native date field will not shrink below its own min-content unless told. */
+.fs-period-bounds .fs-input { flex: 1 1 0; min-width: 0; }
+
+.fs-period-arrow {
+  flex: none;
+  width: var(--fs-range-field-arrow-size);
+  height: var(--fs-range-field-arrow-size);
+  color: var(--fs-range-field-arrow-color);
+  stroke-width: var(--fs-range-field-arrow-stroke);
+}
+
+.fs-period-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--fs-space-100);
+}

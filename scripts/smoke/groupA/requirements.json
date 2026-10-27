@@ -1,0 +1,11 @@
+{
+  "schema_version": "flow-steward-smoke-requirements-v1",
+  "group": "A",
+  "sources": ["smoke_A.sh"],
+  "common": {},
+  "checks": {
+    "A05": {}, "A06": {}, "A07": {}, "A13": {}, "A14": {}, "A18": {},
+    "A19": {}, "A20": {}, "A21": {}, "A22": {}, "A23": {}, "A24": {},
+    "A25": {}, "A26": {}, "A27": {}, "A29": {}
+  }
+}

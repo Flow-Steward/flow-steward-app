@@ -1,0 +1,2264 @@
+/* ============================================================
+   Flow Steward - Canonical public token entrypoint
+
+   Purpose:
+   - Import the repository-contained font and base foundations.
+   - Own the semantic light/dark layer for dashboard product UI.
+   - Provide component-facing tokens for the canonical catalog.
+   ============================================================ */
+
+@import "./fonts.css";
+@import "./base.css";
+
+:root {
+  /* Reviewed compatibility bridges retained for live legacy consumers. */
+  --fs-bg: var(--fs-bg-page);
+  --fs-surface: var(--fs-bg-surface-muted);
+  --fs-weight-regular: 400;
+  --ink: var(--fs-text-primary);
+  --slate: var(--fs-text-secondary);
+  --muted: var(--fs-text-tertiary);
+}
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Workflow families color only the type icon and its tile, never the card. */
+
+  /* Workflow canvas routing — canonical DS eaf8aaa42d8e889bf79be617a8a409092a2daa10. */
+  --fs-workflow-lane-bg: #eaf0f6;
+
+  /* A For each sits one step deeper than a lane, visible on ordinary monitors. */
+  --fs-workflow-lane-loop-bg: #d7e0eb;
+  --fs-workflow-lane-control-bg: var(--fs-bg-sidebar);
+  --fs-workflow-grid-dot-color: var(--fs-border-default);
+  --fs-workflow-edge: var(--fs-text-tertiary);
+  --fs-workflow-edge-selected: var(--fs-action-primary);
+  --fs-workflow-edge-failure: var(--fs-status-danger);
+  --fs-workflow-edge-ran: var(--fs-status-success);
+  --fs-workflow-edge-width: 1.5;
+  --fs-workflow-edge-width-selected: 2;
+  --fs-workflow-edge-dash: 6 4;
+  --fs-workflow-edge-draft-dash: 7 4;
+  --fs-workflow-parallel-lane-border: #bbc1c7;
+  --fs-workflow-parallel-lane-dash: 4 4;
+  --fs-workflow-family-action-icon: #5d52b4;
+  --fs-workflow-family-action-tile: #ececff;
+  --fs-workflow-family-data-icon: #98397e;
+  --fs-workflow-family-data-tile: #fde7f5;
+
+  /* A note is pastel paper beneath the steps; yellow means a note and nothing else. */
+  --fs-workflow-note-bg: #fbf5dc;
+  --fs-workflow-note-border: #ebe2bf;
+  --fs-workflow-note-label: #6f6136;
+  --fs-workflow-note-title: var(--fs-text-primary);
+  --fs-workflow-note-text: var(--fs-text-secondary);
+
+  /* Background roles — neutral scale, no warm tints.
+     canvas is the page, sidebar is one step darker than canvas, surface is the
+     card, surface-muted is content inside a card. */
+  --fs-bg-canvas: #fafafa;
+  --fs-bg-sidebar: #f7f7f7;
+  --fs-bg-surface: var(--fs-white, #fff);
+  --fs-bg-surface-muted: #f5f5f5;
+  --fs-bg-page: var(--fs-bg-canvas);
+  --fs-bg-surface-raised: var(--fs-bg-surface);
+  --fs-bg-surface-nested: var(--fs-bg-surface-muted);
+  --fs-bg-topbar: rgb(255 255 255 / 88%);
+
+  /* Canon: the input ground is the white surface, not the recessed register.
+     `forms/settings-section.md` names the grey fill a defect on a form field —
+     it reads as disabled on a form field. */
+  --fs-bg-input: var(--fs-white, #fff);
+  --fs-bg-inverse: var(--fs-ink, #000509);
+
+  /* Text roles */
+  --fs-text-primary: var(--fs-ink, #000509);
+
+  /* Calibrated against surface-muted, the most recessed surface these are
+     allowed to appear on — not against white. Both clear 4.5:1 there. */
+  --fs-text-secondary: #3c4448;
+  --fs-text-tertiary: #656d72;
+  --fs-text-inverse: var(--fs-white, #fff);
+  --fs-text-brand: var(--fs-green, #1e6251);
+
+  /* One value for attention text: the ink role, not the signal. */
+  --fs-text-attention: var(--fs-status-attention-ink);
+  --fs-text-danger: var(--fs-danger, #b3322b);
+
+  /* Border roles. Two jobs: `subtle` separates regions that already differ in
+     fill; `default` carries affordance and is mandatory for any element whose
+     fill equals its parent's. `strong` is kept as an alias so existing
+     consumers land on the affordance role. */
+  --fs-border-subtle: #e6e9ea;
+  --fs-border-default: #d4d8da;
+
+  /* A third border job, distinct from the two above: not separating regions but
+     declaring that an element can be operated. It is the resting edge of every
+     control — field, secondary button, checkbox, radio, trigger, segment — and
+     it is the only thing that identifies them, because a control's own fill
+     differs from the surface behind it by 1.01:1 in dark and 1.04:1 in light. */
+  --fs-border-control: #bbbfc1;
+
+  /* The hover step of that same job. It must stay stronger than the rest edge:
+     a hover that lightens the border reads as the control going away. */
+  --fs-border-control-hover: #aeb2b4;
+  --fs-border-strong: var(--fs-border-default);
+
+  /* Third tier: reads as structural divider, not control outline — table frames
+     and pinned-column edges. */
+  --fs-border-emphasis: #b9bec0;
+  --fs-border-selected: var(--fs-green, #1e6251);
+  --fs-border-accent: #ffd3ac;
+  --fs-border-danger: color-mix(in srgb, var(--fs-danger, #b3322b) 36%, white);
+
+  /* Action roles */
+  --fs-action-primary: var(--fs-green, #1e6251);
+  --fs-action-primary-hover: #16493d;
+  --fs-action-primary-active: #0c3327;
+  --fs-action-primary-text: var(--fs-white, #fff);
+  --fs-action-primary-wash: var(--fs-green-050, #eaf2ef);
+  --fs-action-accent: var(--fs-orange, #ff7504);
+  --fs-action-accent-hover: var(--fs-orange-700, #c25800);
+  --fs-action-accent-active: #9c4700;
+  --fs-action-accent-text: var(--fs-white, #fff);
+  --fs-action-accent-wash: var(--fs-orange-050, #fff1e5);
+
+  /* Published disabled action fills retain a muted action identity. Neutral
+     variants keep their neutral roles. No disabled subtree opacity fade. */
+  --fs-action-disabled-bg: color-mix(in srgb, var(--fs-action-primary) 70%, var(--fs-bg-surface));
+  --fs-action-disabled-border: var(--fs-border-default);
+  --fs-action-disabled-fg: var(--fs-action-primary-text);
+  --fs-action-accent-disabled-bg: color-mix(in srgb, var(--fs-action-accent) 70%, var(--fs-bg-surface));
+  --fs-action-accent-disabled-fg: var(--fs-text-primary);
+  --fs-action-danger-disabled-bg: color-mix(in srgb, var(--fs-status-danger) 70%, var(--fs-bg-surface));
+  --fs-action-danger-disabled-fg: var(--fs-text-inverse);
+
+  /* Status roles */
+  --fs-status-success: var(--fs-green, #1e6251);
+  --fs-status-success-bg: var(--fs-green-050, #eaf2ef);
+  --fs-status-success-border: #dbe9e4;
+  --fs-status-warning: var(--fs-orange, #ff7504);
+
+  /* Signal and ink are separate tokens. `attention` paints fills, borders and
+     indicators; `attention-ink` paints text on a wash — #ff7504 as text
+     measures 2.43:1 and fails, the ink is 5.09:1. */
+  --fs-status-attention: var(--fs-orange, #ff7504);
+  --fs-status-attention-ink: #a84d00;
+  --fs-status-attention-wash: var(--fs-orange-050, #fff1e5);
+  --fs-status-attention-border: #ffd3ac;
+  --fs-status-warning-bg: var(--fs-orange-050, #fff1e5);
+  --fs-status-warning-border: #ffd3ac;
+  --fs-status-danger: var(--fs-danger, #b3322b);
+  --fs-status-danger-wash: #fdecea;
+  --fs-status-danger-bg: var(--fs-status-danger-wash);
+  --fs-status-danger-border: #f3c4c0;
+  --fs-status-info: var(--fs-ocean-2, #1b8dba);
+  --fs-status-info-bg: #eaf6fb;
+  --fs-status-info-border: #c8e8f2;
+  --fs-status-neutral: var(--fs-text-tertiary);
+  --fs-status-neutral-bg: var(--fs-bg-surface);
+  --fs-status-neutral-border: var(--fs-border-default);
+
+  /* Presence roles */
+  --fs-presence-indicator: var(--fs-green, #1e6251);
+
+  /* Focus, semantic elevation and overlay roles */
+  --fs-focus-ring-color: rgb(30 98 81 / 45%);
+  --fs-focus-gap-color: var(--fs-bg-surface);
+  --fs-focus-ring: 0 0 0 var(--fs-focus-ring-offset) var(--fs-focus-gap-color), 0 0 0 calc(var(--fs-focus-ring-offset) + var(--fs-focus-ring-width)) var(--fs-focus-ring-color);
+  --fs-elevation-surface-sunken: var(--fs-bg-surface-muted);
+  --fs-elevation-surface-default: var(--fs-bg-surface);
+  --fs-elevation-surface-raised: var(--fs-bg-surface-raised);
+  --fs-elevation-surface-overlay: var(--fs-bg-surface-raised);
+  --fs-shadow-default: none;
+  --fs-shadow-raised: 0 1px 2px rgb(0 5 9 / 8%);
+  --fs-shadow-overlay: 0 1px 2px rgb(0 5 9 / 6%), 0 8px 24px rgb(0 5 9 / 10%);
+  --fs-shadow-overflow: 0 -8px 18px -14px rgb(0 5 9 / 34%);
+
+  /* Horizontal partner of the overflow role. It keeps a zero spread so the
+     shadow stays continuous across table cell edges instead of breaking into
+     one detached patch per row. */
+  --fs-shadow-overflow-x: 6px 0 12px rgb(0 5 9 / 34%);
+  --fs-shadow-surface: var(--fs-shadow-default);
+  --fs-overlay-scrim: rgb(0 5 9 / 32%);
+  --fs-dropdown-item-hover-bg: var(--fs-bg-surface-muted);
+  --fs-dropdown-item-selected-mark: var(--fs-action-primary);
+  --fs-dropdown-trigger-border: var(--fs-border-control);
+  --fs-dropdown-trigger-border-hover: var(--fs-border-control-hover);
+  --fs-dropdown-trigger-border-open: var(--fs-border-selected);
+  --fs-dropdown-trigger-focus-ring: 0 0 0 var(--fs-focus-ring-width) var(--fs-focus-ring-color);
+
+  /* Public auth pattern roles */
+  --fs-public-auth-brand-panel-bg: var(--fs-bg-surface-muted);
+  --fs-public-auth-form-panel-bg: var(--fs-bg-page);
+  --fs-public-auth-divider: var(--fs-border-subtle);
+  --fs-public-auth-form-width: 416px;
+  --fs-public-auth-brand-copy-width: 460px;
+  --fs-public-auth-panel-padding-block: calc(var(--fs-space-400) * 2);
+  --fs-public-auth-panel-padding-inline: clamp(var(--fs-space-400), 6vw, calc(var(--fs-space-400) * 3));
+  --fs-public-auth-section-gap: var(--fs-space-300);
+  --fs-public-auth-form-gap: var(--fs-space-200);
+  --fs-public-auth-logo-height: var(--fs-space-300);
+  --fs-public-auth-logo-font-size: 20px;
+  --fs-public-auth-brand-title-size: clamp(32px, 3vw, 44px);
+  --fs-public-auth-brand-title-tablet-size: 32px;
+  --fs-public-auth-brand-title-mobile-size: 26px;
+  --fs-public-auth-brand-title-line-height: 1.04;
+  --fs-public-auth-submit-loading-opacity: 0.7;
+  --fs-public-auth-submit-spinner-duration: 600ms;
+  --fs-public-auth-submit-spinner-track: rgb(255 255 255 / 40%);
+  --fs-public-auth-submit-spinner-head: #fff;
+
+  /* Command menu component roles - Canonical contract */
+  --fs-command-surface: var(--fs-bg-surface);
+  --fs-command-border: var(--fs-border-subtle);
+  --fs-command-card-radius: 8px;
+  --fs-command-radius: 4px;
+  --fs-command-shadow: var(--fs-shadow-raised);
+  --fs-command-search-padding: 10px 12px;
+  --fs-command-search-gap: var(--fs-space-100);
+  --fs-command-list-padding: 4px;
+  --fs-command-item-padding: 8px 10px;
+  --fs-command-item-gap: var(--fs-space-100);
+  --fs-command-item-radius: 4px;
+  --fs-command-icon-size: var(--fs-icon-size-supporting);
+  --fs-command-font-size: 13px;
+  --fs-command-item-weight: 400;
+  --fs-command-highlight-weight: 500;
+  --fs-command-text: var(--fs-text-primary);
+  --fs-command-muted-text: var(--fs-text-tertiary);
+  --fs-command-icon: var(--fs-text-secondary);
+  --fs-command-highlight-bg: var(--fs-action-primary-wash);
+  --fs-command-highlight-text: var(--fs-action-primary);
+  --fs-command-empty-text: var(--fs-text-tertiary);
+  --fs-command-focus-ring: var(--fs-focus-ring);
+  --fs-command-transition: background var(--fs-motion-background-hover), color var(--fs-motion-background-hover), box-shadow var(--fs-motion-background-hover);
+
+  /* Advanced global search pattern roles - federated content search */
+  --fs-advanced-search-width: 720px;
+  --fs-advanced-search-max-height: min(610px, calc(100vh - 64px));
+  --fs-advanced-search-surface: var(--fs-bg-surface);
+  --fs-advanced-search-scrim: var(--fs-overlay-scrim);
+  --fs-advanced-search-border: var(--fs-border-subtle);
+  --fs-advanced-search-border-strong: var(--fs-border-strong);
+  --fs-advanced-search-radius: var(--fs-radius-large, 12px);
+  --fs-advanced-search-shadow: 0 18px 48px rgb(0 5 9 / 14%), 0 2px 8px rgb(0 5 9 / 5%);
+  --fs-advanced-search-search-height: 56px;
+  --fs-advanced-search-filter-height: 26px;
+  --fs-advanced-search-tab-height: 47px;
+  --fs-advanced-search-icon-size: var(--fs-icon-size-default);
+  --fs-advanced-search-supporting-icon-size: var(--fs-icon-size-default);
+  --fs-advanced-search-icon-stroke: var(--fs-icon-stroke);
+  --fs-advanced-search-text: var(--fs-text-primary);
+  --fs-advanced-search-secondary-text: var(--fs-text-secondary);
+  --fs-advanced-search-muted-text: var(--fs-text-tertiary);
+  --fs-advanced-search-control-bg: var(--fs-bg-surface);
+  --fs-advanced-search-control-hover-bg: #f5f5f5;
+  --fs-advanced-search-control-border: var(--fs-border-strong);
+  --fs-advanced-search-tab-selected-text: var(--fs-action-primary);
+  --fs-advanced-search-tab-indicator: var(--fs-action-primary);
+  --fs-advanced-search-result-hover-bg: var(--fs-bg-surface-muted);
+  --fs-advanced-search-result-active-bg: var(--fs-action-primary-wash);
+  --fs-advanced-search-result-active-marker: var(--fs-action-primary);
+  --fs-advanced-search-match-text: var(--fs-action-primary);
+  --fs-advanced-search-status-neutral-bg: #e5e5e5;
+  --fs-advanced-search-status-neutral-text: var(--fs-text-tertiary);
+  --fs-advanced-search-status-success-bg: var(--fs-action-primary-wash);
+  --fs-advanced-search-status-success-text: var(--fs-action-primary);
+  --fs-advanced-search-status-danger-bg: #fbecea;
+  --fs-advanced-search-status-danger-text: var(--fs-status-danger);
+  --fs-advanced-search-error-text: var(--fs-status-danger);
+  --fs-advanced-search-error-bg: var(--fs-status-danger-bg);
+  --fs-advanced-search-error-border: var(--fs-status-danger-border);
+  --fs-advanced-search-focus-ring: var(--fs-focus-ring);
+  --fs-advanced-search-transition: background var(--fs-motion-background-hover), border-color var(--fs-motion-background-hover), color var(--fs-motion-background-hover), box-shadow var(--fs-motion-background-hover);
+  --fs-advanced-search-enter: var(--fs-motion-dialog-enter);
+  --fs-advanced-search-exit: var(--fs-motion-dialog-exit);
+
+  /* Tabs component roles - nav/Tabs reference contract */
+  --fs-tabs-gap: var(--fs-space-050);
+  --fs-tabs-tab-height: 38px;
+  --fs-tabs-tab-hover-height: 40px;
+  --fs-tabs-tab-radius: 8px 8px 0 0;
+
+  /* Tabs size to their label. A tab stretched to the container turns the selected
+     fill into the heaviest object on the screen and unlinks target size from
+     content, which is also how Tabs starts reading as a Segmented Control. */
+  --fs-tabs-tab-min-width: 132px;
+  --fs-tabs-tab-padding-x: var(--fs-space-200);
+  --fs-tabs-tab-font-size: 13px;
+  --fs-tabs-tab-font-weight: 500;
+  --fs-tabs-selected-bg: var(--fs-action-primary);
+  --fs-tabs-selected-text: var(--fs-action-primary-text);
+  --fs-tabs-unselected-bg: var(--fs-bg-surface-muted);
+  --fs-tabs-unselected-text: var(--fs-text-secondary);
+
+  /* Hover needs one step below the resting muted fill, and the surface ladder
+     has no such step. Derived from the fill itself rather than borrowed from a
+     border role, so it stays correct in both themes without inventing a fifth
+     surface. */
+  --fs-tabs-hover-bg: color-mix(in srgb, var(--fs-bg-surface-muted) 94%, var(--fs-text-primary));
+  --fs-tabs-focus-ring: var(--fs-focus-ring);
+  --fs-tabs-panel-bg: var(--fs-bg-surface);
+  --fs-tabs-panel-border: var(--fs-border-subtle);
+  --fs-tabs-panel-accent: var(--fs-action-primary);
+  --fs-tabs-panel-accent-width: 3px;
+  --fs-tabs-panel-radius: 0 0 8px 8px;
+
+  /* Raised from 16px so the panel insets its children more than they are
+     spaced from each other. The bottom stays 2px larger than the top because
+     the 3px accent border makes the top read 2px tighter: 24 + 3 and 26 + 1
+     are both a 27px optical inset. */
+  --fs-tabs-panel-padding: 24px 24px 26px;
+  --fs-tabs-panel-min-height: 104px;
+  --fs-tabs-title-font: var(--ff-display);
+  --fs-tabs-title-size: 15px;
+  --fs-tabs-title-weight: 500;
+  --fs-tabs-title-tracking: -0.01em;
+  --fs-tabs-title-text: var(--fs-text-primary);
+  --fs-tabs-body-size: 13px;
+  --fs-tabs-body-line-height: 1.6;
+  --fs-tabs-body-text: var(--fs-text-secondary);
+  --fs-tabs-motion-duration: 180ms;
+
+  /* Sidebar component roles - neutral @shadcn/sidebar-07 setup */
+  --fs-sidebar-width-expanded: 260px;
+  --fs-sidebar-width-collapsed: 48px;
+
+  /* ---------- Page grid ----------
+     Canonical, closed scale: shell media queries use only these five values;
+     internal component layout changes use container queries.
+     Use rem so media queries scale with the reader's font size for accessibility.
+     At the default 16px root these values are 640/768/1024/1280/1536px. */
+  --fs-breakpoint-sm: 40rem;
+  --fs-breakpoint-md: 48rem;
+  --fs-breakpoint-lg: 64rem;
+  --fs-breakpoint-xl: 80rem;
+  --fs-breakpoint-2xl: 96rem;
+
+  /* Page width modes. `fluid` has no maximum and needs no token. */
+  --fs-page-width-standard: 1280px;
+  --fs-page-width-wide: 1600px;
+
+  /* Form block measure belongs to the block, not the page. */
+  --fs-form-block-measure: 880px;
+  --fs-page-gutter: var(--fs-space-300);
+  --fs-page-gutter-compact: var(--fs-space-200);
+  --fs-sidebar-brand-height: 64px;
+  --fs-sidebar-header-padding: 8px;
+  --fs-sidebar-logo-mark-height: 16.5px;
+
+  /* Part of the logo, not layout space: the cap height over φ. Off the spacing scale, as the 16.5px mark and its nudge are. */
+  --fs-sidebar-logo-gap: 4.7px;
+  --fs-sidebar-logo-horizontal-padding: 8px;
+  --fs-sidebar-logo-font-size: 15px;
+  --fs-sidebar-logo-font: var(--ff-logo);
+  --fs-sidebar-logo-font-weight: 400;
+  --fs-sidebar-logo-letter-spacing: 0;
+  --fs-sidebar-logo-baseline-nudge: 4.1px;
+  --fs-sidebar-logo-motion-duration: 6000ms;
+  --fs-sidebar-logo-dot-delay: 400ms;
+  --fs-sidebar-logo-gradient-1: var(--fs-ocean-1);
+  --fs-sidebar-logo-gradient-2: var(--fs-ocean-2);
+  --fs-sidebar-logo-gradient-3: var(--fs-ocean-3);
+  --fs-sidebar-logo-gradient-4: var(--fs-ocean-4);
+  --fs-sidebar-workspace-height: 40px;
+
+  /* The workspace mark. It resolved the active-destination roles before, which
+     looked right because both are the brand wash, and said the wrong thing: the
+     switcher is not the active destination, and would have followed that role
+     anywhere it moved. */
+  --fs-sidebar-workspace-mark-size: 32px;
+  --fs-sidebar-workspace-mark-radius: var(--fs-radius-container, 8px);
+  --fs-sidebar-workspace-mark-bg: var(--fs-action-primary-wash);
+  --fs-sidebar-workspace-mark-text: var(--fs-text-brand);
+  --fs-sidebar-workspace-mark-font-size: 14px;
+  --fs-sidebar-workspace-mark-font-weight: 500;
+  --fs-sidebar-group-padding: 8px;
+  --fs-sidebar-content-gap: 8px;
+  --fs-sidebar-menu-gap: 4px;
+  --fs-sidebar-nav-item-height: 32px;
+  --fs-sidebar-sub-item-height: 28px;
+  --fs-sidebar-profile-height: 48px;
+  --fs-sidebar-menu-text-size: 14px;
+  --fs-sidebar-group-label-height: 32px;
+  --fs-sidebar-group-label-size: 12px;
+  --fs-sidebar-menu-icon-size: 16px;
+  --fs-sidebar-icon-size: var(--fs-sidebar-menu-icon-size);
+  --fs-sidebar-collapsed-button-size: 32px;
+  --fs-sidebar-header-action-size: 32px;
+  --fs-sidebar-trigger-size: 28px;
+  --fs-sidebar-avatar-size: 32px;
+  --fs-sidebar-project-action-size: 20px;
+  --fs-sidebar-active-marker-width: 3px;
+  --fs-sidebar-active-marker-height: 20px;
+  --fs-sidebar-active-marker-offset: -8px;
+  --fs-sidebar-collapsed-active-marker-offset: -8px;
+  --fs-sidebar-active-marker-radius: 0 4px 4px 0;
+  --fs-sidebar-theme-switch-height: 36px;
+  --fs-sidebar-theme-switch-padding: 3px;
+  --fs-sidebar-theme-switch-radius: 8px;
+  --fs-sidebar-rail-hit-area: 16px;
+  --fs-sidebar-rail-line-width: 2px;
+
+  /* The pointer crosses the rail edge in passing; a tooltip that appeared at once would flicker. */
+  --fs-sidebar-rail-tooltip-delay: 500ms;
+  --fs-sidebar-control-radius: var(--fs-radius-control, 6px);
+  --fs-sidebar-item-radius: var(--fs-sidebar-control-radius);
+  --fs-sidebar-sub-item-radius: var(--fs-radius-control, 6px);
+  --fs-sidebar-page-bg: var(--fs-bg-canvas);
+  --fs-sidebar-rail-bg: var(--fs-bg-sidebar);
+  --fs-sidebar-card-bg: var(--fs-bg-surface);
+  --fs-sidebar-muted-bg: var(--fs-bg-surface-muted);
+  --fs-sidebar-item-hover-bg: var(--fs-sidebar-muted-bg);
+
+  /* The sidebar resolves the canonical ink. It used to carry its own neutral
+     grey ramp, which read as a different colour of paint from the rest of the
+     interface — most visibly in dark, where its primary was #FAFAFA and its
+     logo pure #FFFFFF against ink that is #ECEFEE everywhere else. */
+  --fs-sidebar-text-primary: var(--fs-text-primary);
+  --fs-sidebar-logo-text: var(--fs-text-primary);
+  --fs-sidebar-text-secondary: var(--fs-text-secondary);
+  --fs-sidebar-text-tertiary: var(--fs-text-tertiary);
+  --fs-sidebar-border: #e5e5e5;
+  --fs-sidebar-border-strong: #d4d4d4;
+  --fs-sidebar-primary: #171717;
+  --fs-sidebar-primary-hover: #262626;
+  --fs-sidebar-primary-foreground: #fafafa;
+  --fs-sidebar-active-bg: var(--fs-action-primary-wash);
+  --fs-sidebar-active-text: var(--fs-action-primary);
+  --fs-sidebar-active-marker: var(--fs-action-primary);
+  --fs-sidebar-accent: var(--fs-action-primary);
+  --fs-sidebar-accent-bg: var(--fs-action-primary-wash);
+  --fs-sidebar-count-bg: var(--fs-count-pill-neutral-bg);
+  --fs-sidebar-count-text: var(--fs-count-pill-neutral-text);
+  --fs-sidebar-attention-count-bg: var(--fs-count-pill-attention-bg);
+  --fs-sidebar-attention-count-text: var(--fs-count-pill-attention-text);
+  --fs-sidebar-theme-switch-bg: var(--fs-bg-surface);
+  --fs-sidebar-theme-switch-border: var(--fs-border-control);
+  --fs-sidebar-theme-option-bg-active: var(--fs-bg-surface-muted);
+  --fs-sidebar-theme-option-text: var(--fs-text-tertiary);
+  --fs-sidebar-theme-option-text-active: var(--fs-action-primary);
+  --fs-sidebar-tooltip-bg: #171717;
+  --fs-sidebar-tooltip-fg: #fafafa;
+  --fs-sidebar-shadow: var(--fs-shadow-overlay);
+  --fs-sidebar-motion-hover: var(--fs-duration-fast);
+  --fs-sidebar-motion-enter: var(--fs-duration-fast);
+  --fs-sidebar-motion-rail: var(--fs-duration-standard);
+  --fs-sidebar-ease-enter: var(--fs-ease-enter);
+
+  /* Header component roles - nav/Header + shadcn h-16 shell contract */
+  --fs-header-height: 64px;
+  --fs-header-padding-inline: 16px;
+  --fs-header-gap: 12px;
+  --fs-header-separator-height: 16px;
+  --fs-header-bg: var(--fs-bg-surface);
+  --fs-header-border: var(--fs-border-subtle);
+  --fs-header-text: var(--fs-text-primary);
+  --fs-header-breadcrumb-text: var(--fs-text-primary);
+  --fs-header-breadcrumb-size: 14px;
+  --fs-header-breadcrumb-weight: 500;
+  --fs-header-search-trigger-width: 168px;
+  --fs-header-search-height: 32px;
+  --fs-header-search-bg: var(--fs-bg-input);
+  --fs-header-search-border: var(--fs-border-strong);
+  --fs-header-search-text: var(--fs-text-primary);
+  --fs-header-muted-text: var(--fs-text-tertiary);
+  --fs-header-icon-size: 16px;
+  --fs-header-approval-count-bg: var(--fs-count-pill-attention-bg);
+  --fs-header-approval-count-text: var(--fs-count-pill-attention-text);
+
+  /* Drawer component roles - canonical overlay/Drawer contract */
+  --fs-drawer-card-bg: var(--fs-bg-surface);
+  --fs-drawer-card-border: var(--fs-border-subtle);
+  --fs-drawer-card-radius: 8px;
+  --fs-drawer-card-shadow: var(--fs-shadow-surface);
+  --fs-drawer-card-header-padding: 11px 14px;
+  --fs-drawer-stage-height: 150px;
+  --fs-drawer-stage-bg: var(--fs-bg-surface-muted);
+  --fs-drawer-width: 62%;
+  --fs-drawer-min-width: 188px;
+  --fs-drawer-surface: var(--fs-bg-surface);
+  --fs-drawer-border: var(--fs-border-subtle);
+  --fs-drawer-shadow: var(--fs-shadow-overlay);
+  --fs-drawer-padding: 14px;
+  --fs-drawer-title-gap: 12px;
+  --fs-drawer-title-size: 14px;
+  --fs-drawer-title-text: var(--fs-text-primary);
+  --fs-drawer-close-size: 20px;
+  --fs-drawer-close-icon-size: 14px;
+  --fs-drawer-close-text: var(--fs-text-tertiary);
+  --fs-drawer-close-hover-bg: var(--fs-bg-surface-muted);
+  --fs-drawer-label-size: 9px;
+  --fs-drawer-label-tracking: 0.12em;
+  --fs-drawer-label-text: var(--fs-text-tertiary);
+  --fs-drawer-label-gap: 6px;
+  --fs-drawer-badge-gap: 6px;
+  --fs-drawer-badge-padding: 4px 9px;
+  --fs-drawer-badge-size: 12px;
+  --fs-drawer-badge-bg: var(--fs-action-primary-wash);
+  --fs-drawer-badge-border: var(--fs-border-strong);
+  --fs-drawer-badge-text: var(--fs-action-primary);
+  --fs-drawer-badge-dot-size: 5px;
+  --fs-drawer-focus-ring: var(--fs-focus-ring);
+
+  /* Popover component roles - canonical overlay/Popover contract */
+  --fs-popover-card-bg: var(--fs-bg-surface);
+  --fs-popover-card-border: var(--fs-border-subtle);
+  --fs-popover-card-shadow: var(--fs-shadow-surface);
+  --fs-popover-card-radius: 8px;
+  --fs-popover-stage-padding: 16px 14px 202px;
+  --fs-popover-trigger-height: var(--fs-button-height-md, 32px);
+  --fs-popover-trigger-min-width: var(--fs-button-min-width-md, 96px);
+  --fs-popover-trigger-bg: var(--fs-bg-surface);
+  --fs-popover-trigger-border: var(--fs-border-strong);
+  --fs-popover-trigger-text: var(--fs-text-primary);
+  --fs-popover-trigger-radius: 4px;
+  --fs-popover-width: 216px;
+
+  /* Wide variant for content that cannot fold: two fields in a row, such as a
+     date Range field. Lists and checkbox options stay on the 216px default.
+     Measured rather than estimated: a native date input asks for 139px to hold
+     its value and its calendar affordance without them touching, so the row
+     needs 2 x 139 + a 12px arrow + two 8px gaps = 306px, and the popover's own
+     chrome adds 34px. 300px squeezed each field by 20px, which left the year
+     running into the calendar icon. */
+  --fs-popover-width-wide: 340px;
+  --fs-popover-bg: var(--fs-bg-surface);
+  --fs-popover-border: var(--fs-border-subtle);
+  --fs-popover-shadow: var(--fs-shadow-overlay);
+  --fs-popover-radius: 8px;
+  --fs-popover-title-text: var(--fs-text-primary);
+  --fs-popover-option-text: var(--fs-text-primary);
+  --fs-popover-option-hover-bg: var(--fs-bg-surface-muted);
+  --fs-popover-check-bg: var(--fs-action-primary);
+  --fs-popover-check-text: var(--fs-action-primary-text);
+  --fs-popover-check-border: var(--fs-border-strong);
+  --fs-popover-count-bg: var(--fs-action-primary-wash);
+  --fs-popover-count-text: var(--fs-action-primary);
+  --fs-popover-footer-border: var(--fs-border-subtle);
+  --fs-popover-secondary-text: var(--fs-text-tertiary);
+  --fs-popover-focus-ring: var(--fs-focus-ring);
+
+  /* Inline confirm component roles - canonical overlay/Confirm contract */
+  --fs-inline-confirm-card-bg: var(--fs-bg-surface);
+  --fs-inline-confirm-card-border: var(--fs-border-subtle);
+  --fs-inline-confirm-card-shadow: var(--fs-shadow-surface);
+  --fs-inline-confirm-card-radius: 8px;
+  --fs-inline-confirm-surface-bg: var(--fs-bg-surface);
+  --fs-inline-confirm-surface-border: var(--fs-border-subtle);
+  --fs-inline-confirm-shadow: var(--fs-shadow-overlay);
+  --fs-inline-confirm-radius: 8px;
+  --fs-inline-confirm-text: var(--fs-text-primary);
+  --fs-inline-confirm-secondary-bg: var(--fs-bg-surface);
+  --fs-inline-confirm-secondary-border: var(--fs-button-secondary-border);
+  --fs-inline-confirm-secondary-text: var(--fs-text-primary);
+  --fs-inline-confirm-secondary-hover-bg: var(--fs-bg-surface-muted);
+
+  /* Two confirming variants, chosen by what the action does rather than by how
+     it feels. Primary confirms a reversible, non-destructive action — Restore,
+     Resume, Enable — where danger red would state a consequence that is not
+     there. Danger stays for removal. */
+  --fs-inline-confirm-primary-bg: var(--fs-action-primary);
+  --fs-inline-confirm-primary-border: var(--fs-action-primary);
+  --fs-inline-confirm-primary-text: var(--fs-action-primary-text);
+  --fs-inline-confirm-primary-hover-bg: var(--fs-action-primary-hover);
+  --fs-inline-confirm-primary-active-bg: var(--fs-action-primary-active);
+  --fs-inline-confirm-danger-bg: var(--fs-status-danger);
+  --fs-inline-confirm-danger-border: var(--fs-status-danger);
+  --fs-inline-confirm-danger-text: var(--fs-text-inverse);
+  --fs-inline-confirm-danger-hover-bg: #8f2822;
+  --fs-inline-confirm-danger-active-bg: #721f1a;
+  --fs-inline-confirm-focus-ring: var(--fs-focus-ring);
+
+  /* Table / Data grid roles - canonical data/Table contract */
+  --fs-table-card-bg: var(--fs-bg-surface);
+  --fs-table-card-border: var(--fs-border-subtle);
+  --fs-table-card-shadow: var(--fs-shadow-surface);
+  --fs-table-card-radius: var(--fs-radius-large, 12px);
+  --fs-table-header-bg: var(--fs-bg-surface-muted);
+  --fs-table-header-border: var(--fs-border-subtle);
+  --fs-table-min-width: 560px;
+  --fs-table-row-border: var(--fs-border-subtle);
+
+  /* Frozen first-column boundary. The divider is structure, so it holds at every
+     scroll position and reads one step stronger than the row rules it crosses;
+     the shadow is state and only carries while columns are actually passing
+     underneath. Both live on the boundary cell, so a table shows exactly one of
+     each no matter how many columns are frozen. The shadow's offset equals half
+     its blur, so it starts at the divider and never spills back over the frozen
+     column. */
+  --fs-table-sticky-divider: var(--fs-border-default);
+  --fs-table-sticky-divider-width: 1px;
+  --fs-table-sticky-shadow: var(--fs-shadow-overflow-x);
+  --fs-table-sticky-shadow-rest: 6px 0 12px transparent;
+  --fs-table-row-selected-bg: #fafafa;
+  --fs-table-row-hover-bg: var(--fs-table-row-selected-bg);
+  --fs-advanced-table-row-hover-bg: var(--fs-table-row-hover-bg);
+  --fs-advanced-table-row-selected-bg: var(--fs-table-row-selected-bg);
+  --fs-table-heading-text: var(--fs-text-tertiary);
+  --fs-table-primary-text: var(--fs-text-primary);
+  --fs-table-secondary-text: var(--fs-text-secondary);
+  --fs-table-tertiary-text: var(--fs-text-tertiary);
+  --fs-table-status-flow-bg: var(--fs-action-primary-wash);
+  --fs-table-status-flow-text: var(--fs-action-primary);
+  --fs-table-status-attention-bg: var(--fs-action-accent-wash);
+  --fs-table-status-attention-text: var(--fs-action-accent-hover);
+  --fs-table-status-paused-bg: var(--fs-bg-surface-muted);
+  --fs-table-status-paused-text: var(--fs-text-tertiary);
+
+  /* Bulk action bar roles - dashboard selection contract */
+  --fs-bulk-action-bar-bg: var(--fs-bg-surface);
+  --fs-bulk-action-bar-border: var(--fs-border-subtle);
+  --fs-bulk-action-bar-text: var(--fs-text-primary);
+
+  /* The bar floats over the collection it acts on, so it is an overlay-class
+     surface in both themes rather than a flat inline strip. */
+  --fs-bulk-action-bar-shadow: var(--fs-shadow-overlay);
+  --fs-bulk-action-bar-radius: 8px;
+  --fs-bulk-action-bar-min-height: 48px;
+  --fs-bulk-action-bar-padding: var(--fs-space-100) var(--fs-space-150);
+  --fs-bulk-action-bar-gap: var(--fs-space-100);
+  --fs-bulk-action-bar-divider: var(--fs-border-subtle);
+
+  /* Viewport anchoring. The bar sits on the application-chrome layer so popups,
+     menus and the confirmation dialog a destructive action opens all stay above
+     it, and it clears the viewport edge by one 24px step. */
+  --fs-bulk-action-bar-layer: var(--fs-z-navigation);
+  --fs-bulk-action-bar-offset: var(--fs-space-300);
+
+  /* Selection is a transient viewport-anchored announcement, so the bar takes
+     the toast motion intent and rises by one 16px step on entry. */
+  --fs-bulk-action-bar-travel: var(--fs-space-200);
+  --fs-bulk-action-bar-enter: var(--fs-motion-toast-enter);
+  --fs-bulk-action-bar-exit: var(--fs-motion-toast-exit);
+  --fs-bulk-action-bar-count-bg: var(--fs-action-primary-wash);
+  --fs-bulk-action-bar-count-border: var(--fs-border-selected);
+  --fs-bulk-action-bar-count-text: var(--fs-action-primary);
+
+  /* Actions carry only their size here: colour comes from the published Button
+     variants (Secondary for neutral actions, the quiet Ghost danger lane for a
+     destructive one), never from bar-local paint. */
+  --fs-bulk-action-bar-button-height: var(--fs-button-height-md, 32px);
+
+  /* Right context rail roles - canonical dashboard pattern */
+  --fs-right-context-rail-width: 240px;
+  --fs-right-context-rail-radius: 8px;
+  --fs-right-context-rail-card-bg: var(--fs-bg-surface);
+  --fs-right-context-rail-border: var(--fs-border-subtle);
+  --fs-right-context-rail-main-border: var(--fs-border-strong);
+
+  /* Parameter chip roles. A signature is reference detail, so the chip rests in
+     the same neutral register as an input in both themes. There is no inverted
+     surface in the ladder (canvas -> sidebar -> surface -> muted), and an
+     inverted slab would be a fifth register no token can place. */
+
+  /* Value chip roles. A reference value is neither a status nor a parameter
+     signature, and the catalog publishes no shape for it — the pill means state
+     and the parameter chip is scoped to one tool or endpoint parameter. Geometry
+     is borrowed from the small badge so a chip and a pill sit level in one row.
+     The font size is the badge's 11px on purpose: the published code size is
+     12px at line-height 1.65, which either bursts a 20px chip or clips in it. */
+  --fs-value-chip-bg: var(--fs-bg-surface-muted);
+  --fs-value-chip-border: var(--fs-border-subtle);
+  --fs-value-chip-text: var(--fs-text-primary);
+  --fs-value-chip-font-size: var(--fs-badge-font-size-sm);
+  --fs-parameter-chip-height: 24px;
+  --fs-parameter-chip-radius: var(--fs-radius-compact, 4px);
+  --fs-parameter-chip-bg: var(--fs-bg-surface-muted);
+  --fs-parameter-chip-border: var(--fs-border-default);
+  --fs-parameter-chip-padding-x: var(--fs-space-075);
+  --fs-parameter-chip-name-font: var(--ff-code);
+  --fs-parameter-chip-name-size: var(--fs-type-code-size);
+  --fs-parameter-chip-name-color: var(--fs-text-primary);
+  --fs-parameter-chip-type-font: var(--ff-code);
+  --fs-parameter-chip-type-size: 11px;
+  --fs-parameter-chip-type-color: var(--fs-text-tertiary);
+  --fs-parameter-chip-divider: 1px solid var(--fs-border-default);
+  --fs-parameter-chip-required: var(--fs-status-attention-ink);
+  --fs-parameter-chip-required-gap: var(--fs-space-025);
+  --fs-parameter-chip-group-gap: var(--fs-space-100);
+  --fs-parameter-signature-name-column: 192px;
+  --fs-parameter-signature-type-column: 96px;
+  --fs-parameter-signature-row-gap: var(--fs-space-150);
+  --fs-parameter-signature-row-min-height: 32px;
+  --fs-parameter-signature-row-padding: var(--fs-space-075) var(--fs-space-150);
+  --fs-parameter-signature-divider: 1px solid var(--fs-border-subtle);
+  --fs-parameter-signature-description-size: var(--fs-type-caption-size);
+  --fs-parameter-signature-description-color: var(--fs-text-secondary);
+
+  /* Key-value list component roles. The key is a fixed column so the values form
+     a readable left edge; identifier values take the code face because they are
+     copied, and human-readable values fall back to the body face. */
+  --fs-kv-row-min-height: 32px;
+  --fs-kv-row-padding-y: var(--fs-space-075);
+  --fs-kv-row-gap: var(--fs-space-200);
+  --fs-kv-row-divider: 1px solid var(--fs-border-subtle);
+  --fs-kv-key-width: 160px;
+  --fs-kv-key-size: var(--fs-type-field-label-size);
+  --fs-kv-key-color: var(--fs-text-tertiary);
+  --fs-kv-value-font: var(--ff-code);
+  --fs-kv-value-size: var(--fs-type-code-size);
+  --fs-kv-value-weight: 400;
+  --fs-kv-value-color: var(--fs-text-primary);
+  --fs-kv-value-plain-font: var(--ff-body);
+  --fs-kv-value-plain-size: var(--fs-type-field-label-size);
+  --fs-kv-value-empty-color: var(--fs-text-tertiary);
+  --fs-kv-surface: var(--fs-bg-surface);
+  --fs-kv-radius: var(--fs-radius-container, 8px);
+  --fs-kv-padding: 2px var(--fs-space-200);
+
+  /* Disclosure wrapper roles for the key-value list composition. Every one is a
+     reference, so the dark block needs no re-declaration: the theme scope here is
+     the root element itself, the same element the dark block writes to. */
+  --fs-disclosure-summary-text: var(--fs-text-primary);
+  --fs-disclosure-chevron: var(--fs-text-tertiary);
+  --fs-disclosure-hover-bg: var(--fs-bg-surface-muted);
+  --fs-disclosure-border: var(--fs-border-subtle);
+
+  /* Accordion roles - canonical data/Accordion contract */
+  --fs-accordion-card-bg: var(--fs-bg-surface);
+  --fs-accordion-card-border: var(--fs-border-subtle);
+  --fs-accordion-card-shadow: var(--fs-shadow-surface);
+  --fs-accordion-card-radius: 8px;
+  --fs-accordion-trigger-height: 38px;
+  --fs-accordion-item-radius: 4px;
+  --fs-accordion-closed-bg: var(--fs-bg-surface-muted);
+  --fs-accordion-closed-border: transparent;
+  --fs-accordion-closed-hover-bg: var(--fs-border-subtle);
+  --fs-accordion-open-bg: var(--fs-bg-surface);
+  --fs-accordion-open-border: var(--fs-border-subtle);
+  --fs-accordion-open-accent: var(--fs-action-primary);
+  --fs-accordion-closed-text: var(--fs-text-secondary);
+  --fs-accordion-open-text: var(--fs-action-primary);
+  --fs-accordion-panel-text: var(--fs-text-secondary);
+  --fs-accordion-icon-text: var(--fs-text-tertiary);
+  --fs-accordion-note-text: var(--fs-text-tertiary);
+  --fs-accordion-focus-ring: var(--fs-focus-ring);
+
+  /* Timeline roles - canonical data/Timeline contract */
+  --fs-timeline-card-bg: var(--fs-bg-surface);
+  --fs-timeline-card-border: var(--fs-border-subtle);
+  --fs-timeline-card-shadow: var(--fs-shadow-surface);
+  --fs-timeline-card-radius: 8px;
+  --fs-timeline-dot-size: 9px;
+  --fs-timeline-line-width: 2px;
+  --fs-timeline-primary-dot: var(--fs-action-primary);
+  --fs-timeline-current-dot: var(--fs-action-accent);
+  --fs-timeline-line: var(--fs-border-strong);
+  --fs-timeline-title-text: var(--fs-text-primary);
+  --fs-timeline-time-text: var(--fs-text-tertiary);
+
+  /* Progress roles */
+  --fs-progress-track-bg: var(--fs-border-subtle);
+  --fs-progress-track-height: var(--fs-space-075, 6px);
+  --fs-progress-track-radius: var(--fs-radius-pill, 999px);
+  --fs-progress-indicator: var(--fs-action-primary);
+  --fs-progress-indicator-success: var(--fs-status-success);
+  --fs-progress-indicator-attention: var(--fs-status-warning);
+  --fs-progress-indicator-danger: var(--fs-status-danger);
+  --fs-progress-indicator-paused: var(--fs-status-neutral);
+  --fs-progress-label-text: var(--fs-text-primary);
+  --fs-progress-value-text: var(--fs-text-primary);
+  --fs-progress-meta-text: var(--fs-text-tertiary);
+  --fs-progress-label-gap: var(--fs-space-050, 4px);
+  --fs-progress-meta-gap: var(--fs-space-075, 6px);
+
+  /* Log output roles */
+  --fs-log-surface-bg: var(--fs-bg-surface-muted);
+  --fs-log-surface-border: var(--fs-border-subtle);
+  --fs-log-surface-radius: var(--fs-radius-control, 6px);
+  --fs-log-surface-padding: var(--fs-space-150, 12px);
+  --fs-log-line-size: 12px;
+  --fs-log-line-height: 1.65;
+  --fs-log-line-text: var(--fs-text-secondary);
+  --fs-log-timestamp-text: var(--fs-text-tertiary);
+  --fs-log-level-info: var(--fs-status-info);
+  --fs-log-level-success: var(--fs-status-success);
+  --fs-log-level-warning: var(--fs-status-warning);
+  --fs-log-level-danger: var(--fs-status-danger);
+  --fs-log-gutter-gap: var(--fs-space-150, 12px);
+
+
+  /* IMPL-01: published Loader and default Switch roles, DS e42d1da. */
+  --fs-hit-target: var(--fs-hit-target-compact);
+  --fs-loader-height-lg: 40px;
+  --fs-loader-height-md: 24px;
+  --fs-loader-orbit-size-sm: 16px;
+  --fs-loader-orbit-size-md: 24px;
+  --fs-switch-track-width: 42px;
+  --fs-switch-track-height: 24px;
+  --fs-switch-track-padding: 2px;
+  --fs-switch-track-radius: var(--fs-radius-pill, 999px);
+  --fs-switch-thumb-size: 18px;
+  --fs-switch-thumb-travel: 18px;
+  --fs-switch-hit-target: var(--fs-hit-target);
+  --fs-switch-track-bg: var(--fs-bg-surface-muted);
+  --fs-switch-track-border: var(--fs-border-control);
+  --fs-switch-track-bg-on: var(--fs-action-primary);
+  --fs-switch-track-border-on: var(--fs-action-primary);
+  --fs-switch-track-bg-disabled: var(--fs-input-bg-disabled);
+  --fs-switch-track-border-disabled: var(--fs-border-subtle);
+  --fs-switch-thumb: #fff;
+  --fs-switch-thumb-shadow: 0 1px 2px rgb(0 5 9 / 18%);
+  --fs-switch-focus-ring: var(--fs-focus-ring);
+  --fs-switch-motion: var(--fs-motion-background-hover);
+
+  /* Loading roles */
+  --fs-loader-node: var(--fs-green, #1e6251);
+  --fs-spinner-loop: 1s;
+
+  /* Skeleton roles. A skeleton holds the geometry of content that has not
+     arrived, so every measure here describes what it stands in for rather than
+     what it looks like. */
+  --fs-skeleton-bg: var(--fs-bg-surface-muted);
+  --fs-skeleton-radius-line: var(--fs-radius-micro, 2px);
+  --fs-skeleton-radius-block: var(--fs-radius-container, 8px);
+
+  /* The ink height of a 13px body line, so the bar sits where the letters would.
+     With the 8px gap the rhythm is 18px against the real 18.85px line box —
+     within a pixel, and on the spacing scale, which 9px would not be. */
+  --fs-skeleton-line-height: 10px;
+  --fs-skeleton-line-gap: var(--fs-space-100, 8px);
+  --fs-skeleton-last-line-width: 62%;
+
+  /* It breathes on the Loader's own loop rather than a shimmer of its own: the
+     system has exactly two loading motions, and a third vocabulary for the same
+     message would say the waits are different kinds. */
+  --fs-skeleton-loop: var(--fs-wave-loop, 1.4s);
+  --fs-skeleton-opacity-rest: 1;
+  --fs-skeleton-opacity-dim: 0.55;
+
+  /* Data visualization roles */
+  --fs-chart-seq-1: var(--fs-ocean-1, #1268c9);
+  --fs-chart-seq-2: var(--fs-ocean-2, #1b8dba);
+  --fs-chart-seq-3: var(--fs-ocean-3, #2ba38c);
+  --fs-chart-seq-4: var(--fs-ocean-4, #57c79e);
+  --fs-gradient-ocean-flow-primary: linear-gradient(
+    135deg,
+    var(--fs-chart-seq-1),
+    var(--fs-chart-seq-2),
+    var(--fs-chart-seq-3),
+    var(--fs-chart-seq-4),
+    var(--fs-chart-seq-1)
+  );
+  --fs-chart-positive: var(--fs-status-success);
+  --fs-chart-warning: var(--fs-status-warning);
+  --fs-chart-danger: var(--fs-status-danger);
+  --fs-chart-muted: #c8ceca;
+
+  /* Dashboard layout roles */
+  --fs-dashboard-sidebar-width: 280px;
+  --fs-dashboard-sidebar-collapsed-width: 72px;
+  --fs-dashboard-topbar-height: 64px;
+  --fs-dashboard-grid-gap: var(--fs-space-4, 1rem);
+
+  /* Product decision with the designer, 2026-09-14: 18px between sections
+     everywhere, to keep the section break lighter than the 24px rhythm inside a
+     section and so preserve the hierarchy. Canon has 2rem here, and 18px is not
+     a step on the spacing scale (16 and 20 are its neighbours), so this is a
+     deliberate divergence on both counts — recorded so neither reads as drift. */
+  --fs-dashboard-section-gap: 18px;
+  --fs-dashboard-row-compact: 32px;
+  --fs-dashboard-row-regular: 40px;
+  --fs-dashboard-row-roomy: 48px;
+
+  /* Compact dashboard action composite: fixed height, content-sized width. */
+  --fs-dashboard-action-height: var(--fs-button-height-sm, 28px);
+  --fs-dashboard-action-min-width: var(--fs-button-min-width-md, 96px);
+  --fs-dashboard-action-padding: var(--fs-button-padding-sm, 0 12px);
+  --fs-dashboard-action-font-size: var(--fs-button-font-size-sm, 12px);
+
+  /* Button component roles */
+  --fs-button-font: var(--ff-body);
+  --fs-button-font-weight: var(--fs-type-weight-medium);
+  --fs-button-radius-sm: var(--fs-radius-compact, 4px);
+  --fs-button-radius-md: var(--fs-radius-control, 6px);
+  --fs-button-radius-lg: var(--fs-radius-control, 6px);
+  --fs-button-radius: var(--fs-button-radius-md);
+  --fs-button-gap-sm: 6px;
+  --fs-button-gap-md: var(--fs-space-100);
+  --fs-button-gap-lg: 8px;
+  --fs-button-gap: var(--fs-button-gap-md);
+  --fs-button-height-sm: 28px;
+  --fs-button-height-md: 32px;
+  --fs-button-height-lg: 32px;
+  --fs-button-min-width-sm: 72px;
+  --fs-button-min-width-md: 96px;
+  --fs-button-min-width-lg: 120px;
+  --fs-button-padding-sm: 0 12px;
+  --fs-button-padding-md: 0 12px;
+  --fs-button-padding-lg: 0 12px;
+  --fs-button-font-size-sm: 12px;
+  --fs-button-font-size-md: 13px;
+  --fs-button-font-size-lg: 13px;
+  --fs-button-icon-size-sm: var(--fs-icon-size-supporting);
+  --fs-button-icon-size-md: var(--fs-icon-size-default);
+  --fs-button-icon-size-lg: var(--fs-icon-size-default);
+  --fs-button-transition: background var(--fs-motion-background-hover), border-color var(--fs-motion-background-hover), color var(--fs-motion-background-hover), transform var(--fs-motion-background-hover);
+  --fs-button-primary-bg: var(--fs-action-primary);
+  --fs-button-primary-bg-hover: var(--fs-action-primary-hover);
+  --fs-button-primary-bg-active: var(--fs-action-primary-active);
+  --fs-button-primary-border: var(--fs-action-primary);
+  --fs-button-primary-border-hover: var(--fs-action-primary-hover);
+  --fs-button-primary-border-active: var(--fs-action-primary-active);
+  --fs-button-primary-text: var(--fs-action-primary-text);
+  --fs-button-accent-bg: var(--fs-action-accent);
+  --fs-button-accent-bg-hover: var(--fs-action-accent-hover);
+  --fs-button-accent-bg-active: var(--fs-action-accent-active);
+  --fs-button-accent-border: var(--fs-action-accent);
+  --fs-button-accent-border-hover: var(--fs-action-accent-hover);
+  --fs-button-accent-border-active: var(--fs-action-accent-active);
+  --fs-button-accent-text: var(--fs-action-accent-text);
+  --fs-button-secondary-bg: transparent;
+  --fs-button-secondary-bg-hover: var(--fs-bg-surface-muted);
+  --fs-button-secondary-border: var(--fs-border-control);
+  --fs-button-secondary-border-hover: var(--fs-border-control-hover);
+  --fs-button-secondary-text: var(--fs-text-secondary);
+  --fs-button-ghost-bg: transparent;
+  --fs-button-ghost-bg-hover: var(--fs-bg-surface-muted);
+  --fs-button-ghost-border: transparent;
+  --fs-button-ghost-border-hover: transparent;
+  --fs-button-ghost-text: var(--fs-text-secondary);
+
+  /* Quiet destructive lane. Mirrors IconButton's published danger treatment: no
+     resting fill, the status ink as the label, the danger wash on hover. For a
+     destructive action that must stay unmistakable without dominating a
+     contextual surface, where a filled Danger would read as the primary path.
+     Never a replacement for filled Danger in a dialog or a form footer. */
+  --fs-button-ghost-danger-bg: transparent;
+  --fs-button-ghost-danger-bg-hover: var(--fs-status-danger-bg);
+  --fs-button-ghost-danger-border: transparent;
+  --fs-button-ghost-danger-border-hover: transparent;
+  --fs-button-ghost-danger-text: var(--fs-status-danger);
+  --fs-button-danger-bg: var(--fs-status-danger);
+  --fs-button-danger-bg-hover: #8f2822;
+  --fs-button-danger-bg-active: #721f1a;
+  --fs-button-danger-border: var(--fs-status-danger);
+  --fs-button-danger-border-hover: #8f2822;
+  --fs-button-danger-border-active: #721f1a;
+  --fs-button-danger-text: var(--fs-white, #fff);
+
+  /* The neutral disabled treatment serves Secondary and Ghost, whose resting
+     fill is already neutral; filled variants resolve theirs below. */
+  --fs-button-disabled-bg: var(--fs-bg-surface-muted);
+  --fs-button-disabled-border: var(--fs-border-default);
+  --fs-button-disabled-text: var(--fs-text-tertiary);
+  --fs-button-disabled-opacity: 1;
+  --fs-button-primary-disabled-bg: var(--fs-action-disabled-bg);
+  --fs-button-primary-disabled-text: var(--fs-action-disabled-fg);
+  --fs-button-accent-disabled-bg: var(--fs-action-accent-disabled-bg);
+  --fs-button-accent-disabled-text: var(--fs-action-accent-disabled-fg);
+  --fs-button-danger-disabled-bg: var(--fs-action-danger-disabled-bg);
+  --fs-button-danger-disabled-text: var(--fs-action-danger-disabled-fg);
+  --fs-button-focus-ring: var(--fs-focus-ring);
+  --fs-button-active-scale: 0.96;
+
+  /* Button group component roles */
+  --fs-button-group-gap: 8px;
+  --fs-button-group-connected-gap: -1px;
+  --fs-button-group-radius: var(--fs-button-radius);
+  --fs-button-group-divider: var(--fs-border-strong);
+
+  /* IconButton component roles */
+  --fs-icon-button-size-sm: 28px;
+  --fs-icon-button-size-md: 32px;
+  --fs-icon-button-size-lg: 32px;
+  --fs-icon-button-icon-size-sm: var(--fs-icon-size-supporting);
+  --fs-icon-button-icon-size-md: var(--fs-icon-size-default);
+  --fs-icon-button-icon-size-lg: var(--fs-icon-size-default);
+  --fs-icon-button-radius-sm: var(--fs-radius-compact, 4px);
+  --fs-icon-button-radius-md: var(--fs-radius-control, 6px);
+  --fs-icon-button-radius-lg: var(--fs-radius-control, 6px);
+  --fs-icon-button-transition: background var(--fs-motion-background-hover), border-color var(--fs-motion-background-hover), color var(--fs-motion-background-hover), transform var(--fs-motion-background-hover), box-shadow var(--fs-motion-background-hover);
+  --fs-icon-button-primary-bg: var(--fs-action-primary);
+  --fs-icon-button-primary-bg-hover: var(--fs-action-primary-hover);
+  --fs-icon-button-primary-border: transparent;
+  --fs-icon-button-primary-text: var(--fs-action-primary-text);
+  --fs-icon-button-secondary-bg: transparent;
+  --fs-icon-button-secondary-bg-hover: var(--fs-bg-surface-muted);
+  --fs-icon-button-secondary-border: var(--fs-border-control);
+  --fs-icon-button-secondary-text: var(--fs-text-secondary);
+  --fs-icon-button-secondary-text-hover: var(--fs-text-primary);
+  --fs-icon-button-ghost-bg: transparent;
+  --fs-icon-button-ghost-bg-hover: var(--fs-bg-surface-muted);
+  --fs-icon-button-ghost-border: transparent;
+  --fs-icon-button-ghost-text: var(--fs-text-secondary);
+  --fs-icon-button-ghost-text-hover: var(--fs-text-primary);
+  --fs-icon-button-active-bg: var(--fs-action-primary-wash);
+  --fs-icon-button-active-border: transparent;
+  --fs-icon-button-active-text: var(--fs-action-primary);
+  --fs-icon-button-danger-text: var(--fs-status-danger);
+  --fs-icon-button-danger-bg-hover: var(--fs-status-danger-bg);
+  --fs-icon-button-focus-ring: var(--fs-focus-ring);
+  --fs-icon-button-disabled-bg: var(--fs-bg-surface-muted);
+  --fs-icon-button-disabled-border: var(--fs-border-default);
+  --fs-icon-button-disabled-text: var(--fs-text-tertiary);
+  --fs-icon-button-disabled-opacity: 1;
+  --fs-icon-button-primary-disabled-bg: var(--fs-action-disabled-bg);
+  --fs-icon-button-primary-disabled-text: var(--fs-action-disabled-fg);
+  --fs-icon-button-danger-disabled-bg: var(--fs-action-danger-disabled-bg);
+  --fs-icon-button-danger-disabled-text: var(--fs-action-danger-disabled-fg);
+  --fs-icon-button-active-scale: 0.92;
+
+  /* Input / FormField component roles */
+  --fs-input-font: var(--ff-body);
+  --fs-input-font-size: 13px;
+  --fs-input-height-sm: 28px;
+  --fs-input-height-md: 32px;
+  --fs-input-height-lg: 32px;
+  --fs-input-height: var(--fs-input-height-md);
+  --fs-input-padding-x: var(--fs-space-150);
+  --fs-input-gap: 8px;
+  --fs-input-radius-sm: var(--fs-radius-compact, 4px);
+  --fs-input-radius-md: var(--fs-radius-control, 6px);
+  --fs-input-radius-lg: var(--fs-radius-control, 6px);
+  --fs-input-radius: var(--fs-input-radius-md);
+  --fs-input-bg: var(--fs-bg-input);
+  --fs-input-bg-hover: var(--fs-bg-input);
+  --fs-input-bg-readonly: #f4f6f3;
+  --fs-input-bg-disabled: var(--fs-bg-surface-muted);
+  --fs-input-bg-error: var(--fs-status-danger-bg);
+  --fs-input-bg-success: var(--fs-bg-input);
+  --fs-input-border: var(--fs-border-control);
+  --fs-input-border-hover: var(--fs-input-border);
+  --fs-input-border-focus: var(--fs-border-selected);
+  --fs-input-border-error: var(--fs-status-danger);
+  --fs-input-border-success: var(--fs-status-success);
+  --fs-input-border-disabled: var(--fs-border-subtle);
+  --fs-input-text: var(--fs-text-primary);
+  --fs-input-placeholder: var(--fs-text-tertiary);
+  --fs-input-text-readonly: var(--fs-text-secondary);
+  --fs-input-text-disabled: var(--fs-text-tertiary);
+  --fs-input-icon: var(--fs-text-tertiary);
+  --fs-input-icon-focus: var(--fs-action-primary);
+  --fs-input-focus-ring: 0 0 0 var(--fs-focus-ring-width) var(--fs-focus-ring-color);
+  --fs-input-error-ring: 0 0 0 2px color-mix(in srgb, var(--fs-status-danger) 18%, transparent);
+  --fs-input-success-ring: 0 0 0 2px color-mix(in srgb, var(--fs-status-success) 18%, transparent);
+  --fs-input-autofill-bg: var(--fs-input-bg);
+  --fs-input-autofill-error-bg: var(--fs-input-bg-error);
+  --fs-input-autofill-text: var(--fs-input-text);
+  --fs-input-disabled-opacity: 1;
+  --fs-input-transition: border-color var(--fs-motion-background-hover), box-shadow var(--fs-motion-background-hover), background var(--fs-motion-background-hover), color var(--fs-motion-background-hover);
+  --fs-textarea-min-height: 96px;
+  --fs-textarea-line-height: 1.45;
+  --fs-field-gap: var(--fs-space-075);
+  --fs-field-label-size: var(--fs-type-field-label-size);
+  --fs-field-label-line-height: var(--fs-type-field-label-line-height);
+  --fs-field-label-weight: var(--fs-type-weight-medium);
+  --fs-field-label-color: var(--fs-text-primary);
+  --fs-field-helper-size: var(--fs-type-caption-size);
+  --fs-field-helper-line-height: var(--fs-type-caption-line-height);
+  --fs-field-helper-color: var(--fs-text-tertiary);
+  --fs-field-error-color: var(--fs-status-danger);
+  --fs-field-success-color: var(--fs-status-success);
+  --fs-field-required-color: var(--fs-status-danger);
+  --fs-field-required-size: 15px;
+  --fs-field-required-gap: var(--fs-space-025);
+  --fs-field-required-offset-y: -1px;
+  --fs-field-label-control-gap: var(--fs-space-050);
+  --fs-field-control-helper-gap: var(--fs-space-050);
+
+  /* Field group roles. Past about five fields on one surface, the fields
+     cluster by what the operator decides together — `forms/field-group.md`. */
+  --fs-field-group-legend-font: var(--ff-data);
+  --fs-field-group-legend-size: var(--fs-type-micro-size);
+  --fs-field-group-legend-tracking: var(--fs-type-micro-tracking);
+  --fs-field-group-legend-weight: var(--fs-type-weight-medium);
+  --fs-field-group-legend-color: var(--fs-text-tertiary);
+  --fs-field-group-body-gap: var(--fs-space-150) var(--fs-space-200);
+  --fs-field-group-body-padding-top: var(--fs-space-150);
+  --fs-field-group-spacing: var(--fs-space-200);
+  --fs-field-group-divider: 1px solid var(--fs-border-subtle);
+
+  /* Disclosure component roles. The summary row is the region's only heading,
+     so it carries that heading's weight and never a heavier one. */
+  --fs-disclosure-bg: var(--fs-bg-surface);
+  --fs-disclosure-radius: var(--fs-radius-container, 8px);
+  --fs-disclosure-gap: var(--fs-space-100);
+  --fs-disclosure-stack-gap: var(--fs-space-150);
+  --fs-disclosure-summary-min-height: var(--fs-hit-target-compact, 32px);
+  --fs-disclosure-summary-padding-x: var(--fs-space-200);
+  --fs-disclosure-summary-size: var(--fs-type-field-label-size);
+  --fs-disclosure-summary-weight: var(--fs-type-weight-medium);
+  --fs-disclosure-chevron-size: var(--fs-icon-size-default);
+  --fs-disclosure-body-padding: var(--fs-space-200);
+
+  /* Settings section: a disclosure whose body is a form surface. It owns the
+     body's own measures and borrows every field role from Field group. */
+  --fs-settings-section-summary-min-height: 40px;
+  --fs-settings-section-body-gap: var(--fs-space-200);
+  --fs-settings-section-summary-note: var(--fs-text-tertiary);
+
+  /* Search / Select / Combobox / Pagination roles - fixed compact geometry and shared icon grid */
+  --fs-search-icon-size: var(--fs-icon-size-default);
+  --fs-search-icon-stroke: var(--fs-icon-stroke);
+  --fs-select-indicator-gap: var(--fs-space-100);
+  --fs-select-indicator-margin: var(--fs-space-100);
+  --fs-select-chevron-size: var(--fs-icon-size-supporting);
+  --fs-select-option-check-size: var(--fs-icon-size-supporting);
+  --fs-select-utility-icon-size: var(--fs-icon-size-supporting);
+  --fs-select-icon-size: var(--fs-select-chevron-size);
+  --fs-select-icon-stroke: var(--fs-icon-stroke);
+  --fs-select-utility-size: var(--fs-space-250);
+  --fs-select-utility-radius: var(--fs-radius-compact);
+  --fs-select-option-icon-track: var(--fs-icon-size-default);
+  --fs-select-page-size-width: 64px;
+  --fs-pagination-control-size: var(--fs-hit-target-compact);
+  --fs-pagination-chevron-size: var(--fs-icon-size-supporting);
+  --fs-pagination-icon-stroke: var(--fs-icon-stroke);
+  --fs-row-action-control-size: var(--fs-hit-target-compact);
+  --fs-row-action-icon-size: var(--fs-icon-size-default);
+  --fs-combobox-leading-icon-size: var(--fs-icon-size-default);
+  --fs-combobox-leading-icon-stroke: var(--fs-icon-stroke);
+  --fs-combobox-summary-gap: var(--fs-space-075);
+  --fs-combobox-chip-max-width: 112px;
+  --fs-combobox-chip-height: var(--fs-space-300);
+  --fs-combobox-chip-radius: var(--fs-radius-compact);
+  --fs-combobox-chip-padding: 0 var(--fs-space-100);
+  --fs-combobox-chip-padding-removable: 0 var(--fs-space-050) 0 var(--fs-space-100);
+  --fs-combobox-state-gap: var(--fs-space-100);
+  --fs-combobox-menu-max-height: 188px;
+
+  /* Checkbox component roles - Canonical contract */
+  --fs-checkbox-size: var(--fs-icon-size-default);
+  --fs-checkbox-border-width: 2px;
+  --fs-checkbox-radius: var(--fs-radius-micro, 2px);
+  --fs-checkbox-mark-size: 12px;
+  --fs-checkbox-mark-stroke: var(--fs-icon-stroke);
+  --fs-checkbox-hit-target: var(--fs-hit-target-compact);
+  --fs-selection-control-label-gap: var(--fs-space-100);
+  --fs-selection-control-visual-offset-y: 2px;
+  --fs-checkbox-bg: var(--fs-bg-input);
+  --fs-checkbox-border-rest: var(--fs-border-control);
+  --fs-checkbox-border-hover: var(--fs-text-tertiary);
+  --fs-checkbox-border-active: var(--fs-action-primary);
+  --fs-checkbox-bg-active: var(--fs-action-primary-wash);
+  --fs-checkbox-border-selected: var(--fs-action-primary);
+  --fs-checkbox-border-selected-hover: var(--fs-action-primary-hover);
+  --fs-checkbox-border-selected-active: var(--fs-action-primary-active);
+  --fs-checkbox-bg-selected: var(--fs-action-primary);
+  --fs-checkbox-mark: var(--fs-action-primary-text);
+  --fs-checkbox-focus-ring: var(--fs-focus-ring);
+  --fs-checkbox-bg-disabled: var(--fs-bg-surface-muted);
+  --fs-checkbox-border-disabled: var(--fs-border-default);
+  --fs-checkbox-bg-selected-disabled: var(--fs-action-disabled-bg);
+  --fs-checkbox-border-selected-disabled: var(--fs-action-disabled-border);
+  --fs-checkbox-mark-disabled: var(--fs-action-disabled-fg);
+  --fs-checkbox-disabled-opacity: 1;
+  --fs-checkbox-invalid: var(--fs-status-danger);
+  --fs-checkbox-invalid-mark: var(--fs-white, #fff);
+
+  /* Radio Button / Radio Group component roles - Flow Steward selected inversion */
+  --fs-radio-size: var(--fs-icon-size-default);
+  --fs-radio-border-width: 2px;
+  --fs-radio-dot-size: 6px;
+  --fs-radio-bg: var(--fs-bg-input);
+  --fs-radio-border-rest: var(--fs-border-control);
+  --fs-radio-border-hover: var(--fs-text-tertiary);
+  --fs-radio-border-active: var(--fs-action-primary);
+  --fs-radio-bg-active: var(--fs-action-primary-wash);
+  --fs-radio-border-selected: var(--fs-action-primary);
+  --fs-radio-border-selected-hover: var(--fs-action-primary-hover);
+  --fs-radio-border-selected-active: var(--fs-action-primary-active);
+  --fs-radio-bg-selected: var(--fs-action-primary);
+  --fs-radio-bg-selected-hover: var(--fs-action-primary-hover);
+  --fs-radio-bg-selected-active: var(--fs-action-primary-active);
+  --fs-radio-bg-selected-disabled: var(--fs-action-disabled-bg);
+  --fs-radio-dot-selected: var(--fs-white, #fff);
+  --fs-radio-dot-selected-hover: var(--fs-white, #fff);
+  --fs-radio-dot-selected-active: var(--fs-white, #fff);
+  --fs-radio-focus-ring: var(--fs-focus-ring);
+  --fs-radio-bg-disabled: var(--fs-bg-surface-muted);
+  --fs-radio-border-disabled: var(--fs-border-default);
+  --fs-radio-disabled-opacity: 1;
+  --fs-radio-invalid: var(--fs-status-danger);
+  --fs-radio-invalid-bg: var(--fs-status-danger);
+  --fs-radio-invalid-dot: var(--fs-white, #fff);
+
+  /* Tooltip component roles */
+  --fs-tooltip-bg: var(--fs-bg-inverse);
+  --fs-tooltip-text: var(--fs-text-inverse);
+  --fs-tooltip-border: transparent;
+  --fs-tooltip-radius: var(--fs-radius-compact, 4px);
+  --fs-tooltip-padding: 6px 8px;
+  --fs-tooltip-font-size: 12px;
+  --fs-tooltip-line-height: 1.35;
+  --fs-tooltip-max-width: 240px;
+  --fs-tooltip-shadow: var(--fs-shadow-overlay);
+  --fs-tooltip-offset: 8px;
+
+  /* Segmented control component roles */
+  --fs-segmented-bg: var(--fs-bg-surface-muted);
+  --fs-segmented-border: var(--fs-border-control);
+  --fs-segmented-radius: var(--fs-radius-control, 6px);
+  --fs-segmented-padding: var(--fs-space-050);
+  --fs-segmented-gap: 2px;
+  --fs-segmented-height-sm: 28px;
+  --fs-segmented-height-md: 32px;
+  --fs-segmented-height-lg: 32px;
+  --fs-segmented-item-padding-sm: 0 10px;
+  --fs-segmented-item-padding-md: 0 12px;
+  --fs-segmented-item-padding-lg: 0 12px;
+  --fs-segmented-item-radius: var(--fs-radius-compact, 4px);
+  --fs-segmented-item-bg: transparent;
+  --fs-segmented-item-bg-hover: var(--fs-action-primary-wash);
+  --fs-segmented-item-text: var(--fs-text-secondary);
+  --fs-segmented-item-text-hover: var(--fs-text-primary);
+  --fs-segmented-item-selected-bg: var(--fs-bg-surface);
+  --fs-segmented-item-selected-text: var(--fs-text-primary);
+  --fs-segmented-item-selected-shadow: var(--fs-shadow-surface);
+
+  /* MetricCard / StatCard component roles */
+  --fs-metric-card-bg: var(--fs-bg-surface);
+  --fs-metric-card-bg-attention: linear-gradient(160deg, rgb(255 117 4 / 13%), rgb(255 117 4 / 3%));
+  --fs-metric-card-border: var(--fs-border-subtle);
+  --fs-metric-card-border-attention: var(--fs-border-accent);
+  --fs-metric-card-radius: var(--fs-radius-container, 8px);
+  --fs-metric-card-padding: 12px;
+  --fs-metric-card-gap: 10px;
+  --fs-metric-card-label-font: var(--ff-data);
+  --fs-metric-card-label-size: var(--fs-type-micro-size);
+  --fs-metric-card-label-tracking: 0.13em;
+  --fs-metric-card-label-color: var(--fs-text-tertiary);
+  --fs-metric-card-label-color-attention: var(--fs-text-attention);
+  --fs-metric-card-figure-font: var(--ff-data);
+  --fs-metric-card-figure-hero: 42px;
+  --fs-metric-card-figure-standard: 34px;
+  --fs-metric-card-figure-compact: 30px;
+  --fs-metric-card-figure-weight: var(--fs-type-weight-medium);
+  --fs-metric-card-figure-tracking: -0.02em;
+  --fs-metric-card-figure-line-height: 1;
+  --fs-metric-card-figure-color: var(--fs-text-primary);
+  --fs-metric-card-figure-color-attention: var(--fs-action-accent);
+  --fs-metric-card-delta-color-positive: var(--fs-status-success);
+  --fs-metric-card-delta-color-neutral: var(--fs-text-tertiary);
+  --fs-metric-card-delta-color-attention: var(--fs-text-attention);
+  --fs-metric-card-description-color: var(--fs-text-tertiary);
+  --fs-metric-card-description-size: 14px;
+  --fs-metric-card-wave-color: var(--fs-action-primary);
+  --fs-metric-card-wave-color-attention: var(--fs-action-accent);
+
+  /* Card component roles */
+  --fs-card-bg: var(--fs-bg-surface-raised);
+  --fs-card-bg-muted: var(--fs-bg-surface-muted);
+  --fs-card-bg-selected: var(--fs-action-primary-wash);
+  --fs-card-border: var(--fs-border-subtle);
+  --fs-card-border-hover: var(--fs-border-selected);
+  --fs-card-border-selected: var(--fs-border-selected);
+  --fs-card-radius: var(--fs-metric-card-radius);
+  --fs-card-padding: 16px;
+  --fs-card-padding-compact: 12px;
+  --fs-card-gap: 10px;
+  --fs-card-footer-padding: 10px 16px;
+  --fs-card-divider: var(--fs-border-subtle);
+  --fs-card-shadow: var(--fs-shadow-surface);
+  --fs-card-shadow-hover: var(--fs-shadow-raised);
+  --fs-card-lift: -2px;
+  --fs-card-title-font: var(--ff-display);
+  --fs-card-title-size: 17px;
+  --fs-card-title-weight: var(--fs-type-weight-medium);
+  --fs-card-description-size: 14px;
+  --fs-card-description-color: var(--fs-text-tertiary);
+  --fs-card-body-size: 14px;
+  --fs-card-body-line-height: 1.55;
+  --fs-card-media-height: 50px;
+  --fs-card-media-bg: linear-gradient(135deg, var(--fs-chart-seq-1), var(--fs-chart-seq-3), var(--fs-chart-seq-4));
+  --fs-card-selected-ring: 0 0 0 2px rgb(30 98 81 / 22%);
+
+  /* Badge / FlowStatus component roles */
+  --fs-badge-height-sm: 20px;
+  --fs-badge-height-md: 24px;
+  --fs-badge-padding-sm: 0 7px;
+  --fs-badge-padding-md: 0 9px;
+  --fs-badge-radius: var(--fs-radius-pill, 999px);
+  --fs-badge-gap: 6px;
+  --fs-badge-font: var(--ff-body);
+  --fs-badge-font-size-sm: 11px;
+  --fs-badge-font-size-md: 12px;
+  --fs-badge-font-weight: var(--fs-type-weight-medium);
+  --fs-badge-dot-size: 6px;
+  --fs-badge-neutral-bg: var(--fs-status-neutral-bg);
+  --fs-badge-neutral-border: var(--fs-status-neutral-border);
+  --fs-badge-neutral-text: var(--fs-text-secondary);
+  --fs-badge-green-bg: var(--fs-status-success-bg);
+  --fs-badge-green-border: var(--fs-status-success-border);
+  --fs-badge-green-text: var(--fs-status-success);
+  --fs-badge-orange-bg: var(--fs-status-warning-bg);
+  --fs-badge-orange-border: var(--fs-status-warning-border);
+  --fs-badge-orange-text: var(--fs-text-attention);
+  --fs-badge-danger-bg: var(--fs-status-danger-bg);
+  --fs-badge-danger-border: var(--fs-status-danger-border);
+  --fs-badge-danger-text: var(--fs-status-danger);
+  --fs-badge-ink-bg: var(--fs-bg-inverse);
+  --fs-badge-ink-border: var(--fs-bg-inverse);
+  --fs-badge-ink-text: var(--fs-text-inverse);
+
+  /* New: an item just added to a catalog. The Iridescent brand gradient draws
+     the 1px edge and, under the surface veil, the fill; the label keeps primary ink. */
+  --fs-badge-new-gradient: linear-gradient(120deg, var(--fs-iridescent-1) 0%, var(--fs-iridescent-2) 34%, var(--fs-iridescent-3) 64%, var(--fs-iridescent-4) 100%);
+  --fs-badge-new-veil: color-mix(in srgb, var(--fs-bg-surface) 88%, transparent);
+  --fs-badge-new-text: var(--fs-text-primary);
+  --fs-count-pill-font: var(--ff-data);
+  --fs-count-pill-font-size: 10px;
+  --fs-count-pill-font-weight: var(--fs-type-weight-medium);
+  --fs-count-pill-line-height: 14px;
+  --fs-flow-status-height: 28px;
+  --fs-flow-status-padding: 0 12px;
+  --fs-flow-status-dot-size: 7px;
+  --fs-flow-status-font-size: 13px;
+  --fs-flow-status-font-weight: var(--fs-type-weight-medium);
+
+  /* Avatar component roles */
+  --fs-avatar-size-xs: 24px;
+  --fs-avatar-size-sm: 32px;
+  --fs-avatar-size-md: 40px;
+  --fs-avatar-size-lg: 48px;
+  --fs-avatar-size-xl: 56px;
+  --fs-avatar-radius: var(--fs-radius-circle, 50%);
+  --fs-avatar-square-radius: 30%;
+  --fs-avatar-font: var(--ff-display);
+  --fs-avatar-font-weight: var(--fs-type-weight-medium);
+  --fs-avatar-border: var(--fs-bg-surface);
+  --fs-avatar-ring: var(--fs-border-subtle);
+  --fs-avatar-initials-bg: var(--fs-bg-inverse);
+  --fs-avatar-initials-text: var(--fs-text-inverse);
+  --fs-avatar-green-bg: var(--fs-green-050, #eaf2ef);
+  --fs-avatar-green-text: var(--fs-green, #1e6251);
+  --fs-avatar-teal-bg: #d9f0ea;
+  --fs-avatar-teal-text: #1e6251;
+  --fs-avatar-orange-bg: var(--fs-orange-050, #fff1e5);
+  --fs-avatar-orange-text: var(--fs-orange-700, #c25800);
+  --fs-avatar-neutral-bg: var(--fs-bg-surface-muted);
+  --fs-avatar-neutral-text: var(--fs-text-tertiary);
+  --fs-avatar-overflow-bg: #f1efeb;
+  --fs-avatar-overflow-text: var(--fs-text-secondary);
+  --fs-avatar-group-overlap: -8px;
+  --fs-avatar-group-ring-width: 2px;
+  --fs-avatar-presence-size-xs: 6px;
+  --fs-avatar-presence-size-sm: 8px;
+  --fs-avatar-presence-size-md: 10px;
+  --fs-avatar-presence-size-lg: 12px;
+  --fs-avatar-presence-size-xl: 14px;
+  --fs-avatar-presence-size: var(--fs-avatar-presence-size-md);
+  --fs-avatar-presence-inset: 2px;
+  --fs-avatar-presence-ring-width: 2px;
+  --fs-avatar-presence-ring: var(--fs-avatar-border);
+  --fs-avatar-presence-bg: var(--fs-presence-indicator);
+  --fs-avatar-add-bg: var(--fs-bg-surface);
+  --fs-avatar-add-bg-hover: var(--fs-bg-surface-muted);
+  --fs-avatar-add-border: var(--fs-border-strong);
+  --fs-avatar-add-text: var(--fs-text-secondary);
+  --fs-avatar-add-focus-ring: var(--fs-focus-ring);
+
+  /* Page header component roles */
+  --fs-page-header-bg: var(--fs-bg-surface);
+  --fs-page-header-border: var(--fs-border-subtle);
+  --fs-page-header-divider: var(--fs-border-subtle);
+  --fs-page-header-radius: var(--fs-radius-container, 8px);
+  --fs-page-header-padding: var(--fs-space-300);
+  --fs-page-header-padding-compact: var(--fs-space-200);
+  --fs-page-header-gap: 12px;
+  --fs-page-header-action-gap: 8px;
+
+  /* Page title is its own role, one step above the sectional H2 and below H1. */
+  --fs-page-header-title-size: 26px;
+  --fs-page-header-title-line-height: 1.2;
+  --fs-page-header-title-tracking: -0.02em;
+  --fs-page-header-description-size: 14px;
+  --fs-page-header-eyebrow: var(--fs-text-brand);
+  --fs-page-header-description: var(--fs-text-secondary);
+
+  /* FormDialog component roles */
+  --fs-form-dialog-bg: var(--fs-bg-surface);
+  --fs-modal-width-small: 400px;
+  --fs-modal-width-medium: 600px;
+  --fs-modal-width-large: 800px;
+  --fs-modal-width-xlarge: 968px;
+  --fs-modal-height-content: auto;
+  --fs-modal-viewport-clearance: 120px;
+  --fs-modal-viewport-clearance-narrow: 32px;
+  --fs-modal-max-width: calc(100vw - var(--fs-modal-viewport-clearance));
+  --fs-modal-max-height: calc(100dvh - var(--fs-modal-viewport-clearance));
+  --fs-modal-max-width-narrow: calc(100vw - var(--fs-modal-viewport-clearance-narrow));
+  --fs-modal-max-height-narrow: calc(100dvh - var(--fs-modal-viewport-clearance-narrow));
+  --fs-confirmation-dialog-width: var(--fs-modal-width-small);
+  --fs-one-time-secret-dialog-width: var(--fs-modal-width-medium);
+  --fs-form-dialog-width: var(--fs-modal-width-medium);
+  --fs-form-dialog-preview-width: var(--fs-modal-width-medium);
+  --fs-add-user-dialog-width: var(--fs-modal-width-medium);
+  --fs-edit-user-dialog-width: var(--fs-modal-width-medium);
+  --fs-confirmation-dialog-height: var(--fs-modal-height-content);
+  --fs-one-time-secret-dialog-height: var(--fs-modal-height-content);
+  --fs-form-dialog-height: var(--fs-modal-height-content);
+  --fs-form-dialog-preview-height: var(--fs-modal-height-content);
+  --fs-add-user-dialog-height: var(--fs-modal-height-content);
+  --fs-edit-user-dialog-height: var(--fs-modal-height-content);
+  --fs-form-dialog-radius: var(--fs-radius-large, 12px);
+  --fs-form-dialog-border: var(--fs-border-default);
+  --fs-form-dialog-shadow: var(--fs-shadow-overlay);
+  --fs-form-dialog-header-padding: var(--fs-space-200) var(--fs-space-300);
+  --fs-form-dialog-body-padding: var(--fs-space-200) var(--fs-space-300);
+  --fs-form-dialog-footer-padding: var(--fs-space-150) var(--fs-space-300);
+  --fs-form-dialog-zone-border: var(--fs-border-subtle);
+  --fs-form-dialog-eyebrow: var(--fs-text-brand);
+  --fs-short-dialog-title-font: var(--ff-display);
+  --fs-short-dialog-title-size: var(--fs-type-dialog-title-size);
+  --fs-short-dialog-title-line-height: var(--fs-type-dialog-title-line-height);
+  --fs-short-dialog-title-tracking: var(--fs-type-dialog-title-tracking);
+  --fs-short-dialog-title-weight: var(--fs-type-weight-medium);
+  --fs-short-dialog-description-font: var(--ff-body);
+  --fs-short-dialog-description-size: 13px;
+  --fs-short-dialog-description-line-height: 20px;
+  --fs-short-dialog-description-weight: var(--fs-type-weight-regular);
+  --fs-short-dialog-description-text: var(--fs-text-tertiary);
+  --fs-form-dialog-title-font: var(--ff-display);
+  --fs-form-dialog-title-size: var(--fs-type-form-title-size);
+  --fs-form-dialog-title-line-height: var(--fs-type-form-title-line-height);
+  --fs-form-dialog-title-tracking: var(--fs-type-form-title-tracking);
+  --fs-form-dialog-title-weight: var(--fs-type-weight-medium);
+  --fs-form-dialog-subtitle-font: var(--ff-body);
+  --fs-form-dialog-subtitle-size: 13px;
+  --fs-form-dialog-subtitle-line-height: 20px;
+  --fs-form-dialog-subtitle: var(--fs-text-tertiary);
+  --fs-form-dialog-close-size: var(--fs-icon-button-size-md, 32px);
+  --fs-form-dialog-field-gap: 16px;
+  --fs-form-dialog-control-gap: 6px;
+  --fs-form-dialog-field-height: 32px;
+  --fs-form-dialog-field-radius: var(--fs-radius-control, 6px);
+  --fs-form-dialog-field-border: var(--fs-input-border);
+  --fs-form-dialog-focus-border: var(--fs-green, #1e6251);
+  --fs-form-dialog-focus-ring: var(--fs-focus-ring);
+  --fs-form-dialog-label: var(--fs-text-primary);
+  --fs-form-dialog-label-size: var(--fs-field-label-size);
+  --fs-form-dialog-label-weight: var(--fs-type-weight-medium);
+  --fs-popup-offset: 6px;
+  --fs-popup-padding: var(--fs-space-050);
+  --fs-popup-row-padding: 0 var(--fs-space-100);
+  --fs-popup-row-radius: var(--fs-radius-compact, 4px);
+  --fs-form-dialog-select-menu-offset: var(--fs-popup-offset);
+  --fs-form-dialog-select-menu-radius: var(--fs-radius-container, 8px);
+  --fs-form-dialog-select-menu-padding: var(--fs-popup-padding);
+  --fs-form-dialog-select-menu-shadow: var(--fs-shadow-overlay);
+  --fs-form-dialog-select-option-height: 32px;
+  --fs-form-dialog-select-option-padding: var(--fs-popup-row-padding);
+  --fs-form-dialog-select-option-hover-bg: var(--fs-dropdown-item-hover-bg);
+  --fs-form-dialog-select-option-selected-mark: var(--fs-dropdown-item-selected-mark);
+  --fs-form-dialog-textarea-min-height: 64px;
+  --fs-form-dialog-button-height: 32px;
+  --fs-form-dialog-button-radius: var(--fs-radius-control, 6px);
+
+  /* Shared form and public-auth typography */
+  --fs-form-title-font: var(--ff-display);
+  --fs-form-title-size: var(--fs-type-form-title-size);
+  --fs-form-title-line-height: var(--fs-type-form-title-line-height);
+  --fs-form-title-weight: var(--fs-type-weight-medium);
+  --fs-form-title-tracking: -0.01em;
+  --fs-form-title-tracking-large: -0.02em;
+  --fs-form-title-text: #0b0f12;
+  --fs-form-subtitle-font: var(--ff-body);
+  --fs-form-subtitle-size: 13px;
+  --fs-form-subtitle-line-height: 20px;
+  --fs-form-subtitle-weight: 400;
+  --fs-form-subtitle-text: var(--fs-text-tertiary);
+  --fs-form-title-subtitle-gap: var(--fs-space-050);
+
+  /* Published in canon; mirrored by the token sync of 2026-09-27. */
+  --fs-sidebar-item-gap: 9px;
+  --fs-sidebar-project-row-height: 30px;
+  --fs-sidebar-search-height: 34px;
+  --fs-sidebar-icon-wrapper-size: 20px;
+  --fs-sidebar-active-count-bg: var(--fs-count-pill-active-bg);
+  --fs-sidebar-active-count-text: var(--fs-count-pill-active-text);
+  --fs-shortcut-hint-font: -apple-system, "BlinkMacSystemFont", "Segoe UI", system-ui, sans-serif;
+  --fs-shortcut-hint-size: 11px;
+  --fs-shortcut-hint-weight: 500;
+  --fs-button-secondary-text-hover: var(--fs-text-primary);
+  --fs-field-label-color-disabled: var(--fs-text-tertiary);
+  --fs-field-helper-color-disabled: var(--fs-text-tertiary);
+  --fs-input-unit-font: var(--ff-data);
+  --fs-input-unit-size: var(--fs-type-micro-size);
+  --fs-input-unit-tracking: var(--fs-type-micro-tracking);
+  --fs-input-unit-weight: var(--fs-type-weight-medium);
+  --fs-input-unit-color: var(--fs-text-tertiary);
+  --fs-input-unit-padding: 0 var(--fs-input-padding-x) 0 var(--fs-space-050);
+  --fs-range-field-gap: var(--fs-space-100);
+  --fs-range-field-arrow-size: var(--fs-icon-size-supporting);
+  --fs-range-field-arrow-stroke: var(--fs-icon-stroke);
+  --fs-range-field-arrow-color: var(--fs-text-tertiary);
+  --fs-password-strength-track: var(--fs-border-strong);
+  --fs-password-strength-segment-1: var(--fs-ocean-1);
+  --fs-password-strength-segment-2: #2FA891;
+  --fs-password-strength-segment-3: var(--fs-ocean-4);
+  --fs-radio-border-selected-disabled: var(--fs-action-disabled-border);
+  --fs-radio-dot-selected-disabled: var(--fs-action-disabled-fg);
+  --fs-count-pill-radius: var(--fs-radius-full, 999px);
+  --fs-count-pill-padding: 1px 7px;
+  --fs-count-pill-neutral-bg: #eeebe3;
+  --fs-count-pill-neutral-text: #6b7572;
+  --fs-count-pill-attention-bg: #fff1e5;
+  --fs-count-pill-attention-text: #ff7504;
+  --fs-count-pill-active-bg: color-mix(in srgb, #1e6251 14%, transparent);
+  --fs-count-pill-active-text: #1e6251;
+  --fs-short-dialog-title-description-gap: var(--fs-space-050);
+  --fs-form-header-fields-gap: var(--fs-space-300);
+  --fs-form-dialog-title-text: var(--fs-form-title-text);
+}
+
+/* Wide Loader: the Flow Mark's six nodes with a drop running through them,
+   for a page (L) or a block (M). The motion lives in the SVG asset (SMIL), so
+   the element only sizes and paints it. */
+.fs-loader {
+  display: inline-block;
+  flex: none;
+  height: var(--fs-loader-height-md);
+  aspect-ratio: 578 / 199;
+  vertical-align: middle;
+  background: url("../assets/brand/loader/flow-steward-loader.svg") center / contain no-repeat;
+}
+
+.fs-loader.lg { height: var(--fs-loader-height-lg); }
+
+/* Round Loader: ten dots on a ring with a swell running clockwise. S is mono
+   and takes the text colour of its button or line through a mask; M is colour
+   and stands alone in a small slot. */
+.fs-loader-orbit {
+  display: inline-block;
+  flex: none;
+  width: var(--fs-loader-orbit-size-sm);
+  height: var(--fs-loader-orbit-size-sm);
+  vertical-align: middle;
+  background: currentcolor;
+  mask: url("../assets/brand/loader/flow-steward-loader-orbit-mono.svg") center / contain no-repeat;
+}
+
+.fs-loader-orbit.md {
+  width: var(--fs-loader-orbit-size-md);
+  height: var(--fs-loader-orbit-size-md);
+  background: url("../assets/brand/loader/flow-steward-loader-orbit.svg") center / contain no-repeat;
+  mask: none;
+}
+
+
+/* Shared region-level Loader signature
+   Four solid theme-primary green nodes rise as a calm wave for page, card or block loading.
+   Control-level IconButton loading uses .fs-spinner-icon instead. */
+.fs-wave-loader {
+  display: inline-flex;
+  width: 18px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: none;
+  vertical-align: -0.125em;
+}
+
+.fs-wave-loader > span {
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: var(--fs-radius-circle, 50%);
+  background: var(--fs-loader-node, var(--fs-green, #1e6251));
+  opacity: 0.34;
+  transform: translateY(3px);
+  animation: fs-wave-loader var(--fs-wave-loop, 1.4s) var(--fs-ease, ease) infinite;
+}
+
+.fs-wave-loader > span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.fs-wave-loader > span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.fs-wave-loader > span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+.fs-wave-loader > span:nth-child(4) {
+  animation-delay: 0.42s;
+}
+
+.fs-spinner-icon {
+  display: block;
+  stroke-width: var(--fs-spinner-stroke);
+  transform-origin: center;
+  animation: fs-spinner-rotate var(--fs-spinner-loop, 1s) linear infinite;
+}
+
+@keyframes fs-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fs-skeleton {
+  display: block;
+  background: var(--fs-skeleton-bg);
+  border-radius: var(--fs-skeleton-radius-block);
+  animation: fs-skeleton-breathe var(--fs-skeleton-loop) var(--fs-ease, ease) infinite;
+}
+
+.fs-skeleton-line {
+  height: var(--fs-skeleton-line-height);
+  border-radius: var(--fs-skeleton-radius-line);
+}
+
+.fs-skeleton-circle { border-radius: var(--fs-radius-pill, 999px); }
+
+.fs-skeleton-lines {
+  display: grid;
+  gap: var(--fs-skeleton-line-gap);
+}
+
+.fs-skeleton-lines > .fs-skeleton:last-child {
+  width: var(--fs-skeleton-last-line-width);
+}
+
+@keyframes fs-skeleton-breathe {
+  0%, 100% { opacity: var(--fs-skeleton-opacity-rest); }
+  50% { opacity: var(--fs-skeleton-opacity-dim); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-skeleton { animation: none; opacity: var(--fs-skeleton-opacity-rest); }
+}
+
+@keyframes fs-wave-loader {
+  0%,
+  100% {
+    opacity: 0.34;
+    transform: translateY(3px);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Every duration collapses to the reduced step, so each semantic motion token
+     resolves to 1ms. The state itself still changes: feedback is never removed,
+     only its animation. */
+  :root {
+    --fs-duration-fast: var(--fs-duration-reduced);
+    --fs-duration-standard: var(--fs-duration-reduced);
+    --fs-duration: var(--fs-duration-reduced);
+  }
+
+  /* SMIL ignores CSS, so each Loader swaps to its still asset instead. */
+  .fs-loader {
+    background-image: url("../assets/brand/loader/flow-steward-loader-still.svg");
+  }
+
+  .fs-loader-orbit:not(.md) {
+    mask-image: url("../assets/brand/loader/flow-steward-loader-orbit-mono-still.svg");
+  }
+
+  .fs-loader-orbit.md {
+    background-image: url("../assets/brand/loader/flow-steward-loader-orbit-still.svg");
+  }
+
+  .fs-wave-loader > span {
+    animation: none;
+    opacity: 0.78;
+    transform: none;
+  }
+
+  .fs-spinner-icon {
+    animation: none;
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fs-switch-track-bg: var(--fs-bg-surface-muted);
+  --fs-switch-track-border: var(--fs-border-control);
+  --fs-switch-track-bg-on: var(--fs-action-primary);
+  --fs-switch-track-border-on: var(--fs-action-primary);
+  --fs-switch-track-bg-disabled: var(--fs-input-bg-disabled);
+  --fs-switch-track-border-disabled: var(--fs-border-subtle);
+  --fs-switch-thumb: #fff;
+  --fs-switch-thumb-shadow: 0 1px 2px rgb(0 0 0 / 45%);
+  --fs-switch-focus-ring: var(--fs-focus-ring);
+
+  /* Workflow canvas routing — canonical DS eaf8aaa42d8e889bf79be617a8a409092a2daa10. */
+  --fs-workflow-lane-bg: #0e151c;
+  --fs-workflow-lane-loop-bg: #070c11;
+  --fs-workflow-lane-control-bg: var(--fs-bg-sidebar);
+  --fs-workflow-grid-dot-color: var(--fs-border-default);
+  --fs-workflow-edge: var(--fs-text-tertiary);
+  --fs-workflow-edge-selected: var(--fs-action-primary);
+  --fs-workflow-edge-failure: var(--fs-status-danger);
+  --fs-workflow-edge-ran: var(--fs-status-success);
+  --fs-workflow-edge-width: 1.5;
+  --fs-workflow-edge-width-selected: 2;
+  --fs-workflow-edge-dash: 6 4;
+  --fs-workflow-edge-draft-dash: 7 4;
+  --fs-workflow-parallel-lane-border: #333c45;
+  --fs-workflow-parallel-lane-dash: 4 4;
+  --fs-workflow-family-action-icon: #b0adfb;
+  --fs-workflow-family-action-tile: #2b294b;
+  --fs-workflow-family-data-icon: #e79bce;
+  --fs-workflow-family-data-tile: #412137;
+
+  /* Dark paper stays low-chroma; the Note label and icon carry the yellow. */
+  --fs-workflow-note-bg: #2a2719;
+  --fs-workflow-note-border: #3f3a25;
+  --fs-workflow-note-label: #ebcb5e;
+  --fs-workflow-note-title: var(--fs-text-primary);
+  --fs-workflow-note-text: var(--fs-text-secondary);
+
+  /* Background roles — the relationship inverts in feel but not in role: the
+     sidebar is lighter than the canvas so the rail stays legible against a
+     near-black page. */
+  --fs-bg-canvas: #03070a;
+  --fs-bg-sidebar: #111517;
+  --fs-bg-surface: #181c1e;
+  --fs-bg-surface-muted: #262626;
+  --fs-bg-page: var(--fs-bg-canvas);
+  --fs-bg-surface-raised: var(--fs-bg-surface);
+  --fs-bg-surface-nested: var(--fs-bg-surface-muted);
+  --fs-bg-topbar: rgb(3 7 10 / 88%);
+  --fs-bg-input: rgb(14 20 24 / 50%);
+  --fs-bg-inverse: #ecefee;
+
+  /* Text roles */
+  --fs-text-primary: #ecefee;
+
+  /* Calibrated against surface-muted, the most recessed surface these are
+     allowed to appear on: tertiary clears 5.34:1 there, secondary was raised
+     from 0.66 for the same reason. */
+  --fs-text-secondary: rgb(236 239 238 / 78%);
+  --fs-text-tertiary: rgb(236 239 238 / 58%);
+  --fs-text-inverse: #04140f;
+  --fs-text-brand: #3fa88f;
+  --fs-text-attention: var(--fs-status-attention-ink);
+  --fs-text-danger: #f0736a;
+  --fs-form-title-text: #ecefee;
+  --fs-form-subtitle-text: var(--fs-text-tertiary);
+
+  /* Border roles */
+
+  /* 8% white is effectively invisible here — never ask `subtle` to be the only
+     signal. Anything on a same-fill parent takes `default`. */
+  --fs-border-subtle: rgb(255 255 255 / 8%);
+  --fs-border-default: rgb(255 255 255 / 14%);
+  --fs-border-control: rgb(255 255 255 / 20%);
+  --fs-border-control-hover: rgb(255 255 255 / 24%);
+  --fs-border-strong: var(--fs-border-default);
+  --fs-border-emphasis: rgb(255 255 255 / 22%);
+  --fs-border-selected: #3fa88f;
+  --fs-border-accent: rgb(255 117 4 / 32%);
+  --fs-border-danger: rgb(240 115 106 / 32%);
+
+  /* Action roles */
+  --fs-action-primary: #3fa88f;
+
+  /* Light hover goes darker, dark hover goes lighter — never one shared value. */
+  --fs-action-primary-hover: #4fbba0;
+  --fs-action-primary-active: #6bc7ae;
+  --fs-action-primary-text: #04140f;
+  --fs-action-primary-wash: rgb(63 168 143 / 16%);
+  --fs-action-accent: #ff7504;
+  --fs-action-accent-hover: #ff9233;
+  --fs-action-accent-active: #ffa65c;
+  --fs-action-accent-text: #190d02;
+  --fs-action-accent-wash: rgb(255 117 4 / 12%);
+
+  /* Status roles */
+  --fs-status-success: #3fa88f;
+  --fs-status-success-bg: rgb(63 168 143 / 14%);
+  --fs-status-success-border: rgb(63 168 143 / 28%);
+  --fs-status-warning: #ff9233;
+
+  /* Signal and ink are identical in dark; they differ only in light. */
+  --fs-status-attention: #ff9233;
+  --fs-status-attention-ink: #ff9233;
+  --fs-status-attention-wash: rgb(255 117 4 / 16%);
+  --fs-status-attention-border: rgb(255 117 4 / 32%);
+  --fs-status-warning-bg: rgb(255 117 4 / 16%);
+  --fs-status-warning-border: rgb(255 117 4 / 32%);
+  --fs-status-danger: #f0736a;
+
+  /* Opaque, like the light wash: an alpha wash borrows the fill behind it, so a
+     danger label on a tinted strip loses contrast the ink never lost. This value
+     is rgb(240 115 106 / 16%) resolved over --fs-bg-surface. */
+  --fs-status-danger-wash: #302227;
+  --fs-status-danger-bg: var(--fs-status-danger-wash);
+  --fs-status-danger-border: rgb(240 115 106 / 32%);
+  --fs-status-info: #67cdef;
+  --fs-status-info-bg: rgb(103 205 239 / 12%);
+  --fs-status-info-border: rgb(103 205 239 / 28%);
+  --fs-status-neutral: var(--fs-text-tertiary);
+  --fs-status-neutral-bg: var(--fs-bg-surface);
+  --fs-status-neutral-border: var(--fs-border-default);
+
+  /* Presence roles */
+  --fs-presence-indicator: #3fa88f;
+
+  /* Focus, semantic elevation and overlay roles */
+  --fs-focus-ring-color: rgb(63 168 143 / 50%);
+  --fs-focus-gap-color: var(--fs-bg-surface);
+  --fs-focus-ring: 0 0 0 var(--fs-focus-ring-offset) var(--fs-focus-gap-color), 0 0 0 calc(var(--fs-focus-ring-offset) + var(--fs-focus-ring-width)) var(--fs-focus-ring-color);
+  --fs-elevation-surface-sunken: var(--fs-bg-surface-muted);
+  --fs-elevation-surface-default: var(--fs-bg-surface);
+  --fs-elevation-surface-raised: var(--fs-bg-surface-raised);
+  --fs-elevation-surface-overlay: var(--fs-bg-surface-raised);
+  --fs-shadow-default: none;
+  --fs-shadow-raised: 0 1px 2px rgb(0 0 0 / 28%);
+  --fs-shadow-overlay: 0 2px 4px rgb(0 0 0 / 36%), 0 12px 28px rgb(0 0 0 / 42%);
+  --fs-shadow-overflow: 0 -8px 18px -12px rgb(0 0 0 / 72%);
+  --fs-shadow-overflow-x: 6px 0 12px rgb(0 0 0 / 72%);
+  --fs-shadow-surface: var(--fs-shadow-default);
+  --fs-overlay-scrim: rgb(0 0 0 / 58%);
+  --fs-dropdown-item-hover-bg: rgb(255 255 255 / 8%);
+  --fs-dropdown-item-selected-mark: var(--fs-action-primary);
+  --fs-dropdown-trigger-border: var(--fs-border-control);
+  --fs-dropdown-trigger-border-hover: var(--fs-border-control-hover);
+  --fs-dropdown-trigger-border-open: var(--fs-border-selected);
+  --fs-dropdown-trigger-focus-ring: 0 0 0 var(--fs-focus-ring-width) var(--fs-focus-ring-color);
+  --fs-command-surface: var(--fs-bg-surface);
+  --fs-command-border: var(--fs-border-subtle);
+  --fs-command-shadow: var(--fs-shadow-overlay);
+  --fs-command-text: var(--fs-text-primary);
+  --fs-command-muted-text: var(--fs-text-tertiary);
+  --fs-command-icon: var(--fs-text-secondary);
+  --fs-command-highlight-bg: var(--fs-action-primary-wash);
+  --fs-command-highlight-text: var(--fs-action-primary);
+  --fs-command-empty-text: var(--fs-text-tertiary);
+  --fs-command-focus-ring: var(--fs-focus-ring);
+  --fs-advanced-search-surface: var(--fs-bg-surface);
+  --fs-advanced-search-scrim: var(--fs-overlay-scrim);
+  --fs-advanced-search-border: var(--fs-border-subtle);
+  --fs-advanced-search-border-strong: var(--fs-border-strong);
+  --fs-advanced-search-shadow: var(--fs-shadow-overlay);
+  --fs-advanced-search-text: var(--fs-text-primary);
+  --fs-advanced-search-secondary-text: var(--fs-text-secondary);
+  --fs-advanced-search-muted-text: var(--fs-text-tertiary);
+  --fs-advanced-search-control-bg: var(--fs-bg-surface);
+  --fs-advanced-search-control-hover-bg: var(--fs-bg-surface-muted);
+  --fs-advanced-search-control-border: var(--fs-border-strong);
+  --fs-advanced-search-tab-selected-text: var(--fs-action-primary);
+  --fs-advanced-search-tab-indicator: var(--fs-action-primary);
+  --fs-advanced-search-result-hover-bg: var(--fs-bg-surface-muted);
+  --fs-advanced-search-result-active-bg: var(--fs-action-primary-wash);
+  --fs-advanced-search-result-active-marker: var(--fs-action-primary);
+  --fs-advanced-search-match-text: var(--fs-action-primary);
+  --fs-advanced-search-status-neutral-bg: var(--fs-status-neutral-bg);
+  --fs-advanced-search-status-neutral-text: var(--fs-text-secondary);
+  --fs-advanced-search-status-success-bg: var(--fs-status-success-bg);
+  --fs-advanced-search-status-success-text: var(--fs-status-success);
+  --fs-advanced-search-status-danger-bg: var(--fs-status-danger-bg);
+  --fs-advanced-search-status-danger-text: var(--fs-status-danger);
+  --fs-advanced-search-error-text: var(--fs-status-danger);
+  --fs-advanced-search-error-bg: var(--fs-status-danger-bg);
+  --fs-advanced-search-error-border: var(--fs-status-danger-border);
+  --fs-advanced-search-focus-ring: var(--fs-focus-ring);
+  --fs-tabs-selected-bg: var(--fs-action-primary);
+  --fs-tabs-selected-text: var(--fs-action-primary-text);
+  --fs-tabs-unselected-bg: var(--fs-bg-surface-muted);
+  --fs-tabs-unselected-text: var(--fs-text-secondary);
+  --fs-tabs-hover-bg: color-mix(in srgb, var(--fs-bg-surface-muted) 94%, var(--fs-text-primary));
+  --fs-tabs-focus-ring: var(--fs-focus-ring);
+  --fs-tabs-panel-bg: var(--fs-bg-surface);
+  --fs-tabs-panel-border: var(--fs-border-subtle);
+  --fs-tabs-panel-accent: var(--fs-action-primary);
+  --fs-tabs-title-text: var(--fs-text-primary);
+  --fs-tabs-body-text: var(--fs-text-secondary);
+
+  /* Sidebar component roles */
+  --fs-sidebar-page-bg: var(--fs-bg-canvas);
+  --fs-sidebar-rail-bg: var(--fs-bg-sidebar);
+  --fs-sidebar-card-bg: var(--fs-bg-surface);
+  --fs-sidebar-muted-bg: var(--fs-bg-surface-muted);
+  --fs-sidebar-item-hover-bg: var(--fs-sidebar-muted-bg);
+  --fs-sidebar-text-primary: var(--fs-text-primary);
+  --fs-sidebar-logo-text: var(--fs-text-primary);
+  --fs-sidebar-text-secondary: var(--fs-text-secondary);
+  --fs-sidebar-text-tertiary: var(--fs-text-tertiary);
+  --fs-sidebar-border: #262626;
+  --fs-sidebar-border-strong: #404040;
+  --fs-sidebar-primary: #fafafa;
+  --fs-sidebar-primary-hover: #e5e5e5;
+  --fs-sidebar-primary-foreground: #171717;
+  --fs-sidebar-active-bg: var(--fs-action-primary-wash);
+  --fs-sidebar-active-text: var(--fs-action-primary);
+  --fs-sidebar-active-marker: var(--fs-action-primary);
+  --fs-sidebar-accent: var(--fs-action-primary);
+  --fs-sidebar-accent-bg: var(--fs-action-primary-wash);
+  --fs-sidebar-count-bg: var(--fs-count-pill-neutral-bg);
+  --fs-sidebar-count-text: var(--fs-count-pill-neutral-text);
+  --fs-sidebar-attention-count-bg: var(--fs-count-pill-attention-bg);
+  --fs-sidebar-attention-count-text: var(--fs-count-pill-attention-text);
+  --fs-sidebar-theme-switch-bg: var(--fs-bg-surface);
+  --fs-sidebar-theme-switch-border: var(--fs-border-control);
+  --fs-sidebar-theme-option-bg-active: var(--fs-bg-surface-muted);
+  --fs-sidebar-theme-option-text: var(--fs-text-tertiary);
+  --fs-sidebar-theme-option-text-active: var(--fs-action-primary);
+  --fs-sidebar-tooltip-bg: #fafafa;
+  --fs-sidebar-tooltip-fg: #171717;
+  --fs-sidebar-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 22px rgb(0 0 0 / 50%);
+
+  /* Header component roles */
+  --fs-header-bg: var(--fs-bg-surface);
+  --fs-header-border: var(--fs-border-subtle);
+  --fs-header-text: var(--fs-text-primary);
+  --fs-header-breadcrumb-text: var(--fs-text-primary);
+  --fs-header-search-bg: var(--fs-bg-input);
+  --fs-header-search-border: var(--fs-border-strong);
+  --fs-header-search-text: var(--fs-text-primary);
+  --fs-header-muted-text: var(--fs-text-tertiary);
+
+  /* Redeclared so the count pill resolves the dark attention pill inside a nested dark scope. */
+  --fs-header-approval-count-bg: var(--fs-count-pill-attention-bg);
+  --fs-header-approval-count-text: var(--fs-count-pill-attention-text);
+
+  /* Drawer component roles */
+  --fs-drawer-card-bg: var(--fs-bg-surface);
+  --fs-drawer-card-border: var(--fs-border-subtle);
+  --fs-drawer-card-shadow: none;
+  --fs-drawer-stage-bg: var(--fs-bg-surface-muted);
+  --fs-drawer-surface: var(--fs-bg-surface);
+  --fs-drawer-border: var(--fs-border-subtle);
+  --fs-drawer-shadow: var(--fs-shadow-overlay);
+  --fs-drawer-title-text: var(--fs-text-primary);
+  --fs-drawer-close-text: var(--fs-text-tertiary);
+  --fs-drawer-close-hover-bg: rgb(236 239 238 / 8%);
+  --fs-drawer-label-text: var(--fs-text-tertiary);
+  --fs-drawer-badge-bg: var(--fs-action-primary-wash);
+  --fs-drawer-badge-border: var(--fs-border-strong);
+  --fs-drawer-badge-text: var(--fs-action-primary);
+  --fs-drawer-focus-ring: var(--fs-focus-ring);
+
+  /* Popover component roles */
+  --fs-popover-card-bg: var(--fs-bg-surface);
+  --fs-popover-card-border: var(--fs-border-subtle);
+  --fs-popover-card-shadow: none;
+  --fs-popover-trigger-bg: var(--fs-bg-surface);
+  --fs-popover-trigger-border: var(--fs-border-strong);
+  --fs-popover-trigger-text: var(--fs-text-primary);
+  --fs-popover-bg: var(--fs-bg-surface);
+  --fs-popover-border: var(--fs-border-subtle);
+  --fs-popover-shadow: var(--fs-shadow-overlay);
+  --fs-popover-title-text: var(--fs-text-primary);
+  --fs-popover-option-text: var(--fs-text-primary);
+  --fs-popover-option-hover-bg: rgb(236 239 238 / 8%);
+  --fs-popover-check-bg: var(--fs-action-primary);
+  --fs-popover-check-text: var(--fs-action-primary-text);
+  --fs-popover-check-border: var(--fs-border-strong);
+  --fs-popover-count-bg: var(--fs-action-primary-wash);
+  --fs-popover-count-text: var(--fs-action-primary);
+  --fs-popover-footer-border: var(--fs-border-subtle);
+  --fs-popover-secondary-text: var(--fs-text-tertiary);
+  --fs-popover-focus-ring: var(--fs-focus-ring);
+
+  /* Inline confirm component roles */
+  --fs-inline-confirm-card-bg: var(--fs-bg-surface);
+  --fs-inline-confirm-card-border: var(--fs-border-subtle);
+  --fs-inline-confirm-card-shadow: none;
+  --fs-inline-confirm-surface-bg: var(--fs-bg-surface);
+  --fs-inline-confirm-surface-border: var(--fs-border-subtle);
+  --fs-inline-confirm-shadow: var(--fs-shadow-overlay);
+  --fs-inline-confirm-text: var(--fs-text-primary);
+  --fs-inline-confirm-secondary-bg: var(--fs-bg-surface);
+  --fs-inline-confirm-secondary-border: var(--fs-button-secondary-border);
+  --fs-inline-confirm-secondary-text: var(--fs-text-primary);
+  --fs-inline-confirm-secondary-hover-bg: rgb(236 239 238 / 8%);
+  --fs-inline-confirm-primary-bg: var(--fs-action-primary);
+  --fs-inline-confirm-primary-border: var(--fs-action-primary);
+  --fs-inline-confirm-primary-text: var(--fs-action-primary-text);
+  --fs-inline-confirm-primary-hover-bg: var(--fs-action-primary-hover);
+  --fs-inline-confirm-primary-active-bg: var(--fs-action-primary-active);
+  --fs-inline-confirm-danger-bg: var(--fs-status-danger);
+  --fs-inline-confirm-danger-border: var(--fs-status-danger);
+  --fs-inline-confirm-danger-text: #fff;
+  --fs-inline-confirm-danger-hover-bg: #ec8878;
+  --fs-inline-confirm-danger-active-bg: #f0a092;
+  --fs-inline-confirm-focus-ring: var(--fs-focus-ring);
+
+  /* Table / Data grid roles */
+  --fs-table-card-bg: var(--fs-bg-surface);
+  --fs-table-card-border: var(--fs-border-subtle);
+  --fs-table-card-shadow: none;
+  --fs-table-header-bg: #1f2326;
+  --fs-table-header-border: var(--fs-border-subtle);
+  --fs-table-row-border: var(--fs-border-subtle);
+  --fs-table-sticky-divider: var(--fs-border-default);
+  --fs-table-row-selected-bg: #1e2b33;
+  --fs-table-row-hover-bg: var(--fs-table-row-selected-bg);
+  --fs-advanced-table-row-hover-bg: var(--fs-table-row-hover-bg);
+  --fs-advanced-table-row-selected-bg: var(--fs-table-row-selected-bg);
+  --fs-table-heading-text: var(--fs-text-tertiary);
+  --fs-table-primary-text: var(--fs-text-primary);
+  --fs-table-secondary-text: var(--fs-text-secondary);
+  --fs-table-tertiary-text: var(--fs-text-tertiary);
+  --fs-table-status-flow-bg: var(--fs-action-primary-wash);
+  --fs-table-status-flow-text: var(--fs-action-primary);
+  --fs-table-status-attention-bg: var(--fs-action-accent-wash);
+  --fs-table-status-attention-text: var(--fs-action-accent-hover);
+  --fs-table-status-paused-bg: rgb(255 255 255 / 6%);
+  --fs-table-status-paused-text: var(--fs-text-tertiary);
+
+  /* Bulk action bar roles */
+  --fs-bulk-action-bar-bg: var(--fs-bg-surface);
+  --fs-bulk-action-bar-border: var(--fs-border-subtle);
+  --fs-bulk-action-bar-text: var(--fs-text-primary);
+  --fs-bulk-action-bar-shadow: var(--fs-shadow-overlay);
+  --fs-bulk-action-bar-divider: var(--fs-border-subtle);
+  --fs-bulk-action-bar-count-bg: var(--fs-action-primary-wash);
+  --fs-bulk-action-bar-count-border: var(--fs-border-selected);
+  --fs-bulk-action-bar-count-text: var(--fs-action-primary);
+
+  /* Right context rail roles */
+  --fs-right-context-rail-card-bg: var(--fs-bg-surface);
+  --fs-right-context-rail-border: var(--fs-border-subtle);
+  --fs-right-context-rail-main-border: var(--fs-border-strong);
+
+  /* Accordion roles */
+  --fs-accordion-card-bg: var(--fs-bg-surface);
+  --fs-accordion-card-border: var(--fs-border-subtle);
+  --fs-accordion-card-shadow: none;
+  --fs-accordion-closed-bg: var(--fs-bg-surface-muted);
+  --fs-accordion-closed-border: transparent;
+  --fs-accordion-closed-hover-bg: rgb(236 239 238 / 8%);
+  --fs-accordion-open-bg: var(--fs-bg-surface);
+  --fs-accordion-open-border: var(--fs-border-subtle);
+  --fs-accordion-open-accent: var(--fs-action-primary);
+  --fs-accordion-closed-text: var(--fs-text-secondary);
+  --fs-accordion-open-text: var(--fs-action-primary);
+  --fs-accordion-panel-text: var(--fs-text-secondary);
+  --fs-accordion-icon-text: var(--fs-text-tertiary);
+  --fs-accordion-note-text: var(--fs-text-tertiary);
+  --fs-accordion-focus-ring: var(--fs-focus-ring);
+
+  /* Timeline roles */
+  --fs-timeline-card-bg: var(--fs-bg-surface);
+  --fs-timeline-card-border: var(--fs-border-subtle);
+  --fs-timeline-card-shadow: none;
+  --fs-timeline-primary-dot: var(--fs-action-primary);
+  --fs-timeline-current-dot: var(--fs-action-accent);
+  --fs-timeline-line: var(--fs-border-strong);
+  --fs-timeline-title-text: var(--fs-text-primary);
+  --fs-timeline-time-text: var(--fs-text-tertiary);
+
+  /* Progress roles — the subtle border is too faint to read as a track on a
+     dark surface, so the track alone steps up to the strong border role. */
+  --fs-progress-track-bg: var(--fs-border-strong);
+
+  /* Loading roles */
+  --fs-loader-node: var(--fs-action-primary, #3fa88f);
+
+  /* Skeleton roles */
+  --fs-skeleton-bg: var(--fs-bg-surface-muted);
+  --fs-skeleton-opacity-dim: 0.42;
+
+  /* Data visualization roles */
+  --fs-chart-seq-1: #5e97f4;
+  --fs-chart-seq-2: #67cdef;
+  --fs-chart-seq-3: #54b89f;
+  --fs-chart-seq-4: #9fdcc9;
+  --fs-chart-positive: var(--fs-status-success);
+  --fs-chart-warning: var(--fs-status-warning);
+  --fs-chart-danger: var(--fs-status-danger);
+  --fs-chart-muted: rgb(236 239 238 / 26%);
+
+  /* Button and IconButton component roles */
+  --fs-button-primary-bg: var(--fs-action-primary);
+  --fs-button-primary-bg-hover: var(--fs-action-primary-hover);
+  --fs-button-primary-bg-active: var(--fs-action-primary-active);
+  --fs-button-primary-border: var(--fs-action-primary);
+  --fs-button-primary-border-hover: var(--fs-action-primary-hover);
+  --fs-button-primary-border-active: var(--fs-action-primary-active);
+  --fs-button-primary-text: var(--fs-action-primary-text);
+  --fs-button-accent-bg: var(--fs-action-accent);
+  --fs-button-accent-bg-hover: var(--fs-action-accent-hover);
+  --fs-button-accent-bg-active: var(--fs-action-accent-active);
+  --fs-button-accent-border: var(--fs-action-accent);
+  --fs-button-accent-border-hover: var(--fs-action-accent-hover);
+  --fs-button-accent-border-active: var(--fs-action-accent-active);
+  --fs-button-accent-text: var(--fs-action-accent-text);
+  --fs-button-secondary-bg: transparent;
+  --fs-button-secondary-bg-hover: var(--fs-bg-surface-muted);
+  --fs-button-secondary-border: var(--fs-border-control);
+  --fs-button-secondary-border-hover: var(--fs-border-control-hover);
+  --fs-button-secondary-text: var(--fs-text-secondary);
+  --fs-button-ghost-bg: transparent;
+  --fs-button-ghost-bg-hover: rgb(236 239 238 / 8%);
+  --fs-button-ghost-border: transparent;
+  --fs-button-ghost-border-hover: transparent;
+  --fs-button-ghost-text: var(--fs-text-secondary);
+  --fs-button-ghost-danger-bg: transparent;
+  --fs-button-ghost-danger-bg-hover: var(--fs-status-danger-bg);
+  --fs-button-ghost-danger-border: transparent;
+  --fs-button-ghost-danger-border-hover: transparent;
+  --fs-button-ghost-danger-text: var(--fs-status-danger);
+  --fs-button-danger-bg: var(--fs-status-danger);
+  --fs-icon-button-secondary-bg: transparent;
+  --fs-icon-button-secondary-bg-hover: rgb(236 239 238 / 12%);
+  --fs-icon-button-secondary-border: var(--fs-border-control);
+  --fs-icon-button-secondary-text: rgb(236 239 238 / 82%);
+  --fs-icon-button-secondary-text-hover: #ecefee;
+  --fs-icon-button-primary-bg: var(--fs-action-primary);
+  --fs-icon-button-primary-bg-hover: var(--fs-action-primary-hover);
+  --fs-icon-button-primary-border: var(--fs-action-primary);
+  --fs-icon-button-primary-text: var(--fs-action-primary-text);
+  --fs-icon-button-ghost-bg-hover: rgb(236 239 238 / 8%);
+  --fs-icon-button-ghost-text: rgb(236 239 238 / 78%);
+  --fs-icon-button-ghost-text-hover: #ecefee;
+  --fs-button-danger-bg-hover: #ec8878;
+  --fs-button-danger-bg-active: #f0a092;
+  --fs-button-danger-border: var(--fs-status-danger);
+  --fs-button-danger-border-hover: #ec8878;
+  --fs-button-danger-border-active: #f0a092;
+  --fs-button-danger-text: #04140f;
+  --fs-button-disabled-bg: rgb(236 239 238 / 5%);
+  --fs-button-disabled-border: rgb(236 239 238 / 8%);
+  --fs-button-disabled-text: var(--fs-text-tertiary);
+  --fs-icon-button-active-bg: rgb(63 168 143 / 16%);
+  --fs-icon-button-active-text: #54b89f;
+  --fs-icon-button-danger-bg-hover: var(--fs-status-danger-bg);
+  --fs-icon-button-danger-text: var(--fs-status-danger);
+  --fs-input-bg-readonly: rgb(236 239 238 / 6%);
+  --fs-input-bg-disabled: rgb(236 239 238 / 5%);
+  --fs-input-bg-error: color-mix(in srgb, var(--fs-status-danger) 12%, transparent);
+  --fs-input-text-readonly: rgb(236 239 238 / 70%);
+  --fs-input-border-hover: var(--fs-input-border);
+  --fs-input-error-ring: 0 0 0 2px color-mix(in srgb, var(--fs-status-danger) 18%, transparent);
+  --fs-input-success-ring: 0 0 0 2px rgb(63 168 143 / 22%);
+  --fs-tooltip-bg: #ecefee;
+  --fs-tooltip-text: #04140f;
+  --fs-tooltip-border: rgb(236 239 238 / 18%);
+  --fs-tooltip-shadow: var(--fs-shadow-overlay);
+  --fs-segmented-bg: rgb(236 239 238 / 8%);
+  --fs-segmented-border: var(--fs-border-control);
+  --fs-segmented-item-bg-hover: var(--fs-action-primary-wash);
+  --fs-segmented-item-text: rgb(236 239 238 / 68%);
+  --fs-segmented-item-text-hover: var(--fs-text-brand);
+  --fs-segmented-item-selected-bg: var(--fs-bg-surface);
+  --fs-segmented-item-selected-text: var(--fs-text-primary);
+  --fs-segmented-item-selected-shadow: var(--fs-shadow-surface);
+
+  /* MetricCard / StatCard component roles */
+  --fs-metric-card-bg: var(--fs-bg-surface);
+  --fs-metric-card-bg-attention: linear-gradient(160deg, rgb(255 117 4 / 13%), rgb(255 117 4 / 3%));
+  --fs-metric-card-border: rgb(255 255 255 / 9%);
+  --fs-metric-card-border-attention: rgb(255 117 4 / 30%);
+  --fs-metric-card-label-color: rgb(243 246 245 / 74%);
+  --fs-metric-card-label-color-attention: var(--fs-text-attention);
+  --fs-metric-card-figure-color: var(--fs-text-primary);
+  --fs-metric-card-figure-color-attention: var(--fs-action-accent);
+  --fs-metric-card-delta-color-positive: var(--fs-status-success);
+  --fs-metric-card-delta-color-neutral: var(--fs-text-tertiary);
+  --fs-metric-card-delta-color-attention: var(--fs-text-attention);
+  --fs-metric-card-description-color: rgb(243 246 245 / 66%);
+  --fs-metric-card-wave-color: var(--fs-action-primary);
+  --fs-metric-card-wave-color-attention: var(--fs-action-accent);
+
+  /* Card component roles */
+  --fs-card-bg: var(--fs-bg-surface);
+  --fs-card-bg-muted: rgb(236 239 238 / 6%);
+  --fs-card-bg-selected: var(--fs-action-primary-wash);
+  --fs-card-border: rgb(255 255 255 / 9%);
+  --fs-card-border-hover: var(--fs-action-primary-hover);
+  --fs-card-border-selected: var(--fs-action-primary);
+  --fs-card-divider: rgb(255 255 255 / 9%);
+  --fs-card-shadow: none;
+  --fs-card-shadow-hover: 0 2px 4px rgb(0 0 0 / 32%);
+  --fs-card-description-color: rgb(243 246 245 / 60%);
+  --fs-card-media-bg: linear-gradient(135deg, #1268c9, #2ba38c, #57c79e);
+  --fs-card-selected-ring: 0 0 0 2px rgb(63 168 143 / 26%);
+
+  /* The disclosure roles that resolve differently in dark; the measures above
+     are theme-independent and are not repeated here. */
+  --fs-disclosure-bg: var(--fs-bg-surface);
+  --fs-disclosure-border: var(--fs-border-subtle);
+  --fs-disclosure-hover-bg: var(--fs-bg-surface-muted);
+  --fs-disclosure-chevron: var(--fs-text-tertiary);
+  --fs-disclosure-summary-text: var(--fs-text-primary);
+  --fs-settings-section-summary-note: var(--fs-text-tertiary);
+
+  /* Badge / FlowStatus component roles */
+  --fs-badge-neutral-bg: var(--fs-status-neutral-bg);
+  --fs-badge-neutral-border: var(--fs-status-neutral-border);
+  --fs-badge-neutral-text: var(--fs-text-secondary);
+  --fs-badge-green-bg: var(--fs-status-success-bg);
+  --fs-badge-green-border: var(--fs-status-success-border);
+  --fs-badge-green-text: var(--fs-status-success);
+  --fs-badge-orange-bg: var(--fs-status-warning-bg);
+  --fs-badge-orange-border: var(--fs-status-warning-border);
+  --fs-badge-orange-text: var(--fs-status-warning);
+  --fs-badge-danger-bg: var(--fs-status-danger-bg);
+  --fs-badge-danger-border: var(--fs-status-danger-border);
+  --fs-badge-danger-text: var(--fs-status-danger);
+  --fs-badge-ink-bg: rgb(236 239 238 / 12%);
+  --fs-badge-ink-border: rgb(236 239 238 / 18%);
+  --fs-badge-ink-text: #ecefee;
+
+  /* A thinner veil on the dark surface keeps the gradient as visible as on light. */
+  --fs-badge-new-veil: color-mix(in srgb, var(--fs-bg-surface) 80%, transparent);
+  --fs-badge-new-text: var(--fs-text-primary);
+
+  /* Avatar component roles */
+  --fs-avatar-border: var(--fs-bg-surface);
+  --fs-avatar-ring: rgb(255 255 255 / 12%);
+  --fs-avatar-initials-bg: var(--fs-bg-inverse);
+  --fs-avatar-initials-text: var(--fs-text-inverse);
+  --fs-avatar-green-bg: rgb(63 168 143 / 16%);
+  --fs-avatar-green-text: var(--fs-action-primary-hover);
+  --fs-avatar-teal-bg: rgb(63 168 143 / 18%);
+  --fs-avatar-teal-text: #9fdcc9;
+  --fs-avatar-orange-bg: rgb(255 117 4 / 14%);
+  --fs-avatar-orange-text: #ff9233;
+  --fs-avatar-neutral-bg: rgb(243 246 245 / 8%);
+  --fs-avatar-neutral-text: rgb(243 246 245 / 62%);
+  --fs-avatar-overflow-bg: rgb(243 246 245 / 10%);
+  --fs-avatar-overflow-text: rgb(243 246 245 / 78%);
+  --fs-avatar-add-bg: rgb(243 246 245 / 4%);
+  --fs-avatar-add-bg-hover: rgb(243 246 245 / 8%);
+  --fs-avatar-add-border: rgb(243 246 245 / 18%);
+  --fs-avatar-add-text: rgb(243 246 245 / 72%);
+
+  /* Page header component roles */
+  --fs-page-header-bg: var(--fs-bg-surface);
+  --fs-page-header-border: var(--fs-border-subtle);
+  --fs-page-header-divider: var(--fs-border-subtle);
+  --fs-page-header-eyebrow: var(--fs-text-brand);
+  --fs-page-header-description: var(--fs-text-secondary);
+
+  /* FormDialog component roles */
+  --fs-form-dialog-bg: var(--fs-bg-surface);
+  --fs-form-dialog-border: var(--fs-border-default);
+  --fs-form-dialog-shadow: var(--fs-shadow-overlay);
+  --fs-form-dialog-zone-border: var(--fs-border-subtle);
+  --fs-form-dialog-field-border: var(--fs-input-border);
+  --fs-form-dialog-focus-border: var(--fs-action-primary);
+  --fs-form-dialog-focus-ring: var(--fs-focus-ring);
+  --fs-form-dialog-label: var(--fs-text-primary);
+  --fs-form-dialog-select-menu-shadow: var(--fs-shadow-overlay);
+  --fs-form-dialog-select-option-hover-bg: var(--fs-dropdown-item-hover-bg);
+  --fs-form-dialog-select-option-selected-mark: var(--fs-dropdown-item-selected-mark);
+
+  /* Published in canon; mirrored by the token sync of 2026-09-27. */
+  --fs-sidebar-active-count-bg: var(--fs-count-pill-active-bg);
+  --fs-sidebar-active-count-text: var(--fs-count-pill-active-text);
+  --fs-button-secondary-text-hover: var(--fs-text-primary);
+  --fs-count-pill-neutral-bg: #1a232a;
+  --fs-count-pill-neutral-text: rgb(243 246 245 / 44%);
+  --fs-count-pill-attention-bg: rgb(255 117 4 / 16%);
+  --fs-count-pill-attention-text: #ff9233;
+  --fs-count-pill-active-bg: color-mix(in srgb, #6fb6a4 14%, transparent);
+  --fs-count-pill-active-text: #6fb6a4;
+}
+
+/* Coarse pointers extend the hit area without growing the painted control. */
+@media (pointer: coarse) {
+  :root, [data-theme="light"], [data-theme="dark"] {
+    --fs-hit-target: var(--fs-hit-target-touch);
+  }
+}

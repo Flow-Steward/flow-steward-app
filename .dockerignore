@@ -1,0 +1,68 @@
+# Local Python environments and caches
+venv/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+**/*.pyc
+**/.fs-python/
+
+# Generated outputs
+logs/
+backups/
+dist/
+build/
+/assets/tailwind.css
+
+# Root npm artifacts are not part of the release build; the React workspace
+# lives under assets/frontend.
+/package.json
+/package-lock.json
+
+# Local runtime data and secrets
+# Installed extension bundles are local state, not core image inputs.
+/extensions/*
+!/extensions/.gitignore
+.flow-steward/
+**/.env*
+!.env.example
+!.env.example.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/*credential*.bak*
+**/*secret*.bak*
+.ssl/
+.claude/
+.cursor/
+.mcp.json
+.private/
+pgdata-fs/
+neo4j-data/
+
+# Audit scratch, retained evidence, test caches, and editor state
+docs/audits/
+**/evidence/
+**/*audit-scratch*
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage*
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# VCS and desktop metadata
+.git
+.DS_Store
+._*
+
+# Dependency installs (keep tracked assets/vendor in the build context)
+node_modules/
+**/node_modules/
+/vendor/

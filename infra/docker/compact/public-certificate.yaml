@@ -1,0 +1,17 @@
+tls:
+  stores:
+    default:
+      # AC17-R83: `tls.certificates` is an SNI-matched set with no fallback of its own, so
+      # a client whose SNI matches none of the configured certificates gets Traefik's dummy
+      # `TRAEFIK DEFAULT CERT` instead; on some installations a client that sends no SNI at
+      # all gets it too. Measured on two stands: the wrong certificate reached ordinary
+      # clients -- browser, curl, webhook, monitor -- and the installer's own health probe,
+      # which is pinned to the generated certificate and so could never pass. The Scalable
+      # dynamic config has carried this store since before the Compact profile existed;
+      # see infra/traefik/fs.dynamic.yaml.
+      defaultCertificate:
+        certFile: /etc/traefik/certs/cert.pem
+        keyFile: /etc/traefik/certs/key.pem
+  certificates:
+    - certFile: /etc/traefik/certs/cert.pem
+      keyFile: /etc/traefik/certs/key.pem

@@ -1,0 +1,110 @@
+/* Workflow settings › Schedules. Composition only: rows, the Repeat segmented
+   control at form width, and the "when" summary. Tokens only. */
+
+.workflow-schedules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-150);
+}
+
+.workflow-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-schedule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  padding: var(--fs-space-150) var(--fs-space-100) var(--fs-space-150) var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container, 8px);
+  background: var(--fs-bg-surface);
+}
+
+.workflow-schedule-row-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--fs-space-025);
+  min-width: 0;
+}
+
+.workflow-schedule-row-title {
+  overflow: hidden;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-body-size);
+  font-weight: var(--fs-type-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-schedule-row[data-enabled="false"] .workflow-schedule-row-title { color: var(--fs-text-secondary); }
+
+.workflow-schedule-row-sub {
+  overflow: hidden;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-schedule-row-sub code { font-family: var(--ff-code); }
+
+/* The published segmented control, stretched to the form's width. */
+.workflow-schedule-repeat.fs-seg {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+
+.workflow-schedule-when {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--fs-space-100);
+  padding: var(--fs-space-100) var(--fs-space-150);
+  border-radius: var(--fs-radius-control, 6px);
+  background: var(--fs-bg-surface-muted);
+}
+
+.workflow-schedule-when > svg {
+  flex: none;
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  margin-top: var(--fs-space-025);
+  color: var(--fs-text-tertiary);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.workflow-schedule-when-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-025);
+  min-width: 0;
+}
+
+.workflow-schedule-when-summary {
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-body-size);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.workflow-schedule-when-next {
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-schedule-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-body-size);
+}
+
+.workflow-schedule-day-of-month { max-width: 120px; }

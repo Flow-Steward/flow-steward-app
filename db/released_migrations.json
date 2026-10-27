@@ -1,0 +1,10 @@
+{
+  "_comment": [
+    "Checksums of migrations that have shipped in a release.",
+    "An entry is immutable: editing the file it names breaks every database that",
+    "already recorded the old checksum, and those databases fail startup closed.",
+    "To change behaviour, add a new forward-only migration and record it here in",
+    "the same commit."
+  ],
+  "migrations": {}
+}

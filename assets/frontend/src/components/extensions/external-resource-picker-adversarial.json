@@ -1,0 +1,75 @@
+{
+  "valid_origin": "https://sdk.example.test",
+  "valid_script": "https://sdk.example.test/picker.js?mode=documents",
+  "invalid_origins": [
+    "https://sdk.example.test:bad",
+    "https://sdk.example.test:443",
+    "https://SDK.example.test",
+    " https://sdk.example.test",
+    "https://sdk.example.test ",
+    "https://sdk.example.test\n",
+    "https://sdk.example.test\u0000",
+    "https://sdk.example.test/path",
+    "https://sdk.example.test?mode=documents",
+    "https://sdk.example.test#picker",
+    "https://user:password@sdk.example.test"
+  ],
+  "invalid_scripts": [
+    "https://SDK.example.test/picker.js",
+    "https://sdk.example.test:443/picker.js",
+    " https://sdk.example.test/picker.js",
+    "https://sdk.example.test/picker.js ",
+    "https://sdk.example.test\\picker.js",
+    "https://sdk.example.test/a/../picker.js",
+    "https://sdk.example.test/%2e%2e/picker.js",
+    "https://sdk.example.test/a/./picker.js",
+    "https://sdk.example.test/a\"b/picker.js",
+    "https://sdk.example.test/a<b/picker.js",
+    "https://sdk.example.test/a>b/picker.js",
+    "https://sdk.example.test/a^b/picker.js",
+    "https://sdk.example.test/a`b/picker.js",
+    "https://sdk.example.test/a{b/picker.js",
+    "https://sdk.example.test/a}b/picker.js",
+    "https://sdk.example.test/picker.js?value=\"raw",
+    "https://sdk.example.test/picker.js?value=<raw",
+    "https://sdk.example.test/picker.js?value=>raw",
+    "https://sdk.example.test/picker.js?value='raw",
+    "https://sdk.example.test/picker.js#raw\"fragment",
+    "https://sdk.example.test/picker.js#raw<fragment",
+    "https://sdk.example.test/picker.js#raw>fragment",
+    "https://sdk.example.test/picker.js#raw`fragment"
+  ],
+  "invalid_button_labels": [
+    "   ",
+    "\ufeff \ufeff",
+    "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+  ],
+  "valid_button_labels": ["😀"],
+  "valid_surrogate_pairs": [{ "high": 55357, "low": 56832 }],
+  "invalid_unicode_code_units": [55296, 56320],
+  "invalid_scalar_cases": [
+    { "operation": "delete", "path": "bootstrap_action_id" },
+    { "operation": "delete", "path": "bridge_global" },
+    { "operation": "delete", "path": "target_component_id" },
+    { "operation": "delete", "path": "selection.fields.0.source" },
+    { "operation": "delete", "path": "selection.fields.0.target" },
+    { "operation": "set", "path": "selection.maximum", "value": true },
+    { "operation": "set", "path": "options", "value": false },
+    { "operation": "set", "path": "options", "value": 0 },
+    { "operation": "set", "path": "options", "value": "" },
+    { "operation": "set", "path": "busy_label", "value": "   " },
+    { "operation": "set", "path": "error_message", "value": "\ufeff \ufeff" }
+  ],
+  "valid_scalar_cases": [
+    { "operation": "set", "path": "busy_label", "value": null },
+    { "operation": "set", "path": "error_message", "value": null }
+  ],
+  "options_utf16_cases": {
+    "valid_emoji_count": 3000,
+    "invalid_emoji_count": 17000
+  },
+  "invalid_options_numeric_boundaries": [
+    { "number": 1e20, "payload_length": 32730 },
+    { "number": 1.0, "payload_length": 32748 }
+  ]
+}

@@ -1,0 +1,13 @@
+# ADR 0029, decision B (item 5): with local_fs storage the artifacts are one of the
+# Scalable host trees a Compact installation keeps using; see data-host_directories.yaml.
+# Selected with it, and only with local_fs: with bundled or external object storage the
+# artifacts live in the object store, and Scalable has no host artifacts tree to bind
+# (AC17-R169).
+
+services:
+  compact-runtime:
+    volumes:
+      - ${FS_LOGS_DIR:?the Scalable logs directory is required for its artifacts}/artifacts:/data/artifacts
+  fs-cli:
+    volumes:
+      - ${FS_LOGS_DIR:?the Scalable logs directory is required for its artifacts}/artifacts:/data/artifacts

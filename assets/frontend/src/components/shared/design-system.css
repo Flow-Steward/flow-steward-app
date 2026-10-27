@@ -1,0 +1,2276 @@
+@reference "../../styles/index.css";
+
+.fs-settings,
+.fs-settings-portal {
+  color: var(--fs-text-primary);
+  font-family: var(--ff-body);
+  font-size: var(--fs-type-body-size);
+  line-height: var(--fs-type-body-line-height);
+}
+
+.fs-settings {
+  display: grid;
+  gap: var(--fs-dashboard-section-gap);
+  width: min(100%, 1240px);
+}
+
+.fs-settings-detail { width: min(100%, 880px); }
+.fs-settings-tabs { min-width: 0; }
+
+/* Vertical rhythm for a page, no width of any kind. `.fs-settings` bundles
+   rhythm together with a 1240px ceiling; a page adopting the published
+   container takes its rhythm from here and its width from the container.
+   Two ceilings on one element must never happen: width resolves before
+   max-width and wins, so the container would look broken. */
+.fs-page-sections { display: grid; gap: var(--fs-dashboard-section-gap); min-width: 0; }
+:where(.fs-settings, .fs-settings-portal) * { box-sizing: border-box; }
+:where(.fs-settings, .fs-settings-portal) :where(button, input, select) { font: inherit; }
+:where(.fs-settings, .fs-settings-portal) fieldset { min-width: 0; margin: 0; border: 0; padding: 0; }
+:where(.fs-settings, .fs-settings-portal) legend { padding: 0; }
+
+/* The page declares its own container mode so geometry is visible in the page
+   source. Its header sits inside the container as a card in normal flow. */
+.fs-page { width: 100%; min-width: 0; margin-inline: auto; }
+.fs-page[data-page-width="standard"] { max-width: var(--fs-page-width-standard); }
+.fs-page[data-page-width="wide"] { max-width: var(--fs-page-width-wide); }
+.fs-page[data-page-width="fluid"] { max-width: none; }
+
+/* The form block owns its measure: a page may contain both a form and a table.
+   Field widths follow composition rather than a separate token. */
+.fs-form-block { max-width: var(--fs-form-block-measure); }
+
+.fs-page-header {
+  display: grid;
+  gap: var(--fs-page-header-gap);
+  border: 1px solid var(--fs-page-header-border);
+  border-radius: var(--fs-page-header-radius);
+  background: var(--fs-page-header-bg);
+  padding: var(--fs-page-header-padding-compact);
+}
+
+.fs-page-header-with-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.fs-page-header-copy { display: grid; gap: var(--fs-page-header-gap); min-width: 0; }
+
+/* A header with the object's own mark (an extension's logo) before its name. */
+.fs-page-header-with-media { grid-template-columns: auto minmax(0, 1fr); }
+.fs-page-header-with-media.fs-page-header-with-action { grid-template-columns: auto minmax(0, 1fr) auto; }
+.fs-page-header-media { align-self: start; display: flex; }
+
+/* The published action row: --fs-page-header-action-gap was already in the
+   theme and consumed by dashboard-page.css, but this rule carried no gap at
+   all, so two page-level actions sat edge to edge. `flex: none` and wrapping
+   come from the same canonical rule: the block must not be squeezed by the
+   title column, and two actions must be able to reflow at narrow widths. */
+.fs-page-header-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fs-page-header-action-gap);
+}
+
+.fs-page-eyebrow,
+.fs-dialog-eyebrow {
+  color: var(--fs-page-header-eyebrow);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-micro-size);
+  font-weight: var(--fs-type-weight-medium);
+  letter-spacing: var(--fs-type-micro-tracking);
+  line-height: var(--fs-type-micro-line-height);
+  text-transform: uppercase;
+}
+
+.fs-page-title,
+.fs-panel-title,
+.fs-card-title,
+.fs-dialog-title {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font-family: var(--ff-display);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-page-title { font-size: var(--fs-page-header-title-size); line-height: var(--fs-page-header-title-line-height); letter-spacing: var(--fs-page-header-title-tracking); }
+
+/* The tabs panel has its own published title role, and it is not the dialog
+   title. Canon's margin is a literal 6px; --fs-space-075 computes to exactly
+   that, so the token is used instead. This block follows the shared
+   .fs-page-title/.fs-panel-title/.fs-card-title/.fs-dialog-title declaration,
+   so it wins on order at equal specificity without that block being touched. */
+.fs-panel-title {
+  margin: 0 0 var(--fs-space-075);
+  color: var(--fs-tabs-title-text);
+  font-family: var(--fs-tabs-title-font);
+  font-size: var(--fs-tabs-title-size);
+  font-weight: var(--fs-tabs-title-weight);
+  letter-spacing: var(--fs-tabs-title-tracking);
+  line-height: normal;
+}
+.fs-card-title { font-size: var(--fs-card-title-size); line-height: var(--fs-type-h3-line-height); }
+.fs-dialog-title { margin-top: var(--fs-space-150); font-family: var(--fs-form-dialog-title-font); font-size: var(--fs-form-dialog-title-size); font-weight: var(--fs-form-dialog-title-weight); line-height: var(--fs-form-dialog-title-line-height); letter-spacing: var(--fs-form-dialog-title-tracking); }
+
+.fs-page-description,
+.fs-card-description,
+.fs-dialog-description { margin: 0; color: var(--fs-text-secondary); line-height: var(--fs-type-body-line-height); }
+.fs-page-description { max-width: 760px; font-size: var(--fs-page-header-description-size); }
+
+/* The scroll zone is unconditional, as canon's is. It used to be switched on per
+   surface to protect the focus ring, with the overflow bands measured one page
+   at a time; those bands were derived while tabs still carried `flex: 1` and
+   shrank to fit, and the published 132px floor invalidates every one of them.
+   Measured on the eight-tab detail row: 1084px of tabs inside a 971px surface at
+   a 1280px viewport, where the previous 900px breakpoint left `overflow-x`
+   visible and the last tab simply spilled past the surface - not scrollable, not
+   visible, unreachable. A row that outgrows its surface must scroll.
+
+   The ring reaches 4px outside a tab (2px offset plus 2px width) and an overflow
+   ancestor clips it, so the top padding gives it that room inside the scroll box
+   and the negative margin hands the room back to the layout - nothing moves.
+   The sides get no such room: the scroll box ends at the panel's edges, as in
+   canon, because room there showed a clipped tab 4px past the panel whenever the
+   row overflowed. The outer side of an edge tab's ring is clipped instead, as in
+   canon. The bottom edge stays clipped deliberately: opening it means pushing
+   the scrollbar down onto the panel's 3px strip, which is visible wherever
+   scrollbars take layout space. */
+.fs-tabs-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding: var(--fs-space-050) 0 0;
+  margin: calc(var(--fs-space-050) * -1) 0 0;
+}
+
+/* The row is as wide as its tabs and at least as wide as the surface, so it
+   reads left and the empty space to its right is correct - closing that space by
+   stretching, centring or justifying is the reflex the published rule exists to
+   prevent. `min-width: 100%` keeps the row spanning the surface so the panel
+   strip still meets it. `isolation` stays for the focus-ring z-index. */
+.fs-tabs-list {
+  display: flex;
+  align-items: flex-end;
+  isolation: isolate;
+  gap: var(--fs-tabs-gap);
+  width: max-content;
+  min-width: 100%;
+  min-height: var(--fs-tabs-tab-hover-height);
+}
+
+/* Sized to its label, never stretched to the container: a tab pulled to the
+   surface turns the selected fill into the heaviest object on the screen and
+   unlinks target size from label length, and at two or three tabs the row starts
+   reading as a Segmented Control. Deliberately count-independent - the same tab
+   renders identically with two siblings or eight. */
+.fs-tab {
+  display: grid;
+  text-decoration: none;
+  place-items: center;
+  flex: none;
+  min-width: var(--fs-tabs-tab-min-width);
+  height: var(--fs-tabs-tab-height);
+  border: 0;
+  border-radius: var(--fs-tabs-tab-radius);
+  background: var(--fs-tabs-unselected-bg);
+  color: var(--fs-tabs-unselected-text);
+  padding: 0 var(--fs-tabs-tab-padding-x);
+  font-family: var(--ff-body);
+  font-size: var(--fs-tabs-tab-font-size);
+  font-weight: var(--fs-tabs-tab-font-weight);
+  line-height: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: height var(--fs-tabs-motion-duration) var(--fs-ease), background var(--fs-tabs-motion-duration) var(--fs-ease), color var(--fs-tabs-motion-duration) var(--fs-ease);
+}
+
+/* Route-based tabs mark the current view with aria-current, not aria-selected,
+   because they are links rather than in-page tab controls. */
+.fs-tab[aria-selected="true"],
+.fs-tab[aria-current="page"] { background: var(--fs-tabs-selected-bg); color: var(--fs-tabs-selected-text); }
+.fs-tab:not([aria-selected="true"], [aria-current="page"]):hover { height: var(--fs-tabs-tab-hover-height); background: var(--fs-tabs-hover-bg); }
+.fs-tab:focus-visible { position: relative; z-index: var(--fs-z-local-sticky); outline: 0; box-shadow: var(--fs-tabs-focus-ring); }
+
+.fs-tabs-panel {
+  min-height: var(--fs-tabs-panel-min-height);
+  border: 1px solid var(--fs-tabs-panel-border);
+  border-top: var(--fs-tabs-panel-accent-width) solid var(--fs-tabs-panel-accent);
+  border-radius: var(--fs-tabs-panel-radius);
+  background: var(--fs-tabs-panel-bg);
+  padding: var(--fs-tabs-panel-padding);
+}
+
+.fs-panel-stack,
+.fs-card-body { display: grid; gap: var(--fs-dashboard-section-gap); }
+
+/* One block of related surfaces inside a panel stack. Section gap separates
+   sections; repeated items inside one section take the grid gap, which is the
+   spacing split tabbed-settings-detail publishes. */
+.fs-panel-group { display: grid; gap: var(--fs-dashboard-grid-gap); min-width: 0; }
+
+/* `display: grid` outranks the user-agent `[hidden]` rule, so a stack whose
+   sections stay mounted - one form spanning every tab - restates it. */
+.fs-panel-stack > [hidden] { display: none; }
+.fs-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--fs-dashboard-grid-gap); }
+.fs-panel-heading p { margin: var(--fs-space-050) 0 0; color: var(--fs-text-secondary); font-size: 13px; }
+
+.fs-card {
+  min-width: 0;
+  overflow: visible;
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-card-radius);
+  background: var(--fs-card-bg);
+  box-shadow: var(--fs-card-shadow);
+}
+
+/* Status variants of the card surface, on the same tokens the alert tones use. */
+.fs-card-danger { border-color: var(--fs-status-danger-border); background: var(--fs-status-danger-bg); }
+.fs-card-success { border-color: var(--fs-status-success-border); background: var(--fs-status-success-bg); }
+
+.fs-card-header,
+.fs-card-body { padding: var(--fs-card-padding); }
+.fs-card-header { border-bottom: 1px solid var(--fs-card-divider); }
+.fs-card-description { margin-top: var(--fs-space-050); font-size: var(--fs-card-description-size); }
+
+.fs-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-dashboard-grid-gap);
+  border-top: 1px solid var(--fs-card-divider);
+  padding: var(--fs-card-footer-padding);
+}
+
+/* A footer placed straight in a tab panel shares the panel's content edges: the
+   panel already insets its content, so the card footer's own side padding would
+   set the status and the actions 16px in from everything above them. The rule
+   under the footer still spans the content width. */
+.fs-tabs-panel > .fs-card-footer { padding-inline: 0; }
+
+/* The status takes the room that is left and wraps inside it; the actions keep
+   their own width, so a long explanation never pushes a button onto a second
+   row. Below the breakpoint the footer stacks and the actions get the full row. */
+.fs-footer-status { flex: 1 1 auto; min-width: 0; color: var(--fs-text-secondary); font-size: 13px; }
+
+/* Canon draws one action in this footer; a screen that also needs a way out
+   keeps the pair together, because the footer itself is a space-between row. */
+.fs-footer-actions { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: var(--fs-page-header-action-gap); }
+
+.fs-footer-status.is-dirty,
+.fs-footer-status.is-saving { color: var(--fs-text-attention); }
+.fs-footer-status.is-saved { color: var(--fs-status-success); }
+
+.fs-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fs-dashboard-grid-gap);
+  padding-bottom: var(--fs-dashboard-section-gap);
+  border-bottom: 1px solid var(--fs-card-divider);
+}
+
+.fs-avatar {
+  display: grid;
+  place-items: center;
+  width: var(--fs-avatar-size-lg);
+  height: var(--fs-avatar-size-lg);
+  border: 1px solid var(--fs-avatar-border);
+  border-radius: var(--fs-avatar-radius);
+  background: var(--fs-avatar-green-bg);
+  box-shadow: var(--fs-avatar-ring);
+  color: var(--fs-avatar-green-text);
+  font-family: var(--fs-avatar-font);
+  font-size: 14px;
+  font-weight: var(--fs-avatar-font-weight);
+}
+.fs-identity-copy { min-width: 0; }
+
+.fs-identity-name,
+.fs-identity-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-identity-name { color: var(--fs-text-primary); font-weight: var(--fs-type-weight-medium); }
+.fs-identity-email { margin-top: var(--fs-space-025); color: var(--fs-text-secondary); font-size: 13px; }
+.fs-identity-context { display: grid; justify-items: end; gap: var(--fs-space-075); }
+.fs-badge-row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--fs-space-075); }
+
+.fs-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--fs-badge-height-sm);
+  border: 1px solid var(--fs-badge-neutral-border);
+  border-radius: var(--fs-badge-radius);
+  background: var(--fs-badge-neutral-bg);
+  color: var(--fs-badge-neutral-text);
+  padding: var(--fs-badge-padding-sm);
+  font-family: var(--fs-badge-font);
+  font-size: var(--fs-badge-font-size-sm);
+  font-weight: var(--fs-badge-font-weight);
+  line-height: 1;
+  white-space: nowrap;
+}
+.fs-badge.green { border-color: var(--fs-badge-green-border); background: var(--fs-badge-green-bg); color: var(--fs-badge-green-text); }
+
+/* The theme publishes five badge families; only green had a rule, so every
+   other state fell back to neutral regardless of what it meant. */
+.fs-badge.orange { border-color: var(--fs-badge-orange-border); background: var(--fs-badge-orange-bg); color: var(--fs-badge-orange-text); }
+.fs-badge.danger { border-color: var(--fs-badge-danger-border); background: var(--fs-badge-danger-bg); color: var(--fs-badge-danger-text); }
+
+/* New: the Iridescent gradient draws the 1px edge (border-box) and, under the
+   surface veil, the fill (padding-box); the label keeps primary ink. */
+.fs-badge.new {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--fs-badge-new-veil), var(--fs-badge-new-veil)) padding-box,
+    var(--fs-badge-new-gradient) padding-box,
+    var(--fs-badge-new-gradient) border-box;
+  color: var(--fs-badge-new-text);
+}
+
+/* A reference value — an auth scheme, a transport, an identifier. Not a status,
+   so not the pill: `--fs-badge-radius` is 999px and in this system that shape
+   means state, so a reader looks for a state and finds a protocol name instead.
+   Not a parameter signature either, which is what `.fs-param-chip` is scoped to.
+   Geometry comes from the small badge so a chip and a pill sit level in one row.
+   The font size is the badge's 11px rather than `--fs-type-code-size`: the
+   published code size is 12px at line-height 1.65, which bursts a 20px chip —
+   do not "fix" it back. */
+.fs-value-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--fs-badge-height-sm);
+  padding: var(--fs-badge-padding-sm);
+  border: 1px solid var(--fs-value-chip-border);
+  border-radius: var(--fs-radius-4);
+  background: var(--fs-value-chip-bg);
+  color: var(--fs-value-chip-text);
+  font-family: var(--ff-code);
+  font-size: var(--fs-value-chip-font-size);
+  line-height: 1;
+}
+.fs-count-pill { font-family: var(--fs-count-pill-font); font-weight: var(--fs-count-pill-font-weight); font-variant-numeric: tabular-nums; }
+.fs-account-context { color: var(--fs-text-secondary); font-size: 12px; text-align: right; }
+
+.fs-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--fs-dashboard-grid-gap); }
+.fs-field { display: grid; align-content: start; gap: var(--fs-field-gap); min-width: 0; }
+.fs-field.full { grid-column: 1 / -1; }
+.fs-field-label { color: var(--fs-field-label-color); font-size: var(--fs-field-label-size); font-weight: var(--fs-field-label-weight); line-height: var(--fs-field-label-line-height); }
+.fs-required-label { display: inline-flex; align-items: baseline; }
+.fs-field-optional { color: var(--fs-text-tertiary); font-weight: var(--fs-field-label-weight); }
+
+.fs-required {
+  margin-left: var(--fs-field-required-gap);
+  color: var(--fs-field-required-color);
+  font-size: var(--fs-field-required-size);
+  line-height: 1;
+  transform: translateY(var(--fs-field-required-offset-y));
+}
+
+/* Empty and loading copy inside a card: the card frame is the container, so the
+   state is plain tertiary text with no box of its own. */
+.fs-empty-copy { color: var(--fs-text-tertiary); font-size: var(--fs-type-body-size); }
+
+.fs-field-helper { color: var(--fs-field-helper-color); font-size: var(--fs-field-helper-size); line-height: var(--fs-field-helper-line-height); }
+.fs-field-helper.error { color: var(--fs-field-error-color); }
+
+.fs-input,
+.fs-input-shell,
+.fs-select-trigger,
+.fs-combo-field,
+.fs-multi-field {
+  width: 100%;
+  min-width: 0;
+  height: var(--fs-input-height);
+  border: 1px solid var(--fs-input-border);
+  border-radius: var(--fs-input-radius);
+  background: var(--fs-input-bg);
+  color: var(--fs-input-text);
+  font-family: var(--fs-input-font);
+  font-size: var(--fs-input-font-size);
+  transition: var(--fs-input-transition);
+}
+.fs-input { padding: 0 var(--fs-input-padding-x); }
+
+/* Date field: dates align down a stack of fields, so they resolve the data face
+   (canon date contract). color-scheme stays on :root for the native calendar. */
+.fs-input[type="date"] { font-family: var(--ff-data); font-variant-numeric: tabular-nums; }
+
+/* Textarea shares the Input surface, border and radius; it swaps the fixed
+   height for a minimum and pads the top to match the sides. */
+.fs-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--fs-textarea-min-height);
+  border: 1px solid var(--fs-input-border);
+  border-radius: var(--fs-input-radius);
+  background: var(--fs-input-bg);
+  color: var(--fs-input-text);
+  padding: var(--fs-input-padding-x);
+  font-family: var(--fs-input-font);
+  font-size: var(--fs-input-font-size);
+  line-height: var(--fs-textarea-line-height);
+  resize: vertical;
+  transition: var(--fs-input-transition);
+}
+
+.fs-input::placeholder,
+.fs-textarea::placeholder,
+.fs-combo-field input::placeholder,
+.fs-multi-field input::placeholder { color: var(--fs-input-placeholder); }
+
+.fs-textarea:focus-visible { border-color: var(--fs-input-border-focus); box-shadow: var(--fs-input-focus-ring); outline: 0; }
+.fs-textarea[aria-invalid="true"] { border-color: var(--fs-input-border-error); background: var(--fs-input-bg-error); box-shadow: var(--fs-input-error-ring); }
+.fs-textarea:disabled { border-color: var(--fs-input-border-disabled); background: var(--fs-input-bg-disabled); color: var(--fs-input-text-disabled); cursor: not-allowed; }
+.fs-textarea.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-size); line-height: var(--fs-type-code-line-height); }
+
+.fs-input:focus-visible,
+.fs-input-shell:focus-within,
+.fs-combo-field:focus-within,
+.fs-multi-field:focus-within { border-color: var(--fs-input-border-focus); box-shadow: var(--fs-input-focus-ring); outline: 0; }
+.fs-input[readonly] { background: var(--fs-input-bg-readonly); color: var(--fs-input-text-readonly); }
+
+/* Input had no disabled rule at all. Colour alone is never the signal: the
+   control also carries `disabled`, which removes it from the tab order, and the
+   not-allowed cursor. */
+.fs-input:disabled,
+.fs-input-shell:has(input:disabled) { border-color: var(--fs-input-border-disabled); background: var(--fs-input-bg-disabled); color: var(--fs-input-text-disabled); cursor: not-allowed; }
+
+.fs-input[aria-invalid="true"],
+.fs-input-shell.is-error { border-color: var(--fs-input-border-error); background: var(--fs-input-bg-error); box-shadow: var(--fs-input-error-ring); }
+
+.fs-input-shell,
+.fs-combo-field,
+.fs-multi-field { display: flex; align-items: center; gap: var(--fs-input-gap); padding: 0 var(--fs-input-padding-x); }
+
+.fs-input-shell input,
+.fs-combo-field input,
+.fs-multi-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
+.fs-input-shell input.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-size); line-height: var(--fs-type-code-line-height); }
+
+/* The inline variant. `.fs-code-value` already carries the code face for a
+   textarea and for an input; an id or a reason code rendered inline had nowhere
+   to go — `.fs-table-mono` is the *data* face by design, and its own rule says
+   the code face is reserved for IDs, hashes, logs and snippets. Scoped to `code`
+   so the twenty existing input and textarea consumers are untouched, and so the
+   element carries the meaning while the class carries the face. */
+code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-size); line-height: var(--fs-type-code-line-height); }
+
+/* Leading icon and trailing action inside a shell, on the same icon geometry
+   the search field already uses. */
+.fs-input-shell > svg { width: var(--fs-search-icon-size); height: var(--fs-search-icon-size); flex: none; fill: none; stroke: var(--fs-input-icon); stroke-width: var(--fs-search-icon-stroke); }
+.fs-input-shell:focus-within > svg { stroke: var(--fs-input-icon-focus); }
+.fs-input-clear { display: inline-grid; place-items: center; width: var(--fs-select-utility-size); height: var(--fs-select-utility-size); flex: none; border: 0; border-radius: var(--fs-select-utility-radius); background: transparent; color: var(--fs-input-icon); padding: 0; cursor: pointer; }
+
+.fs-input-clear:hover,
+.fs-input-clear:focus-visible { background: var(--fs-bg-surface-muted); color: var(--fs-text-primary); outline: 0; }
+.fs-input-clear svg { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); fill: none; stroke: currentcolor; stroke-width: var(--fs-select-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+
+/* The trailing reveal action, ported from `03_components/forms/input.md:138` and
+   its preview's `.input-action` rule. It is a different role from
+   `.fs-input-clear`: clear hovers on the muted surface, reveal hovers on the
+   primary wash with brand text, and the tile is 22px rather than 20px.
+   `input.md`: "the canonical compact 22px x 22px action tile, centered within the
+   32px Input … transparent with tertiary icon color at rest; hover and keyboard
+   focus use --fs-action-primary-wash with --fs-text-brand … the hit surface must
+   not expand to the full field height."
+   22px is stated as a value because neither canon nor this app publishes a token
+   for it — recorded as a gap rather than rounded to the nearest one. */
+.fs-input-action {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 0;
+  border-radius: var(--fs-radius-control);
+  background: transparent;
+  color: var(--fs-text-tertiary);
+  padding: 0;
+  cursor: pointer;
+}
+
+.fs-input-action:hover,
+.fs-input-action:focus-visible { background: var(--fs-action-primary-wash); color: var(--fs-text-brand); outline: 0; }
+
+/* `input.md:138` is explicit, and I read it wrong the first time: the glyph is
+   16px "resolved from `--fs-icon-size-default` in CSS: an inline `width`/`height`
+   attribute on a system icon bypasses the scale and is a defect." I had taken 14px
+   off `width="14" height="14"` in canon's own preview — precisely the inline
+   attribute that sentence calls a defect. The prose is the contract; the preview
+   illustrates it. */
+.fs-input-action svg { width: var(--fs-icon-size-default); height: var(--fs-icon-size-default); fill: none; stroke: currentcolor; stroke-width: var(--fs-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+
+.fs-select,
+.fs-combo,
+.fs-multi { position: relative; display: grid; min-width: 0; }
+
+.fs-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: initial;
+  min-height: 0;
+  padding: 0 var(--fs-input-padding-x);
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+}
+.fs-select-constrained .fs-select-trigger { min-width: 0; }
+.fs-select-trigger:hover { border-color: var(--fs-dropdown-trigger-border-hover); }
+
+.fs-select-trigger:focus-visible,
+.fs-select-trigger[aria-expanded="true"] { border-color: var(--fs-dropdown-trigger-border-open); box-shadow: var(--fs-dropdown-trigger-focus-ring); outline: 0; }
+.fs-select-trigger:disabled { border-color: var(--fs-input-border-disabled); background: var(--fs-input-bg-disabled); color: var(--fs-input-text-disabled); cursor: not-allowed; }
+.fs-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-select-value.placeholder { color: var(--fs-input-placeholder); }
+
+.fs-select-chevron,
+.fs-select-check { flex: none; width: var(--fs-select-chevron-size); height: var(--fs-select-chevron-size); fill: none; stroke: currentcolor; stroke-width: var(--fs-select-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+
+/* Canon, `03_components/forms/select-preview.html:300`: the trigger's indicator
+   sits in its own inline-flex carrying `margin-left:
+   var(--fs-select-indicator-margin)` and `color: var(--fs-input-icon)`. We
+   carried neither, so the token was declared and read by nothing, and the
+   chevron inherited the value's own `currentcolor`. A toolbar trigger is
+   `min-width: initial`, so it shrinks to its content and `space-between` has no
+   slack left to give: on the Workspace registry filter the gap measured 0px and
+   the chevron sat against the word. The margin is what holds that gap at any
+   width. `.fs-select-check` is deliberately left out — it is a grid cell in the
+   menu row and already takes its spacing from that row's `gap`. */
+.fs-select-chevron { margin-left: var(--fs-select-indicator-margin); color: var(--fs-input-icon); }
+.fs-select-trigger[aria-expanded="true"] .fs-select-chevron { color: var(--fs-action-primary); transform: rotate(180deg); }
+
+.fs-select-menu,
+.fs-combo-menu,
+.fs-multi-menu,
+.fs-row-menu {
+  position: absolute;
+  z-index: var(--fs-z-popup);
+  top: calc(100% + var(--fs-popup-offset));
+  left: 0;
+  right: 0;
+  display: grid;
+  overflow: auto;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-form-dialog-select-menu-radius);
+  background: var(--fs-bg-surface);
+  box-shadow: var(--fs-form-dialog-select-menu-shadow);
+  padding: var(--fs-form-dialog-select-menu-padding);
+  animation: fs-settings-popup-enter var(--fs-motion-popup-enter);
+}
+
+.fs-combo-menu,
+.fs-multi-menu { max-height: var(--fs-combobox-menu-max-height); }
+
+/* Canon, `03_components/forms/select-preview.html:353`: the Select menu is
+   `width: 100%` with a `min-width: 220px` floor. Without the floor the menu
+   inherits a trigger sized by its own short value — a 77px `Active` filter left
+   its rows 51px, so `Trashed` overran the indicator track by 10px. Combobox and
+   the row action menu are deliberately not given the floor: canon's own previews
+   leave `.combo-menu` unconstrained and pin `.dropdown-menu` to `190px`. */
+.fs-select-menu { min-width: 220px; }
+.fs-select-menu-searchable { display: flex; flex-direction: column; overflow: hidden; }
+.fs-search.fs-select-search { flex-shrink: 0; width: auto; margin: var(--fs-space-1); }
+.fs-select-options { display: grid; min-height: 0; overflow: auto; }
+
+.fs-select-option,
+.fs-combo-option,
+.fs-multi-option,
+/* A menu row is a row whichever element carries it. A navigating command is an
+   anchor so it keeps open-in-new-tab, and without this it arrived unstyled:
+   no row height, no padding, browser link type. */
+.fs-row-menu button,
+.fs-row-menu a[role="menuitem"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fs-select-indicator-gap);
+  width: 100%;
+  min-height: var(--fs-form-dialog-select-option-height);
+  border: 0;
+  border-radius: var(--fs-popup-row-radius);
+  background: transparent;
+  color: var(--fs-text-primary);
+  padding: var(--fs-form-dialog-select-option-padding);
+  font-size: var(--fs-input-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-select-option:hover,
+.fs-select-option:focus-visible,
+.fs-combo-option:hover,
+.fs-combo-option:focus-visible,
+.fs-combo-option[data-active="true"],
+.fs-multi-option:hover,
+.fs-multi-option:focus-visible,
+.fs-multi-option[data-active="true"],
+.fs-row-menu button:hover,
+.fs-row-menu button:focus-visible,
+.fs-row-menu a[role="menuitem"]:hover,
+.fs-row-menu a[role="menuitem"]:focus-visible { background: var(--fs-form-dialog-select-option-hover-bg); outline: 0; }
+
+.fs-select-option:disabled { background: transparent; color: var(--fs-input-text-disabled); cursor: not-allowed; }
+
+/* Canon, `select-preview.html:371`: the indicator gets its own reserved track
+   rather than whatever width the glyph happens to occupy. Only the Select row
+   takes it — `.fs-row-menu` shares the grid above and has no second-column
+   child, so a fixed track there would be dead space on every command. */
+.fs-select-option { grid-template-columns: minmax(0, 1fr) var(--fs-select-option-icon-track); }
+
+/* Canon, `select-preview.html:433`. Without it the label has `overflow: visible`
+   and runs under the check instead of truncating. */
+.fs-select-option-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-select-option-icon { display: inline-flex; margin-inline-end: var(--fs-space-075); vertical-align: middle; }
+
+.fs-select-option .fs-select-check,
+.fs-combo-option .fs-select-check,
+.fs-multi-option .fs-select-check { justify-self: end; color: var(--fs-form-dialog-select-option-selected-mark); opacity: 0; }
+
+.fs-select-option[aria-selected="true"] .fs-select-check,
+.fs-combo-option[aria-selected="true"] .fs-select-check,
+.fs-multi-option[aria-selected="true"] .fs-select-check { opacity: 1; }
+.fs-combo-empty { min-height: var(--fs-form-dialog-select-option-height); color: var(--fs-text-tertiary); padding: var(--fs-form-dialog-select-option-padding); font-size: 13px; }
+
+.fs-icon-button,
+.fs-row-action,
+.fs-pagination-button,
+.fs-dialog-close {
+  display: inline-grid;
+  place-items: center;
+  width: var(--fs-icon-button-size-sm);
+  height: var(--fs-icon-button-size-sm);
+  flex: none;
+  border: 1px solid var(--fs-icon-button-ghost-border);
+  border-radius: var(--fs-icon-button-radius-sm);
+  background: var(--fs-icon-button-ghost-bg);
+  color: var(--fs-icon-button-ghost-text);
+  padding: 0;
+  cursor: pointer;
+}
+
+.fs-row-action,
+.fs-pagination-button,
+.fs-dialog-close { width: var(--fs-pagination-control-size); height: var(--fs-pagination-control-size); border-radius: var(--fs-icon-button-radius-md); }
+
+.fs-icon-button:hover,
+.fs-row-action:hover,
+.fs-pagination-button:hover,
+.fs-dialog-close:hover { background: var(--fs-icon-button-ghost-bg-hover); color: var(--fs-icon-button-ghost-text-hover); }
+
+.fs-icon-button:focus-visible,
+.fs-row-action:focus-visible,
+.fs-pagination-button:focus-visible,
+.fs-dialog-close:focus-visible { outline: 0; box-shadow: var(--fs-icon-button-focus-ring); }
+.fs-pagination-button:disabled { cursor: not-allowed; background: var(--fs-button-disabled-bg); border-color: var(--fs-button-disabled-border); color: var(--fs-button-disabled-text); }
+
+/* The persistent (pressed) mode of an icon button, e.g. a view switch, on the
+   icon button's own active tokens. */
+.fs-icon-button[aria-pressed="true"] { border-color: var(--fs-icon-button-active-border); background: var(--fs-icon-button-active-bg); color: var(--fs-icon-button-active-text); }
+
+/* Numbered pagination: the current page wears the primary action fill. */
+.fs-pagination-button[aria-current="page"] { border-color: var(--fs-button-primary-border); background: var(--fs-button-primary-bg); color: var(--fs-button-primary-text); cursor: default; font-variant-numeric: tabular-nums; }
+.fs-pagination-button:not([aria-current]) { font-variant-numeric: tabular-nums; }
+.fs-pagination-gap { min-width: var(--fs-space-200); color: var(--fs-text-tertiary); text-align: center; }
+
+.fs-icon-button svg,
+.fs-row-action svg,
+.fs-dialog-close svg { width: var(--fs-icon-size-default); height: var(--fs-icon-size-default); stroke-width: var(--fs-icon-stroke); }
+.fs-pagination-button svg { width: var(--fs-pagination-chevron-size); height: var(--fs-pagination-chevron-size); stroke-width: var(--fs-pagination-icon-stroke); }
+
+.fs-icon-button svg,
+.fs-row-action svg,
+.fs-pagination-button svg,
+.fs-dialog-close svg { fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; }
+
+.fs-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fs-button-gap-md);
+  min-width: var(--fs-button-min-width-md);
+  height: var(--fs-button-height-md);
+  border: 1px solid var(--fs-button-secondary-border);
+  border-radius: var(--fs-button-radius);
+  background: var(--fs-button-secondary-bg);
+  color: var(--fs-button-secondary-text);
+  padding: var(--fs-button-padding-md);
+  font-family: var(--fs-button-font);
+  font-size: var(--fs-button-font-size-md);
+  font-weight: var(--fs-button-font-weight);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--fs-button-transition);
+}
+.fs-button:hover { border-color: var(--fs-button-secondary-border-hover); background: var(--fs-button-secondary-bg-hover); color: var(--fs-button-secondary-text-hover); }
+.fs-button.secondary { border-color: var(--fs-button-secondary-border); background: var(--fs-button-secondary-bg); color: var(--fs-button-secondary-text); }
+.fs-button.secondary:hover { border-color: var(--fs-button-secondary-border-hover); background: var(--fs-button-secondary-bg-hover); color: var(--fs-button-secondary-text-hover); }
+.fs-button.primary { border-color: var(--fs-button-primary-border); background: var(--fs-button-primary-bg); color: var(--fs-button-primary-text); }
+.fs-button.primary:hover { border-color: var(--fs-button-primary-border-hover); background: var(--fs-button-primary-bg-hover); }
+.fs-button.accent { border-color: var(--fs-button-accent-border); background: var(--fs-button-accent-bg); color: var(--fs-button-accent-text); }
+.fs-button.accent:hover { border-color: var(--fs-button-accent-border-hover); background: var(--fs-button-accent-bg-hover); }
+.fs-button.ghost { border-color: var(--fs-button-ghost-border); background: var(--fs-button-ghost-bg); color: var(--fs-button-ghost-text); }
+.fs-button.ghost:hover { border-color: var(--fs-button-ghost-border-hover); background: var(--fs-button-ghost-bg-hover); color: var(--fs-button-secondary-text); }
+
+/* Quiet destructive lane: no resting fill, the status ink carries the
+   affordance, the danger wash arrives on hover. The label keeps its ink on
+   hover - the wash is the state, the ink is the identity. */
+.fs-button.ghost-danger { border-color: var(--fs-button-ghost-danger-border); background: var(--fs-button-ghost-danger-bg); color: var(--fs-button-ghost-danger-text); }
+.fs-button.ghost-danger:hover { border-color: var(--fs-button-ghost-danger-border-hover); background: var(--fs-button-ghost-danger-bg-hover); }
+.fs-button.danger { border-color: var(--fs-button-danger-border); background: var(--fs-button-danger-bg); color: var(--fs-button-danger-text); }
+.fs-button.danger:hover { border-color: var(--fs-button-danger-border-hover); background: var(--fs-button-danger-bg-hover); }
+.fs-button:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
+.fs-button:active:not(:disabled) { transform: scale(var(--fs-button-active-scale)); }
+
+/* Neutral variants use the neutral disabled roles; filled variants retain a
+   muted action identity through explicit fill, border and foreground roles.
+   No disabled subtree opacity fade is applied. */
+.fs-button:disabled { cursor: not-allowed; opacity: var(--fs-button-disabled-opacity); background: var(--fs-button-disabled-bg); border-color: var(--fs-button-disabled-border); color: var(--fs-button-disabled-text); }
+.fs-button.primary:disabled { background: var(--fs-button-primary-disabled-bg); border-color: var(--fs-button-primary-disabled-bg); color: var(--fs-button-primary-disabled-text); }
+.fs-button.accent:disabled { background: var(--fs-button-accent-disabled-bg); border-color: var(--fs-button-accent-disabled-bg); color: var(--fs-button-accent-disabled-text); }
+.fs-button.danger:disabled { background: var(--fs-button-danger-disabled-bg); border-color: var(--fs-button-danger-disabled-bg); color: var(--fs-button-danger-disabled-text); }
+.fs-button svg { width: var(--fs-button-icon-size-md); height: var(--fs-button-icon-size-md); flex: none; }
+
+.fs-button.sm { gap: var(--fs-button-gap-sm); min-width: var(--fs-button-min-width-sm); height: var(--fs-button-height-sm); border-radius: var(--fs-button-radius-sm); padding: var(--fs-button-padding-sm); font-size: var(--fs-button-font-size-sm); }
+.fs-button.sm svg { width: var(--fs-button-icon-size-sm); height: var(--fs-button-icon-size-sm); }
+
+
+.fs-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--fs-space-100);
+  border: 1px solid var(--fs-border-strong);
+  border-radius: var(--fs-card-radius);
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-secondary);
+  padding: var(--fs-space-150);
+  font-size: 13px;
+}
+.fs-alert.success { border-color: var(--fs-status-success-border); background: var(--fs-status-success-bg); color: var(--fs-status-success); }
+.fs-alert.warning { border-color: var(--fs-status-warning-border); background: var(--fs-status-warning-bg); color: var(--fs-text-attention); }
+.fs-alert.danger { border-color: var(--fs-status-danger-border); background: var(--fs-status-danger-bg); color: var(--fs-status-danger); }
+.fs-alert-icon { display: grid; place-items: center; width: var(--fs-space-250); height: var(--fs-space-250); }
+.fs-alert-icon svg { width: var(--fs-icon-size-default); height: var(--fs-icon-size-default); fill: none; stroke: currentcolor; stroke-width: var(--fs-icon-stroke); }
+.fs-alert strong { display: block; }
+.fs-alert p { margin: var(--fs-space-025) 0 0; }
+.fs-alert-body { margin: var(--fs-space-025) 0 0; }
+.fs-alert-body > p:first-child { margin-top: 0; }
+
+.fs-current-value { display: flex; align-items: center; justify-content: space-between; gap: var(--fs-dashboard-grid-gap); border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-input-radius); background: var(--fs-bg-surface-muted); padding: var(--fs-space-100) var(--fs-space-150); }
+.fs-current-value-label { color: var(--fs-text-tertiary); font-family: var(--ff-data); font-size: var(--fs-type-micro-size); font-weight: var(--fs-type-weight-medium); letter-spacing: var(--fs-type-micro-tracking); line-height: var(--fs-type-micro-line-height); text-transform: uppercase; }
+.fs-current-value strong { font-size: 13px; }
+
+/* The label is the positioning context for its hidden native input. Without
+   it the input is placed against the nearest positioned ancestor - in a
+   dialog, the dialog itself - where it stretches the surface, and focusing it
+   on click scrolls the whole dialog past its header. */
+.fs-checkbox-label,
+.fs-radio-label {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--fs-selection-control-label-gap);
+  min-height: var(--fs-hit-target-compact);
+  color: var(--fs-text-secondary);
+  font-size: 13px;
+  line-height: var(--fs-space-250);
+  cursor: pointer;
+}
+
+.fs-checkbox-label > .fs-checkbox-mark,
+.fs-radio-label > .fs-radio-mark { margin-top: var(--fs-selection-control-visual-offset-y); }
+
+/* `bare` is a checkbox with no text — a table selection cell. The 32px hit box,
+   the flex-start alignment and the mark's top offset all exist to line the mark
+   up with the first line of a label; with no label they push it 6px high. It is
+   `display: flex` rather than inline-flex so the box does not also sit on the
+   cell's text baseline, which costs another 2px. */
+.fs-checkbox-label.bare { display: flex; align-items: center; min-height: 0; }
+.fs-checkbox-label.bare > .fs-checkbox-mark { margin-top: 0; }
+
+/* The label text, not the mark: a checkbox with no text — a table selection
+   cell — leaves the mark as the last child, and this would stretch it to 20px. */
+.fs-checkbox-label > span:last-child:not(.fs-checkbox-mark),
+.fs-radio-label > span:last-child:not(.fs-radio-mark) { display: inline-flex; align-items: center; min-height: var(--fs-space-250); }
+
+.fs-checkbox-label input,
+.fs-radio-label input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.fs-checkbox-mark { display: inline-grid; place-items: center; width: var(--fs-checkbox-size); height: var(--fs-checkbox-size); flex: none; border: var(--fs-checkbox-border-width) solid var(--fs-checkbox-border-rest); border-radius: var(--fs-checkbox-radius); background: var(--fs-checkbox-bg); color: transparent; }
+.fs-checkbox-mark svg { width: var(--fs-checkbox-mark-size); height: var(--fs-checkbox-mark-size); fill: none; stroke: currentcolor; stroke-width: var(--fs-checkbox-mark-stroke); stroke-linecap: round; stroke-linejoin: round; }
+
+.fs-checkbox-label input:checked + .fs-checkbox-mark,
+.fs-checkbox-label input:indeterminate + .fs-checkbox-mark { border-color: var(--fs-checkbox-border-selected); background: var(--fs-checkbox-bg-selected); color: var(--fs-checkbox-mark); }
+.fs-checkbox-label input:focus-visible + .fs-checkbox-mark { box-shadow: var(--fs-checkbox-focus-ring); }
+.fs-checkbox-label:hover input:not(:checked, :indeterminate, :disabled) + .fs-checkbox-mark { border-color: var(--fs-checkbox-border-hover); }
+
+/* The mixed mark is a minus, so the check and the minus each show only for
+   the value they belong to. */
+.fs-checkbox-mark .fs-checkbox-mixed { display: none; }
+.fs-checkbox-label input:indeterminate + .fs-checkbox-mark > :not(.fs-checkbox-mixed) { display: none; }
+.fs-checkbox-label input:indeterminate + .fs-checkbox-mark .fs-checkbox-mixed { display: block; }
+
+.fs-checkbox-label:has(input:disabled) { color: var(--fs-text-tertiary); cursor: not-allowed; }
+.fs-checkbox-label input:disabled + .fs-checkbox-mark { border-color: var(--fs-checkbox-border-disabled); background: var(--fs-checkbox-bg-disabled); opacity: var(--fs-checkbox-disabled-opacity); }
+
+/* The muted selected roles: at full-strength primary a disabled checked box is
+   indistinguishable from an enabled one now that opacity no longer fades it. */
+.fs-checkbox-label input:disabled:checked + .fs-checkbox-mark,
+.fs-checkbox-label input:disabled:indeterminate + .fs-checkbox-mark { border-color: var(--fs-checkbox-border-selected-disabled); background: var(--fs-checkbox-bg-selected-disabled); color: var(--fs-checkbox-mark-disabled); opacity: var(--fs-checkbox-disabled-opacity); }
+.fs-radio-mark { display: inline-grid; place-items: center; width: var(--fs-radio-size); height: var(--fs-radio-size); flex: none; border: var(--fs-radio-border-width) solid var(--fs-radio-border-rest); border-radius: 50%; background: var(--fs-radio-bg); }
+.fs-radio-mark::after { width: var(--fs-radio-dot-size); height: var(--fs-radio-dot-size); border-radius: 50%; background: transparent; content: ""; }
+.fs-radio-label input:checked + .fs-radio-mark { border-color: var(--fs-radio-border-selected); background: var(--fs-radio-bg-selected); }
+.fs-radio-label input:checked + .fs-radio-mark::after { background: var(--fs-radio-dot-selected); }
+.fs-radio-label input:focus-visible + .fs-radio-mark { box-shadow: var(--fs-radio-focus-ring); }
+.fs-requirements { display: flex; flex-wrap: wrap; gap: var(--fs-space-075) var(--fs-space-200); margin: 0; padding: 0; color: var(--fs-text-secondary); font-size: 12px; list-style: none; }
+.fs-requirements li::before { content: "• "; }
+
+.fs-role-grid,
+.fs-control-grid { display: grid; gap: var(--fs-space-100) var(--fs-dashboard-grid-gap); }
+.fs-role-grid { grid-template-columns: repeat(3, max-content); justify-content: start; }
+.fs-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fs-control-grid .fs-checkbox-label span:last-child { display: grid; gap: var(--fs-field-gap); }
+.fs-control-grid strong { display: inline-flex; align-items: center; min-height: var(--fs-space-250); color: var(--fs-text-primary); line-height: var(--fs-space-250); }
+.fs-control-grid small { color: var(--fs-field-helper-color); font-size: var(--fs-field-helper-size); line-height: var(--fs-field-helper-line-height); }
+
+.fs-table-card { overflow: hidden; border-color: var(--fs-border-subtle); box-shadow: var(--fs-shadow-surface); }
+.fs-table-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: calc(var(--fs-space-100) + var(--fs-space-025)); padding: var(--fs-space-150) var(--fs-space-200); }
+
+/* A field, so its resting edge is the control role (token-architecture.md,
+   Borders), like the Select and Input beside it in every list toolbar. */
+.fs-search { display: flex; align-items: center; gap: 7px; width: min(180px, 100%); height: var(--fs-hit-target-compact); margin-left: auto; border: 1px solid var(--fs-input-border); border-radius: var(--fs-input-radius); background: var(--fs-bg-input); padding: 0 11px; }
+
+/* Canon, `03_components/forms/input.md:42`: "primary border plus the semantic 2px
+   Input ring touching the control; Input never inserts an offset gap between its
+   border and focus ring." `--fs-focus-ring` is the *gapped* ring — a 2px layer in
+   the surface colour before the ring itself — which is right for something
+   sitting on a surface (a button, a tab, a checkbox, a link) and reads as a
+   detached second outline around a field. Every other field here already resolves
+   to the flush ring: `.fs-input`, `.fs-input-shell`, `.fs-combo-field`,
+   `.fs-multi-field` and `.fs-textarea` to `--fs-input-focus-ring`,
+   `.fs-select-trigger` to `--fs-dropdown-trigger-focus-ring`. `.fs-search` was the
+   only exception. `--fs-input-border-focus` resolves to `--fs-border-selected`, so
+   the border is unchanged; only the gap layer goes. */
+.fs-search:focus-within { border-color: var(--fs-input-border-focus); box-shadow: var(--fs-input-focus-ring); }
+.fs-search svg { width: var(--fs-search-icon-size); height: var(--fs-search-icon-size); flex: none; fill: none; stroke: var(--fs-text-tertiary); stroke-width: var(--fs-search-icon-stroke); }
+.fs-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--fs-text-primary); font-size: var(--fs-input-font-size); }
+
+/* Filter chip, from the published Advanced data table toolbar: the base is a
+   28px solid pill; `add` is the 30px dashed affordance; `selected` is the brand
+   wash; `static` is a count that does not respond to the pointer.
+   A chip that can be pressed is a control, so it rests on the trigger edge
+   (canon data-table-previews.css: .filter-chip.neutral / .add-filter). The
+   selected chip keeps the selected edge, because selection outranks
+   affordance. A static count is a label, so it keeps a separation edge. */
+.fs-filter-chip { display: inline-flex; align-items: center; justify-content: center; gap: var(--fs-space-075); height: 28px; min-width: var(--fs-button-min-width-md); border: 1px solid var(--fs-dropdown-trigger-border); border-radius: var(--fs-radius-pill); background: var(--fs-bg-surface); color: var(--fs-text-secondary); padding: 0 10px; font-size: 12px; font-weight: var(--fs-type-weight-medium); white-space: nowrap; cursor: pointer; }
+.fs-filter-chip.add { height: 30px; border-style: dashed; background: transparent; color: var(--fs-text-tertiary); padding: 0 11px; }
+.fs-filter-chip.selected { border-color: var(--fs-border-selected); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); }
+.fs-filter-chip:not(.selected, .static):hover { border-color: var(--fs-border-selected); color: var(--fs-text-brand); }
+.fs-filter-chip.static { cursor: default; }
+.fs-filter-chip.static:not(.selected) { border-color: var(--fs-border-default); }
+.fs-filter-chip svg { width: var(--fs-icon-size-supporting); height: var(--fs-icon-size-supporting); fill: none; stroke: currentcolor; stroke-width: var(--fs-icon-stroke); }
+.fs-filter-chip:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
+.fs-filter-popover-wrap { position: relative; }
+
+/* Rendered in the viewport layer, like the row menu: the toolbar lives inside
+   `.fs-table-card`, which is `overflow: hidden`, and an absolutely positioned
+   popup is clipped there. `top` / `left` come from the measured trigger. */
+.fs-filter-menu { position: fixed; z-index: var(--fs-z-popup); top: 0; left: 0; width: min(340px, calc(100vw - (2 * var(--fs-space-200)))); border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-form-dialog-select-menu-radius); background: var(--fs-bg-surface); box-shadow: var(--fs-form-dialog-select-menu-shadow); padding: var(--fs-form-dialog-select-menu-padding); animation: fs-settings-popup-enter var(--fs-motion-popup-enter); }
+.fs-filter-menu h2 { margin: 0 0 7px; padding: 5px 10px 0; color: var(--fs-text-tertiary); font-family: var(--ff-data); font-size: var(--fs-type-micro-size); font-weight: var(--fs-type-weight-medium); letter-spacing: var(--fs-type-micro-tracking); line-height: var(--fs-type-micro-line-height); text-transform: uppercase; }
+.fs-filter-menu-item { display: flex; align-items: center; gap: var(--fs-space-100); width: 100%; min-height: var(--fs-form-dialog-select-option-height); border: 0; border-radius: var(--fs-popup-row-radius); background: transparent; color: var(--fs-text-primary); padding: var(--fs-form-dialog-select-option-padding); font-size: var(--fs-input-font-size); text-align: left; cursor: pointer; }
+
+.fs-filter-menu-item:hover,
+.fs-filter-menu-item:focus-visible { background: var(--fs-form-dialog-select-option-hover-bg); outline: 0; }
+.fs-filter-menu-item svg { width: var(--fs-icon-size-default); height: var(--fs-icon-size-default); flex: none; fill: none; stroke: var(--fs-text-tertiary); stroke-width: var(--fs-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.fs-filter-menu-item.fs-filter-menu-back { margin-bottom: 3px; border-bottom: 1px solid var(--fs-border-subtle); border-radius: 0; color: var(--fs-text-secondary); }
+.fs-filter-menu-item.fs-filter-menu-back svg { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); }
+.fs-filter-menu-item[aria-checked="true"] { color: var(--fs-text-brand); }
+.fs-filter-menu-item[aria-checked="true"] svg { margin-left: auto; stroke: currentcolor; }
+
+/* A long option list scrolls inside the menu instead of growing past the
+   viewport, and every label keeps to one line: wrapped labels ran rows into
+   each other. The row's `title` carries the full text. */
+.fs-filter-menu-options { display: grid; gap: var(--fs-space-025); max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
+.fs-filter-menu-search { margin-bottom: var(--fs-space-075); }
+.fs-filter-menu-text { display: grid; flex: 1 1 auto; min-width: 0; }
+
+.fs-filter-menu-label,
+.fs-filter-menu-description { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-filter-menu-description { color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); line-height: var(--fs-type-caption-line-height); }
+.fs-active-filters { display: contents; }
+.fs-applied-filter { display: inline-flex; align-items: center; height: 30px; overflow: hidden; border: 1px solid var(--fs-border-selected); border-radius: var(--fs-badge-radius); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); font-size: 12px; font-weight: var(--fs-type-weight-medium); }
+.fs-applied-filter > span { padding: 0 9px 0 11px; }
+.fs-applied-filter button { display: grid; place-items: center; width: 24px; height: 100%; border: 0; border-left: 1px solid color-mix(in srgb, var(--fs-action-primary) 22%, transparent); background: transparent; color: inherit; cursor: pointer; }
+.fs-applied-filter button:hover { background: color-mix(in srgb, var(--fs-action-primary) 14%, transparent); }
+.fs-applied-filter button:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
+.fs-applied-filter svg { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); fill: none; stroke: currentcolor; stroke-width: var(--fs-select-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.fs-clear-filters { min-width: var(--fs-button-min-width-md); height: 30px; border: 0; background: transparent; color: var(--fs-text-secondary); padding: 0 var(--fs-space-100); font-size: 12px; font-weight: var(--fs-type-weight-medium); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.fs-clear-filters:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
+
+/* A sideways scroll that reaches the table's edge stops there: without
+   `contain` it chains to the page, and the whole content area rubber-bands
+   with the pointer, frozen column and all. */
+.fs-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; isolation: isolate; border-top: 1px solid var(--fs-border-subtle); border-bottom: 1px solid var(--fs-border-subtle); }
+.fs-token-table-card > .fs-table-scroll { border-top: 0; border-radius: var(--fs-card-radius) var(--fs-card-radius) 0 0; }
+.fs-table { width: 100%; min-width: var(--fs-table-min-width, 560px); border-collapse: collapse; background: var(--fs-bg-surface); font-size: 13px; }
+.fs-table tr { --fs-settings-row-bg: var(--fs-bg-surface); }
+.fs-table thead tr { --fs-settings-row-bg: var(--fs-table-header-bg); }
+.fs-table tbody tr { background: var(--fs-settings-row-bg); transition: background var(--fs-motion-background-hover); }
+
+/* Cell inset copied from the published Advanced data table: 16px lead-in,
+   7px on the other three sides. */
+.fs-table th,
+.fs-table td { padding: 7px 7px 7px 16px; border-bottom: 1px solid var(--fs-border-subtle); color: var(--fs-text-secondary); text-align: left; vertical-align: middle; white-space: nowrap; }
+.fs-table th { background: var(--fs-table-header-bg); font-size: var(--fs-type-field-label-size); font-weight: var(--fs-type-weight-medium); line-height: var(--fs-type-field-label-line-height); }
+.fs-table tbody tr:hover { --fs-settings-row-bg: var(--fs-advanced-table-row-hover-bg); }
+
+/* A selected row keeps its surface on hover; it is already the same family. */
+.fs-table tbody tr.is-selected,
+.fs-table tbody tr.is-selected:hover { --fs-settings-row-bg: var(--fs-advanced-table-row-selected-bg); }
+.fs-table tbody tr:last-child td { border-bottom: 0; }
+
+/* A row that navigates on click is an action, so it takes the pointer - the
+   canon reserves the pointer for real actions and forbids hidden ones. The
+   action cell stops propagation, so it keeps the default cursor; the trigger
+   inside it carries its own pointer. */
+.fs-table tbody tr[data-clickable] { cursor: pointer; }
+.fs-table tbody tr[data-clickable] .fs-table-action-cell { cursor: default; }
+
+
+.fs-table th:first-child,
+.fs-table td:first-child { position: sticky; left: 0; z-index: var(--fs-z-local-sticky); background: var(--fs-settings-row-bg); transition: background var(--fs-motion-background-hover); }
+
+.fs-table th:last-child,
+.fs-table td:last-child { position: sticky; right: 0; z-index: var(--fs-z-local-sticky); width: 48px; background: var(--fs-settings-row-bg); transition: background var(--fs-motion-background-hover); }
+
+/* The frozen zone is column one, so that cell carries the whole boundary. It is
+   drawn by a pseudo-element rather than the cell's own box: under
+   `border-collapse: collapse` - which `.fs-table` sets - a table cell reports a
+   `box-shadow` in its computed style but never paints it, so a shadow declared
+   on the cell is silently invisible. The strip itself is the divider and holds
+   at every scroll position; its shadow only appears while columns pass
+   underneath. `position: sticky` already makes the cell a containing block, so
+   the strip anchors to its right edge. */
+.fs-table:not(.embedded) th:first-child::after,
+.fs-table:not(.embedded) td:first-child::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: var(--fs-table-sticky-divider-width);
+  background: var(--fs-table-sticky-divider);
+  box-shadow: var(--fs-table-sticky-shadow-rest);
+  transition: box-shadow var(--fs-motion-background-hover);
+}
+
+.fs-table-scroll[data-scrolled="true"] .fs-table:not(.embedded) th:first-child::after,
+.fs-table-scroll[data-scrolled="true"] .fs-table:not(.embedded) td:first-child::after {
+  box-shadow: var(--fs-table-sticky-shadow);
+}
+.fs-management-table { min-width: 780px; }
+
+/* Embedded variant: the same semantic table inside a dialog or panel rather
+   than a full page. It keeps the row, header and hover contract and only drops
+   what belongs to the page-width layout — the table minimum width, the sticky identity
+   and action columns, and the 48px action column sized for an ellipsis. */
+.fs-table.embedded { min-width: 0; }
+
+.fs-table.embedded th:first-child,
+.fs-table.embedded td:first-child,
+.fs-table.embedded th:last-child,
+.fs-table.embedded td:last-child { position: static; width: auto; }
+.fs-table.embedded td { white-space: normal; }
+.fs-table.embedded .fs-table-action-cell { position: static; }
+
+.fs-management-table th:first-child,
+.fs-management-table td:first-child { width: auto; min-width: 230px; padding: 7px 14px 7px 16px; }
+
+.fs-management-table th:nth-child(2),
+.fs-management-table td:nth-child(2) { min-width: 84px; }
+
+.fs-management-table th:last-child,
+.fs-management-table td:last-child { width: 52px; min-width: 52px; }
+.fs-management-table .fs-avatar { width: var(--fs-avatar-size-xs); height: var(--fs-avatar-size-xs); flex: none; border-color: var(--fs-avatar-ring); background: var(--fs-avatar-green-bg); box-shadow: none; font-size: 9px; }
+.fs-management-table .fs-badge-row { align-items: center; flex-wrap: nowrap; justify-content: flex-start; }
+.fs-table-action-cell { position: sticky; overflow: visible; }
+.fs-table-action-cell .fs-row-menu { position: absolute; top: calc(100% + var(--fs-popup-offset)); right: var(--fs-form-dialog-select-menu-padding); left: auto; }
+.fs-user-cell { display: inline-flex; align-items: center; gap: var(--fs-space-100); min-width: 0; }
+.fs-user-copy { display: grid; min-width: 0; line-height: 1.25; }
+.fs-user-copy strong { overflow: hidden; color: var(--fs-text-primary); font-size: var(--fs-type-field-label-size); font-weight: var(--fs-type-weight-medium); text-overflow: ellipsis; }
+.fs-user-copy span { overflow: hidden; color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); text-overflow: ellipsis; }
+
+/* A job's status group badge, and the Acknowledged badge beside a triaged run. */
+.fs-job-status-cell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--fs-space-050); }
+.fs-job-workflow-copy { display: grid; min-width: 0; max-width: clamp(16rem, 30vw, 28rem); line-height: 1.25; }
+
+.fs-job-workflow-copy strong,
+.fs-job-workflow-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-job-workflow-copy strong { color: var(--fs-text-primary); font-size: var(--fs-type-field-label-size); font-weight: var(--fs-type-weight-medium); }
+.fs-job-workflow-copy > span { margin-top: var(--fs-space-025); color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); }
+.fs-management-result-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fs-table-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--fs-dashboard-grid-gap); padding: var(--fs-card-footer-padding); color: var(--fs-text-secondary); font-size: 12px; }
+.fs-pagination { display: inline-flex; align-items: center; gap: var(--fs-space-100); }
+.fs-page-size { width: var(--fs-select-page-size-width); }
+
+/* The page-size select carries `.fs-page-size` itself, so a descendant rule on
+   the toolbar is not needed for it. Its menu no longer needs a forced
+   above-opening rule either: the Select menu is portalled into the viewport
+   layer and flips above on its own when the room below is short. */
+.fs-table-state { display: grid; justify-items: center; gap: var(--fs-space-075); padding: calc(var(--fs-dashboard-section-gap) * 2) var(--fs-dashboard-section-gap); color: var(--fs-text-secondary); text-align: center; }
+.fs-table-state strong { color: var(--fs-text-primary); }
+
+/* Sortable column header. The chevron is the 12px supporting glyph and only
+   the active column paints it; direction is carried by aria-sort as well. */
+.fs-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-050);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Hover paints the glyph at tertiary rather than softening it with opacity:
+   opacity defeats contrast measurement, so the final colour is set instead. */
+.fs-table-sort svg { width: 12px; height: 12px; color: transparent; transition: color var(--fs-motion-background-hover); }
+.fs-table-sort:hover svg { color: var(--fs-text-tertiary); }
+.fs-table-sort[data-direction] svg { color: var(--fs-text-secondary); }
+.fs-table-sort[data-direction="asc"] svg { transform: rotate(180deg); }
+.fs-table-sort:focus-visible { outline: 0; box-shadow: var(--fs-focus-ring); }
+
+.fs-row-menu { position: fixed; top: 0; right: auto; left: 0; width: 190px; overflow: hidden; border: 0; }
+.fs-row-menu-group { display: grid; }
+.fs-row-menu-label { color: var(--fs-text-tertiary); padding: var(--fs-form-dialog-select-option-padding); font-size: var(--fs-field-helper-size); font-weight: var(--fs-field-label-weight); }
+.fs-row-menu-separator { height: 1px; margin: var(--fs-form-dialog-select-menu-padding) 0; background: var(--fs-border-subtle); }
+.fs-row-menu .danger { color: var(--fs-status-danger); }
+.fs-row-menu a[role="menuitem"] { text-decoration: none; }
+
+/* Drawer — published contract from 03_components/overlays-feedback/drawer.md.
+   The canonical preview attaches the panel to its 150px stage; a real page
+   attaches it to the viewport's right edge. Geometry stays on the tokens. */
+.fs-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: var(--fs-z-modal);
+  width: var(--fs-drawer-width);
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  min-width: var(--fs-drawer-min-width);
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: var(--fs-drawer-padding);
+  border: 0;
+  border-left: 1px solid var(--fs-drawer-border);
+  color: inherit;
+  background: var(--fs-drawer-surface);
+  box-shadow: var(--fs-drawer-shadow);
+}
+
+.fs-drawer-title-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--fs-drawer-close-size);
+  margin-bottom: var(--fs-drawer-title-gap);
+}
+
+.fs-drawer-title {
+  margin: 0;
+  color: var(--fs-drawer-title-text);
+  font-family: var(--ff-display);
+  font-size: var(--fs-drawer-title-size);
+  font-weight: 500;
+  line-height: normal;
+}
+
+.fs-drawer-title-row:has(.fs-drawer-heading) { align-items: flex-start; }
+
+.fs-drawer-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fs-drawer-subtitle {
+  margin: var(--fs-space-025) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.5;
+}
+
+.fs-drawer-close {
+  display: inline-grid;
+  place-items: center;
+  width: var(--fs-drawer-close-size);
+  height: var(--fs-drawer-close-size);
+  margin: 0 -4px 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fs-radius-compact);
+  background: transparent;
+  color: var(--fs-drawer-close-text);
+  cursor: pointer;
+}
+
+.fs-drawer-close:hover { background: var(--fs-drawer-close-hover-bg); }
+
+.fs-drawer-close:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-drawer-focus-ring);
+}
+
+.fs-drawer-close svg {
+  width: var(--fs-drawer-close-icon-size);
+  height: var(--fs-drawer-close-icon-size);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.fs-drawer-label {
+  margin-bottom: var(--fs-drawer-label-gap);
+  color: var(--fs-drawer-label-text);
+  font-family: var(--ff-data);
+  font-size: var(--fs-drawer-label-size);
+  font-weight: 400;
+  letter-spacing: var(--fs-drawer-label-tracking);
+  line-height: normal;
+  text-transform: uppercase;
+}
+
+/* `clip`, not `hidden`: the dialog is already clamped to the viewport and only
+   its body scrolls, but a `hidden` layer is still a scroll container the UA
+   will scroll on focus — which drags the whole dialog out of view. */
+.fs-dialog-layer { position: fixed; inset: 0; z-index: var(--fs-z-modal); display: grid; width: auto; max-width: none; height: auto; max-height: none; margin: 0; place-items: center; overflow: clip; border: 0; background: var(--fs-overlay-scrim); color: inherit; padding: var(--fs-dashboard-section-gap); }
+.fs-dialog-backdrop { position: absolute; inset: 0; border: 0; background: transparent; cursor: default; }
+.fs-dialog { position: relative; display: flex; flex-direction: column; width: min(var(--fs-form-dialog-width), var(--fs-modal-max-width)); height: var(--fs-form-dialog-height); max-height: var(--fs-modal-max-height); margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--fs-form-dialog-border); border-radius: var(--fs-form-dialog-radius); background: var(--fs-form-dialog-bg); color: inherit; box-shadow: var(--fs-form-dialog-shadow); animation: fs-settings-dialog-enter var(--fs-motion-dialog-enter); }
+.fs-dialog.add-user { width: min(var(--fs-add-user-dialog-width), var(--fs-modal-max-width)); height: var(--fs-add-user-dialog-height); }
+.fs-dialog.edit-user { width: min(var(--fs-edit-user-dialog-width), var(--fs-modal-max-width)); height: var(--fs-edit-user-dialog-height); }
+.fs-dialog.confirm { width: min(var(--fs-confirmation-dialog-width), var(--fs-modal-max-width)); height: var(--fs-confirmation-dialog-height); }
+.fs-dialog.secret { width: min(var(--fs-one-time-secret-dialog-width), var(--fs-modal-max-width)); height: var(--fs-one-time-secret-dialog-height); }
+
+/* Catalog: wide and of fixed height, so it does not jump as a filter changes
+   what it holds; its stages scroll inside. Beside the shell sidebar the layer
+   starts at the content, so the dialog centres there and the navigation is
+   neither covered nor dimmed. */
+.fs-dialog.catalog { width: min(var(--fs-modal-width-xlarge), var(--fs-modal-max-width)); height: var(--fs-modal-max-height); }
+.fs-dialog.catalog > .fs-dialog-body { display: flex; flex: 1; flex-direction: column; gap: 0; overflow: hidden; padding: 0; }
+.fs-dialog.catalog > .fs-dialog-footer { align-items: center; }
+
+/* A filter menu opened from inside a dialog sits above the dialog layer. */
+body:has(.fs-dialog-layer) .fs-filter-menu { z-index: var(--fs-z-modal-popup); }
+
+@media (width >= theme(--breakpoint-md)) {
+  .fs-dialog-layer:has(> .fs-dialog.catalog) { left: calc(var(--fs-shell-sidebar-width) + 1px); }
+
+  /* The sidebar stays usable beside the dialog, so its own menus open above it. */
+  :root:has(.fs-dialog.catalog) .fs-shell-sidebar-frame { z-index: var(--fs-z-modal-popup); }
+  .fs-dialog.catalog { width: min(var(--fs-modal-width-xlarge), calc(100vw - var(--fs-shell-sidebar-width) - var(--fs-modal-viewport-clearance))); }
+}
+.fs-dialog-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--fs-dashboard-grid-gap); border-bottom: 1px solid var(--fs-form-dialog-zone-border); padding: var(--fs-form-dialog-header-padding); }
+.fs-dialog-eyebrow { color: var(--fs-form-dialog-eyebrow); }
+.fs-dialog-description { margin-top: var(--fs-space-050); font-family: var(--fs-form-dialog-subtitle-font); font-size: var(--fs-form-dialog-subtitle-size); line-height: var(--fs-form-dialog-subtitle-line-height); }
+.fs-dialog-body { display: grid; gap: var(--fs-form-dialog-field-gap); min-height: 0; overflow-y: auto; padding: var(--fs-form-dialog-body-padding); }
+.fs-dialog-form { display: grid; gap: var(--fs-form-dialog-field-gap); min-width: 0; }
+.fs-dialog .fs-form-grid { align-items: start; }
+.fs-dialog .fs-field { align-content: start; gap: var(--fs-form-dialog-control-gap); }
+.fs-dialog .fs-field-label { color: var(--fs-form-dialog-label); font-size: var(--fs-form-dialog-label-size); font-weight: var(--fs-form-dialog-label-weight); line-height: var(--fs-field-label-line-height); }
+.fs-dialog fieldset.fs-field > .fs-field-label { margin-bottom: var(--fs-form-dialog-control-gap); }
+.fs-dialog-footer { display: flex; justify-content: flex-end; gap: var(--fs-dashboard-grid-gap); border-top: 1px solid var(--fs-form-dialog-zone-border); padding: var(--fs-form-dialog-footer-padding); }
+
+/* Field groups inside a long form. The canonical create-project dialog needs
+   none of this; sections only earn their keep once a form carries genuinely
+   unrelated groups, and then the label is mono uppercase per the spec. */
+.fs-form-section { display: grid; gap: var(--fs-form-dialog-field-gap); border: 0; margin: 0; min-width: 0; padding: 0; }
+
+/* `:not(:first-of-type)` rather than `+`, because hidden inputs sit between
+   some of the sections and would swallow the separator. */
+.fs-form-section:not(:first-of-type) { border-top: 1px solid var(--fs-form-dialog-zone-border); padding-top: var(--fs-form-dialog-field-gap); }
+
+/* `float` is what pulls a legend out of its special out-of-flow rendering, so
+   it becomes an ordinary grid item and the section `gap` applies to it. */
+.fs-form-section-legend {
+  color: var(--fs-text-tertiary);
+  float: left;
+  padding: 0;
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-micro-size);
+  font-weight: var(--fs-type-weight-medium);
+  letter-spacing: var(--fs-type-micro-tracking);
+  line-height: var(--fs-type-micro-line-height);
+  text-transform: uppercase;
+}
+
+.fs-multi-summary { display: inline-flex; align-items: center; gap: var(--fs-combobox-summary-gap); min-width: 0; flex: 1 1 auto; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; }
+.fs-multi-summary::-webkit-scrollbar { display: none; }
+.fs-multi-chip { display: inline-flex; align-items: center; gap: var(--fs-space-050); height: var(--fs-combobox-chip-height); flex: 0 0 auto; border: 1px solid var(--fs-status-success-border); border-radius: var(--fs-combobox-chip-radius); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); padding: var(--fs-combobox-chip-padding-removable); font-size: 12px; font-weight: var(--fs-type-weight-medium); white-space: nowrap; }
+.fs-multi-chip-label { white-space: nowrap; }
+.fs-multi-chip-remove { display: inline-grid; place-items: center; width: var(--fs-select-utility-size); height: var(--fs-select-utility-size); flex: none; border: 0; border-radius: var(--fs-select-utility-radius); background: transparent; color: var(--fs-text-brand); padding: 0; cursor: pointer; }
+
+.fs-multi-chip-remove:hover,
+.fs-multi-chip-remove:focus-visible { background: var(--fs-bg-surface-muted); outline: 0; }
+.fs-multi-chip-remove svg { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); fill: none; stroke: currentcolor; stroke-width: var(--fs-select-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.fs-multi-summary + input { min-width: var(--fs-hit-target-compact); flex: 0 1 72px; }
+
+.fs-multi[data-has-selection="true"][data-has-query="false"] .fs-multi-summary + input {
+  width: var(--fs-space-025);
+  min-width: var(--fs-space-025);
+  flex: 0 0 var(--fs-space-025);
+  padding-inline: 0;
+}
+.fs-multi-search { width: var(--fs-combobox-leading-icon-size); height: var(--fs-combobox-leading-icon-size); flex: none; fill: none; stroke: var(--fs-text-tertiary); stroke-width: var(--fs-combobox-leading-icon-stroke); }
+.fs-multi-menu-layer { position: fixed; z-index: var(--fs-z-modal-popup); inset: 0 auto auto 0; }
+
+.fs-scope-grid,
+.fs-radio-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--fs-space-100) var(--fs-dashboard-grid-gap); }
+
+.fs-secret-card { display: grid; gap: var(--fs-dashboard-section-gap); border: 1px solid var(--fs-card-border); border-radius: var(--fs-card-radius); background: var(--fs-card-bg); padding: var(--fs-card-padding); }
+.fs-secret-description { margin: var(--fs-space-050) 0 0; color: var(--fs-text-secondary); font-size: var(--fs-card-description-size); }
+.fs-secret-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--fs-space-100); }
+.fs-toast { position: fixed; right: var(--fs-dashboard-section-gap); bottom: var(--fs-dashboard-section-gap); z-index: var(--fs-z-flag); min-width: var(--fs-toast-min-width); border: 1px solid var(--fs-status-success-border); border-radius: var(--fs-card-radius); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-raised); color: var(--fs-text-primary); padding: var(--fs-space-150) var(--fs-space-200); font-size: var(--fs-input-font-size); animation: fs-settings-toast-enter var(--fs-motion-toast-enter); }
+.fs-toast[data-tone="danger"] { border-color: var(--fs-status-danger-border); background: var(--fs-status-danger-bg); color: var(--fs-status-danger); }
+.fs-toast[data-tone="neutral"] { border-color: var(--fs-border-subtle); }
+.fs-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; white-space: nowrap; clip-path: inset(50%); }
+
+@keyframes fs-settings-popup-enter { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+@keyframes fs-settings-toast-enter { from { opacity: 0; transform: translateY(var(--fs-space-100)); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes fs-settings-dialog-enter { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+@media (width <= 720px) {
+  .fs-page-header-with-action,
+  .fs-form-grid,
+  .fs-role-grid,
+  .fs-control-grid,
+  .fs-scope-grid,
+  .fs-radio-grid { grid-template-columns: 1fr; }
+  .fs-page-header-actions { justify-content: flex-start; }
+  .fs-page-header-with-media.fs-page-header-with-action { grid-template-columns: auto minmax(0, 1fr); }
+  .fs-page-header-with-media .fs-page-header-actions { grid-column: 1 / -1; }
+  .fs-field.full { grid-column: auto; }
+  .fs-field-group-body { grid-template-columns: minmax(0, 1fr); }
+  .fs-identity { grid-template-columns: auto minmax(0, 1fr); }
+  .fs-identity-context { grid-column: 1 / -1; justify-items: start; }
+  .fs-badge-row { justify-content: flex-start; }
+  .fs-account-context { text-align: left; }
+  .fs-table-toolbar .fs-search { order: -1; width: 100%; margin-left: 0; }
+
+  .fs-card-footer,
+  .fs-panel-heading,
+  .fs-current-value { align-items: flex-start; flex-direction: column; }
+  .fs-table-footer { justify-content: flex-start; overflow-x: auto; overscroll-behavior-x: contain; }
+  .fs-dialog-layer { padding: var(--fs-dashboard-grid-gap); }
+  .fs-dialog { width: min(var(--fs-form-dialog-width), var(--fs-modal-max-width-narrow)); max-height: var(--fs-modal-max-height-narrow); }
+  .fs-dialog.add-user { width: min(var(--fs-add-user-dialog-width), var(--fs-modal-max-width-narrow)); }
+  .fs-dialog.edit-user { width: min(var(--fs-edit-user-dialog-width), var(--fs-modal-max-width-narrow)); }
+  .fs-dialog.confirm { width: min(var(--fs-confirmation-dialog-width), var(--fs-modal-max-width-narrow)); }
+  .fs-dialog.secret { width: min(var(--fs-one-time-secret-dialog-width), var(--fs-modal-max-width-narrow)); }
+  .fs-dialog.catalog { width: var(--fs-modal-max-width-narrow); height: var(--fs-modal-max-height-narrow); }
+
+  .fs-dialog-header,
+  .fs-dialog-body,
+  .fs-dialog-footer { padding-left: var(--fs-dashboard-grid-gap); padding-right: var(--fs-dashboard-grid-gap); }
+}
+
+/* Canon's narrow rule, as the settings-detail pattern now carries it: the floor
+   drops so a short label is not padded into a wide slab, the padding comes from
+   the scale rather than a literal, and the row scrolls instead. It replaces the
+   earlier 480px/8px reading of the same rule, which predates the published
+   floor. */
+@media (width <= 430px) {
+  .fs-tab { min-width: 0; padding: 0 var(--fs-space-150); }
+  .fs-tabs-panel { padding: var(--fs-dashboard-grid-gap); }
+
+  .fs-card-header,
+  .fs-card-body,
+  .fs-card-footer { padding: var(--fs-card-padding-compact); }
+  .fs-button { min-width: 0; }
+  .fs-dialog-footer .fs-button { flex: 1; }
+  .fs-secret-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-settings *,
+  .fs-settings *::before,
+  .fs-settings *::after,
+  .fs-settings-portal *,
+  .fs-settings-portal *::before,
+  .fs-settings-portal *::after,
+  .fs-page *,
+  .fs-page *::before,
+  .fs-page *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}
+
+/* Truncated table cell. The full value stays reachable through the cell title,
+   never dropped. */
+.fs-table-truncate { display: block; overflow: hidden; max-width: var(--fs-table-truncate-width, 20rem); text-overflow: ellipsis; white-space: nowrap; }
+
+/* Numeric cells. base.css already publishes tabular figures and right alignment
+   for [data-numeric], but the generic `.fs-table td` alignment outranks a bare
+   attribute selector, so the alignment half is re-stated inside .fs-table. The
+   header carries the same hook: a right-aligned column needs a right-aligned
+   header to read as one column. */
+.fs-table th[data-numeric],
+.fs-table td[data-numeric] { text-align: right; }
+
+/* Technical strings inside a cell - repository URLs, source paths. The data
+   face at 12px, mirroring the canonical table's own treatment; the code face is
+   reserved for IDs, hashes, logs and snippets and never sets a whole table. */
+.fs-table-mono { font-family: var(--ff-data); font-size: 12px; }
+
+/* ---------------------------------------------------------------------------
+   Timeline. Promoted from the canonical catalog, which the app carried tokens
+   for but no component. Geometry is the published anatomy verbatim: 12px event
+   gap, 9px marker, 2px connector, 14px below every non-final event and none
+   below the last, 13px/500 title and an 11px data-face timestamp.
+
+   The published anatomy also wraps the list in its own 311px card. This renders
+   inside the consuming card instead, because card.md forbids a card inside a
+   card - see the note in the component.
+   --------------------------------------------------------------------------- */
+.fs-timeline { display: grid; margin: 0; padding: 0; list-style: none; }
+.fs-timeline-event { display: flex; gap: var(--fs-space-150); min-width: 0; }
+.fs-timeline-rail { display: flex; flex: 0 0 var(--fs-timeline-dot-size); flex-direction: column; align-items: center; }
+
+.fs-timeline-dot {
+  flex: 0 0 var(--fs-timeline-dot-size);
+  width: var(--fs-timeline-dot-size);
+  height: var(--fs-timeline-dot-size);
+  border-radius: var(--fs-radius-full);
+  background: var(--fs-timeline-primary-dot);
+}
+
+/* The accent marker is sequence emphasis for the current actionable step, not a
+   presence indicator, and it is never animated. */
+.fs-timeline-dot.current { background: var(--fs-timeline-current-dot); }
+.fs-timeline-line { flex: 1; width: var(--fs-timeline-line-width); min-height: 22px; margin: 2px 0; background: var(--fs-timeline-line); }
+.fs-timeline-content { min-width: 0; padding-bottom: 14px; }
+.fs-timeline-event:last-child .fs-timeline-content { padding-bottom: 0; }
+.fs-timeline-title { display: block; overflow: hidden; color: var(--fs-timeline-title-text); font-size: 13px; font-weight: var(--fs-type-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.fs-timeline-time { color: var(--fs-timeline-time-text); font-family: var(--ff-data); font-size: var(--fs-type-micro-size); }
+
+/* Loading keeps the rail aligned and replaces only the text with the canon
+   Skeleton, so the card does not change height when the events arrive. The time
+   line takes a timestamp's width, set here as the consumer, as Skeleton asks;
+   height, radius and motion are the Skeleton's own. */
+.fs-timeline-content.fs-skeleton-lines { flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); }
+.fs-timeline-content.fs-skeleton-lines > .fs-skeleton.fs-timeline-skeleton-time { width: calc(var(--fs-space-400) * 3); }
+
+/* ---------------------------------------------------------------------------
+   Detail rows. The canonical Details anatomy from the Right context rail
+   pattern - "Details card with key-value rows" - label left in tertiary, value
+   right in primary. Every literal in the preview maps onto a published token at
+   the same value: 12px gap is --fs-space-150, 4px padding --fs-space-050, 12px
+   text --fs-type-caption-size, 11px mono --fs-type-micro-size.
+
+   The two-column container is this product's composition: the canonical rail is
+   240px wide and single-column, and a page-width panel would leave a very long
+   dotted gap between label and value.
+   --------------------------------------------------------------------------- */
+.fs-detail-rows { display: grid; gap: 0; min-width: 0; }
+.fs-detail-rows[data-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--fs-dashboard-grid-gap); }
+
+.fs-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  padding: var(--fs-space-050) 0;
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+}
+.fs-detail-row > span:first-child { flex: none; color: var(--fs-text-tertiary); }
+.fs-detail-value { min-width: 0; overflow: hidden; color: var(--fs-text-primary); font-weight: var(--fs-type-weight-medium); text-align: right; text-overflow: ellipsis; }
+.fs-detail-value.mono { font-family: var(--ff-data); font-size: var(--fs-type-micro-size); font-weight: var(--fs-type-weight-regular); }
+
+@media (width <= 720px) {
+  .fs-detail-rows[data-columns="2"] { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------------------------------------------------------------------------
+   MetricCard. Promoted out of pages/dashboard/operational-overview.css, which
+   was the only implementation, so a second surface could not reuse it. Every
+   value comes from the published --fs-metric-card-* family; the comments record
+   which contract clause each rule answers.
+   --------------------------------------------------------------------------- */
+
+/* Rows of related signals. metric-card.md: "MetricCards usually appear in rows
+   of related signals" and "A row should use one density and one comparison
+   model." Narrow widths drop columns rather than shrinking the figure. */
+.fs-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--fs-dashboard-grid-gap); min-width: 0; }
+.fs-metric-grid[data-columns="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fs-metric-grid[data-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.fs-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--fs-metric-card-padding);
+  border: 1px solid var(--fs-metric-card-border);
+  border-radius: var(--fs-metric-card-radius);
+  background: var(--fs-metric-card-bg);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--fs-motion-background-hover), border-color var(--fs-motion-background-hover);
+}
+
+/* Only a card that navigates reacts to the pointer; a static metric must not
+   look interactive. */
+a.fs-metric:hover { border-color: var(--fs-border-strong); background: var(--fs-bg-surface-muted); }
+a.fs-metric:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+
+.fs-metric-top { display: flex; align-items: center; justify-content: space-between; gap: var(--fs-space-100); }
+
+.fs-metric-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--fs-metric-card-label-font);
+  font-size: var(--fs-metric-card-label-size);
+  line-height: var(--fs-type-micro-line-height);
+  letter-spacing: var(--fs-metric-card-label-tracking);
+  font-weight: var(--fs-type-weight-medium);
+  text-transform: uppercase;
+  color: var(--fs-metric-card-label-color);
+}
+
+/* Decorative brand texture, published for variants A and E only. */
+.fs-metric-wave { width: 28px; height: 18px; flex: none; color: var(--fs-metric-card-wave-color); transition: opacity var(--fs-motion-background-hover); }
+
+/* Same slot as the wave, swapped by opacity so nothing moves on hover. */
+.fs-metric-go {
+  position: absolute;
+  top: var(--fs-metric-card-padding);
+  right: var(--fs-metric-card-padding);
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  opacity: 0;
+  color: var(--fs-text-secondary);
+  stroke-width: var(--fs-icon-stroke);
+  transform: translateX(-3px);
+  transition: opacity var(--fs-motion-background-hover), transform var(--fs-motion-background-hover);
+}
+
+a.fs-metric:hover .fs-metric-go,
+a.fs-metric:focus-visible .fs-metric-go { opacity: 1; transform: translateX(0); }
+
+a.fs-metric:hover .fs-metric-wave,
+a.fs-metric:focus-visible .fs-metric-wave { opacity: 0; }
+
+/* Figure scale. 42/34/30 is normative in the brand guideline; metric-card.md was
+   corrected to it on 2026-08-30, which also published the rest of the type
+   contract as roles so a heavier figure has nowhere to come from. */
+.fs-metric-figure {
+  margin-top: var(--fs-metric-card-gap);
+  font-family: var(--fs-metric-card-figure-font);
+  font-size: var(--fs-metric-card-figure-standard);
+  line-height: var(--fs-metric-card-figure-line-height);
+  letter-spacing: var(--fs-metric-card-figure-tracking);
+  font-weight: var(--fs-metric-card-figure-weight);
+  font-variant-numeric: tabular-nums;
+  color: var(--fs-metric-card-figure-color);
+}
+.fs-metric[data-density="hero"] .fs-metric-figure { font-size: var(--fs-metric-card-figure-hero); }
+.fs-metric[data-density="compact"] .fs-metric-figure { font-size: var(--fs-metric-card-figure-compact); }
+
+/* Pinned to the bottom so baselines line up across a row whose cards carry
+   different amounts of supporting copy. */
+.fs-metric-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  min-width: 0;
+  margin-top: auto;
+  padding-top: var(--fs-metric-card-gap);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  color: var(--fs-metric-card-description-color);
+}
+.fs-metric-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fs-metric-delta {
+  flex: none;
+  font-family: var(--ff-data);
+  font-weight: var(--fs-type-weight-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--fs-metric-card-delta-color-neutral);
+}
+.fs-metric-delta[data-tone="positive"] { color: var(--fs-metric-card-delta-color-positive); }
+.fs-metric-delta[data-tone="attention"] { color: var(--fs-metric-card-delta-color-attention); }
+
+/* Attention is the only tinted state the contract publishes, and it is reserved
+   for work that needs a human. A zero stays on the default surface. */
+.fs-metric[data-state="attention"] { border-color: var(--fs-metric-card-border-attention); background: var(--fs-metric-card-bg-attention); }
+a.fs-metric[data-state="attention"]:hover { border-color: var(--fs-action-accent); }
+.fs-metric[data-state="attention"] .fs-metric-label { color: var(--fs-metric-card-label-color-attention); }
+.fs-metric[data-state="attention"] .fs-metric-wave { color: var(--fs-metric-card-wave-color-attention); }
+.fs-metric[data-state="attention"] .fs-metric-figure { color: var(--fs-metric-card-figure-color-attention); }
+
+/* Danger is attention for work that broke rather than work that waits: the same
+   above-zero rule, on the status danger tone the badges and alerts use. */
+.fs-metric[data-state="danger"] { border-color: var(--fs-status-danger-border); background: var(--fs-status-danger-bg); }
+a.fs-metric[data-state="danger"]:hover { border-color: var(--fs-status-danger); }
+
+.fs-metric[data-state="danger"] .fs-metric-label,
+.fs-metric[data-state="danger"] .fs-metric-wave,
+.fs-metric[data-state="danger"] .fs-metric-figure { color: var(--fs-status-danger); }
+
+/* Unavailable means the value cannot be read, not that it is zero. The state is
+   in the published state table but the token map carries no --fs-metric-card-*
+   entry for it, so this composes the semantic text roles rather than inventing
+   component values - the same approach .fs-link takes below. */
+.fs-metric[data-state="unavailable"] .fs-metric-figure { color: var(--fs-text-tertiary); }
+
+/* The hover swap still happens, it just stops being animated. */
+@media (prefers-reduced-motion: reduce) {
+  .fs-metric,
+  .fs-metric-go,
+  .fs-metric-wave { transition-duration: var(--fs-duration-reduced); }
+}
+
+@media (width <= 940px) {
+  .fs-metric-grid,
+  .fs-metric-grid[data-columns="3"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (width <= 560px) {
+  .fs-metric-grid,
+  .fs-metric-grid[data-columns="3"],
+  .fs-metric-grid[data-columns="2"] { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Table-cell link. The design system publishes no --fs-link-* family, so this
+   composes the published action and focus roles rather than inventing one. */
+.fs-link { color: var(--fs-action-primary); text-decoration: none; }
+.fs-link:hover { text-decoration: underline; }
+.fs-link:focus-visible { outline: 0; border-radius: var(--fs-radius-compact); box-shadow: var(--fs-focus-ring); }
+
+/* Selection column. Narrow, never truncated, and its own click target so the
+   checkbox does not also trigger the row. */
+
+/* The selection column is exactly 40px wide with the published cell inset, so
+   the header and body checkboxes share one left edge. Scoped through .fs-table
+   so it outranks the generic cell padding. */
+.fs-table th.fs-table-select-cell,
+.fs-table td.fs-table-select-cell { width: 40px; padding: 7px 7px 7px 16px; text-align: left; }
+
+/* A selection checkbox belongs to the row's title. `middle` is right where a row
+   is one line — measured at +0.9px against the text on Trash and Jobs — and wrong
+   the moment a row grows: an MCP tool description put the mark 35.9px below the
+   title it selects. So this is scoped to the assignment selector, whose rows are
+   always title + id + facts + description, and every single-line table is left
+   alone. The mark is centred inside one body line box, so it follows the type
+   scale rather than a hardcoded 20.8px. */
+.fs-assignment-selector .fs-table td.fs-table-select-cell {
+  vertical-align: top;
+}
+
+.fs-assignment-selector .fs-table td.fs-table-select-cell .fs-checkbox-label.bare {
+  min-height: calc(1em * var(--fs-type-body-line-height));
+  align-items: center;
+}
+
+/* The dock is what is fixed to the bottom of the viewport, centred over the
+   collection, on the application-chrome layer so menus, popovers and the
+   confirmation dialog a destructive action opens all stay above it. A bar in
+   document flow scrolls out of reach exactly when a long selection needs it,
+   and it reflows the rows it acts on, so every bar is portalled here and no
+   ancestor's stacking or clipping can reach it.
+
+   The dock exists because a page may hold more than one collection - worker
+   subprocesses sit under jobs on the monitoring page, each with its own live
+   selection - and two bars fixed to the same spot would land on top of each
+   other. Stacking them is a column, not per-bar arithmetic. With a single bar
+   the dock collapses to that bar's own box, so the published geometry is
+   unchanged. */
+.fs-bulk-action-bar-dock {
+  position: fixed;
+  bottom: var(--fs-bulk-action-bar-offset);
+
+  /* Center on the content region so the bar aligns with its table. Below md
+     the sidebar takes no horizontal space; below 560px the rule below
+     overrides left and right. */
+  left: calc(50% + (var(--fs-shell-sidebar-width) + 1px) / 2);
+  z-index: var(--fs-bulk-action-bar-layer);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--fs-bulk-action-bar-gap);
+  max-width: calc(100% - var(--fs-space-300) * 2);
+  transform: translateX(-50%);
+
+  /* The dock is a placement device, not a surface: only the bars take pointer
+     input, so the gap between two of them stays click-through. */
+  pointer-events: none;
+}
+
+.fs-bulk-action-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--fs-bulk-action-bar-gap);
+  max-width: 100%;
+  min-height: var(--fs-bulk-action-bar-min-height);
+  pointer-events: auto;
+  padding: var(--fs-bulk-action-bar-padding);
+  border: 1px solid var(--fs-bulk-action-bar-border);
+  border-radius: var(--fs-bulk-action-bar-radius);
+  background: var(--fs-bulk-action-bar-bg);
+  box-shadow: var(--fs-bulk-action-bar-shadow);
+  color: var(--fs-bulk-action-bar-text);
+  transform: translateY(0);
+  transition:
+    opacity var(--fs-bulk-action-bar-enter),
+    transform var(--fs-bulk-action-bar-enter),
+    visibility var(--fs-bulk-action-bar-enter);
+}
+
+/* A hidden bar leaves the column rather than holding a gap open in it, and is
+   taken out of flow rather than out of the DOM so the exit motion still has
+   something to run on. */
+.fs-bulk-action-bar[data-state="hidden"] {
+  position: absolute;
+  bottom: 0;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(var(--fs-bulk-action-bar-travel));
+  pointer-events: none;
+  transition:
+    opacity var(--fs-bulk-action-bar-exit),
+    transform var(--fs-bulk-action-bar-exit),
+    visibility var(--fs-bulk-action-bar-exit);
+}
+
+.fs-bulk-action-count {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: var(--fs-button-height-sm);
+  padding: 0 var(--fs-space-150);
+  border: 1px solid var(--fs-bulk-action-bar-count-border);
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-bulk-action-bar-count-bg);
+  color: var(--fs-bulk-action-bar-count-text);
+  font-weight: var(--fs-type-weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fs-bulk-action-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: 0 var(--fs-space-050);
+  background: var(--fs-bulk-action-bar-divider);
+}
+
+.fs-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-bulk-action-bar-gap);
+}
+
+/* The bar publishes the action height and nothing else about the action: the
+   colour comes from the Button variants the markup names. */
+.fs-bulk-action-bar .fs-button { flex: none; height: var(--fs-bulk-action-bar-button-height); }
+
+/* The floating surface would otherwise cover the last row of the collection.
+   The attribute carries how many bars are live, so a page showing two reserves
+   for two. */
+body[data-bulk-action-bar] .fs-shell-main {
+  padding-bottom: calc(var(--fs-bulk-action-bar-offset) + var(--fs-bulk-action-bar-min-height) + var(--fs-space-300));
+}
+
+body[data-bulk-action-bar="2"] .fs-shell-main {
+  padding-bottom: calc(var(--fs-bulk-action-bar-offset) + var(--fs-bulk-action-bar-min-height) * 2 + var(--fs-bulk-action-bar-gap) + var(--fs-space-300));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-bulk-action-bar,
+  .fs-bulk-action-bar[data-state="hidden"] {
+    transition:
+      opacity var(--fs-duration-reduced) linear,
+      visibility var(--fs-duration-reduced) linear;
+  }
+
+  .fs-bulk-action-bar[data-state="hidden"] { transform: translateY(0); }
+}
+
+/* Below md the sidebar stacks above the content instead of sitting beside it,
+   so it takes no horizontal room and the dock must not be offset for it. Must
+   come before the 560px block below, which replaces left/right/transform
+   wholesale. */
+@media (width < theme(--breakpoint-md)) {
+  .fs-bulk-action-bar-dock {
+    left: 50%;
+  }
+}
+
+/* Below the width the row can hold, the bar spans the viewport gutters and the
+   actions wrap instead of shrinking below the Button contract. */
+@media (width <= 560px) {
+  body[data-bulk-action-bar] .fs-shell-main {
+    padding-bottom: calc(var(--fs-bulk-action-bar-offset) + var(--fs-bulk-action-bar-min-height) * 2 + var(--fs-space-300));
+  }
+
+  .fs-bulk-action-bar-dock {
+    left: var(--fs-space-150);
+    right: var(--fs-space-150);
+    align-items: stretch;
+    max-width: none;
+    transform: none;
+  }
+
+  .fs-bulk-action-bar { flex-wrap: wrap; }
+
+  .fs-bulk-action-divider { display: none; }
+
+  /* Two rows: the count keeps its dismiss beside it, the actions take the full
+     width below rather than shrinking under the Button contract. */
+  .fs-bulk-actions { order: 1; flex: 1 1 100%; }
+  .fs-bulk-action-bar .fs-bulk-action-clear { margin-left: auto; }
+  .fs-bulk-action-bar .fs-button { flex: 1 1 auto; }
+}
+
+/* The project page stacks its header and the section tabs as one block. */
+.fs-project-header { display: grid; gap: var(--fs-space-200); }
+
+/* Role utilities for shared components that predate the layer and were written
+   against raw Tailwind literals. Each maps onto a published role, so both
+   themes follow the token set instead of a hardcoded palette. */
+.fs-ink-primary { color: var(--fs-text-primary); }
+.fs-ink-secondary { color: var(--fs-text-secondary); }
+.fs-ink-tertiary { color: var(--fs-text-tertiary); }
+.fs-ink-brand { color: var(--fs-text-brand); }
+.fs-ink-attention { color: var(--fs-text-attention); }
+.fs-ink-success { color: var(--fs-status-success); }
+.fs-surface-inset { background: var(--fs-bg-surface-muted); }
+.fs-surface-selected { background: var(--fs-action-primary-wash); }
+
+/* Selection is marked with an edge, not a wash: any lift of the row background
+   pushes the tertiary subtitle and the translucent badges below AA. */
+.fs-row-selected { box-shadow: inset var(--fs-space-050) 0 0 var(--fs-border-selected); }
+.fs-surface-attention { background: var(--fs-badge-orange-bg); }
+.fs-surface-danger { background: var(--fs-status-danger-bg); }
+.fs-surface-success { background: var(--fs-status-success-bg); }
+.fs-ink-danger { color: var(--fs-status-danger); }
+
+/* `subtle` only separates regions that already differ in fill. An element whose
+   fill equals its parent's — or any interactive element — takes `default`. */
+.border-subtle { border-color: var(--fs-border-subtle); }
+.border-default { border-color: var(--fs-border-default); }
+.border-attention { border-color: var(--fs-status-attention-border); }
+.border-danger { border-color: var(--fs-status-danger-border); }
+.border-success { border-color: var(--fs-status-success-border); }
+.divide-subtle > * + * { border-color: var(--fs-border-subtle); }
+.border-selected { border-color: var(--fs-border-selected); }
+
+
+/* Progress — published anatomy: 6px pill track, 4px label gap, 6px meta gap. */
+.fs-progress { display: grid; gap: var(--fs-progress-label-gap, 4px); }
+.fs-progress-header { display: flex; align-items: baseline; gap: var(--fs-space-100); }
+.fs-progress-label { color: var(--fs-progress-label-text); font-size: 13px; font-weight: 500; }
+
+.fs-progress-value {
+  margin-left: auto;
+  color: var(--fs-progress-value-text);
+  font-family: var(--ff-data, system-ui, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-progress-track {
+  overflow: hidden;
+  height: var(--fs-progress-track-height, 6px);
+  border-radius: var(--fs-progress-track-radius, 999px);
+  background: var(--fs-progress-track-bg);
+}
+.fs-progress-indicator { height: 100%; border-radius: inherit; background: var(--fs-progress-indicator); }
+.fs-progress[data-state="success"] .fs-progress-indicator { background: var(--fs-progress-indicator-success); }
+.fs-progress[data-state="attention"] .fs-progress-indicator { background: var(--fs-progress-indicator-attention); }
+.fs-progress[data-state="danger"] .fs-progress-indicator { background: var(--fs-progress-indicator-danger); }
+.fs-progress[data-state="paused"] .fs-progress-indicator { background: var(--fs-progress-indicator-paused); }
+.fs-progress-meta { margin: calc(var(--fs-progress-meta-gap, 6px) - var(--fs-progress-label-gap, 4px)) 0 0; color: var(--fs-progress-meta-text); font-size: 12px; }
+
+.fs-progress-indeterminate .fs-progress-indicator {
+  width: 40%;
+  animation: fs-progress-slide var(--fs-spinner-loop, 1s) linear infinite alternate;
+}
+
+@keyframes fs-progress-slide { from { transform: translateX(-25%); } to { transform: translateX(175%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-progress-indeterminate .fs-progress-indicator { width: 100%; animation: none; }
+}
+
+/* Log output — verbatim machine text, never truncated. */
+.fs-log-label {
+  margin: 0 0 var(--fs-space-075);
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-data, system-ui, sans-serif);
+  font-size: var(--fs-type-micro-size, 11px);
+  font-weight: 500;
+  letter-spacing: var(--fs-type-micro-tracking, 0.13em);
+  text-transform: uppercase;
+}
+
+.fs-log-output {
+  margin: 0;
+  overflow: auto;
+  padding: var(--fs-log-surface-padding, 12px);
+  border: 1px solid var(--fs-log-surface-border);
+  border-radius: var(--fs-log-surface-radius, 6px);
+  background: var(--fs-log-surface-bg);
+  color: var(--fs-log-line-text);
+  font-family: var(--ff-code, monospace);
+  font-size: var(--fs-log-line-size, 12px);
+  line-height: var(--fs-log-line-height, 1.65);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.fs-log-output[data-scroll="true"] { max-height: 168px; }
+
+/* The shared Card primitive painted 24px, which is off the published scale.
+   Cards are 8px; 12px is the large-surface role for modals and table shells. */
+.fs-card-radius { border-radius: var(--fs-card-radius, 8px); }
+
+/* The container step, not the large-surface step: every consumer is a panel
+   nested inside a card, and a nested box may never out-round its parent —
+   the card itself is `--fs-radius-container`. */
+.fs-surface-radius { border-radius: var(--fs-radius-container); }
+
+
+/* An empty cell must not compete with real values. */
+.fs-blank-cell { color: var(--fs-text-tertiary); }
+
+/* ---------------------------------------------------------------------------
+   Key-value list, and the disclosure wrapper it composes with. Ported from
+   03_components/data-display/key-value-list.md and its preview, promoted in the
+   design system's fb85070. Read-only by contract: the moment a value becomes
+   editable it is a form field, not a pair.
+
+   Rules copied rather than adapted, so the two vocabularies cannot drift. The
+   fixed key column is the point — values form one left edge, and right-aligning
+   them against a ragged key column is the defect this replaces. `.fs-detail-row`
+   and `.fs-detail-value` stay exactly as they are: a different, still-valid
+   pattern that the Agents tab depends on.
+   --------------------------------------------------------------------------- */
+.fs-kv {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--fs-kv-padding);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-kv-radius);
+  background: var(--fs-kv-surface);
+}
+
+/* Dropped when the list already sits inside a panel: a muted surface on a muted
+   parent has no separation, so the container goes rather than the contrast. */
+.fs-kv.is-bare { padding: 0; border: 0; border-radius: 0; background: transparent; }
+
+.fs-kv-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--fs-kv-row-gap);
+  min-height: var(--fs-kv-row-min-height);
+  padding: var(--fs-kv-row-padding-y) 0;
+  border-bottom: var(--fs-kv-row-divider);
+}
+.fs-kv-row:last-child { border-bottom: 0; }
+
+.fs-kv dt {
+  flex: none;
+  width: var(--fs-kv-key-width);
+  color: var(--fs-kv-key-color);
+  font-size: var(--fs-kv-key-size);
+}
+
+.fs-kv dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--fs-kv-value-color);
+  font-family: var(--fs-kv-value-font);
+  font-size: var(--fs-kv-value-size);
+  font-weight: var(--fs-kv-value-weight);
+  overflow-wrap: anywhere;
+}
+
+/* Value families. Identifier is the default because identifiers get copied;
+   hierarchy comes from face and colour, never weight — nothing exceeds 500. */
+.fs-kv dd.is-plain {
+  font-family: var(--fs-kv-value-plain-font);
+  font-size: var(--fs-kv-value-plain-size);
+}
+
+.fs-kv dd.is-empty {
+  color: var(--fs-kv-value-empty-color);
+  font-family: var(--fs-kv-value-plain-font);
+  font-size: var(--fs-kv-value-plain-size);
+}
+
+.fs-kv dd.is-numeric {
+  font-family: var(--ff-data);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Canon's narrow state: the pair reads as two lines and the key gives up its
+   fixed column, because 160px of key against a 200px row is not a column. */
+@media (width <= 520px) {
+  .fs-kv-row { flex-direction: column; gap: var(--fs-space-025); }
+  .fs-kv dt { width: auto; }
+}
+
+/* Settings section — `forms/settings-section.md`. A disclosure whose body is a
+   form surface: the summary row is the region's only heading, states how many
+   values are set, and never carries a weight heavier than the field labels
+   below it. The wrapper roles are the published `--fs-disclosure-*`. */
+.fs-settings-section {
+  border: 1px solid var(--fs-disclosure-border);
+  border-radius: var(--fs-disclosure-radius);
+  background: var(--fs-disclosure-bg);
+}
+
+.fs-settings-section + .fs-settings-section { margin-top: var(--fs-disclosure-stack-gap); }
+
+.fs-settings-section > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-disclosure-gap);
+  min-height: var(--fs-settings-section-summary-min-height);
+  border-radius: var(--fs-disclosure-radius);
+  color: var(--fs-disclosure-summary-text);
+  padding: 0 var(--fs-disclosure-summary-padding-x);
+  font-size: var(--fs-disclosure-summary-size);
+  font-weight: var(--fs-disclosure-summary-weight);
+  list-style: none;
+  cursor: pointer;
+  transition: background var(--fs-motion-background-hover);
+}
+
+.fs-settings-section > summary::-webkit-details-marker { display: none; }
+.fs-settings-section > summary:hover { background: var(--fs-disclosure-hover-bg); }
+.fs-settings-section > summary:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+
+.fs-settings-section[open] > summary {
+  border-bottom: 1px solid var(--fs-disclosure-border);
+  border-radius: var(--fs-disclosure-radius) var(--fs-disclosure-radius) 0 0;
+}
+
+.fs-settings-section[open] > summary .fs-disclosure-chevron { transform: rotate(90deg); }
+
+/* The closed row reports what is set, so folding never hides configuration. */
+.fs-settings-section-note {
+  margin-left: auto;
+  color: var(--fs-settings-section-summary-note);
+  font-weight: var(--fs-type-weight-regular, 400);
+}
+
+.fs-settings-section-body {
+  display: grid;
+  gap: var(--fs-settings-section-body-gap);
+  padding: var(--fs-disclosure-body-padding);
+}
+
+/* Field group — `forms/field-group.md`. Past about five fields on one surface,
+   they cluster by what the operator decides together, never by data type. */
+.fs-field-group {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.fs-field-group + .fs-field-group {
+  border-top: var(--fs-field-group-divider);
+  padding-top: var(--fs-field-group-spacing);
+}
+
+.fs-field-group > legend {
+  color: var(--fs-field-group-legend-color);
+  padding: 0;
+  font-family: var(--fs-field-group-legend-font);
+  font-size: var(--fs-field-group-legend-size);
+  font-weight: var(--fs-field-group-legend-weight);
+  letter-spacing: var(--fs-field-group-legend-tracking);
+  text-transform: uppercase;
+}
+
+.fs-field-group-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fs-field-group-body-gap);
+  padding-top: var(--fs-field-group-body-padding-top);
+}
+
+/* Disclosure wrapper: the summary row is the only heading in the region. */
+.fs-disclosure {
+  overflow: hidden;
+  border: 1px solid var(--fs-disclosure-border);
+  border-radius: var(--fs-disclosure-radius);
+  background: var(--fs-disclosure-bg);
+}
+.fs-disclosure + .fs-disclosure { margin-top: var(--fs-space-150); }
+
+.fs-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-height: var(--fs-hit-target-compact, 32px);
+  padding: 0 var(--fs-space-200);
+  color: var(--fs-disclosure-summary-text, var(--fs-text-primary));
+  font-size: 13px;
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+  transition: background var(--fs-motion-background-hover);
+}
+
+/* The native marker is replaced by the chevron, which stays visible at rest. */
+
+/* A checkbox placed in a disclosure summary sits in a row that already provides
+   the 32px hit target. Its own `min-height` plus `align-items: flex-start` then
+   parks the mark and its label in the top 20px, while everything else in the
+   summary is centred — measured 6px apart on the dataset schema rows. Inside a
+   summary the control aligns with the line it shares. */
+.fs-disclosure > summary .fs-checkbox-label {
+  min-height: 0;
+  align-items: center;
+}
+
+.fs-disclosure > summary .fs-checkbox-label > .fs-checkbox-mark { margin-top: 0; }
+
+.fs-disclosure > summary::-webkit-details-marker { display: none; }
+.fs-disclosure > summary:hover { background: var(--fs-disclosure-hover-bg, var(--fs-bg-surface-muted)); }
+.fs-disclosure > summary:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+.fs-disclosure[open] > summary { border-bottom: 1px solid var(--fs-disclosure-border, var(--fs-border-subtle)); }
+
+.fs-disclosure-chevron {
+  flex: none;
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  fill: none;
+  stroke: var(--fs-disclosure-chevron, var(--fs-text-tertiary));
+  stroke-width: var(--fs-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--fs-motion-background-hover);
+}
+.fs-disclosure[open] .fs-disclosure-chevron { transform: rotate(90deg); }
+
+/* The count tells the user what is folded away before they open it. Neutral
+   badge roles with the data face, because it is a number that gets scanned. */
+.fs-disclosure-count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: var(--fs-badge-height-sm);
+  margin-left: auto;
+  padding: var(--fs-badge-padding-sm);
+  border: 1px solid var(--fs-badge-neutral-border);
+  border-radius: var(--fs-badge-radius);
+  background: var(--fs-badge-neutral-bg);
+  color: var(--fs-badge-neutral-text);
+  font-family: var(--ff-data);
+  font-size: var(--fs-badge-font-size-sm);
+  font-weight: var(--fs-badge-font-weight);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-disclosure-body { padding: var(--fs-space-100) var(--fs-space-200) var(--fs-space-150); }
+
+/* ---------------------------------------------------------------------------
+   Parameter chip and its signature-row variant. Ported from
+   03_components/data-display/parameter-chip.md and its preview, published in the
+   design system's 0e1946a. Reference detail the reader scans: never a control,
+   never a status, no hover, no focus, no tab stop.
+
+   Three facts, three weights — the name leads at 12px primary, the type recedes
+   at 11px tertiary, and requiredness is one asterisk. A middot is forbidden: the
+   divider is structure, a middot is content competing with content.
+   --------------------------------------------------------------------------- */
+.fs-param-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-parameter-chip-group-gap);
+}
+
+.fs-param-chip {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  height: var(--fs-parameter-chip-height);
+  border: 1px solid var(--fs-parameter-chip-border);
+  border-radius: var(--fs-parameter-chip-radius);
+  background: var(--fs-parameter-chip-bg);
+  vertical-align: middle;
+}
+
+.fs-param-name {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--fs-parameter-chip-padding-x);
+  color: var(--fs-parameter-chip-name-color);
+  font-family: var(--fs-parameter-chip-name-font);
+  font-size: var(--fs-parameter-chip-name-size);
+  font-weight: 400;
+}
+
+.fs-param-required {
+  margin-left: var(--fs-parameter-chip-required-gap);
+  color: var(--fs-parameter-chip-required);
+}
+
+.fs-param-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--fs-parameter-chip-padding-x);
+  border-left: var(--fs-parameter-chip-divider);
+  color: var(--fs-parameter-chip-type-color);
+  font-family: var(--fs-parameter-chip-type-font);
+  font-size: var(--fs-parameter-chip-type-size);
+  font-weight: 400;
+}
+
+/* One legend per group, never per chip: the meaning of the marker is stated in
+   text so it never depends on colour alone. */
+.fs-param-legend {
+  margin: var(--fs-space-150) 0 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-param-legend .fs-param-required {
+  margin-left: 0;
+  font-family: var(--fs-parameter-chip-name-font);
+}
+
+/* Signature rows: the same three fields once a parameter needs a sentence, a
+   default or a constraint. Shares the Key-value list row rhythm. */
+.fs-signature {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control, 6px);
+}
+
+.fs-signature-head,
+.fs-signature-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, var(--fs-parameter-signature-name-column))
+    minmax(0, var(--fs-parameter-signature-type-column))
+    minmax(0, 1fr);
+  gap: var(--fs-parameter-signature-row-gap);
+}
+
+.fs-signature-head {
+  padding: 0 var(--fs-space-150) var(--fs-space-075);
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-micro-size);
+  font-weight: var(--fs-type-weight-medium);
+  letter-spacing: var(--fs-type-micro-tracking);
+  text-transform: uppercase;
+}
+
+.fs-signature-row {
+  align-items: baseline;
+  min-height: var(--fs-parameter-signature-row-min-height);
+  padding: var(--fs-parameter-signature-row-padding);
+  border-bottom: var(--fs-parameter-signature-divider);
+  background: var(--fs-bg-surface);
+}
+
+.fs-signature-row:last-child { border-bottom: 0; }
+
+.fs-signature-name {
+  overflow: hidden;
+  color: var(--fs-parameter-chip-name-color);
+  font-family: var(--fs-parameter-chip-name-font);
+  font-size: var(--fs-parameter-chip-name-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-signature-type {
+  color: var(--fs-parameter-chip-type-color);
+  font-family: var(--fs-parameter-chip-type-font);
+  font-size: var(--fs-parameter-chip-type-size);
+}
+
+.fs-signature-description {
+  color: var(--fs-parameter-signature-description-color);
+  font-size: var(--fs-parameter-signature-description-size);
+  line-height: 1.55;
+}
+
+.fs-signature-description code {
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-parameter-chip-type-size);
+}
+
+/* Canon's narrow rule: the header goes and each row stacks, because a signature
+   is content to read and must never scroll sideways. */
+@media (width < theme(--breakpoint-sm)) {
+  .fs-signature-head { display: none; }
+  .fs-signature-row { grid-template-columns: minmax(0, 1fr); gap: var(--fs-space-025); }
+}
+
+/* Published controls retain their visual geometry; their hit surface is separate. */
+.fs-button, .fs-icon-button { position: relative; }
+
+.fs-button::after, .fs-icon-button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--fs-hit-target));
+  height: max(100%, var(--fs-hit-target));
+  transform: translate(-50%, -50%);
+}
+.fs-button[aria-busy="true"], .fs-icon-button[aria-busy="true"] { cursor: default; }
+.fs-loader-with-label { display: inline-flex; align-items: center; gap: var(--fs-space-100); color: var(--fs-text-secondary); font-family: var(--ff-body); font-size: var(--fs-type-caption-size); }
+.fs-loader-with-label[data-loader-variant^="wide-"] { flex-direction: column; gap: var(--fs-space-150); }
+
+@media (pointer: coarse) {
+  .fs-button { margin: max(0px, calc((var(--fs-hit-target) - var(--fs-button-height-md)) / 2)); }
+  .fs-button.sm { margin: max(0px, calc((var(--fs-hit-target) - var(--fs-button-height-sm)) / 2)); }
+  .fs-icon-button { margin: max(0px, calc((var(--fs-hit-target) - var(--fs-icon-button-size-md)) / 2)); }
+  .fs-icon-button[data-size="small"] { margin: max(0px, calc((var(--fs-hit-target) - var(--fs-icon-button-size-sm)) / 2)); }
+  .fs-page-header-actions { gap: max(var(--fs-page-header-action-gap), var(--fs-hit-target-touch-gap)); }
+}
+
+.fs-button.secondary:disabled, .fs-button.ghost:disabled, .fs-button.ghost-danger:disabled {
+  background: var(--fs-button-disabled-bg);
+  border-color: var(--fs-button-disabled-border);
+  color: var(--fs-button-disabled-text);
+}
+
+/* Explicit size selectors outrank the shared small row-action shell. */
+.fs-icon-button[data-size="medium"] {
+  width: var(--fs-icon-button-size-md);
+  height: var(--fs-icon-button-size-md);
+  border-radius: var(--fs-icon-button-radius-md);
+}
+
+.fs-icon-button[data-size="small"] {
+  width: var(--fs-icon-button-size-sm);
+  height: var(--fs-icon-button-size-sm);
+  border-radius: var(--fs-icon-button-radius-sm);
+}
+.fs-icon-button[data-size="medium"] svg { width: var(--fs-icon-button-icon-size-md); height: var(--fs-icon-button-icon-size-md); }
+.fs-icon-button[data-size="small"] svg { width: var(--fs-icon-button-icon-size-sm); height: var(--fs-icon-button-icon-size-sm); }

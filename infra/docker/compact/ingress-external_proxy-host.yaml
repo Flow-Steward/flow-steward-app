@@ -1,0 +1,4 @@
+services:
+  compact-runtime:
+    ports:
+      - "127.0.0.1:${FS_REVERSE_PROXY_BACKEND_PORT:-18099}:${FS_RUNTIME_HTTP_PORT:-8080}"

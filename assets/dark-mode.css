@@ -1,0 +1,187 @@
+/* ═══════════════════════════════════════════════════════════════
+   Flow Steward Dark Mode — CSS override layer
+   Applied when <html class="dark"> is set.
+   Remaps Tailwind utility classes to shell design tokens.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Content area ─── */
+.dark .content-area { background: #15151d !important; }
+
+/* ─── White / Gray backgrounds ─── */
+.dark .bg-white     { background-color: var(--elevated) !important; }
+.dark .bg-gray-50   { background-color: var(--surface) !important; }
+.dark .bg-gray-100  { background-color: var(--elevated) !important; }
+.dark .bg-gray-200  { background-color: #252532 !important; }
+.dark .bg-gray-300  { background-color: #2f2f3e !important; }
+.dark .bg-gray-400  { background-color: #3a3a4c !important; }
+.dark .bg-gray-700  { background-color: #252532 !important; }
+.dark .bg-gray-800  { background-color: var(--bg) !important; }
+.dark .bg-gray-900  { background-color: #0d0d12 !important; }
+
+/* ─── Gray text ─── */
+.dark .text-gray-900 { color: var(--text-1) !important; }
+.dark .text-gray-800 { color: var(--text-1) !important; }
+.dark .text-gray-700 { color: var(--text-2) !important; }
+.dark .text-gray-600 { color: var(--text-2) !important; }
+.dark .text-gray-500 { color: var(--text-3) !important; }
+.dark .text-gray-400 { color: var(--text-3) !important; }
+.dark .text-gray-300 { color: var(--text-3) !important; }
+.dark .text-white    { color: var(--text-1) !important; }
+
+/* ─── Gray borders ─── */
+.dark .border-gray-100 { border-color: var(--border) !important; }
+.dark .border-gray-200 { border-color: var(--border) !important; }
+.dark .border-gray-300 { border-color: var(--border) !important; }
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+
+/* ─── Form inputs ─── */
+.dark .content-area input:not([type="checkbox"], [type="radio"], [type="range"]),
+.dark .content-area textarea,
+.dark .content-area select {
+  background-color: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text-1) !important;
+}
+
+.dark .content-area input::placeholder,
+.dark .content-area textarea::placeholder {
+  color: var(--text-3) !important;
+}
+
+.dark .content-area input:focus,
+.dark .content-area textarea:focus,
+.dark .content-area select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-soft) !important;
+}
+
+/* ─── Shadows — deeper on dark ─── */
+.dark .shadow       { box-shadow: 0 1px 3px rgb(0 0 0 / 50%) !important; }
+.dark .shadow-sm    { box-shadow: 0 1px 2px rgb(0 0 0 / 40%) !important; }
+.dark .shadow-md    { box-shadow: 0 4px 12px rgb(0 0 0 / 50%) !important; }
+.dark .shadow-lg    { box-shadow: 0 10px 25px rgb(0 0 0 / 50%) !important; }
+.dark .shadow-xl    { box-shadow: 0 16px 40px rgb(0 0 0 / 50%) !important; }
+.dark .shadow-2xl   { box-shadow: 0 24px 50px rgb(0 0 0 / 50%) !important; }
+
+/* ─── Hover states ─── */
+.dark .hover\:bg-gray-50:hover  { background-color: var(--hover) !important; }
+.dark .hover\:bg-gray-100:hover { background-color: var(--hover) !important; }
+.dark .hover\:shadow-md:hover   { box-shadow: 0 4px 12px rgb(0 0 0 / 50%) !important; }
+
+/* ─── Status badge backgrounds (soft on dark) ─── */
+.dark .bg-red-50      { background-color: var(--red-soft) !important; }
+.dark .bg-red-100     { background-color: var(--red-soft) !important; }
+.dark .bg-green-50    { background-color: var(--green-soft) !important; }
+.dark .bg-green-100   { background-color: var(--green-soft) !important; }
+.dark .bg-blue-50     { background-color: rgb(59 130 246 / 10%) !important; }
+.dark .bg-blue-100    { background-color: rgb(59 130 246 / 10%) !important; }
+.dark .bg-indigo-50   { background-color: var(--accent-soft) !important; }
+.dark .bg-indigo-100  { background-color: var(--accent-soft) !important; }
+.dark .bg-amber-50    { background-color: var(--amber-soft) !important; }
+.dark .bg-amber-100   { background-color: var(--amber-soft) !important; }
+.dark .bg-yellow-50   { background-color: var(--amber-soft) !important; }
+.dark .bg-yellow-100  { background-color: var(--amber-soft) !important; }
+.dark .bg-purple-100  { background-color: rgb(147 51 234 / 10%) !important; }
+.dark .bg-emerald-50  { background-color: var(--green-soft) !important; }
+.dark .bg-emerald-100 { background-color: var(--green-soft) !important; }
+.dark .bg-orange-100  { background-color: rgb(249 115 22 / 10%) !important; }
+.dark .bg-teal-50     { background-color: rgb(20 184 166 / 10%) !important; }
+.dark .bg-rose-50     { background-color: rgb(244 63 94 / 10%) !important; }
+.dark .bg-slate-100   { background-color: rgb(100 116 139 / 10%) !important; }
+
+/* ─── Status badge text ─── */
+.dark .text-red-500   { color: var(--red) !important; }
+.dark .text-red-600   { color: var(--red) !important; }
+.dark .text-red-700   { color: var(--red) !important; }
+.dark .text-red-800   { color: #fca5a5 !important; }
+.dark .text-red-300   { color: #fca5a5 !important; }
+.dark .text-red-400   { color: var(--red) !important; }
+.dark .text-green-600 { color: var(--green) !important; }
+.dark .text-green-700 { color: var(--green) !important; }
+.dark .text-green-800 { color: #6ee7b7 !important; }
+.dark .text-emerald-600 { color: var(--green) !important; }
+.dark .text-emerald-700 { color: var(--green) !important; }
+.dark .text-emerald-800 { color: #6ee7b7 !important; }
+.dark .text-blue-600  { color: #60a5fa !important; }
+.dark .text-blue-700  { color: #60a5fa !important; }
+.dark .text-blue-800  { color: #93bbfd !important; }
+.dark .text-indigo-400 { color: var(--accent) !important; }
+.dark .text-indigo-600 { color: var(--accent) !important; }
+.dark .text-indigo-700 { color: var(--accent) !important; }
+.dark .text-indigo-800 { color: #93a8f8 !important; }
+.dark .text-indigo-200 { color: var(--accent) !important; }
+.dark .text-amber-600 { color: var(--amber) !important; }
+.dark .text-amber-700 { color: var(--amber) !important; }
+.dark .text-amber-800 { color: #fcd34d !important; }
+.dark .text-amber-900 { color: #fcd34d !important; }
+.dark .text-yellow-500 { color: var(--amber) !important; }
+.dark .text-yellow-700 { color: var(--amber) !important; }
+.dark .text-yellow-800 { color: #fcd34d !important; }
+.dark .text-yellow-300 { color: var(--amber) !important; }
+.dark .text-purple-700 { color: #a78bfa !important; }
+.dark .text-purple-800 { color: #c4b5fd !important; }
+.dark .text-orange-700 { color: #fb923c !important; }
+.dark .text-orange-800 { color: #fdba74 !important; }
+.dark .text-rose-700   { color: #fb7185 !important; }
+
+/* ─── Status badge borders ─── */
+.dark .border-red-200    { border-color: var(--red-border) !important; }
+.dark .border-red-300    { border-color: var(--red-border) !important; }
+.dark .border-red-400    { border-color: var(--red-border) !important; }
+.dark .border-red-100    { border-color: var(--red-border) !important; }
+.dark .border-green-200  { border-color: var(--green-border) !important; }
+.dark .border-green-400  { border-color: var(--green-border) !important; }
+.dark .border-amber-200  { border-color: var(--amber-border) !important; }
+.dark .border-orange-200 { border-color: rgb(249 115 22 / 18%) !important; }
+.dark .border-teal-200   { border-color: rgb(20 184 166 / 18%) !important; }
+.dark .border-indigo-200 { border-color: var(--accent-border) !important; }
+.dark .border-indigo-300 { border-color: var(--accent-border) !important; }
+.dark .border-indigo-500 { border-color: var(--accent) !important; }
+.dark .border-indigo-600 { border-color: var(--accent) !important; }
+.dark .border-emerald-100 { border-color: var(--green-border) !important; }
+
+/* ─── Indigo button (primary) — keep as-is, works on dark ─── */
+
+/* bg-indigo-600, hover:bg-indigo-700, text-white — already fine */
+
+/* ─── Solid status dots — keep as-is ─── */
+
+/* bg-red-500, bg-green-500, bg-amber-500, bg-emerald-500 — fine on dark */
+
+/* ─── Tables ─── */
+.dark .hover\:bg-gray-50:hover tr,
+.dark tr.hover\:bg-gray-50:hover { background-color: var(--hover) !important; }
+.dark thead.bg-gray-50 { background-color: var(--surface) !important; }
+
+/* ─── Modals / overlays ─── */
+.dark .bg-black\/40 { background-color: rgb(0 0 0 / 60%) !important; }
+
+/* ─── Ring focus (forms) ─── */
+.dark .focus\:ring-indigo-400:focus { --tw-ring-color: var(--accent) !important; }
+
+/* ─── Scrollbar in dark content ─── */
+.dark .content-area::-webkit-scrollbar-track { background: transparent; }
+.dark .content-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ─── Code blocks ─── */
+.dark code { background-color: var(--bg) !important; color: var(--text-2) !important; }
+.dark pre  { background-color: var(--bg) !important; color: var(--text-2) !important; }
+
+/* ─── Details/summary ─── */
+.dark details { border-color: var(--border) !important; }
+.dark summary { color: var(--text-1) !important; }
+
+/* ─── Placeholder text ─── */
+.dark .placeholder-gray-400::placeholder { color: var(--text-3) !important; }
+.dark .placeholder-gray-500::placeholder { color: var(--text-3) !important; }
+
+/* ─── Reindex panel (already dark, adjust white parts) ─── */
+.dark #reindex-panel .bg-white { background-color: var(--elevated) !important; }
+.dark #reindex-panel .border-gray-200 { border-color: var(--border) !important; }
+
+/* ─── Flash messages ─── */
+.dark .bg-green-100.border-green-400 { background-color: var(--green-soft) !important; border-color: var(--green-border) !important; }
+.dark .bg-red-100.border-red-400 { background-color: var(--red-soft) !important; border-color: var(--red-border) !important; }
+.dark .text-green-700[role="alert"] span { color: var(--green) !important; }
+.dark .text-red-700[role="alert"] span { color: var(--red) !important; }

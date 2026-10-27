@@ -1,0 +1,20 @@
+services:
+  compact-runtime:
+    networks:
+      default: {}
+      flow-steward-ingress:
+        aliases:
+          - "${COMPOSE_PROJECT_NAME:-flow-steward}-compact"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${FS_TRAEFIK_NETWORK:?FS_TRAEFIK_NETWORK is required}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact.rule=Host(`${FS_PUBLIC_HOST}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact.entrypoints=${FS_TRAEFIK_HTTPS_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact.service=${COMPOSE_PROJECT_NAME:-flow-steward}-compact"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-flow-steward}-compact.loadbalancer.server.port=${FS_RUNTIME_HTTP_PORT:-8080}"
+
+networks:
+  flow-steward-ingress:
+    external: true
+    name: ${FS_TRAEFIK_NETWORK:?FS_TRAEFIK_NETWORK is required}

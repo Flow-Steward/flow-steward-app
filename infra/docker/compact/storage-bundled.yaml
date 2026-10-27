@@ -1,0 +1,63 @@
+# Item 5, step 5: the bundled object storage (SeaweedFS) beside the Compact runtime.
+# The same storage configuration as Scalable (checked by a derived test), but with
+# Compact's bounded restart policy so host disable remains effective, on the
+# same named volumes -- so a profile switch keeps the stored files where they are -- and
+# on an internal network only the runtime joins: storage is never published, through the
+# ingress or otherwise (AC17-R130). Selected when file_storage is bundled.
+#
+# seaweedfs-config hands the operator's 0600 S3 identity to the server's own user; see
+# the note on that service in docker-compose.prod.yaml (AC17-R116).
+
+services:
+  compact-runtime:
+    networks:
+      - default
+      - artifact-storage
+
+  seaweedfs-config:
+    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    profiles: ["storage-seaweedfs"]
+    user: "0:0"
+    restart: "no"
+    entrypoint: ["sh", "-euc"]
+    command:
+      - |
+        install -o "$$(id -u seaweed)" -g "$$(id -g seaweed)" -m 0600 \
+          /run/flow-steward-runtime/seaweedfs-s3.json /config/seaweedfs-s3.json
+    volumes:
+      - seaweedfs-config:/config
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime/seaweedfs-s3.json:/run/flow-steward-runtime/seaweedfs-s3.json:ro
+
+  seaweedfs:
+    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    profiles: ["storage-seaweedfs"]
+    depends_on:
+      seaweedfs-config:
+        condition: service_completed_successfully
+    restart: on-failure:3
+    stop_grace_period: 30s
+    command: "server -s3 -ip=seaweedfs -ip.bind=0.0.0.0 -master.peers=none -s3.ip.bind=0.0.0.0 -s3.port=8333 -s3.config=/config/seaweedfs-s3.json -dir=/data -volume.max=${SEAWEEDFS_VOLUME_MAX:-100}"
+    expose:
+      - "8333"
+      - "9333"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --quiet --spider http://127.0.0.1:9333/cluster/healthz && wget --quiet --spider --server-response http://127.0.0.1:8333/ 2>&1 | grep -q 'HTTP/'
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    volumes:
+      - seaweedfs-data:/data
+      - seaweedfs-config:/config:ro
+    networks:
+      - artifact-storage
+
+networks:
+  artifact-storage:
+    internal: true
+
+volumes:
+  seaweedfs-config:
+  seaweedfs-data:

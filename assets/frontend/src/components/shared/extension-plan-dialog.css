@@ -1,0 +1,114 @@
+/*
+ * The extension lifecycle dialogs (uninstall plan, browser authority), on the
+ * published Form dialog. Tokens only; each rule exists because canon publishes
+ * no class for a plan list inside a dialog.
+ */
+
+.fs-plan-dialog-id {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+}
+
+/* The extension being uninstalled, by name; its id follows in small type. */
+.fs-plan-dialog-subject {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--fs-text-primary);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-plan-dialog-section {
+  display: grid;
+  gap: var(--fs-space-075);
+}
+
+/* Section headings stay neutral: the plan is read, not colour-coded. */
+.fs-plan-dialog-section h3 {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-field-label-size);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-plan-dialog-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--fs-border-subtle);
+  list-style: none;
+}
+
+.fs-plan-dialog-list > li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--fs-space-200);
+  padding: var(--fs-space-100) 0;
+  border-bottom: 1px solid var(--fs-border-subtle);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-field-label-size);
+}
+
+.fs-plan-dialog-row-copy {
+  display: grid;
+  gap: var(--fs-space-025);
+  min-width: 0;
+}
+
+.fs-plan-dialog-kind {
+  color: var(--fs-text-primary);
+}
+
+.fs-plan-dialog-kind.is-inline {
+  margin-left: var(--fs-space-100);
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-plan-dialog-value {
+  overflow-wrap: anywhere;
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+}
+
+.fs-plan-dialog-list.is-sources .fs-plan-dialog-value { color: var(--fs-text-secondary); }
+
+/* Uninstall plan values are names, not code: plain type. */
+.fs-plan-dialog-list.is-plan .fs-plan-dialog-value {
+  color: var(--fs-text-secondary);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.fs-plan-dialog-count {
+  flex: none;
+  color: var(--fs-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-plan-dialog-reason,
+.fs-plan-dialog-empty {
+  margin: 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+/* The confirmation contract's fixed line, on its own. */
+.fs-plan-dialog-irreversible {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-field-label-size);
+}
+
+.fs-plan-dialog-error {
+  margin: 0;
+  padding: var(--fs-space-100) var(--fs-space-150);
+  border: 1px solid var(--fs-status-danger-border);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-status-danger-bg);
+  color: var(--fs-status-danger);
+  font-size: var(--fs-type-field-label-size);
+}

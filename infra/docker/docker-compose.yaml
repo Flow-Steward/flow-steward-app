@@ -1,0 +1,1015 @@
+x-installation-mode-environment: &installation-mode-environment
+  # Only absent markers inherit; explicit blank/conflicting values must survive.
+  ENVIRONMENT: ${ENVIRONMENT-${FS_STACK_ENVIRONMENT-production}}
+  FS_STACK_ENVIRONMENT: ${FS_STACK_ENVIRONMENT-${ENVIRONMENT-production}}
+
+x-role-common-environment: &role-common-environment
+  ARTIFACT_LOCAL_ROOT_DIR: ${ARTIFACT_LOCAL_ROOT_DIR:-/app/logs/artifacts}
+  ARTIFACT_S3_ACCESS_KEY: ${ARTIFACT_S3_ACCESS_KEY:-}
+  ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:-}
+  ARTIFACT_S3_ENDPOINT_URL: ${ARTIFACT_S3_ENDPOINT_URL:-}
+  ARTIFACT_S3_PUBLIC_ENDPOINT_URL: ${ARTIFACT_S3_PUBLIC_ENDPOINT_URL:-}
+  ARTIFACT_S3_KEY_PREFIX: ${ARTIFACT_S3_KEY_PREFIX:-}
+  ARTIFACT_S3_PRESIGN_TTL_SECONDS: ${ARTIFACT_S3_PRESIGN_TTL_SECONDS:-900}
+  ARTIFACT_S3_REGION: ${ARTIFACT_S3_REGION:-}
+  ARTIFACT_S3_SECRET_KEY: ${ARTIFACT_S3_SECRET_KEY:-}
+  ARTIFACT_S3_USE_SSL: ${ARTIFACT_S3_USE_SSL:-1}
+  ARTIFACT_STORAGE_BACKEND: ${ARTIFACT_STORAGE_BACKEND:-local_fs}
+  FS_DB_DSN: ${FS_DB_DSN:-dbname=flow_steward user=flow_steward password=flow-steward-pass host=pg-fs port=5432}
+  FS_COMPOSE_PROJECT_NAME: ${FS_COMPOSE_PROJECT_NAME:-}
+  FS_DEPLOYMENT_PROFILE: ${FS_DEPLOYMENT_PROFILE:-scalable}
+  FS_INSTALLATION_ID: ${FS_INSTALLATION_ID:-}
+  FS_MONITORING_EXPECTATIONS: ${FS_MONITORING_EXPECTATIONS:-}
+  FS_MONITORING_DEPENDENCIES: ${FS_MONITORING_DEPENDENCIES:-}
+  FS_MONITORING_INTERVAL_SECONDS: ${FS_MONITORING_INTERVAL_SECONDS:-}
+  FS_MONITORING_STALE_SECONDS: ${FS_MONITORING_STALE_SECONDS:-}
+  FS_MONITORING_HISTORY_ENABLED: ${FS_MONITORING_HISTORY_ENABLED:-}
+  FS_MONITORING_CURRENT_RETENTION_DAYS: ${FS_MONITORING_CURRENT_RETENTION_DAYS:-}
+  FS_MONITORING_HISTORY_RETENTION_DAYS: ${FS_MONITORING_HISTORY_RETENTION_DAYS:-}
+  FS_MONITORING_CLEANUP_BATCH_SIZE: ${FS_MONITORING_CLEANUP_BATCH_SIZE:-}
+  FS_MONITORING_QUEUE_MAX_MESSAGES: ${FS_MONITORING_QUEUE_MAX_MESSAGES:-}
+  FS_MONITORING_QUEUE_MAX_BYTES: ${FS_MONITORING_QUEUE_MAX_BYTES:-}
+  FS_MONITORING_OPERATION_TIMEOUT_SECONDS: ${FS_MONITORING_OPERATION_TIMEOUT_SECONDS:-}
+  FS_LOAD_REPO_DOTENV: "0"
+  FS_LOG_FORMAT: ${FS_LOG_FORMAT:-text}
+  FS_LOG_LEVEL: ${FS_LOG_LEVEL:-INFO}
+  FS_OBSERVABILITY_DSN: ${FS_OBSERVABILITY_DSN:-}
+  LANGGRAPH_POSTGRES_URI: ${LANGGRAPH_POSTGRES_URI:-postgresql://flow_steward:flow-steward-pass@pg-fs:5432/flow_steward}
+  PYTHONPYCACHEPREFIX: /app/logs/tool-cache/python/pycache
+  RABBITMQ_URL: ${RABBITMQ_URL:-amqp://flow_steward:flow-steward-pass@rabbitmq-fs:5672/}
+  FS_RABBITMQ_TRANSPORT_MODE: compose-local
+  SECURITY_PII_SALT: ${SECURITY_PII_SALT:-local-dev-pii-salt-not-for-production}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+
+x-app-worker-environment: &app-worker-environment
+  <<: *role-common-environment
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:-local-dev-encryption-key-not-for-production}
+  FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED: ${FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED:-1}
+  FS_CONTEXT_GRAPH_BACKEND: ${FS_CONTEXT_GRAPH_BACKEND:-postgres_age}
+  FS_DEFAULT_MODEL: ${FS_DEFAULT_MODEL:-}
+  FS_DEFAULT_PROVIDER: ${FS_DEFAULT_PROVIDER:-}
+  FS_DEFAULT_TEMPERATURE: ${FS_DEFAULT_TEMPERATURE:-0.1}
+  FS_ALLOW_PRIVATE_REMOTE_URLS: ${FS_ALLOW_PRIVATE_REMOTE_URLS:-0}
+  FS_EXTENSION_DEPS_FETCH: ${FS_EXTENSION_DEPS_FETCH:-0}
+  FS_EXTENSION_DEPS_SITE_MAX_BYTES: ${FS_EXTENSION_DEPS_SITE_MAX_BYTES:-536870912}
+  FS_EXTENSION_ARTIFACT_MAX_BYTES: ${FS_EXTENSION_ARTIFACT_MAX_BYTES:-209715200}
+  FS_BASE64_FILE_MAX_BYTES: ${FS_BASE64_FILE_MAX_BYTES:-52428800}
+  FS_WORKFLOW_TEST_FILE_MAX_BYTES: ${FS_WORKFLOW_TEST_FILE_MAX_BYTES:-52428800}
+  FS_FILE_PREVIEW_MAX_BYTES: ${FS_FILE_PREVIEW_MAX_BYTES:-20971520}
+  FS_EXTENSION_OPERATION_TIMEOUT_SECONDS: ${FS_EXTENSION_OPERATION_TIMEOUT_SECONDS:-300}
+  FS_EXTENSION_CATALOG_URL: ${FS_EXTENSION_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/extensions/main/index.json}
+  FS_MCP_CATALOG_URL: ${FS_MCP_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/mcps/main/index.json}
+  FS_EXTENSION_TRUSTED_LOCAL_FS_ARTIFACT_GRANTS: ${FS_EXTENSION_TRUSTED_LOCAL_FS_ARTIFACT_GRANTS:-0}
+  FS_EXTENSIONS_ROOT: /app/extensions
+  FS_FEED_MAX_BYTES: ${FS_FEED_MAX_BYTES:-1073741824}
+  FS_FEED_MAX_ROWS: ${FS_FEED_MAX_ROWS:-2000000}
+  FS_MEMORY_KNOWLEDGE_BACKEND: ${FS_MEMORY_KNOWLEDGE_BACKEND:-postgres}
+  FS_MEMORY_PROFILE: ${FS_MEMORY_PROFILE:-postgres_unified}
+  FS_MEMORY_REPOSITORY_BACKEND: ${FS_MEMORY_REPOSITORY_BACKEND:-postgres}
+  FS_MEMORY_TEXT_SEARCH_BACKEND: ${FS_MEMORY_TEXT_SEARCH_BACKEND:-postgres_fts}
+  FS_MEMORY_VECTOR_BACKEND: ${FS_MEMORY_VECTOR_BACKEND:-postgres_pgvector}
+  FS_LLM_REQUEST_TIMEOUT_SECONDS: ${FS_LLM_REQUEST_TIMEOUT_SECONDS:-}
+  FS_PGVECTOR_DSN: ${FS_PGVECTOR_DSN:-}
+  FS_SECRET_KEY: ${FS_SECRET_KEY:-local-dev-secret-not-for-production}
+  FS_TABULAR_FEED_MAX_MATERIALIZE_BYTES: ${FS_TABULAR_FEED_MAX_MATERIALIZE_BYTES:-134217728}
+  FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_BYTES: ${FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_BYTES:-67108864}
+  FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_ROWS: ${FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_ROWS:-100000}
+  FS_WORKFLOW_TEMPLATE_CATALOG_URL: ${FS_WORKFLOW_TEMPLATE_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/workflows/main/index.json}
+  MCP_URL: ${MCP_URL:-http://fs-mcp:8100/mcp}
+
+services:
+  traefik:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.3}
+    restart: always
+    command:
+      - --providers.file.filename=/etc/traefik/dynamic/fs.dynamic.yaml
+      - --entrypoints.web.address=:${HTTP_PORT:-8080}
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:${APP_PORT:-8099}
+      - --entrypoints.websecure.http3=true
+      - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+    ports:
+      - "${FS_PUBLIC_BIND_HOST:-0.0.0.0}:${HTTP_PORT:-8080}:${HTTP_PORT:-8080}/tcp"
+      - "${FS_PUBLIC_BIND_HOST:-0.0.0.0}:${APP_PORT:-8099}:${APP_PORT:-8099}/tcp"
+      - "${FS_PUBLIC_BIND_HOST:-0.0.0.0}:${APP_PORT:-8099}:${APP_PORT:-8099}/udp"
+    volumes:
+      # AC17-R145: the directory, not the file. `git checkout` replaces the file with a
+      # new inode, and a single-file bind keeps the old one: Traefik is not recreated
+      # by an update, so it went on serving the previous release's routes. Through the
+      # directory it sees the new file and its file provider reloads it.
+      - ../traefik:/etc/traefik/dynamic:ro
+      - ../../.ssl:/etc/traefik/certs:ro
+
+  rabbitmq-fs:
+    image: ${RABBITMQ_IMAGE:-rabbitmq:3.13-management}
+    healthcheck:
+      # AC17-R134: the AMQP listener, not ping. Measured: ping answers OK 4-5s before
+      # the listener accepts anything, because it only says the Erlang node is
+      # reachable. What a dependent needs is the listener.
+      # AC17-R151: a TCP connect, not rabbitmq-diagnostics. Each diagnostics run boots a
+      # fresh Erlang VM; every 2 s for the container's life that kept half a core busy
+      # on an idle server. Measured on this image: the port accepts at the same moment
+      # the broker answers the AMQP protocol header with Connection.Start, and the probe
+      # costs ~1.5% of a core instead of 23-53%.
+      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/5672"]
+      interval: 2s
+      timeout: 10s
+      retries: 60
+      start_period: 5s
+    restart: always
+    hostname: rabbitmq-fs
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-flow_steward}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-flow-steward-pass}
+    ports:
+      - "127.0.0.1:${RABBITMQ_AMQP_HOST_PORT:-5673}:5672"       # AMQP
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-15673}:15672" # Management UI
+    volumes:
+      - fs-rabbitmq:/var/lib/rabbitmq
+
+  # Disposable quality-gate broker. It has no host port or durable volume and
+  # is started/removed by lint.sh, so tests cannot publish into the app vhost.
+  rabbitmq-audit:
+    image: ${RABBITMQ_IMAGE:-rabbitmq:3.13-management}
+    profiles: ["audit"]
+    environment:
+      RABBITMQ_DEFAULT_USER: audit
+      RABBITMQ_DEFAULT_PASS: audit
+      RABBITMQ_DEFAULT_VHOST: flow_steward_audit
+    tmpfs:
+      - /var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "gosu", "rabbitmq", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: "no"
+
+  # Mailpit for local system-email testing (password reset, verification, etc.)
+  # Web UI:  http://localhost:8025
+  # SMTP:    localhost:1025
+  mailpit:
+    image: axllent/mailpit@sha256:757f22b56c1da03570afdb3d259effe5091018008a81bbedc8158cee7e16fdbc
+    profiles: ["development"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:8025/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_WEB_PORT:-8025}:8025"
+
+  pg-fs:
+    shm_size: ${POSTGRES_SHM_SIZE:-1gb}
+    build:
+      context: ../..
+      dockerfile: infra/docker/postgres-extended/Dockerfile
+      args:
+        AGE_REF: ${AGE_REF:-PG17/v1.6.0-rc0}
+    image: ${POSTGRES_IMAGE:-fs-postgres-extended:0.1.0-pgvector-0.8.5}
+    healthcheck:
+      # AC17-R134: over TCP on purpose. While /docker-entrypoint-initdb.d is still
+      # running, the entrypoint has a temporary server up on the unix socket only,
+      # and a socket pg_isready answers OK to that one -- measured here as 22s
+      # before the schema existed. The temporary server sets listen_addresses='',
+      # so a TCP answer is the one that cannot arrive early.
+      test:
+        ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 5s
+    restart: always
+    command:
+      - postgres
+      - -c
+      - compute_query_id=auto
+      - -c
+      - shared_preload_libraries=${POSTGRES_SHARED_PRELOAD_LIBRARIES:-age,pg_stat_statements}
+      - -c
+      - session_preload_libraries=${POSTGRES_SESSION_PRELOAD_LIBRARIES:-auto_explain}
+      - -c
+      - log_min_duration_statement=${POSTGRES_LOG_MIN_DURATION_STATEMENT:-500ms}
+      - -c
+      - log_line_prefix=${POSTGRES_LOG_LINE_PREFIX:-%m [%p] db=%d,user=%u,app=%a,client=%h}
+      - -c
+      - log_lock_waits=${POSTGRES_LOG_LOCK_WAITS:-on}
+      - -c
+      - deadlock_timeout=${POSTGRES_DEADLOCK_TIMEOUT:-200ms}
+      - -c
+      - track_io_timing=${POSTGRES_TRACK_IO_TIMING:-on}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1536MB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-256MB}
+      - -c
+      - random_page_cost=${POSTGRES_RANDOM_PAGE_COST:-1.1}
+      - -c
+      - effective_io_concurrency=${POSTGRES_EFFECTIVE_IO_CONCURRENCY:-200}
+      - -c
+      - checkpoint_completion_target=${POSTGRES_CHECKPOINT_COMPLETION_TARGET:-0.9}
+      - -c
+      - wal_compression=${POSTGRES_WAL_COMPRESSION:-on}
+      - -c
+      - max_wal_size=${POSTGRES_MAX_WAL_SIZE:-4GB}
+      - -c
+      - min_wal_size=${POSTGRES_MIN_WAL_SIZE:-512MB}
+      - -c
+      - default_statistics_target=${POSTGRES_DEFAULT_STATISTICS_TARGET:-200}
+      - -c
+      - jit=${POSTGRES_JIT:-off}
+      - -c
+      - pg_stat_statements.track=${POSTGRES_PG_STAT_STATEMENTS_TRACK:-all}
+      - -c
+      - pg_stat_statements.max=${POSTGRES_PG_STAT_STATEMENTS_MAX:-10000}
+      - -c
+      - auto_explain.log_min_duration=${POSTGRES_AUTO_EXPLAIN_LOG_MIN_DURATION:-500ms}
+      - -c
+      - auto_explain.log_analyze=${POSTGRES_AUTO_EXPLAIN_LOG_ANALYZE:-on}
+      - -c
+      - auto_explain.log_buffers=${POSTGRES_AUTO_EXPLAIN_LOG_BUFFERS:-on}
+      - -c
+      - auto_explain.log_timing=${POSTGRES_AUTO_EXPLAIN_LOG_TIMING:-on}
+      - -c
+      - auto_explain.log_nested_statements=${POSTGRES_AUTO_EXPLAIN_LOG_NESTED_STATEMENTS:-on}
+      - -c
+      - auto_explain.sample_rate=${POSTGRES_AUTO_EXPLAIN_SAMPLE_RATE:-1.0}
+      # A session left idle inside a transaction holds its snapshot and every row
+      # lock the transaction took. With no ceiling one leaked read wedged the
+      # platform for 28 minutes — the worker could not terminalize a job and no
+      # cancel could acquire the row — and restarting the application did not
+      # clear it, because the orphaned backends outlived it (RD-001 / RD-002).
+      # 60s is far longer than any legitimate transaction here and short enough
+      # that a leak self-heals.
+      - -c
+      - idle_in_transaction_session_timeout=${POSTGRES_IDLE_IN_TRANSACTION_SESSION_TIMEOUT:-60s}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-flow_steward}
+      POSTGRES_USER: ${POSTGRES_USER:-flow_steward}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flow-steward-pass}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - fs-postgres:/var/lib/postgresql/data
+      # Auto-run on first DB creation (only when the named volume is empty)
+      - ../../db/schema:/docker-entrypoint-initdb.d:ro
+
+  # Reconciles the least-privilege PostgreSQL fixture used by the local
+  # extension-backed Dataset audit. The production compose defines the same
+  # one-shot service with the inverse operation, so an environment transition
+  # removes the role and view before any production runtime starts.
+  dev-dataset-fixture:
+    image: ${POSTGRES_IMAGE:-fs-postgres-extended:0.1.0-pgvector-0.8.5}
+    depends_on:
+      pg-fs:
+        condition: service_healthy
+    environment:
+      FS_STACK_ENVIRONMENT: development
+      PGPASSWORD: ${POSTGRES_PASSWORD:-flow-steward-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-flow_steward}
+      POSTGRES_USER: ${POSTGRES_USER:-flow_steward}
+    volumes:
+      - ./postgres-dev-dataset-fixture/enable.sql:/fixture/enable.sql:ro
+    restart: "no"
+    command:
+      - sh
+      - -euc
+      - |
+        until pg_isready -h pg-fs -p 5432 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"; do sleep 1; done
+        reader_password=$$(printf '%s' "flow-steward-dev-dataset-reader:$$PGPASSWORD" | sha256sum | cut -d ' ' -f 1)
+        PGOPTIONS="-c flow_steward.stack_environment=$$FS_STACK_ENVIRONMENT -c flow_steward.dev_dataset_reader_password=$$reader_password" \
+          psql -h pg-fs -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /fixture/enable.sql
+
+  # Disposable canonical quality-gate DB. The schema is initialized exactly as
+  # the app DB is, but storage is tmpfs and the service has no host port.
+  pg-audit:
+    image: ${POSTGRES_IMAGE:-fs-postgres-extended:0.1.0-pgvector-0.8.5}
+    profiles: ["audit"]
+    environment:
+      POSTGRES_DB: flow_steward_audit
+      POSTGRES_USER: audit
+      POSTGRES_PASSWORD: audit  # pragma: allowlist secret -- disposable tmpfs audit DB
+    volumes:
+      - ../../db/schema:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit -d flow_steward_audit"]
+      interval: 2s
+      timeout: 5s
+      retries: 45
+    restart: "no"
+
+  memory-postgres-extensions:
+    image: ${POSTGRES_IMAGE:-fs-postgres-extended:0.1.0-pgvector-0.8.5}
+    depends_on:
+      pg-fs:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-flow-steward-pass}
+    command:
+      - sh
+      - -lc
+      - |
+        until pg_isready -h pg-fs -p 5432 -U ${POSTGRES_USER:-flow_steward}; do sleep 1; done
+        psql -h pg-fs -U ${POSTGRES_USER:-flow_steward} -d ${POSTGRES_DB:-flow_steward} -v ON_ERROR_STOP=1 <<'SQL'
+        CREATE EXTENSION IF NOT EXISTS age;
+        CREATE EXTENSION IF NOT EXISTS vector;
+        CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        CREATE EXTENSION IF NOT EXISTS unaccent;
+        SET maintenance_work_mem = '64MB';
+        ALTER TABLE memory_records ADD COLUMN IF NOT EXISTS embedding vector(1536);
+        CREATE INDEX IF NOT EXISTS idx_memory_records_embedding_cosine
+          ON memory_records USING hnsw (embedding vector_cosine_ops);
+        SQL
+    tmpfs:
+      - /var/lib/postgresql/data
+    restart: "no"
+
+  # Install every extension's pinned wheel closure into its own local site
+  # before long-running consumers start. This is offline and fail-closed.
+  extension-dependencies:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: app-runtime
+      # fs-app owns this cache destination. Both services build the same target
+      # from the same context, and two exporters renaming into one local cache
+      # directory race: the images built, but a parallel `compose build` exited
+      # non-zero. Reading it here keeps the reuse without the second writer.
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/app
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.0}
+    user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
+    environment:
+      # A uid the image's /etc/passwd does not know has no home to resolve: the
+      # container gives it `/`, and a subprocess built from an allowlist gets no HOME
+      # at all. Every service pinned to the operator declares this.
+      HOME: /tmp
+      FS_EXTENSION_DEPS_FETCH: ${FS_EXTENSION_DEPS_FETCH:-0}
+      FS_EXTENSION_DEPS_SITE_MAX_BYTES: ${FS_EXTENSION_DEPS_SITE_MAX_BYTES:-536870912}
+      PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
+    volumes:
+      - ../../extensions:/app/extensions
+    restart: "no"
+    command:
+      - python
+      - -m
+      - core.infrastructure.extension_runtime.bundled_dependencies
+      - /app/extensions
+
+  # `app-runtime` is a Python image with no Node in it. It ships the built
+  # frontend at assets/frontend/dist, and the bind mount below hides that
+  # directory: on a clean checkout there is no host dist, start_server.sh finds
+  # no manifest, and the image has no npm to build one — so a first --no-cache
+  # build/up crash-looped on a missing asset with nothing naming the cause.
+  # This runs once in the image workspace that already has Node dependencies,
+  # then publishes only the built dist into the host frontend bind that the app
+  # reads through its repository mount. Keeping these paths disjoint avoids the
+  # nested-volume behaviour that can hide node_modules on Docker Desktop.
+  frontend-assets:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: frontend-development
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/frontend
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    image: ${FS_FRONTEND_IMAGE:-flow-steward-frontend:0.9.0}
+    user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
+    environment:
+      # A uid the image's /etc/passwd does not know has no home to resolve: the
+      # container gives it `/`, and a subprocess built from an allowlist gets no HOME
+      # at all. Every service pinned to the operator declares this.
+      HOME: /tmp
+    volumes:
+      - ../../assets/frontend:/host-frontend
+      - ../../assets:/host-assets:ro
+    restart: "no"
+    # Build only when the shared startup criterion says dist is missing or stale.
+    # A fresh developer-owned build is left alone.
+    command:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        source /usr/local/lib/frontend_shell_freshness.sh
+        if ! frontend_shell_build_required /host-frontend /host-assets/platform-kit /host-assets/platform-components.css; then
+          echo "[frontend-assets] dist is present and fresh; leaving it alone"
+          exit 0
+        fi
+        echo "[frontend-assets] building assets/frontend/dist for the app to serve"
+        build_root=$$(mktemp -d /tmp/flow-steward-frontend-assets.XXXXXX)
+        mkdir -p "$$build_root/assets/frontend"
+        tar -C /host-frontend \
+          --exclude=node_modules \
+          --exclude=dist \
+          -cf - . | tar -C "$$build_root/assets/frontend" -xf -
+        cp -R /host-assets/platform-kit "$$build_root/assets/platform-kit"
+        cp /host-assets/platform-components.css "$$build_root/assets/platform-components.css"
+        ln -s /app/assets/frontend/node_modules "$$build_root/assets/frontend/node_modules"
+        cd "$$build_root/assets/frontend"
+        npm run build
+        test -f dist/.vite/manifest.json
+        rm -rf /host-frontend/.dist.frontend-assets-staging
+        cp -R dist /host-frontend/.dist.frontend-assets-staging
+        rm -rf /host-frontend/dist
+        mv /host-frontend/.dist.frontend-assets-staging /host-frontend/dist
+        test -f /host-frontend/dist/.vite/manifest.json
+
+  fs-app:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: app-runtime
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/app
+      cache_to:
+        - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/app,mode=min
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.0}
+    user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
+    expose:
+      - "8099"
+    environment:
+      # AC17-R123: a role that runs extension steps must be able to hand one a URL
+      # for an artifact this storage cannot presign, and it serves that URL itself.
+      # Delivered here as well as in the Compact supervisor because neither path
+      # reaches the other profile: process_spec.py ships only in the compact image.
+      FS_APP_INTERNAL_URL: "http://fs-app:8099"
+      <<: [*app-worker-environment, *installation-mode-environment]
+      # Shown on Settings -> Retention for accounts with no saved policy.
+      FS_RETENTION_LOGS_DAYS: ${FS_RETENTION_LOGS_DAYS:-30}
+      FS_RETENTION_MESSAGES_DAYS: ${FS_RETENTION_MESSAGES_DAYS:-30}
+      FS_RETENTION_TRASH_DAYS: ${FS_RETENTION_TRASH_DAYS:-30}
+      FS_RETENTION_TERMINAL_JOB_CHECKPOINTS_DAYS: ${FS_RETENTION_TERMINAL_JOB_CHECKPOINTS_DAYS:-30}
+      FS_RETENTION_REVISIONS_KEEP: ${FS_RETENTION_REVISIONS_KEEP:-5}
+      HOME: /tmp
+      FS_AUTH_BOOTSTRAP_ALLOW_TRUSTED_PROXY: ${FS_AUTH_BOOTSTRAP_ALLOW_TRUSTED_PROXY:-0}
+      FS_AUTH_BOOTSTRAP_ENABLED: ${FS_AUTH_BOOTSTRAP_ENABLED:-1}
+      FS_AUTH_BOOTSTRAP_LOCALHOST_ONLY: ${FS_AUTH_BOOTSTRAP_LOCALHOST_ONLY:-1}
+      TEST_RUNNER_BASE_URL: "http://fs-app:8099"
+      FS_SERVE_SSL: "0"
+      FS_GZIP_ENABLED: "0"
+      FS_AUTH_BOOTSTRAP_STATE_FILE: ${FS_AUTH_BOOTSTRAP_STATE_FILE:-}
+      FS_AUTH_BOOTSTRAP_TOKEN: ${FS_AUTH_BOOTSTRAP_TOKEN:-}
+      FS_AUTH_BOOTSTRAP_TOKEN_EXPIRES_AT: ${FS_AUTH_BOOTSTRAP_TOKEN_EXPIRES_AT:-}
+      FS_AUTH_COOKIE_SECURE: ${FS_AUTH_COOKIE_SECURE:-0}
+      FS_AUTH_TRUSTED_ORIGINS: ${FS_AUTH_TRUSTED_ORIGINS:-}
+      FS_DOCS_INTERNAL_ENABLED: ${FS_DOCS_INTERNAL_ENABLED:-0}
+      FS_DOCS_PUBLIC_ENABLED: ${FS_DOCS_PUBLIC_ENABLED:-0}
+      FS_LOCAL_AUTH_ENABLED: ${FS_LOCAL_AUTH_ENABLED:-1}
+      FS_METRICS_TOKEN: ${FS_METRICS_TOKEN:-}
+      FS_OPENAPI_INTERNAL_ENABLED: ${FS_OPENAPI_INTERNAL_ENABLED:-0}
+      FS_OPENAPI_PUBLIC_ENABLED: ${FS_OPENAPI_PUBLIC_ENABLED:-0}
+      FS_PROCESS_METRICS_HOST: ${FS_PROCESS_METRICS_HOST:-0.0.0.0}
+      # External review P2: the proxies `config` recorded as trusted; start_server.sh adds
+      # them to uvicorn's --forwarded-allow-ips. Compact hands the same value to its router.
+      FS_PROXY_TRUSTED_IPS: ${FS_PROXY_TRUSTED_IPS:-}
+      FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL:-https://localhost:8099}
+      FS_EXTENSION_INSTALLER_PROXY_ENABLED: "1"
+      CONTROL_LOOPS_ENABLED: "0"
+      PORT: "8099"
+      WORKERS: ${APP_WORKERS:-1}
+    volumes:
+      - ../../:/app
+      - ../../extensions:/app/extensions:ro
+      - fs-frontend-node-modules:/app/assets/frontend/node_modules
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:ro
+    depends_on:
+      dev-dataset-fixture:
+        condition: service_completed_successfully
+      extension-dependencies:
+        condition: service_completed_successfully
+      frontend-assets:
+        condition: service_completed_successfully
+      traefik:
+        condition: service_started
+      pg-fs:
+        condition: service_healthy
+      rabbitmq-fs:
+        condition: service_healthy
+      fs-mcp:
+        condition: service_started
+    restart: always
+    command: ["/app/core/entrypoints/cli/scripts/start_server.sh"]
+
+  # Browser archive operations share the CLI installer services and normal API auth.
+  fs-extension-installer:
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.0}
+    restart: always
+    user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
+    environment:
+      <<: *app-worker-environment
+      HOME: /tmp
+      PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
+      FS_AUTH_BOOTSTRAP_ENABLED: "0"
+      FS_LOCAL_AUTH_ENABLED: ${FS_LOCAL_AUTH_ENABLED:-1}
+      FS_AUTH_COOKIE_SECURE: ${FS_AUTH_COOKIE_SECURE:-0}
+      FS_AUTH_TRUSTED_ORIGINS: ${FS_AUTH_TRUSTED_ORIGINS:-}
+      FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL:-https://localhost:8099}
+      FS_SERVE_SSL: "0"
+      CONTROL_LOOPS_ENABLED: "0"
+    expose:
+      - "8099"
+    volumes:
+      # No /app bind. With `../../:/app:ro` present, the observed Docker
+      # Desktop/virtiofs runtime mounted only /app, read-only: `docker inspect`
+      # listed the nested /app/extensions bind but /proc/mounts inside the live
+      # container did not have it at all, so the extensions tree was part of the
+      # read-only parent and the capability check read ST_RDONLY and disabled
+      # archive installation. Production has never had the /app bind; the
+      # installer runs the code baked into FS_APP_IMAGE, as production does.
+      - ../../extensions:/app/extensions:rw
+      - ${FS_LOGS_DIR:-../../logs}:/app/logs
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:ro
+    depends_on:
+      extension-dependencies:
+        condition: service_completed_successfully
+      pg-fs:
+        condition: service_healthy
+      rabbitmq-fs:
+        condition: service_healthy
+    command: ["python", "-m", "uvicorn", "core.entrypoints.api.extension_installer:create_app", "--factory", "--host", "0.0.0.0", "--port", "8099"]
+    networks:
+      - default
+      - artifact-storage
+
+  fs-cli:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: cli
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/cli
+      cache_to:
+        - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/cli,mode=min
+      args:
+        FS_BUILD_REVISION: ${FS_BUILD_REVISION:-unknown}
+    image: ${FS_CLI_IMAGE:-flow-steward-cli:0.9.0}
+    profiles: ["cli"]
+    entrypoint: ["python", "-m", "core.entrypoints.cli.warm_runtime"]
+    restart: always
+    labels:
+      com.flow-steward.cli-runtime: "true"
+      com.flow-steward.cli-runtime-contract: "1"
+      com.flow-steward.cli-runtime-revision: "${FS_CLI_RUNTIME_REVISION:-unconfigured}"
+    working_dir: /app
+    user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
+    group_add:
+      - "${FS_DOCKER_GID:-0}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      <<: *installation-mode-environment
+      HOME: /tmp
+      FS_DOCKER_HOST_PROJECT_ROOT: ${FS_DOCKER_HOST_PROJECT_ROOT:-}
+      FS_INSTALLER_USE_HOST_PYTHON: "0"
+      FS_LOAD_REPO_DOTENV: "0"
+      TERM: ${TERM:-}
+      PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
+    volumes:
+      - ${FS_DOCKER_HOST_PROJECT_ROOT:-../../}:${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:rw
+    networks:
+      - default
+      - artifact-storage
+
+  fs-extension-manager:
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.0}
+    profiles: ["cli"]
+    restart: "no"
+    command: ["true"]
+    working_dir: ${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}
+    user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
+    environment:
+      <<: *app-worker-environment
+      FS_DOCKER_HOST_PROJECT_ROOT: ${FS_DOCKER_HOST_PROJECT_ROOT:-}
+      FS_EXTENSIONS_ROOT: /app/extensions
+      FS_OPERATION_LOG_ROOT: /run/flow-steward-logs
+      HOME: /tmp
+      PYTHONPATH: /app
+      PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
+      PYTHONSAFEPATH: "1"
+      TERM: ${TERM:-}
+    volumes:
+      - ${FS_DOCKER_HOST_PROJECT_ROOT:-../../}:${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}:ro
+      # The project root above is read-only on purpose, but a mutating command
+      # writes its own operation log before it runs, so it needs somewhere to
+      # write it. This is a top-level mount rather than one nested inside the
+      # read-only root, because Docker Desktop's virtiofs drops a nested bind
+      # intermittently — with it nested, every install failed before reading
+      # its archive, and said only that something internal had gone wrong.
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/logs:/run/flow-steward-logs:rw
+      - ../../extensions:/app/extensions:rw
+    networks:
+      - default
+      - artifact-storage
+
+  # React shell hot-reload server for local frontend work.
+  fs-frontend:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: frontend-development
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/frontend
+      cache_to:
+        - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/frontend,mode=min
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    image: ${FS_FRONTEND_IMAGE:-flow-steward-frontend:0.9.0}
+    profiles: ["development"]
+    depends_on:
+      fs-app:
+        condition: service_started
+    environment:
+      FS_AUTO_RELOAD: "${FS_AUTO_RELOAD:-0}"
+      VITE_BACKEND_TARGET: "http://fs-app:8099"
+    volumes:
+      - ../../:/app
+      - fs-frontend-node-modules:/app/assets/frontend/node_modules
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-15173}:5173"
+    restart: always
+    command: ["/usr/local/bin/start_frontend_dev.sh"]
+
+  # Isolated test runner for long E2E/UI suites.
+  # Run via:
+  #   docker compose run --rm -T fs-test-runner python -m pytest tests/e2e/test_workflow_parallelism.py -q -rs
+  # Kept out of the default stack with the "test" profile so it doesn't start on plain `up`.
+  fs-test-runner:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: audit
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/audit
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    profiles: ["test"]
+    group_add:
+      - "${FS_DOCKER_GID:-0}"
+    env_file: ../../.env
+    environment:
+      FS_SECRET_KEY: ${FS_SECRET_KEY:-local-dev-secret-not-for-production}
+      MCP_URL: "http://fs-mcp:8100/mcp"
+      FS_MEMORY_TEXT_SEARCH_BACKEND: ${FS_MEMORY_TEXT_SEARCH_BACKEND:-postgres_fts}
+      FS_MEMORY_VECTOR_BACKEND: ${FS_MEMORY_VECTOR_BACKEND:-postgres_pgvector}
+      FS_CONTEXT_GRAPH_BACKEND: ${FS_CONTEXT_GRAPH_BACKEND:-postgres_age}
+      APP_BASE_URL: ${TEST_RUNNER_BASE_URL:-http://fs-app:8099}
+      FS_SERVE_SSL: "0"
+      E2E_VERIFY_SSL: "0"
+      PYTHONPYCACHEPREFIX: /app/logs/tool-cache/python/pycache
+    volumes:
+      - ../../:/app
+      - fs-frontend-node-modules:/app/assets/frontend/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      pg-fs:
+        condition: service_healthy
+      rabbitmq-fs:
+        condition: service_healthy
+      fs-mcp:
+        condition: service_started
+    restart: "no"
+    command: ["tail", "-f", "/dev/null"]
+
+  # On-demand audit container (quality/security/deep checks).
+  # Not started by default; run explicitly, for example:
+  #   docker compose run --rm -T fs-audit ./core/entrypoints/cli/scripts/lint.sh --inside --audit
+  fs-audit:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: audit
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/audit
+      cache_to:
+        - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/audit,mode=min
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    profiles: ["audit"]
+    env_file: ../../.env
+    environment:
+      FS_AUDIT_ISOLATED: "1"
+      # The gate is a development container. With no marker at all the runtime reads
+      # silence as production (AC17-R129), and then the gate's result depended on
+      # whatever the developer's own .env happened to declare.
+      FS_STACK_ENVIRONMENT: development
+      # The checkout may also be a running installation; its .flow-steward/compose.env
+      # names that installation's compose files and environment, not the gate's.
+      FS_STACK_ENV_FILE: /dev/null
+      FS_AUTH_ALLOW_DISABLED: "1"
+      FS_SECRET_KEY: ${FS_SECRET_KEY:-local-dev-secret-not-for-production}
+      FS_DB_DSN: "dbname=flow_steward_audit user=audit password=audit host=pg-audit port=5432"  # pragma: allowlist secret -- disposable tmpfs audit DB
+      DATABASE_URL: "postgresql://audit:audit@pg-audit:5432/flow_steward_audit"  # pragma: allowlist secret -- disposable tmpfs audit DB
+      LANGGRAPH_POSTGRES_URI: "postgresql://audit:audit@pg-audit:5432/flow_steward_audit"
+      POSTGRES_DB: flow_steward_audit
+      POSTGRES_USER: audit
+      POSTGRES_PASSWORD: audit
+      RABBITMQ_URL: "amqp://audit:audit@rabbitmq-audit:5672/flow_steward_audit"
+      FS_RABBITMQ_TRANSPORT_MODE: audit-local
+      ARTIFACT_STORAGE_BACKEND: local_fs
+      ARTIFACT_KEY_PREFIX: audit/
+      ARTIFACT_LOCAL_ROOT_DIR: /tmp/flow-steward-audit-artifacts
+      FS_ARTIFACT_ROOT: /tmp/flow-steward-audit-ops
+      MCP_URL: "http://127.0.0.1:9/mcp"
+      FS_MEMORY_TEXT_SEARCH_BACKEND: ${FS_MEMORY_TEXT_SEARCH_BACKEND:-postgres_fts}
+      FS_MEMORY_VECTOR_BACKEND: ${FS_MEMORY_VECTOR_BACKEND:-postgres_pgvector}
+      FS_CONTEXT_GRAPH_BACKEND: ${FS_CONTEXT_GRAPH_BACKEND:-postgres_age}
+      APP_BASE_URL: "http://127.0.0.1:9"
+      TEST_RUNNER_BASE_URL: "http://127.0.0.1:9"
+      FS_SERVE_SSL: "0"
+      E2E_VERIFY_SSL: "0"
+      PYTHONPYCACHEPREFIX: /app/logs/tool-cache/python/pycache
+    volumes:
+      - ../../:/app
+      # One cache for every checkout and compose project: content-addressed
+      # evidence, per-file scan results and the npm package cache. A fresh
+      # worktree otherwise starts cold and reruns and redownloads everything.
+      - quality-cache:/home/fs/.cache/flow-steward-quality
+    tmpfs:
+      - /tmp/flow-steward-audit-artifacts
+      - /tmp/flow-steward-audit-ops
+    depends_on:
+      pg-audit:
+        condition: service_healthy
+      rabbitmq-audit:
+        condition: service_healthy
+    restart: "no"
+    command: ["tail", "-f", "/dev/null"]
+
+  # Optional SonarQube stack for deep static analysis.
+  # Start only on demand:
+  #   docker compose --profile quality up -d sonarqube
+  #   SONAR_TOKEN=... ./core/entrypoints/cli/scripts/lint.sh --sonar
+  sonarqube:
+    image: ${SONAR_IMAGE:-sonarqube:community}
+    profiles: ["quality"]
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+      SONAR_WEB_JAVAOPTS: "${SONAR_WEB_JAVAOPTS:--Xms512m -Xmx1024m}"
+      SONAR_CE_JAVAOPTS: "${SONAR_CE_JAVAOPTS:--Xms512m -Xmx2048m}"
+      SONAR_SEARCH_JAVAOPTS: "${SONAR_SEARCH_JAVAOPTS:--Xms512m -Xmx1024m}"
+    ports:
+      - "${SONAR_PORT:-9000}:9000"
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    mem_limit: ${SONAR_MEM_LIMIT:-6g}
+    restart: unless-stopped
+
+  sonar-scanner:
+    image: ${SONAR_SCANNER_IMAGE:-sonarsource/sonar-scanner-cli@sha256:23ca0f137965d9dff2198074043fd48d386280bc5d0ccac8c8349cea4cf096a9}
+    profiles: ["quality"]
+    working_dir: /usr/src
+    environment:
+      SONAR_HOST_URL: ${SONAR_HOST_URL:-http://sonarqube:9000}
+      SONAR_TOKEN: ${SONAR_TOKEN:-}
+      SONAR_USER_HOME: /usr/src/logs/tool-cache/sonar
+      SONAR_SCANNER_JAVA_OPTS: "${SONAR_SCANNER_JAVA_OPTS:--Xmx1g}"
+    volumes:
+      - ../../:/usr/src
+    depends_on:
+      - sonarqube
+    mem_limit: ${SONAR_SCANNER_MEM_LIMIT:-6g}
+    restart: "no"
+    command: ["sonar-scanner"]
+
+  # Generic worker pool runtime (ready queue + DB project lease slots).
+  # Scale fs-worker by configuration, so every later `compose up` keeps the count:
+  #   ./flow-steward config set --worker-replicas 3 && ./flow-steward config apply --confirm
+  # (or FS_WORKER_REPLICAS=3 for a hand-run development stack).
+  # Optional scoped mode for debugging:
+  #   docker compose exec fs-app python -m core.entrypoints.cli.worker_process --project-id 1
+  fs-worker:
+    # Review P2: the worker count is configuration (`config set --worker-replicas`),
+    # so every `compose up` keeps it. A bare `--scale` was undone by the next one.
+    deploy:
+      replicas: ${FS_WORKER_REPLICAS:-1}
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: worker-runtime
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/worker
+      cache_to:
+        - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/worker,mode=min
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    image: ${FS_WORKER_IMAGE:-flow-steward-worker:0.9.0}
+    environment:
+      # AC17-R123: a role that runs extension steps must be able to hand one a URL
+      # for an artifact this storage cannot presign, and it serves that URL itself.
+      # Delivered here as well as in the Compact supervisor because neither path
+      # reaches the other profile: process_spec.py ships only in the compact image.
+      FS_APP_INTERNAL_URL: "http://fs-app:8099"
+      # Notification emails sent from the worker link back to the run.
+      FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL:-https://localhost:8099}
+      <<: *app-worker-environment
+      # Retained for the project_list reachability/authority probe; project context no longer hops through MCP.
+      MCP_BEARER_TOKEN: ${FS_WORKER_MCP_BEARER_TOKEN:-}
+      FS_MCP_GROUNDING_REQUIRED: "1"
+      FS_EXTENSION_INBOUND_POLL_ENABLED: ${FS_EXTENSION_INBOUND_POLL_ENABLED:-1}
+      FS_METRICS_TOKEN: ${FS_METRICS_TOKEN:-}
+      FS_PROCESS_METRICS_HOST: ${FS_PROCESS_METRICS_HOST:-0.0.0.0}
+      FS_WORKER_METRICS_PORT: ${FS_WORKER_METRICS_PORT:-9101}
+    volumes:
+      - ../../:/app
+      - ../../extensions:/app/extensions:ro
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:ro
+    expose:
+      - "${FS_WORKER_METRICS_PORT:-9101}"
+    depends_on:
+      dev-dataset-fixture:
+        condition: service_completed_successfully
+      extension-dependencies:
+        condition: service_completed_successfully
+      pg-fs:
+        condition: service_healthy
+      rabbitmq-fs:
+        condition: service_healthy
+      fs-mcp:
+        condition: service_started
+    restart: always
+    command: ["python", "-m", "core.entrypoints.cli.worker_process"]
+
+  # Control-plane process: watchdog + scheduled-jobs loops.
+  # Runs as exactly one instance; app transport keeps CONTROL_LOOPS_ENABLED=0.
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: control-runtime
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/control
+      cache_to:
+        - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/control,mode=min
+      args:
+        BUILD_SHA: ${FS_BUILD_SHA:-unknown}
+    image: ${FS_CONTROL_IMAGE:-flow-steward-control:0.9.0}
+    environment:
+      <<: *role-common-environment
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-local-dev-encryption-key-not-for-production}
+      FS_DASHBOARD_ROLLUP_BACKFILL_DAYS: ${FS_DASHBOARD_ROLLUP_BACKFILL_DAYS:-7}
+      FS_DASHBOARD_ROLLUP_INTERVAL_SECONDS: ${FS_DASHBOARD_ROLLUP_INTERVAL_SECONDS:-300}
+      FS_DASHBOARD_ROLLUP_LOOKBACK_DAYS: ${FS_DASHBOARD_ROLLUP_LOOKBACK_DAYS:-30}
+      FS_EXTERNAL_EFFECT_MAINTENANCE_ENABLED: ${FS_EXTERNAL_EFFECT_MAINTENANCE_ENABLED:-1}
+      FS_EXTERNAL_EFFECT_MAINTENANCE_INTERVAL_SECONDS: ${FS_EXTERNAL_EFFECT_MAINTENANCE_INTERVAL_SECONDS:-300}
+      FS_RETENTION_ENABLED: ${FS_RETENTION_ENABLED:-1}
+      FS_RETENTION_INTERVAL_SECONDS: ${FS_RETENTION_INTERVAL_SECONDS:-86400}
+      FS_RETENTION_LOGS_DAYS: ${FS_RETENTION_LOGS_DAYS:-30}
+      FS_RETENTION_MESSAGES_DAYS: ${FS_RETENTION_MESSAGES_DAYS:-30}
+      FS_RETENTION_TRASH_DAYS: ${FS_RETENTION_TRASH_DAYS:-30}
+      FS_RETENTION_TERMINAL_JOB_CHECKPOINTS_DAYS: ${FS_RETENTION_TERMINAL_JOB_CHECKPOINTS_DAYS:-30}
+      FS_RETENTION_REVISIONS_KEEP: ${FS_RETENTION_REVISIONS_KEEP:-5}
+      FS_RETENTION_JOBS_DAYS: ${FS_RETENTION_JOBS_DAYS:-30}
+      FS_RETENTION_EVENTS_DAYS: ${FS_RETENTION_EVENTS_DAYS:-30}
+      FS_RETENTION_RETRY_QUEUE_DAYS: ${FS_RETENTION_RETRY_QUEUE_DAYS:-14}
+      FS_METRICS_TOKEN: ${FS_METRICS_TOKEN:-}
+      FS_PROCESS_METRICS_HOST: ${FS_PROCESS_METRICS_HOST:-0.0.0.0}
+      FS_CONTROL_METRICS_PORT: ${FS_CONTROL_METRICS_PORT:-9102}
+      FS_SCHEDULED_JOBS_BATCH_LIMIT: ${FS_SCHEDULED_JOBS_BATCH_LIMIT:-100}
+      FS_SCHEDULED_JOBS_INTERVAL_SECONDS: ${FS_SCHEDULED_JOBS_INTERVAL_SECONDS:-10}
+      FS_SECURITY_POSTURE_ENABLED: ${FS_SECURITY_POSTURE_ENABLED:-1}
+      FS_SECURITY_POSTURE_INTERVAL_SECONDS: ${FS_SECURITY_POSTURE_INTERVAL_SECONDS:-300}
+      FS_WATCHDOG_INTERVAL_SECONDS: ${FS_WATCHDOG_INTERVAL_SECONDS:-30}
+      FS_WATCHDOG_MAX_JOURNAL_ENTRIES: ${FS_WATCHDOG_MAX_JOURNAL_ENTRIES:-10000}
+      FS_WATCHDOG_ORPHAN_GRACE_SECONDS: ${FS_WATCHDOG_ORPHAN_GRACE_SECONDS:-120}
+      FS_WATCHDOG_PICKUP_GRACE_SECONDS: ${FS_WATCHDOG_PICKUP_GRACE_SECONDS:-120}
+      FS_WATCHDOG_STUCK_SECONDS: ${FS_WATCHDOG_STUCK_SECONDS:-180}
+      FS_WORKFLOW_KNOWLEDGE_SYNC_CHANGELOG_LIMIT: ${FS_WORKFLOW_KNOWLEDGE_SYNC_CHANGELOG_LIMIT:-500}
+      FS_WORKFLOW_KNOWLEDGE_SYNC_ENABLED: ${FS_WORKFLOW_KNOWLEDGE_SYNC_ENABLED:-1}
+      FS_WORKFLOW_KNOWLEDGE_SYNC_INTERVAL_SECONDS: ${FS_WORKFLOW_KNOWLEDGE_SYNC_INTERVAL_SECONDS:-300}
+    volumes:
+      - ../../:/app
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:ro
+    expose:
+      - "${FS_CONTROL_METRICS_PORT:-9102}"
+    depends_on:
+      dev-dataset-fixture:
+        condition: service_completed_successfully
+      pg-fs:
+        condition: service_healthy
+      rabbitmq-fs:
+        condition: service_healthy
+    restart: always
+    command: ["python", "-m", "core.entrypoints.cli.control_process"]
+
+  fs-mcp:
+    build:
+      context: ../..
+      dockerfile: infra/mcp/Dockerfile
+      target: local-runtime
+      cache_from:
+        - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/mcp
+      cache_to:
+        - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/mcp,mode=min
+      args:
+        FS_BUILD_REVISION: ${FS_BUILD_SHA:-unknown}
+    restart: always
+    ports:
+      - "127.0.0.1:${MCP_HOST_PORT:-8100}:8100"
+    environment:
+      <<: *installation-mode-environment
+      FS_APP_INTERNAL_URL: "http://fs-app:8099"
+      FS_DEPLOYMENT_REVISION: ${FS_BUILD_SHA:-}
+      FS_MCP_ISSUER_URL: ${FS_MCP_ISSUER_URL:-http://fs-app:8099}
+      FS_MCP_RESOURCE_URL: ${FS_MCP_RESOURCE_URL:-http://localhost:8100}
+      PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
+  # AC17-R116: SeaweedFS runs as the user its own image chooses, and that matters.
+  # The image's entrypoint starts as root, fixes the ownership of a mounted /data for
+  # the `seaweed` user and only then drops privileges with su-exec -- measured by
+  # reading it, after an earlier fix here set `user:` and silently skipped that whole
+  # branch, leaving the service unable to create a directory in its own volume.
+  #
+  # The problem that `user:` was solving is real and stays solved here instead. The S3
+  # identity is written by the installer as the operator and kept owner-only, because
+  # it holds S3 credentials -- storage_identity.py writes it 0600 and refuses it if any
+  # group or other bit is set. A file only the operator can read is not readable by the
+  # image's user, so this step hands one copy over: root reads the operator's file and
+  # installs it into a volume owned by the user the server will actually run as. The
+  # owner is asked of the same image rather than written down, so the two cannot drift.
+  #
+  # Delivering the credentials through the environment was measured and rejected: the
+  # server accepts AWS_ACCESS_KEY_ID as fallback admin credentials, but an empty value
+  # leaves it accepting unauthenticated writes, and Compose cannot make the variable
+  # required -- `:?` fails the whole file even when this profile is not selected. A
+  # missing config file, by contrast, stops the server.
+  seaweedfs-config:
+    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    profiles: ["storage-seaweedfs"]
+    user: "0:0"
+    restart: "no"
+    entrypoint: ["sh", "-euc"]
+    command:
+      - |
+        install -o "$$(id -u seaweed)" -g "$$(id -g seaweed)" -m 0600 \
+          /run/flow-steward-runtime/seaweedfs-s3.json /config/seaweedfs-s3.json
+    volumes:
+      - seaweedfs-config:/config
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime/seaweedfs-s3.json:/run/flow-steward-runtime/seaweedfs-s3.json:ro
+
+  seaweedfs:
+    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    profiles: ["storage-seaweedfs"]
+    depends_on:
+      seaweedfs-config:
+        condition: service_completed_successfully
+    restart: always
+    stop_grace_period: 30s
+    command: "server -s3 -ip=seaweedfs -ip.bind=0.0.0.0 -master.peers=none -s3.ip.bind=0.0.0.0 -s3.port=8333 -s3.config=/config/seaweedfs-s3.json -dir=/data -volume.max=${SEAWEEDFS_VOLUME_MAX:-100}"
+    ports:
+      - "127.0.0.1:${SEAWEEDFS_S3_HOST_PORT:-18333}:8333"     # S3 API
+      - "127.0.0.1:${SEAWEEDFS_MASTER_HOST_PORT:-19333}:9333" # Master UI
+    # `server` keeps the container up when its master is dead and S3 refuses
+    # connections, so Docker reported the store healthy while every artifact
+    # path failed with a message that named something else. Check both ends.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --quiet --spider http://127.0.0.1:9333/cluster/healthz && wget --quiet --spider --server-response http://127.0.0.1:8333/ 2>&1 | grep -q 'HTTP/'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    volumes:
+      - seaweedfs-data:/data
+      - seaweedfs-config:/config:ro
+    networks:
+      - default
+      - artifact-storage
+
+volumes:
+  seaweedfs-config:
+  fs-frontend-node-modules:
+  fs-postgres:
+  fs-rabbitmq:
+  quality-cache:
+    name: flow-steward-quality-cache
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:
+  seaweedfs-data:
+
+networks:
+  artifact-storage:
+    internal: true

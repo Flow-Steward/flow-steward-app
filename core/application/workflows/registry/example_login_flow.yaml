@@ -1,0 +1,104 @@
+# Example login flow — demonstrates all 12 supported FlowPlayer actions.
+# Prefixed "example-" so LLM-based flow selection skips it for real tasks.
+# Use as a template when building project-specific flows.
+#
+# Supported actions:
+#   navigate, click, fill, screenshot, wait_for,
+#   assert_visible, assert_text, assert_url,
+#   select_option, hover, press_key, wait_network_idle
+
+name: example-login-flow
+description: >
+  Example flow demonstrating all 12 FlowPlayer actions.
+  Navigates to the login page, fills in credentials, submits the form,
+  and asserts the dashboard is shown. For reference/testing only.
+tags:
+  - example
+  - auth
+  - login
+
+# Optional: override base_url from FlowPlayer constructor
+# base_url: http://localhost:3000
+
+# Optional: per-flow timeout override (ms)
+# timeout_ms: 30000
+
+steps:
+
+  # 1. navigate — go to a URL (relative or absolute)
+  - action: navigate
+    url: /login
+    description: Open the login page
+
+  # 2. wait_network_idle — wait for all network requests to settle
+  - action: wait_network_idle
+    description: Wait for login page assets to finish loading
+
+  # 3. screenshot — capture the current state
+  - action: screenshot
+    name: login-page-initial
+    description: Capture initial login page state
+
+  # 4. assert_visible — verify element is visible
+  - action: assert_visible
+    selector: "input[name='email'], input[type='email'], #email"
+    message: "Email input should be visible on login page"
+
+  # 5. hover — move mouse over element (triggers tooltips etc.)
+  - action: hover
+    selector: "input[name='email'], input[type='email'], #email"
+    description: Hover over email field before filling
+
+  # 6. fill — clear and type into an input
+  - action: fill
+    selector: "input[name='email'], input[type='email'], #email"
+    value: "test@example.com"
+    description: Enter test email address
+
+  # 7. fill — password field
+  - action: fill
+    selector: "input[name='password'], input[type='password'], #password"
+    value: "test-password-123"
+    description: Enter test password
+
+  # 8. select_option — choose a value from a <select> element
+  #    (included for demonstration; your login form may not have one)
+  # - action: select_option
+  #   selector: "select[name='role']"
+  #   value: "admin"
+  #   description: Select user role (if applicable)
+
+  # 9. press_key — press a keyboard key
+  - action: press_key
+    key: Tab
+    description: Tab away from password field to trigger validation
+
+  # 10. screenshot — before submit
+  - action: screenshot
+    name: login-page-filled
+    description: Capture filled-in login form before submission
+
+  # 11. click — click the submit button
+  - action: click
+    selector: "button[type='submit'], input[type='submit'], button:has-text('Login'), button:has-text('Sign in')"
+    description: Click the login / sign-in button
+
+  # wait for navigation to settle after login
+  - action: wait_network_idle
+    description: Wait for post-login redirect to complete
+
+  # 12. assert_url — verify we landed on the expected page
+  - action: assert_url
+    pattern: /dashboard
+    message: "Should redirect to /dashboard after successful login"
+
+  # assert_text — verify dashboard heading text
+  - action: assert_text
+    selector: "h1, .page-title, [data-testid='page-title']"
+    expected: Dashboard
+    message: "Dashboard page should show a heading containing 'Dashboard'"
+
+  # final screenshot of the authenticated state
+  - action: screenshot
+    name: dashboard-authenticated
+    description: Capture dashboard after successful login

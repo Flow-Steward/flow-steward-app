@@ -1,0 +1,304 @@
+x-compact-runtime-environment: &compact-runtime-environment
+  ARTIFACT_LOCAL_ROOT_DIR: /data/artifacts
+  ARTIFACT_S3_ACCESS_KEY: ${ARTIFACT_S3_ACCESS_KEY:-}
+  ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:-}
+  ARTIFACT_S3_ENDPOINT_URL: ${ARTIFACT_S3_ENDPOINT_URL:-}
+  ARTIFACT_S3_PUBLIC_ENDPOINT_URL: ${ARTIFACT_S3_PUBLIC_ENDPOINT_URL:-}
+  ARTIFACT_S3_KEY_PREFIX: ${ARTIFACT_S3_KEY_PREFIX:-}
+  ARTIFACT_S3_PRESIGN_TTL_SECONDS: ${ARTIFACT_S3_PRESIGN_TTL_SECONDS:-900}
+  ARTIFACT_S3_REGION: ${ARTIFACT_S3_REGION:-}
+  ARTIFACT_S3_SECRET_KEY: ${ARTIFACT_S3_SECRET_KEY:-}
+  ARTIFACT_S3_USE_SSL: ${ARTIFACT_S3_USE_SSL:-1}
+  ARTIFACT_STORAGE_BACKEND: ${ARTIFACT_STORAGE_BACKEND:-local_fs}
+  FS_LOG_FORMAT: ${FS_LOG_FORMAT:-json}
+  FS_COMPOSE_PROJECT_NAME: ${FS_COMPOSE_PROJECT_NAME:-}
+  FS_INSTALLATION_ID: ${FS_INSTALLATION_ID:-}
+  FS_MONITORING_EXPECTATIONS: ${FS_MONITORING_EXPECTATIONS:-}
+  FS_MONITORING_DEPENDENCIES: ${FS_MONITORING_DEPENDENCIES:-}
+  FS_MONITORING_INTERVAL_SECONDS: ${FS_MONITORING_INTERVAL_SECONDS:-}
+  FS_MONITORING_STALE_SECONDS: ${FS_MONITORING_STALE_SECONDS:-}
+  FS_MONITORING_HISTORY_ENABLED: ${FS_MONITORING_HISTORY_ENABLED:-}
+  FS_MONITORING_CURRENT_RETENTION_DAYS: ${FS_MONITORING_CURRENT_RETENTION_DAYS:-}
+  FS_MONITORING_HISTORY_RETENTION_DAYS: ${FS_MONITORING_HISTORY_RETENTION_DAYS:-}
+  FS_MONITORING_CLEANUP_BATCH_SIZE: ${FS_MONITORING_CLEANUP_BATCH_SIZE:-}
+  FS_MONITORING_QUEUE_MAX_MESSAGES: ${FS_MONITORING_QUEUE_MAX_MESSAGES:-}
+  FS_MONITORING_QUEUE_MAX_BYTES: ${FS_MONITORING_QUEUE_MAX_BYTES:-}
+  FS_MONITORING_OPERATION_TIMEOUT_SECONDS: ${FS_MONITORING_OPERATION_TIMEOUT_SECONDS:-}
+  FS_LOG_LEVEL: ${FS_LOG_LEVEL:-INFO}
+  FS_BACKUP_ENCRYPTION_KEY: ${FS_BACKUP_ENCRYPTION_KEY}
+  FS_OBSERVABILITY_DSN: ${FS_OBSERVABILITY_DSN:-}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+  # AC17-R74: the markers core/infrastructure/security/config.py reads to decide whether this
+  # is production. Without them it resolved local_development, so _DEFAULT_SCAN_MODE came out
+  # as "monitor" — scanning active, blocking disabled — on an install the operator had created
+  # with --environment production. The installer already writes both into the env file
+  # (env_registry sets ENVIRONMENT and FS_STACK_ENVIRONMENT from the selected environment);
+  # only the Compose binding was missing, so nothing reached the container.
+  # The default is production because the Compact profile is production-only by validation,
+  # and because a security control should fail towards enforcement, not away from it.
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  FS_STACK_ENVIRONMENT: ${FS_STACK_ENVIRONMENT:-production}
+  FS_ALLOW_PRIVATE_REMOTE_URLS: ${FS_ALLOW_PRIVATE_REMOTE_URLS:-0}
+  FS_EXTENSION_CATALOG_URL: ${FS_EXTENSION_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/extensions/main/index.json}
+  FS_MCP_CATALOG_URL: ${FS_MCP_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/mcps/main/index.json}
+  FS_EXTENSION_DEPS_FETCH: ${FS_EXTENSION_DEPS_FETCH:-0}
+  FS_EXTENSION_DEPS_SITE_MAX_BYTES: ${FS_EXTENSION_DEPS_SITE_MAX_BYTES:-536870912}
+  FS_EXTENSION_ARTIFACT_MAX_BYTES: ${FS_EXTENSION_ARTIFACT_MAX_BYTES:-209715200}
+  FS_BASE64_FILE_MAX_BYTES: ${FS_BASE64_FILE_MAX_BYTES:-52428800}
+  FS_WORKFLOW_TEST_FILE_MAX_BYTES: ${FS_WORKFLOW_TEST_FILE_MAX_BYTES:-52428800}
+  FS_FILE_PREVIEW_MAX_BYTES: ${FS_FILE_PREVIEW_MAX_BYTES:-20971520}
+  FS_EXTENSION_OPERATION_TIMEOUT_SECONDS: ${FS_EXTENSION_OPERATION_TIMEOUT_SECONDS:-300}
+  FS_EXTENSION_TRUSTED_LOCAL_FS_ARTIFACT_GRANTS: ${FS_EXTENSION_TRUSTED_LOCAL_FS_ARTIFACT_GRANTS:-0}
+  FS_EXTENSIONS_ROOT: /data/extensions
+  FS_WORKFLOW_TEMPLATE_CATALOG_URL: ${FS_WORKFLOW_TEMPLATE_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/workflows/main/index.json}
+  FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED: ${FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED:-1}
+  FS_CONTEXT_GRAPH_BACKEND: ${FS_CONTEXT_GRAPH_BACKEND:-postgres_age}
+  FS_DEFAULT_MODEL: ${FS_DEFAULT_MODEL:-}
+  FS_DEFAULT_PROVIDER: ${FS_DEFAULT_PROVIDER:-}
+  FS_DEFAULT_TEMPERATURE: ${FS_DEFAULT_TEMPERATURE:-0.1}
+  FS_FEED_MAX_BYTES: ${FS_FEED_MAX_BYTES:-1073741824}
+  FS_FEED_MAX_ROWS: ${FS_FEED_MAX_ROWS:-2000000}
+  FS_MEMORY_KNOWLEDGE_BACKEND: ${FS_MEMORY_KNOWLEDGE_BACKEND:-postgres}
+  FS_MEMORY_PROFILE: ${FS_MEMORY_PROFILE:-postgres_unified}
+  FS_MEMORY_REPOSITORY_BACKEND: ${FS_MEMORY_REPOSITORY_BACKEND:-postgres}
+  FS_MEMORY_TEXT_SEARCH_BACKEND: ${FS_MEMORY_TEXT_SEARCH_BACKEND:-postgres_fts}
+  FS_MEMORY_VECTOR_BACKEND: ${FS_MEMORY_VECTOR_BACKEND:-postgres_pgvector}
+  FS_LLM_REQUEST_TIMEOUT_SECONDS: ${FS_LLM_REQUEST_TIMEOUT_SECONDS:-}
+  FS_PGVECTOR_DSN: ${FS_PGVECTOR_DSN:-}
+  FS_TABULAR_FEED_MAX_MATERIALIZE_BYTES: ${FS_TABULAR_FEED_MAX_MATERIALIZE_BYTES:-134217728}
+  FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_BYTES: ${FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_BYTES:-67108864}
+  FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_ROWS: ${FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_ROWS:-100000}
+  MCP_URL: ${MCP_URL:-http://127.0.0.1:8100/mcp}
+  # AC17-R105: Compact runs the control plane and every one of its loops, and none
+  # of these reached it, so each loop ran on its compiled-in default while .env.prod
+  # said otherwise. FS_METRICS_TOKEN is here for the same reason: the installer
+  # generates it, health gates machine-readable metrics on it, and it reached no role.
+  #
+  # The numeric defaults repeat what docker-compose.yaml already declares for the same
+  # keys, deliberately: Compose substitutes every key it names, so `${X:-}` hands the
+  # process an empty string, and control/config.py reads these with int(), where empty
+  # is not the same as missing. Published without a default they took the control
+  # plane down on a real install and the runtime with it.
+  CONTROL_PLANE_INSTANCE_ID: ${CONTROL_PLANE_INSTANCE_ID:-}
+  FS_ARTIFACT_CLEANUP_RECONCILIATION_BUDGET: ${FS_ARTIFACT_CLEANUP_RECONCILIATION_BUDGET:-16}
+  FS_DASHBOARD_ROLLUP_ENABLED: ${FS_DASHBOARD_ROLLUP_ENABLED:-}
+  FS_EXTERNAL_EFFECT_MAINTENANCE_ENABLED: ${FS_EXTERNAL_EFFECT_MAINTENANCE_ENABLED:-}
+  FS_RETENTION_ENABLED: ${FS_RETENTION_ENABLED:-}
+  FS_SCHEDULED_JOBS_ENABLED: ${FS_SCHEDULED_JOBS_ENABLED:-}
+  FS_SECURITY_POSTURE_ENABLED: ${FS_SECURITY_POSTURE_ENABLED:-}
+  FS_WATCHDOG_AUTO_APPLY: ${FS_WATCHDOG_AUTO_APPLY:-}
+  FS_WATCHDOG_ENABLED: ${FS_WATCHDOG_ENABLED:-}
+  FS_WORKFLOW_KNOWLEDGE_SYNC_ENABLED: ${FS_WORKFLOW_KNOWLEDGE_SYNC_ENABLED:-}
+  FS_DASHBOARD_ROLLUP_BACKFILL_DAYS: ${FS_DASHBOARD_ROLLUP_BACKFILL_DAYS:-7}
+  FS_DASHBOARD_ROLLUP_INTERVAL_SECONDS: ${FS_DASHBOARD_ROLLUP_INTERVAL_SECONDS:-300}
+  FS_DASHBOARD_ROLLUP_LOOKBACK_DAYS: ${FS_DASHBOARD_ROLLUP_LOOKBACK_DAYS:-30}
+  FS_EXTERNAL_EFFECT_MAINTENANCE_INTERVAL_SECONDS: ${FS_EXTERNAL_EFFECT_MAINTENANCE_INTERVAL_SECONDS:-300}
+  FS_RETENTION_INTERVAL_SECONDS: ${FS_RETENTION_INTERVAL_SECONDS:-86400}
+  FS_RETENTION_JOBS_DAYS: ${FS_RETENTION_JOBS_DAYS:-30}
+  FS_RETENTION_EVENTS_DAYS: ${FS_RETENTION_EVENTS_DAYS:-30}
+  FS_RETENTION_RETRY_QUEUE_DAYS: ${FS_RETENTION_RETRY_QUEUE_DAYS:-14}
+  FS_RETENTION_LOGS_DAYS: ${FS_RETENTION_LOGS_DAYS:-30}
+  FS_RETENTION_MESSAGES_DAYS: ${FS_RETENTION_MESSAGES_DAYS:-30}
+  FS_RETENTION_TRASH_DAYS: ${FS_RETENTION_TRASH_DAYS:-30}
+  FS_RETENTION_TERMINAL_JOB_CHECKPOINTS_DAYS: ${FS_RETENTION_TERMINAL_JOB_CHECKPOINTS_DAYS:-30}
+  FS_RETENTION_REVISIONS_KEEP: ${FS_RETENTION_REVISIONS_KEEP:-5}
+  FS_METRICS_TOKEN: ${FS_METRICS_TOKEN:-}
+  FS_SCHEDULED_JOBS_BATCH_LIMIT: ${FS_SCHEDULED_JOBS_BATCH_LIMIT:-100}
+  FS_SCHEDULED_JOBS_INTERVAL_SECONDS: ${FS_SCHEDULED_JOBS_INTERVAL_SECONDS:-10}
+  FS_SECURITY_POSTURE_INTERVAL_SECONDS: ${FS_SECURITY_POSTURE_INTERVAL_SECONDS:-300}
+  FS_WATCHDOG_INTERVAL_SECONDS: ${FS_WATCHDOG_INTERVAL_SECONDS:-30}
+  FS_WATCHDOG_MAX_JOURNAL_ENTRIES: ${FS_WATCHDOG_MAX_JOURNAL_ENTRIES:-10000}
+  FS_WATCHDOG_ORPHAN_GRACE_SECONDS: ${FS_WATCHDOG_ORPHAN_GRACE_SECONDS:-120}
+  FS_WATCHDOG_PICKUP_GRACE_SECONDS: ${FS_WATCHDOG_PICKUP_GRACE_SECONDS:-120}
+  FS_WATCHDOG_STUCK_SECONDS: ${FS_WATCHDOG_STUCK_SECONDS:-180}
+  FS_WORKFLOW_KNOWLEDGE_SYNC_CHANGELOG_LIMIT: ${FS_WORKFLOW_KNOWLEDGE_SYNC_CHANGELOG_LIMIT:-500}
+  FS_WORKFLOW_KNOWLEDGE_SYNC_INTERVAL_SECONDS: ${FS_WORKFLOW_KNOWLEDGE_SYNC_INTERVAL_SECONDS:-300}
+  SCHEDULED_JOB_SCHEDULER_ID: ${SCHEDULED_JOB_SCHEDULER_ID:-}
+
+services:
+  rabbitmq-fs:
+    image: ${RABBITMQ_IMAGE:-rabbitmq:3.13-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69}
+    healthcheck:
+      # AC17-R134: the AMQP listener, not ping. Measured: ping answers OK 4-5s before
+      # the listener accepts anything, because it only says the Erlang node is
+      # reachable. What a dependent needs is the listener.
+      # AC17-R151: a TCP connect, not rabbitmq-diagnostics. Each diagnostics run boots a
+      # fresh Erlang VM; every 2 s for the container's life that kept half a core busy
+      # on an idle server. Measured on this image: the port accepts at the same moment
+      # the broker answers the AMQP protocol header with Connection.Start, and the probe
+      # costs ~1.5% of a core instead of 23-53%.
+      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/5672"]
+      interval: 2s
+      timeout: 10s
+      retries: 60
+      start_period: 5s
+    restart: on-failure:3
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - fs-rabbitmq:/var/lib/rabbitmq
+
+  pg-fs:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE is required for immutable production provenance}
+    healthcheck:
+      # AC17-R134: over TCP on purpose. While /docker-entrypoint-initdb.d is still
+      # running, the entrypoint has a temporary server up on the unix socket only,
+      # and a socket pg_isready answers OK to that one -- measured here as 22s
+      # before the schema existed. The temporary server sets listen_addresses='',
+      # so a TCP answer is the one that cannot arrive early.
+      test:
+        ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 5s
+    restart: on-failure:3
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - fs-postgres:/var/lib/postgresql/data
+      - ${FS_DB_SCHEMA_DIR:-../../db/schema}:/docker-entrypoint-initdb.d:ro
+
+  memory-postgres-extensions:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE is required for immutable production provenance}
+    depends_on:
+      pg-fs:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+    command:
+      - sh
+      - -euc
+      - |
+        until pg_isready -h pg-fs -p 5432 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"; do sleep 1; done
+        psql -h pg-fs -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 <<'SQL'
+        CREATE EXTENSION IF NOT EXISTS age;
+        CREATE EXTENSION IF NOT EXISTS vector;
+        CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        CREATE EXTENSION IF NOT EXISTS unaccent;
+        SQL
+    restart: "no"
+
+  compact-runtime:
+    image: ${FS_COMPACT_IMAGE:?FS_COMPACT_IMAGE is required for immutable production provenance}
+    restart: on-failure:3
+    # One supervisor budget includes role drain, forced reap and adopted descendants.
+    # Adopted cleanup must not start another reserve after this allowance expires.
+    stop_grace_period: ${FS_COMPACT_SHUTDOWN_GRACE_SECONDS:-180}s
+    depends_on:
+      # AC17-R134: the long form, because the short one cannot carry a condition and
+      # means "the container was created". The supervisor's own dependency budget
+      # still covers deployments where there is no compose at all.
+      pg-fs:
+        condition: service_healthy
+      rabbitmq-fs:
+        condition: service_healthy
+    environment:
+      <<: *compact-runtime-environment
+      FS_DEPLOYMENT_PROFILE: compact
+      FS_COMPACT_IMAGE_INDEX_DIGEST: ${FS_COMPACT_IMAGE_INDEX_DIGEST:?compact image index digest is required}
+      FS_COMPACT_IMAGE_MANIFEST_DIGEST: ${FS_COMPACT_IMAGE_MANIFEST_DIGEST:?compact image manifest digest is required}
+      FS_COMPACT_IMAGE_CONFIG_DIGEST: ${FS_COMPACT_IMAGE_CONFIG_DIGEST:?compact image config digest is required}
+      FS_COMPACT_IMAGE_REVISION: ${FS_COMPACT_IMAGE_REVISION:?compact image revision is required}
+      FS_COMPACT_IMAGE_ROLE: compact-runtime
+      FS_COMPACT_IMAGE_PLATFORM: ${FS_COMPACT_IMAGE_PLATFORM:?compact image platform is required}
+      FS_WORKER_PROCESSES: ${FS_WORKER_PROCESSES:?FS_WORKER_PROCESSES is required}
+      APP_WORKERS: ${APP_WORKERS:-1}
+      FS_RUNTIME_HTTP_PORT: ${FS_RUNTIME_HTTP_PORT:-8080}
+      FS_COMPACT_STARTUP_TIMEOUT_SECONDS: ${FS_COMPACT_STARTUP_TIMEOUT_SECONDS:-300}
+      FS_COMPACT_RESTART_LIMIT: ${FS_COMPACT_RESTART_LIMIT:-3}
+      FS_COMPACT_RESTART_WINDOW_SECONDS: ${FS_COMPACT_RESTART_WINDOW_SECONDS:-300}
+      FS_COMPACT_RESTART_BACKOFF_SECONDS: ${FS_COMPACT_RESTART_BACKOFF_SECONDS:-2}
+      FS_COMPACT_RESTART_BACKOFF_MAX_SECONDS: ${FS_COMPACT_RESTART_BACKOFF_MAX_SECONDS:-30}
+      FS_COMPACT_SHUTDOWN_GRACE_SECONDS: ${FS_COMPACT_SHUTDOWN_GRACE_SECONDS:-180}
+      FS_COMPACT_KILL_RESERVE_SECONDS: ${FS_COMPACT_KILL_RESERVE_SECONDS:-10}
+      FS_COMPACT_HEALTH_INTERVAL_SECONDS: ${FS_COMPACT_HEALTH_INTERVAL_SECONDS:-2}
+      FS_COMPACT_HEALTH_STALE_SECONDS: ${FS_COMPACT_HEALTH_STALE_SECONDS:-10}
+      FS_COMPACT_DEPENDENCY_TIMEOUT_SECONDS: ${FS_COMPACT_DEPENDENCY_TIMEOUT_SECONDS:-300}
+      FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL}
+      FS_AUTH_TRUSTED_ORIGINS: ${FS_AUTH_TRUSTED_ORIGINS}
+      FS_AUTH_COOKIE_SECURE: ${FS_AUTH_COOKIE_SECURE:-1}
+      FS_AUTH_BOOTSTRAP_ALLOW_TRUSTED_PROXY: ${FS_AUTH_BOOTSTRAP_ALLOW_TRUSTED_PROXY:-0}
+      FS_AUTH_BOOTSTRAP_ENABLED: ${FS_AUTH_BOOTSTRAP_ENABLED:-1}
+      FS_AUTH_BOOTSTRAP_LOCALHOST_ONLY: ${FS_AUTH_BOOTSTRAP_LOCALHOST_ONLY:-1}
+      FS_AUTH_BOOTSTRAP_STATE_FILE: ${FS_AUTH_BOOTSTRAP_STATE_FILE:-}
+      FS_AUTH_BOOTSTRAP_TOKEN: ${FS_AUTH_BOOTSTRAP_TOKEN:-}
+      FS_AUTH_BOOTSTRAP_TOKEN_EXPIRES_AT: ${FS_AUTH_BOOTSTRAP_TOKEN_EXPIRES_AT:-}
+      FS_PROXY_TRUSTED_IPS: ${FS_PROXY_TRUSTED_IPS:-127.0.0.1/32,::1/128}
+      FS_DB_DSN: ${FS_DB_DSN}
+      LANGGRAPH_POSTGRES_URI: ${LANGGRAPH_POSTGRES_URI}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      FS_RABBITMQ_TRANSPORT_MODE: compose-local
+      POSTGRES_HOST: pg-fs
+      POSTGRES_PORT: "5432"
+      RABBITMQ_HOST: rabbitmq-fs
+      RABBITMQ_PORT: "5672"
+      FS_SECRET_KEY: ${FS_SECRET_KEY}
+      # Used by the Compact worker's retained project_list MCP readiness probe.
+      FS_WORKER_MCP_BEARER_TOKEN: ${FS_WORKER_MCP_BEARER_TOKEN:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      SECURITY_PII_SALT: ${SECURITY_PII_SALT}
+      ARTIFACT_STORAGE_BACKEND: ${ARTIFACT_STORAGE_BACKEND:-local_fs}
+      ARTIFACT_LOCAL_ROOT_DIR: /data/artifacts
+    volumes:
+      - fs-compact-data:/data
+    expose:
+      - "${FS_RUNTIME_HTTP_PORT:-8080}"
+
+  fs-cli:
+    profiles: [cli]
+    # Host management uses a separately prepared immutable CLI image. The
+    # runtime fallback only renders older installations before installer repair;
+    # Compact runtime deliberately contains no Docker or Git tools.
+    image: ${FS_CLI_IMAGE:-${FS_COMPACT_IMAGE:?FS_COMPACT_IMAGE is required for immutable production provenance}}
+    restart: "no"
+    user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
+    group_add:
+      - "${FS_DOCKER_GID:-0}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["python", "-m", "core.entrypoints.cli.platform_runtime"]
+    command: ["candidate-preflight"]
+    environment:
+      <<: *compact-runtime-environment
+      FS_INSTALLER_USE_HOST_PYTHON: "0"
+      FS_COMPACT_HEALTH_URL: http://compact-runtime:${FS_RUNTIME_HTTP_PORT:-8080}/health/ready
+      FS_RUNTIME_HTTP_PORT: ${FS_RUNTIME_HTTP_PORT:-8080}
+      FS_DB_DSN: ${FS_DB_DSN}
+      FS_BACKUP_ENCRYPTION_KEY: ${FS_BACKUP_ENCRYPTION_KEY}
+      FS_WORKER_MCP_BEARER_TOKEN: ${FS_WORKER_MCP_BEARER_TOKEN:-}
+      # AC17-R137: where the installed configuration is, which is not where this
+      # container otherwise looks. Platform commands resolve it through
+      # _lifecycle_configuration_store(), and with nothing set that falls back to
+      # /app/.flow-steward -- a symlink into the data volume, which holds runtime state
+      # and never the installation's own answers. `proxy-fragment` therefore told the
+      # operator of a READY installation to run ./install.sh. Pointed at the mount
+      # below rather than at FS_INSTALLER_STATE_DIR, because that one also decides
+      # where the operation log is written and the log belongs on the volume.
+      FS_CONFIGURATION_STATE_ROOT: /run/flow-steward-install-state
+      FS_INSTALLER_STATE_DIR: /run/flow-steward-install-state
+      FS_LOAD_REPO_DOTENV: "0"
+      HOME: /tmp
+      PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
+      FS_DOCKER_HOST_PROJECT_ROOT: ${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}
+      FS_RELEASE_REGISTRIES: ${FS_RELEASE_REGISTRIES:-}
+      FS_RELEASE_REPOSITORY: ${FS_RELEASE_REPOSITORY:-Flow-Steward/flow-steward-app}
+    volumes:
+      - fs-compact-data:/data
+      # Read-only: these commands read what the installer decided, and none of them
+      # is entitled to rewrite it from inside a one-shot container.
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:/run/flow-steward-install-state:rw
+      - ${FS_DOCKER_HOST_PROJECT_ROOT:-../../}:${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}:rw
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  fs-postgres:
+  fs-rabbitmq:
+  fs-compact-data:

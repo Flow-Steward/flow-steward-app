@@ -1,0 +1,96 @@
+[
+  {
+    "name": "malformed literal",
+    "recipients": [
+      "not-an-email"
+    ],
+    "valid": false
+  },
+  {
+    "name": "mixed list",
+    "recipients": [
+      "ops@example.com",
+      "not-an-email"
+    ],
+    "valid": false
+  },
+  {
+    "name": "plus tags and case order",
+    "recipients": [
+      "Ops+tag@Example.COM",
+      "Anna@example.com"
+    ],
+    "valid": true
+  },
+  {
+    "name": "local domain",
+    "recipients": [
+      "operator@localhost"
+    ],
+    "valid": true
+  },
+  {
+    "name": "missing domain",
+    "recipients": [
+      "ops@"
+    ],
+    "valid": false
+  },
+  {
+    "name": "missing local part",
+    "recipients": [
+      "@example.com"
+    ],
+    "valid": false
+  },
+  {
+    "name": "multiple at",
+    "recipients": [
+      "ops@@example.com"
+    ],
+    "valid": false
+  },
+  {
+    "name": "display name",
+    "recipients": [
+      "Ops <ops@example.com>"
+    ],
+    "valid": false
+  },
+  {
+    "name": "embedded CR LF",
+    "recipients": [
+      "ops\r\n@example.com"
+    ],
+    "valid": false
+  },
+  {
+    "name": "trailing CR LF",
+    "recipients": [
+      "ops@example.com\r\n"
+    ],
+    "valid": false
+  },
+  {
+    "name": "empty required",
+    "recipients": [
+      "  "
+    ],
+    "valid": false
+  },
+  {
+    "name": "expression deferred",
+    "recipients": [
+      "{{ event.email }}"
+    ],
+    "valid": true
+  },
+  {
+    "name": "expression and malformed literal",
+    "recipients": [
+      "{{ event.email }}",
+      "not-an-email"
+    ],
+    "valid": false
+  }
+]

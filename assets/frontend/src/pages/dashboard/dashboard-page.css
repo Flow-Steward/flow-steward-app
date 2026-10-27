@@ -1,0 +1,171 @@
+/* Dashboard page shell — Page header and the section rhythm below it.
+ *
+ * Page header is the published dashboard pattern: eyebrow, title, description
+ * and a right-hand action slot with one primary action at most. The title uses
+ * the 24px compact step rather than the 26px default, matching the Settings
+ * page header, because this is the densest operational surface in the product.
+ */
+
+@reference "../../styles/index.css";
+
+.fs-dash {
+  display: grid;
+  gap: var(--fs-dashboard-section-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fs-dash__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--fs-page-header-gap) var(--fs-space-300);
+  min-width: 0;
+}
+
+.fs-dash__ident {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 0;
+}
+
+.fs-dash__eyebrow {
+  margin: 0;
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-micro-size);
+  line-height: var(--fs-type-micro-line-height);
+  letter-spacing: var(--fs-type-micro-tracking);
+  font-weight: var(--fs-type-weight-medium);
+  text-transform: uppercase;
+  color: var(--fs-page-header-eyebrow);
+}
+
+.fs-dash__title {
+  margin: 0;
+  font-family: var(--ff-display);
+  font-size: var(--fs-type-h2-size);
+  line-height: var(--fs-type-h2-line-height);
+  letter-spacing: var(--fs-type-h2-tracking);
+  font-weight: var(--fs-type-weight-medium);
+  color: var(--fs-text-primary);
+}
+
+.fs-dash__description {
+  max-width: 60ch;
+  margin: 0;
+  font-size: var(--fs-page-header-description-size);
+  line-height: var(--fs-type-body-line-height);
+  color: var(--fs-page-header-description);
+}
+
+/* ---------- action slot ---------- */
+
+.fs-dash__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--fs-page-header-action-gap);
+  min-width: 0;
+}
+
+.fs-dash__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fs-button-gap-md);
+  height: var(--fs-button-height-md);
+  min-width: var(--fs-button-min-width-md);
+  padding: var(--fs-button-padding-md);
+  border: 1px solid var(--fs-button-secondary-border);
+  border-radius: var(--fs-button-radius-md);
+  background: var(--fs-button-secondary-bg);
+  color: var(--fs-button-secondary-text);
+  font-family: var(--fs-button-font);
+  font-size: var(--fs-button-font-size-md);
+  line-height: var(--fs-type-button-line-height);
+  font-weight: var(--fs-button-font-weight);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: var(--fs-button-transition);
+}
+
+.fs-dash__action:hover {
+  border-color: var(--fs-button-secondary-border-hover);
+  background: var(--fs-button-secondary-bg-hover);
+}
+
+.fs-dash__action:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-dash__action svg {
+  width: var(--fs-icon-size-supporting);
+  height: var(--fs-icon-size-supporting);
+  flex: none;
+  stroke-width: var(--fs-icon-stroke);
+}
+
+/* The one accent action on the page. Accent means review or escalation, never
+   "this is the prettiest button". */
+.fs-dash__action--accent {
+  border-color: var(--fs-button-accent-border);
+  background: var(--fs-button-accent-bg);
+  color: var(--fs-button-accent-text);
+}
+
+.fs-dash__action--accent:hover {
+  border-color: var(--fs-button-accent-border-hover);
+  background: var(--fs-button-accent-bg-hover);
+}
+
+.fs-dash__action--accent:active {
+  border-color: var(--fs-button-accent-border-active);
+  background: var(--fs-button-accent-bg-active);
+}
+
+.fs-dash__action-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0 var(--fs-space-050);
+  background: var(--fs-page-header-divider);
+}
+
+/* ---------- section rhythm ---------- */
+
+.fs-dash__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--fs-right-context-rail-width);
+  gap: var(--fs-dashboard-grid-gap);
+  min-width: 0;
+}
+
+@media (width < theme(--breakpoint-xl)) {
+  .fs-dash__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Actions drop under the title before the title starts wrapping to three
+   lines. Same step as the metric row so the page breaks in one place. */
+@media (width <= 940px) {
+  .fs-dash__header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width <= 560px) {
+  .fs-dash__action-divider {
+    display: none;
+  }
+
+  .fs-dash__action {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-dash__action {
+    transition-duration: var(--fs-duration-reduced);
+  }
+}

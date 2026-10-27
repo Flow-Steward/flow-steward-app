@@ -1,0 +1,6 @@
+services:
+  traefik:
+    volumes:
+      - ./compact/public-certificate.yaml:/run/traefik-dynamic/compact-certificate.yaml:ro
+      - ${FS_TLS_CERTIFICATE_PATH:-../../.ssl/cert.pem}:/etc/traefik/certs/cert.pem:ro
+      - ${FS_TLS_PRIVATE_KEY_PATH:-../../.ssl/key.pem}:/etc/traefik/certs/key.pem:ro

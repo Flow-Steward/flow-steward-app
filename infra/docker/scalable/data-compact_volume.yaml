@@ -1,0 +1,55 @@
+# ADR 0029, decision B (item 5): a Scalable installation on the trees a Compact
+# installation created. They stay in the Compact data volume and are mounted from it
+# where Scalable's host directories were, by subpath: nothing is copied. Selected when
+# the installed configuration's data_placement is compact_volume; the shared groups
+# (10100 artifacts, 10103 extension writers) give each service the
+# access its Compact role has. fs-cli is left as it is: a management container whose
+# mounts are an exact contract (AC17-R166), and which does not serve the workspace.
+
+x-compact-extensions-ro: &compact-extensions-ro
+  type: volume
+  source: fs-compact-data
+  target: /app/extensions
+  read_only: true
+  volume:
+    subpath: extensions
+
+x-compact-extensions-rw: &compact-extensions-rw
+  type: volume
+  source: fs-compact-data
+  target: /app/extensions
+  volume:
+    subpath: extensions
+
+x-compact-artifacts: &compact-artifacts
+  type: volume
+  source: fs-compact-data
+  target: /app/logs/artifacts
+  volume:
+    subpath: artifacts
+
+services:
+  fs-app:
+    volumes:
+      - *compact-extensions-ro
+      - *compact-artifacts
+  fs-worker:
+    volumes:
+      - *compact-extensions-ro
+      - *compact-artifacts
+  fs-extension-installer:
+    volumes:
+      - *compact-extensions-rw
+      - *compact-artifacts
+  fs-extension-manager:
+    volumes:
+      - *compact-extensions-rw
+  extension-dependencies:
+    volumes:
+      - *compact-extensions-rw
+  control-plane:
+    volumes:
+      - *compact-artifacts
+
+volumes:
+  fs-compact-data:

@@ -1,0 +1,162 @@
+"""UI, project page, and monitoring route registration helpers."""
+
+from __future__ import annotations
+
+from fastapi import FastAPI
+
+from core.entrypoints.admin.project_history import create_project_history_router
+from core.entrypoints.admin.project_schedules import create_project_schedules_router
+from core.entrypoints.admin.settings_retention import create_settings_retention_router
+from core.entrypoints.ws.jobs import create_jobs_websocket_router
+
+
+def register_ui_routes(
+    app: FastAPI,
+    *,
+    local_auth_enabled,
+    external_auth_enabled,
+    require_authenticated_user,
+    local_auth_bootstrap_required,
+    request_scope,
+    request_auth_user_payload,
+    resolve_actor_username,
+    service_error_response,
+    api_error_response,
+    project_query_service,
+    project_command_service,
+    job_query_service,
+    approval_query_service,
+    get_logger_only,
+    get_logger,
+    list_workflow_choices,
+    env_flag,
+    route_registered,
+    ws_authenticate,
+    serialize_log_row,
+    serialize_event_row,
+    serialize_agent_message_row,
+    ws_get_approval_payload,
+    approval_fallback_payload,
+    build_runtime_payload,
+    project_job_detail,
+    user_role_from_auth,
+    get_thread_state_values,
+    view_payload_dict,
+    cron_next_run_at,
+    normalize_cron_expr,
+    parse_cron_expression,
+    cron_human_summary,
+    logger,
+    dashboard_default_range,
+    dashboard_range_hours,
+    dashboard_metrics_page_size,
+    dashboard_metrics_max_rows,
+    dashboard_triage_limit,
+    dashboard_rollup_read_enabled,
+    auth_admin_roles,
+    auth_write_roles,
+    ws_terminal: set[str],
+    project_create_input_cls,
+    project_update_input_cls,
+    service_error_cls,
+    service_not_found_error_cls,
+    err_authentication_required,
+    err_invalid_json_body,
+    err_database_not_configured,
+    err_project_not_found,
+    err_operator_role_required,
+    path_login,
+    path_bootstrap,
+    default_agent_models,
+    available_providers,
+    available_models,
+    providers_with_models=None,
+    resolve_model_selection_context=None,
+):
+    _ = (
+        local_auth_bootstrap_required,
+        request_auth_user_payload,
+        job_query_service,
+        approval_query_service,
+        get_logger,
+        list_workflow_choices,
+        env_flag,
+        route_registered,
+        project_job_detail,
+        user_role_from_auth,
+        get_thread_state_values,
+        view_payload_dict,
+        dashboard_default_range,
+        dashboard_range_hours,
+        dashboard_metrics_page_size,
+        dashboard_metrics_max_rows,
+        dashboard_triage_limit,
+        dashboard_rollup_read_enabled,
+        auth_write_roles,
+        project_create_input_cls,
+        project_update_input_cls,
+        service_error_cls,
+        service_not_found_error_cls,
+        err_operator_role_required,
+        path_login,
+        path_bootstrap,
+        default_agent_models,
+        available_providers,
+        available_models,
+        providers_with_models,
+        resolve_model_selection_context,
+    )
+    project_history_router = create_project_history_router(
+        project_query_service=project_query_service,
+        project_command_service=project_command_service,
+        request_scope=request_scope,
+        resolve_actor_username=resolve_actor_username,
+        service_error_response=service_error_response,
+        api_error_response=api_error_response,
+    )
+    app.include_router(project_history_router)
+
+    project_schedules_router = create_project_schedules_router(
+        local_auth_enabled=local_auth_enabled,
+        external_auth_enabled=external_auth_enabled,
+        require_authenticated_user=require_authenticated_user,
+        get_logger_only=get_logger_only,
+        request_scope=request_scope,
+        project_command_service=project_command_service,
+        project_query_service=project_query_service,
+        resolve_actor_username=resolve_actor_username,
+        service_error_response=service_error_response,
+        api_error_response=api_error_response,
+        cron_next_run_at=cron_next_run_at,
+        normalize_cron_expr=normalize_cron_expr,
+        parse_cron_expression=parse_cron_expression,
+        cron_human_summary=cron_human_summary,
+        err_authentication_required=err_authentication_required,
+        err_invalid_json_body=err_invalid_json_body,
+        err_database_not_configured=err_database_not_configured,
+        err_project_not_found=err_project_not_found,
+    )
+    app.include_router(project_schedules_router)
+
+    settings_retention_router = create_settings_retention_router(
+        require_authenticated_user=require_authenticated_user,
+        auth_admin_roles=auth_admin_roles,
+        get_logger_only=get_logger_only,
+        request_scope=request_scope,
+        resolve_actor_username=resolve_actor_username,
+    )
+    app.include_router(settings_retention_router)
+
+    jobs_websocket_router = create_jobs_websocket_router(
+        ws_authenticate=ws_authenticate,
+        get_logger_only=get_logger_only,
+        serialize_log_row=serialize_log_row,
+        serialize_event_row=serialize_event_row,
+        serialize_agent_message_row=serialize_agent_message_row,
+        ws_terminal=ws_terminal,
+        ws_get_approval_payload=ws_get_approval_payload,
+        approval_fallback_payload=approval_fallback_payload,
+        build_runtime_payload=build_runtime_payload,
+        logger=logger,
+    )
+    app.include_router(jobs_websocket_router)

@@ -1,0 +1,37 @@
+/*
+ * The parts of the canon's confirmation dialog that DsDialog does not draw
+ * itself (modal-dialog-preview.html): the object list, the irreversibility
+ * line and the in-dialog failure. Tokens only.
+ */
+.fs-confirm-objects {
+  display: grid;
+  gap: var(--fs-space-025);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fs-text-secondary);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-confirm-objects-more { color: var(--fs-text-tertiary); }
+
+/* Its own line, so a skimming reader cannot fold it into the consequence. */
+.fs-confirm-irreversible {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-family: var(--fs-short-dialog-description-font);
+  font-size: var(--fs-short-dialog-description-size);
+  line-height: var(--fs-short-dialog-description-line-height);
+}
+
+.fs-confirm-error {
+  margin: 0;
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-status-danger-border);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-status-danger-bg);
+  color: var(--fs-status-danger);
+  font-size: var(--fs-type-caption-size);
+}

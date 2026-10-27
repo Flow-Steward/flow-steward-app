@@ -1,0 +1,8 @@
+version: '1'
+pages:
+  - page_id: overview
+    title: Overview
+    components:
+      - component_id: fixture_task_ingress_summary
+        type: markdown
+        content: Synthetic task ingress fixture.

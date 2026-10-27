@@ -1,0 +1,23 @@
+services:
+  traefik:
+    command:
+      - --providers.file.directory=/run/traefik-dynamic
+      - --providers.file.watch=false
+      - --entrypoints.web.address=:${HTTP_PORT:-8080}
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:${APP_PORT:-8099}
+      - --entrypoints.websecure.http.tls=true
+      - --api.dashboard=false
+      - --entrypoints.websecure.http.tls.certresolver=compact-acme
+      - --certificatesresolvers.compact-acme.acme.email=${FS_ACME_CONTACT:?FS_ACME_CONTACT is required}
+      - --certificatesresolvers.compact-acme.acme.caserver=${FS_ACME_DIRECTORY_URL:?FS_ACME_DIRECTORY_URL is required}
+      - --certificatesresolvers.compact-acme.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.compact-acme.acme.httpchallenge=true
+      - --certificatesresolvers.compact-acme.acme.httpchallenge.entrypoint=web
+    volumes:
+      - fs-compact-acme:/letsencrypt
+
+volumes:
+  fs-compact-acme:

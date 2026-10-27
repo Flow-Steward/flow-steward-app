@@ -1,0 +1,119 @@
+/* Test Run on the canvas and in its panels (TestRun, RunData, TestOutput and Approval boards). */
+
+/* Step run marks: a pill on the card's top edge, so nothing reflows. */
+.workflow-run-mark { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 20px; height: 20px; padding: 0 6px; border: 1px solid var(--fs-border-subtle); border-radius: 999px; background: var(--fs-bg-surface); color: var(--fs-text-tertiary); box-shadow: var(--fs-shadow-raised); font: 500 11px/1 var(--ff-data); font-variant-numeric: tabular-nums; white-space: nowrap; animation: workflow-run-pop-in var(--fs-motion-popup-enter) both; }
+.workflow-run-mark-text { line-height: 20px; }
+.workflow-run-mark[data-run="done"], .workflow-run-mark[data-run="kept"] { border-color: var(--fs-status-success); background: var(--fs-status-success); color: var(--fs-action-primary-text); }
+.workflow-run-mark[data-run="failed"] { border-color: var(--fs-status-danger); background: var(--fs-status-danger); color: var(--fs-bg-surface); }
+.workflow-run-mark[data-run="running"] { border-color: var(--fs-border-selected); color: var(--fs-text-secondary); }
+.workflow-run-mark[data-run="waiting"] { border-color: var(--fs-status-attention-border); color: var(--fs-status-attention-ink); }
+
+@keyframes workflow-run-pop-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) { .workflow-run-mark { animation: none; } }
+
+/* The card frame follows its run state. */
+.workflow-card[data-run="running"] { border-color: var(--fs-border-selected); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fs-action-primary) 18%, transparent); }
+.workflow-card[data-run="failed"] { border-color: var(--fs-status-danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--fs-status-danger) 18%, transparent); }
+.workflow-card[data-run="skipped"] { opacity: .55; }
+
+/* Group run marks: words beside the group's header. */
+.workflow-container-run-text { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px solid var(--fs-border-subtle); border-radius: 999px; background: var(--fs-bg-surface); color: var(--fs-text-secondary); font: 500 11px/20px var(--ff-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.workflow-container-run-text[data-run="running"] { border-color: var(--fs-border-selected); }
+.workflow-container-run-text[data-run="done"] { color: var(--fs-status-success); }
+.workflow-container-run-text[data-run="failed"] { border-color: var(--fs-status-danger-border); color: var(--fs-status-danger); }
+
+/* A connection taken more than once: "2×" at its middle. */
+.workflow-edge-passes { position: absolute; z-index: 5; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--fs-workflow-edge-ran); color: var(--fs-action-primary-text); font: 500 11px/18px var(--ff-data); font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+
+/* The run bar: a floating card above the toolbar. */
+.workflow-runbar { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: min(360px, 100%); max-width: min(680px, 100%); padding: 8px 8px 8px 12px; border: 1px solid var(--fs-border-subtle); border-radius: 8px; background: var(--fs-bg-surface); color: var(--fs-text-primary); box-shadow: var(--fs-shadow-overlay); animation: workflow-runbar-pop-up var(--fs-motion-popup-enter) both; }
+.workflow-runbar[data-tone="danger"] { border-color: var(--fs-status-danger-border); }
+.workflow-runbar[data-tone="attention"] { border-color: var(--fs-status-attention-border); }
+.workflow-runbar-icon { flex: none; display: grid; place-items: center; width: 20px; color: var(--fs-text-tertiary); }
+.workflow-runbar-icon svg { width: 16px; height: 16px; }
+.workflow-runbar-icon[data-tone="danger"] { color: var(--fs-status-danger); }
+.workflow-runbar-icon[data-tone="attention"] { color: var(--fs-status-attention-ink); }
+.workflow-runbar-icon[data-tone="success"] { color: var(--fs-status-success); }
+.workflow-runbar-icon[data-tone="running"] { color: var(--fs-text-primary); }
+.workflow-runbar-text { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; }
+.workflow-runbar-title { font: 500 13px/1.4 var(--ff-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-runbar-sub { font: 400 12px/1.5 var(--ff-body); color: var(--fs-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-runbar-actions { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.workflow-runbar-notice { flex-basis: 100%; }
+
+@keyframes workflow-runbar-pop-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) { .workflow-runbar { animation: none; } }
+
+/* Results: test runs, the latest run's facts, one row per pass. */
+.workflow-run-results { display: flex; flex-direction: column; gap: 16px; }
+.workflow-run-results-section { display: flex; flex-direction: column; gap: 8px; }
+.workflow-run-results-heading { display: flex; align-items: center; gap: 8px; margin: 0; font: 500 13px/1.4 var(--ff-body); color: var(--fs-text-primary); }
+.workflow-run-runs { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.workflow-run-runs-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.workflow-run-runs-row:hover { background: var(--fs-dropdown-item-hover-bg); }
+.workflow-run-runs-row[aria-current="true"] { background: var(--fs-action-primary-wash); }
+.workflow-run-runs-row:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+.workflow-run-runs-row:disabled { cursor: default; opacity: .6; }
+.workflow-run-runs-name { font: 500 13px/20px var(--ff-body); }
+.workflow-run-runs-meta { justify-self: end; font: 400 12px/20px var(--ff-data); color: var(--fs-text-tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.workflow-run-inputs { margin: 0; font: 400 12px/1.5 var(--ff-body); color: var(--fs-text-secondary); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.workflow-run-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; font: 400 12px/1.5 var(--ff-body); color: var(--fs-text-tertiary); }
+.workflow-run-facts b { font: 500 13px/1.4 var(--ff-data); color: var(--fs-text-primary); font-variant-numeric: tabular-nums; }
+.workflow-run-timeline { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.workflow-run-pass-header { padding: 8px 8px 2px; font: 500 12px/16px var(--ff-body); color: var(--fs-text-secondary); }
+.workflow-run-pass { display: flex; flex-direction: column; border-radius: 6px; }
+.workflow-run-pass[data-open="true"] { background: var(--fs-bg-surface-muted); }
+.workflow-run-pass-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; width: 100%; min-height: 36px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.workflow-run-pass-row:hover { background: var(--fs-dropdown-item-hover-bg); }
+.workflow-run-pass[data-open="true"] > .workflow-run-pass-row:hover { background: transparent; }
+.workflow-run-pass-row:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+.workflow-run-pass-row:disabled { cursor: default; }
+.workflow-run-pass-icon { display: grid; place-items: center; height: 20px; color: var(--fs-text-tertiary); }
+.workflow-run-pass-dot { width: 8px; height: 8px; border: 2px solid currentcolor; border-radius: 999px; }
+.workflow-run-pass-icon[data-run="done"], .workflow-run-pass-icon[data-run="kept"] { color: var(--fs-status-success); }
+.workflow-run-pass-icon[data-run="failed"] { color: var(--fs-status-danger); }
+.workflow-run-pass-icon[data-run="done"] .workflow-run-pass-dot, .workflow-run-pass-icon[data-run="kept"] .workflow-run-pass-dot, .workflow-run-pass-icon[data-run="failed"] .workflow-run-pass-dot { background: currentcolor; }
+.workflow-run-pass-icon[data-run="running"] { color: var(--fs-action-primary); }
+.workflow-run-pass-icon[data-run="waiting"] { color: var(--fs-status-attention-ink); }
+.workflow-run-pass-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.workflow-run-pass-title { font: 500 13px/20px var(--ff-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-run-pass-meta { font: 400 12px/16px var(--ff-body); color: var(--fs-text-tertiary); }
+.workflow-run-pass-reason { font: 400 12px/1.5 var(--ff-body); color: var(--fs-status-danger); overflow-wrap: anywhere; }
+.workflow-run-pass-time { font: 400 12px/20px var(--ff-data); color: var(--fs-text-tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.workflow-run-pass-time[data-run="failed"] { color: var(--fs-status-danger); }
+.workflow-run-pass-time[data-run="waiting"] { color: var(--fs-status-attention-ink); }
+.workflow-run-pass-data { display: flex; flex-direction: column; gap: 12px; padding: 0 8px 12px 36px; }
+.workflow-run-pass-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.workflow-run-results-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--fs-border-subtle); }
+
+/* Input / Output values: a value longer than 8 lines or 240 characters shows its start. */
+.workflow-run-io { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: start; gap: 8px 12px; margin: 0; }
+.workflow-run-io dt { font: 500 11px/20px var(--ff-body); color: var(--fs-text-tertiary); text-transform: uppercase; letter-spacing: .06em; }
+.workflow-run-io dd { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; }
+.workflow-run-value { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.workflow-run-value-name { font: 400 12px/1.5 var(--ff-code); color: var(--fs-text-secondary); overflow-wrap: anywhere; }
+.workflow-run-value-text { margin: 0; padding: 0; font: 400 12px/1.5 var(--ff-code); color: var(--fs-text-primary); white-space: pre-wrap; overflow-wrap: anywhere; }
+.workflow-run-value-hidden { font: 400 12px/1.5 var(--ff-body); color: var(--fs-text-tertiary); }
+.workflow-run-value-toggle { align-self: flex-start; }
+
+/* The step's Test Run tab: latest pass, kept test output, a waiting approval. */
+.workflow-step-run { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--fs-border-subtle); border-radius: 8px; }
+.workflow-step-run-title { display: flex; align-items: center; gap: 8px; margin: 0; font: 500 13px/1.4 var(--ff-body); }
+.workflow-step-run-sub { margin: 0; font: 400 12px/1.5 var(--ff-body); color: var(--fs-text-tertiary); }
+.workflow-step-run-state[data-run="failed"] { color: var(--fs-status-danger); }
+.workflow-kept-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.workflow-kept-json { min-height: 64px; font: 400 12px/18px var(--ff-code); resize: vertical; }
+.workflow-kept-error { margin: 4px 0 0; font: 400 12px/1.5 var(--ff-body); color: var(--fs-status-danger); }
+.workflow-approval-decision { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--fs-status-attention-border); border-radius: 8px; background: var(--fs-status-attention-wash); }
+.workflow-approval-decision-title { display: flex; align-items: center; gap: 8px; margin: 0; font: 500 11px/16px var(--ff-body); text-transform: uppercase; letter-spacing: .06em; color: var(--fs-status-attention-ink); }
+.workflow-approval-request { margin: 0; padding: 10px 12px; border: 1px solid var(--fs-status-attention-border); border-radius: 6px; background: var(--fs-bg-surface); font: 500 14px/1.45 var(--ff-body); color: var(--fs-status-attention-ink); }
+.workflow-approval-request:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+.workflow-approval-next { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font: 400 13px/1.5 var(--ff-body); color: var(--fs-text-secondary); }
+.workflow-approval-next b { font-weight: 500; color: var(--fs-text-primary); }
+.workflow-approval-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Launch dialog notes said ahead of a run. */
+.workflow-run-ahead { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.workflow-run-ahead p { margin: 0; }

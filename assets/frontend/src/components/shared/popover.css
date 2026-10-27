@@ -1,0 +1,32 @@
+/*
+ * Popover surface, tokens only. Canon: 03_components/overlays-feedback/popover.md.
+ * The content decides its own rows; the surface owns placement and chrome.
+ */
+
+.fs-popover-anchor {
+  position: relative;
+  display: inline-block;
+}
+
+.fs-popover {
+  position: absolute;
+  z-index: var(--fs-z-popup);
+  top: calc(100% + var(--fs-popup-offset));
+  left: 0;
+  display: grid;
+
+  /* One column no wider than the surface: without it the track grows to its
+     content's min-content, and two date fields pushed rows 30px past the edge. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--fs-space-050);
+  width: var(--fs-popover-width);
+  max-width: calc(100vw - 2 * var(--fs-space-200));
+  padding: var(--fs-popup-padding);
+  border: 1px solid var(--fs-popover-border);
+  border-radius: var(--fs-popover-radius);
+  background: var(--fs-popover-bg);
+  box-shadow: var(--fs-popover-shadow);
+  animation: fs-settings-popup-enter var(--fs-motion-popup-enter);
+}
+
+.fs-popover.wide { width: var(--fs-popover-width-wide); }

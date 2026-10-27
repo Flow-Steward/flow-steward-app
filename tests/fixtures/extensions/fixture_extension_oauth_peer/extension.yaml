@@ -1,0 +1,45 @@
+manifest_version: 2
+lifecycle: {data_schema_version: 1, data_migrations: []}
+extension_id: fixture.extension-oauth-peer
+kind: tool_provider
+version: 1.0.0
+display_name: Neutral OAuth Peer Fixture
+description: Synthetic peer OAuth provider used by core conformance tests.
+vendor: {name: Flow Steward Test Fixtures}
+features: [tool]
+required_scopes: [extension:invoke]
+entrypoint: {mode: subprocess, command: [python3, main.py]}
+health: {command: [python3, health.py], timeout_seconds: 5}
+ui_manifest: ui/ui_manifest.yaml
+callbacks:
+  - callback_id: oauth_authorization
+    purpose: oauth_authorization
+    methods: [GET]
+    connection_scoped: false
+runtime:
+  contract_version: extension_host_v2
+  extension_contract_v2:
+    oauth_providers:
+      - provider_id: example
+        display_name: Peer Identity
+        description: Independent extension using the same manifest-local provider ID.
+        setup_page_id: oauth_setup
+        help_page_id: oauth_help
+        flow: {type: authorization_code, pkce: s256}
+        credential_fields:
+          - field_id: client_id
+            value_type: text
+            required: true
+            secret: false
+            change_policy: reauthorization_required
+            label: Client ID
+            help_text: Enter the peer OAuth application client ID.
+            autocomplete: username
+            validation: {min_length: 1, max_length: 512}
+        authorization_endpoint: {url: https://peer.example.test/authorize}
+        token_endpoint: {url: https://peer.example.test/token, client_auth_method: none}
+        callback_id: oauth_authorization
+        authorization_intents: [{intent_id: connect, static_parameters: {}, user_inputs: []}]
+    connection_types:
+      - connection_type_id: peer_account
+        auth: {type: oauth2, provider_id: example, scopes: {required: [profile.read], optional: []}}

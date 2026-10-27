@@ -1,0 +1,469 @@
+.fs-drawer.workflow-builder-drawer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100vw;
+  overflow: hidden;
+  animation: workflow-builder-inspector-enter var(--fs-motion-drawer-enter) both;
+}
+
+.fs-drawer.workflow-builder-inspector-contextual {
+  inset: 64px 0 0 auto;
+  z-index: var(--fs-z-inline-dialog);
+}
+
+.fs-drawer.workflow-builder-inspector-detail {
+  inset: 0 0 0 auto;
+  z-index: 60;
+  width: min(100vw, 36rem);
+}
+
+.workflow-builder-drawer > .fs-drawer-title-row,
+.workflow-builder-drawer > .fs-tabs-scroll {
+  flex: 0 0 auto;
+}
+
+.workflow-builder-drawer > .fs-drawer-title-row {
+  gap: var(--fs-space-3);
+}
+
+/* Interface tabs use the published compact token treatment at the drawer's
+   actual width, including when a desktop viewport contains a narrow drawer. */
+.workflow-builder-interface { container: workflow-interface / inline-size; }
+
+@container workflow-interface (width <= 430px) {
+  .workflow-builder-interface > .fs-tabs-scroll .fs-tab {
+    min-width: 0;
+    padding-inline: var(--fs-space-150);
+  }
+}
+
+.workflow-builder-drawer > .workflow-builder-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* The sticky footer: under the scrolling body, so Delete and Save stay in view.
+   An editor without actions leaves the slot empty and it takes no room. */
+.workflow-builder-drawer > .workflow-builder-drawer-footer,
+.workflow-builder-drawer-footer {
+  flex: 0 0 auto;
+  margin-top: var(--fs-space-150);
+  padding-top: var(--fs-space-150);
+  border-top: 1px solid var(--fs-border-subtle);
+}
+
+.workflow-builder-drawer-footer:empty { display: none; }
+
+.workflow-builder-drawer-footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+}
+
+.workflow-builder-drawer-footer-row + .workflow-builder-drawer-footer-row { margin-top: var(--fs-space-100); }
+
+.workflow-builder-drawer-footer-space { flex: 1 1 auto; }
+
+/* Save parameters, Saving parameters… and ✓ Saved share one cell: the button keeps one width. */
+.workflow-save-labels { display: inline-grid; }
+
+.workflow-save-labels > span {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fs-space-100);
+}
+
+.workflow-save-labels > span[data-on="false"] { visibility: hidden; }
+
+.workflow-save-labels svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.workflow-builder-drawer-body > .fs-alert {
+  margin-bottom: var(--fs-space-3);
+  overflow-wrap: anywhere;
+}
+
+.workflow-builder-issue-title { font-weight: 500; }
+.workflow-builder-issue-action { margin-top: var(--fs-space-2); }
+
+.workflow-builder-issue-path {
+  color: var(--fs-text-secondary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-tabs-body-size);
+  overflow-wrap: anywhere;
+}
+
+.workflow-builder-drawer .workflow-builder-drawer-resize-handle::after {
+  background: transparent;
+  transition: background-color var(--fs-duration-fast) var(--fs-ease-standard);
+  box-shadow: none;
+}
+
+.workflow-builder-drawer .workflow-builder-drawer-resize-handle:hover::after,
+.workflow-builder-drawer .workflow-builder-drawer-resize-handle:focus-visible::after {
+  background: var(--fs-border-selected);
+  box-shadow: var(--fs-drawer-focus-ring);
+}
+
+.workflow-builder-inspector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  border: 0;
+  background: var(--fs-overlay-scrim);
+}
+
+@keyframes workflow-builder-inspector-enter {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-drawer.workflow-builder-drawer { animation: none; }
+  .workflow-builder-drawer .workflow-builder-drawer-resize-handle::after { transition: none; }
+}
+
+/* Legacy Step editor children keep their layout utilities. Adapt only their
+   neutral color roles here: DsDrawer portals are outside .app-shell-root. */
+.workflow-builder-drawer .workflow-builder-step-form {
+  color: var(--fs-text-primary);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(.text-slate-100, .text-slate-200, .text-slate-300) {
+  color: var(--fs-text-primary);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form .text-slate-400 {
+  color: var(--fs-text-secondary);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form .text-slate-500 {
+  color: var(--fs-text-tertiary);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form label.text-slate-300 {
+  color: var(--fs-field-label-color);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(.border-white\/10, .border-white\/15) {
+  border-color: var(--fs-border-subtle);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(.bg-slate-900\/30, .bg-slate-900\/40, .bg-slate-950\/30, .bg-slate-950\/35, .bg-slate-950\/40, .bg-slate-950\/60) {
+  background-color: var(--fs-bg-surface-muted);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(.bg-slate-900\/60, .bg-slate-900\/70) {
+  background-color: var(--fs-bg-surface);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form .bg-slate-900 {
+  background-color: var(--fs-input-bg);
+  border-color: var(--fs-input-border);
+  color: var(--fs-input-text);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(input, textarea).bg-slate-900::placeholder {
+  color: var(--fs-input-placeholder);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(input, select, textarea).bg-slate-900:focus-visible {
+  border-color: var(--fs-input-border-focus);
+  box-shadow: var(--fs-input-focus-ring);
+  outline: 0;
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(input, textarea).bg-slate-900[readonly] {
+  background-color: var(--fs-input-bg-readonly);
+  color: var(--fs-input-text-readonly);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(input, select, textarea).bg-slate-900:disabled {
+  background-color: var(--fs-input-bg-disabled);
+  border-color: var(--fs-input-border-disabled);
+  color: var(--fs-input-text-disabled);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form :is(input, select, textarea).bg-slate-900[aria-invalid="true"] {
+  background-color: var(--fs-input-bg-error);
+  border-color: var(--fs-input-border-error);
+  box-shadow: var(--fs-input-error-ring);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form .text-red-300 {
+  color: var(--fs-field-error-color);
+}
+
+/* The Template editor paints text in its mirror; its textarea stays transparent. */
+.workflow-builder-drawer .workflow-builder-step-form div.bg-slate-900:focus-within {
+  border-color: var(--fs-input-border-focus);
+  box-shadow: var(--fs-input-focus-ring);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form .bg-slate-900 > pre[aria-hidden="true"] [data-template-expression="true"] {
+  background-color: var(--fs-action-primary-wash);
+  color: var(--fs-text-brand);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form .bg-slate-900 > pre[aria-hidden="true"] .text-amber-200 {
+  color: var(--fs-text-secondary);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form .bg-slate-900 > textarea.text-transparent {
+  caret-color: var(--fs-input-text);
+}
+
+/* Transform's small actions need states above the neutral utility adapter. */
+.workflow-builder-drawer .workflow-builder-step-form button.bg-slate-900\/70 {
+  border-color: var(--fs-button-secondary-border);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form button.bg-slate-900\/70:hover:not(:disabled) {
+  background-color: var(--fs-action-primary-wash);
+  border-color: var(--fs-border-selected);
+}
+
+.workflow-builder-drawer .workflow-builder-step-form button.bg-slate-900\/70:focus-visible {
+  box-shadow: var(--fs-button-focus-ring);
+  outline: 0;
+}
+
+.workflow-builder-drawer .workflow-builder-step-form button.bg-slate-900\/70:disabled {
+  background-color: var(--fs-button-disabled-bg);
+  border-color: var(--fs-button-disabled-border);
+  color: var(--fs-button-disabled-text);
+}
+
+
+/* The Group/For each editor is another legacy surface in the same body portal.
+   Keep its layout and action/validation owners; adapt only existing color roles. */
+.workflow-builder-drawer #group-editor-surface {
+  color: var(--fs-text-primary);
+}
+
+.workflow-builder-drawer #group-editor-surface :is(.text-slate-100, .text-slate-200, .text-slate-300, .text-pink-50, .text-pink-100, .text-indigo-50, .text-indigo-100, .text-cyan-50, .text-cyan-100) {
+  color: var(--fs-text-primary);
+}
+
+.workflow-builder-drawer #group-editor-surface :is(.text-slate-400, .text-pink-50\/80, .text-indigo-50\/75) {
+  color: var(--fs-text-secondary);
+}
+.workflow-builder-drawer #group-editor-surface .text-slate-500 { color: var(--fs-text-tertiary); }
+.workflow-builder-drawer #group-editor-surface label { color: var(--fs-field-label-color); }
+
+.workflow-builder-drawer #group-editor-surface div:is(.bg-slate-900\/40, .bg-slate-950\/35, .bg-pink-500\/10, .bg-indigo-500\/10, .bg-cyan-500\/10) {
+  background-color: var(--fs-bg-surface-muted);
+  border-color: var(--fs-border-subtle);
+}
+
+.workflow-builder-drawer #group-editor-surface :is(input, select, textarea):is(.bg-slate-900, .bg-slate-950) {
+  background-color: var(--fs-input-bg);
+  border-color: var(--fs-input-border);
+  color: var(--fs-input-text);
+}
+.workflow-builder-drawer #group-editor-surface :is(input, textarea):is(.bg-slate-900, .bg-slate-950)::placeholder { color: var(--fs-input-placeholder); }
+
+.workflow-builder-drawer #group-editor-surface :is(input, select, textarea):is(.bg-slate-900, .bg-slate-950):focus-visible {
+  border-color: var(--fs-input-border-focus);
+  box-shadow: var(--fs-input-focus-ring);
+  outline: 0;
+}
+
+.workflow-builder-drawer #group-editor-surface :is(input, textarea):is(.bg-slate-900, .bg-slate-950)[readonly] {
+  background-color: var(--fs-input-bg-readonly);
+  color: var(--fs-input-text-readonly);
+}
+
+.workflow-builder-drawer #group-editor-surface :is(input, select, textarea):is(.bg-slate-900, .bg-slate-950):disabled {
+  background-color: var(--fs-input-bg-disabled);
+  border-color: var(--fs-input-border-disabled);
+  color: var(--fs-input-text-disabled);
+}
+
+.workflow-builder-drawer #group-editor-surface :is(input, select, textarea):is(.bg-slate-900, .bg-slate-950)[aria-invalid="true"] {
+  background-color: var(--fs-input-bg-error);
+  border-color: var(--fs-input-border-error);
+  box-shadow: var(--fs-input-error-ring);
+}
+
+.workflow-builder-drawer #group-editor-surface button.bg-slate-950\/50 {
+  background-color: var(--fs-bg-surface);
+  border-color: var(--fs-border-control);
+}
+
+.workflow-builder-drawer #group-editor-surface button:is(.border-cyan-200\/35, .border-cyan-200\/45, .border-cyan-300\/35) {
+  background-color: var(--fs-action-primary-wash);
+  border-color: var(--fs-border-selected);
+  color: var(--fs-text-brand);
+}
+
+.workflow-builder-drawer #group-editor-surface button.bg-rose-500\/10 {
+  background-color: var(--fs-status-danger-bg);
+  border-color: var(--fs-status-danger-border);
+  color: var(--fs-status-danger);
+}
+.workflow-builder-drawer #group-editor-surface button:hover:not(:disabled) { border-color: var(--fs-border-selected); }
+.workflow-builder-drawer #group-editor-surface button.bg-rose-500\/10:hover:not(:disabled) { border-color: var(--fs-status-danger); }
+.workflow-builder-drawer #group-editor-surface button:focus-visible { box-shadow: var(--fs-button-focus-ring); outline: 0; }
+
+.workflow-builder-drawer #group-editor-surface button:disabled {
+  background-color: var(--fs-button-disabled-bg);
+  border-color: var(--fs-button-disabled-border);
+  color: var(--fs-button-disabled-text);
+}
+.workflow-builder-drawer #group-editor-surface .text-emerald-100 { color: var(--fs-status-success); }
+.workflow-builder-drawer #group-editor-surface .text-amber-100 { color: var(--fs-status-attention-ink); }
+
+/* Workflow contract blocks: a count in the header, one summary line per row
+   that opens to edit it, Add at the bottom. Tokens only. */
+.workflow-contract-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+}
+
+.workflow-contract-block-head {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-height: 28px;
+}
+
+.workflow-contract-block-title {
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-field-label-size);
+  font-weight: 500;
+}
+
+.workflow-contract-block-count,
+.workflow-contract-empty {
+  margin: 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.workflow-contract-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-050);
+}
+
+.workflow-contract-row {
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+}
+
+.workflow-contract-row[data-open="true"] { border-color: var(--fs-border-default); }
+.workflow-contract-row[data-invalid="true"] { border-color: var(--fs-status-danger-border); }
+
+.workflow-contract-row-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  width: 100%;
+  min-height: 32px;
+  padding: var(--fs-space-050) var(--fs-space-150);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--fs-motion-background-hover);
+}
+
+.workflow-contract-row-summary:hover { background: var(--fs-bg-surface-muted); }
+
+.workflow-contract-row-summary:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.workflow-contract-row-name {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--fs-text-primary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-caption-size);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-contract-row-name[data-prose="true"] { max-width: 60%; font-family: var(--ff-body); }
+.workflow-contract-row-name[data-empty="true"] { color: var(--fs-text-tertiary); font-style: italic; }
+
+.workflow-contract-row-type {
+  flex: none;
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-micro-size);
+}
+
+.workflow-contract-row-desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-contract-row-chevron {
+  flex: none;
+  width: var(--fs-icon-size-supporting);
+  height: var(--fs-icon-size-supporting);
+  color: var(--fs-text-tertiary);
+  stroke-width: var(--fs-icon-stroke);
+  transition: transform var(--fs-motion-background-hover);
+}
+
+.workflow-contract-row[data-open="true"] .workflow-contract-row-chevron { transform: rotate(180deg); }
+
+.workflow-contract-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-150);
+  padding: var(--fs-space-150);
+  border-top: 1px solid var(--fs-border-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-contract-row-summary,
+  .workflow-contract-row-chevron { transition: none; }
+}
+
+/* Workflow settings: groups divided by a rule, as the drawer's form sections. */
+.workflow-settings-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-200);
+}
+
+.workflow-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-150);
+}
+
+.workflow-settings-group + .workflow-settings-group {
+  padding-top: var(--fs-space-200);
+  border-top: 1px solid var(--fs-border-subtle);
+}

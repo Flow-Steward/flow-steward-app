@@ -1,0 +1,110 @@
+Screen {
+    background: black;
+    color: white;
+}
+
+.panel {
+    background: black;
+    color: white;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.field {
+    margin: 0;
+}
+
+.muted,
+.required,
+.error,
+.success,
+.accent {
+    background: black;
+    color: white;
+}
+
+Input {
+    background: black;
+    color: white;
+    border: none;
+    height: 1;
+}
+
+Input > .input--placeholder,
+Input > .input--suggestion {
+    color: white;
+}
+
+Input > .input--cursor,
+Input > .input--selection {
+    background: black;
+    color: white;
+}
+
+Input:focus {
+    background: white;
+    color: black;
+}
+
+Checkbox:focus {
+    border: heavy white;
+}
+
+Checkbox {
+    background: black;
+    color: white;
+}
+
+ToggleButton,
+ToggleButton > .toggle--label {
+    background: black;
+    color: white;
+    border: none;
+}
+
+ToggleButton > .toggle--button {
+    background: black;
+    color: black;
+    border: none;
+}
+
+ToggleButton.-on > .toggle--button {
+    background: black;
+    color: white;
+    text-style: bold;
+}
+
+ToggleButton:focus {
+    background: black;
+    color: white;
+    border: heavy white;
+}
+
+ToggleButton:focus > .toggle--label {
+    background: white;
+    color: black;
+}
+
+ToggleButton:focus > .toggle--button {
+    background: black;
+    color: black;
+}
+
+ToggleButton.-on:focus > .toggle--button {
+    background: black;
+    color: white;
+}
+
+Button {
+    background: black;
+    color: white;
+    border: none;
+    height: 1;
+    margin-right: 1;
+}
+
+Button:focus {
+    background: white;
+    color: black;
+}

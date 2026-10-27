@@ -1,0 +1,123 @@
+/*
+ * Inline confirm, embedded in a table row or the bulk action bar. Tokens only.
+ * Canon: 03_components/overlays-feedback/inline-confirm-preview.html. The host
+ * already supplies inset and surface, so the strip draws no card of its own.
+ */
+
+.fs-inline-confirm {
+  display: flex;
+  flex: 1 1 auto;
+
+  /* The row wraps rather than clips: a named confirming action is longer than
+     a bare verb, and the actions drop to a second line, still end-aligned. */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--fs-space-100) + var(--fs-space-025));
+  min-width: 0;
+  color: var(--fs-inline-confirm-text);
+}
+
+.fs-inline-confirm-question {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The consequence and the affected objects take their own line under the question. */
+.fs-inline-confirm-detail {
+  flex-basis: 100%;
+  min-width: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  overflow-wrap: anywhere;
+}
+
+.fs-inline-confirm-actions {
+  display: flex;
+  gap: calc(var(--fs-space-100) + var(--fs-space-025));
+  margin-left: auto;
+}
+
+.fs-inline-confirm-button {
+  min-width: var(--fs-button-min-width-md);
+  height: var(--fs-button-height-sm);
+  padding: var(--fs-button-padding-sm);
+  border: 1px solid var(--fs-button-secondary-border);
+  border-radius: var(--fs-button-radius);
+  background: var(--fs-inline-confirm-secondary-bg);
+  color: var(--fs-inline-confirm-secondary-text);
+  font-size: var(--fs-button-font-size-sm);
+  font-weight: var(--fs-button-font-weight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fs-inline-confirm-button:hover { background: var(--fs-inline-confirm-secondary-hover-bg); }
+
+.fs-inline-confirm-button.primary {
+  border-color: var(--fs-inline-confirm-primary-border);
+  background: var(--fs-inline-confirm-primary-bg);
+  color: var(--fs-inline-confirm-primary-text);
+}
+
+.fs-inline-confirm-button.primary:hover { background: var(--fs-inline-confirm-primary-hover-bg); }
+.fs-inline-confirm-button.primary:active { background: var(--fs-inline-confirm-primary-active-bg); }
+
+.fs-inline-confirm-button.danger {
+  border-color: var(--fs-inline-confirm-danger-border);
+  background: var(--fs-inline-confirm-danger-bg);
+  color: var(--fs-inline-confirm-danger-text);
+}
+
+.fs-inline-confirm-button.danger:hover { background: var(--fs-inline-confirm-danger-hover-bg); }
+.fs-inline-confirm-button.danger:active { background: var(--fs-inline-confirm-danger-active-bg); }
+
+.fs-inline-confirm-button:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-inline-confirm-focus-ring);
+}
+
+.fs-inline-confirm-button:disabled { cursor: not-allowed; }
+
+/* The recovery message sits beside the actions it restored, on its own line. */
+.fs-inline-confirm-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--fs-field-error-color);
+  font-size: var(--fs-type-caption-size);
+  text-align: right;
+}
+
+/*
+ * The table home: a row replaced in place by a strip spanning every column.
+ * The cell would otherwise inherit both frozen-column rules (sticky at left and
+ * right, and the actions column's 48px), because it is the row's first and last
+ * cell at once.
+ */
+.fs-table .fs-table-confirm-row > td {
+  position: static;
+  width: auto;
+}
+
+/*
+ * The strip is measured against what the reader can see, not the table: while
+ * it is open the scroll area is a size container, so 100cqi is its visible
+ * width. Scoped to a table that holds a strip, so no other table changes.
+ */
+.fs-table-scroll:has(.fs-table-confirm-row) { container-type: inline-size; }
+
+/*
+ * The strip keeps the row's height: a normal row is as tall as its action
+ * trigger. Question and actions stay together and pin to the visible start of
+ * the scroll area, so a table wider than its card never pushes the actions out
+ * of view, and the frozen first column cannot slide under them. On a narrow
+ * screen the actions wrap to a second line instead of being cut off.
+ */
+.fs-table-confirm-row .fs-inline-confirm {
+  position: sticky;
+  left: var(--fs-space-200);
+  width: max-content;
+  max-width: calc(100cqi - 2 * var(--fs-space-200));
+  min-height: var(--fs-pagination-control-size);
+}
+
+.fs-table-confirm-row .fs-inline-confirm-actions { margin-left: 0; }

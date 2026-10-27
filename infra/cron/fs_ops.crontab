@@ -1,0 +1,14 @@
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Install with `crontab -e` as the account that owns the installation (not root).
+# See docs/operations/scheduled-maintenance.md.
+#
+# Cron starts in the home directory: replace /opt/flow-steward with the absolute
+# path of the installation.
+#
+# Retention (trash, logs, jobs, revisions) is not scheduled here: the control
+# plane runs it once a day on every profile.
+
+# Daily verified database backup (02:00), the backup `./flow-steward doctor` counts
+0 2 * * * cd /opt/flow-steward && ./flow-steward backup create --json >> .flow-steward/logs/backup-cron.log 2>&1

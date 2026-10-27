@@ -1,0 +1,4 @@
+# Extensions installed on this checkout land here. Core ships none: each one
+# lives in its own repository and installs from the extension catalog.
+*
+!.gitignore

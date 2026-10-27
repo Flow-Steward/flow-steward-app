@@ -1,0 +1,12 @@
+page_id: files
+title: Files
+description: Connect a fixture files account.
+components:
+  - component_id: fixture_files_oauth_connections
+    type: connection_form
+    title: Files accounts
+    description: Add a fixture files account for this project.
+    data:
+      oauth_provider_id: example
+      connection_type: example_files
+      oauth_intent: files_connect

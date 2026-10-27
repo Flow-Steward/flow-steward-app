@@ -1,0 +1,7 @@
+services:
+  fs-app:
+    ports:
+      - "127.0.0.1:${FS_REVERSE_PROXY_BACKEND_PORT:-18099}:8099"
+  fs-mcp:
+    ports:
+      - "127.0.0.1:${FS_REVERSE_PROXY_MCP_PORT:-18100}:8100"

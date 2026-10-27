@@ -1,0 +1,7 @@
+oauth.example.display_name: Example Identity
+oauth.example.description: Connect an Example account.
+oauth.example.credential.client_id.label: Client ID
+oauth.example.credential.client_id.help_text: Enter the OAuth application client ID.
+oauth.example.credential.client_id.placeholder: example-client-id
+oauth.example.credential.client_secret.label: Client secret
+oauth.example.credential.client_secret.help_text: Enter the OAuth application client secret.

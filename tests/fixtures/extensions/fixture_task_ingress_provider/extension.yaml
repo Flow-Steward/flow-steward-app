@@ -1,0 +1,28 @@
+manifest_version: 2
+runtime:
+  contract_version: extension_host_v2
+lifecycle: {data_schema_version: 1, data_migrations: []}
+extension_id: fixture.task-ingress-provider
+kind: task_provider
+version: 1.0.0
+display_name: Task Ingress Fixture
+description: Synthetic task ingress provider used by core host conformance tests.
+vendor:
+  name: Flow Steward Test Fixtures
+features:
+  - task_ingress
+required_scopes:
+  - extension:invoke
+entrypoint:
+  mode: subprocess
+  command:
+    - python3
+    - main.py
+health:
+  command:
+    - python3
+    - health.py
+  timeout_seconds: 5
+ui_manifest: ui/ui_manifest.yaml
+query_manifest: ui/queries/queries.yaml
+action_manifest: ui/actions/actions.yaml

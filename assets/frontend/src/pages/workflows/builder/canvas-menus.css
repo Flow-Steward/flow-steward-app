@@ -1,0 +1,104 @@
+/* Canvas menus, Add step, layout and group presentation (design boards: Canvas, Components, Grouping). */
+
+/* Add step: a one-line description per kind, a visible title and a key footer. */
+.fs-popover:has(.workflow-palette) { width: 320px; }
+.fs-popover:has(.workflow-palette[data-dragging]) { opacity: 0.32; pointer-events: none; transition: opacity var(--fs-motion-popup-enter); }
+.workflow-palette { display: flex; flex-direction: column; gap: var(--fs-space-100); }
+.workflow-palette-title { display: grid; gap: 2px; padding: 0 var(--fs-space-050); }
+.workflow-palette-heading { margin: 0; color: var(--fs-text-primary); font: 500 13px/20px var(--ff-body); overflow-wrap: anywhere; }
+.workflow-palette-subtitle { margin: 0; color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-body); }
+.workflow-palette-list { max-height: 50vh; overflow-y: auto; }
+.workflow-palette-family { margin: 0; padding: var(--fs-space-050) var(--fs-space-100); color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-body); }
+.workflow-palette-option { display: flex; align-items: flex-start; gap: var(--fs-space-100); width: 100%; min-height: var(--fs-input-height); padding: var(--fs-space-050) var(--fs-space-100); border: 0; border-radius: var(--fs-popup-row-radius); background: transparent; color: var(--fs-text-primary); text-align: left; cursor: pointer; touch-action: pan-y; }
+.workflow-palette-option[data-active], .workflow-palette-option:not([aria-disabled="true"]):hover { background: var(--fs-dropdown-item-hover-bg); }
+.workflow-palette-option[aria-disabled="true"] { cursor: not-allowed; }
+.workflow-palette-option[aria-disabled="true"] .workflow-palette-option-name { color: var(--fs-text-tertiary); }
+.workflow-palette-option:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: -2px; }
+.workflow-palette-option-text { display: grid; min-width: 0; flex: 1; }
+.workflow-palette-option-name { font: 400 13px/20px var(--ff-body); }
+.workflow-palette-option-description { color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-body); overflow-wrap: anywhere; }
+.workflow-palette-footer { display: flex; flex-wrap: wrap; gap: var(--fs-space-150); margin: 0; padding: var(--fs-space-100) var(--fs-space-100) 0; border-top: 1px solid var(--fs-border-subtle); color: var(--fs-text-tertiary); font: 400 11px/16px var(--ff-body); }
+
+/* Dragging a kind out of Add step: the dashed slot where it lands and the chip naming it. */
+.workflow-drag-slot { position: fixed; z-index: var(--fs-z-popup); border: 1.5px dashed var(--fs-border-selected); border-radius: var(--fs-card-radius); background: var(--fs-action-primary-wash); pointer-events: none; }
+.workflow-drag-chip { position: fixed; z-index: var(--fs-z-popup); display: inline-flex; align-items: center; gap: var(--fs-space-075); max-width: 320px; padding: var(--fs-space-050) var(--fs-space-100); border: 1px solid var(--fs-border-default); border-radius: var(--fs-radius-compact); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); color: var(--fs-text-primary); font: 400 12px/16px var(--ff-body); pointer-events: none; white-space: nowrap; }
+.workflow-drag-chip-place { color: var(--fs-text-tertiary); overflow: hidden; text-overflow: ellipsis; }
+.workflow-drag-chip[data-refused] .workflow-drag-chip-place { color: var(--fs-status-attention-ink); }
+
+/* Right-click and More menus reuse the canonical row menu; shortcuts sit on the right. */
+.fs-row-menu.workflow-canvas-menu { position: fixed; right: auto; top: auto; width: max-content; min-width: 200px; max-width: 320px; animation: workflow-menu-in var(--fs-motion-popup-enter); }
+.workflow-canvas-menu .workflow-menu-shortcut { color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-data); font-variant-numeric: tabular-nums; }
+.workflow-canvas-menu button[aria-disabled="true"] { color: var(--fs-input-text-disabled); cursor: not-allowed; }
+.workflow-canvas-menu button[aria-disabled="true"]:hover { background: transparent; }
+.workflow-canvas-menu button[data-danger="true"]:not([aria-disabled="true"]) { color: var(--fs-status-danger); }
+.workflow-canvas-menu .workflow-menu-reason { grid-column: 1 / -1; color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-body); white-space: normal; }
+.workflow-canvas-menu .workflow-menu-separator { height: 1px; margin: var(--fs-space-050) 0; background: var(--fs-border-subtle); }
+.workflow-canvas-menu .workflow-menu-heading { margin: 0; padding: var(--fs-space-050) var(--fs-space-100); color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-body); }
+.workflow-canvas-menu .workflow-menu-subitems { display: grid; padding-left: var(--fs-space-150); }
+.workflow-canvas-menu .workflow-menu-check { color: var(--fs-dropdown-item-selected-mark); }
+.workflow-canvas-menu .workflow-menu-summary { display: grid; gap: var(--fs-space-050); max-width: 300px; padding: var(--fs-space-050) var(--fs-space-100); color: var(--fs-text-secondary); font: 400 12px/16px var(--ff-body); white-space: normal; }
+.workflow-canvas-menu .workflow-menu-summary dt { color: var(--fs-text-tertiary); }
+.workflow-canvas-menu .workflow-menu-summary dd { margin: 0; color: var(--fs-text-primary); overflow-wrap: anywhere; }
+.workflow-canvas-menu .workflow-menu-summary .is-attention { color: var(--fs-status-attention-ink); }
+.workflow-canvas-menu .workflow-menu-actions { display: flex; justify-content: flex-end; gap: var(--fs-space-100); padding: var(--fs-space-050) var(--fs-space-100); }
+.workflow-canvas-menu .workflow-menu-actions .fs-button { width: auto; min-height: 0; }
+
+@keyframes workflow-menu-in { from { opacity: 0; transform: translateY(-2px); } }
+
+@media (prefers-reduced-motion: reduce) { .fs-row-menu.workflow-canvas-menu { animation: none; } }
+
+/* The slot after the selected step: a dashed lead, tertiary text, primary on hover. */
+.workflow-next-slot { display: flex; align-items: center; justify-content: center; gap: var(--fs-space-100); border: 1px dashed var(--fs-border-default); border-radius: var(--fs-card-radius); background: var(--fs-bg-surface); color: var(--fs-text-tertiary); font: 400 13px/20px var(--ff-body); cursor: pointer; animation: workflow-menu-in var(--fs-motion-popup-enter); }
+.workflow-next-slot:hover, .workflow-next-slot:focus-visible { border-color: var(--fs-action-primary); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); }
+.workflow-next-slot:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: var(--fs-focus-ring-offset); }
+
+/* Auto layout and its Layout arrow. */
+.workflow-layout-split { display: inline-flex; align-items: center; }
+.workflow-layout-arrow.fs-icon-button { width: 24px; min-width: 24px; }
+.workflow-layout-arrow[aria-expanded="true"] { border-color: var(--fs-icon-button-active-border); background: var(--fs-icon-button-active-bg); color: var(--fs-icon-button-active-text); }
+.fs-popover:has(.workflow-layout-menu) { width: 280px; }
+.workflow-layout-menu { display: grid; gap: 2px; }
+.workflow-layout-menu .workflow-menu-heading { margin: 0; padding: var(--fs-space-050) var(--fs-space-100); color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-body); }
+.workflow-layout-option { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; gap: var(--fs-space-100); width: 100%; padding: var(--fs-space-075) var(--fs-space-100); border: 0; border-radius: var(--fs-popup-row-radius); background: transparent; color: var(--fs-text-primary); text-align: left; cursor: pointer; }
+.workflow-layout-option:hover, .workflow-layout-option:focus-visible { background: var(--fs-dropdown-item-hover-bg); outline: 0; }
+.workflow-layout-option-name { display: block; font: 400 13px/20px var(--ff-body); }
+.workflow-layout-option-hint { display: block; color: var(--fs-text-tertiary); font: 400 12px/16px var(--ff-body); }
+.workflow-layout-option svg { color: var(--fs-dropdown-item-selected-mark); }
+
+/* Group… on the toolbar: For each or Parallel lanes. */
+.workflow-toolbar-group-menu { display: grid; gap: 2px; }
+
+/* A body's end: a short stub to a BPMN end circle beside the step that ends its item or lane. */
+.workflow-body-end { position: absolute; z-index: 26; display: flex; align-items: center; transform: translateY(-50%); }
+.workflow-body-end-stub { width: 16px; height: 0; border-top: var(--fs-workflow-edge-width) dashed var(--fs-workflow-edge); }
+.workflow-body-end[data-kind="lane"] .workflow-body-end-stub { border-top-style: solid; }
+.workflow-body-end-circle { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 2px solid var(--fs-workflow-edge); border-radius: 50%; background: var(--fs-bg-surface); color: var(--fs-text-primary); cursor: default; }
+.workflow-body-end-circle svg { width: 14px; height: 14px; stroke-width: 2.5; }
+.workflow-body-end-circle:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: var(--fs-focus-ring-offset); }
+.workflow-body-end-tip { position: absolute; left: 50%; top: calc(100% + var(--fs-tooltip-offset)); z-index: 70; display: grid; gap: var(--fs-space-075); width: max-content; max-width: var(--fs-tooltip-max-width); padding: var(--fs-tooltip-padding); border: 1px solid var(--fs-tooltip-border); border-radius: var(--fs-tooltip-radius); background: var(--fs-tooltip-bg); box-shadow: var(--fs-tooltip-shadow); color: var(--fs-tooltip-text); font-size: var(--fs-tooltip-font-size); line-height: var(--fs-tooltip-line-height); text-align: left; transform: translateX(-50%); }
+.workflow-body-end-actions { display: flex; justify-content: center; gap: var(--fs-space-200); }
+
+/* The pointer crosses the gap between the circle and its card without leaving the marker. */
+.workflow-body-end-tip::before { content: ""; position: absolute; right: 0; bottom: 100%; left: 0; height: calc(var(--fs-tooltip-offset) + 2px); }
+
+/* The card is a dark tooltip: its buttons are drawn for it, not for the light canvas. */
+.workflow-body-end-actions .fs-icon-button { border: 1px solid color-mix(in srgb, var(--fs-tooltip-text) 45%, transparent); border-radius: 50%; color: var(--fs-tooltip-text); }
+.workflow-body-end-actions .fs-icon-button:hover { background: color-mix(in srgb, var(--fs-tooltip-text) 16%, transparent); color: var(--fs-tooltip-text); }
+
+/* A group's exit, named on its Next port: After all items / After all lanes. */
+.workflow-container-after { position: absolute; right: 16px; transform: translateY(-50%); padding: 0 var(--fs-space-050); border-radius: var(--fs-radius-compact); background: var(--fs-workflow-lane-control-bg); color: var(--fs-text-secondary); font: 400 11px/16px var(--ff-body); pointer-events: none; white-space: nowrap; }
+.workflow-container .react-flow__handle[data-handleid="exit"] { opacity: 0; }
+
+/* A disabled step: the run skips it; the badge says so and the text dims. */
+.workflow-card[data-disabled="true"] .workflow-card-title,
+.workflow-card[data-disabled="true"] .workflow-card-summary,
+.workflow-card[data-disabled="true"] .workflow-card-outcome { color: var(--fs-text-tertiary); }
+.workflow-card[data-disabled="true"] .workflow-card-icon { opacity: 0.55; }
+
+/* Inline loop: a For each drawn as one card that lists its body. */
+.workflow-inline-loop-body { display: grid; gap: 2px; margin: var(--fs-space-100) 0 0; padding: var(--fs-space-075) 0 0; border-top: 1px solid var(--fs-border-subtle); list-style: none; }
+.workflow-inline-loop-head { display: flex; justify-content: space-between; color: var(--fs-text-tertiary); font: 500 10px/14px var(--ff-body); text-transform: uppercase; letter-spacing: .06em; }
+.workflow-inline-loop-step { display: flex; gap: var(--fs-space-075); width: 100%; min-width: 0; padding: 2px var(--fs-space-050); border: 0; border-radius: var(--fs-radius-compact); background: transparent; color: var(--fs-text-primary); font: 400 12px/18px var(--ff-body); text-align: left; cursor: pointer; }
+.workflow-inline-loop-step:hover { background: var(--fs-bg-surface-muted); }
+.workflow-inline-loop-step:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: -2px; }
+.workflow-inline-loop-step-summary { min-width: 0; overflow: hidden; color: var(--fs-text-secondary); font-family: var(--ff-code); text-overflow: ellipsis; white-space: nowrap; }

@@ -1,0 +1,200 @@
+:root {
+  --fs-danger: #B3322B;
+  --fs-green: #1E6251;
+  --fs-green-050: #EAF2EF;
+  --fs-ink: #000509;
+
+  /* The warm palette is retired — it read as beige in dense data interfaces.
+     These two are the neutral secondary/tertiary greys. */
+  --fs-muted: #656D72;
+  --fs-ocean-1: #1268C9;
+  --fs-ocean-2: #1B8DBA;
+  --fs-ocean-3: #2BA38C;
+  --fs-ocean-4: #57C79E;
+
+  /* The second brand gradient, Iridescent, from Flow Mark Motion Identity:
+     violet through blue to cyan on the ocean stop positions (0 / .34 / .64 / 1). */
+  --fs-iridescent-1: #9457F5;
+  --fs-iridescent-2: #8A6BF4;
+  --fs-iridescent-3: #5E97F4;
+  --fs-iridescent-4: #67CDEF;
+  --fs-orange: #FF7504;
+  --fs-orange-050: #FFF1E5;
+  --fs-orange-700: #C25800;
+
+  /* orange-700 on orange-050 is 4.04:1 — short of AA for the 11px attention
+     text the Badge and Metric card put on that wash. 800 clears it at 4.63:1. */
+  --fs-orange-800: #B35100;
+  --fs-slate: #3C4448;
+  --fs-white: #FFF;
+
+  /* Four font families, routed through five semantic roles. */
+  --ff-logo: 'Alan Sans', system-ui, sans-serif;
+  --ff-display: 'Google Sans Flex', system-ui, sans-serif;
+  --ff-body: 'Google Sans Flex', system-ui, sans-serif;
+  --ff-data: 'DM Sans', system-ui, sans-serif;
+  --ff-code: 'Google Sans Code', ui-monospace, monospace;
+
+  /* Legacy compatibility only. Do not add new usages. */
+  --ff-mono: var(--ff-data);
+  --fs-font-body: var(--ff-body);
+  --fs-font-display: var(--ff-display);
+  --fs-font-mono: var(--ff-mono);
+
+  /* Canonical type scale. Only weights 400 and 500 are valid. */
+  --fs-type-display-size: 40px;
+  --fs-type-display-line-height: 1.05;
+  --fs-type-display-tracking: -0.03em;
+  --fs-type-h1-size: 32px;
+  --fs-type-h1-line-height: 1.1;
+  --fs-type-h1-tracking: -0.025em;
+  --fs-type-h2-size: 24px;
+  --fs-type-h2-line-height: 1.2;
+  --fs-type-h2-tracking: -0.015em;
+  --fs-type-form-title-size: 22px;
+  --fs-type-form-title-line-height: 1.25;
+  --fs-type-form-title-tracking: -0.01em;
+  --fs-type-dialog-title-size: 18px;
+  --fs-type-dialog-title-line-height: 1.3;
+  --fs-type-dialog-title-tracking: -0.01em;
+  --fs-type-h3-size: 17px;
+  --fs-type-h3-line-height: 1.35;
+  --fs-type-body-size: 14px;
+  --fs-type-body-line-height: 1.6;
+  --fs-type-field-label-size: 13px;
+  --fs-type-field-label-line-height: 1.4;
+  --fs-type-button-size: 13px;
+  --fs-type-button-line-height: 1;
+  --fs-type-caption-size: 12px;
+  --fs-type-caption-line-height: 1.5;
+  --fs-type-micro-size: 11px;
+  --fs-type-micro-line-height: 1.4;
+  --fs-type-micro-tracking: 0.13em;
+  --fs-type-code-size: 12px;
+  --fs-type-code-line-height: 1.65;
+  --fs-type-weight-regular: 400;
+  --fs-type-weight-medium: 500;
+
+  /* Compact geometry primitives: 16px is reserved for a future approved surface. */
+  --fs-radius-2: 2px;
+  --fs-radius-4: 4px;
+  --fs-radius-6: 6px;
+  --fs-radius-8: 8px;
+  --fs-radius-12: 12px;
+  --fs-radius-16: 16px;
+  --fs-radius-full: 999px;
+  --fs-radius-micro: var(--fs-radius-2);
+  --fs-radius-compact: var(--fs-radius-4);
+  --fs-radius-control: var(--fs-radius-6);
+  --fs-radius-container: var(--fs-radius-8);
+  --fs-radius-large: var(--fs-radius-12);
+  --fs-radius-reserved: var(--fs-radius-16);
+  --fs-radius-circle: var(--fs-radius-full);
+  --fs-radius-pill: var(--fs-radius-full);
+
+  /* Compatibility aliases retained for existing catalog preview shells. */
+  --fs-radius-xs: var(--fs-radius-control);
+  --fs-radius-sm: var(--fs-radius-container);
+  --fs-radius-md: var(--fs-radius-large);
+
+  /* Named 4px-grid scale. Numeric names describe relative scale, not pixels. */
+  --fs-space-025: 2px;
+  --fs-space-050: 4px;
+  --fs-space-075: 6px;
+  --fs-space-100: 8px;
+  --fs-space-150: 12px;
+  --fs-space-200: 16px;
+  --fs-space-250: 20px;
+  --fs-space-300: 24px;
+  --fs-space-400: 32px;
+  --fs-space-1: var(--fs-space-050);
+  --fs-space-2: var(--fs-space-100);
+  --fs-space-3: var(--fs-space-150);
+  --fs-space-4: var(--fs-space-200);
+  --fs-space-5: var(--fs-space-300);
+  --fs-space-6: var(--fs-space-400);
+
+  /* Compact/default density and the shared icon grid. */
+  --fs-control-height-compact-sm: 28px;
+  --fs-control-height-compact: 32px;
+  --fs-control-height-default: 32px;
+  --fs-hit-target-compact: 32px;
+  --fs-hit-target-touch: 44px;
+  --fs-hit-target-touch-gap: 8px;
+  --fs-icon-size-supporting: 12px;
+  --fs-icon-size-default: 16px;
+  --fs-icon-stroke: 2;
+  --fs-spinner-stroke: 2;
+  --fs-toast-min-width: 220px;
+
+  /* Focus geometry: the visible ring is 2px outside a 2px offset. */
+  --fs-focus-ring-width: 2px;
+  --fs-focus-ring-offset: 2px;
+  --fs-focus-radius-micro: 4px;
+  --fs-focus-radius-compact: 6px;
+  --fs-focus-radius-control: 8px;
+  --fs-focus-radius-container: 10px;
+  --fs-focus-radius-large: 14px;
+  --fs-focus-radius-reserved: 18px;
+
+  /* Layering: local component stacking stays isolated from global application layers. */
+  --fs-z-local-base: 0;
+  --fs-z-local-raised: 1;
+  --fs-z-local-sticky: 2;
+  --fs-z-local-active: 3;
+  --fs-z-navigation: 200;
+  --fs-z-inline-dialog: 300;
+  --fs-z-popup: 400;
+  --fs-z-blanket: 500;
+  --fs-z-modal: 510;
+  --fs-z-modal-popup: 520;
+  --fs-z-flag: 600;
+  --fs-z-spotlight: 700;
+  --fs-z-tooltip: 800;
+
+  /* Motion primitives plus semantic, property-aware transition bundles. */
+  --fs-duration-reduced: 1ms;
+  --fs-duration-fast: 120ms;
+  --fs-duration-standard: 200ms;
+  --fs-duration: var(--fs-duration-standard);
+  --fs-ease-standard: cubic-bezier(0.42, 0, 0.58, 1);
+  --fs-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --fs-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --fs-ease: var(--fs-ease-standard);
+  --fs-motion-background-hover: var(--fs-duration-fast) var(--fs-ease-standard);
+  --fs-motion-popup-enter: var(--fs-duration-fast) var(--fs-ease-enter);
+  --fs-motion-popup-exit: var(--fs-duration-fast) var(--fs-ease-exit);
+  --fs-motion-dialog-enter: var(--fs-duration-standard) var(--fs-ease-enter);
+  --fs-motion-dialog-exit: var(--fs-duration-fast) var(--fs-ease-exit);
+  --fs-motion-drawer-enter: var(--fs-duration-standard) var(--fs-ease-enter);
+  --fs-motion-drawer-exit: var(--fs-duration-fast) var(--fs-ease-exit);
+  --fs-motion-toast-enter: var(--fs-duration-standard) var(--fs-ease-enter);
+  --fs-motion-toast-exit: var(--fs-duration-fast) var(--fs-ease-exit);
+  --fs-motion-layout: var(--fs-duration-standard) var(--fs-ease-enter);
+  --fs-wave-loop: 1.4s;
+
+  /* Published in canon; mirrored by the token sync of 2026-09-27. */
+  --fs-chart-stroke: 1.5;
+}
+
+.tabular,
+[data-numeric],
+td.num,
+.metric-figure {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+td.num,
+[data-numeric] {
+  text-align: right;
+}
+
+.on-dark,
+[data-theme="dark"] {
+  font-variation-settings: 'GRAD' -50;
+}
+
+:where(b, strong, h1, h2, h3, h4, h5, h6, th) {
+  font-weight: var(--fs-type-weight-medium);
+}

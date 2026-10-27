@@ -1,0 +1,137 @@
+/*
+ * The MCP connector table. Feature-scoped: `table-layout: fixed` is right for a
+ * table whose metadata columns have known content, and wrong as a global default
+ * for every other table in the app, so it is opted into here rather than added
+ * to `.fs-table`.
+ */
+.fs-mcp-table .fs-table {
+  table-layout: fixed;
+}
+
+/*
+ * With a fixed layout a column keeps the width it was given, so an over-long
+ * value clips instead of stealing the name column's space. The name is what the
+ * row is identified by, and it was the cell that gave way first.
+ */
+.fs-mcp-table .fs-table td,
+.fs-mcp-table .fs-table th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The endpoint is machine text: the code face, clipped, full value on hover. */
+.fs-mcp-endpoint {
+  font-family: var(--ff-code);
+  font-size: var(--fs-value-chip-font-size);
+  color: var(--fs-text-secondary);
+}
+
+/* A timestamp is not a state, so it stays plain text and takes the danger role
+   only when the last sync actually failed. */
+.fs-mcp-sync-failed {
+  color: var(--fs-text-danger);
+}
+
+/*
+ * Column drop thresholds, on the container rather than the viewport.
+ *
+ * The reason, stated rather than assumed: the shell sidebar appears at 768px and
+ * removes about 260px from the content box, so the table's own width is not a
+ * monotonic function of the window's. A viewport query fires at the wrong moment
+ * in both directions — it can hide a column while the table still has room, and
+ * leave one in place while the table is already overflowing. This is the same
+ * non-monotonicity that a linear width sweep exposed on the tab row earlier in
+ * this cycle, where a threshold chosen from viewport widths left tabs
+ * unreachable at 768. `.workflow-builder-drawer` in `styles/index.css` is the
+ * app's existing precedent for driving layout from the container.
+ *
+ * Each threshold is the point where a real column stops fitting its own content,
+ * dropped least-important first: Allowed Tools is a number available on the
+ * detail page, Transport and Credentials are secondary to Health, and the name,
+ * health and endpoint are what the row is scanned by.
+ */
+.fs-mcp-table {
+  container-type: inline-size;
+  container-name: mcptable;
+}
+
+/*
+ * Thresholds from the measured cumulative width, not from round numbers. Natural
+ * widths: Name 260, Health 116, Last sync 208, Auth 116, Credentials 132,
+ * Transport 156, Endpoint 296 at its longest, Allowed Tools 130, actions 56.
+ * Each threshold is the point where the next column stops fitting, dropped
+ * least-important first — Allowed Tools is a count the detail page also carries,
+ * Transport and Credentials are secondary to Health, and Name, Health, Last sync
+ * and Endpoint are what a row is scanned by.
+ */
+@container mcptable (max-width: 1360px) {
+  .fs-mcp-table .fs-table th:nth-child(8),
+  .fs-mcp-table .fs-table td:nth-child(8) { display: none; }
+}
+
+@container mcptable (max-width: 1230px) {
+  .fs-mcp-table .fs-table th:nth-child(6),
+  .fs-mcp-table .fs-table td:nth-child(6) { display: none; }
+}
+
+@container mcptable (max-width: 1075px) {
+  .fs-mcp-table .fs-table th:nth-child(5),
+  .fs-mcp-table .fs-table td:nth-child(5) { display: none; }
+}
+
+/* Below this, neither the timestamp nor the endpoint can be shown honestly.
+   Name, Health, Auth and the actions column come to 548, and a legible endpoint
+   needs about 220 more — so the table would need 768 in a container of 487-731.
+   Two things were tried before this. Leaving Endpoint flexible starved it to a
+   12px stub, because `--fs-table-min-width` guarantees the width of the *table*
+   and the deficit lands on the one column without a fixed width. Raising that
+   floor to 768 gave the column its 220px but put 200 of them outside the
+   scroller, so it read as the same stub with a scrollbar added. A column you
+   must scroll sideways to reach, in a three-row table, is worse than one that is
+   absent: the endpoint is on the detail page, and the row's name links there.
+   Health still answers whether the connector is working. */
+@container mcptable (max-width: 940px) {
+  .fs-mcp-table .fs-table th:nth-child(3),
+  .fs-mcp-table .fs-table td:nth-child(3),
+  .fs-mcp-table .fs-table th:nth-child(7),
+  .fs-mcp-table .fs-table td:nth-child(7) { display: none; }
+}
+
+/* MCP catalog. Cards, table, rail, pager, logo tile and the server's page are
+   the shared catalog-browse anatomy; the install form's head is this page's own. */
+.fs-mcp-catalog-install-head {
+  display: grid;
+  gap: var(--fs-space-100);
+}
+
+.fs-mcp-catalog-install-head a {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--fs-space-050);
+}
+
+/* A connector installed from the catalog shows the service's icon by its name. */
+.fs-mcp-name-cell {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--fs-space-100);
+}
+
+/* An endpoint URL, a scope or a server name is one unbroken token: it wraps
+   anywhere rather than pushing the main column under the facts. */
+[data-mcp-catalog-entry] .fs-marketplace-list li {
+  flex-wrap: wrap;
+  min-width: 0;
+
+  /* OAuth scopes are URLs too (Google's run to 50 characters). */
+  overflow-wrap: anywhere;
+}
+
+[data-mcp-catalog-entry] .fs-marketplace-list li > * {
+  min-width: 0;
+}
+
+[data-mcp-catalog-entry] code {
+  overflow-wrap: anywhere;
+}

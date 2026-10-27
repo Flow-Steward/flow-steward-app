@@ -1,0 +1,69 @@
+/* Published default track; the native input owns the independent hit area. */
+.fs-switch {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  width: var(--fs-switch-track-width);
+  height: var(--fs-switch-track-height);
+  vertical-align: middle;
+}
+
+.fs-switch-input {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--fs-switch-hit-target));
+  height: max(100%, var(--fs-switch-hit-target));
+  margin: 0;
+  border: 0;
+  border-radius: var(--fs-switch-track-radius);
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.fs-switch-track {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: var(--fs-switch-track-width);
+  height: var(--fs-switch-track-height);
+  border: 1px solid var(--fs-switch-track-border);
+  border-radius: var(--fs-switch-track-radius);
+  padding: var(--fs-switch-track-padding);
+  background: var(--fs-switch-track-bg);
+  pointer-events: none;
+  transition: background var(--fs-switch-motion), border-color var(--fs-switch-motion), box-shadow var(--fs-switch-motion);
+}
+
+.fs-switch-track::before {
+  content: "";
+  width: var(--fs-switch-thumb-size);
+  height: var(--fs-switch-thumb-size);
+  flex: none;
+  border-radius: var(--fs-switch-track-radius);
+  background: var(--fs-switch-thumb);
+  box-shadow: var(--fs-switch-thumb-shadow);
+  transition: transform var(--fs-switch-motion);
+}
+
+.fs-switch-input:checked + .fs-switch-track {
+  border-color: var(--fs-switch-track-border-on);
+  background: var(--fs-switch-track-bg-on);
+}
+.fs-switch-input:checked + .fs-switch-track::before { transform: translateX(var(--fs-switch-thumb-travel)); }
+.fs-switch-input:focus-visible { outline: 0; }
+.fs-switch-input:focus-visible + .fs-switch-track { box-shadow: var(--fs-switch-focus-ring); }
+.fs-switch-input:disabled { cursor: not-allowed; }
+
+.fs-switch-input:disabled + .fs-switch-track {
+  border-color: var(--fs-switch-track-border-disabled);
+  background: var(--fs-switch-track-bg-disabled);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-switch-track, .fs-switch-track::before { transition: none; }
+}

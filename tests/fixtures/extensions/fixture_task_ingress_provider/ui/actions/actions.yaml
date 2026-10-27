@@ -1,0 +1,58 @@
+actions:
+  - action_id: normalize_task_action
+    title: Normalize task payload
+    description: Normalize provider payload into a canonical task envelope.
+    required_scopes:
+      - extension:invoke
+    handler:
+      mode: extension
+    result_fields:
+      - result.normalized
+    error_codes:
+      - not_configured
+      - authentication_failed
+      - invalid_payload
+      - rate_limited
+      - provider_unavailable
+      - timeout
+      - internal_error
+    mutates_platform: false
+    workflow_visible: false
+  - action_id: fetch_attachments
+    title: Fetch task attachments
+    description: Return normalized task attachment metadata.
+    required_scopes:
+      - extension:invoke
+    handler:
+      mode: extension
+    result_fields:
+      - result.attachments
+    error_codes:
+      - not_configured
+      - authentication_failed
+      - not_found
+      - rate_limited
+      - provider_unavailable
+      - timeout
+      - internal_error
+    mutates_platform: false
+    workflow_visible: false
+  - action_id: sync_completion_status
+    title: Sync completion status
+    description: Report provider task completion status.
+    required_scopes:
+      - extension:invoke
+    handler:
+      mode: extension
+    result_fields:
+      - result.status
+    error_codes:
+      - not_configured
+      - authentication_failed
+      - conflict
+      - rate_limited
+      - provider_unavailable
+      - timeout
+      - internal_error
+    mutates_platform: false
+    workflow_visible: false

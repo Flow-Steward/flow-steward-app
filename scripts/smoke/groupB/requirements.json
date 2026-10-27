@@ -1,0 +1,24 @@
+{
+  "schema_version": "flow-steward-smoke-requirements-v1",
+  "group": "B",
+  "sources": ["smoke_b.sh", "snip.sh"],
+  "common": {
+    "required_env": ["FS_SMOKE_ISOLATED", "FS_SMOKE_PG_CONTAINER"],
+    "optional_env": ["FS_SMOKE_CLEANUP_MAX_ATTEMPTS", "FS_SMOKE_CLEANUP_RETRY_DELAY_SECONDS", "FS_SMOKE_PG_DATABASE", "FS_SMOKE_PG_USER", "FS_SMOKE_WORKSPACE"],
+    "services": ["fs-app", "pg-fs"],
+    "mutable_resources": ["projects", "workspaces", "workflows"],
+    "cleanup_obligations": ["remove-owned-b-fixtures"]
+  },
+  "checks": {
+    "B01": {
+      "required_env": ["FS_SMOKE_MODEL_PROVIDER"],
+      "optional_env": ["FS_SMOKE_ACCOUNT", "FS_SMOKE_B01_OBSERVATION_ATTEMPTS", "FS_SMOKE_B01_OBSERVATION_DELAY_SECONDS", "FS_SMOKE_B01_SETTLE_ATTEMPTS", "FS_SMOKE_B01_SETTLE_DELAY_SECONDS", "FS_SMOKE_MODEL", "FS_SMOKE_WORKER_CONTAINER"]
+    },
+    "B03": {}, "B04": {}, "B05": {}, "B06": {}, "B07": {},
+    "B08": {}, "B09": {},
+    "B10": {"required_env": ["FS_SMOKE_DB_HOST"]},
+    "B11": {"required_env": ["FS_SMOKE_DB_HOST"]},
+    "B12": {}, "B13": {}, "B14": {}, "B15": {}, "B16": {}, "B17": {},
+    "B18": {}, "B19": {}
+  }
+}

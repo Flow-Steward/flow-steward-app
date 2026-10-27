@@ -1,0 +1,905 @@
+# Flow Steward extension manifest standard.
+#
+# This file is the canonical example for extension manifest v2. Update it
+# together with the extension CLI validator whenever the extension contract
+# changes.
+#
+# Generic callback endpoint:
+# /webhook/extensions/{extension_id}/{callback_id}/{callback_token}
+#
+# Callback auth supports:
+# - none
+# - shared_secret_header
+# - hmac_sha256 (timestamped, replay-protected delivery)
+#
+# OAuth callback handshakes are separate from generic callback authentication.
+# OAuth2 for
+# project connection authorization is declared under connection_types.auth and is
+# owned by the platform, not by callback auth.
+#
+# Extension authoring files are YAML-only. Runtime APIs may still serialize
+# compiled manifests as JSON/JSONB, but bundle contract files must use:
+# extension.yaml, schemas/*.schema.yaml, ui/ui_manifest.yaml,
+# ui/actions/actions.yaml, ui/queries/queries.yaml, ui/pages/*.yaml,
+# ui/components/*.yaml, and locales/*.yaml.
+#
+# An extension's own translations are flat YAML dictionaries in
+# locales/<language code>.yaml (key: text, nothing nested). Text resolves as the
+# user's language, then en, then the declaration's own text; ids, paths, option
+# values and payloads are never translated. See x-validator-contract.localization
+# and docs/extension-authoring-agent-playbook.md "Localization" for the key map.
+#
+# Every bundle ships its logo as icon.png next to extension.yaml. The manifest
+# has no icon field: the file name is the contract, and a developer changes the
+# logo by replacing that file. PNG only (no SVG), square, 32-512 px on a side
+# (128x128 recommended), at most 100 KB. extensions validate, extensions bundle
+# and install refuse a bundle without a valid one; extensions create writes a
+# default. See x-validator-contract.bundle_icon.
+#
+# extension_id is canonical package identity, not a folder name. It must be a
+# lowercase dot-separated ID such as acme.notifier or com.acme.crm-sync.
+# See docs/architecture/adr/0013-extension-package-identity-and-dependencies.md.
+
+manifest_version: 2
+extension_id: acme.example-extension
+kind: notification_provider
+version: 1.0.0
+lifecycle:
+  # This required lifecycle contract starts at schema version 1.
+  data_schema_version: 1
+  # Higher versions require one ordered, non-branching chain from version 1.
+  # Each action is a pure SDK JSON transformation executed from the staged bundle.
+  data_migrations: []
+  # Required per namespace when a migration transforms project_state.
+  # Schemas are inline/bundle-local and bounded; remote $ref values are forbidden.
+  project_state_schemas: {}
+# NOTE: runtime_target does NOT belong in extension.yaml. It is not in the
+# authoring manifest allowlist, so declaring it here fails validation with
+# `unknown_manifest_field` (severity: error). Declare it in the package
+# metadata file `.fs-package.yaml` instead — that is where the installer reads
+# it and compares it with the host's canonical extension runtime target before
+# publishing any files (core/application/extensions/archive_validation_service.py:138).
+#
+#   # .fs-package.yaml
+#   runtime_target: linux-amd64  # linux-amd64 | linux-arm64
+# Placeholder bundles validate and remain visible, but cannot be enabled.
+release_stage: active # active | placeholder
+display_name: Example Extension
+description: Complete manifest v2 example used as the standards reference.
+vendor:
+  # Publisher identity is self-declared and grants nothing. There is no
+  # system/official/third-party tier: every extension is treated the same way.
+  # A catalog's verification status is catalog information only.
+  name: Example Vendor
+  support_url: https://example.com/support
+  website_url: https://example.com
+listing:
+  category: automation
+  tags:
+    - example
+    - notifications
+  summary: Demonstrates the canonical Flow Steward extension contract.
+
+features:
+  - notify
+  - ingress_event
+
+event_subscriptions:
+  - event_type: notification.interaction_received
+    severity: any
+    conditions: {}
+  - event_type: external.comment.received
+    severity: any
+    conditions: {}
+
+required_scopes:
+  - event:subscribe
+  - extension:invoke
+  - notify:dispatch
+
+# Rights over this extension's OWN data, granted by one host rule for every
+# extension (core/application/extensions/runtime_host_grants.py:own_runtime_grants).
+# scope may only be owning_extension (the default for project_connection,
+# callback_registrations, project_connection_upsert, project_connection_secrets_save);
+# provider_key may only be this extension's own id (the default for every
+# provider-keyed kind). A grant over another extension's namespace, an unknown
+# kind, or a malformed secret_keys/connection_type_ids list fails validation
+# with runtime_grant_forbidden, so the bundle cannot install.
+runtime_grants:
+  resources:
+    project_connection: {}
+    provider_secrets:
+      secret_keys: [api_token]
+    notification_deliveries: {}
+    notification_routes: {}
+    callback_registrations: {}
+  mutations:
+    project_connection_upsert: {}
+    project_connection_secrets_save:
+      secret_keys: [api_token]
+      connection_type_ids: [example_connection]
+    notification_delivery_log: {}
+    notification_routes_save: {}
+
+schemas:
+  config: schemas/config.schema.yaml
+  secrets: schemas/secrets.schema.yaml
+  subscriptions: schemas/subscriptions.schema.yaml
+  input:
+    type: object
+    properties:
+      action:
+        type: string
+    required:
+      - action
+  output:
+    type: object
+    properties:
+      ok:
+        type: boolean
+    required:
+      - ok
+
+entrypoint:
+  mode: subprocess
+  command:
+    - python3
+    - main.py
+  # Every subprocess response is one canonical JSON object with boolean `ok`.
+  # Success requires exit code 0 with `ok: true`. A domain failure requires exit
+  # code 2 with `ok: false`, non-empty string `error_code` and `error`, plus a
+  # non-empty `errors` list whose first row has the identical code/message. Any
+  # other exit code and missing, contradictory, or malformed fields are runtime
+  # failures and count toward the exact install breaker.
+  # Optional subprocess invocation timeout. Defaults to 30 seconds in the host
+  # runtime when omitted. Valid range: 1..600 seconds.
+  timeout_seconds: 30
+
+health:
+  command:
+    - python3
+    - health.py
+  timeout_seconds: 5
+
+ui_manifest: ui/ui_manifest.yaml
+query_manifest: ui/queries/queries.yaml
+action_manifest: ui/actions/actions.yaml
+
+machine_auth:
+  service_account_key: svc_ext_example
+  required_scopes:
+    - event:subscribe
+    - notify:dispatch
+
+account_scope:
+  description: Optional account/project scoping metadata for installations.
+
+dependencies:
+  extensions:
+    - extension_id: acme.outgoing-email
+      min_version: 1.0.0
+      max_version_exclusive: 2.0.0
+      required: false
+      reason: Optional notification fan-out example.
+
+python_requirements:
+  # Third-party Python libraries required by this extension runtime.
+  # This list is the full transitive closure. Each item must be an exact
+  # name/version pin plus one or more sha256 hashes for compatible wheels.
+  # Wheels only: sdists/build backends are not part of the extension contract.
+  - name: attrs
+    version: "25.3.0"
+    hashes:
+      - sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+callbacks:
+  - callback_id: updates
+    purpose: inbound_events
+    methods:
+      - POST
+    action_id: ingress_event
+    connection_scoped: true
+    auth:
+      type: shared_secret_header
+      header: X-Example-Callback-Secret
+  # Reserved core-owned OAuth callback. It is registered at project scope before
+  # a connection exists and therefore has neither action_id nor callback auth.
+  - callback_id: oauth_authorization
+    purpose: oauth_authorization
+    methods:
+      - GET
+    connection_scoped: false
+
+# Optional: where the extension connects. Declared and shown to the
+# administrator; NOT enforced, and no network isolation is implied (an installed
+# extension is code its owner trusts). Missing -> install warning
+# egress_undeclared. egress: {} declares that it connects nowhere.
+egress:
+  hosts:
+  - api.example.com            # bare host names or *.example.com; no scheme, port or path
+  connection_fields:
+  - example_api.base_url       # <connection_type_id>.<config field>, or a field of any of its types
+external_effects:
+  # Declare non-idempotent external actions so every host action path claims and
+  # confirms the account-scoped external-effect ledger before/after invocation.
+  - operation_id: send_example
+    effect_kind: message_delivery
+    channel: example
+    idempotency: required
+    test_mode_behavior: suppress
+    observability:
+      # Core never infers provider-specific payload fields. Extensions may map
+      # their own input names into the generic effect ledger explicitly.
+      target_fields:
+        - target_id
+      target_kind: remote_object
+      target_label: target
+      artifact_field: artifacts
+      payload_size_field: estimated_payload_bytes
+    rate_limit:
+      window_seconds: 60
+      account_max: 60
+      project_max: 30
+      connection_max: 15
+  # Active notification providers reserve this action for host-routed delivery.
+  # ui/actions/actions.yaml must declare a same-ID action with handler.mode:
+  # extension and workflow_visible: false.
+  - operation_id: deliver_notification
+    effect_kind: message_delivery
+    channel: example
+    idempotency: required
+    test_mode_behavior: suppress
+
+project_state:
+  # Extensions may write project-scoped, non-secret state only when the write is
+  # declared here and returned through response.project_state_updates.
+  reads:
+    - namespace: snapshots
+      state_key: last_success
+      description: Read previous snapshot pointers for workflow connector grants.
+  writes:
+    - namespace: snapshots
+      state_key: last_success
+      description: Pointer to the last successfully committed dataset or artifact.
+
+runtime:
+  # Required. The host invokes only releases built for its contract; validation
+  # and install fail for a missing or different value.
+  contract_version: extension_host_v2
+  extension_contract_v2:
+    # An LLM provider extension declares an llm_provider block (shown commented,
+    # since this example is not one). Host contract versions, compared with
+    # runtime.compatibility.platform_min:
+    #   1.1.0  runtime_mode: subprocess and optional_connection_config.
+    #   1.2.0  connection_config_defaults: the value the extension uses when an
+    #          optional setting is left empty. The host compares effective
+    #          settings, so clearing a field that held its default, or re-saving
+    #          the same value, keeps verified models verified. Keys must name a
+    #          declared setting; values must not be empty. The settings form
+    #          shows the default as the field's placeholder.
+    #   1.3.0  connection_config_help and provider_secret_help: plain text the
+    #          settings form shows under a setting or a provider secret field —
+    #          what to enter and in which format (e.g. "without /api or /v1").
+    #          Keys must name a declared setting (connection_config_help) or a
+    #          declared provider secret (provider_secret_help); values are
+    #          non-empty plain text, at most 300 characters. A host before 1.3.0
+    #          forbids both fields, so a bundle that declares either sets
+    #          runtime.compatibility.platform_min 1.3.0.
+    # The settings panel also links to the extension's vendor.support_url (or
+    # vendor.website_url) as "How to fill this in".
+    # llm_provider:
+    #   schema_version: llm_provider_extension_v1
+    #   supplier_key: example_llm
+    #   supplier_label: Example LLM
+    #   runtime_mode: subprocess
+    #   optional_provider_secrets: [api_key]
+    #   optional_connection_config: [upstream_base_url]
+    #   connection_config_defaults:
+    #     upstream_base_url: https://api.example.test
+    #   connection_config_help:
+    #     upstream_base_url: The server address only, without /v1 or other paths.
+    #   provider_secret_help:
+    #     api_key: Copy the whole key from your Example LLM account settings.
+    #   operations:
+    #     list_models: {query_id: llm.list_models}
+    #     chat: {action_id: llm.chat}
+    #
+    # provider_id is local to this installed extension. Core identity is the
+    # extension installation plus this stable ID, never a global provider enum.
+    oauth_providers:
+      - provider_id: example
+        display_name: Example Identity
+        description: OAuth application used by this project's connections.
+        # These stable IDs resolve to pages in ui/ui_manifest.yaml. Core renders
+        # them but does not invent provider-specific Setup/help copy. A setup
+        # page that also declares a connection_form for this provider (exact
+        # connection_type + oauth_intent) shows the app configuration with the
+        # account Connect form right below it, and the authorization returns
+        # there. Without such a form the setup page only configures the app,
+        # and accounts connect on the pages that declare the forms (one app for
+        # several services).
+        setup_page_id: oauth_setup
+        help_page_id: oauth_help
+        # Optional cosmetic navigation only. Keys are closed core error codes;
+        # values are safe anchors within help_page_id, never provider copy. Each
+        # value must match anchor_id on a top-level component of that help page;
+        # the compiler rejects missing, unsafe, or duplicate targets.
+        error_help_anchors:
+          invalid_client: client-credentials
+          authorization_required: authorize-again
+        # `type` is always authorization_code. `pkce` is s256 by default and may be
+        # `none` only for an authorization server that rejects the PKCE parameters
+        # rather than ignoring them; the mode is part of the security fingerprint,
+        # so changing it forces reauthorization. See ADR 0024.
+        flow: {type: authorization_code, pkce: s256}
+        # How this provider joins the scopes of a connection type: `space` (RFC 6749,
+        # the default) or `comma`. A grant read back is parsed with either separator,
+        # because mis-reading one would strand a working connection.
+        scope_separator: space
+        # Optional, at most one. Promotes one authorization input to the host the
+        # endpoints are built on, for a provider whose every tenant is its own host.
+        # It is not a URL template: the provider declares a fixed dotted host suffix
+        # (at least two labels) and a bounded label alphabet from a closed set, and
+        # core joins a validated label to that suffix and can reach nothing else. No
+        # value here is compiled into a regular expression.
+        # origin_binding:
+        #   binding_id: tenant_origin
+        #   input_id: tenant_domain
+        #   host_suffix: .idp.example.com
+        #   label: {charset: lowercase_alnum_hyphen, min_length: 1, max_length: 60}
+        # Optional. Declares that this provider keeps one token per configuration and
+        # subject. Core then serializes every operation that mints a token for that
+        # pair — a new grant and a refresh alike — and refuses to proceed unserialized.
+        # unique_subject_per_configuration: false
+        credential_fields:
+          - field_id: client_id # stable lowercase slug, at most 64 characters
+            value_type: text
+            required: true
+            secret: false
+            change_policy: reauthorization_required
+            label: Client ID
+            help_text: Copy the Client ID from the provider application settings.
+            placeholder: example-client-id
+            autocomplete: username
+            # Closed V1 validation: integer bounds only; regex is forbidden.
+            validation: {min_length: 1, max_length: 512}
+          - field_id: client_secret
+            value_type: secret
+            required: true
+            secret: true
+            change_policy: runtime_revalidate
+            label: Client secret
+            help_text: Copy the Client Secret from the provider application settings.
+            autocomplete: current-password
+            validation: {min_length: 1, max_length: 4096}
+        # Locale bundles may translate only copy declared above and must keep the
+        # same length caps. In particular, a locale cannot add a placeholder when
+        # the base credential field omits it.
+        # An endpoint permission is addressed one of exactly two ways, never both:
+        #   1. `url` — an immutable absolute HTTPS URL. Query, fragment, template
+        #      placeholders, and embedded credentials are forbidden.
+        #   2. `origin_binding` naming the provider's declared binding, plus a fixed
+        #      absolute `path`. The path may not carry a query, a fragment, a `.`/`..`
+        #      segment, or a scheme-relative `//` prefix.
+        # A declared origin_binding must be used by at least one endpoint.
+        #   authorization_endpoint: {origin_binding: tenant_origin, path: /oauth/authorize}
+        authorization_endpoint: {url: https://idp.example.com/authorize}
+        token_endpoint:
+          url: https://idp.example.com/token
+          # Basic/Post requires the exact required client_secret field above;
+          # `none` forbids that field. client_id is always exact and required.
+          client_auth_method: client_secret_post
+        # Revocation reuses the compiled token endpoint client-auth policy; the
+        # revocation permission contributes only its independently fingerprinted URL.
+        revocation_endpoint: {url: https://idp.example.com/revoke}
+        callback_id: oauth_authorization
+        authorization_intents:
+          # static_parameters is the one intentionally open-key OAuth bag. Keys
+          # must be safe non-protocol names of at most 128 characters. Values are
+          # booleans, strings of at most 2048 characters, or finite numbers whose
+          # absolute value is at most 10^15; arrays/objects/null are forbidden.
+          - intent_id: connect
+            static_parameters: {access_type: offline}
+            user_inputs:
+              - input_id: email_hint
+                parameter: login_hint
+                validation: {type: email, max_length: 320}
+              # An input maps to `parameter` or to `origin_binding`, never both: the
+              # value that decides where the request goes must not also be reflected
+              # into the request it addresses. A bound input names the provider's
+              # origin_binding, must be that binding's input_id, and validates as
+              # {type: hostname_label, max_length: <= 255}.
+              # - input_id: tenant_domain
+              #   origin_binding: tenant_origin
+              #   validation: {type: hostname_label, max_length: 80}
+        # The referenced action is invoked automatically with a scoped access
+        # token, so its action-manifest profile is closed: handler.mode must be
+        # extension, mutates_platform/workflow_visible must be false, parameters
+        # must be absent or empty, and external_effects must not reference it.
+        post_connect_action_id: verify_identity
+        # Optional. What the authorization-code exchange body carries, for a server
+        # that does not follow RFC 6749 exactly. `static_parameters` values are
+        # bounded strings and may not name a field the exchange already owns
+        # (code, client_id, client_secret, grant_type, redirect_uri, code_verifier,
+        # refresh_token). `implicit_token_type` says what an omitted `token_type`
+        # means and accepts only `bearer`; without it the field stays required.
+        # `required_response_fields` names token-response fields whose absence makes
+        # the response malformed rather than partial — nothing is stored, and the
+        # requested scopes are not used as a fallback for `scope`. Allowed values:
+        # access_token, scope, expires_in, refresh_token, refresh_token_expires_in.
+        # code_exchange:
+        #   include_grant_type: false
+        #   include_redirect_uri: false
+        #   static_parameters: {expiring: "1"}
+        #   implicit_token_type: bearer
+        #   required_response_fields: [access_token, scope, expires_in]
+        # Optional. Declares that this provider signs its callback. Every field is a
+        # closed vocabulary: algorithm `hmac_sha256`, digest `hex`, message
+        # `sorted_query_excluding_signature`, secret_source `client_secret`.
+        # `subject_binding` must name the provider's origin_binding, and the verified
+        # subject becomes connection_config.oauth.subject. Core verifies the signature
+        # and the subject before consuming the one-time state.
+        # callback_verification:
+        #   signature_parameter: signature
+        #   algorithm: hmac_sha256
+        #   digest: hex
+        #   message: sorted_query_excluding_signature
+        #   secret_source: client_secret
+        #   subject_parameter: tenant
+        #   subject_binding: tenant_origin
+    connection_types:
+      - connection_type_id: example_oauth_account
+        display_name: Example OAuth Account
+        description: Example third-party account connected with OAuth2 Authorization Code + PKCE.
+        auth:
+          type: oauth2
+          provider_id: example
+          scopes:
+            required:
+              - read
+            optional:
+              - write
+        # These are the three platform-persisted partitions an extension may
+        # constrain. Every assertion keyword must belong to the executed subset;
+        # unsupported keywords fail contract validation instead of being ignored.
+        config_schema:
+          type: object
+          additionalProperties: false
+          properties:
+            label: {type: string, maxLength: 190}
+        secret_schema:
+          type: object
+          additionalProperties: false
+          properties:
+            api_key: {type: string, minLength: 1}
+        ingress_schema:
+          type: object
+          additionalProperties: true
+          properties:
+            inbound_mode: {type: string, enum: [off, polling, webhook]}
+    dataset_connectors:
+      - connector_id: example_warehouse
+        display_name: Example warehouse
+        description: Read-only example dataset connector.
+        runtime_kind: local_extension
+        runtime_adapter_ref: main.py
+        query_language: sql
+        connection_schema:
+          type: object
+          additionalProperties: false
+          required: [endpoint]
+          properties:
+            endpoint: {type: string, title: Endpoint}
+        secret_schema:
+          type: object
+          additionalProperties: false
+          required: [api_key]
+          properties:
+            api_key: {type: string, title: API key}
+        capabilities: {read_only: true, preview_query: true}
+        safety_profile: {access_mode: read_only}
+        preview_support: true
+        schema_refresh_support: true
+        # Variants are owned entirely by the extension manifest. Core persists
+        # the selected type and validates the selected preset/schema against the
+        # keyword set below - the promise of generic validation was written here
+        # long before it was true, so the set is now stated rather than implied.
+        #
+        # EXECUTED: type, enum, const, required, properties, additionalProperties,
+        # items, minLength, maxLength, minimum, maximum, minItems, maxItems,
+        # oneOf, anyOf, allOf, if/then/else, dependentRequired.
+        # ANNOTATIONS, allowed and asserting nothing: $schema, $id, $comment,
+        # title, description, default, examples, deprecated, readOnly,
+        # writeOnly, and format - the last because JSON Schema itself defines
+        # format as an annotation unless a format-assertion vocabulary is on.
+        # ANYTHING ELSE IS REFUSED AT INSTALL, not ignored. A validator that
+        # skips what it does not understand lets an author ship a rule that
+        # never runs, and never tells them.
+        #
+        # Declare conditional requirements rather than checking them in
+        # extension code: the platform enforces the declaration on every path
+        # that writes a connection, and the connection form reads the same
+        # source when it marks a field required. The connector_catalog entry
+        # below shows the shape.
+        connector_catalog:
+          - connector_type_id: example_warehouse_analytics
+            display_name: Analytics warehouse
+            preset_config: {mode: analytics}
+            connection_schema:
+              type: object
+              additionalProperties: false
+              # `required` alone can only say "always". Most integrations need
+              # "required when": here, a warehouse reached over the network must
+              # name its region, while one reached locally need not.
+              required: [endpoint, mode]
+              properties:
+                endpoint: {type: string, title: Endpoint}
+                mode: {type: string, enum: [analytics]}
+                access: {type: string, enum: [network, local], default: local}
+                region: {type: string, title: Region}
+              allOf:
+                - if:
+                    properties: {access: {const: network}}
+                    required: [access]
+                  then:
+                    required: [region]
+            secret_schema:
+              type: object
+              additionalProperties: false
+              required: [api_key]
+              properties:
+                api_key: {type: string, title: API key}
+    operation_manifest:
+      - operation_id: send_example
+        operation_kind: action
+        # Operation connection policy is always plural, including one type.
+        # Singular aliases are rejected before 1.0 rather than normalized.
+        connection_type_ids: [example_oauth_account]
+        # These ordered rules validate saved input-mapping keys and selector
+        # strings during workflow readiness. They do not validate resolved
+        # runtime values. The first failing rule supplies the stable error shown
+        # to the author before the workflow can run.
+        input_mapping_rules:
+          - schema:
+              type: object
+              if: {required: [direct_payload]}
+              then: {required: [subject]}
+            error:
+              code: subject_required
+              message: Subject is required when a direct payload is mapped.
+              field: subject
+        inputs:
+          - name: source_file
+            value_type: artifact_handle
+          - name: source_rows
+            value_type: dataset_handle
+          # Optional `schema` makes nested structure discoverable to builder/tooling.
+          # Its vocabulary is deliberately limited to the same supported JSON
+          # Schema subset as connection schemas. Contract validation checks the
+          # declaration and projections preserve it; extension operation runtimes
+          # remain responsible for validating their own payload values.
+          # The root `type`, when declared, must match value_type; unsupported
+          # keywords fail install instead of becoming misleading documentation.
+          - name: options
+            value_type: object
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                dry_run: {type: boolean}
+        outputs:
+          - name: processed_rows
+            value_type: dataset_handle
+      # Reserved notification-provider operation invoked by the host, never by
+      # the workflow builder. Its same-ID action is hidden and extension-owned.
+      - operation_id: deliver_notification
+        operation_kind: action
+        workflow_visible: false
+        inputs:
+          - name: event
+            value_type: object
+            required: true
+          - name: route
+            value_type: object
+            required: true
+        outputs:
+          - name: delivered
+            value_type: boolean
+          - name: provider_message_id
+            value_type: text
+    artifact_policies:
+      - operation_id: send_example
+        inputs:
+          - kind: artifact
+            value_type: artifact_handle
+            binding_key: source_file
+            field: source_file
+          - kind: dataset
+            value_type: dataset_handle
+            binding_key: source_rows
+            from_project_state:
+              namespace: snapshots
+              state_key: last_success
+              field: dataset_handle
+        outputs:
+          - kind: dataset
+            value_type: dataset_handle
+            binding_key: processed_rows
+            schema:
+              columns: []
+            max_size_bytes: 104857600
+
+x-validator-contract:
+  authoring_format: yaml_only
+  bundle_icon:
+    file: icon.png
+    manifest_field: none
+    required: true
+    format: png
+    square: true
+    min_px: 32
+    max_px: 512
+    recommended_px: 128
+    max_bytes: 102400
+    checked_by: [extensions validate, extensions bundle, archive install]
+    error_codes: [extension_icon_missing, extension_icon_invalid]
+  workflow_operation_projection:
+    action_workflow_visible_required: true
+    source_of_truth: runtime.extension_contract_v2.operation_manifest
+    action_operation_identity: exact_same_id_intersection
+    action_only_synthesis: forbidden
+    active_workflow_action_requires_contract_v2: true
+    connection_policy_field: connection_type_ids
+    singular_connection_policy_aliases: forbidden
+    conditional_input_policy:
+      schema_field: input_mapping_rules[].schema
+      executed_by: workflow_readiness
+      value_semantics: saved selector mapping, not resolved runtime values
+      stable_error_field: input_mapping_rules[].error
+  external_resource_picker_v1:
+    url_policy: exact canonical HTTPS DNS origins and script URLs; reject literal/encoded dot segments and raw WHATWG percent-encoded URL characters
+    required_identifier_types: string before closed-pattern matching
+    copy_length_units: UTF-16 code units
+    unicode_policy: well-formed UTF-16; valid authored surrogate pairs normalize to scalar form before JSON/UTF-8 boundaries, unpaired surrogates are invalid
+    blank_copy_policy: every present copy field must be non-empty after ECMAScript-compatible trim, including BOM
+    maximum_selection: 1
+    maximum_selection_type: integer, never boolean
+    options:
+      shape: object or null/absent
+      values: JSON-compatible, well-formed Unicode, finite numbers, safe integers
+      sizing: runtime-neutral recursive JSON structural UTF-16 budget with fixed number cost
+      max_structural_utf16_units: 32768
+    bootstrap_action_profile:
+      handler_mode: extension
+      mutates_platform: false
+      workflow_visible: false
+      parameters: []
+      external_effects: forbidden
+    bootstrap_result:
+      max_serialized_utf16_units: 32768
+      matching: exact_after_removing_non_ascii_alphanumeric_characters
+      normalized_exact_forbidden_keys: [accesstoken, authorization, bearertoken, clientsecret, oauthaccesstoken, oauthclientsecret, platformaccesstoken, platformtoken, refreshtoken, secretrefs, sessiontoken, token]
+      allowed_non_equal_examples: [authorizationurl, tokentype]
+      prefix_matching: forbidden
+    browser_authority_approval:
+      contract_version: extension_browser_authority_v1
+      externally_supplied_release: explicit fingerprint-bound approval required before persistence, migration, publication, or activation
+      stable_fingerprint_binds: [contract_version, account_id, extension_id, descriptor_sha256, full_picker_declarations, bootstrap_actions, exact_remote_urls_and_origins, declared_local_asset_paths_and_sha256_bytes]
+      transition_impact_binds: [authority_fingerprint, project_id, install_id, old_release_id, new_release_id, immutable_candidate_tree_sha256]
+      persisted_audit_home: extension_installs.provenance_jsonb
+      reenable_policy: persisted authority_fingerprint must match the recomputed current authority_fingerprint
+      host_trusted_exception: reserved bundled extensions from the exact server-managed filesystem path attested by the host scanner
+      extension_claimed_origin_or_provenance: never trusted
+      declaration_change_invalidates_approval: true
+      remote_url_or_origin_change_invalidates_approval: true
+      declared_local_asset_bytes_change_invalidates_approval: true
+  operation_io_schema:
+    field: schema
+    applies_to: [inputs, public_inputs, outputs, public_outputs]
+    purpose: nested input/output discovery for builder and user tooling
+    supported_keywords: bounded to the platform JSON Schema subset
+    root_type: direct type or union must include the JSON Schema type mapped from value_type
+    union_type: non-empty list of unique non-empty strings
+    runtime_value_validation: extension operation runtime responsibility
+  allowed_contract_files:
+    - extension.yaml
+    - schemas/*.schema.yaml
+    - ui/ui_manifest.yaml
+    - ui/actions/actions.yaml
+    - ui/queries/queries.yaml
+    - ui/pages/*.yaml
+    - ui/components/*.yaml
+    - contracts/*.yaml
+    - locales/*.yaml
+  forbidden_contract_files:
+    - extension.json
+    - manifest.json
+    - ui/ui_manifest.json
+    - ui/actions/actions.json
+    - ui/queries/queries.json
+    - ui/pages/*.json
+    - ui/components/*.json
+    - schemas/*.schema.json
+    - contracts/*.json
+    - locales/*.json
+  egress:
+    optional: true
+    enforced: false
+    missing_warning: egress_undeclared
+    error_codes: [egress_invalid, egress_host_invalid, egress_connection_field_invalid, egress_connection_field_unknown]
+    max_entries_per_list: 100
+  code_review:
+    scope: own Python files, inline python -c of entrypoint and health, .py files those commands run
+    refused_code: extension_code_forbidden
+    review_warning: extension_code_review
+    budget: 2000 files, 5 MiB
+  localization:
+    files: locales/<language code>.yaml
+    format: flat mapping of string key to string text, UTF-8
+    empty_value: allowed; falls back
+    resolution: [user language, en, declaration text]
+    invalid_file_codes: [invalid_locale_file, invalid_locale_value, invalid_locale_key, invalid_locale_code, duplicate_locale_file]
+    warnings: [locale_missing_default, locale_orphan_key, locale_dead_key]
+    contract_v2_required: false
+    keys_are_built_from: declared ids (page_id, component_id, field_id, section_id, column key, action id)
+    translated: readable text only
+    never_translated: [ids, paths, names, option values, payloads, saved configuration, query and action results]
+    key_families: [ext, page, component, connection, oauth, op, step, category, trigger, query, dataset_connector]
+  package_lifecycle:
+    install_identity: extension_id_and_version
+    co_located_descriptor: extension-descriptor.yaml
+    atomic_install: true
+    immutable_install_owned_projections: true
+    data_migrations:
+      execution_owner: host
+      candidate_source: staged_bundle
+      transaction_held_during_runtime: false
+      allowed_targets:
+        - install_config
+        - project_connection_config
+        - project_state
+      secret_values_or_refs: forbidden
+      core_or_database_access: forbidden
+      external_effects: forbidden
+      final_apply: atomic_with_lifecycle
+    global_artifact_kinds:
+      - workflows
+      - agents
+      - skills
+      - tools
+      - datasets
+      - saved_queries
+  artifact_refs:
+    scope: bundle_local
+    allowed_extensions: [.yaml, .yml, .json]
+    remote_refs: forbidden
+    absolute_refs: forbidden
+    traversal: forbidden
+    bounded_parsing: required
+    snapshot_id_must_match_entry_id: true
+  persistence:
+    embedded_databases: forbidden
+    private_durable_storage: forbidden
+    durable_state_owner: host
+  yaml_only_error_code: extension.yaml_only_violation
+  callback_id_pattern: "^[a-z0-9][a-z0-9_-]*$"
+  callback_methods:
+    - GET
+    - POST
+  callback_auth_types:
+    - none
+    - shared_secret_header
+    - hmac_sha256
+  connection_auth_types:
+    - none
+    - api_key
+    - static_secret
+    - oauth2
+  callback_required_fields:
+    - callback_id
+    - purpose
+    - methods
+    - action_id
+  runtime_grants:
+    field: runtime_grants
+    shape: "{resources: {<kind>: {...}}, mutations: {<kind>: {...}}}"
+    resource_kinds:
+      - project_connection
+      - provider_secrets
+      - notification_deliveries
+      - notification_routes
+      - callback_registrations
+    mutation_kinds:
+      - project_connection_upsert
+      - project_connection_secrets_save
+      - notification_delivery_log
+      - notification_routes_save
+    scope: owning_extension only
+    provider_key: the extension's own id only (case-insensitive; stored canonical)
+    list_fields: [secret_keys, connection_type_ids]
+    error_code: runtime_grant_forbidden
+    host_policy_file: none
+  python_requirements:
+    field: python_requirements
+    item_shape:
+      name: PEP 503-normalized package name
+      version: exact PEP 440 version string
+      hashes: non-empty list of sha256:<64 hex chars>
+    wheels_only: true
+    full_transitive_closure_required: true
+    install_time_resolution: forbidden
+    runtime_pip: forbidden
+    distribution:
+      required_runtime_targets: [linux-amd64, linux-arm64]
+      default_wheel_platforms: [manylinux2014_x86_64, manylinux2014_aarch64]
+      universal_wheels_may_cover_both_targets: true
+      compiled_dependencies_require_compatible_wheels_for_each_target: true
+      lock_hashes_for_both_targets_before_bundling: required
+      export_command: flow-steward extensions bundle <extension_id> --with-wheels
+      active_platform_scope: local_development_only
+      missing_target_wheels: fail_packaging_instead_of_claiming_portability
+  external_effects:
+    field: external_effects
+    item_shape:
+      operation_id: action/query operation id
+      effect_kind: non-empty effect category
+      channel: non-empty delivery channel
+      idempotency: required
+      test_mode_behavior: suppress
+      observability:
+        target_fields: optional unique list of extension-owned payload field names
+        target_kind: optional generic target category stored beside target hashes
+        target_label: optional singular label used only in redacted count summaries
+        artifact_field: optional extension-owned payload field containing artifact descriptors
+        payload_size_field: optional extension-owned payload field containing estimated bytes
+      rate_limit:
+        window_seconds: positive integer; fixed host rate window
+        account_max: positive integer; maximum per account/effect kind/channel
+        project_max: positive integer; maximum per project/effect kind/channel
+        connection_max: positive integer; maximum per connection/effect kind/channel
+    notification_provider_reserved_operation:
+      operation_id: deliver_notification
+      action_handler_mode: extension
+      workflow_visible: false
+      operation_outputs: non-empty
+      effect_kind: message_delivery
+      idempotency: required
+      test_mode_behavior: suppress
+    connection_form_pre_save_actions:
+      purpose: read-only preflight
+      external_effect_operations: forbidden
+  project_state:
+    field: project_state
+    reads_require_one_of:
+      - state_key
+      - state_key_from_input
+      - max_items
+    reads_optional:
+      state_key_prefix: only with state_key_from_input
+    writes_require:
+      - namespace
+      - state_key
+    response_envelope_field: project_state_updates
+  artifact_policies:
+    field: runtime.extension_contract_v2.artifact_policies
+    grant_kinds:
+      - artifact
+      - dataset
+    value_types:
+      - artifact_handle
+      - dataset_handle
+    grant_groups:
+      - inputs
+      - read_grants
+      - reads
+      - outputs
+      - write_grants
+      - writes
+    project_state_reference_shape:
+      namespace: required
+      state_key: required
+      field: optional dotted path inside value_jsonb
+
+x-planned-callback-auth:
+  - signed_state
+  - oauth

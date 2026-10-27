@@ -1,0 +1,7 @@
+oauth.example.display_name: Пример OAuth
+oauth.example.description: Подключите аккаунт провайдера.
+oauth.example.credential.client_id.label: Идентификатор клиента
+oauth.example.credential.client_id.help_text: Введите идентификатор OAuth-приложения.
+oauth.example.credential.client_id.placeholder: идентификатор-клиента
+oauth.example.credential.client_secret.label: Секрет клиента
+oauth.example.credential.client_secret.help_text: Введите секрет OAuth-приложения.

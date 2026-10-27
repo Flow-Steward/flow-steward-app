@@ -1,0 +1,63 @@
+/* Segmented control, small density.
+ *
+ * One definition for the whole dashboard: the range switch in Operational
+ * overview and the breakdown switch in Model spend are the same published
+ * component, so they must not drift apart in two files.
+ *
+ * Design System gap: --fs-segmented-item-selected-shadow resolves through
+ * --fs-shadow-surface to --fs-shadow-default, which is `none`, so the "surface
+ * chip treatment" the spec asks for currently renders flat. Left as published
+ * rather than substituted locally.
+ */
+
+.fs-seg {
+  min-width: 0;
+  margin: 0;
+  display: inline-flex;
+  flex: none;
+  gap: var(--fs-segmented-gap);
+  padding: var(--fs-segmented-padding);
+  border: 1px solid var(--fs-segmented-border);
+  border-radius: var(--fs-segmented-radius);
+  background: var(--fs-segmented-bg);
+}
+
+.fs-seg__item {
+  height: var(--fs-segmented-height-sm);
+  padding: var(--fs-segmented-item-padding-sm);
+  border: 0;
+  border-radius: var(--fs-segmented-item-radius);
+  background: var(--fs-segmented-item-bg);
+  color: var(--fs-segmented-item-text);
+  font-family: var(--ff-body);
+  font-size: var(--fs-type-button-size);
+  line-height: var(--fs-type-button-line-height);
+  font-weight: var(--fs-type-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--fs-motion-background-hover), color var(--fs-motion-background-hover);
+}
+
+.fs-seg__item:hover {
+  background: var(--fs-segmented-item-bg-hover);
+  color: var(--fs-segmented-item-text-hover);
+}
+
+/* Selected is the surface chip, not the green wash: the wash is the hover
+   affordance for an unselected item. */
+.fs-seg__item[aria-pressed="true"] {
+  background: var(--fs-segmented-item-selected-bg);
+  color: var(--fs-segmented-item-selected-text);
+  box-shadow: var(--fs-segmented-item-selected-shadow);
+}
+
+.fs-seg__item:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-seg__item {
+    transition-duration: var(--fs-duration-reduced);
+  }
+}

@@ -1,0 +1,15 @@
+# See infra/docker/compact/ingress-external_traefik-http-redirect.yaml for why this is a
+# separate, conditionally selected overlay.
+#
+# One host-wide redirect router is enough: it matches the host on the HTTP entrypoint and
+# redirects before any path routing applies, so the existing websecure routers and their
+# priorities are untouched.
+services:
+  fs-app:
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-http.rule=Host(`${FS_PUBLIC_HOST}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-http.entrypoints=${FS_TRAEFIK_HTTP_ENTRYPOINT:?FS_TRAEFIK_HTTP_ENTRYPOINT is required for the HTTP redirect overlay}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-http.middlewares=${COMPOSE_PROJECT_NAME:-flow-steward}-https@docker"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-http.service=${COMPOSE_PROJECT_NAME:-flow-steward}-app"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-flow-steward}-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-flow-steward}-https.redirectscheme.permanent=true"

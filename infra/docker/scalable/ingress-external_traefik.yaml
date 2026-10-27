@@ -1,0 +1,36 @@
+services:
+  fs-app:
+    networks:
+      default: {}
+      flow-steward-ingress:
+        aliases:
+          - "${COMPOSE_PROJECT_NAME:-flow-steward}-app"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${FS_TRAEFIK_NETWORK:?FS_TRAEFIK_NETWORK is required}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.rule=Host(`${FS_PUBLIC_HOST}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.entrypoints=${FS_TRAEFIK_HTTPS_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.priority=10"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.service=${COMPOSE_PROJECT_NAME:-flow-steward}-app"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-flow-steward}-app.loadbalancer.server.port=8099"
+  fs-mcp:
+    networks:
+      default: {}
+      flow-steward-ingress:
+        aliases:
+          - "${COMPOSE_PROJECT_NAME:-flow-steward}-mcp"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${FS_TRAEFIK_NETWORK:?FS_TRAEFIK_NETWORK is required}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.rule=Host(`${FS_PUBLIC_HOST}`) && (Path(`/mcp`) || PathPrefix(`/mcp/`) || PathPrefix(`/.well-known/oauth-protected-resource`))"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.entrypoints=${FS_TRAEFIK_HTTPS_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.priority=100"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.service=${COMPOSE_PROJECT_NAME:-flow-steward}-mcp"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.loadbalancer.server.port=8100"
+
+networks:
+  flow-steward-ingress:
+    external: true
+    name: ${FS_TRAEFIK_NETWORK:?FS_TRAEFIK_NETWORK is required}

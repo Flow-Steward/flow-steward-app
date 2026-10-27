@@ -1,0 +1,14 @@
+# Development override for local Docker workflows.
+# Hot reload now lives in infra/docker/docker-compose.yaml and is toggled by
+# FS_AUTO_RELOAD=1 in .env.
+#
+# This file remains only as a thin override layer for setups that still call
+# `-f infra/docker/docker-compose.dev.yaml`.
+services:
+  fs-app:
+    environment:
+      FS_MCP_AUTH_DISABLED: "${FS_MCP_AUTH_DISABLED:-1}"
+
+  fs-mcp:
+    environment:
+      FS_MCP_AUTH_DISABLED: "${FS_MCP_AUTH_DISABLED:-1}"

@@ -1,0 +1,44 @@
+level: standard
+enabled: true
+
+scanners:
+  secrets:
+    enabled: true
+    severity_threshold: low
+    allowlist: []
+  injection:
+    enabled: true
+    severity_threshold: low
+    contexts:
+      - prompt
+      - display
+      - shell
+  pii:
+    enabled: true
+    severity_threshold: low
+    mode: pseudonymize
+    detectors:
+      person_name:
+        enabled: true
+      email:
+        enabled: true
+      phone:
+        enabled: true
+      ssn:
+        enabled: true
+      credit_card:
+        enabled: true
+      ipv4:
+        enabled: true
+      ipv6:
+        enabled: true
+
+surfaces:
+  inbound:
+    action: scan
+  outbound:
+    action: scan
+  tool:
+    action: scan
+
+custom_rules: []

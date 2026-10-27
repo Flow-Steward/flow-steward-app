@@ -1,0 +1,326 @@
+/*
+ * Manifest-driven extension UI, tokens only. The renderer also draws connector
+ * panels on the workflow detail page, so the file travels with the renderer
+ * rather than with the Extensions page. Controls, buttons, badges, alerts,
+ * tables and disclosures are canon classes; these rules only lay them out.
+ */
+
+@reference "../../styles/index.css";
+
+/* One manifest component: a form, a list, a grid, a panel. */
+.fs-manifest-block {
+  display: grid;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  padding: var(--fs-space-200);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+}
+
+.fs-manifest-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+}
+
+.fs-manifest-head > div { min-width: 0; }
+
+.fs-manifest-title {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-body-size);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-manifest-description,
+.fs-manifest-meta {
+  margin: var(--fs-space-025) 0 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.4;
+}
+
+.fs-manifest-head > .fs-manifest-meta {
+  margin: 0;
+  color: var(--fs-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fs-manifest-code { font-family: var(--ff-code); }
+
+/* A group inside a component: a form section, an editor under a list. */
+.fs-manifest-inset {
+  display: grid;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface-muted);
+}
+
+.fs-manifest-section-title {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-field-label-size);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-manifest-inset .fs-manifest-description { margin: 0; }
+
+.fs-manifest-fields {
+  display: grid;
+  gap: var(--fs-space-150);
+}
+
+@media (width >= theme(--breakpoint-md)) {
+  .fs-manifest-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* A repeater spans the whole row: it holds its own list and editor. */
+.fs-manifest-fields > .fs-manifest-repeater { grid-column: 1 / -1; }
+
+.fs-manifest-secret-text { -webkit-text-security: disc; }
+
+.fs-manifest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-100);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The row's actions sit in a fieldset for their group name only. */
+fieldset.fs-manifest-actions {
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* A saved item: a connection, a state row, a health check, a log line. */
+.fs-manifest-list {
+  display: grid;
+  gap: var(--fs-space-100);
+}
+
+.fs-manifest-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100) var(--fs-space-150);
+  min-width: 0;
+  padding: var(--fs-space-100) var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface-muted);
+}
+
+.fs-manifest-row.is-top { align-items: flex-start; }
+
+/* A row whose last check failed reads as an error: the same border, fill and
+   text tokens as a field in error, so the reason can't be mistaken for a hint. */
+.fs-manifest-row.is-error {
+  border-color: var(--fs-input-border-error);
+  background: var(--fs-input-bg-error);
+}
+
+.fs-manifest-row-detail.is-error { color: var(--fs-field-error-color); }
+
+.fs-manifest-row-copy {
+  display: grid;
+  gap: var(--fs-space-025);
+  min-width: 0;
+  flex: 1 1 calc(var(--fs-space-400) * 5);
+}
+
+.fs-manifest-row-copy > * { margin: 0; }
+
+.fs-manifest-row-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075);
+  overflow: hidden;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-field-label-size);
+  text-overflow: ellipsis;
+}
+
+.fs-manifest-row-detail {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* Query summary: label, value, as one quiet line of facts. */
+.fs-manifest-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-075) var(--fs-space-200);
+  margin: 0;
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-manifest-summary div { display: flex; gap: var(--fs-space-050); }
+.fs-manifest-summary dt { color: var(--fs-text-tertiary); }
+.fs-manifest-summary dd { margin: 0; color: var(--fs-text-primary); font-variant-numeric: tabular-nums; }
+
+/* Stats row: each stat is a quiet tile, the value carries the weight. */
+.fs-manifest-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--fs-space-400) * 4), 1fr));
+  gap: var(--fs-space-100);
+}
+
+.fs-manifest-stat {
+  display: grid;
+  gap: var(--fs-space-050);
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+}
+
+.fs-manifest-stat > * { margin: 0; }
+
+.fs-manifest-stat-label {
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-manifest-stat-value {
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-h3-size);
+  font-weight: var(--fs-type-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-manifest-stat-trend {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+/* Grid: the canon embedded table inside its own bordered scroller. */
+.fs-manifest-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+}
+
+/* Cells keep one line, as in the full table; the scroller takes the width. */
+.fs-manifest-table-scroll .fs-table td {
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.fs-manifest-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-manifest-empty {
+  display: grid;
+  gap: var(--fs-space-050);
+  padding: var(--fs-space-200) var(--fs-space-150);
+  border: 1px dashed var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+}
+
+.fs-manifest-empty > * { margin: 0; }
+
+.fs-manifest-empty-title {
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-field-label-size);
+}
+
+/* Repeater: key/value lines inside each saved row. */
+.fs-manifest-repeater-values {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 0;
+  flex: 1 1 calc(var(--fs-space-400) * 6);
+  margin: 0;
+  font-size: var(--fs-type-field-label-size);
+}
+
+.fs-manifest-repeater-values div { display: grid; gap: var(--fs-space-025); }
+
+@media (width >= theme(--breakpoint-md)) {
+  .fs-manifest-repeater-values div {
+    grid-template-columns: calc(var(--fs-space-400) * 4) minmax(0, 1fr);
+    gap: var(--fs-space-150);
+  }
+}
+
+.fs-manifest-repeater-values dt { color: var(--fs-text-tertiary); }
+.fs-manifest-repeater-values dd { margin: 0; color: var(--fs-text-primary); overflow-wrap: anywhere; }
+
+/* The row a return from authorization lands on: the selection border plus
+   the focus ring, so the eye finds the account that just changed. */
+.fs-manifest-row.is-focused {
+  border-color: var(--fs-border-selected);
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-manifest-row:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+
+/* A condition the user should act on, short of an error. */
+.fs-manifest-notice {
+  margin: 0;
+  color: var(--fs-status-warning);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.4;
+}
+
+.fs-manifest-success {
+  margin: 0;
+  color: var(--fs-status-success);
+  font-size: var(--fs-type-caption-size);
+}
+
+/* In-page navigation that reads as a link: help and troubleshooting pages. */
+.fs-manifest-link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fs-radius-compact);
+  background: none;
+  color: var(--fs-action-primary);
+  font-size: var(--fs-type-caption-size);
+  cursor: pointer;
+}
+
+.fs-manifest-link:hover { text-decoration: underline; }
+.fs-manifest-link:focus-visible { outline: none; box-shadow: var(--fs-focus-ring); }
+
+/* A single chooser keeps a field's measure rather than the block's width. */
+.fs-manifest-measure { max-width: var(--fs-form-block-measure); }
+
+/* A stored secret: what happens to it, beside the control that changes it. */
+.fs-manifest-stored {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+/* LLM provider models: the checkbox label carries the model, so the whole row
+   start is the hit target; the search keeps a field's measure. */
+.fs-llm-model { flex: 1 1 auto; min-width: 0; }
+.fs-search.fs-llm-search { width: min(var(--fs-form-block-measure), 100%); margin-left: 0; }

@@ -1,0 +1,113 @@
+/*
+ * Feature-scoped rules for the Settings panels, tokens only. Each exists
+ * because canon publishes no class for it.
+ */
+
+/* A field that takes the whole row of a two-column `.fs-form-grid`. */
+.fs-form-grid > .fs-settings-span { grid-column: 1 / -1; }
+
+.fs-settings-wrap { overflow-wrap: anywhere; white-space: normal; }
+
+/* Selectable identity and credential rows. Selection is an edge plus the
+   selected wash, the published row-selection idiom. */
+.fs-settings-list {
+  display: grid;
+  gap: var(--fs-space-100);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-settings-list-item {
+  display: grid;
+  gap: var(--fs-space-050);
+  width: 100%;
+  min-width: 0;
+  padding: var(--fs-space-150) var(--fs-space-200);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+  background: var(--fs-bg-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-settings-list-item:hover { border-color: var(--fs-border-default); }
+.fs-settings-list-item[data-selected] { border-color: var(--fs-border-selected); background: var(--fs-action-primary-wash); }
+.fs-settings-list-item:focus-visible { outline: 0; box-shadow: var(--fs-focus-ring); }
+
+.fs-settings-list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-primary);
+}
+
+.fs-settings-list-head strong { min-width: 0; font-weight: var(--fs-type-weight-medium); overflow-wrap: anywhere; }
+.fs-settings-list-meta { color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); overflow-wrap: anywhere; }
+
+.fs-settings-restriction-list {
+  display: grid;
+  gap: var(--fs-space-100);
+  max-height: 11rem;
+  overflow-y: auto;
+}
+
+/* The service-account drawers keep their own focus trap and nesting (a token
+   drawer opens over the identity drawer), so they wear the published drawer
+   tokens rather than DsDrawer itself. */
+.fs-settings-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--fs-z-modal);
+  background: var(--fs-overlay-scrim);
+}
+
+.fs-settings-drawer {
+  position: absolute;
+  inset: 0 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 36rem);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--fs-drawer-border);
+  background: var(--fs-drawer-surface);
+  box-shadow: var(--fs-drawer-shadow);
+  color: inherit;
+}
+
+.fs-settings-drawer[data-size="wide"] { width: min(100%, 42rem); }
+
+.fs-settings-drawer-head,
+.fs-settings-drawer-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fs-space-200);
+  padding: var(--fs-drawer-padding);
+}
+
+.fs-settings-drawer-head { border-bottom: 1px solid var(--fs-border-subtle); }
+.fs-settings-drawer-head p { margin: var(--fs-space-050) 0 0; }
+
+.fs-settings-drawer-foot {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  border-top: 1px solid var(--fs-border-subtle);
+}
+
+.fs-settings-drawer-body {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-dashboard-section-gap);
+  padding: var(--fs-drawer-padding);
+}

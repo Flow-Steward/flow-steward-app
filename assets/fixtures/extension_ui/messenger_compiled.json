@@ -1,0 +1,417 @@
+{
+  "extension_id": "acme.messenger",
+  "kind": "notification_provider",
+  "version": "1.0.0",
+  "display_name": "Acme Messenger Notifications",
+  "description": "Sends notifications to messenger chats",
+  "capabilities": ["notify"],
+  "health": {
+    "status": "healthy",
+    "checked_at": "2026-03-15T10:00:00Z"
+  },
+  "ui_manifest": {
+    "version": "1",
+    "pages": [
+      {
+        "page_id": "overview",
+        "title": "Overview",
+        "description": "Provider summary and health",
+        "components": [
+          {
+            "component_id": "messenger_stats",
+            "type": "stats_row",
+            "items": [
+              {"label": "Messages Sent", "value": "1,247", "trend": "+12%", "trend_direction": "up"},
+              {"label": "Delivery Rate", "value": "99.2%", "trend": "+0.3%", "trend_direction": "up"},
+              {"label": "Avg Latency", "value": "340ms", "trend": "-15ms", "trend_direction": "down"},
+              {"label": "Active Subscriptions", "value": "8"}
+            ]
+          },
+          {
+            "component_id": "messenger_health",
+            "type": "health_panel",
+            "title": "Connection Health",
+            "query_id": "get_health",
+            "checks": [
+              {"name": "Bot Token", "status": "healthy", "detail": "Token valid, bot @flow_steward_notify_bot"},
+              {"name": "API Connectivity", "status": "healthy", "detail": "Acme Messenger API reachable (120ms)"},
+              {"name": "Webhook", "status": "warning", "detail": "Webhook not configured (using polling)"}
+            ]
+          },
+          {
+            "component_id": "recent_log",
+            "type": "log_list",
+            "title": "Recent Activity",
+            "query_id": "get_recent_log",
+            "max_items": 10,
+            "items": [
+              {"timestamp": "2026-03-15T09:58:00Z", "severity": "info", "message": "Delivered job.completed to chat -100123"},
+              {"timestamp": "2026-03-15T09:45:00Z", "severity": "info", "message": "Delivered approval.requested to chat -100456"},
+              {"timestamp": "2026-03-15T09:30:00Z", "severity": "error", "message": "Failed to deliver job.failed: chat not found -100789"},
+              {"timestamp": "2026-03-15T09:12:00Z", "severity": "info", "message": "Delivered job.completed to chat -100123"},
+              {"timestamp": "2026-03-15T08:55:00Z", "severity": "warning", "message": "Rate limited by Acme Messenger API, retrying in 5s"}
+            ]
+          }
+        ]
+      },
+      {
+        "page_id": "configuration",
+        "title": "Configuration",
+        "description": "Connection and routing settings",
+        "components": [
+          {
+            "component_id": "messenger_config_form",
+            "type": "form",
+            "data": {
+              "load_query": "get_config",
+              "save_action": "save_config",
+              "validate_action": "validate_config",
+              "test_action": "test_connection",
+              "save_mode": "patch"
+            },
+            "schema": {
+              "type": "object",
+              "required": ["bot_token", "default_chat_id"],
+              "properties": {
+                "bot_token": {"type": "string", "minLength": 10},
+                "default_chat_id": {"type": "string"},
+                "parse_mode": {"type": "string", "enum": ["HTML", "Markdown", "MarkdownV2"]},
+                "disable_notification": {"type": "boolean", "default": false},
+                "thread_id": {"type": "string"},
+                "message_template": {"type": "string", "maxLength": 4096},
+                "retry_count": {"type": "integer", "minimum": 0, "maximum": 5, "default": 3},
+                "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 60, "default": 10}
+              }
+            },
+            "ui_schema": {
+              "version": "1",
+              "type": "form_ui",
+              "title": "Acme Messenger Configuration",
+              "description": "Bot connection and message delivery settings",
+              "layout": {"columns": 2, "density": "comfortable"},
+              "sections": [
+                {
+                  "section_id": "connection",
+                  "title": "Connection",
+                  "description": "Bot token and target chat",
+                  "collapsible": true,
+                  "default_open": true,
+                  "columns": 2,
+                  "variant": "card",
+                  "field_ids": ["bot_token", "default_chat_id", "thread_id"]
+                },
+                {
+                  "section_id": "delivery",
+                  "title": "Delivery Settings",
+                  "description": "Message formatting and retry behavior",
+                  "collapsible": true,
+                  "default_open": true,
+                  "columns": 2,
+                  "variant": "card",
+                  "field_ids": ["parse_mode", "disable_notification", "retry_count", "timeout_seconds"]
+                },
+                {
+                  "section_id": "template",
+                  "title": "Message Template",
+                  "collapsible": true,
+                  "default_open": false,
+                  "columns": 1,
+                  "variant": "card",
+                  "field_ids": ["message_template"]
+                }
+              ],
+              "fields": [
+                {
+                  "field_id": "bot_token",
+                  "path": "bot_token",
+                  "widget": "secret",
+                  "label": "Bot Token",
+                  "section_id": "connection",
+                  "description": "Acme Messenger Bot API token from @BotFather",
+                  "placeholder": "123456:ABC-DEF...",
+                  "column_span": 2
+                },
+                {
+                  "field_id": "default_chat_id",
+                  "path": "default_chat_id",
+                  "widget": "text",
+                  "label": "Default Chat ID",
+                  "section_id": "connection",
+                  "description": "Chat or group ID for notifications",
+                  "placeholder": "-100123456789",
+                  "column_span": 1,
+                  "props": {"monospace": true}
+                },
+                {
+                  "field_id": "thread_id",
+                  "path": "thread_id",
+                  "widget": "text",
+                  "label": "Thread ID",
+                  "section_id": "connection",
+                  "description": "Optional topic thread ID for supergroups",
+                  "placeholder": "1234",
+                  "column_span": 1,
+                  "props": {"monospace": true}
+                },
+                {
+                  "field_id": "parse_mode",
+                  "path": "parse_mode",
+                  "widget": "select",
+                  "label": "Parse Mode",
+                  "section_id": "delivery",
+                  "column_span": 1,
+                  "props": {
+                    "options": [
+                      {"value": "HTML", "label": "HTML"},
+                      {"value": "Markdown", "label": "Markdown"},
+                      {"value": "MarkdownV2", "label": "Markdown V2"}
+                    ]
+                  }
+                },
+                {
+                  "field_id": "disable_notification",
+                  "path": "disable_notification",
+                  "widget": "boolean",
+                  "label": "Silent Messages",
+                  "section_id": "delivery",
+                  "description": "Send without notification sound",
+                  "column_span": 1
+                },
+                {
+                  "field_id": "retry_count",
+                  "path": "retry_count",
+                  "widget": "integer",
+                  "label": "Retry Count",
+                  "section_id": "delivery",
+                  "description": "Number of retries on failure",
+                  "column_span": 1,
+                  "props": {"min": 0, "max": 5}
+                },
+                {
+                  "field_id": "timeout_seconds",
+                  "path": "timeout_seconds",
+                  "widget": "integer",
+                  "label": "Timeout (s)",
+                  "section_id": "delivery",
+                  "description": "Request timeout in seconds",
+                  "column_span": 1,
+                  "props": {"min": 1, "max": 60}
+                },
+                {
+                  "field_id": "message_template",
+                  "path": "message_template",
+                  "widget": "textarea",
+                  "label": "Message Template",
+                  "section_id": "template",
+                  "description": "Jinja2 template for notification messages",
+                  "placeholder": "{{ event_type }}: {{ summary }}",
+                  "column_span": 1,
+                  "props": {"rows": 6, "monospace": true}
+                }
+              ],
+              "actions": {
+                "save_label": "Save Configuration",
+                "validate_label": "Validate",
+                "test_label": "Test Connection"
+              }
+            },
+            "values": {
+              "bot_token": "••••••••••",
+              "default_chat_id": "-100123456789",
+              "parse_mode": "HTML",
+              "disable_notification": false,
+              "retry_count": 3,
+              "timeout_seconds": 10,
+              "message_template": "<b>{{ event_type }}</b>\n{{ summary }}\n\nProject: {{ project_name }}\nJob: #{{ job_id }}"
+            }
+          }
+        ]
+      },
+      {
+        "page_id": "deliveries",
+        "title": "Deliveries",
+        "description": "Sent message history",
+        "components": [
+          {
+            "component_id": "delivery_grid",
+            "type": "grid",
+            "title": "Delivery History",
+            "description": "All notification delivery attempts",
+            "query_id": "list_deliveries",
+            "filters_schema": {
+              "version": "1",
+              "type": "filter_schema",
+              "fields": [
+                {
+                  "filter_id": "status",
+                  "path": "status",
+                  "widget": "multi_select",
+                  "label": "Status",
+                  "operators": ["in"],
+                  "default_operator": "in",
+                  "props": {
+                    "options": [
+                      {"value": "delivered", "label": "Delivered"},
+                      {"value": "failed", "label": "Failed"},
+                      {"value": "queued", "label": "Queued"},
+                      {"value": "retrying", "label": "Retrying"}
+                    ]
+                  }
+                },
+                {
+                  "filter_id": "event_type",
+                  "path": "event_type",
+                  "widget": "multi_select",
+                  "label": "Event Type",
+                  "operators": ["in"],
+                  "default_operator": "in",
+                  "props": {
+                    "options": [
+                      {"value": "job.completed", "label": "Job Completed"},
+                      {"value": "job.failed", "label": "Job Failed"},
+                      {"value": "approval.requested", "label": "Approval Requested"}
+                    ]
+                  }
+                },
+                {
+                  "filter_id": "date_range",
+                  "path": "sent_at",
+                  "widget": "date_range",
+                  "label": "Date Range"
+                }
+              ]
+            },
+            "columns": [
+              {"key": "id", "label": "ID", "type": "id", "width": "80px", "monospace": true},
+              {"key": "status", "label": "Status", "type": "badge", "sortable": true, "width": "120px",
+               "badge_map": {"delivered": "green", "failed": "red", "queued": "gray", "retrying": "amber"}},
+              {"key": "event_type", "label": "Event", "type": "text", "sortable": true},
+              {"key": "chat_id", "label": "Chat", "type": "text", "monospace": true, "truncate": true, "width": "160px"},
+              {"key": "sent_at", "label": "Sent At", "type": "datetime", "sortable": true, "width": "180px"},
+              {"key": "latency_ms", "label": "Latency", "type": "number", "sortable": true, "width": "100px", "format": "ms"},
+              {"key": "error", "label": "Error", "type": "text", "truncate": true, "hidden": false}
+            ],
+            "row_actions": [
+              {"action_id": "retry_delivery", "label": "Retry", "variant": "secondary", "icon": "refresh"},
+              {"action_id": "view_payload", "label": "View Payload", "variant": "ghost", "icon": "code"}
+            ],
+            "bulk_actions": [
+              {"action_id": "bulk_retry", "label": "Retry Selected", "variant": "primary"}
+            ],
+            "toolbar_actions": [
+              {"action_id": "export_deliveries", "label": "Export CSV", "variant": "secondary", "icon": "download"}
+            ],
+            "detail": {
+              "mode": "drawer",
+              "query_id": "get_delivery_detail"
+            },
+            "pagination": {
+              "page_size_default": 25,
+              "page_size_options": [25, 50, 100]
+            },
+            "sorting": {
+              "default": [{"field": "sent_at", "direction": "desc"}]
+            },
+            "search": {
+              "enabled": true,
+              "placeholder": "Search deliveries..."
+            },
+            "empty_state": {
+              "title": "No deliveries found",
+              "description": "Nothing has been sent yet. Configure a notification route to get started."
+            },
+            "fixture_data": {
+              "items": [
+                {"id": "msg_001", "status": "delivered", "event_type": "job.completed", "chat_id": "-100123456789", "sent_at": "2026-03-15T09:58:00Z", "latency_ms": 245, "error": null},
+                {"id": "msg_002", "status": "delivered", "event_type": "approval.requested", "chat_id": "-100456789012", "sent_at": "2026-03-15T09:45:00Z", "latency_ms": 312, "error": null},
+                {"id": "msg_003", "status": "failed", "event_type": "job.failed", "chat_id": "-100789012345", "sent_at": "2026-03-15T09:30:00Z", "latency_ms": 5021, "error": "Chat not found"},
+                {"id": "msg_004", "status": "delivered", "event_type": "job.completed", "chat_id": "-100123456789", "sent_at": "2026-03-15T09:12:00Z", "latency_ms": 198, "error": null},
+                {"id": "msg_005", "status": "retrying", "event_type": "job.failed", "chat_id": "-100123456789", "sent_at": "2026-03-15T08:55:00Z", "latency_ms": null, "error": "Rate limited"},
+                {"id": "msg_006", "status": "delivered", "event_type": "job.completed", "chat_id": "-100456789012", "sent_at": "2026-03-15T08:30:00Z", "latency_ms": 156, "error": null},
+                {"id": "msg_007", "status": "queued", "event_type": "approval.requested", "chat_id": "-100123456789", "sent_at": "2026-03-15T08:15:00Z", "latency_ms": null, "error": null}
+              ],
+              "total": 1247,
+              "page": 1,
+              "page_size": 25,
+              "has_more": true
+            }
+          }
+        ]
+      },
+      {
+        "page_id": "subscriptions",
+        "title": "Subscriptions",
+        "description": "Event subscription rules",
+        "components": [
+          {
+            "component_id": "subscriptions_section",
+            "type": "section",
+            "title": "Active Subscriptions",
+            "description": "Events routed to this provider",
+            "collapsible": false,
+            "variant": "plain"
+          },
+          {
+            "component_id": "subscriptions_grid",
+            "type": "grid",
+            "title": "Subscription Rules",
+            "query_id": "list_subscriptions",
+            "columns": [
+              {"key": "event_type", "label": "Event Type", "type": "text", "sortable": true},
+              {"key": "project_name", "label": "Project", "type": "text", "sortable": true},
+              {"key": "chat_id", "label": "Chat ID", "type": "text", "monospace": true},
+              {"key": "enabled", "label": "Enabled", "type": "boolean", "sortable": true, "width": "100px"},
+              {"key": "created_at", "label": "Created", "type": "datetime", "sortable": true, "width": "180px"}
+            ],
+            "row_actions": [
+              {"action_id": "toggle_subscription", "label": "Toggle", "variant": "secondary"},
+              {"action_id": "delete_subscription", "label": "Delete", "variant": "danger"}
+            ],
+            "toolbar_actions": [
+              {"action_id": "add_subscription", "label": "Add Subscription", "variant": "primary", "icon": "plus"}
+            ],
+            "pagination": {"page_size_default": 25, "page_size_options": [25, 50]},
+            "empty_state": {
+              "title": "No subscriptions",
+              "description": "Add a subscription to start routing events to Acme Messenger."
+            },
+            "fixture_data": {
+              "items": [
+                {"event_type": "job.completed", "project_name": "test-project", "chat_id": "-100123456789", "enabled": true, "created_at": "2026-03-01T12:00:00Z"},
+                {"event_type": "job.failed", "project_name": "test-project", "chat_id": "-100123456789", "enabled": true, "created_at": "2026-03-01T12:00:00Z"},
+                {"event_type": "approval.requested", "project_name": "test-project", "chat_id": "-100456789012", "enabled": true, "created_at": "2026-03-02T10:00:00Z"},
+                {"event_type": "job.failed", "project_name": "api-service", "chat_id": "-100123456789", "enabled": false, "created_at": "2026-03-05T08:00:00Z"}
+              ],
+              "total": 4,
+              "page": 1,
+              "page_size": 25,
+              "has_more": false
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "queries": {
+    "get_config": {"description": "Load current configuration"},
+    "get_health": {"description": "Check provider health"},
+    "get_recent_log": {"description": "Fetch recent activity log"},
+    "list_deliveries": {"description": "List delivery history"},
+    "get_delivery_detail": {"description": "Get delivery detail"},
+    "list_subscriptions": {"description": "List event subscriptions"}
+  },
+  "actions": {
+    "save_config": {"description": "Save configuration changes"},
+    "validate_config": {"description": "Validate configuration"},
+    "test_connection": {"description": "Test Acme Messenger bot connection"},
+    "retry_delivery": {"description": "Retry a failed delivery", "scope": "row"},
+    "view_payload": {"description": "View message payload", "scope": "row"},
+    "bulk_retry": {"description": "Retry selected deliveries", "scope": "bulk"},
+    "export_deliveries": {"description": "Export deliveries as CSV", "scope": "page"},
+    "toggle_subscription": {"description": "Toggle subscription", "scope": "row"},
+    "delete_subscription": {"description": "Delete subscription", "scope": "row"},
+    "add_subscription": {"description": "Add new subscription", "scope": "page"}
+  },
+  "validation_errors": [],
+  "compile_status": "ok"
+}

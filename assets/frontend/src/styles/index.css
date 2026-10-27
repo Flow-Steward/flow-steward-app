@@ -1,0 +1,148 @@
+@import "../design-system/01_tokens/themes.css";
+@import "../design-system/01_tokens/base.css";
+@import "../design-system/01_tokens/fonts.css";
+@import "tailwindcss";
+@import "./design-system-shell.css";
+
+/* Tailwind 4 resolves theme values at build time, so var() would generate
+   variants that do not work here. This mirrors the scale in
+   design-system/01_tokens/themes.css; page-grid-contract.test.ts catches drift.
+   Use rem for accessibility: media queries scale with the reader's font size.
+   At the default 16px root these values are 640/768/1024/1280/1536px. */
+@theme {
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+  --breakpoint-2xl: 96rem;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+/* The page never scrolls sideways, so it never rubber-bands sideways either:
+   on a trackpad or a touch mouse the content area would otherwise sway with
+   the pointer. Vertical scrolling keeps its native feel. */
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
+body {
+  margin: 0;
+  font-family: var(--ff-body);
+  background: var(--fs-bg-canvas);
+}
+
+.app-shell-root[data-shell-theme="light"] .bg-white\/5 {
+  background-color: rgb(255 255 255 / 75%);
+}
+
+.app-shell-root[data-shell-theme="light"] .border-white\/10,
+.app-shell-root[data-shell-theme="light"] .border-white\/15 {
+  border-color: rgb(148 163 184 / 45%);
+}
+
+.app-shell-root[data-shell-theme="light"] {
+  color: #0f172a;
+}
+
+.app-shell-root[data-shell-theme="light"] .bg-slate-950\/95,
+.app-shell-root[data-shell-theme="light"] .bg-slate-950\/80,
+.app-shell-root[data-shell-theme="light"] .bg-slate-950\/70,
+.app-shell-root[data-shell-theme="light"] .bg-slate-900\/70,
+.app-shell-root[data-shell-theme="light"] .bg-slate-900\/60,
+.app-shell-root[data-shell-theme="light"] .bg-slate-900\/50,
+.app-shell-root[data-shell-theme="light"] .bg-slate-900\/40,
+.app-shell-root[data-shell-theme="light"] .bg-slate-900\/30 {
+  background-color: rgb(241 245 249 / 88%);
+}
+
+.app-shell-root[data-shell-theme="light"] .text-white,
+.app-shell-root[data-shell-theme="light"] .text-slate-100,
+.app-shell-root[data-shell-theme="light"] .text-slate-200,
+.app-shell-root[data-shell-theme="light"] .text-slate-300 {
+  color: #0f172a;
+}
+
+.app-shell-root[data-shell-theme="light"] .text-slate-400 {
+  color: #334155;
+}
+
+.app-shell-root[data-shell-theme="light"] .text-cyan-100,
+.app-shell-root[data-shell-theme="light"] .text-cyan-200 {
+  color: #0e7490;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+code {
+  font-family: var(--ff-code);
+}
+
+.workflow-builder-drawer {
+  container-type: inline-size;
+}
+
+.workflow-builder-drawer .grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+@container (min-width: 560px) {
+  .workflow-builder-drawer .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+.workflow-builder-drawer-resize-handle {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  left: 0;
+  width: 10px;
+  cursor: col-resize;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 2;
+}
+
+.workflow-builder-drawer-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 2rem;
+  bottom: 2rem;
+  left: 4px;
+  width: 2px;
+  border-radius: 999px;
+  background: rgb(103 232 249 / 0%);
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.workflow-builder-drawer-resize-handle:hover::after,
+.workflow-builder-drawer-resize-handle:focus-visible::after {
+  background: rgb(103 232 249 / 85%);
+  box-shadow: 0 0 16px rgb(34 211 238 / 40%);
+}

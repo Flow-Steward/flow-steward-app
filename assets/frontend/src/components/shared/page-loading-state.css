@@ -1,0 +1,24 @@
+/*
+ * Page loading state, tokens only. Canon: 03_components/data-display/loader.md
+ * and loader-preview.html (.boot-region). It is the canvas, not a surface.
+ */
+
+.fs-page-loading {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--fs-space-150);
+  min-height: calc(100dvh - var(--fs-header-height, 64px));
+  background: var(--fs-bg-canvas);
+}
+
+/* Before the shell paints there is no header band to leave room for. */
+.fs-page-loading.is-standalone { min-height: 100dvh; }
+
+.fs-page-loading-line {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-family: var(--ff-body);
+  font-size: var(--fs-type-field-label-size);
+  text-align: center;
+}

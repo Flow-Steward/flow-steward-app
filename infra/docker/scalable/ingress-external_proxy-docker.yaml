@@ -1,0 +1,18 @@
+services:
+  fs-app:
+    networks:
+      default: {}
+      flow-steward-proxy:
+        aliases:
+          - "${FS_COMPOSE_PROJECT_NAME:-flow-steward}-app-proxy"
+  fs-mcp:
+    networks:
+      default: {}
+      flow-steward-proxy:
+        aliases:
+          - "${FS_COMPOSE_PROJECT_NAME:-flow-steward}-mcp-proxy"
+
+networks:
+  flow-steward-proxy:
+    external: true
+    name: ${FS_PROXY_NETWORK:?FS_PROXY_NETWORK is required}

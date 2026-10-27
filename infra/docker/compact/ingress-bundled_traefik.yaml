@@ -1,0 +1,25 @@
+services:
+  traefik:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.3@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f}
+    restart: on-failure:3
+    entrypoint: ["/bin/sh", "/etc/traefik/render-public-router.sh"]
+    environment:
+      FS_RUNTIME_HTTP_PORT: ${FS_RUNTIME_HTTP_PORT:?FS_RUNTIME_HTTP_PORT is required}
+    command:
+      - --providers.file.directory=/run/traefik-dynamic
+      - --providers.file.watch=false
+      - --entrypoints.web.address=:${HTTP_PORT:-8080}
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:${APP_PORT:-8099}
+      - --entrypoints.websecure.http.tls=true
+      - --api.dashboard=false
+    ports:
+      - "${FS_PUBLIC_BIND_HOST:-0.0.0.0}:${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
+      - "${FS_PUBLIC_BIND_HOST:-0.0.0.0}:${APP_PORT:-8099}:${APP_PORT:-8099}"
+    volumes:
+      - ./compact/render-public-router.sh:/etc/traefik/render-public-router.sh:ro
+      - ./compact/public-router.yaml.tmpl:/etc/traefik/templates/public-router.yaml.tmpl:ro
+    tmpfs:
+      - /run/traefik-dynamic

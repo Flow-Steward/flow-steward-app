@@ -1,0 +1,145 @@
+[tool.pytest.ini_options]
+cache_dir = "logs/tool-cache/pytest"
+testpaths = ["tests"]
+filterwarnings = [
+    # ── Vendor / third-party waivers ────────────────────────────────────────────
+    # httpx internal: starlette TestClient uses a deprecated data= argument in its
+    # internal httpx encoding call (httpx._content).  Not actionable from our code.
+    "ignore::DeprecationWarning:httpx",
+    # starlette/httpx TestClient creates a SpooledTemporaryFile for UploadFile
+    # handling; GC closes it after the test, triggering an unraisable ResourceWarning
+    # that pytest surfaces as PytestUnraisableExceptionWarning.  Vendor issue.
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+
+    # ── In-project audit / budget warnings (reviewed & approved) ────────────────
+    # test_dead_field_detector: under-budget informational notices.
+    "ignore:.*schema columns have no Python mention.*:UserWarning",
+    "ignore:.*View model fields not found in any schema table.*:UserWarning",
+    # test_dead_test_detector: under-budget informational notices.
+    "ignore:.*test names appear in.*:UserWarning",
+    "ignore:.*Test directories without __init__.py or conftest.py.*:UserWarning",
+]
+
+[tool.ruff]
+cache-dir = "logs/tool-cache/ruff"
+target-version = "py311"
+line-length = 100
+extend-exclude = [
+  ".git",
+  ".venv",
+  "venv",
+  "node_modules",
+  "docs",
+  "ops",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4", "PIE", "RET", "RUF"]
+ignore = ["E501"]
+fixable = ["ALL"]
+
+[tool.mypy]
+cache_dir = "logs/tool-cache/mypy"
+python_version = "3.11"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+check_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = true
+pretty = true
+exclude = "(^docs/|^ops/|^db/schema/|^db/seeds/)"
+explicit_package_bases = true
+disable_error_code = [
+  # ── Historical concentration debt — tracked for burn-down under R-NN ────────
+  # Each code below still fires within the mypy gate scope
+  # (lint.sh: `mypy <TARGETS>`, tests excluded).  Top current offenders by volume:
+  #   assignment: core/infrastructure/db/system_settings_store.py (6), core/infrastructure/runtime/subprocess_lifecycle.py (3)
+  #   call-overload: core/application/jobs/workload_service.py (6), core/infrastructure/monitoring/system_storage.py (2)
+  #   dict-item: core/application/jobs/queue_delivery_runtime.py (8), core/application/reports/ui_projection.py (4), core/entrypoints/api/jobs.py (2)
+  #   index: core/application/reports/reporting_service.py (1)
+  #   list-item: core/application/orchestration/replanner.py (2)
+  #   misc: core/entrypoints/api/route_bindings.py (6), core/infrastructure/observability/logger_runtime.py (2), core/infrastructure/db/platform_logger.py (2)
+  #   no-any-return: core/entrypoints/admin/deps.py (12), core/infrastructure/db/logger_extensions_accounts_common.py (9)
+  #   no-redef: core/application/workflows/platform_step_test_run_helpers.py (2)
+  #   operator: core/application/search/search_neo4j.py (4), core/infrastructure/security/safe_eval.py (1)
+  #   var-annotated: core/application/tooling/quality/sonar_generate_backlog.py (5)
+  # Removing a code re-enables that check globally (intentional) — do it once a
+  # code's offenders are refactored to zero (burn-down = Phase 4 / task #6).
+  # Codes removed 2026-06-26 (no longer firing in gate scope): truthy-function, has-type.
+  # Audited 2026-06-26: each code below fires in the live tree (counts above).
+  # Next review: 2026-09-01.
+  "assignment",
+  "call-overload",
+  "dict-item",
+  "index",
+  "list-item",
+  "misc",
+  "no-any-return",
+  "no-redef",
+  "operator",
+  "var-annotated",
+]
+
+[tool.bandit]
+exclude_dirs = [
+  ".git",
+  ".venv",
+  "venv",
+  "node_modules",
+  "docs",
+  "ops",
+  # tests/ excluded because test assertions (B101) are legitimate and
+  # expected; scanning tests would produce only false-positives.
+  # Production asserts use `# nosec B101` at their call sites instead.
+  "tests",
+]
+# B101 REMOVED 2026-04-12: only two assert statements exist in production
+# code (core/state.py, tools/mcp_tools.py); both are annotated # nosec B101.
+skips = []
+
+[tool.vulture]
+min_confidence = 90
+exclude = [
+  ".git/",
+  ".venv/",
+  "venv/",
+  "node_modules/",
+  "docs/",
+  "ops/",
+  "db/schema/",
+  "db/seeds/",
+  "tests/",
+]
+
+[tool.coverage.run]
+data_file = "logs/coverage/.coverage"
+# Several suites copy a candidate repository into pytest's tmp_path and run
+# against it. Those copies are the same product source under a different path,
+# so measuring them counted the tree many times over — a Tier 3 run reported
+# 1,014,991 statements and was killed with exit 137, which reads as a product
+# failure and is not one. Coverage consults `omit` before it traces a file, so
+# excluding these bounds the run as well as the report.
+#
+# Matched on pytest's own temporary layout, not on the temporary root itself.
+# The first version of this excluded `/tmp/*` outright, which also excluded the
+# core-only runner's canonical checkout — it lives under the platform temp
+# directory by design — so the gate measured nothing at all and said so with a
+# coverage-scope failure rather than a missing-source one.
+omit = [
+  "*/pytest-of-*/*",
+  "*/pytest-[0-9]*/*",
+]
+
+[tool.coverage.report]
+# The same exclusion at report time. Collection-time `omit` depends on which
+# process did the tracing, and a nested candidate-harness run inside a copied
+# repository can contribute rows the parent never traced itself — the gate
+# reported 1,022,037 statements against a canonical 172,859. Excluding the
+# copies here makes the report independent of that: they are copies of the
+# product, not product source, so they are not a check being weakened.
+omit = [
+  "*/pytest-of-*/*",
+  "*/pytest-[0-9]*/*",
+]

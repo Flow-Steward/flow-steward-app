@@ -1,0 +1,23 @@
+services:
+  traefik:
+    command:
+      - --providers.file.filename=/etc/traefik/dynamic/fs.dynamic.yaml
+      - --entrypoints.web.address=:${HTTP_PORT:-8080}
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:${APP_PORT:-8099}
+      - --entrypoints.websecure.http.tls=true
+      - --entrypoints.websecure.http3=true
+      - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+      - --certificatesresolvers.flow-steward-acme.acme.email=${FS_ACME_CONTACT:?FS_ACME_CONTACT is required}
+      - --certificatesresolvers.flow-steward-acme.acme.caserver=${FS_ACME_DIRECTORY_URL:?FS_ACME_DIRECTORY_URL is required}
+      - --certificatesresolvers.flow-steward-acme.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.flow-steward-acme.acme.httpchallenge=true
+      - --certificatesresolvers.flow-steward-acme.acme.httpchallenge.entrypoint=web
+      - --entrypoints.websecure.http.tls.certresolver=flow-steward-acme
+    volumes:
+      - fs-scalable-acme:/letsencrypt
+
+volumes:
+  fs-scalable-acme:

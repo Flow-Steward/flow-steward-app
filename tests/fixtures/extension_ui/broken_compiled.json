@@ -1,0 +1,64 @@
+{
+  "extension_id": "acme.broken-example",
+  "kind": "tool_provider",
+  "version": "0.1.0",
+  "display_name": "Broken Example (for testing)",
+  "description": "Extension with compile/validation errors",
+  "features": ["tool"],
+  "health": null,
+  "ui_manifest": {
+    "version": "1",
+    "pages": [
+      {
+        "page_id": "settings",
+        "title": "Settings",
+        "components": [
+          {
+            "component_id": "broken_form",
+            "type": "form",
+            "schema": {"type": "object", "properties": {"name": {"type": "string"}}},
+            "ui_schema": {
+              "version": "1",
+              "type": "form_ui",
+              "sections": [
+                {"section_id": "main", "field_ids": ["name", "missing_field"]}
+              ],
+              "fields": [
+                {"field_id": "name", "path": "name", "widget": "text", "label": "Name", "section_id": "main"}
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "queries": {},
+  "actions": {},
+  "validation_errors": [
+    {
+      "severity": "error",
+      "file": "ui/forms/settings.ui.yaml",
+      "path": "sections[0].field_ids[1]",
+      "code": "FIELD_NOT_FOUND",
+      "message": "Section 'main' references field 'missing_field' which is not defined in fields list",
+      "hint": "Add a field definition with field_id 'missing_field' or remove it from section field_ids"
+    },
+    {
+      "severity": "warning",
+      "file": "ui/forms/settings.schema.json",
+      "path": "properties",
+      "code": "UNUSED_SCHEMA_PROPERTY",
+      "message": "Schema property 'name' has no corresponding UI field with matching path",
+      "hint": "This field will not be visible in the UI. Add a field definition or remove from schema"
+    },
+    {
+      "severity": "error",
+      "file": "extension.yaml",
+      "path": "query_manifest",
+      "code": "MISSING_REF",
+      "message": "Referenced file 'ui/queries/queries.yaml' does not exist",
+      "hint": "Create the file or remove the query_manifest reference"
+    }
+  ],
+  "compile_status": "error"
+}

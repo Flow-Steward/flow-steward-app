@@ -1,0 +1,283 @@
+.workflow-card {
+  position: relative; width: 100%; height: 100%; min-width: 0; margin: 0;
+  padding: var(--fs-card-padding-compact); border: 1px solid var(--fs-border-default);
+  border-radius: var(--fs-card-radius); background: var(--fs-bg-surface); color: var(--fs-text-primary);
+  text-align: left; box-shadow: var(--fs-card-shadow); font-family: var(--ff-body);
+}
+.workflow-card-content { display: flex; flex-direction: column;  }
+.workflow-card-heading { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.workflow-card-title { min-width: 0; margin: 2px 0 0; font-size: 13px; font-weight: 500; line-height: 20px; overflow-wrap: anywhere; }
+.workflow-card-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; border-radius: 4px; }
+.workflow-card-icon svg { width: 16px; height: 16px; }
+.workflow-card-summary { margin: 8px 0 0; min-width: 0; font: 400 12px/20px var(--ff-code); color: var(--fs-text-secondary); overflow-wrap: anywhere; white-space: pre-line; }
+.workflow-card-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; }
+.workflow-card-facts:empty { display: none; }
+.workflow-fact { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 1px 5px; border: 1px solid var(--fs-border-default); border-radius: 4px; background: var(--fs-bg-surface-muted); color: var(--fs-text-secondary); font: 400 10px/16px var(--ff-body); overflow-wrap: anywhere; }
+button.workflow-fact { cursor: pointer; }
+.workflow-fact.is-error { border-color: var(--fs-status-danger-border); background: var(--fs-status-danger-bg); color: var(--fs-status-danger); }
+.workflow-fact.is-warning { border-color: var(--fs-status-attention-border); background: var(--fs-status-attention-wash); color: var(--fs-status-attention-ink); }
+.workflow-runtime-mark { position: absolute; top: -10px; right: 12px; z-index: 2; display: inline-flex; align-items: center; gap: 8px; pointer-events: none; }
+.workflow-card-outcomes { display: flex; flex-direction: column; position: absolute; left: 0; right: 0; bottom: 12px; margin: 0; padding: 0; list-style: none; }
+.workflow-card-outcome { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; padding: 0 12px; border-top: 1px solid var(--fs-border-subtle); font-size: 11px; }
+.workflow-card-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fs-text-tertiary); }
+.workflow-error-label { position: absolute; bottom: -19px; right: 4px; font-size: 10px; color: var(--fs-status-danger); }
+.workflow-contract-section { margin-top: 12px; }
+.workflow-micro-label { margin: 0 0 6px; font: 500 10px/14px var(--ff-body); color: var(--fs-text-tertiary); text-transform: uppercase; letter-spacing: .06em; }
+
+.workflow-contract-section .workflow-contract-section-action.fs-button {
+  display: flex;
+  justify-content: flex-start;
+  width: fit-content;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: 500 10px/14px var(--ff-body);
+  color: var(--fs-text-tertiary);
+  text-align: left;
+}
+.workflow-contract-section .workflow-contract-section-action.fs-button:hover { color: var(--fs-text-primary); background: transparent; text-decoration: underline; }
+.workflow-contract-section .fs-param-chip { max-width: 100%; height: auto; min-height: var(--fs-parameter-chip-height); }
+.workflow-contract-section .fs-param-name { min-width: 0; overflow-wrap: anywhere; }
+.workflow-contract-section .fs-param-type { flex: none; }
+.workflow-contract-section .fs-param-legend { margin-top: 6px; }
+.workflow-empty, .workflow-schedule { color: var(--fs-text-tertiary); font-size: 11px; line-height: 18px; }
+.workflow-schedule { margin-top: 8px; }
+.workflow-trigger-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.workflow-start-title { padding: 0 !important; height: 24px !important; font-weight: 500; }
+.workflow-start-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--fs-text-primary); }
+.workflow-container { border-radius: 8px; }
+.workflow-container-header { height: 96px; flex: none; padding: 12px 32px; border-radius: 8px 8px 0 0; background: var(--fs-workflow-lane-control-bg); overflow: hidden; position: relative; display: block; }
+.workflow-container .workflow-container-header .workflow-card-facts { margin-top: 4px; }
+.workflow-parallel-frame { position: absolute; pointer-events: none; overflow: visible; }
+.workflow-parallel-frame rect { fill: none; stroke: var(--fs-workflow-parallel-lane-border); stroke-width: 1.5; stroke-dasharray: var(--fs-workflow-parallel-lane-dash); }
+.workflow-lane-label { position: absolute; left: 12px; top: -10px; padding: 0 4px; background: var(--fs-workflow-lane-bg); color: var(--fs-text-tertiary); font: 400 10px/16px var(--ff-code); }
+.workflow-container-footer { position: relative; z-index: 10; display: flex; gap: 8px; margin-top: auto; padding: 12px 32px; min-width: 0; flex-wrap: wrap; }
+.workflow-container-footer > .fs-popover-anchor { display: flex; flex: 1; min-width: 0; }
+.workflow-container-add { display: inline-flex; flex: 1 1 0; justify-content: center; align-items: center; gap: 8px; height: 28px; border: 1px dashed var(--fs-border-default); border-radius: 4px; background: var(--fs-workflow-lane-control-bg); color: var(--fs-text-secondary); font-size: 11px; min-width: 0; width: 100%; }
+.workflow-canvas-stage { container-type: inline-size; }
+.react-flow__panel.workflow-canvas-controls.bottom.center { --workflow-canvas-control-gap: 16px; position: absolute; left: 0; bottom: 16px; margin: 0; transform: none; display: flex; justify-content: center; gap: var(--workflow-canvas-control-gap); pointer-events: none; container-type: inline-size; flex-direction: column; align-items: center; }
+.workflow-canvas-controls > .react-flow__panel { pointer-events: auto; }
+
+/* The run bar floats centred above the toolbar (canvas-test-run.css owns its card). */
+.workflow-canvas-controls > .workflow-canvas-runbar { flex: none; display: flex; justify-content: center; width: calc(100% - 32px); min-width: 0; pointer-events: none; }
+.react-flow__panel.workflow-canvas-toolbar.bottom.center { position: relative; inset: auto; display: flex; flex: 0 0 auto; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 4px; margin: 0; padding: 4px; transform: none; width: max-content; max-width: calc(100% - 32px); height: 42px; box-sizing: border-box; border: 1px solid var(--fs-border-default); border-radius: var(--fs-radius-container); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); white-space: nowrap; }
+.workflow-toolbar-divider { flex: none; align-self: center; width: 1px; height: 20px; margin: 0 4px; background: var(--fs-border-default); }
+.workflow-toolbar-popover { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 40; width: 288px; padding: 8px; border: 1px solid var(--fs-border-default); border-radius: var(--fs-radius-container); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); white-space: normal; }
+
+.workflow-canvas-toolbar > .fs-button,
+.workflow-canvas-toolbar > .relative > .fs-button,
+.workflow-canvas-toolbar > .fs-icon-button-wrap > .fs-button { flex: none; min-width: 0; padding: 0 10px; }
+.workflow-canvas-toolbar .workflow-toolbar-caption-action { flex: none; min-width: 0; padding: 0 10px; }
+.workflow-canvas-toolbar .workflow-toolbar-test-run { min-width: 112px; }
+
+/* Captions hide through CSS, never the hidden attribute: the base layer's
+   [hidden] display:none !important would also hide them while measuring. */
+.workflow-canvas-toolbar[data-compact="true"]:not([data-measure-expanded="true"]) .workflow-toolbar-caption { display: none; }
+.workflow-canvas-toolbar[data-compact="true"] .workflow-toolbar-caption-action { width: var(--fs-icon-button-size-md); min-width: var(--fs-icon-button-size-md); gap: 0; padding: 0; }
+
+/* A synchronous local read only: expanded content stays measurable even while
+   the real presentation hides its captions. This state is restored in finally. */
+.react-flow__panel.workflow-canvas-toolbar.bottom.center[data-measure-expanded="true"] { flex: none; max-width: none; width: max-content; }
+.workflow-canvas-toolbar[data-measure-expanded="true"] .workflow-toolbar-caption-action { width: auto; min-width: 0; gap: var(--fs-button-gap-md); padding: 0 10px; }
+.workflow-canvas-toolbar[data-measure-expanded="true"] .workflow-toolbar-test-run { min-width: 112px; }
+.workflow-canvas-toolbar button:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: var(--fs-focus-ring-offset); }
+.workflow-toolbar-icon:not(:disabled) { border-color: var(--fs-icon-button-ghost-border); background: var(--fs-icon-button-ghost-bg); color: var(--fs-icon-button-ghost-text); }
+.workflow-toolbar-icon:not(:disabled):hover { background: var(--fs-icon-button-ghost-bg-hover); color: var(--fs-icon-button-ghost-text-hover); }
+.workflow-toolbar-icon[aria-pressed="true"]:not(:disabled) { border-color: var(--fs-icon-button-active-border); background: var(--fs-icon-button-active-bg); color: var(--fs-icon-button-active-text); }
+.workflow-failure-paths { display: inline-flex; flex: none; align-items: center; justify-content: center; width: auto; min-width: var(--fs-icon-button-size-md); height: var(--fs-icon-button-size-md); border-radius: var(--fs-icon-button-radius-md); gap: 4px; padding: 0 6px; }
+.workflow-failure-count { font: 500 11px/1 var(--ff-data); font-variant-numeric: tabular-nums; }
+.workflow-zoom-controls { display: flex; align-items: center; gap: 4px; }
+.workflow-zoom-controls .workflow-zoom-value { min-width: 48px; padding: 0 4px; font: 400 14px/1 var(--ff-data); font-variant-numeric: tabular-nums; }
+.workflow-canvas-header { display: flex; height: 64px; flex: none; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--fs-border-default); background: var(--fs-bg-surface); }
+.workflow-canvas-header.has-changes { flex-wrap: wrap; height: auto; min-height: 64px; padding-block: 16px; }
+.workflow-header-identity, .workflow-header-actions { display: contents; }
+
+.workflow-header-identity > .fs-button,
+.workflow-header-actions > .fs-button,
+.workflow-header-actions > .relative { flex: none; }
+.workflow-header-identity > .workflow-name { display: inline-flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; max-width: min(30vw, 340px); height: var(--fs-button-height-md); padding: 0 8px; border-radius: var(--fs-button-radius-md); color: var(--fs-text-primary); font: 500 14px/1 var(--ff-body); }
+.workflow-name-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-name > svg { flex: none; width: 16px; height: 16px; }
+.workflow-name > .workflow-name-trail { width: 12px; height: 12px; color: var(--fs-text-tertiary); }
+.workflow-name:hover { background: var(--fs-bg-surface-muted); }
+.workflow-name:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
+.workflow-canvas-beta { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 7px; border: 1px solid var(--fs-border-default); border-radius: var(--fs-radius-pill); color: var(--fs-text-secondary); font: 500 11px/1 var(--ff-body); }
+.workflow-header-divider { flex: none; width: 1px; height: 16px; background: var(--fs-border-default); }
+.workflow-canvas-header .workflow-structure-status { display: inline-flex; flex: none; align-items: center; gap: 6px; padding: 0; border: 0; border-radius: 0; background: transparent; font: 400 11px/1 var(--ff-body); white-space: nowrap; }
+.workflow-structure-status svg { width: 12px; height: 12px; }
+.workflow-canvas-diagnostics { gap: 6px; }
+.workflow-diagnostics-error { color: var(--fs-status-danger); }
+.workflow-diagnostics-warning { color: var(--fs-status-attention-ink); }
+.react-flow__panel.workflow-canvas-minimap.bottom.right { margin: 0; right: 16px; bottom: 0; padding: 8px; border: 1px solid var(--fs-border-default); border-radius: var(--fs-radius-container); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); }
+.workflow-canvas-minimap .react-flow__minimap { position: relative; inset: auto; margin: 0; overflow: hidden; border-radius: var(--fs-radius-compact); background: var(--fs-bg-canvas); box-shadow: none; }
+.workflow-canvas-minimap .react-flow__minimap-mask { stroke: var(--fs-border-selected); stroke-width: 1; }
+.workflow-canvas-controls[data-minimap-stacked="true"] .react-flow__panel.workflow-canvas-minimap.bottom.right { bottom: calc(100% + var(--workflow-canvas-control-gap)); }
+.workflow-canvas-controls .workflow-toolbar-popover { max-width: calc(100cqw - 32px); }
+
+@media (width <= 1100px) { .workflow-canvas-header { gap: 8px; } }
+
+@media (width <= 900px) { .workflow-canvas-header { flex-wrap: wrap; height: auto; min-height: 64px; padding-block: 8px; } }
+
+@media (width >= 901px) {
+  .workflow-canvas-header.has-changes { flex-wrap: nowrap; height: 64px; padding-block: 0; }
+
+  /* Four existing identity children: Back, title, beta and trailing spacer. The title
+     keeps at least 8ch plus its existing 28px glyphs/16px gaps/16px padding. */
+  .workflow-header-identity { display: grid; grid-template-columns: auto minmax(calc(8ch + 60px), max-content) auto minmax(8px, 1fr); flex: 1 1 0; min-width: min-content; align-items: center; gap: 12px; }
+  .workflow-header-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) { .workflow-card { transition: none; } }
+
+.workflow-canvas-toolbar .fs-icon-button-wrap > .fs-shell-tooltip { top: auto; bottom: calc(100% + var(--fs-tooltip-offset)); transform: translateX(-50%); }
+.workflow-builder .react-flow__node.selected > .workflow-card { box-shadow: var(--fs-card-selected-ring); border-color: var(--fs-card-border-selected); background: var(--fs-action-primary-wash); }
+
+.workflow-selected-actions { position: absolute; right: 0; bottom: 100%; z-index: 40; display: flex; align-items: center; gap: 4px; padding-bottom: 6px; }
+.workflow-selected-actions .fs-icon-button-wrap > .fs-shell-tooltip { top: auto; bottom: calc(100% + var(--fs-tooltip-offset)); }
+.workflow-step-menu { position: absolute; right: 0; top: calc(100% + 4px); padding: 4px; border: 1px solid var(--fs-border-default); border-radius: 8px; background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); }
+
+.workflow-container-heading { width: 100%; }
+.workflow-container-title { padding-right: 128px; font-size: 13px; line-height: 20px; }
+.workflow-container-tools { position: absolute; top: 12px; right: 32px; display: flex; align-items: center; gap: 4px; max-width: 128px; }
+
+.workflow-container-header .workflow-card-facts > span,
+.workflow-container-header .workflow-card-facts > button { min-width: 0; max-width: 160px; padding: 1px 5px; border-radius: 4px; font-size: 10px; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-container-header .workflow-card-facts > .workflow-container-source { flex-basis: 100%; max-width: 100%; font-family: var(--ff-code); }
+.workflow-container-lane-add { position: absolute; z-index: 10; min-width: 0; }
+.workflow-container-add > svg { flex: none; }
+
+/* Builder port composition: static ReactFlow geometry remains 10px. */
+.workflow-port-handle { z-index: 25; }
+.workflow-port-anchor { position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); }
+.workflow-port-control { position: relative; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--fs-button-primary-text); cursor: pointer; }
+.workflow-port-control::before { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; border: 1.5px dashed var(--fs-workflow-edge); border-radius: 50%; background: var(--fs-bg-surface); transform: translate(-50%, -50%); }
+.workflow-port-control svg { position: relative; z-index: 1; opacity: 0; width: 12px; height: 12px; }
+.workflow-port-control:hover::before, .workflow-port-control:focus-visible::before, [data-port-active] .workflow-port-control::before { width: 20px; height: 20px; border-style: solid; border-color: var(--fs-action-primary); background: var(--fs-action-primary); }
+.workflow-port-control:hover svg, .workflow-port-control:focus-visible svg, [data-port-active] .workflow-port-control svg { opacity: 1; }
+.workflow-port-control:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: var(--fs-focus-ring-offset); }
+[data-port-occupied] .workflow-port-control::before { border-style: solid; background: var(--fs-workflow-edge); }
+[data-port-occupied] .workflow-port-control svg { opacity: 0; }
+.workflow-port-handle.is-error .workflow-port-control::before { border-color: var(--fs-workflow-edge-failure); }
+.workflow-port-handle.is-error .workflow-port-control { color: var(--fs-button-danger-text); }
+.workflow-port-handle.is-error .workflow-port-control:hover::before, .workflow-port-handle.is-error .workflow-port-control:focus-visible::before, .workflow-port-handle.is-error [data-port-active] .workflow-port-control::before { background: var(--fs-button-danger-bg); border-color: var(--fs-button-danger-bg); }
+[data-port-dragging] .workflow-port-control::before { width: 10px !important; height: 10px !important; background: var(--fs-bg-surface) !important; }
+[data-port-dragging] .workflow-port-control svg { opacity: 0 !important; }
+.workflow-port-control:disabled { cursor: default; }
+.fs-popover[data-popover-portal="true"]:has(.workflow-port-menu) { width: 260px; max-height: 320px; overflow-y: auto; color: var(--fs-text-primary); }
+.workflow-port-menu { display: flex; flex-direction: column; gap: 2px; }
+.workflow-port-menu button { padding: 6px 8px; border-radius: 4px; text-align: left; font: 400 12px/20px var(--ff-body); }
+.workflow-port-menu button:hover, .workflow-port-menu button:focus-visible { background: var(--fs-bg-surface-muted); outline: 2px solid var(--fs-border-selected); outline-offset: -2px; }
+.workflow-container-error-port:not(.is-shown) { visibility: hidden; }
+.react-flow__node.selected .workflow-container-error-port { visibility: visible; }
+[data-connection-target="eligible"] { outline: 1.5px dashed var(--fs-border-selected); outline-offset: 3px; }
+[data-connection-target="active-valid"] { outline: 2px solid var(--fs-border-selected); outline-offset: 3px; }
+[data-connection-target="active-invalid"] { outline: 1px dashed var(--fs-status-danger-border); outline-offset: 3px; }
+
+@media (pointer: coarse) { .workflow-port-control::after { content: ""; position: absolute; width: var(--fs-hit-target-touch, 44px); height: var(--fs-hit-target-touch, 44px); left: 50%; top: 50%; transform: translate(-50%, -50%); } }
+
+.workflow-port-control:disabled:hover::before { width: 10px; height: 10px; background: var(--fs-bg-surface); }
+.workflow-port-control:disabled svg { opacity: 0; }
+
+/* Connection actions: two round beads 16px apart at a hovered line's middle (Components2 › Connection actions). */
+.workflow-edge-beads { position: absolute; z-index: 6; display: flex; align-items: center; gap: 16px; pointer-events: none; }
+.workflow-edge-beads .fs-icon-button-wrap { opacity: 0; transition: opacity var(--fs-motion-popup-enter); }
+.workflow-edge-beads.is-visible, .workflow-edge-beads:focus-within { pointer-events: all; }
+.workflow-edge-beads.is-visible .fs-icon-button-wrap, .workflow-edge-beads:focus-within .fs-icon-button-wrap { opacity: 1; }
+.workflow-edge-beads .workflow-edge-bead.fs-icon-button { width: 20px; min-width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--fs-radius-pill); background: var(--fs-action-primary); color: var(--fs-action-primary-text); box-shadow: 0 0 0 3px var(--fs-bg-canvas); }
+.workflow-edge-beads .workflow-edge-bead.fs-icon-button:hover { background: var(--fs-action-primary-hover); color: var(--fs-action-primary-text); }
+.workflow-edge-beads .workflow-edge-bead.is-remove.fs-icon-button { background: var(--fs-bg-surface); color: var(--fs-text-secondary); box-shadow: 0 0 0 1px var(--fs-border-default), 0 0 0 3px var(--fs-bg-canvas); }
+.workflow-edge-beads .workflow-edge-bead.is-remove.fs-icon-button:hover { color: var(--fs-status-danger); }
+.workflow-edge-beads .workflow-edge-bead.fs-icon-button:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: var(--fs-focus-ring-offset); }
+.workflow-edge-beads .fs-icon-button-wrap > .fs-shell-tooltip { top: auto; bottom: calc(100% + var(--fs-tooltip-offset)); transform: translateX(-50%); white-space: nowrap; }
+.workflow-edge-label { position: absolute; margin-top: 14px; padding: 2px 6px; white-space: nowrap; border: 1px solid var(--fs-border-default); border-radius: 4px; background: var(--fs-bg-surface); color: var(--fs-text-primary); font: 400 11px/16px var(--ff-body); pointer-events: none; }
+
+/* Top-of-canvas bars and the toast: centred, 16px from the top, over the canvas (Canvas › Selecting; Components2). */
+.workflow-edgebar-dock { position: absolute; left: 0; right: 0; top: 16px; z-index: 20; display: flex; justify-content: center; padding: 0 16px; pointer-events: none; }
+.workflow-edgebar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: min(640px, 100%); padding: 12px; border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-radius-container); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); color: var(--fs-text-primary); pointer-events: auto; animation: workflow-bar-in var(--fs-motion-popup-enter) both; }
+.workflow-edgebar-text { display: flex; flex: 1 1 100%; flex-direction: column; gap: 2px; min-width: 0; padding-right: 32px; }
+.workflow-edgebar-text .workflow-micro-label { margin: 0; }
+.workflow-edgebar-title { overflow: hidden; font: 500 13px/1.4 var(--ff-body); text-overflow: ellipsis; white-space: nowrap; }
+.workflow-edgebar-sub { color: var(--fs-text-tertiary); font: 400 11px/16px var(--ff-code); overflow-wrap: anywhere; }
+.workflow-edgebar-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.workflow-edgebar > .fs-icon-button-wrap { position: absolute; top: 8px; right: 8px; }
+.workflow-edgebar .fs-shell-tooltip, .workflow-selbar .fs-shell-tooltip { white-space: nowrap; }
+
+.workflow-selbar { position: absolute; top: 16px; left: 50%; z-index: 20; display: flex; align-items: center; gap: 4px; max-width: calc(100% - 32px); padding: 4px 4px 4px 12px; border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-radius-container); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); color: var(--fs-text-primary); translate: -50% 0; animation: workflow-bar-in var(--fs-motion-popup-enter) both; }
+.workflow-selbar-text { margin-right: 8px; font: 500 13px/20px var(--ff-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.workflow-selbar .fs-button { flex: none; }
+.workflow-selbar .workflow-selbar-delete.fs-button { color: var(--fs-status-danger); }
+.workflow-selbar .workflow-selbar-delete.fs-button:hover { color: var(--fs-status-danger); background: var(--fs-status-danger-wash); }
+
+.fs-toast.workflow-canvas-toast { position: absolute; inset: 16px auto auto 50%; z-index: 30; display: flex; align-items: flex-start; gap: 8px; min-width: 220px; max-width: min(560px, calc(100% - 32px)); padding: 8px 12px; border-color: var(--fs-border-subtle); border-radius: var(--fs-radius-container); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-overlay); color: var(--fs-text-primary); font: 400 13px/1.4 var(--ff-body); translate: -50% 0; }
+.fs-toast.workflow-canvas-toast[data-tone="danger"] { border-color: var(--fs-status-danger-border); background: var(--fs-bg-surface); color: var(--fs-text-primary); }
+.fs-toast.workflow-canvas-toast[data-low="true"] { top: 88px; }
+.workflow-canvas-toast-icon { display: inline-grid; flex: none; margin-top: 1px; color: var(--fs-status-success); }
+.workflow-canvas-toast[data-tone="danger"] .workflow-canvas-toast-icon { color: var(--fs-status-danger); }
+.workflow-canvas-toast[data-tone="neutral"] .workflow-canvas-toast-icon { color: var(--fs-text-tertiary); }
+.workflow-canvas-toast-icon svg { width: 16px; height: 16px; }
+.workflow-canvas-toast-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.workflow-canvas-toast .fs-button { flex: none; align-self: flex-start; height: 20px; min-height: 20px; padding: 0 4px; margin-left: 4px; color: var(--fs-text-brand); }
+.workflow-canvas-toast > .fs-icon-button-wrap { flex: none; margin: -2px -6px -2px 4px; }
+
+@keyframes workflow-bar-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Layout moves glide; a dragged card lifts (Components › Motion). Lines change state in place. */
+.workflow-builder .react-flow__node:not(.dragging) { transition: transform var(--fs-motion-layout); }
+.workflow-builder .react-flow__node.dragging > .workflow-card, .workflow-builder .react-flow__node.dragging > .workflow-container { scale: 1.02; box-shadow: var(--fs-shadow-overlay); transition: scale var(--fs-motion-popup-enter), box-shadow var(--fs-motion-popup-enter); }
+.workflow-builder .react-flow__edge-path { transition: stroke var(--fs-motion-background-hover), stroke-width var(--fs-motion-background-hover); }
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-builder .react-flow__node:not(.dragging), .workflow-builder .react-flow__edge-path { transition: none; }
+  .workflow-edgebar, .workflow-selbar { animation: none; }
+}
+
+/* A menu item names its key on the right (Canvas › Keys). */
+.workflow-port-menu button[aria-keyshortcuts] { display: flex; align-items: center; }
+.workflow-menu-kbd { margin-left: auto; padding-left: 12px; color: var(--fs-text-tertiary); font: 400 11px/20px var(--ff-data); }
+
+/* A note is pastel paper beneath the steps (DS component-logic-contract, canvas 11). */
+.workflow-note { position: relative; box-sizing: border-box; display: flex; flex-direction: column; width: 100%; min-height: 100%; padding: 12px 16px; border: 1px solid var(--fs-workflow-note-border); border-radius: var(--fs-radius-container); background: var(--fs-workflow-note-bg); color: var(--fs-workflow-note-text); transition: box-shadow var(--fs-motion-background-hover); }
+.workflow-note[data-selected="true"] { box-shadow: var(--fs-card-selected-ring); }
+.workflow-note[data-editing="true"] { cursor: default; box-shadow: var(--fs-focus-ring); container-type: inline-size; }
+.react-flow__node-canvasNote:focus-visible { outline: none; }
+.react-flow__node-canvasNote:focus-visible .workflow-note { box-shadow: var(--fs-focus-ring); }
+.workflow-note-content { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-width: 0; }
+.workflow-note-label { display: flex; align-items: center; gap: 6px; color: var(--fs-workflow-note-label); font: 500 12px/16px var(--ff-body); }
+.workflow-note-label svg { width: 12px; height: 12px; }
+.workflow-note-body { display: flex; flex-direction: column; gap: 6px; font: 400 13px/20px var(--ff-body); overflow-wrap: anywhere; }
+.workflow-note .workflow-note-body .fs-markdown-heading { margin: 0; color: var(--fs-workflow-note-title); font: 500 15px/22px var(--ff-body); }
+.workflow-note .workflow-note-body .fs-markdown-paragraph, .workflow-note .workflow-note-body .fs-markdown-item { margin: 0; white-space: pre-wrap; font: inherit; color: inherit; }
+.workflow-note-body ul, .workflow-note-body ol { margin: 0; padding-left: 20px; }
+.workflow-note-body ul { list-style: disc; }
+.workflow-note-body ol { list-style: decimal; }
+.workflow-note-body li + li { margin-top: 2px; }
+.workflow-note-body code { padding: 0 4px; border: 1px solid var(--fs-workflow-note-border); border-radius: var(--fs-radius-compact); background: var(--fs-bg-surface); color: var(--fs-workflow-note-title); font: 400 12px/18px var(--ff-code); }
+.workflow-note-body pre { margin: 0; padding: 8px; overflow-x: auto; border: 1px solid var(--fs-workflow-note-border); border-radius: var(--fs-radius-control); background: var(--fs-bg-surface); color: var(--fs-workflow-note-title); font: 400 12px/18px var(--ff-code); white-space: pre; }
+.workflow-note-body pre code { padding: 0; border: 0; }
+.workflow-note-body a { color: var(--fs-text-brand); text-underline-offset: 2px; }
+.workflow-note-image { display: block; max-width: 100%; max-height: 256px; object-fit: contain; border-radius: var(--fs-radius-compact); }
+.workflow-note-edit { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; }
+.workflow-note-text { display: block; box-sizing: border-box; width: 100%; margin: 0; padding: 0; border: 0; resize: none; overflow: hidden; background: transparent; color: var(--fs-workflow-note-title); font: 400 13px/20px var(--ff-body); user-select: text; }
+.workflow-note-text::placeholder { color: var(--fs-text-tertiary); }
+.workflow-note-text:focus, .workflow-note-text:focus-visible { outline: none; box-shadow: none; }
+.workflow-note-image-row { display: flex; align-items: center; gap: 8px; min-width: 0; font: 400 12px/16px var(--ff-body); }
+.workflow-note-image-row > :first-child { flex: 1 1 auto; min-width: 0; }
+.workflow-note-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: var(--fs-radius-compact); }
+.workflow-note-bar { display: flex; align-items: center; gap: 4px; margin: auto -16px -12px; padding: 6px 8px; border-top: 1px solid var(--fs-workflow-note-border); }
+.workflow-note-bar .fs-button { min-width: 0; padding: 0 8px; }
+.workflow-note-spacer { flex: 1; }
+.workflow-note-file { position: relative; cursor: pointer; }
+.workflow-note-file:focus-within { box-shadow: var(--fs-focus-ring); }
+
+@container (max-width: 190px) { .workflow-note-file-text { display: none; } }
+.workflow-note-menu { z-index: 50; display: flex; flex-direction: column; min-width: 160px; }
+.workflow-note-menu .fs-button { justify-content: flex-start; width: 100%; }
+.react-flow__node-canvasNote .react-flow__resize-control.handle { width: 8px; height: 8px; border: 1px solid var(--fs-border-selected); border-radius: var(--fs-radius-micro); background: var(--fs-bg-surface); }
+.react-flow__node-canvasNote .react-flow__resize-control.line { border-color: transparent; }
+
+/* Dragging Note off the toolbar: the contour shows where the sheet lands. */
+.workflow-note-drop-contour { position: fixed; z-index: var(--fs-z-popup); box-sizing: border-box; border: 1px dashed var(--fs-border-selected); border-radius: var(--fs-radius-container); background: var(--fs-workflow-note-bg); opacity: 0.8; pointer-events: none; }

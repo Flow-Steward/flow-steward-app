@@ -1,0 +1,9 @@
+{
+  "schema_version": "flow-steward-candidate-log-allowlist-v1",
+  "services": {
+    "fs-app": [],
+    "fs-worker": [],
+    "fs-mcp": [],
+    "control-plane": []
+  }
+}

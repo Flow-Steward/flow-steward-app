@@ -1,0 +1,12 @@
+actions:
+  - action_id: verify_identity
+    handler: {mode: extension}
+    mutates_platform: false
+    workflow_visible: false
+    parameters: []
+  - action_id: test_runtime_connection
+    handler: {mode: extension}
+    mutates_platform: false
+    workflow_visible: false
+    parameters:
+      - {name: connection_ref, type: connection_ref, required: true}

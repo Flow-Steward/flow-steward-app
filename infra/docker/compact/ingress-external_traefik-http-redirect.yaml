@@ -1,0 +1,19 @@
+# Publishes an HTTP router that redirects to HTTPS on an external Traefik.
+#
+# The bundled Traefik does this at the entrypoint level, which is not available when the
+# proxy belongs to someone else: we can only contribute labels. This overlay is selected
+# only when FS_TRAEFIK_HTTP_ENTRYPOINT is set, because a router pointing at an entrypoint
+# the external Traefik does not define breaks its dashboard for every service on it.
+#
+# Router and middleware are named from COMPOSE_PROJECT_NAME so two installations can share
+# one Traefik. No host port is published, so the installer preflight that skips the public
+# port check for this mode stays correct.
+services:
+  compact-runtime:
+    labels:
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact-http.rule=Host(`${FS_PUBLIC_HOST}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact-http.entrypoints=${FS_TRAEFIK_HTTP_ENTRYPOINT:?FS_TRAEFIK_HTTP_ENTRYPOINT is required for the HTTP redirect overlay}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact-http.middlewares=${COMPOSE_PROJECT_NAME:-flow-steward}-compact-https@docker"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-compact-http.service=${COMPOSE_PROJECT_NAME:-flow-steward}-compact"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-flow-steward}-compact-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-flow-steward}-compact-https.redirectscheme.permanent=true"

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flowsteward-extension-sdk"
+version = "0.4.0"
+description = "Public SDK surface for Flow Steward extension subprocesses."
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+dependencies = ["cryptography>=42"]
+authors = [
+  { name = "Flow Steward" },
+]
+
+[project.optional-dependencies]
+s3 = ["boto3>=1.34"]
+
+[project.urls]
+Homepage = "https://github.com/Flow-Steward/flow-steward-app"
+"Extension catalog" = "https://github.com/Flow-Steward/extensions"
+
+[tool.setuptools]
+package-dir = { "" = "." }
+packages = ["flowsteward_extension_sdk"]

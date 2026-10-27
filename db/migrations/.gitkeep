@@ -1,0 +1,6 @@
+# Post-1.0 SQL migrations live here as YYYYMMDDHHMMSS_slug.sql files.
+# db/schema/ is the 1.0 baseline; db/migrations/ is the only allowed migration
+# directory. Generate new migrations with:
+#   python -m core.entrypoints.cli tooling db generate-migration -- --name <slug>
+# Apply them with:
+#   python -m core.entrypoints.cli tooling db upgrade

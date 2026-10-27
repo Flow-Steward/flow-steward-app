@@ -1,0 +1,1 @@
+"""Neutral OAuth fixture healthcheck."""

@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in Flow Steward does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please search the existing issues first.
+        Do not paste passwords, tokens, API keys or customer data. Report a
+        security vulnerability privately as described in SECURITY.md, not here.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: System Diagnostics report
+      description: |
+        Required for bugs. Download it from **Monitoring → Download diagnostics**
+        (administrator), or run `./flow-steward reports diagnostics` on the
+        server. The file holds the version, profile, architecture, services and
+        installed extensions — no logs, job content or secret values. Look it
+        over, then drag `flow-steward-diagnostics-<stamp>.json` here (zip it if
+        GitHub refuses the .json file).
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, including the exact error text.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: job
+    attributes:
+      label: Job or workflow id (if any)
+      description: The job id from the Jobs page, or the workflow id.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or other context

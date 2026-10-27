@@ -1,0 +1,46 @@
+http:
+  routers:
+    readiness:
+      entryPoints:
+        - compact
+      rule: "Path(`/health/ready`)"
+      priority: 110
+      service: health
+    mcp:
+      entryPoints:
+        - compact
+      # AC17-R56: the protected-resource metadata the 401 advertises is served by the MCP
+      # process, not the app, and RFC 9728 puts it outside /mcp — the SDK registers it at
+      # /.well-known/oauth-protected-resource + the resource path. Without this prefix the
+      # advertised document fell through to the app, which has no such route, so every
+      # discovery attempt 404'd. Deliberately narrow: /.well-known/oauth-authorization-server
+      # belongs to the issuer, which is the app, and is not matched here.
+      rule: "Path(`/mcp`) || PathPrefix(`/mcp/`) || PathPrefix(`/.well-known/oauth-protected-resource`)"
+      priority: 100
+      service: mcp
+    app:
+      entryPoints:
+        - compact
+      rule: "PathPrefix(`/`)"
+      priority: 10
+      service: app
+  services:
+    app:
+      loadBalancer:
+        passHostHeader: true
+        responseForwarding:
+          flushInterval: -1ms
+        servers:
+          - url: "$app_origin"
+    mcp:
+      loadBalancer:
+        passHostHeader: true
+        responseForwarding:
+          flushInterval: -1ms
+        servers:
+          - url: "$mcp_origin"
+    health:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://127.0.0.1:9100"

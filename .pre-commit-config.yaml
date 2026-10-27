@@ -1,0 +1,32 @@
+minimum_pre_commit_version: "3.8.0"
+
+repos:
+  - repo: local
+    hooks:
+      - id: fs-env-artifacts-sync
+        name: Synchronize tracked environment artifacts
+        entry: core/entrypoints/cli/scripts/sync_env_artifacts.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: fs-repository-boundary
+        name: Enforce repository package boundary
+        entry: core/entrypoints/cli/scripts/check_no_enterprise_leak.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit, manual]
+
+      - id: fs-quality-fast
+        name: Flow Steward quality gate (Tier 2)
+        entry: core/entrypoints/cli/scripts/lint.sh --fast --evidence-mode reuse --fingerprint-source index
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: fs-quality-full
+        name: Flow Steward quality gate (full)
+        entry: core/entrypoints/cli/scripts/lint.sh --full
+        language: system
+        pass_filenames: false
+        stages: [manual]

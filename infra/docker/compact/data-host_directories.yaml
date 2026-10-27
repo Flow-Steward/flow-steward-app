@@ -1,0 +1,17 @@
+# ADR 0029, decision B (item 5): a Compact installation on the trees a Scalable
+# installation created. They stay in Scalable's host directories and are bound where
+# the Compact data volume keeps them: nothing is copied. Selected when the installed
+# configuration's data_placement is host_directories; the rest of /data stays in the
+# volume. The artifacts are bound by data-host_directories-artifacts.yaml, and only
+# with local_fs storage: in object storage they are no host tree at all (AC17-R169).
+
+services:
+  compact-runtime:
+    environment: &host-placement
+      # the runtime's volume check: these trees are owned by the Scalable host user
+      FS_COMPACT_DATA_PLACEMENT: host_directories
+    volumes: &scalable-trees
+      - ${FS_EXTENSIONS_DIR:?the Scalable extensions directory is required}:/data/extensions
+  fs-cli:
+    environment: *host-placement
+    volumes: *scalable-trees

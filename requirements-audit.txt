@@ -1,0 +1,26 @@
+# Code quality / security scanning
+babel==2.17.0
+bandit==1.9.4
+deptry==0.20.0
+detect-secrets==1.5.0
+defusedxml==0.7.1
+mypy==1.19.1
+pip==26.2
+pip-audit==2.7.3
+pre-commit==3.8.0
+pylint==3.2.7
+pytest==9.0.3
+pytest-cov==5.0.0
+pytest-xdist==3.8.0
+radon==6.0.1
+ruff==0.15.5
+sqlfluff==4.2.2
+types-PyYAML==6.0.12.20250915
+types-requests==2.33.0.20260327
+# pre-commit brings virtualenv; 21.14.9+ fixes GHSA-vxj4-q4g9-crj7 and GHSA-c978-59m8-c77v.
+virtualenv==21.14.12
+vulture==2.11
+xenon==0.9.1
+
+# Audit/local browser-flow execution support.
+playwright==1.59.0

@@ -1,0 +1,14 @@
+page_id: oauth_help
+title: OAuth help
+description: Follow the provider-owned setup instructions.
+components:
+  - component_id: invalid_client_help
+    anchor_id: client-credentials
+    type: markdown
+    title: Client credentials
+    content: Verify the extension-owned client credentials and try again.
+  - component_id: authorization_required_help
+    anchor_id: authorize-again
+    type: markdown
+    title: Authorize again
+    content: Reconnect the account and approve the declared access.

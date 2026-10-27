@@ -1,0 +1,90 @@
+Screen {
+    background: #0B1020;
+    color: #F5F7FA;
+}
+
+.panel {
+    background: #151B2E;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.field {
+    margin: 0;
+}
+
+.muted {
+    color: #8A94A7;
+}
+
+.required {
+    color: #FFC857;
+}
+
+.error {
+    color: #FF6B7A;
+}
+
+.success {
+    color: #5EE29A;
+}
+
+.accent {
+    color: #8B7CFF;
+}
+
+Input {
+    background: #151B2E;
+    color: #F5F7FA;
+    border: none;
+    height: 1;
+}
+
+Input > .input--placeholder,
+Input > .input--suggestion {
+    color: #8A94A7;
+}
+
+Input > .input--cursor {
+    background: #FFC857;
+    color: #0B1020;
+}
+
+Input > .input--selection {
+    background: #8B7CFF;
+    color: #F5F7FA;
+}
+
+Input:focus {
+    background: #252B44;
+    color: #F5F7FA;
+}
+
+Checkbox:focus {
+    border: heavy #FFC857;
+}
+
+ToggleButton > .toggle--button,
+ToggleButton:focus > .toggle--button {
+    background: #151B2E;
+    color: #151B2E;
+}
+
+ToggleButton.-on > .toggle--button,
+ToggleButton.-on:focus > .toggle--button {
+    background: #151B2E;
+    color: #5EE29A;
+    text-style: bold;
+}
+
+Button:focus {
+    background: #FFC857;
+    color: #0B1020;
+}
+
+Button {
+    border: none;
+    height: 1;
+    margin-right: 1;
+}

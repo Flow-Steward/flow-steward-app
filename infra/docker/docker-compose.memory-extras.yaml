@@ -1,0 +1,17 @@
+services:
+  memory-postgres-extended:
+    image: alpine:3.20
+    profiles: ["memory-postgres-extended"]
+    depends_on:
+      pg-fs:
+        condition: service_started
+    command: ["sh", "-c", "echo memory-postgres-extended uses pg-fs canonical Postgres"]
+    restart: "no"
+
+  memory-postgres-basic:
+    image: alpine:3.20
+    profiles: ["memory-postgres-basic"]
+    command: ["sh", "-c", "echo memory-postgres-basic uses pg-fs canonical Postgres"]
+    depends_on:
+      - pg-fs
+    restart: "no"

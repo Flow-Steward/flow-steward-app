@@ -1,0 +1,32 @@
+{
+  "schema_version": "flow-steward-smoke-fixtures-v1",
+  "project_name_prefixes": [
+    "candidate-",
+    "showcase-",
+    "smokeD-",
+    "release-smoke-",
+    "release-semantic-",
+    "d09-disabled-",
+    "regb",
+    "regC-smoke-"
+  ],
+  "job_task_id_prefixes": ["semantic-", "dataset-input-", "regb"],
+  "job_task_summary_prefixes": ["Candidate semantic"],
+  "connection_id_prefixes": ["d09-postgres-"],
+  "personal_token_label_prefixes": ["release-"],
+  "registry_agent_id_prefixes": ["regb"],
+  "registry_data_contract_id_prefixes": ["regb"],
+  "registry_guardrail_name_prefixes": ["regb", "regC-smoke-"],
+  "registry_skill_id_prefixes": ["regb"],
+  "registry_tool_id_prefixes": ["regb"],
+  "registry_workflow_id_prefixes": [
+    "a23_gate_",
+    "d09_override_typo_",
+    "d11_",
+    "d12_",
+    "e12_cutover_",
+    "regb"
+  ],
+  "service_account_key_prefixes": ["release-"],
+  "extension_state_namespaces": ["release-smoke"]
+}

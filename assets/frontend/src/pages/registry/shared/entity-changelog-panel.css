@@ -1,0 +1,211 @@
+/* Changelog panel — published --fs-* roles only.
+ *
+ * Feature-scoped rather than added to the shared layer, following
+ * command-center.css and advanced-search.css, because the catalog publishes no
+ * selectable two-level list row. That is the same gap the dashboard transfer
+ * recorded: a row carrying a title over a context line, with a selected state.
+ * Registering it upstream would replace this file.
+ *
+ * The panel renders inside `.fs-tabs-panel`, which is already bordered, padded
+ * and top-accented, so there is deliberately no card here — a card inside it is
+ * the double surface the Tools transfer removed elsewhere.
+ */
+
+.fs-changelog {
+  display: grid;
+  gap: var(--fs-space-200);
+  min-width: 0;
+}
+
+.fs-changelog__list {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 0;
+}
+
+/* Selected treatment follows the published pattern `.fs-filter-chip.selected`
+   uses: selected border, primary wash, brand text. Never a chart or accent hue. */
+.fs-changelog__row {
+  display: grid;
+  gap: var(--fs-space-025);
+  min-width: 0;
+  min-height: var(--fs-dashboard-row-roomy);
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+  padding: var(--fs-space-100) var(--fs-space-150);
+  font-family: var(--ff-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fs-motion-background-hover), border-color var(--fs-motion-background-hover);
+}
+
+.fs-changelog__row:hover {
+  border-color: var(--fs-border-selected);
+  background: var(--fs-dropdown-item-hover-bg);
+}
+
+.fs-changelog__row:focus-visible {
+  outline: 0;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-changelog__row[aria-current="true"] {
+  border-color: var(--fs-border-selected);
+  background: var(--fs-action-primary-wash);
+}
+
+.fs-changelog__row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+  min-width: 0;
+}
+
+.fs-changelog__row-ref {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-field-label-size);
+  font-weight: var(--fs-type-weight-medium);
+  line-height: var(--fs-type-field-label-line-height);
+}
+
+.fs-changelog__row[aria-current="true"] .fs-changelog__row-ref {
+  color: var(--fs-text-brand);
+}
+
+.fs-changelog__row-time {
+  flex: none;
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-changelog__row-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+}
+
+/* ---------- drawer body ---------- */
+
+.fs-changelog__drawer-body {
+  display: grid;
+  gap: var(--fs-space-200);
+  min-width: 0;
+  margin-top: var(--fs-space-150);
+}
+
+.fs-changelog__compare {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-card-description-size);
+  line-height: var(--fs-card-body-line-height);
+}
+
+.fs-changelog__restore-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+  background: var(--fs-bg-surface-muted);
+  padding: var(--fs-space-150);
+}
+
+.fs-changelog__restore-note {
+  min-width: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+}
+
+.fs-changelog__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-075);
+  min-width: 0;
+}
+
+.fs-changelog__changes {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 0;
+}
+
+.fs-changelog__change {
+  display: grid;
+  gap: var(--fs-space-025);
+  min-width: 0;
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-bg-surface);
+  padding: var(--fs-space-100) var(--fs-space-150);
+}
+
+.fs-changelog__change-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+  min-width: 0;
+}
+
+.fs-changelog__change-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fs-text-primary);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+}
+
+.fs-changelog__change-kind {
+  flex: none;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+}
+
+.fs-changelog__change-values {
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- loading and status ---------- */
+
+.fs-changelog__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-body-size);
+}
+
+.fs-changelog__loading svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-changelog__row {
+    transition-duration: var(--fs-duration-reduced);
+  }
+}

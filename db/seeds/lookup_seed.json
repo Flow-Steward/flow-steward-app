@@ -1,0 +1,131 @@
+{
+  "accounts": [
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "tenant_id": "00000000-0000-0000-0000-000000000001",
+      "account_key": "default",
+      "display_name": "Main account",
+      "is_active": true
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "tenant_id": "00000000-0000-0000-0000-000000000001",
+      "account_id": "00000000-0000-0000-0000-000000000002",
+      "workspace_key": "default",
+      "display_name": "Default workspace",
+      "description": "Default OSS workspace",
+      "status": "active"
+    }
+  ],
+  "roles": [
+    {
+      "key": "admin",
+      "label": "Admin"
+    },
+    {
+      "key": "operator",
+      "label": "Operator"
+    },
+    {
+      "key": "viewer",
+      "label": "Viewer"
+    }
+  ],
+  "agent_types": [
+    {
+      "key": "researcher",
+      "label": "Researcher",
+      "description": "Research and investigation support",
+      "enabled": true
+    },
+    {
+      "key": "replanner",
+      "label": "Replanner",
+      "description": "Workflow replanning and recovery",
+      "enabled": true
+    },
+    {
+      "key": "validator",
+      "label": "Validator",
+      "description": "Contract and output validation",
+      "enabled": true
+    },
+    {
+      "key": "orchestrator",
+      "label": "Orchestrator",
+      "description": "Routing and orchestration control",
+      "enabled": true
+    },
+    {
+      "key": "marketing_operator",
+      "label": "Marketing Operator",
+      "description": "Campaign execution, audience messaging, and growth automations",
+      "enabled": true
+    },
+    {
+      "key": "seo_operator",
+      "label": "SEO Operator",
+      "description": "SEO audits, on-page optimization, and search visibility operations",
+      "enabled": true
+    },
+    {
+      "key": "website_operator",
+      "label": "Website Operator",
+      "description": "Website content, page structure, and CMS maintenance operations",
+      "enabled": true
+    },
+    {
+      "key": "shop_operator",
+      "label": "Shop Operator",
+      "description": "Storefront, catalog, pricing, and merchandising operations",
+      "enabled": true
+    },
+    {
+      "key": "inventory_operator",
+      "label": "Inventory Operator",
+      "description": "Stock import, SKU sync, and inventory update operations",
+      "enabled": true
+    },
+    {
+      "key": "email_operator",
+      "label": "Email Operator",
+      "description": "Inbox triage, email drafting, reply automation, and outreach operations",
+      "enabled": true
+    },
+    {
+      "key": "business_operator",
+      "label": "Business Operator",
+      "description": "Cross-functional business process operations across tools and systems",
+      "enabled": true
+    },
+    {
+      "key": "automation_operator",
+      "label": "Automation Operator",
+      "description": "General-purpose workflow automation for mixed-domain processes",
+      "enabled": true
+    }
+  ],
+  "provider_types": [
+    {
+      "key": "task_provider",
+      "label": "Task Provider",
+      "description": "Normalizes external task systems into Flow Steward intake envelopes.",
+      "enabled": true
+    },
+    {
+      "key": "notification_provider",
+      "label": "Notification Provider",
+      "description": "Delivers Flow Steward domain events to external notification channels.",
+      "enabled": true
+    },
+    {
+      "key": "tool_provider",
+      "label": "Tool Provider",
+      "description": "Exposes out-of-process tools and custom task helpers.",
+      "enabled": true
+    }
+  ],
+  "providers": []
+}

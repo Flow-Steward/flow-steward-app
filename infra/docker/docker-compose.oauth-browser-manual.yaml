@@ -1,0 +1,27 @@
+services:
+  traefik:
+    ports: !override
+      - "127.0.0.1:${FS_OAUTH_MANUAL_PORT:?set FS_OAUTH_MANUAL_PORT}:8099/tcp"
+    networks:
+      default:
+      oauth-browser-host-access:
+
+  oauth-provider:
+    environment:
+      FS_OAUTH_ALLOWED_REDIRECT_ORIGIN: https://flow-steward.localhost:${FS_OAUTH_MANUAL_PORT:?set FS_OAUTH_MANUAL_PORT}
+    ports: !override
+      - "127.0.0.1:${FS_OAUTH_MANUAL_PROVIDER_PORT:?set FS_OAUTH_MANUAL_PROVIDER_PORT}:${FS_OAUTH_MANUAL_PROVIDER_PORT:?set FS_OAUTH_MANUAL_PROVIDER_PORT}/tcp"
+    networks:
+      default:
+        aliases:
+          - oauth.127.0.0.1.nip.io
+      oauth-browser-host-access:
+
+  fs-app:
+    environment:
+      FS_AUTH_TRUSTED_ORIGINS: https://flow-steward.localhost:${FS_OAUTH_MANUAL_PORT:?set FS_OAUTH_MANUAL_PORT}
+      FS_PUBLIC_BASE_URL: https://flow-steward.localhost:${FS_OAUTH_MANUAL_PORT:?set FS_OAUTH_MANUAL_PORT}
+
+networks:
+  oauth-browser-host-access:
+    internal: false

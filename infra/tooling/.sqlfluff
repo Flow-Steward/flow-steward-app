@@ -1,0 +1,10 @@
+[sqlfluff]
+dialect = postgres
+templater = raw
+max_line_length = 120
+large_file_skip_byte_limit = 0
+max_parse_nodes = 1000000
+exclude_rules = LT13,LT05,LT01,LT02,LT06,LT15,CP03,CP04,AL03,AL08,RF02,RF04,RF06,PG01
+
+[sqlfluff:indentation]
+tab_space_size = 4

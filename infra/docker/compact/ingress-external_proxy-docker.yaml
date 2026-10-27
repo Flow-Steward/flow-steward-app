@@ -1,0 +1,12 @@
+services:
+  compact-runtime:
+    networks:
+      default: {}
+      flow-steward-proxy:
+        aliases:
+          - "${FS_COMPOSE_PROJECT_NAME:-flow-steward}-compact-proxy"
+
+networks:
+  flow-steward-proxy:
+    external: true
+    name: ${FS_PROXY_NETWORK:?FS_PROXY_NETWORK is required}

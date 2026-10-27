@@ -1,0 +1,12 @@
+/*
+ * Feature-scoped, tokens only. The toolbar count sits between the search and
+ * Refresh, in secondary caption type; canon publishes no class for it. The
+ * search already pushes the right-hand group with its own auto margin, so a
+ * second one here would split the free space and strand the search mid-bar.
+ */
+.fs-trash-count {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

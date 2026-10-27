@@ -1,0 +1,222 @@
+/* Remaining dashboard panels — quick links, model spend, load error. Same
+ * published roles as the two sections above them, so the page survives a theme
+ * switch instead of only working in dark.
+ *
+ * Design System gap: the bar-in-row spend track does not exist in the catalog;
+ * it is assembled here from Card and the chart color family, and is worth
+ * registering upstream.
+ */
+
+.fs-dp {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--fs-card-padding);
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-card-radius);
+  background: var(--fs-card-bg);
+}
+
+.fs-dp__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.fs-dp__title {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-width: 0;
+  margin: 0;
+  font-family: var(--fs-card-title-font);
+  font-size: var(--fs-card-title-size);
+  line-height: var(--fs-type-h3-line-height);
+  font-weight: var(--fs-card-title-weight);
+  color: var(--fs-text-primary);
+}
+
+.fs-dp__title svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  flex: none;
+  stroke-width: var(--fs-icon-stroke);
+  color: var(--fs-text-tertiary);
+}
+
+.fs-dp__title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-dp__note {
+  margin: var(--fs-space-050) 0 0;
+  font-size: var(--fs-card-description-size);
+  line-height: var(--fs-card-body-line-height);
+  color: var(--fs-card-description-color);
+}
+
+.fs-dp__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-050);
+  min-width: 0;
+  margin-top: var(--fs-space-150);
+}
+
+/* ---------- quick links ---------- */
+
+.fs-dp__link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  min-height: var(--fs-dashboard-row-regular);
+  padding: 0 var(--fs-space-100);
+  border-radius: var(--fs-radius-control);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+  text-decoration: none;
+  transition: background var(--fs-motion-background-hover), color var(--fs-motion-background-hover);
+}
+
+.fs-dp__link:hover {
+  background: var(--fs-dropdown-item-hover-bg);
+  color: var(--fs-text-primary);
+}
+
+.fs-dp__link:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-dp__link-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--fs-text-brand);
+}
+
+.fs-dp__link-icon svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.fs-dp__link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chevrons always use the 12px supporting grid. */
+.fs-dp__chevron {
+  width: var(--fs-icon-size-supporting);
+  height: var(--fs-icon-size-supporting);
+  flex: none;
+  stroke-width: var(--fs-icon-stroke);
+  color: var(--fs-text-tertiary);
+}
+
+/* ---------- model spend ---------- */
+
+/* Five rows plus their gaps, reserved so switching the cut cannot move the
+   page under the pointer. */
+.fs-dp__spend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-050);
+  min-height: calc((var(--fs-dashboard-row-compact) * 5) + (var(--fs-space-050) * 4));
+  margin-top: var(--fs-space-150);
+}
+
+.fs-dp__spend-row {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  min-height: var(--fs-dashboard-row-compact);
+  padding: 0 var(--fs-space-100);
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+  color: var(--fs-text-secondary);
+}
+
+.fs-dp__spend-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-dp__spend-track {
+  min-width: 0;
+  height: var(--fs-space-075);
+  overflow: hidden;
+  border-radius: var(--fs-radius-full);
+  background: var(--fs-bg-surface-muted);
+}
+
+/* Full-strength chart role. Fading a token with opacity is a raw modification;
+   the chart family already carries the intended value. */
+.fs-dp__spend-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--fs-radius-full);
+  background: var(--fs-chart-positive);
+}
+
+.fs-dp__spend-amount {
+  flex: none;
+  font-family: var(--ff-data);
+  font-weight: var(--fs-type-weight-medium);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  color: var(--fs-text-primary);
+}
+
+/* ---------- empty and error ---------- */
+
+/* Empty states are plain blocks, never a chip or a badge. */
+.fs-dp__empty {
+  margin: 0;
+  padding: var(--fs-space-100);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  color: var(--fs-text-tertiary);
+}
+
+.fs-dp--danger {
+  border-color: var(--fs-status-danger-border);
+  background: var(--fs-status-danger-bg);
+}
+
+.fs-dp--danger .fs-dp__title,
+.fs-dp--danger .fs-dp__title svg {
+  color: var(--fs-text-danger);
+}
+
+@media (width <= 560px) {
+  .fs-dp__spend-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .fs-dp__spend-track {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-dp__link {
+    transition-duration: var(--fs-duration-reduced);
+  }
+}

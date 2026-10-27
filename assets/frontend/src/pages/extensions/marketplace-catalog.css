@@ -1,0 +1,101 @@
+/*
+ * The Marketplace tab, tokens only. The browse layout, cards, rows, table and
+ * an item's page are the catalogs' shared ones (components/shared/
+ * catalog-browse.css); these rules place only what is the Marketplace's own:
+ * the Incompatible reason line, how an install from the results ended, and
+ * the note beside the extension page's main action.
+ */
+
+/* The panel is what the page and the browse layout respond to. */
+.fs-marketplace {
+  container: marketplace / inline-size;
+  min-width: 0;
+}
+
+.fs-marketplace-reason,
+.fs-marketplace-muted {
+  display: block;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.fs-catalog-row.fs-marketplace-row,
+.fs-catalog-rows .fs-catalog-row {
+  text-decoration: none;
+}
+
+/* How an install or update started from the results ended, when it did not. */
+.fs-marketplace-install-notice {
+  display: block;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.fs-marketplace-install-notice.is-failed {
+  color: var(--fs-status-danger);
+}
+
+.fs-marketplace-install-cell {
+  display: grid;
+  justify-items: end;
+  gap: var(--fs-space-050);
+}
+
+.fs-marketplace-status-cell {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-050);
+}
+
+/* ---- The extension's page (and the MCP server's, and a template's) ----- */
+
+.fs-marketplace-entry,
+.fs-catalog-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-300);
+  min-width: 0;
+}
+
+.fs-marketplace-entry > .fs-catalog-back {
+  align-self: flex-start;
+}
+
+.fs-marketplace-action-note {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 1.45;
+}
+
+.fs-marketplace-list {
+  display: grid;
+  gap: var(--fs-space-075);
+  margin: var(--fs-space-075) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-marketplace-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-025) var(--fs-space-100);
+}
+
+/* ---- Narrow panels ----------------------------------------------------- */
+
+/* Below a 720px panel the main action goes full width under the summary. */
+@container marketplace (width < 720px) {
+  .fs-catalog-page-action {
+    justify-items: stretch;
+    max-width: none;
+    width: 100%;
+    text-align: left;
+  }
+}

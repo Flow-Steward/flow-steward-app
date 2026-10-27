@@ -1,0 +1,177 @@
+/* Operational overview — dashboard metric row.
+ *
+ * Consumes the published --fs-* roles only: Card for the section shell,
+ * MetricCard for the tiles, Segmented control for the range switch. No raw
+ * color, radius, spacing or font size is introduced here.
+ *
+ * No chart lives here. Metric cards wrap in the responsive row; trend lines
+ * belong to the spend block.
+ *
+ * Design System gap: metric-card.md leaves clickable MetricCards open (Next
+ * Pass 4) and publishes no responsive rules for 4/2/1-column rows (Next Pass 2).
+ */
+
+.fs-ov {
+  min-width: 0;
+  padding: var(--fs-card-padding);
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-card-radius);
+  background: var(--fs-card-bg);
+}
+
+/* ---------- header ---------- */
+
+.fs-ov__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--fs-space-200);
+  margin-bottom: var(--fs-space-200);
+}
+
+.fs-ov__ident {
+  min-width: 0;
+}
+
+.fs-ov__eyebrow {
+  margin: 0;
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-micro-size);
+  line-height: var(--fs-type-micro-line-height);
+  letter-spacing: var(--fs-type-micro-tracking);
+  font-weight: var(--fs-type-weight-medium);
+  text-transform: uppercase;
+  color: var(--fs-text-tertiary);
+}
+
+/* Heading level stays h2 for the document outline, but the visual role is the
+   card title: the page title above already owns the 24px step, and two 24px
+   headings on one screen compete instead of ranking. */
+.fs-ov__title {
+  margin: var(--fs-space-050) 0 0;
+  font-family: var(--fs-card-title-font);
+  font-size: var(--fs-card-title-size);
+  line-height: var(--fs-type-h3-line-height);
+  font-weight: var(--fs-card-title-weight);
+  color: var(--fs-text-primary);
+}
+
+/* Freshness is shown, not promised: the timestamp is the payload's own
+   generated_at, so an unreachable API stops the counter instead of lying. */
+.fs-ov__live {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  margin: var(--fs-space-050) 0 0;
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+  color: var(--fs-text-secondary);
+}
+
+.fs-ov__live-dot {
+  width: var(--fs-badge-dot-size);
+  height: var(--fs-badge-dot-size);
+  flex: none;
+  border-radius: var(--fs-radius-full);
+  background: var(--fs-presence-indicator);
+  animation: fs-ov-pulse 2.4s var(--fs-ease-standard) infinite;
+}
+
+.fs-ov__live-ago {
+  font-family: var(--ff-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--fs-text-tertiary);
+}
+
+@keyframes fs-ov-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* The range switch is the shared Segmented control — see dashboard-segmented.css. */
+
+/* ---------- all-clear band ---------- */
+
+.fs-ov__clear {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-150);
+  margin-bottom: var(--fs-space-200);
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+  background: var(--fs-bg-surface);
+}
+
+.fs-ov__clear-mark svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  stroke-width: var(--fs-icon-stroke);
+}
+
+.fs-ov__clear-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--fs-avatar-size-xs);
+  height: var(--fs-avatar-size-xs);
+  border-radius: var(--fs-radius-full);
+  background: var(--fs-action-primary-wash);
+  color: var(--fs-status-success);
+}
+
+.fs-ov__clear-title {
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+  font-weight: var(--fs-type-weight-medium);
+  color: var(--fs-text-primary);
+}
+
+.fs-ov__clear-note {
+  margin-top: var(--fs-space-025);
+  font-size: var(--fs-type-caption-size);
+  line-height: var(--fs-type-caption-line-height);
+  color: var(--fs-text-tertiary);
+}
+
+/* ---------- metric row ---------- */
+
+.fs-ov__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--fs-dashboard-grid-gap);
+  min-width: 0;
+}
+
+/* MetricCard now lives in components/shared/design-system.css as .fs-metric*.
+   Only the row geometry stays here: the dashboard row is four columns wide,
+   which is a page composition decision rather than component anatomy. */
+
+/* ---------- responsive ---------- */
+
+@media (width <= 940px) {
+  .fs-ov__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 560px) {
+  .fs-ov__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-ov__live-dot {
+    animation-duration: var(--fs-duration-reduced);
+    animation-iteration-count: 1;
+    opacity: 1;
+  }
+}

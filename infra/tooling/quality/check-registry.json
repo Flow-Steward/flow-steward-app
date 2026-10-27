@@ -1,0 +1,508 @@
+{
+  "schema_version": 1,
+  "checks": [
+    {
+      "id": "targeted-tests",
+      "owner_tier": 1,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "targeted-tests"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "tests/**/*.py",
+        "pyproject.toml"
+      ],
+      "runtime_inputs": [
+        "APP_BASE_URL",
+        "FS_SMOKE_CANDIDATE_COMMIT"
+      ],
+      "selection_required": true
+    },
+    {
+      "id": "frontend-targeted-tests",
+      "owner_tier": 1,
+      "command": ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "frontend-targeted-tests"],
+      "inputs": ["assets/**", "extensions/**"],
+      "selection_required": true
+    },
+    {
+      "id": "extension-static",
+      "owner_tier": 1,
+      "command": ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "extension-static"],
+      "inputs": [
+        "core/application/tooling/extensions/**",
+        "core/application/extensions/identity.py",
+        "core/infrastructure/extension_runtime/package_identity.py",
+        "core/entrypoints/cli/scripts/lint.sh"
+      ],
+      "selection_required": true
+    },
+    {
+      "id": "extension-tests",
+      "owner_tier": 1,
+      "command": ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "extension-tests"],
+      "inputs": [
+        "core/application/tooling/extensions/**",
+        "core/application/extensions/identity.py",
+        "core/infrastructure/extension_runtime/package_identity.py",
+        "core/entrypoints/cli/scripts/lint.sh"
+      ],
+      "selection_required": true
+    },
+    {
+      "id": "compact-p1-routing",
+      "owner_tier": 1,
+      "command": [
+        "bash",
+        "-lc",
+        "test -x \"$FS_TEST_TRAEFIK_BINARY\" && bash core/entrypoints/cli/scripts/lint.sh --checks targeted-tests --test-paths tests/integration/test_compact_http_routing.py"
+      ],
+      "inputs": [
+        "core/infrastructure/runtime/compact/router.py",
+        "core/infrastructure/runtime/compact/router.yaml.tmpl",
+        "tests/integration/test_compact_http_routing.py"
+      ],
+      "runtime_inputs": [
+        "FS_TEST_TRAEFIK_BINARY"
+      ],
+      "execution": "external"
+    },
+    {
+      "id": "clone-volume-disposable",
+      "owner_tier": 3,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "targeted-tests",
+        "--test-paths",
+        "tests/integration/test_clone_volume_disposable.py"
+      ],
+      "inputs": [
+        "core/application/clone/**",
+        "core/infrastructure/clone/**",
+        "tests/integration/test_clone_volume_disposable.py"
+      ],
+      "execution": "external"
+    },
+    {
+      "id": "compact-process-runtime",
+      "owner_tier": 1,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "targeted-tests",
+        "--test-paths",
+        "tests/unit/test_compact_supervisor.py tests/integration/test_compact_process_runtime.py"
+      ],
+      "inputs": [
+        "core/infrastructure/runtime/compact/**",
+        "core/entrypoints/cli/compact_runtime.py",
+        "tests/unit/test_compact_supervisor.py",
+        "tests/integration/test_compact_process_runtime.py"
+      ]
+    },
+    {
+      "id": "compact-p2-bootstrap",
+      "owner_tier": 1,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "targeted-tests",
+        "--test-paths",
+        "tests/unit/test_compact_bootstrap.py tests/unit/lifecycle/test_backup_gateway.py"
+      ],
+      "inputs": [
+        "core/infrastructure/runtime/compact/bootstrap.py",
+        "core/infrastructure/runtime/compact/volume.py",
+        "core/infrastructure/runtime/compact/provenance.py",
+        "core/infrastructure/lifecycle/backup_gateway.py",
+        "tests/unit/test_compact_bootstrap.py",
+        "tests/unit/lifecycle/test_backup_gateway.py"
+      ]
+    },
+    {
+      "id": "compact-p3-extension-invocation",
+      "owner_tier": 1,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "targeted-tests",
+        "--test-paths",
+        "tests/integration/test_compact_extension_invocation.py tests/integration/test_compact_volume_permissions.py"
+      ],
+      "inputs": [
+        "core/application/extensions/invocation_release.py",
+        "core/infrastructure/extension_runtime/extension_runtime_invocation.py",
+        "core/application/extensions/archive_update_service.py",
+        "tests/integration/test_compact_extension_invocation.py",
+        "tests/integration/test_compact_volume_permissions.py"
+      ],
+      "execution": "external"
+    },
+    {
+      "id": "pip-audit",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "pip-audit"
+      ],
+      "inputs": [
+        "requirements*.txt",
+        "requirements*.lock",
+        "infra/tooling/quality/pip-audit-risk-acceptance.md",
+        "core/application/tooling/quality/pip_audit_acceptance.py",
+        "pyproject.toml"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "frontend-audit",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "frontend-audit"
+      ],
+      "inputs": [
+        "assets/frontend/package*.json",
+        "core/entrypoints/cli/scripts/npm_audit_retry.sh"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "detect-secrets",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "detect-secrets"
+      ],
+      "inputs": [
+        "**"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "semgrep",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "semgrep"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "serve.py",
+        ".semgrep*",
+        "pyproject.toml",
+        "core/entrypoints/cli/scripts/semgrep_retry.sh"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "sonar-size",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "sonar-size"
+      ],
+      "inputs": [
+        "core/**",
+        "assets/**",
+        "db/schema/**",
+        "infra/tooling/sonar-project*.properties",
+        "infra/tooling/quality/sonar-size-baseline.json"
+      ]
+    },
+    {
+      "id": "env-artifacts",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "env-artifacts"
+      ],
+      "inputs": [
+        ".env.example*",
+        "core/**/*.py",
+        "examples/**/*.py",
+        "tests/**/*.py",
+        "core/**/*.sh",
+        "infra/**/*.sh",
+        "infra/**/*.yaml",
+        "infra/**/*.yml",
+        "docs/configuration/flow-steward-env-audit.json",
+        "docs/configuration/flow-steward-env-catalog.md"
+      ]
+    },
+    {
+      "id": "ruff",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "ruff"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "tests/**/*.py",
+        "serve.py",
+        "pyproject.toml"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "ruff-format",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "ruff-format"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "tests/**/*.py",
+        "serve.py",
+        "pyproject.toml"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "mypy",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "mypy"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "serve.py",
+        "pyproject.toml"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "bandit",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "bandit"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "serve.py",
+        "pyproject.toml",
+        "infra/tooling/quality/bandit-baseline-medium-high.json"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "ci-excludes",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "ci-excludes"
+      ],
+      "inputs": [
+        ".gitignore",
+        ".dockerignore",
+        ".github/workflows/**",
+        "core/application/tooling/quality/check_ci_excludes.py"
+      ]
+    },
+    {
+      "id": "provider-neutral-core",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "provider-neutral-core"
+      ],
+      "inputs": [
+        "assets/frontend/**",
+        "core/**",
+        "db/**",
+        "docs/architecture/adr/0023-extension-owned-oauth-boundary.md",
+        "extensions/*/tests/oauth-boundary-policy.json",
+        "extensions/**",
+        "infra/**",
+        "tests/**"
+      ]
+    },
+    {
+      "id": "repository-boundary",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "repository-boundary"
+      ],
+      "inputs": [
+        "core/**",
+        "extensions/**",
+        "infra/**",
+        "core/entrypoints/cli/scripts/check_no_enterprise_leak.sh"
+      ],
+      "input_mode": "paths"
+    },
+    {
+      "id": "ui-i18n",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "ui-i18n"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "assets/frontend/src/**/*.ts",
+        "assets/frontend/src/**/*.tsx",
+        "locales/**",
+        "core/application/tooling/i18n/ui_i18n_catalog.py"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "frontend-lint",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "frontend-lint"
+      ],
+      "inputs": [
+        "assets/frontend/**"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "frontend-build",
+      "owner_tier": 2,
+      "command": ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "frontend-build"],
+      "inputs": ["assets/**", "extensions/**"],
+      "reuse_scope": "inputs"
+    },
+    {
+      "id": "frontend-tests",
+      "owner_tier": 3,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "frontend-test-build"
+      ],
+      "inputs": [
+        "assets/frontend/**"
+      ]
+    },
+    {
+      "id": "backend-tests",
+      "owner_tier": 3,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "tests",
+        "--quality-owner-tier",
+        "3"
+      ],
+      "inputs": [
+        "core/**/*.py",
+        "tests/**/*.py",
+        "pyproject.toml"
+      ],
+      "prerequisites": [
+        "ruff",
+        "mypy"
+      ]
+    },
+    {
+      "id": "runtime-heartbeat-cross-profile",
+      "owner_tier": 3,
+      "command": ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "runtime-heartbeat-cross-profile"],
+      "inputs": ["core/**/*.py", "tests/**/*.py", "db/schema/**", "requirements*.txt", "requirements*.lock", "pyproject.toml"],
+      "prerequisites": ["ruff", "mypy"]
+    },
+    {
+      "id": "extension-oauth-browser",
+      "owner_tier": 3,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "extension-oauth-browser"
+      ],
+      "inputs": [
+        "assets/frontend/package.json",
+        "assets/frontend/package-lock.json",
+        "assets/frontend/playwright.config.ts",
+        "assets/frontend/src/pages/extensions/**",
+        "assets/frontend/tests/e2e/extension-oauth.spec.ts",
+        "core/application/extensions/oauth_*.py",
+        "core/entrypoints/api/extension_*.py",
+        "core/entrypoints/cli/scripts/check-oauth-browser-exit.sh",
+        "core/entrypoints/cli/scripts/run-extension-oauth-browser-acceptance.sh",
+        "core/infrastructure/extension_runtime/oauth_*.py",
+        "db/migrations/**",
+        "db/schema/**",
+        "extensions/*/tests/e2e/*oauth*.spec.ts",
+        "extensions/*/tests/oauth-boundary-policy.json",
+        "infra/docker/Dockerfile",
+        "infra/docker/docker-compose.oauth-browser.yaml",
+        "requirements-audit.txt",
+        "tests/fixtures/extensions/fixture_extension_oauth/**",
+        "tests/fixtures/oauth_provider.py",
+        "tests/fixtures/seed_extension_oauth_browser.py"
+      ],
+      "prerequisites": [
+        "frontend-tests",
+        "backend-tests"
+      ],
+      "execution": "external"
+    },
+    {
+      "id": "frontend-sql",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "frontend-sql"
+      ],
+      "inputs": [
+        "assets/**",
+        "db/**/*.sql",
+        "infra/tooling/**",
+        ".stylelintrc*"
+      ],
+      "reuse_scope": "inputs"
+    }
+  ]
+}

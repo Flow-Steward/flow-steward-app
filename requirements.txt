@@ -1,0 +1,4 @@
+# Aggregated requirements for local development and CI.
+# Production/runtime containers should install requirements-runtime.txt only.
+-r requirements-runtime.txt
+-r requirements-audit.txt

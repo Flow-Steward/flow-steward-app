@@ -1,0 +1,6 @@
+version: "1"
+pages:
+  - ref: pages/oauth_setup.yaml
+  - ref: pages/oauth_help.yaml
+  - ref: pages/mail.yaml
+  - ref: pages/files.yaml

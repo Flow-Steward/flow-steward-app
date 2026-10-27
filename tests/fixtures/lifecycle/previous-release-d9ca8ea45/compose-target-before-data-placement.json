@@ -1,0 +1,83 @@
+{
+ "compact": {
+  "compose_files": [
+   "infra/docker/docker-compose.compact.yaml",
+   "infra/docker/compact/ingress-bundled_traefik.yaml",
+   "infra/docker/compact/tls-bundled-files.yaml"
+  ],
+  "compose_profiles": [
+   "cli"
+  ],
+  "deployment_profile": "compact",
+  "env_file": ".env.prod",
+  "file_storage": "local_fs",
+  "project_name": "fs-prev",
+  "rebuild_services": [
+   "pg-fs",
+   "compact-runtime"
+  ],
+  "redirect_http_port": 8080,
+  "required_services": [
+   "rabbitmq-fs",
+   "pg-fs",
+   "compact-runtime",
+   "traefik",
+   "fs-cli"
+  ],
+  "runtime_http_port": 8080,
+  "runtime_services": [
+   "rabbitmq-fs",
+   "pg-fs",
+   "compact-runtime",
+   "traefik",
+   "fs-cli"
+  ],
+  "stack_environment": "production",
+  "worker_processes": 2
+ },
+ "scalable": {
+  "compose_files": [
+   "infra/docker/docker-compose.prod.yaml"
+  ],
+  "compose_profiles": [
+   "bundled-ingress",
+   "storage-seaweedfs",
+   "cli"
+  ],
+  "deployment_profile": "scalable",
+  "env_file": ".env.prod",
+  "file_storage": "bundled",
+  "project_name": "fs-prev",
+  "rebuild_services": [
+   "pg-fs"
+  ],
+  "redirect_http_port": 8080,
+  "required_services": [
+   "traefik",
+   "rabbitmq-fs",
+   "pg-fs",
+   "fs-mcp",
+   "fs-app",
+   "fs-extension-installer",
+   "fs-worker",
+   "control-plane",
+   "seaweedfs",
+   "fs-cli"
+  ],
+  "runtime_http_port": 8080,
+  "runtime_services": [
+   "traefik",
+   "rabbitmq-fs",
+   "pg-fs",
+   "fs-mcp",
+   "fs-app",
+   "fs-extension-installer",
+   "fs-worker",
+   "control-plane",
+   "seaweedfs",
+   "fs-cli"
+  ],
+  "stack_environment": "production",
+  "worker_processes": 2
+ }
+}

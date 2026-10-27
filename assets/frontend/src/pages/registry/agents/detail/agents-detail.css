@@ -1,0 +1,55 @@
+/*
+ * Feature-scoped, one rule. The Preview block needs a scroll clamp and canon
+ * publishes none: `codeBlock` is still a brief-only placeholder upstream, and
+ * DsLogOutput is scoped to machine-produced text, which an authored prompt is
+ * not. It lived in the shared layer while this work shared a branch with the
+ * Tools transfer; on its own branch it belongs here, so this page changes no
+ * file that other surfaces depend on.
+ *
+ * Viewport-relative because the panel height is the constraint, and the spacing
+ * scale does not describe viewport fractions. Same shape as the published
+ * `.fs-log-output[data-scroll="true"]` clamp.
+ */
+.fs-preview-scroll {
+  overflow: auto;
+  max-height: 40vh;
+
+  /* The code face, not `.fs-table-mono`. That class resolves to `--ff-data`,
+     i.e. 'DM Sans' — proportional with tabular figures, which is the role for a
+     short identifier inline, not for a verbatim block someone reads and copies
+     character by character. Canon states it for machine text in
+     `log-output.md:39` ("never `--ff-body` or `--ff-data`"), and its Identifier
+     value family reaches the same conclusion for anything copied verbatim:
+     `--fs-kv-value-font` and both parameter-chip font tokens resolve to
+     `--ff-code`. Same trio as the published `.fs-textarea.fs-code-value`. */
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+  line-height: var(--fs-type-code-line-height);
+}
+
+/*
+ * The secondary-skill picker. Two controls answer different questions inside one
+ * panel, so a 1px line separates them rather than a gap — the gap alone read as
+ * three loose blocks.
+ */
+.fs-skill-split {
+  border-top: 1px solid var(--fs-border-subtle);
+}
+
+/*
+ * The list scrolls inside its own box instead of pushing the footer off the
+ * panel. Width comes from the container, not the viewport: a viewport query
+ * never fires when a 1240px window holds a 620px panel, so the two-column grid
+ * collapses on `@container` like `.workflow-builder-drawer` already does.
+ */
+.fs-skill-picker {
+  container-type: inline-size;
+  overflow-y: auto;
+  max-height: 264px;
+}
+
+@container (max-width: 660px) {
+  .fs-skill-picker .fs-control-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

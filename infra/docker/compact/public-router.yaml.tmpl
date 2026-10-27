@@ -1,0 +1,12 @@
+http:
+  routers:
+    flow-steward:
+      entryPoints: [web, websecure]
+      rule: PathPrefix(`/`)
+      service: compact-runtime
+      tls: {}
+  services:
+    compact-runtime:
+      loadBalancer:
+        servers:
+          - url: http://compact-runtime:__FS_RUNTIME_HTTP_PORT__

@@ -1,0 +1,1150 @@
+/*
+ * The browse layout both static catalogs share: the facet rail beside the
+ * results, the results header, cards, the list table, phone rows, the pager,
+ * the state block, and the details layout with its facts aside. Every surface,
+ * colour and control is an existing design-system class or token; these rules
+ * only place them. Lifted from the workflow template catalog dialog, whose
+ * stylesheet keeps only what is the dialog's own.
+ */
+
+/* "← Catalog", "Back to templates": a quiet ghost button, its text flush
+   with the content under it. */
+.fs-catalog-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  height: var(--fs-button-height-sm);
+  margin-left: calc(-1 * var(--fs-space-100));
+  padding: 0 var(--fs-space-100);
+  border-radius: var(--fs-radius-4);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-field-label-size);
+  font-weight: var(--fs-type-weight-regular);
+  text-decoration: none;
+}
+
+.fs-catalog-back:hover:not(:disabled) {
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-primary);
+}
+
+.fs-catalog-back svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+}
+
+.fs-catalog-stage-heading:focus {
+  outline: 0;
+}
+
+.fs-catalog-stage-heading:focus-visible {
+  border-radius: var(--fs-radius-4);
+  box-shadow: var(--fs-focus-ring);
+}
+
+/* ---- Browse: facet column and results --------------------------------- */
+
+.fs-catalog-browse {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  height: 100%;
+}
+
+.fs-catalog-browse.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* In a page tab (MCP, Extensions, Workflows) rather than a dialog: the rail
+   is a 240px column of the panel, not a scroller of its own, 32px from the
+   results, and both scroll with the page. */
+.fs-catalog-browse.is-page {
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--fs-space-400);
+  height: auto;
+}
+
+.fs-catalog-browse.is-page.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fs-catalog-browse.is-page .fs-catalog-rail {
+  overflow: visible;
+  padding: 0;
+  border-right: 0;
+}
+
+.fs-catalog-browse.is-page .fs-catalog-results {
+  gap: var(--fs-space-200);
+  overflow: visible;
+  padding: 0;
+}
+
+/* `.fs-search` is a toolbar-sized control; heading the results it spans them. */
+.fs-catalog-browse.is-page .fs-catalog-results .fs-search,
+.fs-catalog-searchfield .fs-search {
+  width: 100%;
+  margin: 0;
+}
+
+.fs-catalog-rail {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-200);
+  overflow: hidden auto;
+  min-width: 0;
+  padding: var(--fs-space-150) var(--fs-space-150) var(--fs-space-300);
+  border-right: 1px solid var(--fs-form-dialog-zone-border);
+}
+
+.fs-catalog-facet {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 0;
+}
+
+.fs-catalog-facet + .fs-catalog-facet {
+  padding-top: var(--fs-space-150);
+  border-top: 1px solid var(--fs-form-dialog-zone-border);
+}
+
+.fs-catalog-facet-title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.fs-catalog-facet-search {
+  width: 100%;
+  margin: 0 0 var(--fs-space-050);
+}
+
+.fs-catalog-facet-value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--fs-space-100);
+}
+
+.fs-catalog-facet-value .fs-checkbox-label > span:last-child {
+  overflow-wrap: anywhere;
+}
+
+/* A value no template would match stays in place, dimmed. */
+.fs-catalog-facet-value.is-zero,
+.fs-catalog-facet-value.is-zero .fs-checkbox-label,
+.fs-catalog-facet-value.is-zero .fs-catalog-count {
+  color: var(--fs-text-tertiary);
+}
+
+.fs-catalog-count {
+  margin-left: auto;
+  color: var(--fs-text-secondary);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-micro-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-catalog-more {
+  justify-self: start;
+  min-width: 0;
+  padding: 0;
+}
+
+.fs-catalog-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--fs-space-150) var(--fs-space-250) var(--fs-space-300);
+}
+
+.fs-catalog-results > * {
+  flex-shrink: 0;
+}
+
+.fs-catalog-results[aria-busy="true"] .fs-catalog-results-list {
+  opacity: 0.55;
+}
+
+.fs-catalog-results-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-height: 36px;
+}
+
+.fs-catalog-result-count {
+  margin: 0 auto 0 0;
+  font-family: var(--ff-display);
+  font-size: var(--fs-type-body-size);
+  font-weight: var(--fs-type-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-catalog-result-count:focus {
+  outline: 0;
+}
+
+.fs-catalog-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-catalog-sort .fs-select {
+  width: 168px;
+}
+
+/* Cards or Table: one bordered group, the pressed view on the primary wash. */
+.fs-catalog-view {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--fs-border-default);
+  border-radius: var(--fs-radius-8);
+}
+
+.fs-catalog-view .fs-icon-button {
+  width: var(--fs-icon-button-size-sm);
+  height: var(--fs-icon-button-size-sm);
+  border-color: transparent;
+  background: transparent;
+}
+
+.fs-catalog-view .fs-icon-button[aria-pressed="true"] {
+  border-color: var(--fs-icon-button-active-border);
+  background: var(--fs-icon-button-active-bg);
+  color: var(--fs-icon-button-active-text);
+}
+
+.fs-catalog-applied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075);
+}
+
+.fs-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(252px, 1fr));
+  gap: var(--fs-space-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-catalog-grid > li {
+  display: grid;
+  min-width: 0;
+}
+
+/* ---- The card (CatalogItemCard) ----------------------------------------
+   Tile and name, byline, two lines of summary, chips with the state pills
+   on the right, then category and action. The name is the one link or
+   button; its ::after covers the card, and what else is operable (the
+   action, "+N") sits above it. */
+.fs-catalog-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  min-height: 220px;
+  padding: var(--fs-space-200);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.fs-catalog-card:hover {
+  border-color: var(--fs-card-border-hover);
+  box-shadow: var(--fs-card-shadow-hover);
+}
+
+.fs-catalog-card:has(.fs-catalog-card-open:focus-visible),
+.fs-catalog-row:focus-visible {
+  outline: 0;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-catalog-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--fs-space-150);
+  min-width: 0;
+}
+
+.fs-catalog-card-heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--fs-space-050);
+  min-width: 0;
+}
+
+.fs-catalog-card-open {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fs-text-primary);
+  font-family: var(--ff-display);
+  font-size: var(--fs-type-h3-size);
+  font-weight: var(--fs-type-weight-medium);
+  line-height: 22px;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.fs-catalog-card-open:focus {
+  outline: 0;
+}
+
+.fs-catalog-card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.fs-catalog-card-title,
+.fs-catalog-row-name {
+  color: var(--fs-text-primary);
+  font-family: var(--ff-display);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-catalog-card-version {
+  margin-left: 6px;
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-data);
+  font-size: var(--fs-type-field-label-size);
+  font-weight: var(--fs-type-weight-regular);
+  white-space: nowrap;
+}
+
+.fs-catalog-card-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  height: calc(2 * 21px);
+  margin: 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-body-size);
+  line-height: 21px;
+}
+
+.fs-catalog-list-summary {
+  overflow: hidden;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-catalog-card-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  min-height: var(--fs-badge-height-sm);
+}
+
+.fs-catalog-card-tags .fs-catalog-chips {
+  flex: 1;
+}
+
+.fs-catalog-card-tags .fs-catalog-pills {
+  flex: none;
+  margin-left: auto;
+}
+
+.fs-catalog-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  min-height: var(--fs-button-height-sm);
+  margin-top: auto;
+}
+
+.fs-catalog-card-category {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The action and the state pill stay operable and readable above the name's ::after. */
+.fs-catalog-card-foot > :not(.fs-catalog-card-category),
+.fs-catalog-chip-more-wrap {
+  position: relative;
+  z-index: 1;
+  flex: none;
+}
+
+.fs-catalog-card-includes {
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+/* "by Ahrefs · ✓ Official", "by Flow-Steward [Verified]", "◷ Schedule". */
+.fs-catalog-byline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.fs-catalog-byline > * {
+  flex: none;
+}
+
+.fs-catalog-byline > .fs-catalog-byline-text:first-child {
+  overflow: hidden;
+  flex: 0 1 auto;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.fs-catalog-official {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-050);
+  color: var(--fs-text-brand);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-catalog-official svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fs-catalog-byline-version {
+  font-family: var(--ff-data);
+}
+
+/* The byline of a page head: a step larger, and it may wrap. */
+.fs-catalog-page-head .fs-catalog-byline {
+  flex-wrap: wrap;
+  font-size: var(--fs-type-field-label-size);
+  line-height: 20px;
+  white-space: normal;
+}
+
+.fs-catalog-card-meta,
+.fs-catalog-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075) var(--fs-space-100);
+  min-width: 0;
+}
+
+/* State pills: Preview, Deprecated, Connected, Installed, New, Needs extension. */
+.fs-catalog-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.fs-catalog-pills .fs-badge {
+  gap: var(--fs-space-050);
+}
+
+.fs-catalog-pills .fs-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Chips are muted pills, whole ones only (CatalogChipRow fits them). */
+.fs-catalog-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fs-catalog-chips.wrap {
+  flex-wrap: wrap;
+}
+
+.fs-catalog-chip {
+  display: inline-flex;
+  flex: none;
+}
+
+.fs-catalog-chip .fs-badge,
+.fs-catalog-chip-more.fs-badge {
+  border-color: var(--fs-bg-surface-muted);
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-secondary);
+}
+
+.fs-catalog-chip-more-wrap {
+  display: inline-flex;
+}
+
+.fs-catalog-chip-more.fs-badge {
+  /* A design-system PR will publish this token; until then it is defined here. */
+
+  --fs-badge-overflow-hover-bg: color-mix(in srgb, var(--fs-bg-surface-muted) 94%, var(--fs-text-primary));
+
+  margin: 0;
+  font: inherit;
+  font-family: var(--fs-badge-font);
+  font-size: var(--fs-badge-font-size-sm);
+  font-weight: var(--fs-badge-font-weight);
+  cursor: default;
+}
+
+.fs-catalog-chip-more.fs-badge:hover,
+.fs-catalog-chip-more.fs-badge:focus-visible {
+  border-color: var(--fs-badge-overflow-hover-bg);
+  background: var(--fs-badge-overflow-hover-bg);
+}
+
+.fs-catalog-chip-more.fs-badge:focus-visible {
+  outline: 0;
+  box-shadow: var(--fs-focus-ring);
+}
+
+/* What "+N" stands for, above it; the tooltip tokens. ChipTip sets `left` and
+   `max-width` so it stays inside the card or cell, and flips below when there
+   is no room above. */
+.fs-catalog-chip-tip {
+  position: absolute;
+  bottom: calc(100% + var(--fs-tooltip-offset, 8px));
+  left: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: var(--fs-tooltip-max-width, 240px);
+  padding: var(--fs-tooltip-padding);
+  border: 1px solid var(--fs-tooltip-border);
+  border-radius: var(--fs-tooltip-radius);
+  background: var(--fs-tooltip-bg);
+  color: var(--fs-tooltip-text);
+  box-shadow: var(--fs-tooltip-shadow);
+  font-size: var(--fs-tooltip-font-size);
+  font-weight: var(--fs-type-weight-regular);
+  line-height: var(--fs-tooltip-line-height);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.fs-catalog-trigger {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--fs-space-050);
+  white-space: nowrap;
+}
+
+.fs-catalog-trigger svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Table view: the Advanced data table, the item the frozen first column and
+   the action (Connect, Install, Use template) frozen at the end. Without the
+   right to act there is no action column, and the last one is ordinary. */
+.fs-catalog-list .fs-table {
+  table-layout: fixed;
+  min-width: 666px;
+}
+
+.fs-catalog-list:not(.has-action) .fs-table th:last-child,
+.fs-catalog-list:not(.has-action) .fs-table td:last-child {
+  position: static;
+}
+
+.fs-catalog-list.has-action .fs-table td:last-child {
+  text-align: right;
+}
+
+/* Below the columns' widths the table scrolls under the frozen item column. */
+.fs-catalog-list.has-action .fs-table {
+  min-width: 960px;
+}
+
+.fs-catalog-list:not(.has-action) .fs-table {
+  min-width: 800px;
+}
+
+.fs-catalog-list .fs-table tbody td {
+  height: 52px;
+  vertical-align: middle;
+}
+
+/* The item cell: 32px tile, then the name and one line of summary. */
+.fs-catalog-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  white-space: normal;
+}
+
+.fs-catalog-list-item > .fs-catalog-icon {
+  align-self: flex-start;
+}
+
+.fs-catalog-list-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fs-catalog-list-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fs-catalog-list-open {
+  overflow: hidden;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fs-text-primary);
+  font: inherit;
+  font-weight: var(--fs-type-weight-medium);
+  text-align: start;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fs-catalog-list-open:focus-visible {
+  border-radius: var(--fs-radius-4);
+  outline: 0;
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-catalog-list-name .fs-catalog-card-version {
+  margin: 0;
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-catalog-list-text .fs-catalog-byline {
+  line-height: 20px;
+}
+
+.fs-catalog-list-muted {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-catalog-pager .fs-table-footer {
+  justify-content: flex-end;
+  border: 0;
+}
+
+.fs-catalog-suggest {
+  margin: var(--fs-space-100) 0 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-catalog-suggest a,
+.fs-catalog-source a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-050);
+  color: var(--fs-text-brand);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-catalog-suggest svg,
+.fs-catalog-source svg,
+.fs-catalog-state-actions a svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+}
+
+.fs-catalog-state {
+  max-width: 440px;
+  margin: var(--fs-space-300) auto 0;
+}
+
+.fs-catalog-state-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--fs-text-secondary);
+}
+
+.fs-catalog-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fs-space-100);
+}
+
+/* ---- An item's page: head, the main column and the facts aside ------- */
+
+.fs-catalog-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--fs-space-200);
+}
+
+.fs-catalog-page-copy {
+  display: flex;
+  flex: 999 1 400px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fs-catalog-page-title {
+  margin: 0;
+  font-family: var(--ff-display);
+  font-size: var(--fs-page-header-title-size);
+  font-weight: var(--fs-type-weight-medium);
+  line-height: 1.2;
+}
+
+.fs-catalog-page-summary {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-body-size);
+  line-height: var(--fs-type-body-line-height);
+}
+
+/* One main action, its reason as visible text under it, never a tooltip. */
+.fs-catalog-page-action {
+  display: grid;
+  flex: none;
+  justify-items: end;
+  gap: var(--fs-space-075);
+  max-width: 280px;
+  text-align: right;
+}
+
+.fs-catalog-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--fs-space-400);
+}
+
+.fs-catalog-details-main {
+  display: flex;
+  flex: 999 1 560px;
+  flex-direction: column;
+  gap: var(--fs-space-300);
+  min-width: 0;
+}
+
+.fs-catalog-details-main > section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+}
+
+.fs-catalog-section-title {
+  margin: 0;
+  font-family: var(--ff-display);
+  font-size: var(--fs-type-body-size);
+  font-weight: var(--fs-type-weight-medium);
+  line-height: 1.4;
+}
+
+/* "What it adds": the capabilities as muted pills, a step larger than a card's. */
+.fs-catalog-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-catalog-chip-list > li {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--fs-badge-height-md);
+  padding: var(--fs-badge-padding-md);
+  border-radius: var(--fs-badge-radius);
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-badge-font-size-md);
+  font-weight: var(--fs-badge-font-weight);
+}
+
+/* A fact with a pill or a link beside its value. */
+.fs-catalog-fact-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--fs-space-100);
+}
+
+/* A template's "What you'll need": each requirement, and Open in Catalog
+   under one this installation lacks. */
+.fs-catalog-needs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-type-field-label-size);
+  line-height: 20px;
+}
+
+.fs-catalog-needs > li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--fs-space-050);
+}
+
+.fs-catalog-needs-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-050);
+  color: var(--fs-text-brand);
+  font-weight: var(--fs-type-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.fs-catalog-needs-link svg {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+}
+
+/* On the aside's muted fill a muted chip would vanish: there it is the surface. */
+.fs-catalog-aside .fs-catalog-chip .fs-badge {
+  border-color: var(--fs-border-subtle);
+  background: var(--fs-bg-surface);
+}
+
+.fs-catalog-card-notes {
+  display: grid;
+  gap: var(--fs-space-050);
+}
+
+/* "How you connect": one block per endpoint, its URL as a code chip. */
+.fs-catalog-connect-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-catalog-connect-list > li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.fs-catalog-prose strong {
+  color: var(--fs-text-primary);
+  font-weight: var(--fs-type-weight-medium);
+}
+
+.fs-catalog-prose code,
+.fs-catalog-code {
+  color: var(--fs-text-primary);
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+  overflow-wrap: anywhere;
+}
+
+.fs-catalog-code {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: var(--fs-space-050) var(--fs-space-100);
+  border-radius: var(--fs-radius-4);
+  background: var(--fs-bg-surface-muted);
+  line-height: var(--fs-type-code-line-height);
+}
+
+.fs-catalog-prose .fs-catalog-source {
+  display: inline;
+}
+
+/* The facts: the muted register, rows divided by the subtle border. */
+.fs-catalog-aside {
+  display: flex;
+  flex: 1 1 280px;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-width: 320px;
+  padding: var(--fs-space-050) var(--fs-space-200);
+  border-radius: var(--fs-card-radius);
+  background: var(--fs-bg-surface-muted);
+}
+
+.fs-catalog-aside > section,
+.fs-catalog-aside .fs-kv-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--fs-border-subtle);
+}
+
+.fs-catalog-aside > section {
+  gap: 6px;
+  padding: var(--fs-space-150) 0;
+}
+
+.fs-catalog-aside .fs-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+}
+
+.fs-catalog-aside .fs-kv-row dt {
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-caption-size);
+  line-height: 18px;
+}
+
+.fs-catalog-aside .fs-kv-row dd {
+  margin: 0;
+  font-size: var(--fs-type-field-label-size);
+  line-height: 20px;
+}
+
+.fs-catalog-aside .fs-kv-row dd code {
+  font-family: var(--ff-code);
+  font-size: var(--fs-type-code-size);
+  overflow-wrap: anywhere;
+}
+
+.fs-catalog-aside > .fs-catalog-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+  padding: var(--fs-space-150) 0;
+}
+
+.fs-catalog-aside-title {
+  margin: 0;
+  font-size: var(--fs-type-field-label-size);
+  font-weight: var(--fs-type-weight-medium);
+  line-height: 20px;
+}
+
+.fs-catalog-prose {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-field-label-size);
+  line-height: 1.6;
+}
+
+.fs-catalog-prose + .fs-catalog-prose {
+  margin-top: var(--fs-space-100);
+}
+
+.fs-catalog-list-plain,
+.fs-catalog-checklist {
+  display: grid;
+  gap: var(--fs-space-075);
+  margin: var(--fs-space-075) 0 0;
+  padding-left: var(--fs-space-250);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-catalog-source {
+  margin: 0;
+}
+
+/* ---- Phone: rows instead of cards and table, one Add filter control ---- */
+
+.fs-catalog-rows {
+  display: grid;
+  margin: 0 calc(-1 * var(--fs-space-200));
+  padding: 0;
+  border-top: 1px solid var(--fs-card-divider);
+  list-style: none;
+}
+
+.fs-catalog-rows > li + li {
+  border-top: 1px solid var(--fs-card-divider);
+}
+
+.fs-catalog-row {
+  display: grid;
+  gap: var(--fs-space-050);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--fs-space-150) var(--fs-space-200);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.fs-catalog-row .fs-catalog-card-meta {
+  flex-wrap: nowrap;
+}
+
+/* The chips take what the row leaves, so as many whole ones show as fit. */
+.fs-catalog-card-meta .fs-catalog-chips {
+  flex: 1;
+}
+
+@media (width < 640px) {
+  .fs-catalog-results {
+    padding-left: var(--fs-space-200);
+    padding-right: var(--fs-space-200);
+  }
+
+  .fs-catalog-aside {
+    max-width: none;
+  }
+
+  .fs-catalog-page-action {
+    justify-items: stretch;
+    max-width: none;
+    text-align: left;
+    width: 100%;
+  }
+
+  .fs-catalog-sort .fs-select {
+    width: auto;
+  }
+}
+
+/* The logo tile (CatalogIcon): bordered, muted, the logo inside; the Lucide
+   package glyph when there is no logo. 40 px on a card, 32 in a table row, 48
+   on a page head, 20 beside an inline name. */
+.fs-catalog-icon {
+  align-items: center;
+  background: var(--fs-bg-surface-muted);
+  block-size: 40px;
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-radius-8);
+  box-sizing: border-box;
+  color: var(--fs-text-secondary);
+  display: inline-flex;
+  flex: none;
+  font-size: var(--fs-type-body-size);
+  font-weight: var(--fs-type-weight-medium);
+  inline-size: 40px;
+  justify-content: center;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+}
+
+/* A logo is drawn for a light page: a dark mark on a transparent PNG all but
+   disappears on the dark theme's muted tile, so a logo, and only a logo, sits
+   on a light surface there. The placeholder keeps the muted one. */
+[data-theme="dark"] .fs-catalog-icon[data-catalog-icon="image"] {
+  background: var(--fs-bg-inverse);
+}
+
+.fs-catalog-icon img {
+  block-size: 100%;
+  display: block;
+  inline-size: 100%;
+  object-fit: contain;
+}
+
+.fs-catalog-icon-fallback {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.fs-catalog-icon-fallback svg {
+  block-size: 16px;
+  inline-size: 16px;
+}
+
+.fs-catalog-icon-row {
+  block-size: 32px;
+  border-radius: var(--fs-radius-6);
+  font-size: var(--fs-type-caption-size);
+  inline-size: 32px;
+}
+
+.fs-catalog-icon-page {
+  block-size: 48px;
+  font-size: var(--fs-type-body-size);
+  inline-size: 48px;
+}
+
+.fs-catalog-icon-page .fs-catalog-icon-fallback svg {
+  block-size: 20px;
+  inline-size: 20px;
+}
+
+.fs-catalog-icon-inline {
+  block-size: 20px;
+  border-radius: var(--fs-radius-4);
+  font-size: var(--fs-type-micro-size);
+  inline-size: 20px;
+}
+
+.fs-catalog-icon-inline .fs-catalog-icon-fallback svg {
+  block-size: var(--fs-icon-size-supporting);
+  inline-size: var(--fs-icon-size-supporting);
+}
+
+/* A logo tile before an object's name: the text takes the rest of the line. */
+.fs-catalog-icon-lockup {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--fs-space-150);
+  min-width: 0;
+}
+
+.fs-catalog-icon-lockup > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.fs-catalog-icon-lockup-text {
+  display: grid;
+  gap: var(--fs-space-050);
+  justify-items: start;
+}
