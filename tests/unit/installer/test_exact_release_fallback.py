@@ -12,7 +12,7 @@ import pytest
 from core.application.lifecycle.errors import LifecycleError
 from core.application.release.catalog import PublishedRelease, ReleaseCoordinates, ReleaseVersion
 from core.application.release.contracts import ReleaseIdentity, ReleaseImageIdentity
-from core.application.release.images import release_image_roles, required_product_roles
+from core.application.release.images import release_image_roles
 from core.application.release.service import OfficialReleaseSelector
 from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.installer.registry_image_resolver import OfficialReleaseResolver
@@ -260,7 +260,7 @@ def _resolver(
 
 
 def _index_command(fixture: _RegistryMetadata, namespace: str, position: int) -> tuple[str, ...]:
-    role = required_product_roles(fixture.archived.profile)[position]
+    role = release_image_roles(fixture.archived.profile, version=_VERSION)[position]
     image = next(image for image in fixture.archived.images if image.role == role.role)
     return (
         "docker",
