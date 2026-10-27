@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from core.application.management.errors import safe_operator_exception
+from core.application.workflows import workflow_entrypoint_repository
 from core.application.workflows.workflow_entrypoint_artifacts import (
     WorkflowEntrypointArtifactLifecycle,
 )
@@ -55,6 +56,7 @@ class WorkflowEntrypointExecutionCoordinator:
         now_iso: Callable[[], str],
         load_entrypoint: Callable[[Any, str], dict[str, Any] | None],
         resolve_bound_project: Callable[[Any, str, str], tuple[Any, dict[str, Any]]],
+        load_workflow_state: Callable[[Any, str], dict[str, Any]] | None = None,
         storage_unavailable_error: Callable[[Exception], bool] | None = None,
         claim_reservation: Callable[..., dict[str, Any]] = claim_idempotency_reservation,
         find_existing_job: Callable[..., str | None] = find_existing_idempotent_job,
@@ -74,6 +76,9 @@ class WorkflowEntrypointExecutionCoordinator:
         self._input_service = WorkflowEntrypointInputService()
         self._load_entrypoint = load_entrypoint
         self._resolve_bound_project = resolve_bound_project
+        self._load_workflow_state = (
+            load_workflow_state or workflow_entrypoint_repository.load_workflow_admission_state
+        )
         self._storage_unavailable_error = storage_unavailable_error or (lambda _exc: False)
         self._claim_reservation = claim_reservation
         self._find_existing_job = find_existing_job
@@ -225,7 +230,37 @@ class WorkflowEntrypointExecutionCoordinator:
             workflow_id=workflow_id,
         )
 
+    def check_workflow_admission(
+        self, workflow_id: str
+    ) -> WorkflowEntrypointSubmissionOutcome | None:
+        """Reject unavailable owners before reservation, files or job creation."""
+        try:
+            workflow = self._load_workflow_state(self._logger, str(workflow_id or "").strip())
+        except Exception as exc:
+            return WorkflowEntrypointSubmissionOutcome(
+                failure_kind="unavailable",
+                code="workflow_lookup_unavailable",
+                error="Workflow availability could not be checked; retry later",
+                operator_error=safe_operator_exception(exc),
+            )
+        if not workflow:
+            return WorkflowEntrypointSubmissionOutcome(
+                failure_kind="not_found",
+                code="workflow_not_found",
+                error="Workflow is unavailable",
+            )
+        if not bool(workflow.get("enabled", False)):
+            return WorkflowEntrypointSubmissionOutcome(
+                failure_kind="conflict",
+                code="workflow_disabled",
+                error="This workflow is turned off. Enable it before sending a webhook.",
+            )
+        return None
+
     def submit(self, **kwargs: Any) -> WorkflowEntrypointSubmissionOutcome:
+        refusal = self.check_workflow_admission(str(kwargs.get("workflow_id") or ""))
+        if refusal is not None:
+            return refusal
         entry_key = str(kwargs.get("entry_key") or "").strip()
         request_id = str(kwargs.get("request_id") or "").strip()
         claim_owner_id = self._new_id()

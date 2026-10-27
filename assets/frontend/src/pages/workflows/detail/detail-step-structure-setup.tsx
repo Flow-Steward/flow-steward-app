@@ -182,6 +182,7 @@ export function WorkflowStepStructureSetup({ ctx }: Readonly<{ ctx: Record<strin
     disconnectPort,
     moveStep,
     placementFocusNonce,
+    hookName,
     preview,
     selectedStep,
     setCreateAsEntry,
@@ -198,9 +199,13 @@ export function WorkflowStepStructureSetup({ ctx }: Readonly<{ ctx: Record<strin
     node?.scrollIntoView?.({ block: "nearest" });
     node?.querySelector<HTMLElement>('button, [role="combobox"], select')?.focus();
   }, [placementFocusNonce]);
-  const rootLabel = t("react.workflows.placement_root", "Workflow (root)");
+  const hookLabel = hookName ? `${t("react.workflows.hook", "Hook")} ${hookName}` : "";
+  const rootLabel = hookLabel || t("react.workflows.placement_root", "Workflow (root)");
   const rootOnlyHook = workflowStepDeclaresHook(selectedStep?.stepKind, selectedStep?.raw?.override);
-  const options = placementOptions(preview, rootLabel).filter((option) => !rootOnlyHook || option.key === placementKey(ROOT_PLACEMENT));
+  const options = placementOptions(preview, rootLabel)
+    .filter((option) => !rootOnlyHook || option.key === placementKey(ROOT_PLACEMENT))
+    .map((option) => hookLabel && option.key !== placementKey(ROOT_PLACEMENT)
+      ? { ...option, label: `${hookLabel} › ${option.label}` } : option);
 
   if (!selectedStep) {
     const insert = stepCreateContext?.insert;
@@ -291,7 +296,7 @@ export function WorkflowStepStructureSetup({ ctx }: Readonly<{ ctx: Record<strin
   const droppedConnections = selectedMoveKey
     ? edgesTouchingStep(preview, stepId).map((edge) => edgeNameLabel(preview, edge, t))
     : [];
-  const currentPlaceText = currentKey === placementKey(ROOT_PLACEMENT)
+  const currentPlaceText = !hookLabel && currentKey === placementKey(ROOT_PLACEMENT)
     ? t("react.workflows.placement_now_root", "Now in the workflow root.")
     : t("react.workflows.placement_now_in", "Now in {place}.", { place: currentLabel });
 

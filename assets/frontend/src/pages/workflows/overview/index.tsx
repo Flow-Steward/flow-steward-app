@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router";
 
-import { DsAlert, DsBadge, DsMetricCard, DsTable, PageContainer } from "@/components/shared/design-system";
+import { DsAlert, DsBadge, DsMetricCard, DsSelect, DsTable, PageContainer } from "@/components/shared/design-system";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { useCanReadWorkflowRegistry, useIsAdmin } from "@/lib/auth/use-is-admin";
 import { isHttpError } from "@/lib/http/errors";
@@ -20,7 +20,8 @@ import {
 import { useWorkflowHeaderMutations } from "@/pages/workflows/shared/header-actions";
 import { WorkflowHeaderMutationDialogs } from "@/pages/workflows/shared/header-mutation-dialogs";
 import { WorkflowSummaryHeader } from "@/pages/workflows/shared/header";
-import { fetchAllProjectsForWorkflowContext, findWorkflowLinkedProjectId } from "@/pages/workflows/shared/project-context";
+import type { ProjectListItem } from "@/pages/projects/list/api";
+import { fetchWorkflowLinkedProjects } from "@/pages/workflows/shared/project-context";
 import { declaredWorkflowHooks, useWorkflowHookStates, type WorkflowHookState } from "@/pages/workflows/shared/workflow-hooks";
 import {
   isWorkflowSettingsTab,
@@ -274,40 +275,29 @@ function renderHookConnectCell(
 /**
  * The places this workflow lets a project run a workflow of its own, and what
  * each project connects there. Shown only when the workflow declares hooks; a
- * binding is per project, so the list reads the project in context (the URL's,
- * else the first one the workflow is linked to).
+ * binding is per project, so reads and navigation share the validated explicit choice.
  */
 function WorkflowHooksPanel({
   canAuthor,
-  projectId: urlProjectId,
+  projectId,
+  projects,
+  projectsPending,
+  projectsError,
+  onProjectChange,
   steps,
   workflowId,
-}: Readonly<{ canAuthor: boolean; projectId: string; steps: unknown; workflowId: string }>) {
+}: Readonly<{ canAuthor: boolean; projectId: string; projects: ProjectListItem[]; projectsPending: boolean; projectsError: Error | null; onProjectChange: (id: string) => void; steps: unknown; workflowId: string }>) {
   const { t } = useI18n();
-  const hasHooks = declaredWorkflowHooks(steps).length > 0;
-  const linkedProjectQuery = useQuery({
-    queryKey: ["workflows", workflowId, "linked-project-id"],
-    queryFn: () => findWorkflowLinkedProjectId(workflowId, { presentation: "background" }),
-    enabled: hasHooks && Boolean(workflowId) && !urlProjectId && canAuthor,
-    staleTime: 30_000,
-  });
-  const projectId = urlProjectId || linkedProjectQuery.data || "";
-  const projectsQuery = useQuery({
-    queryKey: ["workflows", workflowId, "project-context-options"],
-    queryFn: () => fetchAllProjectsForWorkflowContext({ presentation: "background" }),
-    enabled: hasHooks && Boolean(projectId) && canAuthor,
-    staleTime: 60_000,
-  });
   const { hooks, error } = useWorkflowHookStates({ enabled: canAuthor, options: { presentation: "background" }, projectId, steps, workflowId });
   if (!hooks.length) return null;
   const projectName = firstStringFromUnknownValue([
-    projectsQuery.data?.find((project) => project.id === projectId)?.name,
+    projects.find((project) => project.id === projectId)?.name,
     projectId,
   ]);
   let context = t("react.workflows.hooks_description", "Places in this workflow where each project adds steps of its own.");
   if (projectId) {
     context = t("react.workflows.hooks_in_project", "Steps of project {project}.", { project: projectName });
-  } else if (canAuthor && !linkedProjectQuery.isLoading) {
+  } else if (canAuthor && !projectsPending && !projectsError && !projects.length) {
     context = t("react.workflows.hooks_no_project", "Link this workflow to a project to connect its hooks.");
   }
   return (
@@ -317,6 +307,17 @@ function WorkflowHooksPanel({
         <p className="fs-card-description">{context}</p>
       </header>
       <div className="fs-card-body">
+        {canAuthor ? projectsError ? (
+          <DsAlert title={t("react.workflows.linked_projects_could_not_be_loaded", "Linked projects could not be loaded")} tone="danger">{projectsError.message}</DsAlert>
+        ) : projectsPending ? (
+          <p className="fs-empty-copy">{t("react.workflows.loading_linked_projects", "Loading linked projects…")}</p>
+        ) : projects.length ? (
+          <DsSelect ariaLabel={t("react.workflows.hook_project", "Project for hooks")} value={projectId}
+            onChange={onProjectChange} placeholder={t("react.workflows.choose_a_linked_project", "Choose a linked project")}
+            options={projects.map((project) => ({ value: project.id, label: project.name || project.id }))} />
+        ) : (
+          <Link className="fs-button secondary" to={`/registry/workflows/${encodeURIComponent(workflowId)}/projects`}>{t("react.workflows.link_a_project", "Link a project")}</Link>
+        ) : null}
         {error ? (
           <DsAlert title={t("react.workflows.hook_load_failed", "The hook could not be loaded")} tone="danger">
             {error instanceof Error ? error.message : String(error)}
@@ -387,6 +388,21 @@ export function WorkflowsOverviewPage() {
   let activeTab = "";
   if (requestedTab === "hooks" && hasHooks) activeTab = "hooks";
   else if (canAuthor && isWorkflowSettingsTab(requestedTab)) activeTab = requestedTab;
+  const hookProjectsQuery = useQuery({
+    queryKey: ["workflows", workflowId, "hook-projects"],
+    queryFn: () => fetchWorkflowLinkedProjects(workflowId, { presentation: "background" }),
+    enabled: canReadRegistry && canAuthor && activeTab === "hooks" && Boolean(workflowId),
+    retry: false,
+  });
+  // A failed refresh may retain old data; it cannot authorize a Hook read or link.
+  const hookProjects = hookProjectsQuery.isSuccess ? hookProjectsQuery.data : [];
+  const hookProjectId = canAuthor && hookProjects.some((project) => project.id === projectId) ? projectId : "";
+  const selectHookProject = (id: string) => {
+    if (!hookProjects.some((project) => project.id === id)) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("project_id", id);
+    setSearchParams(next, { replace: true });
+  };
   const selectTab = useCallback((tab: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
@@ -453,7 +469,8 @@ export function WorkflowsOverviewPage() {
           onDeleteWorkflow={headerMutations.deleteWorkflow}
           onToggleEnabled={() => ignoreAsyncResult(headerMutations.toggleEnabled())}
           stepCount={stepCount}
-          projectId={projectId}
+          projectId={activeTab === "hooks" ? hookProjectId : projectId}
+          discoverProject={activeTab !== "hooks"}
           title={workflowTitle}
           togglingEnabled={headerMutations.togglingEnabled}
           warningCount={warningCount}
@@ -462,7 +479,7 @@ export function WorkflowsOverviewPage() {
         >
           <WorkflowHeaderMutationDialogs controller={headerMutations} workflowId={workflowId} />
 
-          {activeTab === "hooks" ? <WorkflowHooksPanel canAuthor={canAuthor} projectId={projectId} steps={detailQuery.data?.steps} workflowId={workflowId} /> : null}
+          {activeTab === "hooks" ? <WorkflowHooksPanel canAuthor={canAuthor} projectId={hookProjectId} projects={hookProjects} projectsPending={hookProjectsQuery.isPending} projectsError={hookProjectsQuery.error} onProjectChange={selectHookProject} steps={detailQuery.data?.steps} workflowId={workflowId} /> : null}
           {activeTab ? null : <>
             <WorkflowStatsPanel error={statsQuery.error} isError={statsQuery.isError} isLoading={statsQuery.isLoading} jobsLink={jobsLink} stats={stats} userTimezone={userTimezone} />
             <WorkflowQuickLinks canAuthor={canAuthor} jobsLink={jobsLink} projectId={projectId} workflowId={workflowId} />

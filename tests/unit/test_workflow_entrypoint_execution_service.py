@@ -73,6 +73,7 @@ def test_execution_coordinator_prepares_bound_project_and_owns_submission_wiring
             "project-7",
             {"project_name": "Demo"},
         ),
+        load_workflow_state=lambda _logger, _workflow_id: {"enabled": True},
         submission_use_case_factory=_SubmissionUseCase,
         new_id=lambda: "claim-owner-7",
     )
@@ -103,6 +104,35 @@ def test_execution_coordinator_prepares_bound_project_and_owns_submission_wiring
     wiring = captured["wiring"]
     idempotency = wiring["idempotency_service_factory"]("fingerprint-7")
     assert idempotency._claim_owner_id == "claim-owner-7"
+
+
+def test_execution_coordinator_rechecks_disabled_owner_before_constructing_submission() -> None:
+    enabled = True
+    submission_created = []
+
+    def submission_factory(**_kwargs):
+        submission_created.append(True)
+        raise AssertionError("Disabled owner must not construct the durable submission lifecycle")
+
+    coordinator = service_module.WorkflowEntrypointExecutionCoordinator(
+        logger=SimpleNamespace(),
+        artifact_plane=SimpleNamespace(),
+        redeliver_task=None,
+        enqueue_workflow_start=lambda **_kwargs: None,
+        now_iso=lambda: "2026-10-27T00:00:00Z",
+        load_entrypoint=lambda _logger, _key: {},
+        resolve_bound_project=lambda *_args: (None, {}),
+        load_workflow_state=lambda _logger, _workflow_id: {"enabled": enabled},
+        submission_use_case_factory=submission_factory,
+    )
+    assert coordinator.check_workflow_admission("wf-invoice") is None
+    enabled = False
+
+    outcome = coordinator.submit(workflow_id="wf-invoice")
+
+    assert outcome.failure_kind == "conflict"
+    assert outcome.code == "workflow_disabled"
+    assert submission_created == []
 
 
 def test_execution_coordinator_maps_entrypoint_storage_outage_without_leaking_details() -> None:

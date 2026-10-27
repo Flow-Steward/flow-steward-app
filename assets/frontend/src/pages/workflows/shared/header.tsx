@@ -54,6 +54,8 @@ type WorkflowSummaryHeaderProps = {
   onWorkflowSettings?: () => void;
   stepCount: number;
   projectId?: string;
+  /** False when the owning page requires an explicit, validated project choice. */
+  discoverProject?: boolean;
   summaryId?: string;
   structureRedacted?: boolean;
   title: string;
@@ -472,6 +474,7 @@ export function WorkflowSummaryHeader({
   onWorkflowSettings,
   stepCount,
   projectId = "",
+  discoverProject = true,
   summaryId = "workflow-route-summary",
   structureRedacted = false,
   title,
@@ -493,16 +496,16 @@ export function WorkflowSummaryHeader({
     // Only admins can read project workflow bindings; running this for non-admins
     // fans out one GET /api/projects/{id}/workflows -> 403 per project (audit noise),
     // and the resolved id only builds authoring links a non-admin can't use anyway.
-    enabled: Boolean(workflowId) && !projectId && canAuthor,
+    enabled: discoverProject && Boolean(workflowId) && !projectId && canAuthor,
     staleTime: 30_000,
     retry: false,
   });
   const exportPolicy = portability || exportPolicyQuery.data;
   const policy = workflowHeaderPolicy(exportPolicy, scaffoldOnly, structureRedacted);
-  const metadataError = (!portability && exportPolicyQuery.error) || (!projectId && linkedProjectQuery.error);
-  const contextReady = Boolean(projectId || linkedProjectQuery.isSuccess);
-  const metadataPending = (!portability && exportPolicyQuery.isPending) || (canAuthor && !projectId && linkedProjectQuery.isPending);
-  const effectiveProjectId = projectId || linkedProjectQuery.data || "";
+  const metadataError = (!portability && exportPolicyQuery.error) || (discoverProject && !projectId && linkedProjectQuery.error);
+  const contextReady = Boolean(projectId || discoverProject && linkedProjectQuery.isSuccess);
+  const metadataPending = (!portability && exportPolicyQuery.isPending) || (discoverProject && canAuthor && !projectId && linkedProjectQuery.isPending);
+  const effectiveProjectId = projectId || (discoverProject ? linkedProjectQuery.data : "") || "";
   const overviewPath = workflowPathWithProject(workflowId, effectiveProjectId);
   const builderPath = workflowPathWithProject(workflowId, effectiveProjectId, "/builder");
   const projectsPath = workflowPathWithProject(workflowId, effectiveProjectId, "/projects");
@@ -559,7 +562,7 @@ export function WorkflowSummaryHeader({
             className="fs-tab"
             data-workflow-header-action={`tab-${tab.key}`}
             key={tab.key}
-            to={workflowPathWithParams(workflowId, effectiveProjectId, { tab: tab.key })}
+            to={workflowPathWithParams(workflowId, tab.key === "hooks" ? projectId : effectiveProjectId, { tab: tab.key })}
           >
             {tab.label}</Link>
         ))}
@@ -598,7 +601,7 @@ export function WorkflowSummaryHeader({
               : t("react.workflows.failed_to_load_workflow_summary", "Failed to load workflow summary.")}
             <button className="fs-button" disabled={exportPolicyQuery.isFetching || linkedProjectQuery.isFetching} onClick={() => {
               if (!portability && exportPolicyQuery.isError) ignoreAsyncResult(exportPolicyQuery.refetch());
-              if (canAuthor && !projectId && linkedProjectQuery.isError) ignoreAsyncResult(linkedProjectQuery.refetch());
+              if (discoverProject && canAuthor && !projectId && linkedProjectQuery.isError) ignoreAsyncResult(linkedProjectQuery.refetch());
             }} type="button">{t("settings.watchdog.retry", "Retry")}</button>
           </DsAlert>
         ) : null}

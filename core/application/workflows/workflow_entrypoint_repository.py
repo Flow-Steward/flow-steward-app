@@ -61,6 +61,16 @@ def load_workflow_entrypoint(
         return _row_to_dict(cur, cur.fetchone())
 
 
+def load_workflow_admission_state(bl: Any, workflow_id: str) -> dict[str, Any]:
+    """Read the live owner state before authenticated webhook submission."""
+    with bl.conn.cursor() as cur:
+        cur.execute(
+            "SELECT enabled FROM registry_workflows WHERE workflow_id = %s AND deleted_at IS NULL",
+            (str(workflow_id or "").strip(),),
+        )
+        return _row_to_dict(cur, cur.fetchone())
+
+
 def list_workflow_entrypoints_for_workflow(
     bl,
     workflow_id: str,

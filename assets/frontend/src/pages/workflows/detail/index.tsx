@@ -597,6 +597,7 @@ function WorkflowDetailPageContent({
   // The step drawer edits in the ids of the workflow it shows.
   const structureActions = inHook ? hookScope.childHandlers : graphActions;
   const stepStructureContext = {
+    hookName: inHook ? hookScope.framesByHook.get(hookScope.effectiveHookId)?.displayName || hookScope.effectiveHookId : "",
     placementFocusNonce,
     connectPort: structureActions.connectPort,
     createAsEntry,

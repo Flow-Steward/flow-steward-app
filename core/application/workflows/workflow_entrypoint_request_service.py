@@ -71,6 +71,11 @@ class WorkflowEntrypointRequestService:
     def prepare(self, entry_key: str) -> WorkflowEntrypointPreparation:
         return self._coordinator.prepare(str(entry_key or "").strip())
 
+    def check_workflow_admission(
+        self, workflow_id: str
+    ) -> WorkflowEntrypointSubmissionOutcome | None:
+        return self._coordinator.check_workflow_admission(workflow_id)
+
     def execute(self, command: WorkflowEntrypointRequestCommand) -> WorkflowEntrypointRequestResult:
         try:
             outcome = self._coordinator.submit(**command.submission())

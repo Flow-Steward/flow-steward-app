@@ -19,7 +19,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.errors import ServiceUnavailableError
 
@@ -416,9 +415,8 @@ def test_provider_webhook_resolves_exact_install_from_project_connection() -> No
 def client():
     """Create a TestClient with auth disabled and no real DB."""
     try:
-        from fastapi.testclient import TestClient
-
         from core.entrypoints.api.app_factory import create_app
+        from fastapi.testclient import TestClient
 
         app = create_app()
         app.state.local_auth_enabled_override = lambda: False
@@ -2027,7 +2025,25 @@ class TestWebhookEdgeCases:
 
 class TestWorkflowEntrypoints:
     @pytest.fixture(autouse=True)
-    def _workflow_contract_service(self):
+    def _workflow_contract_service(self, mock_bl):
+        # Model the registry owner independently from workflow_entrypoints.enabled.
+        # Keep the real admission repository query and other cursor defaults.
+        registry_owners = {"wf.inventory.sync": {"enabled": True}}
+        cursor = mock_bl.conn.cursor.return_value.__enter__.return_value
+        default_row = cursor.fetchone.return_value
+        selected_owner = None
+
+        def execute(query, params=None):
+            nonlocal selected_owner
+            selected_owner = None
+            if "FROM registry_workflows" in str(query):
+                assert tuple(params) == ("wf.inventory.sync",)
+                selected_owner = registry_owners.get(params[0])
+
+        cursor.execute.side_effect = execute
+        cursor.fetchone.side_effect = lambda: (
+            selected_owner if selected_owner is not None else default_row
+        )
         with patch(
             "core.application.workflows.workflow_entrypoint_input_service.WorkflowInterfaceService"
         ) as service_cls:
@@ -2975,12 +2991,11 @@ def _provider_trigger_client(
     resolved_provider_project=("proj-1", {"project_name": "Demo", "project_root": "/tmp"}),
     workflow_project_by_id=None,
 ):
+    from core.entrypoints.api import provider_webhooks as mod
+    from core.entrypoints.api import provider_webhooks_router as router_mod
     from fastapi import FastAPI
     from fastapi.responses import JSONResponse
     from fastapi.testclient import TestClient
-
-    from core.entrypoints.api import provider_webhooks as mod
-    from core.entrypoints.api import provider_webhooks_router as router_mod
 
     state = {"events": []}
     from contextlib import nullcontext

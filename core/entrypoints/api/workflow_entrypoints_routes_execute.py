@@ -246,6 +246,7 @@ async def _admit_transport_request(
     request: Request,
     bl: Any,
     entry_key: str,
+    request_service: WorkflowEntrypointRequestService,
 ) -> _TransportBody | WorkflowEntrypointTransportFailure:
     entrypoint = preparation.entrypoint
     project_id = preparation.project_id
@@ -253,6 +254,24 @@ async def _admit_transport_request(
     response_mode = entrypoint.get("response_mode")
     auth_mode = _effective_entrypoint_auth_mode(entrypoint)
     account_id = str(entrypoint.get("account_id") or "").strip() or None
+
+    async def authenticated_owner_failure() -> WorkflowEntrypointTransportFailure | None:
+        refusal = await run_in_threadpool(request_service.check_workflow_admission, workflow_id)
+        if refusal is None:
+            return None
+        return _failure(
+            request=request,
+            preparation=preparation,
+            status_code=_application_failure_http_status(refusal.failure_kind),
+            error=refusal.error,
+            code=refusal.code,
+            reason=refusal.code,
+            task_id=f"webhook:{entry_key}:{refusal.code}",
+            auth_mode=auth_mode,
+            response_mode=response_mode,
+            account_id=account_id,
+            auth_outcome="passed",
+        )
 
     if not _source_ip_allowed(
         _normalize_source_restrictions(entrypoint.get("source_restrictions_jsonb")), request
@@ -328,6 +347,10 @@ async def _admit_transport_request(
                 auth_outcome="failed",
             )
 
+        owner_failure = await authenticated_owner_failure()
+        if owner_failure is not None:
+            return owner_failure
+
     staged_body = None
     raw_body = b""
     raw_body_sha256 = ""
@@ -368,8 +391,6 @@ async def _admit_transport_request(
                     status_code=408,
                 ) from exc
         except RequestPolicyError as exc:
-            if staged_body is not None:
-                staged_body.close()
             timed_out = exc.status_code == 408
             return _failure(
                 request=request,
@@ -399,8 +420,6 @@ async def _admit_transport_request(
                 response_mode=response_mode,
             )
             if not auth_outcome.ok:
-                if staged_body is not None:
-                    staged_body.close()
                 auth_reason = str(auth_outcome.reason or "auth_failed")
                 return _failure(
                     request=request,
@@ -415,8 +434,10 @@ async def _admit_transport_request(
                     account_id=account_id,
                     auth_outcome="failed",
                 )
-        admission_handed_off = True
-        return _TransportBody(
+            owner_failure = await authenticated_owner_failure()
+            if owner_failure is not None:
+                return owner_failure
+        admitted = _TransportBody(
             entrypoint=entrypoint,
             raw_body=raw_body,
             raw_body_sha256=raw_body_sha256,
@@ -428,9 +449,16 @@ async def _admit_transport_request(
             account_id=account_id,
             admission_lease=admission_lease,
         )
+        admission_handed_off = True
+        return admitted
     finally:
-        if admission_lease is not None and not admission_handed_off:
-            admission_lease.release()
+        if not admission_handed_off:
+            try:
+                if staged_body is not None:
+                    staged_body.close()
+            finally:
+                if admission_lease is not None:
+                    admission_lease.release()
 
 
 async def _parse_transport_payload(
@@ -643,12 +671,14 @@ async def _load_transport_payload(
     bl: Any,
     entry_key: str,
     logger: Any,
+    request_service: WorkflowEntrypointRequestService,
 ) -> WorkflowEntrypointTransportPayload | WorkflowEntrypointTransportFailure:
     admitted = await _admit_transport_request(
         preparation,
         request=request,
         bl=bl,
         entry_key=entry_key,
+        request_service=request_service,
     )
     if isinstance(admitted, WorkflowEntrypointTransportFailure):
         return admitted
@@ -753,6 +783,7 @@ class _WorkflowEntrypointHttpController:
             bl=self._bl,
             entry_key=self._entry_key,
             logger=self._ctx["logger"],
+            request_service=self._service,
         )
         if isinstance(transport, WorkflowEntrypointTransportFailure):
             response = _failure_http_response(transport)

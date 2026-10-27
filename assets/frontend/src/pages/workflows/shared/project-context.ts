@@ -90,15 +90,16 @@ export async function findWorkflowLinkedProjectId(workflowId: string, options?: 
 }
 
 /** Complete authorized link enumeration; a failed read must not become no links. */
-export async function fetchWorkflowLinkedProjects(workflowId: string): Promise<ProjectListItem[]> {
+export async function fetchWorkflowLinkedProjects(workflowId: string, options?: FetchJsonOptions): Promise<ProjectListItem[]> {
   const normalizedWorkflowId = textOrEmpty(workflowId);
   if (!normalizedWorkflowId) return [];
-  const projects = await fetchAllProjectsForWorkflowContext();
+  const projects = await fetchAllProjectsForWorkflowContext(options);
   const linked = await Promise.all(projects.map(async (project) => {
     const projectId = textOrEmpty(project.id);
     if (!projectId) return null;
-    const payload = await fetchProjectWorkflowBindings(projectId);
-    return workflowIdsFromProjectBindingPayload(payload).includes(normalizedWorkflowId)
+    const payload = await fetchProjectWorkflowBindings(projectId, options);
+    return (textOrEmpty(objectOrEmpty(payload).operator_default_workflow_id) === normalizedWorkflowId
+      || workflowIdsFromProjectBindingPayload(payload).includes(normalizedWorkflowId))
       ? project : null;
   }));
   return linked.filter((project): project is ProjectListItem => project !== null);

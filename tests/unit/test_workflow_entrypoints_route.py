@@ -18,9 +18,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.scope import normalize_scope
 from core.entrypoints.api.workflow_entrypoints import (
@@ -29,6 +26,8 @@ from core.entrypoints.api.workflow_entrypoints import (
     _normalize_response_mode,
 )
 from core.infrastructure.db.schema_state import read_canonical_schema_sql
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 def test_expired_application_outcome_maps_to_http_410() -> None:
@@ -313,6 +312,9 @@ def _build_entrypoint_client(
     redeliver_task=None,
     enqueue_impl=None,
     validation_impl=None,
+    workflow_enabled: bool = True,
+    workflow_exists: bool = True,
+    workflow_lookup_error: Exception | None = None,
 ) -> tuple[TestClient, dict[str, Any]]:
     mod = _workflow_entrypoint_test_surface()
 
@@ -405,6 +407,7 @@ def _build_entrypoint_client(
         reservations: dict[tuple[str, str], dict[str, Any]] = {}
 
         def _claim(_bl, *, entry_key, idempotency_key, request_id, request_fingerprint=None):
+            state["reservation_attempts"] += 1
             key = (str(entry_key), str(idempotency_key))
             existing = reservations.get(key)
             if existing:
@@ -448,7 +451,14 @@ def _build_entrypoint_client(
         monkeypatch.setattr(mod, "_mark_idempotency_reservation_accepted", _mark_accepted)
         monkeypatch.setattr(mod, "_mark_idempotency_reservation_failed", _mark_failed)
 
-    state: dict[str, Any] = {"enqueued": 0, "logs": [], "events": [], "last_enqueue": None}
+    state: dict[str, Any] = {
+        "enqueued": 0,
+        "logs": [],
+        "events": [],
+        "last_enqueue": None,
+        "reservation_attempts": 0,
+        "workflow_reads": [],
+    }
 
     def _enqueue_task(**_kwargs):
         state["enqueued"] = int(state["enqueued"]) + 1
@@ -459,8 +469,35 @@ def _build_entrypoint_client(
 
     app = FastAPI()
 
+    class _WorkflowCursor:
+        """Keep the real owner-state repository query; replace only database I/O."""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def execute(self, query, params):
+            assert "registry_workflows" in str(query)
+            assert tuple(params) == ("wf.inventory.sync",)
+            state["workflow_reads"].append(tuple(params))
+            if workflow_lookup_error is not None:
+                raise workflow_lookup_error
+
+        def fetchone(self):
+            if not workflow_exists:
+                return None
+            return {
+                "workflow_id": "wf.inventory.sync",
+                "enabled": workflow_enabled,
+                "deleted_at": None,
+            }
+
+    state["workflow_connection"] = SimpleNamespace(cursor=_WorkflowCursor)
+
     class _BL:
-        conn = object()
+        conn = state["workflow_connection"]
 
         def get_project(self, project_id):
             return {"id": str(project_id), "account_id": "acct-1", "enabled": True}
@@ -669,6 +706,264 @@ def test_workflow_entrypoint_disabled_records_rejected_ingress_event_with_entryp
     event = state["events"][-1]
     assert event["account_id"] == "acct-entrypoint"
     assert event["payload"]["reason"] == "entrypoint_disabled"
+
+
+@pytest.mark.parametrize("workflow_enabled", [False, True], ids=["disabled-owner", "enabled-owner"])
+def test_workflow_owner_controls_authenticated_webhook_admission(monkeypatch, workflow_enabled):
+    client, state = _build_entrypoint_client(
+        monkeypatch, workflow_enabled=workflow_enabled, idempotency_mode="header"
+    )
+
+    response = client.post(
+        "/webhook/workflows/inventory_sync",
+        json={"title": "Sync inventory"},
+        headers={"Authorization": "Bearer token-123", "Idempotency-Key": "owner-admission"},
+    )
+
+    if workflow_enabled:
+        assert response.status_code == 202, response.text
+        assert state["enqueued"] == 1
+    else:
+        assert response.status_code == 409, response.text
+        assert response.json() == {
+            "error": "This workflow is turned off. Enable it before sending a webhook.",
+            "code": "workflow_disabled",
+        }
+        assert state["reservation_attempts"] == 0
+        assert state["enqueued"] == 0
+        assert state["events"][-1]["payload"]["reason"] == "workflow_disabled"
+        assert state["workflow_reads"], "Admission must consult the registry owner"
+
+
+def test_wrong_bearer_cannot_discover_disabled_workflow_owner(monkeypatch):
+    client, state = _build_entrypoint_client(monkeypatch, workflow_enabled=False)
+
+    response = client.post(
+        "/webhook/workflows/inventory_sync",
+        json={"title": "Sync inventory"},
+        headers={"Authorization": "Bearer wrong-token"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"] == "Invalid bearer token"
+    assert "workflow_disabled" not in response.text
+    assert state["workflow_reads"] == []
+    assert state["reservation_attempts"] == 0
+    assert state["enqueued"] == 0
+
+
+@pytest.mark.parametrize("owner_missing", [True, False], ids=["missing-owner", "lookup-outage"])
+def test_workflow_owner_lookup_fails_closed_before_reservation(monkeypatch, owner_missing):
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        workflow_exists=not owner_missing,
+        workflow_lookup_error=None if owner_missing else RuntimeError("private database detail"),
+        idempotency_mode="header",
+    )
+
+    response = client.post(
+        "/webhook/workflows/inventory_sync",
+        json={"title": "Sync inventory"},
+        headers={"Authorization": "Bearer token-123", "Idempotency-Key": "unavailable-owner"},
+    )
+
+    assert response.status_code == (404 if owner_missing else 503), response.text
+    assert response.json()["code"] == (
+        "workflow_not_found" if owner_missing else "workflow_lookup_unavailable"
+    )
+    assert "private database detail" not in response.text
+    assert state["reservation_attempts"] == 0
+    assert state["enqueued"] == 0
+
+
+@pytest.mark.parametrize(
+    ("auth_mode", "owner_state", "expected_status"),
+    [
+        ("bearer_token", "disabled", 409),
+        ("hmac_sha256", "disabled", 409),
+        ("hmac_sha256", "outage", 503),
+        ("hmac_sha256", "enabled", 202),
+        ("hmac_sha256", "bad-signature", 401),
+    ],
+)
+def test_workflow_owner_multipart_admission_and_cleanup(
+    monkeypatch, auth_mode, owner_state, expected_status
+):
+    from core.application.jobs.submission_admission import SubmissionAdmissionController
+    from core.entrypoints.api import workflow_entrypoints_routes_execute as execute_routes
+
+    spools = []
+    staging_calls = []
+    writes = []
+    original_spool = execute_routes._stage_request_body_with_cap
+    original_stage = execute_routes._stage_multipart_files
+    controller = SubmissionAdmissionController(capacity=1)
+
+    async def spool(request, *, max_body_bytes):
+        staged, digest = await original_spool(request, max_body_bytes=max_body_bytes)
+        spools.append(staged)
+        return staged, digest
+
+    async def stage(*args, **kwargs):
+        staging_calls.append(True)
+        return await original_stage(*args, **kwargs)
+
+    class _ArtifactPlane:
+        def create_artifact_from_stream(self, *, artifact_id, filename, chunks, **_kwargs):
+            body = b"".join(chunks)
+            writes.append(body)
+            return SimpleNamespace(artifact_id=artifact_id), {
+                "filename": filename,
+                "content_type": "text/plain",
+                "size_bytes": len(body),
+                "sha256": hashlib.sha256(body).hexdigest(),
+                "object_key": f"artifacts/{artifact_id}/{filename}",
+            }
+
+        def delete_artifact(self, _artifact_id):
+            return True
+
+    monkeypatch.setattr(execute_routes, "_stage_request_body_with_cap", spool)
+    monkeypatch.setattr(execute_routes, "_stage_multipart_files", stage)
+    monkeypatch.setattr(execute_routes, "workflow_entrypoint_submission_admission", controller)
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        workflow_enabled=owner_state == "enabled",
+        workflow_lookup_error=RuntimeError("owner storage failed")
+        if owner_state == "outage"
+        else None,
+        idempotency_mode="header",
+        artifact_plane=_ArtifactPlane(),
+        entrypoint_overrides={
+            "auth_mode": auth_mode,
+            "auth_config_jsonb": {
+                "header_name": "X-Workflow-Signature",
+                "prefix": "sha256=",
+                "secret_ref": "workflow_entrypoint.inventory_sync.secret",
+            },
+            "allowed_content_types_jsonb": ["multipart/form-data"],
+        },
+    )
+    boundary = "owner-admission-boundary"
+    raw_body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="title"\r\n\r\n'
+        "Invoice\r\n"
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="files"; filename="invoice.txt"\r\n'
+        "Content-Type: text/plain\r\n\r\n"
+        "invoice\r\n"
+        f"--{boundary}--\r\n"
+    ).encode()
+    headers = {
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+        "Idempotency-Key": "owner-multipart",
+    }
+    if auth_mode == "bearer_token":
+        headers["Authorization"] = "Bearer token-123"
+    else:
+        digest = hmac.new(b"token-123", raw_body, hashlib.sha256).hexdigest()
+        headers["X-Workflow-Signature"] = (
+            f"sha256={digest}" if owner_state != "bad-signature" else "sha256=" + "0" * 64
+        )
+
+    response = client.post("/webhook/workflows/inventory_sync", content=raw_body, headers=headers)
+
+    assert response.status_code == expected_status, response.text
+    if expected_status == 202:
+        assert state["enqueued"] == 1
+        assert writes == [b"invoice"]
+        assert staging_calls == [True]
+    else:
+        assert state["enqueued"] == 0
+        assert state["reservation_attempts"] == 0
+        assert writes == []
+        assert staging_calls == []
+    if owner_state == "bad-signature":
+        assert state["workflow_reads"] == []
+    if auth_mode == "hmac_sha256":
+        assert len(spools) == 1, "HMAC needs the capped raw body before authenticating"
+        assert spools[0].closed
+    else:
+        assert spools == [], "Bearer refusal must precede reading the multipart body"
+    lease = controller.try_acquire(account_id="next-account", principal_id="next-request")
+    assert lease is not None, "Request exit must release its admission lease"
+    lease.release()
+
+
+def test_cancelled_owner_lookup_closes_signed_body_and_releases_capacity(monkeypatch):
+    from core.application.jobs.submission_admission import SubmissionAdmissionController
+    from core.application.workflows.workflow_entrypoint_models import WorkflowEntrypointPreparation
+    from core.entrypoints.api import workflow_entrypoints_routes_execute as execute_routes
+    from starlette.requests import Request
+
+    spools = []
+    original_spool = execute_routes._stage_request_body_with_cap
+    original_threadpool = execute_routes.run_in_threadpool
+    controller = SubmissionAdmissionController(capacity=1)
+    body = b"--cancel-boundary--\r\n"
+    digest = hmac.new(b"token-123", body, hashlib.sha256).hexdigest()
+
+    async def spool(request, *, max_body_bytes):
+        staged, body_digest = await original_spool(request, max_body_bytes=max_body_bytes)
+        spools.append(staged)
+        return staged, body_digest
+
+    def check_owner(_workflow_id):
+        raise AssertionError("Cancellation must occur at the owner-check await")
+
+    async def threadpool(func, *args, **kwargs):
+        if func is check_owner:
+            raise asyncio.CancelledError
+        return await original_threadpool(func, *args, **kwargs)
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/webhook/workflows/cancel",
+            "headers": [
+                (b"content-type", b"multipart/form-data; boundary=cancel-boundary"),
+                (b"x-workflow-signature", f"sha256={digest}".encode()),
+            ],
+        },
+        receive,
+    )
+    preparation = WorkflowEntrypointPreparation(
+        workflow_id="wf.inventory.sync",
+        project_id="7",
+        entrypoint={
+            "auth_mode": "hmac_sha256",
+            "secret_ref": "workflow_entrypoint.inventory_sync.secret",
+            "auth_config_jsonb": {
+                "header_name": "X-Workflow-Signature",
+                "prefix": "sha256=",
+                "secret_ref": "workflow_entrypoint.inventory_sync.secret",
+            },
+            "allowed_content_types_jsonb": ["multipart/form-data"],
+        },
+    )
+    monkeypatch.setattr(execute_routes, "_stage_request_body_with_cap", spool)
+    monkeypatch.setattr(execute_routes, "run_in_threadpool", threadpool)
+    monkeypatch.setattr(execute_routes, "workflow_entrypoint_submission_admission", controller)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(
+            execute_routes._admit_transport_request(
+                preparation,
+                request=request,
+                bl=SimpleNamespace(get_project_secret=lambda **_kwargs: "token-123"),
+                entry_key="cancel",
+                request_service=SimpleNamespace(check_workflow_admission=check_owner),
+            )
+        )
+    assert len(spools) == 1
+    assert spools[0].closed
+    lease = controller.try_acquire(account_id="next-account", principal_id="next-request")
+    assert lease is not None
+    lease.release()
 
 
 def test_workflow_entrypoint_missing_project_binding_records_rejected_ingress_event(
@@ -2455,10 +2750,9 @@ def test_workflow_entrypoint_applies_configured_limits_during_multipart_parse(mo
 
 
 def test_workflow_entrypoint_holds_shared_admission_through_multipart_lifecycle(monkeypatch):
-    from starlette.requests import Request
-
     from core.application.jobs.submission_admission import SubmissionAdmissionController
     from core.entrypoints.api import workflow_entrypoints_routes_execute as execute_routes
+    from starlette.requests import Request
 
     controller = SubmissionAdmissionController(capacity=1)
     original_form = Request.form
@@ -3699,6 +3993,8 @@ def test_workflow_entrypoint_runtime_uses_schema_project_binding_for_secret_look
     )
 
     class _PinnedSecretBL:
+        conn = state["workflow_connection"]
+
         def get_project(self, project_id):
             return {"id": str(project_id), "enabled": True}
 

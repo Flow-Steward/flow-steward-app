@@ -186,11 +186,11 @@ function installHookedWorkflow({ connected = true, authorEditable = false, stora
 }
 
 /** A second client scope must never replace an unapplied first hook draft. */
-function addSecondHook() {
+function addSecondHook({ displayName = "After the order is finished" }: { displayName?: string } = {}) {
   const detail = mockedFetchWorkflowDetail.getMockImplementation()!;
   const canvas = mockedFetchWorkflowCanvasGraph.getMockImplementation()!;
   const originalFetch = fetchSpy.getMockImplementation()!;
-  const nextHook = { ...HOOK, hook_id: "after_finish", display_name: "After the order is finished" };
+  const nextHook = { ...HOOK, hook_id: "after_finish", display_name: displayName };
   mockedFetchWorkflowDetail.mockImplementation(async (id: string) => {
     if (id === "client_other") {
       const child = await detail("client_fix");
@@ -1654,4 +1654,58 @@ it("withdraws only parent Hook claims after a failed cached detail refetch and r
     view.unmount();
     client.clear();
   }
+});
+
+
+it("names the selected Hook in child root and nested Structure, restoring the ordinary author root after switching", async () => {
+  installHookedWorkflow({ authorEditable: true });
+  addNestedClientContainers();
+  addSecondHook();
+  await renderHookedBuilder();
+
+  async function openStructure(canvasStepId: string) {
+    const card = await screen.findByText((_, element) => element?.getAttribute("data-workflow-step-measure-id") === canvasStepId);
+    const step = screen.getAllByRole("group", { name: /^Open step / }).find((candidate) =>
+      within(candidate).queryByText((_, element) => element === card) === card);
+    expect(step).toBeDefined();
+    fireEvent.contextMenu(step!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+    await screen.findByDisplayValue(canvasStepId);
+    fireEvent.click(screen.getByRole("tab", { name: "Smart setup" }));
+    return screen.findByTestId("step-structure-setup");
+  }
+
+  for (const [hookId, hookName] of [["before_finish", "Before the order is finished"], ["after_finish", "After the order is finished"]]) {
+    const root = await openStructure(`hook:${hookId}:return`);
+    expect(root).toHaveTextContent(`Hook ${hookName}`);
+    expect(root).not.toHaveTextContent("Now in the workflow root.");
+    const nested = await openStructure(`hook:${hookId}:fix_name`);
+    expect(nested).toHaveTextContent(`Hook ${hookName}`);
+    expect(nested).toHaveTextContent("Client items");
+    fireEvent.click(within(nested).getByRole("combobox", { name: "Move step to" }));
+    expect(screen.getByRole("option", { name: `Hook ${hookName}` })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+  }
+  const authorRoot = await openStructure("prepare");
+  expect(authorRoot).toHaveTextContent("Now in the workflow root.");
+  expect(authorRoot).not.toHaveTextContent(/Hook (Before|After) the order is finished/);
+  expect(changeUrls).toEqual([]);
+  expect(postedChangeSets()).toEqual([]);
+});
+
+
+it("uses the selected Hook ID when its declaration and frame have no display name", async () => {
+  installHookedWorkflow();
+  addSecondHook({ displayName: "" });
+  await renderHookedBuilder();
+  const card = await screen.findByText((_, element) => element?.getAttribute("data-workflow-step-measure-id") === "hook:after_finish:fix_name");
+  const step = screen.getAllByRole("group", { name: /^Open step / }).find((candidate) =>
+    within(candidate).queryByText((_, element) => element === card) === card);
+  expect(step).toBeDefined();
+  fireEvent.contextMenu(step!);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+  await screen.findByDisplayValue("hook:after_finish:fix_name");
+  fireEvent.click(screen.getByRole("tab", { name: "Smart setup" }));
+  expect(await screen.findByTestId("step-structure-setup")).toHaveTextContent("Hook after_finish");
+  expect(changeUrls).toEqual([]);
 });
