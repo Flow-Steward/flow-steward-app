@@ -18,7 +18,6 @@ Production supports `compact` and `scalable` deployment profiles. See [Compact a
 - [Contributing Guide](../../CONTRIBUTING.md)
 - [Security Policy](../../SECURITY.md)
 - [Code of Conduct](../../CODE_OF_CONDUCT.md)
-- [Trademark Policy](../../TRADEMARK_POLICY.md)
 
 ---
 
