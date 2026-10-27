@@ -131,4 +131,4 @@ The repository guides:
 
 [Apache-2.0 license](LICENSE) · [Notice](NOTICE) ·
 [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) ·
-[Code of conduct](CODE_OF_CONDUCT.md) · [Trademark policy](TRADEMARK_POLICY.md)
+[Code of conduct](CODE_OF_CONDUCT.md)
