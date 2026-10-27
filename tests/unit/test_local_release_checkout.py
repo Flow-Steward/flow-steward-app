@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from core.application.lifecycle.errors import LifecycleError
+from core.application.release.catalog import ReleaseError
 from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.release.local_checkout import LocalCheckoutReleaseSource
 
@@ -74,3 +75,71 @@ def test_local_checkout_fails_closed_before_release_resolution(
         release_source.exact()
 
     assert raised.value.code == code
+
+
+@pytest.mark.parametrize(
+    ("version", "tag", "head", "dirty"),
+    [
+        ("not-semver", "a" * 40, "a" * 40, False),
+        ("1.2.3", None, "a" * 40, False),
+        ("1.2.3", "b" * 40, "a" * 40, False),
+        ("1.2.3", "a" * 40, "a" * 40, True),
+    ],
+    ids=["version-invalid", "tag-missing", "tag-elsewhere", "dirty"],
+)
+def test_probe_answers_none_for_an_ordinary_development_checkout(
+    tmp_path: Path, version: str, tag: str | None, head: str, dirty: bool
+) -> None:
+    (tmp_path / "VERSION").write_text(version + "\n", encoding="utf-8")
+
+    assert (
+        LocalCheckoutReleaseSource(
+            repo_root=tmp_path,
+            repository="example/private",
+            git_runner=_runner(head=head, tag=tag, dirty=dirty),
+        ).probe()
+        is None
+    )
+
+
+def test_probe_answers_none_without_version_or_git(tmp_path: Path) -> None:
+    def no_git(_command):
+        raise FileNotFoundError("git")
+
+    assert (
+        LocalCheckoutReleaseSource(repo_root=tmp_path, repository="example/private").probe() is None
+    )
+    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+    assert (
+        LocalCheckoutReleaseSource(
+            repo_root=tmp_path, repository="example/private", git_runner=no_git
+        ).probe()
+        is None
+    )
+
+
+def test_probe_returns_exact_coordinates_for_a_clean_release_tag(tmp_path: Path) -> None:
+    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+
+    coordinates = LocalCheckoutReleaseSource(
+        repo_root=tmp_path, repository="example/private", git_runner=_runner()
+    ).probe()
+
+    assert coordinates is not None
+    assert coordinates.tag == "v1.2.3"
+    assert coordinates.commit_sha == "a" * 40
+
+
+def test_invalid_release_repository_matters_only_at_a_release_tag(tmp_path: Path) -> None:
+    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+
+    untagged = LocalCheckoutReleaseSource(
+        repo_root=tmp_path, repository="not a repository", git_runner=_runner(tag=None)
+    )
+    assert untagged.probe() is None
+
+    tagged = LocalCheckoutReleaseSource(
+        repo_root=tmp_path, repository="not a repository", git_runner=_runner()
+    )
+    with pytest.raises(ReleaseError):
+        tagged.probe()

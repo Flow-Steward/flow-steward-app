@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted — 2026-09-27
+Accepted — 2026-09-27. Amended 2026-10-27 (release 0.9.1): a fresh install of a
+published release tag installs its official images.
 
 ## Context
 
@@ -20,6 +21,21 @@ This corrects the original tagged-checkout-only decision after a real VPS
 installation failed on `production_checkout_tag_missing` (user clarification,
 2026-09-27). Existing official identities and activation journals still use the
 complete-set OCI resolver and never silently fall back to local builds.
+
+Amendment (2026-10-27, once the repository and both registries became public):
+a fresh install with no installer state whose checkout is clean and exactly at
+its `v<VERSION>` tag installs that release officially. The installer asks the
+local checkout through a non-raising probe, so an ordinary development checkout
+(no tag, the tag elsewhere, tracked changes, no usable Git) keeps the source
+build above. At the tag it reads the stable GitHub Release for that version from
+`FS_RELEASE_REPOSITORY`, requires the published tag to name the checked-out
+commit, resolves the complete digest-pinned role set from the first configured
+registry that has all of it, and stages it as the pending release, so the
+existing official install path pulls by digest and builds no product image. A
+release that is not published as stable, an incomplete image set, or an
+unreachable GitHub or registry stops the install with
+`release_images_unavailable`; it never falls back to a source build. A resumed
+source installation is not re-decided from the checkout.
 
 The installed origin is one of two explicit states. A source installed origin
 is accepted only from a completed installer/configuration record whose complete
@@ -95,8 +111,8 @@ verifies the exact `HEAD` and returns idempotently without invoking a target
 installer that requires pending state. Crash reconciliation publishes that
 terminal journal and clears the source-transition operation binding first.
 
-Only release check and release upgrade perform GitHub discovery. They may read
-an optional token from `.flow-steward/secret-input/github-release-token`. The
+Only release check, release upgrade, and a fresh install of a release tag
+perform GitHub discovery. They may read an optional token from `.flow-steward/secret-input/github-release-token`. The
 directory is owner-only mode `0700`; the bounded regular non-symlink file is
 mode `0600`. Discovery sends the token only to `https://api.github.com`. When a
 release transition needs a missing exact tag, Git fetch may also authenticate to
@@ -124,7 +140,8 @@ and mixed-placement durable-state boundaries remain unchanged.
 
 ## Consequences
 
-- Private source access is needed to clone, but not again during fresh install.
+- Private source access is needed to clone; a fresh install of a release tag reads
+  the published release, other fresh installs do not.
 - Updater authentication is deployment-local and removable when source is public.
 - Local Git, GitHub metadata, OCI identity, and installed state retain separate
   trust responsibilities.

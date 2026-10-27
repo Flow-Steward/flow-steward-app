@@ -118,12 +118,25 @@ migration command. Later SQL migrations use `database upgrade` after enabling
 maintenance and verifying a backup, with `--maintenance-confirmed --confirm`;
 see the [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
 
-Production install builds the current checkout in Docker, without requiring a
-release tag or rediscovering it through GitHub. Use a full Git clone for the
-Scalable build's release bookkeeping. Docker still needs base/dependency image
-access. This creates a source installation, not an inferred official identity.
-Official release transition/upgrade and Clone activation verify their complete
-image sets separately; existing official installations keep that identity.
+A fresh production install of a clean checkout exactly at its published
+`v<VERSION>` tag (`git checkout v<version>` before `./install.sh`) installs that
+stable release's official images: the installer reads the release from
+`FS_RELEASE_REPOSITORY`, requires its tag to name the checked-out commit, and
+pulls the complete digest-pinned image set from the first configured registry
+that has all of it. No product image is built, and the result is an official
+installed identity. When that release is not published as stable, its images
+are incomplete, or GitHub or the registry is unreachable, the installer stops
+with `release_images_unavailable` and the cause; it never falls back to a
+source build. Wait for publication, or check out a non-release commit.
+
+Any other checkout (no tag at `HEAD`, the tag on another commit, or tracked
+changes) builds the current checkout in Docker, without requiring a release tag
+or rediscovering it through GitHub. Use a full Git clone for the Scalable
+build's release bookkeeping. Docker still needs base/dependency image access.
+This creates a source installation, not an inferred official identity. The
+installer prints which of the two it chose. Official release transition/upgrade
+and Clone activation verify their complete image sets separately; existing
+installations keep their identity.
 
 Scalable `./flow-steward release upgrade` uses a separate CLI runner so it can
 finish after replacing the retained CLI. For a private registry, explicitly
@@ -2159,8 +2172,9 @@ work.
 
 #### Official production upgrade
 
-A fresh checkout is a verified source installation. Its semantic ordering is
-unknown relative to every official version; neither `VERSION` nor Git ancestry
+A fresh install of a published release tag is already an official installation
+and upgrades as one. Any other fresh checkout is a verified source installation.
+Its semantic ordering is unknown relative to every official version; neither `VERSION` nor Git ancestry
 makes it older, newer, or already current. `release check` reads published
 stable GitHub Releases tagged exactly `vX.Y.Z` and reports an explicit
 transition target. `release upgrade` preflights the exact tag commit and a
@@ -2216,8 +2230,8 @@ chmod 600 .flow-steward/secret-input/github-release-token
 ./flow-steward release check
 ```
 
-The updater reads `.flow-steward/secret-input/github-release-token` only for
-`release check` and `release upgrade`. It is never copied into Compose, release
+The installer reads `.flow-steward/secret-input/github-release-token` only for
+`release check`, `release upgrade`, and a fresh install of a release tag. It is never copied into Compose, release
 state, Clone archives, or journals. Remove it when the repository becomes public.
 
 During maintenance, ordinary authenticated reads, static assets, liveness,

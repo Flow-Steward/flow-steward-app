@@ -67,6 +67,10 @@ class ImagePreparationOperations:
                 ),
             )
             return
+        log.write(
+            "Install mode: source checkout; product images are built locally unless "
+            "pinned by the operator."
+        )
         self._build_compact_runtime_image(config, log=log)
         self._build_compact_management_image(config, log=log)
         self._build_scalable_candidate_images(config, log=log)
@@ -138,6 +142,10 @@ class ImagePreparationOperations:
             return self._resolve_compact_registry_image(config, log=log)
         release = self._official_pending_release(config)
         assert release is not None
+        log.write(
+            f"Install mode: official release {release.tag} from {release.registry}; "
+            "product images are pulled by digest, not built."
+        )
         role_names = {
             "compact-runtime": "compact",
             "fs-app": "app",

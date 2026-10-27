@@ -1855,6 +1855,13 @@ def test_compact_registry_prepare_preserves_validated_parent_index(
     gateway.prepare_core(config, log=log)
 
     log.close()
+    # A fresh tree holding only the staged release installs it without any build.
+    assert gateway.state_store.load_installed_release() is None
+    assert not any("build" in command for command in process.commands)
+    assert (
+        f"Install mode: official release {release.tag} from {release.registry}; "
+        "product images are pulled by digest, not built."
+    ) in log.path.read_text(encoding="utf-8")
     values = gateway.state_store.read_env_values(env_path)
     assert values["FS_COMPACT_IMAGE"] == registry_ref
     assert values["FS_COMPACT_IMAGE_REGISTRY_REF"] == registry_ref

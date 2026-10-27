@@ -62,10 +62,23 @@ cd flow-steward
 ./flow-steward doctor
 ```
 
-Fresh installation builds the current local checkout in Docker and **does not require**
-a GitHub Release lookup. Docker still downloads required base images and dependencies.
-This creates a source installation; changing to an official release is a separate,
-reviewed [release transition](docs/GUIDE.md#maintenance-and-release-upgrade).
+What a fresh installation installs depends on the checkout:
+
+- **A published release.** Check out its tag (`git checkout v<version>`, chosen from the
+  repository's Releases page) before `./install.sh`. A clean checkout exactly at its
+  `v<VERSION>` tag installs that stable release's official, digest-pinned images from
+  GitHub Container Registry (or Docker Hub when GHCR lacks the complete set). Nothing
+  is built locally, and the result is an official installation. If that tag is not
+  yet published as a stable release with its images, or GitHub or the registry is
+  unreachable, the installer stops with `release_images_unavailable` instead of
+  building: wait for publication, or check out a non-release commit.
+- **Anything else** (`main`, another commit, or a tag with local changes). The installer
+  builds the current local checkout in Docker and **does not require** a GitHub Release
+  lookup. Docker still downloads required base images and dependencies. This creates
+  a source installation; changing to an official release is a separate, reviewed
+  [release transition](docs/GUIDE.md#maintenance-and-release-upgrade).
+
+The installer prints which of the two it chose before preparing images.
 The canonical database baseline lives in `db/schema/`, with canonical seed data in
 `db/seeds/`; post-1.0 SQL migrations live separately in `db/migrations/`.
 The plain questionnaire is the default; `--tui` opts into the full-screen interface.

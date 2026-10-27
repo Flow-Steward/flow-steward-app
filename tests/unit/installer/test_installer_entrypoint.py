@@ -333,9 +333,10 @@ def test_fresh_production_install_builds_checkout_without_tag_or_registry(
     monkeypatch.setattr(installer, "installer_state_root", lambda _root: tmp_path / "state")
 
     def forbidden(**_kwargs):
-        pytest.fail("Local install must not resolve a release tag or query a registry")
+        pytest.fail("Local install must not query GitHub or a registry")
 
-    monkeypatch.setattr(installer, "LocalCheckoutReleaseSource", forbidden)
+    # The tree has no VERSION and no tag: the real non-raising probe says "source".
+    monkeypatch.setattr(installer, "GitHubReleaseDiscovery", forbidden)
     monkeypatch.setattr(installer, "OfficialReleaseResolver", forbidden)
     assert (
         _REAL_PREPARE_OFFICIAL_RELEASE(

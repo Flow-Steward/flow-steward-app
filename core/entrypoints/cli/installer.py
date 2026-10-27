@@ -42,6 +42,8 @@ from core.application.management.command_specs.contracts import (
 )
 from core.application.readiness import CoreReadinessService
 from core.application.readiness.contracts import ReadinessReport
+from core.application.release.catalog import GitHubReleaseDiscovery
+from core.application.release.checkout_release import published_release_for_checkout
 from core.application.release.environment import release_runtime_environment
 from core.application.release.service import (
     OfficialReleaseSelector,
@@ -63,6 +65,8 @@ from core.infrastructure.installer.state_store import InstallerStateStore
 from core.infrastructure.lifecycle.configuration_store import LifecycleConfigurationStore
 from core.infrastructure.lifecycle.docker_gateway import DockerLifecycleGateway
 from core.infrastructure.lifecycle.state_store import LifecycleStateStore
+from core.infrastructure.release.github import GitHubJSONFetcher
+from core.infrastructure.release.github_credentials import GitHubReleaseCredentialLoader
 from core.infrastructure.release.local_checkout import LocalCheckoutReleaseSource
 
 _ROOT = Path(__file__).resolve().parents[3]
@@ -235,6 +239,8 @@ def _callback(**values: Any) -> None:
     if handoff_result is not None:
         result = handoff_result
     else:
+        if config.environment == "production" and not json_requested:
+            _announce_install_mode(target_release)
         with renderer.operation_progress() as progress:
             try:
                 service.progress_sink = lambda step_id, status, detail: progress(
@@ -576,7 +582,12 @@ def _create_service(*, progress_sink: Any = None, stream_output: bool = False) -
 def _prepare_official_release(
     config: InstallConfig, *, discover: bool = True
 ) -> ReleaseIdentity | None:
-    """Retain official handoffs; ordinary checkout installs build local sources."""
+    """Choose official images or a source build for this installation.
+
+    Official handoffs and identities stay official. Without installer state, a fresh
+    install of a clean checkout exactly at its published ``v<VERSION>`` tag installs
+    that release's official images; any other checkout builds local sources.
+    """
     state = InstallerStateStore(installer_state_root(_ROOT))
     journal = state.load_release_handoff()
     if (
@@ -584,8 +595,7 @@ def _prepare_official_release(
         and state.load_installed_release() is None
         and state.load_pending_release() is None
     ):
-        _runtime_env["FS_INSTALL_MODE"] = "source"
-        return None
+        return _prepare_fresh_install(config, state=state, discover=discover)
     _runtime_env["FS_INSTALL_MODE"] = "official"
     if journal is not None:
         if journal.release_repository:
@@ -650,6 +660,50 @@ def _prepare_official_release(
         ).prepare_install(ReleaseInstallRequest(discover_latest=False))
     _runtime_env.update(release_runtime_environment(release))
     return release
+
+
+def _prepare_fresh_install(
+    config: InstallConfig, *, state: InstallerStateStore, discover: bool
+) -> ReleaseIdentity | None:
+    """Fresh install: a published release tag pulls its images, anything else builds."""
+    repository = str(_runtime_env.get("FS_RELEASE_REPOSITORY", "Flow-Steward/flow-steward-app"))
+    # A resumed source installation (no fresh review) keeps building its sources.
+    checkout = (
+        LocalCheckoutReleaseSource(repo_root=_ROOT, repository=repository).probe()
+        if discover
+        else None
+    )
+    if checkout is None:
+        _runtime_env["FS_INSTALL_MODE"] = "source"
+        return None
+    _runtime_env["FS_INSTALL_MODE"] = "official"
+    release = published_release_for_checkout(
+        OfficialReleaseSelector(
+            discovery=GitHubReleaseDiscovery(
+                repository=checkout.repository,
+                fetch_json=GitHubJSONFetcher(GitHubReleaseCredentialLoader(state.root).load).fetch,
+            ),
+            state=state,
+            resolver=OfficialReleaseResolver(),
+            profile=config.deployment_profile,
+            platform=release_platform_for_machine(host_platform.machine()),
+        ),
+        checkout,
+    )
+    _runtime_env.update(release_runtime_environment(release))
+    return release
+
+
+def _announce_install_mode(target_release: ReleaseIdentity | None) -> None:
+    """Say which images this run installs before the long preparation starts."""
+    if target_release is None:
+        click.echo("Flow Steward installer: building product images from this checkout.", err=True)
+        return
+    click.echo(
+        f"Flow Steward installer: installing official release {target_release.tag} "
+        f"from {target_release.registry} (no local product image build).",
+        err=True,
+    )
 
 
 def _compact_maintenance_client(

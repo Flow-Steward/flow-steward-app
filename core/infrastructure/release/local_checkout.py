@@ -30,11 +30,25 @@ class LocalCheckoutReleaseSource:
         git_runner: GitRunner | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
-        self.repository = validated_release_repository(repository)
+        # Validated where coordinates are built, so that probing an ordinary
+        # development checkout never fails on a release-only setting.
+        self.repository = str(repository or "").strip()
         executor = SubprocessExecutor()
         self.git_runner = git_runner or (
             lambda command: executor.run(command, cwd=self.repo_root, timeout_seconds=30)
         )
+
+    def probe(self) -> ReleaseCoordinates | None:
+        """Exact coordinates when HEAD is the clean ``v<VERSION>`` tag, otherwise None.
+
+        The non-raising question a fresh install asks. A checkout without the tag,
+        with the tag elsewhere, with tracked changes, or without usable Git is an
+        ordinary development checkout that builds from source, not an error.
+        """
+        try:
+            return self.exact()
+        except (LifecycleError, OSError):
+            return None
 
     def exact(self) -> ReleaseCoordinates:
         version = self._version()
@@ -72,7 +86,7 @@ class LocalCheckoutReleaseSource:
             version=version,
             tag=tag,
             commit_sha=head,
-            repository=self.repository,
+            repository=validated_release_repository(self.repository),
             source="local tagged checkout",
         )
 

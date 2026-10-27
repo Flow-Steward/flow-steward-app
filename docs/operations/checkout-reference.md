@@ -58,8 +58,11 @@ missing-Docker/Compose errors also link to the installation guides.
 For a Linux server, read the [Linux host autostart guidance](compact-scalable-deployment.md#linux-host-autostart)
 for systemd behavior, required sudo setup, and inspecting or disabling the installed unit.
 
-Installation builds the current local checkout in Docker. It does not require
-a release tag or call the GitHub Releases API:
+A clean checkout exactly at its published `v<VERSION>` tag installs that stable
+release's official, digest-pinned images and builds nothing; if the release or
+its images are unavailable, the installer stops with `release_images_unavailable`
+instead of building. Any other checkout builds the current local checkout in
+Docker. It does not require a release tag or call the GitHub Releases API:
 
 ```bash
 git clone <flow-steward-repo-url> flow-steward
@@ -440,7 +443,8 @@ changing the checkout or runtime, and they never reopen work automatically.
 
 #### Official release upgrade
 
-A fresh production checkout is a verified source installation. Its semantic
+A fresh install of a published release tag is an official installation. Any
+other fresh production checkout is a verified source installation. Its semantic
 ordering is unknown relative to every published version, even when its commit
 matches or is related to a release commit. `release check` reports an explicit
 transition opportunity without calling the source older, newer, or current.

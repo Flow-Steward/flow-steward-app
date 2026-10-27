@@ -34,7 +34,7 @@ Bundled ACME uses HTTP-01 and requires `public_host`, `FS_ACME_CONTACT`, `FS_ACM
 
 ## Immutable image input
 
-`compact` is the default profile, and `./install.sh` installs it without any image input: when you supply none, the installer builds the runtime image from this checkout and records the result as `FS_COMPACT_IMAGE`. It stamps the build arguments the runtime verifies, so a self-built image passes the same embedded-identity checks as a supplied one.
+`compact` is the default profile, and `./install.sh` installs it without any image input. A clean checkout exactly at its published `v<VERSION>` tag installs that stable release's official, digest-pinned images for the chosen profile (GHCR first, then Docker Hub, the whole set from one registry) and builds no product image; when the release or its images are unavailable the installer stops with `release_images_unavailable` rather than building. Any other checkout, when you supply no image, has the installer build the runtime image from this checkout and record the result as `FS_COMPACT_IMAGE`. It stamps the build arguments the runtime verifies, so a self-built image passes the same embedded-identity checks as a supplied one.
 
 Supplying an image is still the right choice for a controlled rollout, and it skips the build. A registry installation uses a digest-pinned reference such as `registry.example/flow-steward@sha256:…`, never a mutable tag. Export these for the installer, which forwards them and records them in `.env.prod`:
 
