@@ -12,7 +12,7 @@ import pytest
 from core.application.lifecycle.errors import LifecycleError
 from core.application.release.catalog import PublishedRelease, ReleaseCoordinates, ReleaseVersion
 from core.application.release.contracts import ReleaseIdentity, ReleaseImageIdentity
-from core.application.release.images import required_product_roles
+from core.application.release.images import release_image_roles, required_product_roles
 from core.application.release.service import OfficialReleaseSelector
 from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.installer.registry_image_resolver import OfficialReleaseResolver
@@ -55,7 +55,7 @@ def _metadata(profile: str, platform: str, *, corruption: str = "") -> _Registry
     architecture = platform.split("/")[1]
     outputs: dict[tuple[str, ...], str] = {}
     images = []
-    for role in required_product_roles(profile):
+    for role in release_image_roles(profile, version=_VERSION):
         first = not images
         image_raw = _json(
             {
@@ -213,8 +213,9 @@ def test_normal_release_fallback_fixture_has_one_complete_verified_role_set(
 
     assert resolved.registry == _MIRROR
     assert {image.role for image in resolved.images} == {
-        role.role for role in required_product_roles("scalable")
+        role.role for role in release_image_roles("scalable", version=_VERSION)
     }
+    assert "postgres" in {image.role for image in resolved.images}
     assert all(image.registry_ref.startswith(_MIRROR + "/") for image in resolved.images)
 
 
