@@ -19,7 +19,6 @@ Production supports `compact` and `scalable` deployment profiles. See [Compact a
 - [Security Policy](../../SECURITY.md)
 - [Code of Conduct](../../CODE_OF_CONDUCT.md)
 - [Trademark Policy](../../TRADEMARK_POLICY.md)
-- Trademark owner: UAB Seek Around (company code 305696689, Lithuania)
 
 ---
 
