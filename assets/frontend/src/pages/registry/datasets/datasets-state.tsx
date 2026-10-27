@@ -1,6 +1,6 @@
 import { isInstallOwned } from "./dataset-ownership";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -43,6 +43,7 @@ import {
   isRecord,
   normalizeSchemaSnapshot,
   connectionSchemaSnapshot,
+  datasetIntrospectionFailure,
   resourceScopeFromSelection,
   draftToPayload,
   stringValue,
@@ -65,6 +66,7 @@ export function useDatasetsState() {
   const [projectSearch, setProjectSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [message, setMessage] = useState("");
+  const [introspectionError, setIntrospectionError] = useState("");
   const [createError, setCreateError] = useState("");
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -72,6 +74,9 @@ export function useDatasetsState() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState("");
   const displayNameRef = useRef<HTMLInputElement>(null);
+  const editorSessionRef = useRef(0);
+  const introspectionContextRef = useRef(0);
+  const activeCreateContextRef = useRef({ workspaceId: "", connectionId: "" });
   // The row trigger that opened the menu, so both close paths can hand focus
   // back to it — the same approach `catalog-surface.tsx` takes.
   const rowTriggerLabelRef = useRef("");
@@ -147,6 +152,9 @@ export function useDatasetsState() {
     ? resolveConnectorIdForConnection(selectedConnection)
     : "";
   const selectedConnector = connectorById.get(effectiveConnectorId);
+  useLayoutEffect(() => {
+    activeCreateContextRef.current = { workspaceId: draft.workspace_id, connectionId: draft.connection_id };
+  }, [draft.workspace_id, draft.connection_id]);
   const selectedProjectIdSet = useMemo(() => new Set(draft.project_ids), [draft.project_ids]);
   const projectSelectorRows = useMemo<AssignmentSelectorRow[]>(() => {
     return workspaceProjects.map((project) => {
@@ -200,17 +208,22 @@ export function useDatasetsState() {
   };
 
   const createMutation = useMutation({
-    mutationFn: createDataset,
-    onSuccess: async () => {
-      setDraft(EMPTY_DRAFT);
-      setCreateOpen(false);
-      setCreateError("");
-      setProjectSearch("");
-      setProjectFilter("all");
-      setMessage(t("react.registry.dataset_created", "Dataset created."));
+    mutationFn: ({ payload }: { payload: Parameters<typeof createDataset>[0]; session: number }) => createDataset(payload),
+    onSuccess: async (_result, variables) => {
+      if (variables.session === editorSessionRef.current) {
+        editorSessionRef.current += 1;
+        introspectionContextRef.current += 1;
+        setDraft(EMPTY_DRAFT);
+        setCreateOpen(false);
+        setCreateError("");
+        setProjectSearch("");
+        setProjectFilter("all");
+        setMessage(t("react.registry.dataset_created", "Dataset created."));
+      }
       await refreshDatasets();
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      if (variables.session !== editorSessionRef.current) return;
       const text = error instanceof Error ? error.message : t("react.registry.display_failed_create_dataset", "Failed to create dataset.");
       setCreateError(text);
       setMessage(text);
@@ -253,8 +266,23 @@ export function useDatasetsState() {
   });
 
   const introspectMutation = useMutation({
-    mutationFn: introspectDataConnection,
-    onSuccess: (payload) => {
+    mutationFn: ({ connectionId }: { connectionId: string; workspaceId: string; session: number; context: number }) => introspectDataConnection(connectionId),
+    onSuccess: (payload, variables) => {
+      if (
+        variables.session !== editorSessionRef.current ||
+        variables.context !== introspectionContextRef.current ||
+        activeCreateContextRef.current.workspaceId !== variables.workspaceId ||
+        activeCreateContextRef.current.connectionId !== variables.connectionId
+      ) return;
+      if (isRecord(payload) && payload.ok === false) {
+        setMessage("");
+        setIntrospectionError(datasetIntrospectionFailure(
+          payload,
+          t("react.registry.failed_to_introspect_data_connection", "Failed to introspect data connection."),
+        ));
+        return;
+      }
+      setIntrospectionError("");
       const snapshot = normalizeSchemaSnapshot(
         isRecord(payload) && isRecord(payload.result) ? payload.result.schema_snapshot : {},
       );
@@ -267,8 +295,16 @@ export function useDatasetsState() {
           : t("react.registry.schema_loaded_but_no_resources_were_returned", "Schema loaded, but no resources were returned."),
       );
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : t("react.registry.failed_to_introspect_data_connection", "Failed to introspect data connection.")),
+    onError: (_error, variables) => {
+      if (
+        variables.session !== editorSessionRef.current ||
+        variables.context !== introspectionContextRef.current ||
+        activeCreateContextRef.current.workspaceId !== variables.workspaceId ||
+        activeCreateContextRef.current.connectionId !== variables.connectionId
+      ) return;
+      setMessage("");
+      setIntrospectionError(t("react.registry.failed_to_introspect_data_connection", "Failed to introspect data connection."));
+    },
   });
 
   const saving = createMutation.isPending || toggleMutation.isPending || deleteMutation.isPending;
@@ -399,10 +435,28 @@ export function useDatasetsState() {
     setDraft((current) => ({ ...current, ...patch }));
   }
 
+  function changeCreateContext(patch: Partial<DatasetDraft>) {
+    introspectionContextRef.current += 1;
+    setIntrospectionError("");
+    setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function introspectCreateConnection(connectionId: string) {
+    introspectMutation.mutate({
+      connectionId,
+      workspaceId: draft.workspace_id,
+      session: editorSessionRef.current,
+      context: introspectionContextRef.current,
+    });
+  }
+
   function closeCreate() {
+    editorSessionRef.current += 1;
+    introspectionContextRef.current += 1;
     setCreateOpen(false);
     setDraft(EMPTY_DRAFT);
     setCreateError("");
+    setIntrospectionError("");
     setSchemaSnapshot({ resources: [] });
     setSelectedResources({});
     setResourceSearch("");
@@ -411,8 +465,11 @@ export function useDatasetsState() {
   }
 
   function openCreate() {
+    editorSessionRef.current += 1;
+    introspectionContextRef.current += 1;
     setMessage("");
     setCreateError("");
+    setIntrospectionError("");
     const firstWorkspaceId = workspaces[0]?.id || "";
     const firstWorkspaceConnection = dataConnections.find(
       (connection) =>
@@ -466,7 +523,7 @@ export function useDatasetsState() {
       showCreateError(t("react.registry.display_select_resource_create_dataset", "Select at least one resource before creating a dataset."));
       return;
     }
-    createMutation.mutate(draftToPayload(draft, resourceScopeJsonb));
+    createMutation.mutate({ payload: draftToPayload(draft, resourceScopeJsonb), session: editorSessionRef.current });
   }
 
   const tableState = datasetsQuery.isLoading ? (
@@ -510,6 +567,8 @@ export function useDatasetsState() {
     connectorsQuery,
     connectors,
     updateDraft,
+    changeCreateContext,
+    introspectCreateConnection,
     draft,
     dataConnections,
     setSchemaSnapshot,
@@ -528,6 +587,7 @@ export function useDatasetsState() {
     projectSelectorRows,
     projectSearch,
     introspectMutation,
+    introspectionError,
     resourceSearch,
     schemaSnapshot,
     filteredResources,

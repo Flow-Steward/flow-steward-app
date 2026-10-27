@@ -60,6 +60,19 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Keep connection refusals actionable without surfacing extension diagnostics. */
+export function datasetIntrospectionFailure(response: unknown, fallback: string): string {
+  if (!isRecord(response) || response.ok !== false || !Array.isArray(response.errors)) {
+    return fallback;
+  }
+  const safeConnectionRefusal = response.errors.find((item) =>
+    isRecord(item)
+    && item.code === "connection_unavailable"
+    && item.message === "The selected extension connection is unavailable.",
+  );
+  return isRecord(safeConnectionRefusal) ? String(safeConnectionRefusal.message) : fallback;
+}
+
 export function normalizeSchemaSnapshot(value: unknown): DatasetSchemaSnapshot {
   const payload = isRecord(value) ? value : {};
   const resources = Array.isArray(payload.resources) ? payload.resources : [];

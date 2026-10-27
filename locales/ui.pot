@@ -26635,3 +26635,15 @@ msgstr ""
 
 msgid "react.workflows.expected_failure_tag_note"
 msgstr ""
+
+msgid "react.workflows.recovery_additional_budget"
+msgstr ""
+
+msgid "react.workflows.recovery_rework_step"
+msgstr ""
+
+msgid "react.workflows.recovery_current_step"
+msgstr ""
+
+msgid "react.workflows.approval_run_cancelled"
+msgstr ""

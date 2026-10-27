@@ -1,3 +1,4 @@
+import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
   fireEvent,
   render,
@@ -7,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 
 import {
   createDatasetQueryTemplate,
@@ -17,6 +18,7 @@ import {
   fetchDatasetConnectors,
   fetchDatasetProjectCatalog,
   fetchDatasetQueryTemplates,
+  introspectDataConnection,
   previewDatasetQueryTemplate,
   updateDataset,
   validateDatasetQueryTemplate,
@@ -48,6 +50,7 @@ const mockedFetchDataset = vi.mocked(fetchDataset);
 const mockedFetchDatasetConnectors = vi.mocked(fetchDatasetConnectors);
 const mockedFetchDatasetProjectCatalog = vi.mocked(fetchDatasetProjectCatalog);
 const mockedFetchDatasetQueryTemplates = vi.mocked(fetchDatasetQueryTemplates);
+const mockedIntrospectDataConnection = vi.mocked(introspectDataConnection);
 const mockedPreviewDatasetQueryTemplate = vi.mocked(
   previewDatasetQueryTemplate,
 );
@@ -59,7 +62,15 @@ const mockedValidateDatasetQueryTemplate = vi.mocked(
 /** The active section lives in the URL, so the test has to be able to read it. */
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="location">{location.pathname + location.search}</span>;
+  const navigate = useNavigate();
+  return (
+    <>
+      <span data-testid="location">{location.pathname + location.search}</span>
+      <button onClick={() => ignoreAsyncResult(navigate("/registry/datasets/another-dataset"))} type="button">
+        Open another dataset
+      </button>
+    </>
+  );
 }
 
 function renderPage(entry = "/registry/datasets/events") {
@@ -103,6 +114,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     mockedFetchDatasetConnectors.mockReset();
     mockedFetchDatasetProjectCatalog.mockReset();
     mockedFetchDatasetQueryTemplates.mockReset();
+    mockedIntrospectDataConnection.mockReset();
     mockedPreviewDatasetQueryTemplate.mockReset();
     mockedUpdateDataset.mockReset();
     mockedValidateDatasetQueryTemplate.mockReset();
@@ -496,6 +508,76 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
         }),
       }),
     );
+  });
+
+  it("preserves the saved schema and current dataset draft when introspection returns an application refusal", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockedFetchDataset.mockResolvedValue({
+      dataset_id: "events",
+      workspace_id: "workspace-1",
+      display_name: "Events",
+      description: "Existing dataset notes",
+      availability_mode: "all_workspace_projects",
+      connector_kind: "extension",
+      connector_id: "connector.sql",
+      runtime_kind: "local_extension",
+      query_language: "sql",
+      read_only: true,
+      enabled: true,
+      metadata_jsonb: { connection_id: "connection-a" },
+      schema_snapshot_jsonb: {
+        resources: [{ resource_id: "customer_records", columns: [{ name: "record_id", type: "integer" }] }],
+      },
+      resource_scope_jsonb: {
+        resources: [{ resource_id: "customer_records", columns: ["record_id"] }],
+      },
+    });
+    mockedFetchDatasetConnectors.mockResolvedValue([
+      { connector_id: "connector.sql", display_name: "SQL", connector_kind: "database", runtime_kind: "local_extension", query_language: "sql" },
+    ] as never);
+    mockedFetchDataConnections.mockResolvedValue([
+      {
+        connection_id: "connection-a",
+        display_name: "Connection A",
+        workspace_id: "workspace-1",
+        source_kind: "database",
+        environment: "dev",
+        enabled: true,
+        health_status: "healthy",
+        query_capable: true,
+        linked_dataset_count: 1,
+        connector_ref_jsonb: { connector_id: "connector.sql" },
+        metadata_jsonb: {},
+      },
+    ] as never);
+    mockedIntrospectDataConnection.mockResolvedValue({
+      ok: false,
+      result: {},
+      errors: [{ code: "connection_unavailable", message: "The selected extension connection is unavailable." }],
+    } as never);
+
+    renderPage();
+
+    const selectedResource = await screen.findByRole("checkbox", { name: /customer_records/i });
+    await waitFor(() => expect(selectedResource).toBeChecked());
+    const name = screen.getByLabelText("Display Name");
+    await user.clear(name);
+    await user.type(name, "Current dataset draft");
+    const connectionSelect = screen.getByRole("combobox", { name: "Data Connection" });
+    await waitFor(() => expect(connectionSelect).toHaveTextContent("Connection A"));
+    await user.click(screen.getByRole("button", { name: "Introspect schema" }));
+
+    const refusal = await screen.findByRole("alert");
+    expect(refusal).toHaveTextContent("The selected extension connection is unavailable.");
+    expect(screen.getByRole("checkbox", { name: /customer_records/i })).toBeChecked();
+    expect(screen.getByLabelText("Display Name")).toHaveValue("Current dataset draft");
+    expect(screen.getByRole("combobox", { name: "Data Connection" })).toHaveTextContent("Connection A");
+    expect(screen.queryByText("Schema refreshed, but no resources were returned.")).not.toBeInTheDocument();
+    expect(mockedUpdateDataset).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Open another dataset" }));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/registry/datasets/another-dataset"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("saves a query, refreshes its list, and explains parameter and output schemas", async () => {

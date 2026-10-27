@@ -1,10 +1,12 @@
 import { isInstallOwned } from "../dataset-ownership";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useResourceSelection } from "../use-resource-selection";
+import { connectionSchemaSnapshot, datasetIntrospectionFailure } from "../dataset-page-helpers";
+import { DsAlert } from "@/components/shared/design-system";
 
 import { useParams, useSearchParams } from "react-router";
 
@@ -95,6 +97,10 @@ export function useDatasetDetailState() {
   const [previewDraft, setPreviewDraft] = useState<QueryPreviewDraft | null>(null);
   const [previewState, setPreviewState] = useState<QueryPreviewState | null>(null);
   const [message, setMessage] = useState("");
+  const [introspectionError, setIntrospectionError] = useState("");
+  const introspectionContextRef = useRef(0);
+  const lastDatasetIdRef = useRef(datasetId);
+  const activeDetailContextRef = useRef({ datasetId, connectionId: "" });
   const [schemaSnapshot, setSchemaSnapshot] = useState<DatasetSchemaSnapshot>({ resources: [] });
   const {
     resourceSearch, setResourceSearch, selectedResources, setSelectedResources,
@@ -168,6 +174,14 @@ export function useDatasetDetailState() {
     ? resolveConnectorIdForConnection(selectedConnection)
     : "";
   const selectedConnector = connectorById.get(effectiveConnectorId);
+  useLayoutEffect(() => {
+    if (lastDatasetIdRef.current !== datasetId) {
+      lastDatasetIdRef.current = datasetId;
+      introspectionContextRef.current += 1;
+      setIntrospectionError("");
+    }
+    activeDetailContextRef.current = { datasetId, connectionId: draft.connection_id };
+  }, [datasetId, draft.connection_id]);
   const projectCatalog = projectCatalogQuery.data;
   const linkedProjectIds = projectCatalog?.project_ids || dataset?.project_ids || [];
   const previewRequiresProject = dataset?.metadata_jsonb?.connection_resolution === "project_scope";
@@ -230,6 +244,7 @@ export function useDatasetDetailState() {
   );
 
   useEffect(() => {
+    setIntrospectionError("");
     const handle = globalThis.setTimeout(() => {
       setDraft(draftFromDataset(dataset));
       setSchemaSnapshot(normalizeSchemaSnapshot(dataset?.schema_snapshot_jsonb));
@@ -284,11 +299,25 @@ export function useDatasetDetailState() {
   });
 
   const introspectMutation = useMutation({
-    mutationFn: (connectionId: string) => {
+    mutationFn: ({ connectionId }: { connectionId: string; datasetId: string; context: number }) => {
       assertDatasetMutable();
       return introspectDataConnection(connectionId);
     },
-    onSuccess: async (payload) => {
+    onSuccess: async (payload, variables) => {
+      if (
+        variables.datasetId !== activeDetailContextRef.current.datasetId ||
+        variables.context !== introspectionContextRef.current ||
+        variables.connectionId !== activeDetailContextRef.current.connectionId
+      ) return;
+      if (isRecord(payload) && payload.ok === false) {
+        setMessage("");
+        setIntrospectionError(datasetIntrospectionFailure(
+          payload,
+          t("react.registry.failed_to_introspect_data_connection", "Failed to introspect data connection."),
+        ));
+        return;
+      }
+      setIntrospectionError("");
       const snapshot = normalizeSchemaSnapshot(
         isRecord(payload) && isRecord(payload.result) ? payload.result.schema_snapshot : {},
       );
@@ -302,9 +331,30 @@ export function useDatasetDetailState() {
       );
       await queryClient.invalidateQueries({ queryKey: ["registry", "datasets", "data-connections"] });
     },
-    onError: (error) =>
-      setMessage(error instanceof Error ? error.message : t("react.registry.failed_to_introspect_data_connection", "Failed to introspect data connection.")),
+    onError: (_error, variables) => {
+      if (
+        variables.datasetId !== activeDetailContextRef.current.datasetId ||
+        variables.context !== introspectionContextRef.current ||
+        variables.connectionId !== activeDetailContextRef.current.connectionId
+      ) return;
+      setMessage("");
+      setIntrospectionError(t("react.registry.failed_to_introspect_data_connection", "Failed to introspect data connection."));
+    },
   });
+
+  function selectDetailConnection(connectionId: string) {
+    introspectionContextRef.current += 1;
+    setIntrospectionError("");
+    const connection = workspaceConnections.find((item) => item.connection_id === connectionId);
+    updateDraft({ connection_id: connectionId });
+    setSchemaSnapshot(connectionSchemaSnapshot(connection));
+    setSelectedResources({});
+    setResourceSearch("");
+  }
+
+  function introspectDetailConnection(connectionId: string) {
+    introspectMutation.mutate({ connectionId, datasetId, context: introspectionContextRef.current });
+  }
 
   const saveQueryMutation = useMutation({
     mutationFn: (payload: DatasetQueryTemplatePayload) => {
@@ -605,7 +655,7 @@ export function useDatasetDetailState() {
           className="fs-button"
           disabled={!selectedConnection || introspectMutation.isPending}
           onClick={() =>
-            selectedConnection && introspectMutation.mutate(selectedConnection.connection_id)
+            selectedConnection && introspectDetailConnection(selectedConnection.connection_id)
           }
           type="button"
         >
@@ -614,6 +664,7 @@ export function useDatasetDetailState() {
       </div>
       <span className="fs-field-helper">
         {t("react.registry.refresh_schema_from_the_connection_then_choose_the_exact_resources_and_columns_this_dataset_may_expose", "Refresh schema from the connection, then choose the exact resources and columns this dataset may expose.")}</span>
+      {introspectionError ? <DsAlert title={introspectionError} tone="danger" /> : null}
       <input
         aria-label={t("react.registry.search_tables_or_columns", "Search tables or columns")}
         className="fs-input"
@@ -682,6 +733,9 @@ export function useDatasetDetailState() {
     selectedResourceCount,
     handleSave,
     message,
+    introspectionError,
+    selectDetailConnection,
+    introspectDetailConnection,
     openCreateQueryModal,
     savedQueriesQuery,
     savedQueryColumns,

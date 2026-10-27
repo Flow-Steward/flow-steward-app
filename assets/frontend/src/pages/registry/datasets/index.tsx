@@ -55,9 +55,11 @@ export function RegistryDatasetsPage() {
     displayNameRef,
     createOpen,
     handleCreate,
+    introspectCreateConnection,
     connectorsQuery,
     connectors,
     updateDraft,
+    changeCreateContext,
     draft,
     dataConnections,
     setSchemaSnapshot,
@@ -76,6 +78,7 @@ export function RegistryDatasetsPage() {
     projectSelectorRows,
     projectSearch,
     introspectMutation,
+    introspectionError,
     resourceSearch,
     schemaSnapshot,
     filteredResources,
@@ -238,7 +241,7 @@ export function RegistryDatasetsPage() {
                       connection.query_capable &&
                       firstStringFromUnknownValue([connection.workspace_id, ""]).trim() === workspaceId,
                   );
-                  updateDraft({
+                  changeCreateContext({
                     workspace_id: workspaceId,
                     connection_id: nextConnection?.connection_id || "",
                     project_ids: [],
@@ -288,7 +291,7 @@ export function RegistryDatasetsPage() {
                   const connection = workspaceConnections.find(
                     (item) => item.connection_id === connectionId,
                   );
-                  updateDraft({ connection_id: connectionId });
+                  changeCreateContext({ connection_id: connectionId });
                   setSchemaSnapshot(connectionSchemaSnapshot(connection));
                   setSelectedResources({});
                   setResourceSearch("");
@@ -373,7 +376,7 @@ export function RegistryDatasetsPage() {
                 className="fs-button"
                 disabled={!selectedConnection || introspectMutation.isPending}
                 onClick={() =>
-                  selectedConnection && introspectMutation.mutate(selectedConnection.connection_id)
+                  selectedConnection && introspectCreateConnection(selectedConnection.connection_id)
                 }
                 type="button"
               >
@@ -382,6 +385,7 @@ export function RegistryDatasetsPage() {
             </div>
             <span className="fs-field-helper">
               {t("react.registry.start_with_an_empty_selection_then_choose_only_the_tables_and_columns_you_want_to_expose", "Start with an empty selection, then choose only the tables and columns you want to expose.")}</span>
+            {introspectionError ? <DsAlert title={introspectionError} tone="danger" /> : null}
             <input
               aria-label={t("react.registry.search_tables_or_columns", "Search tables or columns")}
               className="fs-input"

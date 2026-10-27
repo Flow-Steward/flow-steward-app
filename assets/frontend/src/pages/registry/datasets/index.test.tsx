@@ -10,6 +10,7 @@ import {
   fetchDataConnections,
   fetchDatasetConnectors,
   fetchDatasets,
+  introspectDataConnection,
 } from "@/pages/registry/datasets/api";
 import { RegistryDatasetsPage } from "@/pages/registry/datasets";
 import { fetchWorkspaceProjects, fetchWorkspaces } from "@/pages/registry/workspaces/api";
@@ -37,6 +38,7 @@ const mockedDeleteDataset = vi.mocked(deleteDataset);
 const mockedFetchDataConnections = vi.mocked(fetchDataConnections);
 const mockedFetchDatasetConnectors = vi.mocked(fetchDatasetConnectors);
 const mockedFetchDatasets = vi.mocked(fetchDatasets);
+const mockedIntrospectDataConnection = vi.mocked(introspectDataConnection);
 const mockedFetchWorkspaceProjects = vi.mocked(fetchWorkspaceProjects);
 const mockedFetchWorkspaces = vi.mocked(fetchWorkspaces);
 const mockedUseHasCapability = vi.mocked(useHasCapability);
@@ -101,6 +103,7 @@ describe("RegistryDatasetsPage", () => {
     mockedFetchDataConnections.mockReset();
     mockedFetchDatasetConnectors.mockReset();
     mockedFetchDatasets.mockReset();
+    mockedIntrospectDataConnection.mockReset();
     mockedFetchWorkspaceProjects.mockReset();
     mockedFetchWorkspaces.mockReset();
 
@@ -176,6 +179,289 @@ describe("RegistryDatasetsPage", () => {
 
     const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent("Select at least one resource before creating a dataset.");
+    expect(mockedCreateDataset).not.toHaveBeenCalled();
+  });
+
+  it("keeps the create draft and selected resources when introspection returns an application refusal", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockedIntrospectDataConnection
+      .mockResolvedValueOnce({
+        ok: true,
+        result: {
+          schema_snapshot: {
+            resources: [
+              { resource_id: "customer_records", columns: [{ name: "record_id" }] },
+              { resource_id: "purchase_records", columns: [{ name: "record_id" }] },
+            ],
+          },
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        ok: false,
+        result: {},
+        errors: [{ code: "connection_unavailable", message: "The selected extension connection is unavailable." }],
+      } as never);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    const connection = within(dialog).getByRole("combobox", { name: "Data Connection" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Workspace owner" }));
+    await user.click(await screen.findByRole("option", { name: "Default workspace" }));
+    await user.click(connection);
+    await user.click(await screen.findByRole("option", { name: /Warehouse \(healthy\)/ }));
+    const name = within(dialog).getByLabelText("Display Name");
+    await user.type(name, "Quarterly reporting");
+    expect(within(dialog).getByLabelText("Display Name")).toHaveValue("Quarterly reporting");
+    expect(connection).toHaveTextContent("Warehouse (healthy)");
+
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+    await screen.findByText("Schema loaded. Select the resources you want to expose in this dataset.");
+    expect(within(dialog).getByLabelText("Display Name")).toHaveValue("Quarterly reporting");
+    const selectedResource = await within(dialog).findByRole("checkbox", { name: /customer_records/i });
+    await user.click(selectedResource);
+    expect(selectedResource).toBeChecked();
+    expect(within(dialog).getByText("purchase_records")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+
+    const refusal = await within(dialog).findByRole("alert");
+    expect(refusal).toHaveTextContent("The selected extension connection is unavailable.");
+    expect(screen.getByRole("dialog", { name: "Create dataset" })).toBe(dialog);
+    expect(within(dialog).getByLabelText("Display Name")).toHaveValue("Quarterly reporting");
+    expect(within(dialog).getByRole("combobox", { name: "Data Connection" })).toHaveTextContent("Warehouse (healthy)");
+    expect(within(dialog).getByRole("checkbox", { name: /customer_records/i })).toBeChecked();
+    expect(within(dialog).getByText("purchase_records")).toBeInTheDocument();
+    expect(screen.queryByText("Schema loaded, but no resources were returned.")).not.toBeInTheDocument();
+    expect(mockedCreateDataset).not.toHaveBeenCalled();
+  });
+
+  it("clears a refusal from connection A after selecting connection B", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockedFetchDataConnections.mockResolvedValue([
+      {
+        connection_id: "warehouse-a",
+        display_name: "Warehouse A",
+        workspace_id: "ws-1",
+        workspace_display_name: "Default workspace",
+        source_kind: "postgres",
+        environment: "dev",
+        enabled: true,
+        health_status: "healthy",
+        query_capable: true,
+        linked_dataset_count: 0,
+        tags: [],
+        connector_ref_jsonb: { connector_id: "extension.install_1.warehouse_sql" },
+        connection_config_jsonb: {},
+        secret_refs_jsonb: {},
+        metadata_jsonb: {},
+      },
+      {
+        connection_id: "warehouse-b",
+        display_name: "Warehouse B",
+        workspace_id: "ws-1",
+        workspace_display_name: "Default workspace",
+        source_kind: "postgres",
+        environment: "dev",
+        enabled: true,
+        health_status: "healthy",
+        query_capable: true,
+        linked_dataset_count: 0,
+        tags: [],
+        connector_ref_jsonb: { connector_id: "extension.install_1.warehouse_sql" },
+        connection_config_jsonb: {},
+        secret_refs_jsonb: {},
+        metadata_jsonb: {},
+      },
+    ] as never);
+    mockedIntrospectDataConnection.mockResolvedValue({
+      ok: false,
+      result: {},
+      errors: [{ code: "connection_unavailable", message: "The selected extension connection is unavailable." }],
+    } as never);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Workspace owner" }));
+    await user.click(await screen.findByRole("option", { name: "Default workspace" }));
+    const connection = within(dialog).getByRole("combobox", { name: "Data Connection" });
+    await user.click(connection);
+    await user.click(await screen.findByRole("option", { name: /Warehouse A \(healthy\)/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The selected extension connection is unavailable.");
+    await user.click(within(dialog).getByRole("combobox", { name: "Data Connection" }));
+    await user.click(await screen.findByRole("option", { name: /Warehouse B \(healthy\)/ }));
+
+    expect(within(dialog).getByRole("combobox", { name: "Data Connection" })).toHaveTextContent("Warehouse B (healthy)");
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("ignores a deferred refusal from connection A after switching to connection B", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockedFetchDataConnections.mockResolvedValue([
+      {
+        connection_id: "warehouse-a",
+        display_name: "Warehouse A",
+        workspace_id: "ws-1",
+        workspace_display_name: "Default workspace",
+        source_kind: "postgres",
+        environment: "dev",
+        enabled: true,
+        health_status: "healthy",
+        query_capable: true,
+        linked_dataset_count: 0,
+        tags: [],
+        connector_ref_jsonb: { connector_id: "extension.install_1.warehouse_sql" },
+        connection_config_jsonb: {},
+        secret_refs_jsonb: {},
+        metadata_jsonb: {},
+      },
+      {
+        connection_id: "warehouse-b",
+        display_name: "Warehouse B",
+        workspace_id: "ws-1",
+        workspace_display_name: "Default workspace",
+        source_kind: "postgres",
+        environment: "dev",
+        enabled: true,
+        health_status: "healthy",
+        query_capable: true,
+        linked_dataset_count: 0,
+        tags: [],
+        connector_ref_jsonb: { connector_id: "extension.install_1.warehouse_sql" },
+        connection_config_jsonb: {},
+        secret_refs_jsonb: {},
+        metadata_jsonb: {},
+      },
+    ] as never);
+    let finishIntrospection!: (result: unknown) => void;
+    mockedIntrospectDataConnection.mockImplementationOnce(
+      () => new Promise((resolve) => { finishIntrospection = resolve; }) as never,
+    );
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Workspace owner" }));
+    await user.click(await screen.findByRole("option", { name: "Default workspace" }));
+    await user.click(within(dialog).getByRole("combobox", { name: "Data Connection" }));
+    await user.click(await screen.findByRole("option", { name: /Warehouse A \(healthy\)/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+    await user.click(within(dialog).getByRole("combobox", { name: "Data Connection" }));
+    await user.click(await screen.findByRole("option", { name: /Warehouse B \(healthy\)/ }));
+
+    expect(within(dialog).getByRole("button", { name: "Loading schema..." })).toBeDisabled();
+    finishIntrospection({
+      ok: false,
+      result: {},
+      errors: [{ code: "connection_unavailable", message: "The selected extension connection is unavailable." }],
+    });
+
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Introspect schema" })).toBeEnabled());
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: "Data Connection" })).toHaveTextContent("Warehouse B (healthy)");
+  });
+
+  it("ignores a deferred rejection from a closed Create session after reopening the same connection", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    let rejectIntrospection!: (error: Error) => void;
+    mockedIntrospectDataConnection.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectIntrospection = reject; }) as never,
+    );
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    let dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    expect(within(dialog).getByRole("combobox", { name: "Data Connection" })).toHaveTextContent("Warehouse (healthy)");
+    await user.type(within(dialog).getByLabelText("Display Name"), "First session draft");
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    await user.type(within(dialog).getByLabelText("Display Name"), "Second session draft");
+    expect(within(dialog).getByLabelText("Display Name")).toHaveValue("Second session draft");
+
+    expect(within(dialog).getByRole("button", { name: "Loading schema..." })).toBeDisabled();
+    rejectIntrospection(new Error("Old session transport failure."));
+
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Introspect schema" })).toBeEnabled());
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Display Name")).toHaveValue("Second session draft");
+  });
+
+  it("shows a successful empty schema as an empty result rather than an introspection failure", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockedIntrospectDataConnection.mockResolvedValue({
+      ok: true,
+      result: { schema_snapshot: { resources: [] } },
+    } as never);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Workspace owner" }));
+    await user.click(await screen.findByRole("option", { name: "Default workspace" }));
+    const connection = within(dialog).getByRole("combobox", { name: "Data Connection" });
+    await user.click(connection);
+    await user.click(await screen.findByRole("option", { name: /Warehouse \(healthy\)/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+
+    expect(await screen.findByText("Schema loaded, but no resources were returned.")).toBeInTheDocument();
+    expect(within(dialog).getByText("No schema loaded yet")).toBeInTheDocument();
+    expect(screen.queryByText("Failed to introspect data connection.")).not.toBeInTheDocument();
+    expect(mockedCreateDataset).not.toHaveBeenCalled();
+  });
+
+  it("shows a generic error alert when the introspection request rejects", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockedIntrospectDataConnection.mockRejectedValue(new Error("Extension runtime diagnostic."));
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Workspace owner" }));
+    await user.click(await screen.findByRole("option", { name: "Default workspace" }));
+    const connection = within(dialog).getByRole("combobox", { name: "Data Connection" });
+    await user.click(connection);
+    await user.click(await screen.findByRole("option", { name: /Warehouse \(healthy\)/ }));
+    expect(within(dialog).getByRole("checkbox", { name: /orders/i })).not.toBeChecked();
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+
+    const error = await within(dialog).findByRole("alert");
+    expect(error).toHaveTextContent("Failed to introspect data connection.");
+    expect(error).not.toHaveTextContent("Extension runtime diagnostic.");
+    expect(within(dialog).getByRole("checkbox", { name: /orders/i })).not.toBeChecked();
+    expect(within(dialog).queryByText("No schema loaded yet")).not.toBeInTheDocument();
+    expect(mockedCreateDataset).not.toHaveBeenCalled();
+  });
+
+  it("does not expose unclassified introspection response diagnostics", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockedIntrospectDataConnection.mockResolvedValue({
+      ok: false,
+      result: {},
+      errors: [{ code: "connector_runtime_failed", message: "Runtime diagnostic output." }],
+    } as never);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New Dataset" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create dataset" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Workspace owner" }));
+    await user.click(await screen.findByRole("option", { name: "Default workspace" }));
+    const connection = within(dialog).getByRole("combobox", { name: "Data Connection" });
+    await user.click(connection);
+    await user.click(await screen.findByRole("option", { name: /Warehouse \(healthy\)/ }));
+    expect(within(dialog).getByRole("checkbox", { name: /orders/i })).not.toBeChecked();
+    await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
+
+    const error = await within(dialog).findByRole("alert");
+    expect(error).toHaveTextContent("Failed to introspect data connection.");
+    expect(error).not.toHaveTextContent("Runtime diagnostic output.");
+    expect(within(dialog).getByRole("checkbox", { name: /orders/i })).not.toBeChecked();
+    expect(within(dialog).queryByText("No schema loaded yet")).not.toBeInTheDocument();
     expect(mockedCreateDataset).not.toHaveBeenCalled();
   });
 

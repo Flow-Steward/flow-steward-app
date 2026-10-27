@@ -18,7 +18,7 @@ import {
   PageContainer,
 } from "@/components/shared/design-system";
 
-import { connectionSchemaSnapshot, stringifyJson } from "./dataset-detail-helpers";
+import { stringifyJson } from "./dataset-detail-helpers";
 
 import { QueryPreviewModal } from "./query-preview-modal";
 
@@ -41,11 +41,9 @@ export function RegistryDatasetsDetailPage() {
     activeTab,
     goToTab,
     updateDraft,
+    selectDetailConnection,
     displayNameRef,
     workspaceConnections,
-    setSchemaSnapshot,
-    setSelectedResources,
-    setResourceSearch,
     dataConnectionsQuery,
     selectedConnection,
     selectedConnector,
@@ -234,15 +232,7 @@ export function RegistryDatasetsDetailPage() {
                     <DsSelect
                       ariaLabel={t("react.registry.data_connection", "Data Connection")}
                       id="dataset-connection"
-                      onChange={(connectionId) => {
-                        const connection = workspaceConnections.find(
-                          (item) => item.connection_id === connectionId,
-                        );
-                        updateDraft({ connection_id: connectionId });
-                        setSchemaSnapshot(connectionSchemaSnapshot(connection));
-                        setSelectedResources({});
-                        setResourceSearch("");
-                      }}
+                      onChange={selectDetailConnection}
                       options={[
                         { value: "", label: t("react.registry.select_data_connection", "Select data connection") },
                         ...workspaceConnections.map((connection) => ({

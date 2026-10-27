@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -58,6 +58,8 @@ export type TestRunApproval = {
   shown: Array<{ name: string; value: unknown }>;
   approvedTo: string;
   rejectedTo: string;
+  allowedActions?: readonly string[];
+  abort?: (comment?: string) => void;
   pending: boolean;
   error: string;
   decide: (approved: boolean, comment?: string) => void;
@@ -169,22 +171,36 @@ export function useWorkflowTestRunEvidence(options: Options): WorkflowTestRunEvi
     if (jobId && detailApprovalId) ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: testRunApprovalQueryKey(jobId) }));
   }, [detailApprovalId, jobId, queryClient]);
   const [decisionError, setDecisionError] = useState("");
+  const activeDecision = useRef<symbol | null>(null);
+  const currentDecision = useRef<{ jobId: string; approvalId: string } | null>(null);
+  type Decision = { jobId: string; threadId: string; approvalId: string; approved: boolean; comment: string; action?: "abort"; token: symbol };
   const decisionMutation = useMutation({
-    mutationFn: ({ threadId, approvalId, approved, comment }: { threadId: string; approvalId: string; approved: boolean; comment: string }) =>
-      submitApprovalDecision(threadId, { approval_id: approvalId, approved, ...(comment ? { comment } : {}) }),
-    onError: (error) => setDecisionError(error instanceof Error ? error.message : t("react.jobs.approval_request_failed", "Approval request failed.")),
-    onSuccess: () => {
-      setDecisionError("");
-      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: queryKeys.jobDetail(jobId) }));
-      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: testRunApprovalQueryKey(jobId) }));
-      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: approvalQueryKey(jobId) }));
-      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: queryKeys.jobExecutionSteps(jobId, "") }));
+    mutationFn: ({ threadId, approvalId, approved, comment, action }: Decision) =>
+      submitApprovalDecision(threadId, { approval_id: approvalId, approved, ...(comment ? { comment } : {}), ...(action ? { action } : {}) }),
+    onError: (error, decision) => {
+      if (currentDecision.current?.jobId === decision.jobId && currentDecision.current.approvalId === decision.approvalId)
+        setDecisionError(error instanceof Error ? error.message : t("react.jobs.approval_request_failed", "Approval request failed."));
+    },
+    onSuccess: (_result, decision) => {
+      if (currentDecision.current?.jobId === decision.jobId && currentDecision.current.approvalId === decision.approvalId) setDecisionError("");
+      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: queryKeys.jobDetail(decision.jobId) }));
+      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: testRunApprovalQueryKey(decision.jobId) }));
+      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: approvalQueryKey(decision.jobId) }));
+      ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: queryKeys.jobExecutionSteps(decision.jobId, "") }));
       dispatchApprovalsRefresh();
+    },
+    onSettled: (_result, _error, decision) => {
+      if (activeDecision.current === decision.token) activeDecision.current = null;
     },
   });
   // Never show one gate's request under another gate the verified detail names.
   const gate = gateQuery.data && (!detailApprovalId || !text(gateQuery.data.approval_id) || text(gateQuery.data.approval_id) === detailApprovalId) ? gateQuery.data : undefined;
   const gatePayload = record(gate?.payload);
+  const currentApprovalId = text(gate?.approval_id) || text(gatePayload.approval_id);
+  useLayoutEffect(() => {
+    currentDecision.current = awaiting && gate ? { jobId, approvalId: currentApprovalId } : null;
+    return () => { currentDecision.current = null; };
+  }, [awaiting, currentApprovalId, gate, jobId]);
   const approvalStepId = text(gatePayload.step_id) || [...passes].reverse().find((pass) => pass.state === "waiting")?.stepId || "";
   const approval: TestRunApproval | null = awaiting && gate ? (() => {
     const shown = approvalShownValues(record(gatePayload.gate_meta).show_outputs, text(gatePayload.content));
@@ -200,20 +216,36 @@ export function useWorkflowTestRunEvidence(options: Options): WorkflowTestRunEvi
     const threadId = text(gate?.thread_id) || text(record(detail?.job).thread_id) || text(record(detail).thread_id);
     const approvalId = text(gate?.approval_id) || text(gatePayload.approval_id);
     const stepLabel = canvasGraph?.steps.find((step) => step.id === approvalStepId || step.step_id === approvalStepId)?.display_name || approvalStepId;
+    const allowedActions = Array.isArray(gatePayload.allowed_actions)
+      ? gatePayload.allowed_actions.map((action) => text(action).toLowerCase()) : ["approve", "reject"];
+    const recovery = text(gatePayload.gate_kind) === "recovery";
+    const failureRecovery = recovery && text(gatePayload.recovery_kind) === "failure";
+    const budgetRecovery = recovery && text(gatePayload.recovery_kind) === "rework_budget";
+    const proof = selectedRun.selected?.proof;
+    const submit = (approved: boolean, comment: string, action?: "abort") => {
+      const requestedAction = action || (approved ? "approve" : "reject");
+      if (!threadId || !approvalId || activeDecision.current || decisionMutation.isPending || !allowedActions.includes(requestedAction) ||
+        !proof || !selectedRun.isCurrent(proof) || currentDecision.current?.jobId !== jobId || currentDecision.current.approvalId !== approvalId) return;
+      const token = Symbol("test-run-decision");
+      activeDecision.current = token;
+      decisionMutation.mutate({ jobId, threadId, approvalId, approved, comment: comment.trim(), action, token });
+    };
     return {
       stepId: approvalStepId,
       identity: `${jobId}:${approvalId}`,
       stepLabel,
       message: text(gatePayload.message),
       shown,
-      approvedTo: target("approved"),
-      rejectedTo: target("rejected"),
+      approvedTo: budgetRecovery ? t("react.workflows.recovery_additional_budget", "continue with additional rework budget")
+        : target(failureRecovery ? "success" : "approved"),
+      rejectedTo: failureRecovery ? t("react.workflows.recovery_rework_step", "send {step} back for rework with your comment", {
+        step: stepLabel || t("react.workflows.recovery_current_step", "this step"),
+      }) : target("rejected"),
+      allowedActions,
+      abort: allowedActions.includes("abort") ? (comment = "") => submit(false, comment, "abort") : undefined,
       pending: decisionMutation.isPending,
       error: decisionError,
-      decide: (approved: boolean, comment = "") => {
-        if (!threadId || !approvalId || decisionMutation.isPending) return;
-        decisionMutation.mutate({ threadId, approvalId, approved, comment: comment.trim() });
-      },
+      decide: (approved: boolean, comment = "") => submit(approved, comment),
     };
   })() : null;
 

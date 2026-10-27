@@ -144,6 +144,24 @@ it("an approval waiting in the run is decided with its request in view, focus on
   expect(decide).toHaveBeenCalledWith(true, "Checked");
 });
 
+it.each([
+  ["", "the run ends"],
+  ["Revise report", "Revise report"],
+])("keeps the authored Approval rejected outcome for destination %s", (rejectedTo, expected) => {
+  render(<StepTestRunLatest evidence={evidence({ approval: {
+    stepId: "review", identity: "run-2:report-review", stepLabel: "Review report", message: "Send this report?",
+    shown: [], approvedTo: "Send report", rejectedTo, pending: false, error: "", decide: vi.fn(),
+  } })} step={{ stepId: "review", label: "Review report", kind: "approval", local: false, declaredOutputs: [] }} />);
+
+  const decision = screen.getByTestId("workflow-approval-decision");
+  const outcomes = within(decision).getAllByRole("listitem");
+  expect(outcomes[0]).toHaveTextContent("Send report");
+  expect(outcomes[1]).toHaveTextContent(`Rejected → ${expected}`);
+  expect(within(decision).getByRole("button", { name: "Reject" })).toBeEnabled();
+  expect(within(decision).getByRole("button", { name: "Approve" })).toBeEnabled();
+  expect(within(decision).queryByRole("button", { name: "Cancel run" })).not.toBeInTheDocument();
+});
+
 it("names the executed definition, the run's published outputs and the full Job Details", () => {
   render(<WorkflowTestRunResults evidence={evidence({ runOutputs: { receipt: "Approved" }, runArtifacts: { orders_csv: { filename: "orders.csv" } } })} />);
   expect(screen.getByTestId("workflow-test-run-revision")).toHaveTextContent("Executed definition: revision 7 · abcdef012345");

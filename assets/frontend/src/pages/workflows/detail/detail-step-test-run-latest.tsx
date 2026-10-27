@@ -27,6 +27,7 @@ export function ApprovalDecision({ approval, commentDraft, focusRequest = true }
   const titleId = useId();
   const commentId = useId();
   const busy = useLoaderDelay(approval.pending);
+  const allowedActions = approval.allowedActions || ["approve", "reject"];
   const [localComment, setLocalComment] = useState({ identity: approval.identity, value: "" });
   if (localComment.identity !== approval.identity) setLocalComment({ identity: approval.identity, value: "" });
   const comment = commentDraft ? commentDraft.identity === approval.identity ? commentDraft.value : "" : localComment.value;
@@ -47,20 +48,22 @@ export function ApprovalDecision({ approval, commentDraft, focusRequest = true }
     <div className="workflow-run-results-section">
       <p className="workflow-step-run-sub">{t("react.workflows.approval_what_happens_next", "What happens next")}</p>
       <ul className="workflow-approval-next">
-        <li><b>{t("react.workflows.test_run_approved", "Approved")}</b> → {approval.approvedTo || t("react.workflows.approval_ends_run", "the run ends")}</li>
-        <li><b>{t("react.workflows.test_run_rejected", "Rejected")}</b> → {approval.rejectedTo || t("react.workflows.approval_ends_run", "the run ends")}</li>
+        {allowedActions.includes("approve") ? <li><b>{t("react.workflows.test_run_approved", "Approved")}</b> → {approval.approvedTo || t("react.workflows.approval_ends_run", "the run ends")}</li> : null}
+        {allowedActions.includes("reject") ? <li><b>{t("react.workflows.test_run_rejected", "Rejected")}</b> → {approval.rejectedTo || t("react.workflows.approval_ends_run", "the run ends")}</li> : null}
+        {allowedActions.includes("abort") ? <li><b>{t("react.jobs.cancel_run", "Cancel run")}</b> → {t("react.workflows.approval_run_cancelled", "the run is cancelled")}</li> : null}
       </ul>
     </div>
     <div className="fs-field">
-      <label className="fs-field-label" htmlFor={commentId}>{t("jobs.detail.review.comment_for_rejection", "Comment for rejection")}</label>
+      <label className="fs-field-label" htmlFor={commentId}>{allowedActions.includes("reject") ? t("jobs.detail.review.comment_for_rejection", "Comment for rejection") : t("jobs.detail.review.comment", "Comment")}</label>
       <textarea className="fs-textarea" id={commentId} aria-describedby={`${commentId}-help`} onChange={(event) => setComment(event.target.value)} rows={2} value={comment} />
       <p className="fs-field-helper" id={`${commentId}-help`}>{t("react.workflows.approval_comment_help", "Optional. It is sent with your decision.")}</p>
     </div>
     {approval.error ? <p className="workflow-kept-error" role="alert">{approval.error}</p> : null}
     <div className="workflow-approval-actions">
-      <Button disabled={approval.pending} onClick={() => approval.decide(false, comment)} type="button" variant="secondary">{t("react.workflows.approval_reject", "Reject")}</Button>
-      <Button aria-busy={approval.pending || undefined} disabled={approval.pending} onClick={() => approval.decide(true, comment)} type="button" variant="primary">
-        {busy ? <DsLoader variant="orbit-inline" /> : null}{t("react.workflows.approval_approve", "Approve")}</Button>
+      {allowedActions.includes("reject") ? <Button disabled={approval.pending} onClick={() => approval.decide(false, comment)} type="button" variant="secondary">{t("react.workflows.approval_reject", "Reject")}</Button> : null}
+      {allowedActions.includes("abort") ? <Button disabled={approval.pending || !approval.abort} onClick={() => approval.abort?.(comment)} type="button" variant="secondary">{t("react.jobs.cancel_run", "Cancel run")}</Button> : null}
+      {allowedActions.includes("approve") ? <Button aria-busy={approval.pending || undefined} disabled={approval.pending} onClick={() => approval.decide(true, comment)} type="button" variant="primary">
+        {busy ? <DsLoader variant="orbit-inline" /> : null}{t("react.workflows.approval_approve", "Approve")}</Button> : null}
     </div>
   </section>;
 }
