@@ -17,7 +17,7 @@ from core.application.release.contracts import (
     parse_digest_pinned_reference,
     release_identity_from_resolution,
 )
-from core.application.release.images import required_product_roles
+from core.application.release.images import release_image_roles
 from core.infrastructure.config.runtime_env import runtime_env
 from core.infrastructure.installer.process import ProcessOutcome, SubprocessExecutor
 
@@ -148,7 +148,13 @@ class OfficialReleaseResolver:
     def verify_exact_identity(self, release: ReleaseIdentity) -> ReleaseIdentity:
         """Select one complete official mirror of the archived immutable image set."""
         expected_images = {image.role: image for image in release.images}
-        roles = required_product_roles(release.profile)
+        # The archived identity is the contract: a shared role it does not name (an
+        # updater that predates the role resolved it) is not demanded here either.
+        roles = tuple(
+            role
+            for role in release_image_roles(release.profile, version=release.version)
+            if role.role in expected_images
+        )
         for role in roles:
             expected = expected_images[role.role]
             canonical_ref = (
@@ -405,7 +411,7 @@ def resolve_official_image_set(
         raise ValueError("at least one official registry must be configured")
     resolver = resolve_image or resolve_digest_pinned_image
     failures: list[str] = []
-    roles = required_product_roles(profile)
+    roles = release_image_roles(profile, version=canonical_version)
 
     for registry in ordered_registries:
         identities: list[RegistryImageIdentity] = []

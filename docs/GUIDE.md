@@ -123,8 +123,10 @@ A fresh production install of a clean checkout exactly at its published
 stable release's official images: the installer reads the release from
 `FS_RELEASE_REPOSITORY`, requires its tag to name the checked-out commit, and
 pulls the complete digest-pinned image set from the first configured registry
-that has all of it. No product image is built, and the result is an official
-installed identity. When that release is not published as stable, its images
+that has all of it. From 0.9.2 that set includes the PostgreSQL image
+(`flow-steward-postgres`), so nothing is built; 0.9.0 and 0.9.1 published no
+PostgreSQL image, and installing them still builds it locally. The result is an
+official installed identity. When that release is not published as stable, its images
 are incomplete, or GitHub or the registry is unreachable, the installer stops
 with `release_images_unavailable` and the cause; it never falls back to a
 source build. Wait for publication, or check out a non-release commit.
@@ -254,7 +256,8 @@ fs-compose-dev() { docker compose -p flow-steward -f infra/docker/docker-compose
 
 Postgres is the source of truth for canonical memory, vector search, and graph
 search. The base Compose stack builds the canonical Postgres image with Apache
-AGE + pgvector by default.
+AGE + pgvector by default; an official install or release upgrade pulls the same
+image, published as `flow-steward-postgres`, by digest instead.
 
 Use the guided `./install.sh` flow to select the supported first-release stack.
 Production uses the unified Postgres profile with Apache AGE, pgvector,

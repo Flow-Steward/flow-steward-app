@@ -9,7 +9,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.application.release.catalog import ReleaseCoordinates
-from core.application.release.images import required_product_roles
+from core.application.release.images import is_release_role_set
 
 _CANONICAL_RELEASE_VERSION = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$", re.ASCII)
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -86,8 +86,7 @@ class ReleaseIdentity(_ClosedModel):
         roles = [image.role for image in self.images]
         if len(roles) != len(set(roles)):
             raise ValueError("release image roles must be unique")
-        expected_roles = {role.role for role in required_product_roles(self.profile)}
-        if set(roles) != expected_roles:
+        if not is_release_role_set(self.profile, version=self.version, roles=roles):
             raise ValueError(f"release identity requires the complete {self.profile} role set")
         for image in self.images:
             repository = image.registry_ref.partition("@")[0]

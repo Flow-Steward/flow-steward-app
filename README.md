@@ -67,8 +67,9 @@ What a fresh installation installs depends on the checkout:
 - **A published release.** Check out its tag (`git checkout v<version>`, chosen from the
   repository's Releases page) before `./install.sh`. A clean checkout exactly at its
   `v<VERSION>` tag installs that stable release's official, digest-pinned images from
-  GitHub Container Registry (or Docker Hub when GHCR lacks the complete set). Nothing
-  is built locally, and the result is an official installation. If that tag is not
+  GitHub Container Registry (or Docker Hub when GHCR lacks the complete set), including
+  the PostgreSQL image from 0.9.2 on. Nothing is built locally, and the result is an
+  official installation. If that tag is not
   yet published as a stable release with its images, or GitHub or the registry is
   unreachable, the installer stops with `release_images_unavailable` instead of
   building: wait for publication, or check out a non-release commit.

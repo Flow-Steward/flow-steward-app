@@ -324,9 +324,12 @@ class ImageSelectionOperations:
                 retryable=True,
                 step="preflight",
             )
+        # The identity validated its complete role set when it was loaded, including
+        # the optional shared PostgreSQL role (ADR 0030); this binds it to the profile
+        # being installed.
         expected_roles = {role.role for role in required_product_roles(config.deployment_profile)}
         actual_roles = {image.role for image in release.images}
-        if actual_roles != expected_roles:
+        if release.profile != config.deployment_profile or not expected_roles <= actual_roles:
             raise InstallerFailure(
                 code="official_release_incomplete",
                 cause="The pending official release does not contain the exact product role set.",

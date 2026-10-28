@@ -3,7 +3,8 @@
 ## Status
 
 Accepted — 2026-09-27. Amended 2026-10-27 (release 0.9.1): a fresh install of a
-published release tag installs its official images.
+published release tag installs its official images. Amended 2026-10-27 (release
+0.9.2): the PostgreSQL image is an official release image.
 
 ## Context
 
@@ -36,6 +37,37 @@ release that is not published as stable, an incomplete image set, or an
 unreachable GitHub or registry stops the install with
 `release_images_unavailable`; it never falls back to a source build. A resumed
 source installation is not re-decided from the checkout.
+
+Amendment (release 0.9.2): the canonical PostgreSQL image
+(`infra/docker/postgres-extended/Dockerfile`) is published as the shared release
+role `postgres` in repository `flow-steward-postgres`, used by both profiles and
+built, published and verified exactly like the product roles (both platforms,
+revision and role labels, the Compose `AGE_REF`). An official install, pending
+release or release upgrade whose identity names it pins `POSTGRES_IMAGE` to the
+digest-pinned reference, pulls it with the other images and never builds it; the
+start step keeps `--no-build --pull never`. Source installs keep building the
+image locally. The role carries the first release that publishes it (0.9.2), and
+two rules follow from that instead of one "complete set" rule:
+
+- Resolution is version-gated. Resolving 0.9.2 or later requires the role from the
+  same registry as every other role, so a mirror without it is incomplete and the
+  next registry is tried; resolving 0.9.0 or 0.9.1 never asks for it, so those
+  releases still install. Probing the role and silently dropping it when absent was
+  rejected: a partial publication would then pass as complete.
+- A durable identity requires every product role and treats the shared role as
+  optional (never allowed below its first release). A 0.9.1 CLI resolves a 0.9.2
+  target with its product-only role set and stages that pending identity before the
+  0.9.2 installer reads it; rejecting it would make `release upgrade` from 0.9.1
+  impossible, and re-resolving it would change the journaled target. An identity
+  without the role leaves `POSTGRES_IMAGE` to the installation, which keeps its
+  image and builds the registry default locally when absent, as before.
+
+Data safety rests on image equivalence: the published image is built from the same
+Dockerfile, base digest and `AGE_REF`, so PostgreSQL 17, pgvector and AGE are
+unchanged, and switching `POSTGRES_IMAGE` recreates `pg-fs` on the same
+`fs-postgres` volume after the migration check has run on the old container, as
+every source update that rebuilt the image already did. The schema in
+`/docker-entrypoint-initdb.d` only runs on an empty data directory.
 
 The installed origin is one of two explicit states. A source installed origin
 is accepted only from a completed installer/configuration record whose complete

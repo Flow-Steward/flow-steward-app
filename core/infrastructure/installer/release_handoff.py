@@ -19,7 +19,7 @@ from core.application.release.catalog import (
     validated_release_repository,
 )
 from core.application.release.contracts import ReleaseIdentity
-from core.application.release.images import all_product_roles
+from core.application.release.images import all_release_roles
 from core.application.release.service import ReleaseResult, ReleaseTransitionBinding
 from core.infrastructure.installer.process import ProcessOutcome, SubprocessExecutor
 from core.infrastructure.installer.state_store import InstallerStateStore
@@ -692,7 +692,7 @@ class InstallerReleaseHandoff:
             raise self._failed("Checked-out commit does not match the pending release.")
 
     def _installer_environment(self, release: ReleaseIdentity) -> dict[str, str]:
-        role_variables = {role.role: role.environment_variable for role in all_product_roles()}
+        role_variables = {role.role: role.environment_variable for role in all_release_roles()}
         environment = dict(os.environ)
         environment["FS_RELEASE_HANDOFF_STATE"] = str(self.state.release_handoff_path)
         journal = self.state.load_release_handoff()

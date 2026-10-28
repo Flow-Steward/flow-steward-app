@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from core.application.release.contracts import ReleaseIdentity, ReleaseImageIdentity
-from core.application.release.images import required_product_roles
+from core.application.release.images import all_release_roles, required_product_roles
 from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.installer.registry_image_resolver import (
     OfficialRegistry,
@@ -475,6 +475,7 @@ def test_official_resolver_falls_back_with_a_complete_set_without_mixing() -> No
         "compact-runtime",
         "fs-cli",
         "fs-mcp",
+        "postgres",
     )
     assert all(
         identity.registry_ref.startswith("docker.io/acme/") for identity in resolved.identities
@@ -503,3 +504,139 @@ def test_official_resolver_fails_when_no_registry_has_the_complete_role_set() ->
             registries=registries,
             run=run,
         )
+
+
+def _tag_resolution(missing: frozenset[str] = frozenset()):
+    inspected: list[str] = []
+
+    def run(command: Sequence[str]) -> ProcessOutcome:
+        reference = str(command[-1])
+        inspected.append(reference)
+        if reference in missing:
+            return ProcessOutcome(command=tuple(command), returncode=1, stderr="not found")
+        raw = json.dumps({"schemaVersion": 2, "reference": reference})
+        return ProcessOutcome(command=tuple(command), returncode=0, stdout=raw)
+
+    def resolve_image(**values: object) -> RegistryImageIdentity:
+        registry_ref = str(values["registry_ref"])
+        return RegistryImageIdentity(
+            registry_ref=registry_ref,
+            index_digest=registry_ref.rpartition("@")[2],
+            manifest_digest="sha256:" + "d" * 64,
+            config_digest="sha256:" + "c" * 64,
+            revision=str(values["expected_revision"]),
+            role=str(values["expected_role"]),
+            platform=str(values["platform"]),
+            local_image_id="sha256:" + "d" * 64,
+        )
+
+    return run, resolve_image, inspected
+
+
+@pytest.mark.parametrize("profile", ("compact", "scalable"))
+def test_release_published_before_the_postgres_role_resolves_without_it(profile: str) -> None:
+    """0.9.0 and 0.9.1 never published flow-steward-postgres; they must still install."""
+    run, resolve_image, inspected = _tag_resolution()
+
+    resolved = resolve_official_image_set(
+        profile=profile,
+        version="0.9.1",
+        revision="a" * 40,
+        platform="linux/amd64",
+        registries=(OfficialRegistry(name="ghcr", namespace="ghcr.io/acme"),),
+        run=run,
+        resolve_image=resolve_image,
+    )
+
+    assert "postgres" not in {identity.role for identity in resolved.identities}
+    assert not any("flow-steward-postgres" in reference for reference in inspected)
+
+
+def test_registry_lacking_the_postgres_image_is_incomplete_for_a_release_that_publishes_it() -> (
+    None
+):
+    run, resolve_image, inspected = _tag_resolution(
+        frozenset({"ghcr.io/acme/flow-steward-postgres:0.9.2"})
+    )
+    registries = (
+        OfficialRegistry(name="ghcr", namespace="ghcr.io/acme"),
+        OfficialRegistry(name="docker_hub", namespace="docker.io/acme"),
+    )
+
+    resolved = resolve_official_image_set(
+        profile="scalable",
+        version="0.9.2",
+        revision="a" * 40,
+        platform="linux/amd64",
+        registries=registries,
+        run=run,
+        resolve_image=resolve_image,
+    )
+
+    assert resolved.registry == registries[1]
+    postgres = next(identity for identity in resolved.identities if identity.role == "postgres")
+    assert postgres.registry_ref.startswith("docker.io/acme/flow-steward-postgres@sha256:")
+    assert all(
+        identity.registry_ref.startswith("docker.io/acme/") for identity in resolved.identities
+    )
+    assert "ghcr.io/acme/flow-steward-postgres:0.9.2" in inspected
+
+
+@pytest.mark.parametrize("with_postgres", (True, False))
+def test_exact_identity_verification_follows_the_archived_role_set(
+    monkeypatch: pytest.MonkeyPatch, with_postgres: bool
+) -> None:
+    revision = "a" * 40
+    roles = [*required_product_roles("compact")]
+    if with_postgres:
+        roles.append(next(role for role in all_release_roles() if role.role == "postgres"))
+    images = tuple(
+        ReleaseImageIdentity(
+            role=role.role,
+            registry_ref=f"ghcr.io/flow-steward/{role.repository}@sha256:{index + 1:064x}",
+            index_digest=f"sha256:{index + 101:064x}",
+            manifest_digest=f"sha256:{index + 1:064x}",
+            config_digest=f"sha256:{index + 201:064x}",
+            revision=revision,
+            platform="linux/amd64",
+        )
+        for index, role in enumerate(roles)
+    )
+    archived = ReleaseIdentity(
+        version="0.9.2",
+        tag="v0.9.2",
+        commit_sha=revision,
+        registry="ghcr.io/flow-steward",
+        profile="compact",
+        platform="linux/amd64",
+        images=images,
+    )
+    probed: list[str] = []
+
+    def probe(**values) -> RegistryImageIdentity:
+        expected = next(image for image in images if image.role == values["expected_role"])
+        probed.append(expected.role)
+        return RegistryImageIdentity(
+            registry_ref=f"{str(values['registry_ref']).partition('@')[0]}@{expected.manifest_digest}",
+            index_digest=expected.index_digest,
+            manifest_digest=expected.manifest_digest,
+            config_digest=expected.config_digest,
+            revision=expected.revision,
+            role=expected.role,
+            platform=expected.platform,
+            local_image_id=expected.config_digest,
+        )
+
+    monkeypatch.setattr(
+        "core.infrastructure.installer.registry_image_resolver.probe_digest_pinned_image",
+        probe,
+    )
+    monkeypatch.setattr(
+        "core.infrastructure.installer.registry_image_resolver.runtime_env",
+        {"FS_RELEASE_REGISTRIES": "ghcr.io/flow-steward"},
+    )
+
+    verified = OfficialReleaseResolver().verify_exact_identity(archived)
+
+    assert ("postgres" in probed) is with_postgres
+    assert [image.role for image in verified.images] == [image.role for image in images]
