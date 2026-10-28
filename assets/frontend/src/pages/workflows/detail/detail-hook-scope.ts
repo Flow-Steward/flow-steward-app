@@ -38,7 +38,7 @@ import {
   type WorkflowOutcome,
   type WorkflowTargetRef,
 } from "@/pages/workflows/shared/api";
-import { createAndBindWorkflowHook, hookErrorIssues, workflowHooksQueryKey } from "@/pages/workflows/shared/hook-api";
+import { createAndBindWorkflowHook, hookErrorIssues, workflowHooksQueryKey, type WorkflowHook } from "@/pages/workflows/shared/hook-api";
 
 const NO_ISSUES: Array<Record<string, unknown>> = [];
 
@@ -100,6 +100,8 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
   const queryClient = useQueryClient();
   const {
     authorChangeSet,
+    authorProjectId,
+    actorKey,
     enabled,
     focusCanvasNode,
     openNewStepDrawerRef,
@@ -125,6 +127,17 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
     workflowId,
   } = ctx as Record<string, any> & { authorChangeSet: WorkflowChangeSetController };
 
+  const projectOwnerKey = JSON.stringify([workflowId, projectId, actorKey, Boolean(enabled)]);
+  const [projectOwner, setProjectOwner] = useState({ key: projectOwnerKey, epoch: 0 });
+  if (projectOwner.key !== projectOwnerKey) setProjectOwner({ key: projectOwnerKey, epoch: projectOwner.epoch + 1 });
+  const committedProjectOwner = useRef<typeof projectOwner | null>(null);
+  useLayoutEffect(() => {
+    committedProjectOwner.current = projectOwner;
+    return () => { if (committedProjectOwner.current === projectOwner) committedProjectOwner.current = null; };
+  }, [projectOwner]);
+  const projectCurrent = useCallback(() => Boolean(enabled && projectId) && committedProjectOwner.current === projectOwner,
+    [enabled, projectId, projectOwner]);
+
   const previewFrames = useHookFrames({ enabled, projectId, steps: authorChangeSet.preview.steps, workflowId });
   const serverFrames = useMemo(() => {
     const saved = Array.isArray(workflow?.steps) ? workflow.steps : [];
@@ -148,7 +161,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
     || (groupCreateMode ? containerCreationHookId : "")
     || "";
   const [activeHookId, setActiveHookId] = useState("");
-  const [activeOwner, setActiveOwner] = useState<{ hookId: string; workflowId: string } | null>(null);
+  const [activeOwner, setActiveOwner] = useState<{ actorKey: string; parentWorkflowId: string; projectId: string; hookId: string; workflowId: string } | null>(null);
   const singleConnected = [...framesByHook.values()].filter((frame) => frame.targetWorkflowId);
   // The hook the selection points at wins (a deep link, the DOM bridge); the
   // canvas handlers switch it explicitly, refusing while the current one holds
@@ -158,37 +171,51 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
     || (singleConnected.length === 1 ? singleConnected[0].hookId : "");
   const activeServerFrame = effectiveHookId ? framesByHook.get(effectiveHookId) : undefined;
   const frameTargetId = activeServerFrame?.targetWorkflowId || "";
-  const childWorkflowId = activeServerFrame?.declarationPending ? "" : activeOwner?.hookId === effectiveHookId && activeOwner.workflowId
-    ? activeOwner.workflowId : frameTargetId;
+  // The journal owner stays private through authority loss. Its workflow id must
+  // not change to the parent (which would silently discard unapplied child work).
+  const journalOwner = activeOwner !== null && activeOwner.parentWorkflowId === workflowId
+    ? activeOwner : { actorKey, parentWorkflowId: workflowId, projectId, hookId: effectiveHookId, workflowId: frameTargetId };
+  const journalOwnedByActor = journalOwner.actorKey === actorKey;
+  const retainedChildWorkflowId = journalOwner.workflowId;
+  const childAuthorized = Boolean(enabled && projectId && retainedChildWorkflowId && journalOwnedByActor && journalOwner.hookId === effectiveHookId && journalOwner.projectId === projectId &&
+    !activeServerFrame?.declarationPending && activeServerFrame);
+  const childWorkflowId = childAuthorized ? retainedChildWorkflowId : "";
 
   const childDetailQuery = useQuery({
-    queryKey: queryKeys.workflowDetail(childWorkflowId),
-    queryFn: () => fetchWorkflowDetail(childWorkflowId),
+    queryKey: queryKeys.workflowDetail(retainedChildWorkflowId),
+    queryFn: () => fetchWorkflowDetail(retainedChildWorkflowId),
     enabled: enabled && Boolean(childWorkflowId),
     retry: false,
   });
   const childCanvasQuery = useQuery({
-    queryKey: queryKeys.workflowCanvasGraph(childWorkflowId),
-    queryFn: () => fetchWorkflowCanvasGraph(childWorkflowId),
+    queryKey: queryKeys.workflowCanvasGraph(retainedChildWorkflowId),
+    queryFn: () => fetchWorkflowCanvasGraph(retainedChildWorkflowId),
     enabled: enabled && Boolean(childWorkflowId),
     retry: false,
   });
-  const childWorkflow = childWorkflowId ? childDetailQuery.data : undefined;
-  const childDefinition = useMemo(() => definitionFromWorkflow(childWorkflow), [childWorkflow]);
-  const childRevision = Number((childWorkflow as Record<string, unknown> | undefined)?.revision || 0) || null;
+  const childScopeReady = Boolean(childAuthorized && childWorkflowId && childDetailQuery.isSuccess && childCanvasQuery.isSuccess);
+  const retainedChildWorkflow = retainedChildWorkflowId ? childDetailQuery.data : undefined;
+  const childWorkflow = childAuthorized ? retainedChildWorkflow : undefined;
+  const childDefinition = useMemo(() => definitionFromWorkflow(retainedChildWorkflow), [retainedChildWorkflow]);
+  const retainedChildRevision = Number((retainedChildWorkflow as Record<string, unknown> | undefined)?.revision || 0) || null;
+  const childRevision = childAuthorized ? retainedChildRevision : null;
   const refetchChild = useCallback(async () => {
+    if (!projectCurrent() || !childWorkflowId) return null;
     const [detail] = await Promise.all([
       childDetailQuery.refetch(),
       childCanvasQuery.refetch(),
       queryClient.invalidateQueries({ queryKey: ["workflows", "where-used", projectId] }),
     ]);
-    return detail.data ?? null;
-  }, [childCanvasQuery, childDetailQuery, projectId, queryClient]);
+    return projectCurrent() ? detail.data ?? null : null;
+  }, [childCanvasQuery, childDetailQuery, childWorkflowId, projectCurrent, projectId, queryClient]);
   const rawChildChangeSet = useWorkflowChangeSet({
     refetchWorkflowSurfaces: refetchChild,
     serverDefinition: childDefinition,
-    serverRevision: childRevision,
-    workflowId: childWorkflowId || workflowId,
+    serverRevision: retainedChildRevision,
+    workflowId: retainedChildWorkflowId || workflowId,
+    enabled: childScopeReady,
+    discardEnabled: Boolean(enabled && journalOwnedByActor),
+    authorityKey: projectOwner.key,
     // Two Hook frames may share one child workflow but have different canvas ids.
     placementViewKey: effectiveHookId,
   });
@@ -205,47 +232,55 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
   const stage = useCallback((next: WorkflowChangeOperation | WorkflowChangeOperation[], message = "") => rawStage(completed(next), message), [completed, rawStage]);
   const stageGraphIntent = useCallback((next: WorkflowChangeOperation[], message = "") => rawStageGraphIntent(completed(next), message), [completed, rawStageGraphIntent]);
   const childChangeSet = useMemo(
-    () => ({ ...rawChildChangeSet, stage, stageGraphIntent }) as WorkflowChangeSetController,
-    [rawChildChangeSet, stage, stageGraphIntent],
+    () => ({ ...rawChildChangeSet, stage, stageGraphIntent,
+      hasChanges: journalOwnedByActor && rawChildChangeSet.hasChanges,
+      status: journalOwnedByActor ? rawChildChangeSet.status : "clean",
+      preview: childScopeReady ? rawChildChangeSet.preview : definitionFromWorkflow(undefined),
+      operations: childScopeReady ? rawChildChangeSet.operations : [],
+      get ownerReady() { return projectCurrent() && childAuthorized && rawChildChangeSet.ownerReady; },
+    }) as WorkflowChangeSetController,
+    [childAuthorized, childScopeReady, journalOwnedByActor, projectCurrent, rawChildChangeSet, stage, stageGraphIntent],
   );
   // A hook whose binding changed elsewhere follows it at once instead of drawing
   // the old workflow's steps; unapplied edits keep their owner until applied or discarded.
   const childIdle = !rawChildChangeSet.hasChanges && rawChildChangeSet.status !== "applying";
-  const [seenTarget, setSeenTarget] = useState({ hookId: effectiveHookId, target: frameTargetId });
-  if (seenTarget.hookId !== effectiveHookId || seenTarget.target !== frameTargetId) {
-    setSeenTarget({ hookId: effectiveHookId, target: frameTargetId });
-    if (seenTarget.hookId === effectiveHookId && childIdle && !activeServerFrame?.declarationPending
-      && activeOwner?.hookId === effectiveHookId && activeOwner.workflowId && activeOwner.workflowId !== frameTargetId) {
-      setActiveOwner({ hookId: effectiveHookId, workflowId: frameTargetId });
-    }
+  const [seenTarget, setSeenTarget] = useState({ actorKey, projectId, workflowId, hookId: effectiveHookId, target: frameTargetId });
+  if (seenTarget.actorKey !== actorKey || seenTarget.projectId !== projectId || seenTarget.workflowId !== workflowId ||
+    seenTarget.hookId !== effectiveHookId || seenTarget.target !== frameTargetId) {
+    setSeenTarget({ actorKey, projectId, workflowId, hookId: effectiveHookId, target: frameTargetId });
+  }
+  if (projectId && frameTargetId && childIdle && !activeServerFrame?.declarationPending &&
+    (!activeOwner || activeOwner.actorKey !== actorKey || activeOwner.parentWorkflowId !== workflowId || activeOwner.projectId !== projectId ||
+      activeOwner.hookId !== effectiveHookId || activeOwner.workflowId !== frameTargetId)) {
+    setActiveOwner({ actorKey, parentWorkflowId: workflowId, projectId, hookId: effectiveHookId, workflowId: frameTargetId });
   }
   const memberStepId = selectedMember?.memberStepId && selectedMember.hookId === effectiveHookId ? selectedMember.memberStepId : "";
   const childRows = useWorkflowDefinitionRows({
-    operations: childChangeSet.operations,
-    preview: childChangeSet.preview,
+    operations: childAuthorized ? childChangeSet.operations : [],
+    preview: childAuthorized ? childChangeSet.preview : definitionFromWorkflow(undefined),
     selectedGroupId: selectedContainer?.hookId === effectiveHookId ? selectedContainer.memberStepId : "",
     selectedStepId: memberStepId,
     validationErrors: NO_ISSUES,
     validationWarnings: NO_ISSUES,
   });
 
-  const childLoaded = Boolean(childWorkflowId && childDetailQuery.isSuccess);
+  const childLoaded = childScopeReady;
   const scopeActive = childLoaded && (Boolean(memberStepId) || createHook?.hookId === effectiveHookId
     || Boolean(selectedContainer?.memberStepId && selectedContainer.hookId === effectiveHookId)
     || Boolean(groupCreateMode && containerCreationHookId === effectiveHookId));
   /** A member is selected but its workflow is still loading: nothing is closed meanwhile. */
-  const scopePending = Boolean(selectedMember?.memberStepId || selectedContainer?.memberStepId) && !scopeActive;
+  const scopePending = Boolean(selectedMember?.memberStepId || selectedContainer?.memberStepId || createHook || (groupCreateMode && containerCreationHookId)) && !scopeActive;
 
   // The frames, the active one drawn from its unapplied preview.
   const frames = useMemo(() => {
-    if (!activeServerFrame || activeServerFrame.declarationPending || !childCanvasQuery.data) return serverFrames;
+    if (!childAuthorized || !childWorkflowId || !activeServerFrame || activeServerFrame.declarationPending || !childCanvasQuery.isSuccess || !childCanvasQuery.data) return serverFrames;
     const previewGraph = canvasGraphWithDefinition(childCanvasQuery.data, childChangeSet.preview, t);
     const next = new Map(serverFrames);
     const frame = hookFrame({ ...activeServerFrame, targetWorkflowId: childWorkflowId, targetName: childWorkflow?.display_name || activeServerFrame.targetName }, previewGraph, activeServerFrame.usedIn);
     // An unapplied preview is not the archived definition of an earlier run.
     next.set(activeServerFrame.stepId, childChangeSet.hasChanges ? { ...frame, targetRevision: null } : frame);
     return next;
-  }, [activeServerFrame, childCanvasQuery.data, childChangeSet.hasChanges, childChangeSet.preview, childWorkflow?.display_name, childWorkflowId, serverFrames, t]);
+  }, [activeServerFrame, childAuthorized, childCanvasQuery.isSuccess, childCanvasQuery.data, childChangeSet.hasChanges, childChangeSet.preview, childWorkflow?.display_name, childWorkflowId, serverFrames, t]);
 
   const childHandlers = useWorkflowCanvasHandlers({
     changeSet: childChangeSet,
@@ -275,14 +310,14 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
       setSaveError(t("react.workflows.hook_connect_scope", "A connection inside a hook stays between that hook's steps."));
       return "refused";
     }
-    if (hooks[0] !== effectiveHookId || !childLoaded) {
+    if (!projectCurrent() || hooks[0] !== effectiveHookId || !childLoaded) {
       setSaveError(t("react.workflows.hook_select_first", "Open a step of this hook first, then edit its connections."));
       return "refused";
     }
-    setActiveOwner((current) => current?.hookId === effectiveHookId && current.workflowId === childWorkflowId
-      ? current : { hookId: effectiveHookId, workflowId: childWorkflowId });
+    setActiveOwner((current) => current !== null && current.actorKey === actorKey && current.projectId === projectId && current.parentWorkflowId === workflowId && current.hookId === effectiveHookId && current.workflowId === childWorkflowId
+      ? current : { actorKey, parentWorkflowId: workflowId, projectId, hookId: effectiveHookId, workflowId: childWorkflowId });
     return "child";
-  }, [childLoaded, childWorkflowId, effectiveHookId, setSaveError, structureLocked, t]);
+  }, [actorKey, childLoaded, childWorkflowId, effectiveHookId, projectCurrent, projectId, setSaveError, structureLocked, t, workflowId]);
 
   /** The author's canvas handlers, routed: hook members go to the child's change set. */
   const route = useCallback((author: Record<string, any>) => ({
@@ -379,14 +414,15 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
         ? t("react.workflows.hook_apply_order", "The hook's workflow is applied first, then this workflow.")
         : childChangeSet.notice,
       apply: async () => {
+        if (!projectCurrent() || !childAuthorized) return false;
         const applied = await childChangeSet.apply();
-        if (applied && authorChangeSet.hasChanges) return authorChangeSet.apply();
+        if (applied && projectCurrent() && authorChangeSet.hasChanges) return authorChangeSet.apply();
         return applied;
       },
       discard: () => {
         // An old toolbar callback cannot discard or retire a newer owner,
         // including leaving this Hook and returning to the same canvas id.
-        if (committedDiscardEditor.current !== discardEditor) return;
+        if (!enabled || !journalOwnedByActor || committedProjectOwner.current !== projectOwner || committedDiscardEditor.current !== discardEditor) return;
         childChangeSet.discard();
         if (authorChangeSet.hasChanges) authorChangeSet.discard();
         if (discardEditor.retire && committedDiscardEditor.current === discardEditor) {
@@ -395,7 +431,35 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
         }
       },
     } as WorkflowChangeSetController;
-  }, [authorChangeSet, childChangeSet, discardEditor, effectiveHookId, setDrawerMode, setSelectedStepId, t]);
+  }, [authorChangeSet, childAuthorized, childChangeSet, discardEditor, effectiveHookId, enabled, journalOwnedByActor, projectCurrent, projectOwner, setDrawerMode, setSelectedStepId, t]);
+
+  // An acknowledged first binding or explicit connected-Hook selection can
+  // precede React's child commit. This ticket allows only that occurrence to
+  // wait for the ordinary committed child capability; it grants no edit authority.
+  type HookMaterialization = {
+    projectOwner: typeof projectOwner;
+    projectId: string;
+    parentWorkflowId: string;
+    hookId: string;
+    stepId: string;
+    workflowId: string;
+    readbackComplete: boolean;
+  };
+  const pendingMaterialization = useRef<HookMaterialization | null>(null);
+  const materializationCurrent = useCallback((ticket: HookMaterialization | null) => {
+    if (!ticket || pendingMaterialization.current !== ticket || committedProjectOwner.current !== ticket.projectOwner) return false;
+    const hookKey = workflowHooksQueryKey(ticket.projectId, ticket.parentWorkflowId);
+    const hookState = queryClient.getQueryState(hookKey);
+    if (hookState?.status === "error" ||
+      queryClient.getQueryState(queryKeys.workflowDetail(ticket.workflowId))?.status === "error" ||
+      queryClient.getQueryState(queryKeys.workflowCanvasGraph(ticket.workflowId))?.status === "error") return false;
+    // Before the awaited readback, an empty cached binding is the old state.
+    // Afterwards, an absent/unbound/different target is authoritative refusal.
+    if (!ticket.readbackComplete) return true;
+    const row = queryClient.getQueryData<{ hooks: WorkflowHook[] }>(hookKey)?.hooks.find((hook) =>
+      hook.hook_id === ticket.hookId && hook.step_id === ticket.stepId);
+    return hookState?.status === "success" && row?.binding?.target_workflow_id === ticket.workflowId;
+  }, [queryClient]);
 
   /** Why the last first-step preparation of a hook failed, for the palette that asked. */
   const creationFailure = useRef("");
@@ -411,6 +475,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
    */
   const ensureHookWorkflow = useCallback(async (frame: HookFrame) => {
     creationFailure.current = "";
+    if (!projectCurrent()) return "";
     if (frame.declarationPending) {
       return failCreation(t("react.workflows.hook_apply_before_steps", "Apply the declaration before adding its steps."));
     }
@@ -420,17 +485,34 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
       return failCreation(t("react.workflows.hook_choose_project_first", "Choose a project in the header first: each project keeps its own steps in a hook."));
     }
     for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (!projectCurrent()) return "";
       const childId = newChildWorkflowId(workflowId, frame.hookId, attempt);
+      let ticket: HookMaterialization | null = null;
       try {
         const result = await createAndBindWorkflowHook(projectId, workflowId, frame.hookId, {
           expected_revision: frame.bindingRevision,
           child_workflow_id: childId,
           display_name: frame.displayName,
         });
+        if (!projectCurrent()) return "";
+        ticket = { projectOwner, projectId, parentWorkflowId: workflowId, hookId: frame.hookId,
+          stepId: frame.stepId, workflowId: result.target_workflow_id || childId, readbackComplete: false };
+        pendingMaterialization.current = ticket;
         await queryClient.invalidateQueries({ queryKey: workflowHooksQueryKey(projectId, workflowId) });
+        ticket.readbackComplete = true;
+        if (!projectCurrent() || !materializationCurrent(ticket)) {
+          if (pendingMaterialization.current === ticket) pendingMaterialization.current = null;
+          return "";
+        }
         await queryClient.invalidateQueries({ queryKey: ["workflows", "meta", "callable-workflows"] });
-        return result.target_workflow_id || childId;
+        if (!projectCurrent() || !materializationCurrent(ticket)) {
+          if (pendingMaterialization.current === ticket) pendingMaterialization.current = null;
+          return "";
+        }
+        return ticket.workflowId;
       } catch (error) {
+        if (ticket && pendingMaterialization.current === ticket) pendingMaterialization.current = null;
+        if (!projectCurrent()) return "";
         const issues = hookErrorIssues(error);
         if (JSON.stringify((error as { payload?: unknown })?.payload || "").includes("workflow.hook.child_id_taken")) continue;
         const reason = issues.map((issue) => issue.message || issue.code).filter(Boolean).join(" ")
@@ -439,7 +521,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
       }
     }
     return failCreation(t("react.workflows.hook_steps_unavailable", "The hook could not take steps: {reason}", { reason: "workflow.hook.child_id_taken" }));
-  }, [failCreation, projectId, queryClient, t, workflowId]);
+  }, [failCreation, materializationCurrent, projectCurrent, projectId, projectOwner, queryClient, t, workflowId]);
 
   /**
    * "Clear the hook": removes every step of the active hook as one unapplied
@@ -448,7 +530,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
   const clearHook = useCallback((hookId: string) => {
     const current = childChangeSet;
     const frame = framesByHook.get(hookId);
-    if (!frame?.targetWorkflowId) return false;
+    if (!projectCurrent() || !childAuthorized || !frame?.targetWorkflowId) return false;
     if (hookId !== effectiveHookId || current.workflowId !== frame.targetWorkflowId || !current.ownerReady) {
       setSaveError(t("react.workflows.hook_steps_loading", "The hook's steps are still loading. Try again in a moment."));
       return false;
@@ -459,35 +541,48 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
       return false;
     }
     return Boolean(current.stageGraphIntent(operations, t("react.workflows.hook_cleared", "The hook's steps are removed from the unapplied structure. Apply to keep the hook empty, or Undo.")));
-  }, [childChangeSet, effectiveHookId, framesByHook, setSaveError, t]);
+  }, [childAuthorized, childChangeSet, effectiveHookId, framesByHook, projectCurrent, setSaveError, t]);
 
   const canActivateHook = useCallback((hookId: string) => {
-    if (hookId !== effectiveHookId && (childChangeSet.hasChanges || childChangeSet.status === "applying")) {
+    if (!journalOwnedByActor && rawChildChangeSet.hasChanges) return !hookId || hookId === effectiveHookId;
+    if (hookId && hookId !== effectiveHookId && hookId !== activeOwner?.hookId && (rawChildChangeSet.hasChanges || rawChildChangeSet.status === "applying")) {
       setSaveError(t("react.workflows.hook_switch_blocked", "Apply or discard the changes in hook {hook} first.", {
         hook: activeServerFrame?.displayName || effectiveHookId,
       }));
       return false;
     }
     return !hookId || framesByHook.has(hookId);
-  }, [activeServerFrame?.displayName, childChangeSet.hasChanges, childChangeSet.status, effectiveHookId, framesByHook, setSaveError, t]);
+  }, [activeOwner?.hookId, activeServerFrame?.displayName, effectiveHookId, framesByHook, journalOwnedByActor, rawChildChangeSet.hasChanges, rawChildChangeSet.status, setSaveError, t]);
   const activateHook = useCallback((hookId: string) => {
     if (!canActivateHook(hookId)) return false;
     setActiveHookId(hookId);
-    if (!childChangeSet.hasChanges && childChangeSet.status !== "applying") {
-      setActiveOwner({ hookId, workflowId: framesByHook.get(hookId)?.targetWorkflowId || "" });
+    if (!rawChildChangeSet.hasChanges && rawChildChangeSet.status !== "applying") {
+      setActiveOwner({ actorKey, parentWorkflowId: workflowId, projectId, hookId, workflowId: framesByHook.get(hookId)?.targetWorkflowId || "" });
     }
     return true;
-  }, [canActivateHook, childChangeSet.hasChanges, childChangeSet.status, framesByHook]);
+  }, [actorKey, canActivateHook, framesByHook, projectId, rawChildChangeSet.hasChanges, rawChildChangeSet.status, workflowId]);
   const creationRequests = useRef(new Map<string, Promise<string>>());
   const ensureWorkflowOnce = useCallback((frame: HookFrame) => {
-    if (frame.targetWorkflowId) return Promise.resolve(frame.targetWorkflowId);
+    if (!projectCurrent()) return Promise.resolve("");
+    if (frame.targetWorkflowId) {
+      // The binding is already authorized; only its selected child controller
+      // may still be waiting for React's commit. No creation request is needed.
+      const ticket: HookMaterialization = { projectOwner, projectId, parentWorkflowId: workflowId, hookId: frame.hookId,
+        stepId: frame.stepId, workflowId: frame.targetWorkflowId, readbackComplete: true };
+      pendingMaterialization.current = ticket;
+      if (!materializationCurrent(ticket)) {
+        pendingMaterialization.current = null;
+        return Promise.resolve("");
+      }
+      return Promise.resolve(ticket.workflowId);
+    }
     const key = `${projectId}:${workflowId}:${frame.hookId}:${frame.bindingRevision}`;
     const pending = creationRequests.current.get(key);
     if (pending) return pending;
     const promise = ensureHookWorkflow(frame).finally(() => creationRequests.current.delete(key));
     creationRequests.current.set(key, promise);
     return promise;
-  }, [ensureHookWorkflow, projectId, workflowId]);
+  }, [ensureHookWorkflow, materializationCurrent, projectCurrent, projectId, projectOwner, workflowId]);
 
   // Publish current controllers only after React commits their exact owner,
   // revision and preview. This effect never creates or stages anything.
@@ -500,7 +595,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
     childBinding: readonly unknown[] | null;
     childId: string;
     childBlocked: boolean;
-    waiters: Set<{ hookId: string; workflowId: string; settle: (owner: LocalCreationOwner | null) => void }>;
+    waiters: Set<{ hookId: string; workflowId: string; materialization: HookMaterialization | null; settle: (owner: LocalCreationOwner | null) => void }>;
   }>({ alive: false, author: null, child: null, authorBinding: null, childBinding: null, childId: "", childBlocked: false, waiters: new Set() });
   useLayoutEffect(() => {
     const registry = creationRegistry.current;
@@ -509,7 +604,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
     const authorRevision = Number(workflow?.revision || 0);
     const authorReady = authorChangeSet.ownerReady && authorChangeSet.workflowId === workflowId && textOf(workflow?.workflow_id) === workflowId && authorRevision > 0 && !["applying", "conflict"].includes(authorChangeSet.status);
     const authorBinding = authorReady ? [
-      projectId, workflowId, authorRevision, enabled, structureLocked,
+      authorProjectId, workflowId, authorRevision, enabled, structureLocked,
       authorChangeSet.workflowId, authorChangeSet.ownerReady, authorChangeSet.preview, authorChangeSet.stage, authorChangeSet.stageGraphIntent, authorChangeSet.operations, authorChangeSet.status,
       focusCanvasNode,
     ] : null;
@@ -518,7 +613,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
       registry.author = { workflowId, hookId: "", revision: authorRevision, generation, preview: authorChangeSet.preview, stage: authorChangeSet.stage, stageGraphIntent: authorChangeSet.stageGraphIntent, viewEpoch: authorChangeSet.placementViewEpoch, toCanvasId: (id) => id, focus: (id, options) => focusCanvasNode?.(id, options) };
     }
     registry.authorBinding = authorBinding;
-    const childReady = childChangeSet.ownerReady && childChangeSet.workflowId === childWorkflowId && enabled && childLoaded && textOf(childWorkflow?.workflow_id) === childWorkflowId && Boolean(childRevision) && !["applying", "conflict"].includes(childChangeSet.status);
+    const childReady = Boolean(projectId) && childAuthorized && childChangeSet.ownerReady && childChangeSet.workflowId === childWorkflowId && enabled && childLoaded && textOf(childWorkflow?.workflow_id) === childWorkflowId && Boolean(childRevision) && !["applying", "conflict"].includes(childChangeSet.status);
     const childBinding = childReady ? [
       projectId, workflowId, authorRevision, enabled, structureLocked, authorChangeSet.ownerReady, authorChangeSet.preview,
       effectiveHookId, childWorkflowId, childRevision, activeServerFrame?.stepId, activeServerFrame?.targetWorkflowId, activeServerFrame?.bindingRevision, Boolean(activeServerFrame?.declarationPending),
@@ -531,36 +626,56 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
     }
     registry.childBinding = childBinding;
     registry.childId = childWorkflowId;
-    registry.childBlocked = childDetailQuery.isError || ["applying", "conflict"].includes(childChangeSet.status) || (childLoaded && (!childRevision || textOf(childWorkflow?.workflow_id) !== childWorkflowId));
+    registry.childBlocked = !childAuthorized || !projectId || childDetailQuery.isError || childCanvasQuery.isError || ["applying", "conflict"].includes(childChangeSet.status) || (childLoaded && (!childRevision || textOf(childWorkflow?.workflow_id) !== childWorkflowId));
+    const materialization = pendingMaterialization.current;
+    if (materialization && (!materializationCurrent(materialization) || !framesByHook.has(materialization.hookId) || framesByHook.get(materialization.hookId)?.declarationPending)) {
+      pendingMaterialization.current = null;
+    }
     // Settlement removes waiters; iterate a snapshot of this committed owner generation.
     const waiters = Array.from(registry.waiters);
     for (const waiter of waiters) {
+      // A ticket from A cannot use a later A occurrence, even if its target matches.
+      if (waiter.materialization && !materializationCurrent(waiter.materialization)) { waiter.settle(null); continue; }
       const owner = waiter.hookId ? registry.child : registry.author;
       if (owner?.hookId === waiter.hookId && owner.workflowId === waiter.workflowId) waiter.settle(owner);
-      else if (!waiter.hookId || (registry.childId === waiter.workflowId && registry.childBlocked) || (registry.child && registry.child.hookId === waiter.hookId && registry.child.workflowId !== waiter.workflowId)) waiter.settle(null);
+      else if (!waiter.hookId || (!childAuthorized && !waiter.materialization) || (registry.childId === waiter.workflowId && registry.childBlocked) || (registry.child && registry.child.hookId === waiter.hookId && registry.child.workflowId !== waiter.workflowId)) waiter.settle(null);
     }
-  }, [activeServerFrame, authorChangeSet, childChangeSet, childDetailQuery.isError, childLoaded, childRevision, childWorkflow, childWorkflowId, effectiveHookId, enabled, focusCanvasNode, projectId, structureLocked, workflow, workflowId]);
+  }, [activeServerFrame, authorChangeSet, authorProjectId, childAuthorized, childChangeSet, childDetailQuery.isError, childCanvasQuery.isError, childLoaded, childRevision, childWorkflow, childWorkflowId, effectiveHookId, enabled, focusCanvasNode, framesByHook, materializationCurrent, projectId, projectOwner, structureLocked, workflow, workflowId]);
   useLayoutEffect(() => () => {
     const registry = creationRegistry.current;
     registry.alive = false; registry.author = null; registry.child = null;
     registry.authorBinding = null; registry.childBinding = null;
+    pendingMaterialization.current = null;
     const waiters = Array.from(registry.waiters);
     for (const waiter of waiters) waiter.settle(null);
   }, []);
   const acquireCreationOwner = useCallback((hookId: string, expectedWorkflowId: string, signal?: AbortSignal): Promise<LocalCreationOwner | null> => {
     const registry = creationRegistry.current;
     if (!registry.alive || signal?.aborted) return Promise.resolve(null);
+    const pending = pendingMaterialization.current;
+    const materialization = pending?.hookId === hookId && pending.workflowId === expectedWorkflowId ? pending : null;
+    if (materialization && !materializationCurrent(materialization)) {
+      if (pendingMaterialization.current === materialization) pendingMaterialization.current = null;
+      return Promise.resolve(null);
+    }
     const owner = hookId ? registry.child : registry.author;
-    if (owner?.hookId === hookId && owner.workflowId === expectedWorkflowId) return Promise.resolve(owner);
-    if (!hookId || (registry.childId === expectedWorkflowId && registry.childBlocked)) return Promise.resolve(null);
+    if (owner?.hookId === hookId && owner.workflowId === expectedWorkflowId) {
+      if (materialization && pendingMaterialization.current === materialization) pendingMaterialization.current = null;
+      return Promise.resolve(owner);
+    }
+    if (!hookId || (registry.childBlocked && !registry.childId && !materialization) || (registry.childId === expectedWorkflowId && registry.childBlocked)) return Promise.resolve(null);
     return new Promise((resolve) => {
-      const waiter = { hookId, workflowId: expectedWorkflowId, settle: (ready: LocalCreationOwner | null) => { registry.waiters.delete(waiter); signal?.removeEventListener("abort", cancel); resolve(ready); } };
+      const waiter = { hookId, workflowId: expectedWorkflowId, materialization, settle: (ready: LocalCreationOwner | null) => {
+        registry.waiters.delete(waiter); signal?.removeEventListener("abort", cancel);
+        if (materialization && pendingMaterialization.current === materialization) pendingMaterialization.current = null;
+        resolve(ready);
+      } };
       const cancel = () => waiter.settle(null);
       registry.waiters.add(waiter);
       signal?.addEventListener("abort", cancel, { once: true });
       if (signal?.aborted) cancel();
     });
-  }, []);
+  }, [materializationCurrent]);
   const isCreationOwnerCurrent = useCallback((owner: LocalCreationOwner) => {
     const registry = creationRegistry.current;
     return registry.alive && (owner.hookId ? registry.child : registry.author) === owner;
@@ -568,6 +683,8 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
 
   return {
     authorWorkflowId: workflowId,
+    authorityEpoch: projectOwner.epoch,
+    isChildAuthorityCurrent: () => projectCurrent() && childAuthorized && rawChildChangeSet.ownerReady,
     acquireCreationOwner,
     isCreationOwnerCurrent,
     canvasChangeSet,

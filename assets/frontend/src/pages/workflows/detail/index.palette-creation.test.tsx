@@ -528,7 +528,7 @@ it("retires the previous Hook capability through a real same-child before-after-
   } finally { state.close(); }
 });
 
-it("does not revive the exact preview and stage capability after project A-B-A", async () => {
+it("retains the preview but never revives stale staging capabilities after project A-B-A", async () => {
   const state = setupReadyOwner({ cachedChild: true });
   try {
     await waitFor(() => expect(state.view.result.current.scope.childRevision).toBe(9));
@@ -544,9 +544,20 @@ it("does not revive the exact preview and stage capability after project A-B-A",
     expect(current).not.toBe(owner);
     expect(current.generation).toBeGreaterThan(owner.generation);
     expect(current.preview).toBe(owner.preview);
-    expect(current.stage).toBe(owner.stage);
-    expect(state.view.result.current.author.operations).toEqual([]);
+    expect(current.stage).not.toBe(owner.stage);
+    expect(current.stageGraphIntent).not.toBe(owner.stageGraphIntent);
+    const next: WorkflowChangeOperation = { op: "create_step", step: { step_id: "current_wait", step_kind: "wait", override: { wait: { duration_ms: 60000 } } } };
+    act(() => {
+      owner.stage(next);
+      expect(owner.stageGraphIntent([next])).toBeNull();
+    });
+    expect(state.view.result.current.scope.childChangeSet.preview).toBe(owner.preview);
     expect(state.view.result.current.scope.childChangeSet.operations).toEqual([]);
+    expect(state.view.result.current.scope.childChangeSet.journal.items).toEqual([]);
+    act(() => current.stage(next));
+    expect(state.view.result.current.scope.childChangeSet.operations).toEqual([next]);
+    expect(state.view.result.current.scope.childChangeSet.journal.items).toHaveLength(1);
+    expect(state.view.result.current.author.operations).toEqual([]);
     expect(state.opened).toEqual([]);
   } finally { state.close(); }
 });

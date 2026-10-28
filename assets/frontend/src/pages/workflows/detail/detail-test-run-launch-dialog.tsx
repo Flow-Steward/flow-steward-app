@@ -12,6 +12,7 @@ import type { CanvasRunBarProps } from "@/pages/workflows/builder/canvas-run-bar
 import type { WorkflowCanvasGraph } from "@/pages/workflows/shared/api";
 import { stepKindKeepsOutput } from "@/pages/workflows/shared/kept-test-output-api";
 import type { WorkflowTestRunEvidence } from "./detail-test-run-evidence";
+import "./detail-test-run-launch-dialog.css";
 import {
   inputSupportsBoolean,
   inputSupportsJson,
@@ -117,8 +118,6 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
           initialFocusRef.current = element?.querySelector<HTMLElement>('select:not(:disabled), input:not(:disabled):not([readonly]):not([type="hidden"]), textarea:not(:disabled)') || null;
         }}
       >
-        {/* Caller-scoped anatomy; shared Form Dialog defaults stay unchanged. */}
-        <style>{`.fs-dialog:has([data-workflow-test-run-launch]) { --fs-form-dialog-body-padding: var(--fs-space-200) var(--fs-space-300) var(--fs-space-300); } .fs-dialog:has([data-workflow-test-run-launch]) > .fs-dialog-header, .fs-dialog:has([data-workflow-test-run-launch]) > .fs-dialog-footer { flex-shrink: 0; } .workflow-test-run-launch [role="note"] { color: var(--fs-text-primary); border-color: var(--fs-status-warning-border); background: var(--fs-status-warning-bg); }`}</style>
         <TestRunEffectWarning />
         {failing.length ? <div data-testid="workflow-test-run-will-fail"><DsAlert tone="warning" title={failing.length === 1
           ? t("react.workflows.test_run_one_step_will_fail", "One step will fail as it is set now")

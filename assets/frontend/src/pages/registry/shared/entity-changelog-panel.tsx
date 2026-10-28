@@ -17,7 +17,14 @@ import {
 } from "@/pages/registry/changelog/api";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { changelogRevisionPresentation } from "@/pages/registry/shared/changelog-revision";
+import {
+  changelogActionLabel,
+  changelogComparisonLabel,
+  changelogRevisionLabel,
+  changelogRevisionRestoreCopy,
+  changelogRevisionPresentation,
+  workflowChangePathLabel,
+} from "@/pages/registry/shared/changelog-revision";
 import "@/pages/registry/shared/entity-changelog-panel.css";
 
 type HistoryRow = Record<string, unknown>;
@@ -102,12 +109,14 @@ function normalizeText(value: unknown, t: I18nContextValue["t"] = fallbackContex
 }
 
 function ChangelogRows({
+  entityType,
   onSelect,
   resolvedSelectedRowKey,
   rows,
   userTimezone,
 }: Readonly<{
   onSelect: (key: string) => void;
+  entityType: string;
   resolvedSelectedRowKey: string;
   rows: HistoryRow[];
   userTimezone: string;
@@ -117,15 +126,15 @@ function ChangelogRows({
     <div className="fs-changelog__list">
       {rows.map((row, index) => {
         const computedRowKey = rowKey(row, index);
+        const reference = entryRef(row) || "—";
         return (
           <button aria-current={computedRowKey === resolvedSelectedRowKey ? "true" : undefined} className="fs-changelog__row" key={`${computedRowKey}-${index}`} onClick={() => onSelect(computedRowKey)} type="button">
             <span className="fs-changelog__row-head">
-              <span className="fs-changelog__row-ref">{typeof row.revision === "number"
-                ? t("react.registry.revision_value0", "Revision {value0}", { value0: row.revision })
-                : <>{t("react.registry.entry_variant_965fdbac", "Entry #")}{normalizeText(row.entry_id || row.id || row.revision_id || "—", t)}</>}</span>
+              <span className="fs-changelog__row-ref">{changelogRevisionLabel(entityType, row, t)}</span>
+              <span className="fs-changelog__row-ref">{t("react.registry.entry_variant_965fdbac", "Entry #")}{reference}</span>
               <span className="fs-changelog__row-time">{formatUserDateTime(row.created_at || row.timestamp || row.updated_at, userTimezone)}</span>
             </span>
-            <span className="fs-changelog__row-meta">{t("react.registry.action", "action:")}{" "}{normalizeText(row.action || row.event || row.kind, t)} {" "}{t("react.registry.author", "• author:")}{" "}{normalizeText(row.author || row.actor || row.username, t)}</span>
+            <span className="fs-changelog__row-meta">{t("react.registry.action", "action:")}{" "}{normalizeText(changelogActionLabel(row.action || row.event || row.kind, t), t)} {" "}{t("react.registry.author", "• author:")}{" "}{normalizeText(row.author || row.actor || row.username, t)} {" "}{t("react.registry.source", "• source:")} {" "}{normalizeText(row.source || row.origin || row.provider, t)}</span>
           </button>
         );
       })}
@@ -141,10 +150,12 @@ function ChangelogDiffContent({
   entityId,
   entityType,
   onRestore,
+  previousEntry,
   previousEntryId,
   restoreDisabledReason,
   restoreNote,
   restoring,
+  selectedEntry,
   selectedEntryRef,
   revisionPresentation,
 }: Readonly<{
@@ -155,10 +166,12 @@ function ChangelogDiffContent({
   entityId: string;
   entityType: string;
   onRestore: () => void;
+  previousEntry: HistoryRow | undefined;
   previousEntryId: string | null;
   restoreDisabledReason?: string;
   restoreNote?: string;
   restoring: boolean;
+  selectedEntry: HistoryRow | null;
   selectedEntryRef: string | null;
   revisionPresentation: ReturnType<typeof changelogRevisionPresentation>;
 }>) {
@@ -166,7 +179,7 @@ function ChangelogDiffContent({
   const diffLoaderVisible = useLoaderDelay(diffLoading);
   return (
     <div className="fs-changelog__drawer-body">
-      <p className="fs-changelog__compare">{revisionPresentation.explanation || (previousEntryId ? t("react.registry.comparing_value0_value1", "Comparing #{value0} -> #{value1}", { value0: previousEntryId, value1: selectedEntryRef || "—" }) : t("react.registry.no_previous_revision_available_for_the_selected_entry", "No previous revision available for the selected entry."))}</p>
+      <p className="fs-changelog__compare">{revisionPresentation.explanation || (previousEntryId ? changelogComparisonLabel(entityType, previousEntry, selectedEntry, previousEntryId, selectedEntryRef || "", t) : t("react.registry.no_previous_revision_available_for_the_selected_entry", "No previous revision available for the selected entry."))}</p>
       {revisionPresentation.canRestore ? <div className="fs-changelog__restore-bar">
         <span className="fs-changelog__restore-note">{restoreDisabledReason || restoreNote || <>{t("react.registry.restore_applies_the_selected_revision_to", "Restore applies the selected revision to")}{" "}{entityType}/{entityId}.</>}</span>
         <button className="fs-button primary" disabled={!selectedEntryRef || restoring || Boolean(restoreDisabledReason)} onClick={onRestore} type="button">{restoring ? t("react.registry.restoring", "Restoring...") : t("react.registry.restore_this_revision", "Restore this revision")}</button>
@@ -181,10 +194,13 @@ function ChangelogDiffContent({
         {diffChanges.map((change, index) => (
           <div className="fs-changelog__change" key={`${normalizeText(change.path || change.key, t)}-${index}`}>
             <span className="fs-changelog__change-head">
-              <span className="fs-changelog__change-path">{normalizeText(change.path || change.key || `change-${index + 1}`, t)}</span>
+              <span className="fs-changelog__change-path">{normalizeText(workflowChangePathLabel(entityType, change.path || change.key || `change-${index + 1}`, t), t)}
+            {workflowChangePathLabel(entityType, change.path || change.key || "", t) !== normalizeText(change.path || change.key || "", t)
+              ? <code className="ml-2 text-xs opacity-70">{normalizeText(change.path || change.key, t)}</code>
+              : null}</span>
               <span className="fs-changelog__change-kind">{normalizeText(change.change || change.type || "updated", t)}</span>
             </span>
-            <span className="fs-changelog__change-values">{t("project_edit.diff.from", "from:")}{" "}{normalizeText(change.from || change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(change.to || change.after, t)}</span>
+            <span className="fs-changelog__change-values">{t("project_edit.diff.from", "from:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "from") ? change.from : change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "to") ? change.to : change.after, t)}</span>
           </div>
         ))}
       </div>
@@ -284,10 +300,11 @@ export function RegistryEntityChangelogPanel({
     if (!entityType || !entityId || !selectedEntryRef || !revisionPresentation.canRestore || restoreDisabledReason) {
       return;
     }
+    const restoreCopy = changelogRevisionRestoreCopy(entityType, entityId, selectedEntry, selectedEntryRef, t);
     const confirmed = await requestConfirmation({
-      body: t("react.registry.apply_changelog_entry_value0_to_value1_value2", "Apply changelog entry #{value0} to {value1}/{value2}?", { value0: selectedEntryRef, value1: entityType, value2: entityId }),
+      body: restoreCopy.body,
       confirmLabel: t("trash.row_actions.restore", "Restore"),
-      title: t("react.registry.restore_value0_value1", "Restore {value0}/{value1}", { value0: entityType, value1: entityId }),
+      title: restoreCopy.title,
     });
     if (!confirmed) {
       return;
@@ -304,7 +321,7 @@ export function RegistryEntityChangelogPanel({
       });
       setModalOpen(false);
       setRestoreMessage(
-        t("react.registry.restored_value0_value1_from_entry_value2", "Restored {value0}/{value1} from entry #{value2}.", { value0: entityType, value1: entityId, value2: selectedEntryRef }),
+        restoreCopy.success,
       );
       if (onRestored) {
         await onRestored();
@@ -339,6 +356,7 @@ export function RegistryEntityChangelogPanel({
       ) : null}
 
       <ChangelogRows
+        entityType={entityType}
         onSelect={(key) => { setSelectedRowKey(key); setModalOpen(true); }}
         resolvedSelectedRowKey={resolvedSelectedRowKey}
         rows={rows}
@@ -363,10 +381,12 @@ export function RegistryEntityChangelogPanel({
           entityId={entityId}
           entityType={entityType}
           onRestore={() => ignoreAsyncResult(restoreSelectedEntry( ))}
+          previousEntry={previousEntry}
           previousEntryId={previousEntryId}
           restoreDisabledReason={restoreDisabledReason}
           restoreNote={restoreNote}
           restoring={restoring}
+          selectedEntry={selectedEntry}
           selectedEntryRef={selectedEntryRef}
           revisionPresentation={revisionPresentation}
         />

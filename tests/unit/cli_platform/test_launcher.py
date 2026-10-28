@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from core.application.installer import InstallConfig
 from core.infrastructure.installer import gateway as installer_gateway_module
 from core.infrastructure.installer import gateway_cli_runtime
@@ -414,6 +413,26 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Pa
               printf 'bind\\t%s\\t%s\\t%s\\n' "$host_source" "$host_destination" "$host_rw"
               printf 'bind\\t%s\\t%s\\t%s\\n' "$socket_source" "$socket_destination" "$socket_rw"
               printf 'bind\\t%s\\t/run/flow-steward-runtime\\ttrue\\n' "$runtime_source"
+              if [ "$FS_STACK_ENVIRONMENT" != "production" ]; then
+                if [ "${FAKE_CONTAINER_SELECTED_STATE_MOUNTS:-}" = "correct" ] ||
+                  [ -z "${FAKE_CONTAINER_SELECTED_STATE_MOUNTS:-}" ] ||
+                  [ -f "$FAKE_DOCKER_STATE" ]; then
+                printf 'bind\\t%s\\t/run/flow-steward-install-state\\ttrue\\n' \
+                  "$source_prefix$FS_INSTALLER_STATE_DIR"
+                printf 'bind\\t%s\\t%s\\ttrue\\n' \
+                  "$source_prefix$FS_INSTALLER_STATE_DIR" "$FS_INSTALLER_STATE_DIR"
+                elif [ "${FAKE_CONTAINER_SELECTED_STATE_MOUNTS:-}" = "wrong-alias" ]; then
+                printf 'bind\\t%s\\t/run/flow-steward-install-state\\ttrue\\n' \
+                  "/wrong/installer-state"
+                printf 'bind\\t%s\\t%s\\ttrue\\n' \
+                  "$source_prefix$FS_INSTALLER_STATE_DIR" "$FS_INSTALLER_STATE_DIR"
+                elif [ "${FAKE_CONTAINER_SELECTED_STATE_MOUNTS:-}" = "wrong-identity" ]; then
+                printf 'bind\\t%s\\t/run/flow-steward-install-state\\ttrue\\n' \
+                  "$source_prefix$FS_INSTALLER_STATE_DIR"
+                printf 'bind\\t%s\\t%s\\ttrue\\n' \
+                  "/wrong/installer-state" "$FS_INSTALLER_STATE_DIR"
+                fi
+              fi
               if [ "$FS_STACK_ENVIRONMENT" = "production" ]; then
                 printf 'bind\\t%s\\t/run/flow-steward-candidate-state\\ttrue\\n' "$candidate_state_source"
                 printf 'bind\\t%s\\t/app/.env.prod\\ttrue\\n' "$candidate_env_source"
@@ -3655,6 +3674,73 @@ def test_production_runtime_reuses_exact_installer_candidate_mounts(
     assert result.returncode == 0, result.stderr
     assert _count_action(fake_repo, "up") == 0
     assert _count_action(fake_repo, "rm") == 0
+    assert _count_action(fake_repo, "exec") == 1
+
+
+def _write_external_development_state(fake_repo: tuple[Path, Path], state_dir: Path) -> None:
+    repo, _log_path = fake_repo
+    state_dir.mkdir()
+    (repo / ".env").write_text("FS_CLI_IMAGE=flow-steward-cli:test\n", encoding="utf-8")
+    (state_dir / "compose.env").write_text(
+        "\n".join(
+            (
+                "FS_STACK_ENVIRONMENT=local_development",
+                "FS_COMPOSE_PROJECT_NAME=dev",
+                "FS_COMPOSE_FILES=infra/docker/docker-compose.yaml",
+                "FS_ENV_FILE=.env",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_development_runtime_reuses_exact_external_installer_state_mounts(
+    fake_repo: tuple[Path, Path], tmp_path: Path
+) -> None:
+    state_dir = tmp_path / "selected-installer-state"
+    _write_external_development_state(fake_repo, state_dir)
+
+    result = _run_launcher(
+        fake_repo,
+        "stack",
+        "status",
+        env={
+            "FS_INSTALLER_STATE_DIR": str(state_dir),
+            "FAKE_IMAGE_REVISION": "test-revision",
+            "FAKE_CONTAINER_SELECTED_STATE_MOUNTS": "correct",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert _count_action(fake_repo, "up") == 0
+    assert _count_action(fake_repo, "exec") == 1
+
+
+@pytest.mark.parametrize(
+    "mounts",
+    ["missing", "wrong-alias", "wrong-identity"],
+    ids=["missing-selected-state-mounts", "wrong-config-alias", "wrong-host-identity"],
+)
+def test_development_runtime_repairs_missing_or_wrong_external_installer_state_mounts(
+    fake_repo: tuple[Path, Path], tmp_path: Path, mounts: str
+) -> None:
+    state_dir = tmp_path / "selected-installer-state"
+    _write_external_development_state(fake_repo, state_dir)
+
+    result = _run_launcher(
+        fake_repo,
+        "stack",
+        "status",
+        env={
+            "FS_INSTALLER_STATE_DIR": str(state_dir),
+            "FAKE_IMAGE_REVISION": "test-revision",
+            "FAKE_CONTAINER_SELECTED_STATE_MOUNTS": mounts,
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert _count_action(fake_repo, "up") == 1
     assert _count_action(fake_repo, "exec") == 1
 
 

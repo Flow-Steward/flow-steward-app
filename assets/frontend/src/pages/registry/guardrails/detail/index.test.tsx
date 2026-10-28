@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
@@ -76,14 +76,59 @@ function renderGuardrailDetail(entity: Record<string, unknown>, locale: "en" | "
     </QueryClientProvider></I18nContext.Provider>,
   );
 
-  return { saveEntityPatch, setSaveStatus };
+  return { saveEntityPatch, setSaveStatus, queryClient };
 }
+
+describe("guardrail scope paused enumeration", () => {
+  it("blocks scope save during an offline paused refetch while retaining cached saved IDs", async () => {
+    const agentRows = [{ agent_id: "writer", display_name: "Writer" }];
+    const queryKey = ["registry", "guardrail-scope", "agents", undefined] as const;
+    mockedFetchRegistryList.mockReset();
+    mockedFetchRegistryList.mockImplementation(async (endpoint) =>
+      endpoint === "/api/agents?usage=guardrail" ? agentRows : [],
+    );
+    const wasOnline = onlineManager.isOnline();
+    const { queryClient, saveEntityPatch } = renderGuardrailDetail({
+      id: 34, display_name: "Paused saved scope", _agents: ["writer"], config: { patterns: ["FORBIDDEN"] },
+    });
+    try {
+      onlineManager.setOnline(true);
+      fireEvent.click(screen.getByRole("tab", { name: "Agent Scope" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeEnabled());
+      expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeChecked();
+      expect(queryClient.getQueryState(queryKey)).toMatchObject({
+        status: "success", fetchStatus: "idle", data: agentRows,
+      });
+      const readsBeforePause = mockedFetchRegistryList.mock.calls.length;
+      await act(async () => {
+        onlineManager.setOnline(false);
+        await queryClient.refetchQueries({ queryKey, exact: true });
+      });
+      expect(queryClient.getQueryState(queryKey)).toMatchObject({
+        status: "success", fetchStatus: "paused", data: agentRows,
+      });
+      expect(mockedFetchRegistryList).toHaveBeenCalledTimes(readsBeforePause);
+      expect(screen.getByText("writer", { exact: true })).toBeVisible();
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeDisabled();
+        expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeDisabled();
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Save agent scope/i }));
+      expect(saveEntityPatch).not.toHaveBeenCalled();
+      expect(screen.getByText("writer", { exact: true })).toBeVisible();
+    } finally {
+      // Restore shared online state even when the intended RED assertion fails.
+      onlineManager.setOnline(wasOnline);
+      queryClient.clear();
+    }
+  });
+});
 
 describe("RegistryGuardrailsDetailPage", () => {
   beforeEach(() => {
     mockedFetchRegistryList.mockReset();
     mockedFetchRegistryList.mockImplementation(async (endpoint) => {
-      if (endpoint === "/api/agents") {
+      if (endpoint === "/api/agents" || endpoint === "/api/agents?usage=guardrail") {
         return [
           { agent_id: "writer", display_name: "Writer" },
           { agent_id: "reviewer", display_name: "Reviewer" },
@@ -276,7 +321,11 @@ describe("RegistryGuardrailsDetailPage", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Agent Scope" }));
     // Writer is the only selected agent, so unchecking it empties the scope.
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Toggle Writer/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeEnabled();
+    })
+    expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeChecked();;
+    fireEvent.click(screen.getByRole("checkbox", { name: /Toggle Writer/i }));
 
     expect(screen.getByText("Select at least one agent before saving.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeDisabled();
@@ -285,7 +334,11 @@ describe("RegistryGuardrailsDetailPage", () => {
   it("localizes the empty guardrail scope message and does not save an invalid assignment", async () => {
     const { saveEntityPatch } = renderGuardrailDetail({ id: 16, display_name: "Owner policy", rule_type: "forbidden_patterns", mode: "deterministic", severity: "error", enabled: true, _agents: ["writer"], config: { patterns: ["DROP TABLE"] } }, "lt");
     fireEvent.click(screen.getByRole("tab", { name: "Agent Scope" }));
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Toggle Writer/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeEnabled();
+    })
+    expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeChecked();;
+    fireEvent.click(screen.getByRole("checkbox", { name: /Toggle Writer/i }));
     expect(screen.getByText("Prieš išsaugodami pasirinkite bent vieną agentą.")).toBeInTheDocument();
     expect(screen.queryByText("Select at least one agent before saving.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeDisabled();
@@ -393,5 +446,117 @@ describe("RegistryGuardrailsDetailPage", () => {
     expect(jsonEditor).toHaveAccessibleDescription(parserMessage);
     expect(saveEntityPatch).not.toHaveBeenCalled();
     expect(setSaveStatus).not.toHaveBeenCalledWith(parserMessage);
+  });
+  it("keeps a selected unavailable agent visible until explicitly removed and saves only the chosen replacement scope", async () => {
+    const missingId = "extension.guard-install.retained_missing";
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents?usage=guardrail") return [
+        { agent_id: "writer", display_name: "Writer" },
+        { agent_id: "extension.guard-install.bridge", display_name: "Installed Durable Writer", source_install_id: "guard-install" },
+      ];
+      if (endpoint === "/api/agents") return [{ agent_id: "writer", display_name: "Writer" }];
+      return [];
+    });
+    const { saveEntityPatch, queryClient } = renderGuardrailDetail({
+      id: 31, display_name: "Retained scope", mode: "deterministic", rule_type: "forbidden_patterns",
+      severity: "error", enabled: false, _agents: ["writer", missingId], config: { patterns: ["FORBIDDEN"] },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Agent Scope" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeEnabled());
+    expect((await screen.findAllByText(missingId, { exact: false }))[0]).toBeVisible();
+    expect(screen.getAllByText(/unavailable/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeDisabled();
+    expect(saveEntityPatch).not.toHaveBeenCalled();
+    await queryClient.invalidateQueries({ queryKey: ["registry", "guardrail-scope", "agents"] });
+    expect(screen.getAllByText(missingId, { exact: false })[0]).toBeVisible();
+    expect(saveEntityPatch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Config" }));
+    fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Retained scope renamed" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save config/i }));
+    await waitFor(() => expect(saveEntityPatch).toHaveBeenCalled());
+    expect(saveEntityPatch.mock.calls[0][0]).not.toHaveProperty("agents");
+    saveEntityPatch.mockClear();
+    fireEvent.click(screen.getByRole("tab", { name: "Agent Scope" }));
+    expect(screen.getAllByText(missingId, { exact: false })[0]).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /Remove.*retained_missing|retained_missing.*Remove/i }));
+    expect(screen.queryAllByText(missingId, { exact: false })).toHaveLength(0);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Toggle Installed Durable Writer/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save agent scope/i }));
+    await waitFor(() => expect(saveEntityPatch).toHaveBeenCalledWith({
+      agents: ["extension.guard-install.bridge", "writer"],
+    }));
+  });
+
+  it.each(["loading", "error"] as const)("preserves retained scope while eligible agents are %s", async (state) => {
+    const missingId = "extension.guard-install.retained_missing";
+    let settle!: (rows: Awaited<ReturnType<typeof fetchRegistryList>>) => void;
+    const pending = new Promise<Awaited<ReturnType<typeof fetchRegistryList>>>((resolve) => { settle = resolve; });
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents?usage=guardrail") {
+        if (state === "error") throw new Error("Agent choices could not be loaded.");
+        return pending;
+      }
+      if (endpoint === "/api/agents") return [];
+      return [];
+    });
+    const { saveEntityPatch } = renderGuardrailDetail({
+      id: 32, display_name: "Retained scope", mode: "deterministic", rule_type: "forbidden_patterns",
+      severity: "error", enabled: false, _agents: ["writer", missingId], config: { patterns: ["FORBIDDEN"] },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Agent Scope" }));
+    await waitFor(() => expect(mockedFetchRegistryList).toHaveBeenCalledWith("/api/agents?usage=guardrail"));
+    expect(screen.getAllByText(missingId, { exact: false })[0]).toBeVisible();
+    expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeDisabled();
+    expect(saveEntityPatch).not.toHaveBeenCalled();
+    if (state === "loading") {
+      // Failure to enumerate is not evidence that saved scope should be dropped.
+      settle([{ agent_id: "writer", display_name: "Writer" }]);
+      await waitFor(() => expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeEnabled());
+      expect(screen.getAllByText(missingId, { exact: false })[0]).toBeVisible();
+    } else {
+      expect((await screen.findAllByText(/could not be loaded|failed to load|unable to load/i))[0]).toBeVisible();
+    }
+    expect(saveEntityPatch).not.toHaveBeenCalled();
+  });
+
+});
+
+
+describe("guardrail scope enumeration authority", () => {
+  it("blocks cached valid choices throughout refetch and after a failed refetch without losing scope", async () => {
+    let rejectRefetch!: (error: Error) => void;
+    const pending = new Promise<Awaited<ReturnType<typeof fetchRegistryList>>>((_resolve, reject) => { rejectRefetch = reject; });
+    let reads = 0;
+    mockedFetchRegistryList.mockReset();
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents?usage=guardrail") {
+        reads += 1;
+        if (reads === 1) return [{ agent_id: "writer", display_name: "Disabled Writer", enabled: false }];
+        return pending;
+      }
+      return [];
+    });
+    const { queryClient, saveEntityPatch } = renderGuardrailDetail({
+      id: 33, display_name: "Cached scope", _agents: ["writer"], config: { patterns: ["FORBIDDEN"] },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Agent Scope" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeEnabled());
+    expect(screen.getByRole("checkbox", { name: /Toggle Disabled Writer/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Toggle Disabled Writer/i })).toBeEnabled();
+    const refetch = queryClient.invalidateQueries({ queryKey: ["registry", "guardrail-scope", "agents"] });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeDisabled());
+    expect(screen.getByText("writer", { exact: true })).toBeVisible();
+    rejectRefetch(new Error("Agent choices could not be loaded."));
+    await refetch;
+    await screen.findByText(/failed to load agent choices/i);
+    expect(screen.getByRole("button", { name: /Save agent scope/i })).toBeDisabled();
+    expect(screen.getByText("writer", { exact: true })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /Save agent scope/i }));
+    expect(saveEntityPatch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: "Config" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save config/i }));
+    await waitFor(() => expect(saveEntityPatch).toHaveBeenCalled());
+    expect(saveEntityPatch.mock.calls[0][0]).not.toHaveProperty("agents");
   });
 });

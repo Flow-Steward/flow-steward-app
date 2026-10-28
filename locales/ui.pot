@@ -7878,6 +7878,18 @@ msgstr ""
 msgid "react.registry.action"
 msgstr ""
 
+msgid "react.registry.action_created"
+msgstr ""
+
+msgid "react.registry.action_deleted"
+msgstr ""
+
+msgid "react.registry.action_restored"
+msgstr ""
+
+msgid "react.registry.action_updated"
+msgstr ""
+
 msgid "react.registry.actions_for_value0"
 msgstr ""
 
@@ -8182,6 +8194,9 @@ msgid "react.registry.columns_selected"
 msgstr ""
 
 msgid "react.registry.comma_separated_agent_ids_leave_empty_to_apply_this_guardrail_to_all_agents"
+msgstr ""
+
+msgid "react.registry.comparing_revision_values"
 msgstr ""
 
 msgid "react.registry.comparing_value0_value1"
@@ -9024,6 +9039,18 @@ msgstr ""
 msgid "react.registry.guardrail"
 msgstr ""
 
+msgid "react.registry.guardrail_agent_unavailable"
+msgstr ""
+
+msgid "react.registry.guardrail_agent_unverified"
+msgstr ""
+
+msgid "react.registry.guardrail_agents_load_failed"
+msgstr ""
+
+msgid "react.registry.guardrail_agents_retry"
+msgstr ""
+
 msgid "react.registry.guardrail_config"
 msgstr ""
 
@@ -9037,6 +9064,12 @@ msgid "react.registry.guardrail_detail_sections"
 msgstr ""
 
 msgid "react.registry.guardrail_policy_entries_can_be_listed_and_managed_directly_from_react"
+msgstr ""
+
+msgid "react.registry.guardrail_scope_choices_required"
+msgstr ""
+
+msgid "react.registry.guardrail_scope_unavailable"
 msgstr ""
 
 msgid "react.registry.guardrails_catalog"
@@ -10254,13 +10287,31 @@ msgstr ""
 msgid "react.registry.restore_failed"
 msgstr ""
 
+msgid "react.registry.restore_saved_revision_question"
+msgstr ""
+
+msgid "react.registry.restore_saved_revision_title"
+msgstr ""
+
+msgid "react.registry.restore_target"
+msgstr ""
+
 msgid "react.registry.restore_this_revision"
 msgstr ""
 
 msgid "react.registry.restore_value0_value1"
 msgstr ""
 
+msgid "react.registry.restore_workflow_revision_as_new"
+msgstr ""
+
+msgid "react.registry.restored_saved_revision"
+msgstr ""
+
 msgid "react.registry.restored_value0_value1_from_entry_value2"
+msgstr ""
+
+msgid "react.registry.restored_workflow_revision_as_new"
 msgstr ""
 
 msgid "react.registry.restoring"
@@ -10423,6 +10474,9 @@ msgid "react.registry.saved_query_status_updated"
 msgstr ""
 
 msgid "react.registry.saved_query_updated"
+msgstr ""
+
+msgid "react.registry.saved_revision"
 msgstr ""
 
 msgid "react.registry.saves_no_base_skill_and_no_secondary_skills"
@@ -10984,6 +11038,9 @@ msgid "react.registry.whole_number"
 msgstr ""
 
 msgid "react.registry.workflow_discovery_uses_this_metadata_for_retrieval_and_ranking_these_fields_stay_technical_by_default_and_are"
+msgstr ""
+
+msgid "react.registry.workflow_output_label_path"
 msgstr ""
 
 msgid "react.registry.workflow_restore_conflict"
@@ -13951,6 +14008,9 @@ msgid "react.workflows.aggregated_job_activity_and_cost_across_all_projects_usin
 msgstr ""
 
 msgid "react.workflows.aggregations"
+msgstr ""
+
+msgid "react.workflows.all_projects"
 msgstr ""
 
 msgid "react.workflows.allowed_content_types"
@@ -18509,6 +18569,12 @@ msgstr ""
 msgid "react.workflows.project_context_unavailable"
 msgstr ""
 
+msgid "react.workflows.project_filter_failed"
+msgstr ""
+
+msgid "react.workflows.project_filter_unavailable"
+msgstr ""
+
 msgid "react.workflows.project_id"
 msgstr ""
 
@@ -18516,6 +18582,9 @@ msgid "react.workflows.project_id_for_value0"
 msgstr ""
 
 msgid "react.workflows.project_linked_test_run_is_ready"
+msgstr ""
+
+msgid "react.workflows.project_membership_invalid"
 msgstr ""
 
 msgid "react.workflows.project_name_or_id"
@@ -25885,6 +25954,15 @@ msgid "react.workflows.clipboard_nothing_to_paste"
 msgstr ""
 
 msgid "react.workflows.clipboard_pasted"
+msgstr ""
+
+msgid "react.workflows.clipboard_read_failed"
+msgstr ""
+
+msgid "react.workflows.clipboard_pasted_named"
+msgstr ""
+
+msgid "react.workflows.clipboard_pasted_count"
 msgstr ""
 
 msgid "react.workflows.clipboard_write_failed"

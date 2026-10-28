@@ -316,6 +316,7 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
     stepToolCategory,
     onStepInputValidationChange: ctx.onStepInputValidationChange,
     hookDeclarationEditorKey: JSON.stringify([textOrEmpty(workflowId), textOrEmpty(selectedProjectId), textOrEmpty(selectedStep?.runtimeId)]),
+    hookProjectId: ctx.hookProjectId,
     hookDeclarationIdentityLocked: ctx.hookDeclarationIdentityLocked,
     hookDeclarationReadOnly: ctx.hookDeclarationReadOnly,
     hookDeclarationIssues: ctx.hookDeclarationIssues,

@@ -58,7 +58,8 @@ type RegistryCreateDialogProps = {
   guardrailRuleType: string;
   setGuardrailConfigJson: (value: string) => void;
   guardrailConfigJson: string;
-  guardrailAgentsQuery: { isLoading: boolean };
+  guardrailAgentsQuery: { isSuccess: boolean; isError: boolean; fetchStatus: "idle" | "fetching" | "paused"; refetch: () => unknown };
+  guardrailScopeValid: boolean;
   setGuardrailAgentSearch: (value: string) => void;
   setGuardrailAgentIds: Dispatch<SetStateAction<string[]>>;
   guardrailAgentRows: Parameters<typeof AssignmentSelector>[0]["rows"];
@@ -113,6 +114,7 @@ export function RegistryCreateDialog({
   setGuardrailConfigJson,
   guardrailConfigJson,
   guardrailAgentsQuery,
+  guardrailScopeValid,
   setGuardrailAgentSearch,
   setGuardrailAgentIds,
   guardrailAgentRows,
@@ -140,7 +142,7 @@ export function RegistryCreateDialog({
                 className="fs-button primary"
                 disabled={
                   saving
-                  || (endpoint === "/api/guardrails" && !guardrailAgentIds.length)
+                  || (endpoint === "/api/guardrails" && !guardrailScopeValid)
                   || (endpoint === "/api/agents" && (modelOptionsQuery.isLoading || modelOptionsQuery.isError))
                 }
                 form={createModalId}
@@ -371,10 +373,17 @@ export function RegistryCreateDialog({
                       promptText={guardrailPromptText}
                       ruleType={guardrailRuleType}
                     />
+                    {renderWhen(guardrailAgentsQuery.isError, (
+                      <DsAlert title={t("react.registry.guardrail_agents_load_failed", "Failed to load agent choices.")} tone="danger">
+                        <button className="fs-button" onClick={() => { ignoreAsyncResult(guardrailAgentsQuery.refetch()); }} type="button">
+                          {t("react.registry.guardrail_agents_retry", "Retry agent choices")}
+                        </button>
+                      </DsAlert>
+                    ))}
                     <div className="fs-surface-radius border border-subtle fs-surface-inset p-3">
                       <AssignmentSelector
                         emptyState={t("react.registry.display_no_assignment_agents", "No agents are available for assignment.")}
-                        loading={guardrailAgentsQuery.isLoading}
+                        loading={guardrailAgentsQuery.fetchStatus !== "idle"}
                         loadingLabel={t("react.registry.loading_agents", "Loading agents…")}
                         message={guardrailAgentIds.length ? "" : t("react.registry.display_select_one_agent", "Select at least one agent.")}
                         onSearchChange={setGuardrailAgentSearch}
@@ -385,7 +394,20 @@ export function RegistryCreateDialog({
                               : [...current, agentId].sort((left, right) => left.localeCompare(right)),
                           );
                         }}
-                        rows={guardrailAgentRows}
+                        renderRowAction={(row) => row.disabled && row.selected ? (
+                          <button
+                            aria-label={`${t("extensions.repeater.remove", "Remove")} ${row.id}`}
+                            className="fs-button"
+                            onClick={() => setGuardrailAgentIds((current) => current.filter((id) => id !== row.id))}
+                            type="button"
+                          >
+                            {t("extensions.repeater.remove", "Remove")}
+                          </button>
+                        ) : null}
+                        rows={guardrailAgentRows.map((row) => ({
+                          ...row,
+                          disabled: row.disabled || !guardrailAgentsQuery.isSuccess || guardrailAgentsQuery.fetchStatus !== "idle",
+                        }))}
                         searchPlaceholder={t("react.registry.search_agents", "Search agents")}
                         searchValue={guardrailAgentSearch}
                         selectedCount={guardrailAgentIds.length}

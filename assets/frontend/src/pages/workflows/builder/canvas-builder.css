@@ -131,6 +131,23 @@ button.workflow-fact { cursor: pointer; }
   .workflow-header-actions { display: flex; flex: none; align-items: center; gap: 8px; }
 }
 
+.workflow-canvas-header.has-hook-context { flex-wrap: wrap; height: auto; min-height: 64px; padding-block: 8px; }
+.workflow-hook-project-picker-compact { width: 100%; max-width: min(40vw, 20rem); min-width: 0; }
+
+.workflow-hook-project-select,
+.workflow-hook-project-select .fs-select-trigger { width: 100%; max-width: 100%; min-width: 0; }
+
+@media (width >= 901px) {
+  .workflow-canvas-header.has-hook-context .workflow-header-identity {
+    grid-template-columns: auto minmax(calc(8ch + 60px), 1fr) auto minmax(12rem, min(24vw, 20rem)) minmax(8px, 1fr);
+    flex: 1 1 auto;
+    min-width: min-content;
+    max-width: 100%;
+  }
+
+  .workflow-canvas-header.has-hook-context .workflow-header-actions { flex: 0 1 auto; max-width: 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) { .workflow-card { transition: none; } }
 
 .workflow-canvas-toolbar .fs-icon-button-wrap > .fs-shell-tooltip { top: auto; bottom: calc(100% + var(--fs-tooltip-offset)); transform: translateX(-50%); }

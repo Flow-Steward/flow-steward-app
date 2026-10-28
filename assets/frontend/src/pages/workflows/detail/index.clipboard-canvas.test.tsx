@@ -229,6 +229,62 @@ it.each(["auto", "manual"] as const)("duplicates a selected authored step as one
   expect(postedChangeSets()).toEqual([]);
 });
 
+it("reports a clipboard read denial as a paste failure without staging a change", async () => {
+  installWorkflow();
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  const readText = vi.fn(async () => { throw new DOMException("Read permission denied", "NotAllowedError"); });
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: vi.fn(async () => undefined), readText,
+  } });
+  try {
+    renderPage({ surface: "builder" });
+    clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
+    pressCanvasKey("KeyV");
+    await waitFor(() => expect(readText).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not read from clipboard.");
+    expect(postedChangeSets()).toEqual([]);
+    expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(1);
+  } finally {
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else Reflect.deleteProperty(navigator, "clipboard");
+  }
+});
+
+it("names pasted steps and offers Undo for the staged paste", async () => {
+  installWorkflow();
+  saveArrangeMode("weekly_report", "manual");
+  let clip = "";
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  const writeText = vi.fn(async (text: string) => { clip = text; });
+  const readText = vi.fn(async () => clip);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText, readText } });
+  try {
+    renderPage({ surface: "builder" });
+    clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
+    const canvas = screen.getByRole("region", { name: "Workflow canvas" });
+    const canvasIds = () => queryAllByAttribute("class", canvas, /(?:^|\s)react-flow__node(?:\s|$)/u)
+      .map((element) => element.getAttribute("data-id"))
+      .filter((id): id is string => id !== null)
+      .sort();
+    pressCanvasKey("KeyC");
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const originalIds = canvasIds();
+    fireEvent.pointerMove(canvas, { clientX: 320, clientY: 240 });
+    pressCanvasKey("KeyV");
+    await waitFor(() => expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(2));
+    const pastedIds = canvasIds().filter((id) => !originalIds.includes(id));
+    expect(pastedIds.length).toBeGreaterThan(0);
+    expect(await screen.findByText("Pasted Plan work to the unapplied structure.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(1));
+    expect(canvasIds()).toEqual(originalIds);
+    expect(postedChangeSets()).toEqual([]);
+  } finally {
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else Reflect.deleteProperty(navigator, "clipboard");
+  }
+});
+
 it("reports a clipboard write failure in the canvas without staging a change", async () => {
   installWorkflow();
   const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
@@ -533,6 +589,46 @@ it("retires held copy geometry after Discard without treating a reused local id 
   }
 });
 
+
+it("summarizes a multi-root paste by count and offers Undo", async () => {
+  installWorkflow();
+  saveArrangeMode("weekly_report", "manual");
+  let clip = "";
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  const writeText = vi.fn(async (text: string) => { clip = text; });
+  const readText = vi.fn(async () => clip);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText, readText } });
+  try {
+    renderPage({ surface: "builder" });
+    await copyPair();
+    const canvas = screen.getByRole("region", { name: "Workflow canvas" });
+    const canvasIds = () => queryAllByAttribute("class", canvas, /(?:^|\s)react-flow__node(?:\s|$)/u)
+      .map((element) => element.getAttribute("data-id"))
+      .filter((id): id is string => id !== null)
+      .sort();
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const originalIds = canvasIds();
+    fireEvent.pointerMove(canvas, { clientX: 320, clientY: 240 });
+    pressCanvasKey("KeyV");
+    await waitFor(() => {
+      expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(2);
+      expect(screen.getAllByRole("group", { name: "Open step Done" })).toHaveLength(2);
+    });
+    const pastedIds = canvasIds().filter((id) => !originalIds.includes(id));
+    expect(pastedIds.length).toBeGreaterThan(0);
+    expect(await screen.findByText("2 items pasted to the unapplied structure.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => {
+      expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(1);
+      expect(screen.getAllByRole("group", { name: "Open step Done" })).toHaveLength(1);
+    });
+    expect(canvasIds()).toEqual(originalIds);
+    expect(postedChangeSets()).toEqual([]);
+  } finally {
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else Reflect.deleteProperty(navigator, "clipboard");
+  }
+});
 
 async function copyPair() {
   await screen.findByRole("group", { name: "Open step Plan work" });
@@ -1139,6 +1235,7 @@ it("refits changed positive auto bounds without treating its programmatic null m
 }, 15_000);
 
 it.each(["pane-pan", "zoom-control"] as const)("retires pending auto reveal after a real %s, preserving the newer camera", async (action) => {
+  if (action === "zoom-control") vi.useRealTimers();
   installWorkflow(); saveArrangeMode("weekly_report", "auto");
   let clip = ""; const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
   const writeText = vi.fn(async (text: string) => { clip = text; });
@@ -1159,10 +1256,15 @@ it.each(["pane-pan", "zoom-control"] as const)("retires pending auto reveal afte
     expect(instance.getViewport()).toEqual({ x: 24, y: 24, zoom: 1 });
     viewportProbe.holdSizes = true; viewportProbe.moveEvents = [];
     const fits = vi.spyOn(instance, "setViewport"); restoreViewport = () => fits.mockRestore();
-    vi.useFakeTimers();
+    if (action === "pane-pan") vi.useFakeTimers();
     fireEvent.pointerLeave(stage);
-    await act(async () => { pressCanvasKey("KeyV"); await Promise.resolve(); await vi.advanceTimersByTimeAsync(50); });
+    await act(async () => {
+      pressCanvasKey("KeyV"); await Promise.resolve();
+      if (action === "pane-pan") await vi.advanceTimersByTimeAsync(50);
+      else await new Promise((resolve) => setTimeout(resolve, 50));
+    });
     expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure not applied: 3 change(s)"); expect(fits).not.toHaveBeenCalled();
+    expect(screen.queryByText("The copy was added, but its canvas placement needs attention.")).not.toBeInTheDocument();
     if (action === "pane-pan") {
       const pane = canvasElementByAttribute(stage, "class", /(?:^|\s)react-flow__pane(?:\s|$)/);
       const nativeRealm = (globalThis as typeof globalThis & { jsdom?: { window: Window } }).jsdom?.window;
@@ -1176,10 +1278,9 @@ it.each(["pane-pan", "zoom-control"] as const)("retires pending auto reveal afte
     } else {
       const beforeZoom = instance.getZoom();
       fireEvent.click(screen.getByRole("button", { name: "Zoom in (+)" }));
-      await act(async () => {
-        // D3 retains its import-time clock; observe the completed real animation.
-        await vi.waitUntil(() => instance.getZoom() === 1.25, { timeout: 250, interval: 10 });
-      });
+      // The real control uses a separate useReactFlow API object; observe the
+      // completed public viewport on real timers instead of spying on that object.
+      await waitFor(() => expect(instance.getZoom()).toBe(1.25), { interval: 10 });
       expect(instance.getZoom()).toBe(1.25);
       expect(Object.values(instance.getViewport()).every(Number.isFinite)).toBe(true);
       expect(instance.getZoom()).toBeGreaterThan(beforeZoom);
@@ -1187,9 +1288,14 @@ it.each(["pane-pan", "zoom-control"] as const)("retires pending auto reveal afte
       // their action boundary, rather than that event alone, owns cancellation.
       expect(viewportProbe.moveEvents).toContain("programmatic");
     }
-    const afterPan = { ...instance.getViewport() }; viewportProbe.holdSizes = false;
-    await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
-    expect(fits).not.toHaveBeenCalled(); expect(instance.getViewport()).toEqual(afterPan);
+    const afterManualCamera = { ...instance.getViewport() }; viewportProbe.holdSizes = false;
+    if (action === "pane-pan") {
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
+    } else {
+      // Keep the real clock running through the pending auto-reveal deadline.
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5_100)); });
+    }
+    expect(fits).not.toHaveBeenCalled(); expect(instance.getViewport()).toEqual(afterManualCamera);
     expect(loadManualLayout("weekly_report").plan_2).toBeUndefined();
     expect(screen.queryByText("The copy was added, but its canvas placement needs attention.")).not.toBeInTheDocument(); expect(postedChangeSets()).toEqual([]);
   } finally {

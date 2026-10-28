@@ -62,6 +62,24 @@ const mockedPreflight = vi.mocked(preflightWorkflowCatalogItem);
 const mockedCreate = vi.mocked(createWorkflowFromCatalogItem);
 const mockedFetchJson = vi.mocked(fetchJson);
 
+function installCreateHttpFixture(createdWorkflowId = "custom_workflow_1") {
+  mockedFetchJson.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), "http://localhost");
+    const method = init?.method || "GET";
+    const membership = /^\/api\/projects\/([^/]+)\/workflows$/.exec(url.pathname);
+    if (method === "GET" && membership) {
+      return { project_id: decodeURIComponent(membership[1]), workflow_ids: [], operator_default_workflow_id: "", project_workflows: [] } as never;
+    }
+    if (method === "POST" && url.pathname === "/api/workflows") return { workflow_id: createdWorkflowId } as never;
+    throw new Error(`Unexpected fixture request: ${method} ${url.pathname}`);
+  });
+}
+
+function workflowCreateRequests() {
+  return mockedFetchJson.mock.calls.filter(([input, init]) => String(input) === "/api/workflows" && init?.method === "POST");
+}
+
+
 const TEMPLATE = {
   item_id: "tpl",
   version: "1.0.0",
@@ -129,12 +147,14 @@ async function header() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedFetchJson.mockReset();
+  installCreateHttpFixture();
   vi.mocked(useIsAdmin).mockReturnValue(true);
   vi.mocked(useCanReadWorkflowRegistry).mockReturnValue(true);
   vi.mocked(fetchWorkflows).mockResolvedValue([]);
   vi.mocked(fetchInstallationVersion).mockResolvedValue("0.4.0");
   vi.mocked(fetchExtensions).mockResolvedValue([]);
-  vi.mocked(fetchProjectsList).mockResolvedValue({ projects: [], page: 1, per_page: 200, total: 0, total_pages: 1 });
+  vi.mocked(fetchProjectsList).mockResolvedValue({ projects: [{ id: "proj_7", name: "Selected project" }], page: 1, per_page: 200, total: 1, total_pages: 1 });
   vi.mocked(fetchWorkflowImportOptions).mockResolvedValue({ kind: "workflow_import_dependency_options", options: {} });
   mockedAvailability.mockResolvedValue(availability(true));
   mockedFetchCatalog.mockResolvedValue({
@@ -157,7 +177,7 @@ test("an administrator gets Import YAML and Create workflow, and no From catalog
 });
 
 test("Create workflow opens the start-from-scratch form, with Display name first", async () => {
-  mockedFetchJson.mockResolvedValue({ workflow_id: "custom_workflow_1" } as never);
+  installCreateHttpFixture("custom_workflow_1");
   renderPage("/registry/workflows?project_id=proj_7");
 
   await header();
@@ -177,7 +197,8 @@ test("Create workflow opens the start-from-scratch form, with Display name first
       "/registry/workflows/custom_workflow_1/builder?project_id=proj_7",
     ),
   );
-  const body = JSON.parse(String(mockedFetchJson.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+  expect(workflowCreateRequests()).toHaveLength(1);
+  const body = JSON.parse(String(workflowCreateRequests()[0]?.[1]?.body)) as Record<string, unknown>;
   expect(body.project_id).toBe("proj_7");
   expect(body.display_name).toBe("My workflow");
 });
@@ -225,7 +246,7 @@ test("import YAML still navigates to the import page", async () => {
   await waitFor(() =>
     expect(screen.getByTestId("location")).toHaveTextContent("/registry/workflows/import"),
   );
-  expect(mockedFetchJson).not.toHaveBeenCalled();
+  expect(workflowCreateRequests()).toEqual([]);
 });
 
 test("an operator browses templates read-only", async () => {

@@ -7881,6 +7881,18 @@ msgstr "Your role can view this project but not change it."
 msgid "react.registry.action"
 msgstr "action:"
 
+msgid "react.registry.action_created"
+msgstr "Created"
+
+msgid "react.registry.action_deleted"
+msgstr "Deleted"
+
+msgid "react.registry.action_restored"
+msgstr "Restored"
+
+msgid "react.registry.action_updated"
+msgstr "Updated"
+
 msgid "react.registry.actions_for_value0"
 msgstr "Actions for {value0}"
 
@@ -8197,6 +8209,9 @@ msgstr "columns selected"
 msgid "react.registry.comma_separated_agent_ids_leave_empty_to_apply_this_guardrail_to_all_agents"
 msgstr ""
 "Comma-separated agent ids. Leave empty to apply this guardrail to all agents."
+
+msgid "react.registry.comparing_revision_values"
+msgstr "Comparing {previous} to {selected}"
 
 msgid "react.registry.comparing_value0_value1"
 msgstr "Comparing #{value0} -> #{value1}"
@@ -9070,6 +9085,18 @@ msgstr "Granted scopes"
 msgid "react.registry.guardrail"
 msgstr "Guardrail"
 
+msgid "react.registry.guardrail_agent_unavailable"
+msgstr "This agent is unavailable for guardrail assignment. Remove its reference before saving."
+
+msgid "react.registry.guardrail_agent_unverified"
+msgstr "The selected agent reference is retained while assignment availability is being checked."
+
+msgid "react.registry.guardrail_agents_load_failed"
+msgstr "Failed to load agent choices."
+
+msgid "react.registry.guardrail_agents_retry"
+msgstr "Retry agent choices"
+
 msgid "react.registry.guardrail_config"
 msgstr "Guardrail Config"
 
@@ -9085,6 +9112,12 @@ msgstr "Guardrail detail sections"
 msgid "react.registry.guardrail_policy_entries_can_be_listed_and_managed_directly_from_react"
 msgstr ""
 "Guardrail policy entries can be listed and managed directly from React."
+
+msgid "react.registry.guardrail_scope_choices_required"
+msgstr "Load the agent choices and select at least one available agent before creating the guardrail."
+
+msgid "react.registry.guardrail_scope_unavailable"
+msgstr "Remove unavailable agent references before saving agent scope."
 
 msgid "react.registry.guardrails_catalog"
 msgstr "Guardrails catalog"
@@ -10345,14 +10378,32 @@ msgstr "Restore applies the selected revision to"
 msgid "react.registry.restore_failed"
 msgstr "Restore failed."
 
+msgid "react.registry.restore_saved_revision_question"
+msgstr "Restore this saved revision?"
+
+msgid "react.registry.restore_saved_revision_title"
+msgstr "Restore saved revision"
+
+msgid "react.registry.restore_target"
+msgstr "Target: {value0}/{value1}."
+
 msgid "react.registry.restore_this_revision"
 msgstr "Restore this revision"
 
 msgid "react.registry.restore_value0_value1"
 msgstr "Restore {value0}/{value1}"
 
+msgid "react.registry.restore_workflow_revision_as_new"
+msgstr "Restore {value0} as a new revision?"
+
+msgid "react.registry.restored_saved_revision"
+msgstr "Restored this saved revision."
+
 msgid "react.registry.restored_value0_value1_from_entry_value2"
 msgstr "Restored {value0}/{value1} from entry #{value2}."
+
+msgid "react.registry.restored_workflow_revision_as_new"
+msgstr "Restored {value0} as a new revision."
 
 msgid "react.registry.restoring"
 msgstr "Restoring..."
@@ -10530,6 +10581,9 @@ msgstr "Saved query status updated."
 
 msgid "react.registry.saved_query_updated"
 msgstr "Saved query updated."
+
+msgid "react.registry.saved_revision"
+msgstr "Saved revision"
 
 msgid "react.registry.saves_no_base_skill_and_no_secondary_skills"
 msgstr "Saves no base skill and no secondary skills."
@@ -11144,6 +11198,9 @@ msgstr ""
 "Workflow discovery uses this metadata for retrieval and ranking. These "
 "fields stay technical by default and are meant to improve workflow authoring "
 "quality rather than end-user presentation."
+
+msgid "react.registry.workflow_output_label_path"
+msgstr "Outputs · Output {index} · Label"
 
 msgid "react.registry.workflow_restore_conflict"
 msgstr "The workflow changed after you opened this revision, so nothing was restored. Close and reopen the revision to restore it against the current workflow."
@@ -13530,6 +13587,9 @@ msgstr "No catalog fields match your search."
 msgid "react.registry.no_data_contracts_match_search"
 msgstr "No data contracts match your search."
 
+msgid "react.workflows.all_projects"
+msgstr "All projects"
+
 msgid "react.workflows.body_end_disconnect_group"
 msgstr "Disconnect from the end of the group"
 
@@ -13837,6 +13897,15 @@ msgstr "Prepare feed for publication"
 
 msgid "react.workflows.preparing_workflow"
 msgstr "Preparing the workflow"
+
+msgid "react.workflows.project_filter_failed"
+msgstr "Project filter unavailable"
+
+msgid "react.workflows.project_filter_unavailable"
+msgstr "This project is not available in the current workspace. Choose a project or All projects."
+
+msgid "react.workflows.project_membership_invalid"
+msgstr "The selected project's workflows could not be verified. Choose a project or retry."
 
 msgid "react.workflows.recently_added"
 msgstr "Recently added"
@@ -26862,6 +26931,15 @@ msgstr "Nothing to paste: copy steps on a workflow canvas first."
 
 msgid "react.workflows.clipboard_pasted"
 msgstr "Pasted to the unapplied structure."
+
+msgid "react.workflows.clipboard_read_failed"
+msgstr "Could not read from clipboard."
+
+msgid "react.workflows.clipboard_pasted_named"
+msgstr "Pasted {name} to the unapplied structure."
+
+msgid "react.workflows.clipboard_pasted_count"
+msgstr "{count} items pasted to the unapplied structure."
 
 msgid "react.workflows.clipboard_write_failed"
 msgstr "Could not copy to clipboard."

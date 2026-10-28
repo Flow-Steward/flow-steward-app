@@ -12,17 +12,19 @@ import {
 
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Upload } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
 
 import { useCanReadWorkflowRegistry, useIsAdmin } from "@/lib/auth/use-is-admin";
 import { HttpError } from "@/lib/http/errors";
 import { queryKeys } from "@/lib/query/keys";
 import { appHref } from "@/lib/routing/app-href";
+import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
 import {
   AdvancedTableFilters,
   DsAlert,
   DsDialog,
   DsPageHeader,
+  DsSelect,
   DsTable,
   DsTabs,
   PageContainer,
@@ -33,6 +35,7 @@ import { fetchWorkflowCatalogAvailability } from "@/pages/workflows/catalog/api"
 import { WorkflowCatalogDialog } from "@/pages/workflows/catalog/catalog-dialog";
 import { CreateWorkflowFields } from "@/pages/workflows/list/create-workflow-fields";
 import { useCreateWorkflowForm } from "@/pages/workflows/list/create-workflow-state";
+import { useWorkflowProjectFilter } from "@/pages/workflows/list/use-workflow-project-filter";
 import { WorkflowCloneDialog } from "@/pages/workflows/shared/clone-dialog";
 import {
   columnsFromGridConfig,
@@ -119,7 +122,8 @@ function workflowSourceDetail(extensionOwned: boolean, extensionLabel: string, t
     : t("react.workflows.display_provided_by_extension", "Provided by extension");
 }
 
-function buildWorkflowsGridConfig(canAuthor: boolean, t: I18nContextValue["t"] = fallbackContext.t): Record<string, unknown> {
+function buildWorkflowsGridConfig(canAuthor: boolean, projectId: string, t: I18nContextValue["t"] = fallbackContext.t): Record<string, unknown> {
+  const projectSuffix = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
   // Authoring row actions (open the builder, clone a workflow) are admin-only; read
   // actions (YAML export) remain available to operators/viewers.
   const authoringRowActions = canAuthor
@@ -156,7 +160,7 @@ function buildWorkflowsGridConfig(canAuthor: boolean, t: I18nContextValue["t"] =
         key: "display_name",
         label: t("react.workflows.workflow_variant_2e2d5c56", "Workflow"),
         type: "link",
-        link_href: appHref("/registry/workflows/{workflow_id}"),
+        link_href: appHref(`/registry/workflows/{workflow_id}${projectSuffix}`),
         truncate: true,
         truncate_width: "clamp(16rem, 32vw, 30rem)",
       },
@@ -277,7 +281,7 @@ export function WorkflowsListPage() {
   const navigate = useNavigate();
   const userTimezone = useUserTimezone();
   const [rowMenu, setRowMenu] = useState<string | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, updateSearchParams] = useLatestSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<string | null>(null);
   // A form dialog opens on its first field, not on the close button.
@@ -302,6 +306,8 @@ export function WorkflowsListPage() {
   // a 403. Skip the fetch entirely for viewers so the catalog page never emits a console
   // 403 — they see the restricted-catalog message instead.
   const canReadRegistry = useCanReadWorkflowRegistry();
+  const projectFilter = useWorkflowProjectFilter(pageProjectId, canReadRegistry);
+  const navigationProjectId = projectFilter.selectedProject?.id || "";
   // Whether this installation has a template catalog at all. Without one,
   // Create workflow opens the plain form and nobody is offered templates.
   const catalogAvailabilityQuery = useQuery({
@@ -315,14 +321,19 @@ export function WorkflowsListPage() {
   const catalogTabShown = canReadRegistry && catalogConfigured;
 
   const workflowsQuery = useQuery({
-    queryKey: queryKeys.workflowsList({ search: deferredSearch, enabledOnly }),
+    queryKey: [...queryKeys.workflowsList({ search: deferredSearch, enabledOnly }), projectFilter.accountId],
     queryFn: () => fetchWorkflows({ enabledOnly, search: deferredSearch }, { presentation: "background" }),
     enabled: canReadRegistry,
     refetchInterval: canReadRegistry ? 20_000 : false,
     refetchOnMount: "always",
   });
 
-  const workflows = useMemo(() => normalizeWorkflows(workflowsQuery.data), [workflowsQuery.data]);
+  const workflows = useMemo(() => {
+    if (!canReadRegistry) return [];
+    const allWorkflows = normalizeWorkflows(workflowsQuery.data);
+    return projectFilter.workflowIds === null ? allWorkflows
+      : allWorkflows.filter((workflow) => projectFilter.workflowIds?.has(workflowIdFromRow(workflow)));
+  }, [canReadRegistry, workflowsQuery.data, projectFilter.workflowIds]);
   const workflowRows = useMemo(
     () =>
       workflows.map((workflow, index) => {
@@ -370,12 +381,13 @@ export function WorkflowsListPage() {
       return;
     }
     if (actionId === "detail") {
-      ignoreAsyncResult(navigate(`/registry/workflows/${encodeURIComponent(workflowId)}`));
+      const path = `/registry/workflows/${encodeURIComponent(workflowId)}`;
+      ignoreAsyncResult(navigate(navigationProjectId ? `${path}?project_id=${encodeURIComponent(navigationProjectId)}` : path));
       return;
     }
     if (actionId === "builder" || actionId === "view") {
       if (canManageWorkflows) {
-        ignoreAsyncResult(navigate(`/registry/workflows/${encodeURIComponent(workflowId)}/builder`));
+        ignoreAsyncResult(navigate(builderPathFor(workflowId, navigationProjectId)));
       }
       return;
     }
@@ -397,8 +409,8 @@ export function WorkflowsListPage() {
   }
 
   const workflowsGridConfig = useMemo(
-    () => buildWorkflowsGridConfig(canManageWorkflows, t),
-    [canManageWorkflows, t],
+    () => buildWorkflowsGridConfig(canManageWorkflows, navigationProjectId, t),
+    [canManageWorkflows, navigationProjectId, t],
   );
 
   const workflowColumns = useMemo(
@@ -435,25 +447,25 @@ export function WorkflowsListPage() {
   );
 
 
-  function updateParams(next: { search?: string; enabledOnly?: boolean }) {
-    const params = new URLSearchParams(searchParams);
-    if (next.search !== undefined) {
-      const value = next.search.trim();
-      if (value) {
-        params.set("search", value);
-      } else {
-        params.delete("search");
-      }
-    }
-    if (next.enabledOnly !== undefined) {
-      if (next.enabledOnly) {
-        params.set("enabled", "1");
-      } else {
-        params.delete("enabled");
-      }
-    }
+  function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string }) {
     startTransition(() => {
-      setSearchParams(params);
+      updateSearchParams((params) => {
+        if (next.search !== undefined) {
+          const value = next.search.trim();
+          if (value) params.set("search", value);
+          else params.delete("search");
+        }
+        if (next.enabledOnly !== undefined) {
+          if (next.enabledOnly) params.set("enabled", "1");
+          else params.delete("enabled");
+        }
+        if (next.projectId !== undefined) {
+          if (next.projectId) params.set("project_id", next.projectId);
+          else params.delete("project_id");
+          params.delete("page");
+        }
+        return params;
+      }, { push: true });
     });
   }
 
@@ -473,18 +485,17 @@ export function WorkflowsListPage() {
     // Leaving the catalog drops its own URL state (filters, the open template).
     // Choosing Catalog, including the tab already shown, closes an open
     // template and returns to the results with the filters kept.
-    let params = new URLSearchParams(
-      Array.from(searchParams).filter(
-        ([key]) => key !== "create" && key !== "tpl" && (next === "catalog" || !isTemplateParam(key)),
-      ),
-    );
-    if (next === "catalog") {
-      params.set("tab", "catalog");
-      setCatalogVisit((visit) => visit + 1);
-    } else {
-      params = new URLSearchParams(Array.from(params).filter(([key]) => key !== "tab"));
-    }
-    setSearchParams(params, { replace: true });
+    if (next === "catalog") setCatalogVisit((visit) => visit + 1);
+    updateSearchParams((latest) => {
+      const params = new URLSearchParams(
+        Array.from(latest).filter(
+          ([key]) => key !== "create" && key !== "tpl" && (next === "catalog" || !isTemplateParam(key)),
+        ),
+      );
+      if (next === "catalog") params.set("tab", "catalog");
+      else params.delete("tab");
+      return params;
+    });
   }
 
   function openCreate() {
@@ -493,14 +504,14 @@ export function WorkflowsListPage() {
   }
   const restricted = workflowCatalogRestricted(canReadRegistry, workflowsQuery.error);
   let workflowTableState: ReactNode = null;
-  if (workflowsQuery.isLoading) {
+  if (workflowsQuery.isLoading || projectFilter.pending) {
     workflowTableState = (
       <div className="fs-table-state">
         <strong>{t("react.workflows.loading_workflows", "Loading workflows")}</strong>
         <span>{t("react.workflows.the_catalog_will_remain_in_this_table_layout", "The catalog will remain in this table layout.")}</span>
       </div>
     );
-  } else if (workflowsQuery.isSuccess && !workflowRows.length) {
+  } else if (workflowsQuery.isSuccess && !projectFilter.error && !workflowRows.length) {
     workflowTableState = (
       <div className="fs-table-state">
         <strong>{t("registry.workflows.empty_title", "No workflows found")}</strong>
@@ -592,6 +603,23 @@ export function WorkflowsListPage() {
               `Add filter` trigger and `Clear all` only while something is applied —
               rather than a bare checkbox parked next to a heading. */}
           <div className="fs-table-toolbar">
+            {canReadRegistry ? (
+              <DsSelect
+                ariaLabel={t("events.columns.project", "Project")}
+                disabled={projectFilter.projectsPending}
+                invalid={projectFilter.unavailable}
+                onChange={(projectId) => updateParams({ projectId })}
+                options={[
+                  { value: "", label: t("react.workflows.all_projects", "All projects") },
+                  ...projectFilter.projects.map((project) => ({ value: project.id, label: project.name })),
+                ]}
+                placeholder={projectFilter.projectsPending
+                  ? t("react.workflows.loading_projects", "Loading projects...")
+                  : t("react.workflows.project_unavailable", "Project unavailable")}
+                searchable
+                value={pageProjectId}
+              />
+            ) : null}
             <AdvancedTableFilters
               disabled={workflowsQuery.isLoading}
               fields={localizedWORKFLOW_FILTER_FIELDS(t)}
@@ -615,7 +643,7 @@ export function WorkflowsListPage() {
           </div>
           <DsTable
             ariaLabel={t("react.workflows.workflows_catalog", "Workflows catalog")}
-            busy={workflowsQuery.isFetching}
+            busy={workflowsQuery.isFetching || projectFilter.fetching}
             columns={workflowColumns}
             onRowClick={(row) => handleWorkflowAction("detail", row)}
             rowKey={(row) => firstStringFromUnknownValue([row.workflow_id, ""])}
@@ -623,6 +651,14 @@ export function WorkflowsListPage() {
             state={workflowTableState}
           />
   
+          {projectFilter.error ? (
+            <DsAlert title={t("react.workflows.project_filter_failed", "Project filter unavailable")} tone="danger">
+              <p>{projectFilter.error.message}</p>
+              <button className="fs-button" onClick={() => ignoreAsyncResult(projectFilter.retry())} type="button">
+                {t("settings.watchdog.retry", "Retry")}
+              </button>
+            </DsAlert>
+          ) : null}
           <WorkflowCatalogAlerts
             error={workflowsQuery.isError ? workflowsQuery.error : null}
             restricted={restricted}

@@ -1,6 +1,7 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { AuthContext } from "@/lib/auth/context";
 
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -23,7 +24,7 @@ import {
 import { SaveErrorAlert, SaveStatusBadge } from "@/pages/registry/shared/save-feedback";
 import { firstStringFromUnknownValue, isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { AssignmentSelector } from "@/components/shared/assignment-selector";
+import { AssignmentSelector, type AssignmentSelectorRow } from "@/components/shared/assignment-selector";
 import {
   GuardrailRuleEditor,
 } from "@/pages/registry/shared/guardrail-rule-editor";
@@ -117,6 +118,7 @@ function errorMessage(error: unknown, fallback: string): string {
 
 export function RegistryGuardrailsDetailPage() {
   const { t } = useI18n();
+  const accountId = useContext(AuthContext)?.session?.user?.account_id;
   // The URL owns the active section, so a tab is addressable and survives a
   // reload. Same shape as agents/detail and skills/detail — Guardrails must not
   // become the third variant inside one section.
@@ -185,8 +187,8 @@ export function RegistryGuardrailsDetailPage() {
   ]);
   const scopedAgentsKey = scopedAgents.join(", ");
   const agentsQuery = useQuery({
-    queryKey: ["registry", "guardrail-scope", "agents"],
-    queryFn: () => fetchRegistryList("/api/agents"),
+    queryKey: ["registry", "guardrail-scope", "agents", accountId],
+    queryFn: () => fetchRegistryList("/api/agents?usage=guardrail"),
     retry: false,
   });
   const projectsQuery = useQuery({
@@ -200,7 +202,8 @@ export function RegistryGuardrailsDetailPage() {
     : [];
   const selectedScope = parseCommaSeparated(scopeDraft);
   const selectedScopeSet = new Set(selectedScope);
-  const agentRows = agentOptions.flatMap((agent) => {
+  const agentChoicesReady = agentsQuery.isSuccess && agentsQuery.fetchStatus === "idle";
+  const agentRows: AssignmentSelectorRow[] = agentOptions.flatMap((agent) => {
     const agentId = firstStringFromUnknownValue([agent.agent_id, agent.id, agent.name, ""]).trim();
     if (!agentId) {
       return [];
@@ -212,10 +215,34 @@ export function RegistryGuardrailsDetailPage() {
       title,
       subtitle: agentId,
       selected,
+      disabled: !agentChoicesReady,
       searchText: `${agentId} ${title}`,
-      badges: [{ label: selected ? t("project_history.selected", "selected") : t("react.registry.available", "available"), tone: selected ? "linked" as const : "available" as const }],
+      badges: [
+        { label: selected ? t("project_history.selected", "selected") : t("react.registry.available", "available"), tone: selected ? "linked" as const : "available" as const },
+        ...(agent.enabled === false ? [{ label: t("settings.mcp.status.disabled", "Disabled"), tone: "disabled" as const }] : []),
+      ],
     }];
   });
+  const eligibleAgentIds = new Set(agentRows.map((row) => row.id));
+  const missingScope = selectedScope.filter((id) => !eligibleAgentIds.has(id));
+  const missingScopeSet = new Set(missingScope);
+  agentRows.push(...missingScope.map((id) => ({
+    id,
+    title: id,
+    selected: true,
+    disabled: true,
+    searchText: id,
+    description: agentChoicesReady
+      ? t("react.registry.guardrail_agent_unavailable", "This agent is unavailable for guardrail assignment. Remove its reference before saving.")
+      : t("react.registry.guardrail_agent_unverified", "The selected agent reference is retained while assignment availability is being checked."),
+    badges: [{
+      label: agentChoicesReady
+        ? t("monitoring.health.unavailable", "Unavailable")
+        : t("project_history.selected", "selected"),
+      tone: "disabled" as const,
+    }],
+  })));
+  const scopeSaveDisabled = !agentChoicesReady || !selectedScope.length || missingScope.length > 0;
   const normalizedRuleType = ruleTypeDraft.trim().toLowerCase();
   const draftConfig = useMemo(
     () => parseConfigDraftValue(configDraft, rawConfig),
@@ -626,18 +653,38 @@ export function RegistryGuardrailsDetailPage() {
                 {t("react.registry.select_every_agent_this_guardrail_applies_to_at_least_one_explicit_assignment_is_required", "Select every agent this guardrail applies to. At least one explicit assignment is required.")}</p>
             </div>
           </div>
+            {renderWhen(agentsQuery.isError, (
+              <DsAlert title={t("react.registry.guardrail_agents_load_failed", "Failed to load agent choices.")} tone="danger">
+                <button className="fs-button" onClick={() => { ignoreAsyncResult(agentsQuery.refetch()); }} type="button">
+                  {t("react.registry.guardrail_agents_retry", "Retry agent choices")}
+                </button>
+              </DsAlert>
+            ))}
             <AssignmentSelector
               emptyState={t("react.registry.display_no_assignment_agents", "No agents are available for assignment.")}
-              loading={agentsQuery.isLoading}
+              loading={agentsQuery.fetchStatus !== "idle"}
               loadingLabel={t("react.registry.loading_agents", "Loading agents…")}
-              message={selectedScope.length ? "" : t("react.registry.select_agent_before_saving", "Select at least one agent before saving.")}
+              message={agentChoicesReady && missingScope.length
+                ? t("react.registry.guardrail_scope_unavailable", "Remove unavailable agent references before saving agent scope.")
+                : selectedScope.length ? "" : t("react.registry.select_agent_before_saving", "Select at least one agent before saving.")}
               onSave={() => {
+                if (scopeSaveDisabled) return;
                 ignoreAsyncResult(saveEntityPatch({ agents: selectedScope }));
               }}
               onSearchChange={setAgentSearch}
               onToggleRow={toggleScopeAgent}
+              renderRowAction={(row) => missingScopeSet.has(row.id) ? (
+                <button
+                  aria-label={`${t("extensions.repeater.remove", "Remove")} ${row.id}`}
+                  className="fs-button"
+                  onClick={() => toggleScopeAgent(row.id)}
+                  type="button"
+                >
+                  {t("extensions.repeater.remove", "Remove")}
+                </button>
+              ) : null}
               rows={agentRows}
-              saveDisabled={!selectedScope.length}
+              saveDisabled={scopeSaveDisabled}
               saveLabel={t("react.registry.display_save_agent_scope", "Save agent scope")}
               saving={saving}
               searchPlaceholder={t("react.registry.search_agents", "Search agents")}

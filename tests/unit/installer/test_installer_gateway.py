@@ -12,7 +12,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from core.application.extensions.oauth_contract import is_canonical_https_origin
 from core.application.installer import (
     InstallConfig,
@@ -25,6 +24,11 @@ from core.application.installer.errors import InstallerFailure
 from core.application.lifecycle.contracts import DeploymentConfig
 from core.application.release.images import required_product_roles
 from core.infrastructure.config.env_registry import registry_default_value
+from core.infrastructure.installer.gateway import DockerInstallerGateway
+from core.infrastructure.installer.process import ProcessOutcome
+from core.infrastructure.installer.registry_image_resolver import RegistryImageIdentity
+from core.infrastructure.installer.state_store import InstallerStateStore
+
 from core.infrastructure.installer import gateway as gateway_module
 from core.infrastructure.installer import (
     gateway_cli_runtime,
@@ -32,10 +36,6 @@ from core.infrastructure.installer import (
     gateway_image_provenance,
     registry_image_resolver,
 )
-from core.infrastructure.installer.gateway import DockerInstallerGateway
-from core.infrastructure.installer.process import ProcessOutcome
-from core.infrastructure.installer.registry_image_resolver import RegistryImageIdentity
-from core.infrastructure.installer.state_store import InstallerStateStore
 
 _FULL_REVISION = "0123456789abcdef0123456789abcdef01234567"
 # The build argument is asserted as name plus value rather than as one written-out
@@ -6377,6 +6377,7 @@ def _runtime_inspection(
     host_self_bind_source: Path | None = None,
     candidate_state_dir: Path | None = None,
     candidate_prod_env: Path | None = None,
+    installer_state_root: Path | None = None,
     group_add: list[str] | None = None,
     extra_mounts: list[dict[str, object]] | None = None,
     host_directory_mounts: tuple[tuple[Path, str], ...] | None = None,
@@ -6419,6 +6420,24 @@ def _runtime_inspection(
                 "Destination": "/app/.env.prod",
                 "RW": True,
             }
+        )
+    if candidate_state_dir is None and candidate_prod_env is None:
+        selected_state_root = (installer_state_root or gateway.state_store.root).resolve()
+        mounts.extend(
+            (
+                {
+                    "Type": "bind",
+                    "Source": str(selected_state_root),
+                    "Destination": "/run/flow-steward-install-state",
+                    "RW": True,
+                },
+                {
+                    "Type": "bind",
+                    "Source": str(selected_state_root),
+                    "Destination": str(selected_state_root),
+                    "RW": True,
+                },
+            )
         )
     selected_roots = (
         host_directory_mounts
@@ -6464,6 +6483,10 @@ def test_cli_exact_mount_contract_includes_selected_host_clone_roots(tmp_path: P
         (Path("/srv/instance-logs/artifacts"), "/app/logs/artifacts"),
     )
     context = SimpleNamespace(
+        environment={
+            "FS_INSTALLER_STATE_DIR": str(gateway.state_store.root.resolve()),
+            "FS_STACK_ENVIRONMENT": "local_development",
+        },
         state_runtime_root=runtime_root,
         candidate_state_dir=None,
         candidate_prod_env=None,
@@ -6511,6 +6534,85 @@ def test_cli_exact_mount_contract_includes_selected_host_clone_roots(tmp_path: P
         if mount["Source"] != "/var/run/docker.sock":
             mount["Source"] = "/host_mnt" + mount["Source"]
     assert gateway._cli_mounts_match(normalized, context)[0] is True
+
+
+@pytest.mark.parametrize(
+    ("mounts", "expected"),
+    (
+        ("selected", True),
+        ("missing-alias", False),
+        ("wrong-alias-source", False),
+        ("wrong-host-identity-source", False),
+        ("extra", False),
+    ),
+)
+def test_development_cli_mount_contract_uses_selected_external_state_root(
+    tmp_path: Path,
+    mounts: str,
+    expected: bool,
+) -> None:
+    gateway = _gateway(tmp_path, FakeProcessExecutor())
+    selected_state_root = (tmp_path.parent / f"{tmp_path.name}-selected-installer-state").resolve()
+    selected_state_root.mkdir()
+    runtime_root = gateway.state_store.root / "runtime"
+    context = SimpleNamespace(
+        environment={
+            "FS_INSTALLER_STATE_DIR": str(selected_state_root),
+            "FS_STACK_ENVIRONMENT": "local_development",
+        },
+        state_runtime_root=runtime_root,
+        candidate_state_dir=None,
+        candidate_prod_env=None,
+        host_directory_mounts=(),
+    )
+    record = json.loads(
+        _runtime_inspection(
+            gateway,
+            image_id="sha256:cli-image",
+            revision="a" * 64,
+            state_runtime_root=runtime_root,
+            host_directory_mounts=(),
+            installer_state_root=selected_state_root,
+        )
+    )[0]
+    state_mounts = [
+        mount
+        for mount in record["Mounts"]
+        if mount["Destination"] in {"/run/flow-steward-install-state", str(selected_state_root)}
+    ]
+    if mounts == "missing-alias":
+        state_mounts = [
+            mount
+            for mount in state_mounts
+            if mount["Destination"] != "/run/flow-steward-install-state"
+        ]
+        record["Mounts"] = [
+            mount
+            for mount in record["Mounts"]
+            if mount["Destination"] != "/run/flow-steward-install-state"
+        ]
+    elif mounts == "wrong-alias-source":
+        next(
+            mount
+            for mount in state_mounts
+            if mount["Destination"] == "/run/flow-steward-install-state"
+        )["Source"] = str(tmp_path / "wrong-state")
+    elif mounts == "wrong-host-identity-source":
+        next(mount for mount in state_mounts if mount["Destination"] == str(selected_state_root))[
+            "Source"
+        ] = str(tmp_path / "wrong-state")
+    elif mounts == "extra":
+        record["Mounts"].append(
+            {
+                "Type": "bind",
+                "Source": str(tmp_path / "unrelated"),
+                "Destination": "/unrelated",
+                "RW": True,
+            }
+        )
+
+    matches, _detail = gateway._cli_mounts_match(record["Mounts"], context)
+    assert matches is expected
 
 
 def _configure_runtime_contract(
@@ -7121,7 +7223,7 @@ def test_development_cli_runtime_keeps_exact_host_directory_mount_contract(
 
     log.close()
     inspection = json.loads(process.outcomes[inspect_command].stdout)
-    assert len(inspection[0]["Mounts"]) == 5
+    assert len(inspection[0]["Mounts"]) == 7
     assert (
         next(
             mount

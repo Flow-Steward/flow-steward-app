@@ -563,7 +563,7 @@ export function WorkflowCanvasShell({
   } else if (changeSet.hasChanges && changeSet.checkState === "unavailable") {
     changeCheckNote = t("react.workflows.change_check_unavailable", "The server check is unavailable; these issues are a local estimate.");
   }
-  const applyDisabled = annotationsBusy || !changeSet.hasChanges || changeSet.status === "applying" || changeSet.status === "conflict";
+  const applyDisabled = annotationsBusy || !changeSet.ownerReady || !changeSet.hasChanges || changeSet.status === "applying" || changeSet.status === "conflict";
   const autoLayoutHelp = [
     t("react.workflows.auto_layout_shortcut", "Auto layout (Shift+A)"),
     hasManualLayout
@@ -584,7 +584,7 @@ export function WorkflowCanvasShell({
     : null;
   return (
     <section className="workflow-builder flex h-screen min-w-0 flex-col overflow-hidden bg-[var(--fs-bg-canvas)] text-[var(--fs-text-primary)]">
-      <div className={joinClasses("workflow-canvas-header", changeSet.hasChanges ? "has-changes" : "")}>
+      <div className={joinClasses("workflow-canvas-header", changeSet.hasChanges ? "has-changes" : "", headerContext ? "has-hook-context" : "")}>
         <div className="workflow-header-identity">
         <Button asChild variant="secondary" size="md" className="workflow-canvas-back">
           <Link to={backTarget}><ArrowLeft aria-hidden="true" />{t("react.workflows.back", "Back")}</Link>

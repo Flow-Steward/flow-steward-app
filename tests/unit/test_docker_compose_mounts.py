@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 
 import yaml
-
 from core.infrastructure.config.env_registry import registry_default_value
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +16,9 @@ SECOND_RETIRED_PACKAGE = f"@anthropic-ai/{SECOND_RETIRED_NAME}-code"
 
 CLI_BASE_ENVIRONMENT = {
     "ENVIRONMENT",
+    "FS_CONFIGURATION_STATE_ROOT",
     "FS_DOCKER_HOST_PROJECT_ROOT",
+    "FS_INSTALLER_STATE_DIR",
     "FS_INSTALLER_USE_HOST_PYTHON",
     "FS_LOAD_REPO_DOTENV",
     "FS_STACK_ENVIRONMENT",
@@ -27,8 +28,6 @@ CLI_BASE_ENVIRONMENT = {
 }
 CLI_PRODUCTION_ENVIRONMENT = CLI_BASE_ENVIRONMENT | {
     "FS_BUILD_SHA",
-    "FS_CONFIGURATION_STATE_ROOT",
-    "FS_INSTALLER_STATE_DIR",
     "FS_RELEASE_REGISTRIES",
     "FS_RELEASE_REPOSITORY",
     "FS_RUNTIME_ENVIRONMENT",
@@ -44,16 +43,57 @@ def test_production_cli_receives_release_source_overrides() -> None:
         assert "FS_RELEASE_REPOSITORY" in environment
 
 
-def test_production_cli_uses_the_full_mounted_installer_state_root() -> None:
+def test_cli_uses_the_full_mounted_installer_state_root() -> None:
     expected = {
-        "docker-compose.prod.yaml": "/run/flow-steward-candidate-state",
-        "docker-compose.compact.yaml": "/run/flow-steward-install-state",
+        "docker-compose.yaml": {
+            "state_root": "/run/flow-steward-install-state",
+            "state_mount": (
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:/run/flow-steward-install-state:rw"
+            ),
+            "identity_mount": (
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:"
+                "${FS_INSTALLER_STATE_DIR:-${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}/.flow-steward}:rw"
+            ),
+            "runtime_mount": (
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}"
+                "/runtime:/run/flow-steward-runtime:rw"
+            ),
+        },
+        "docker-compose.prod.yaml": {
+            "state_root": "/run/flow-steward-candidate-state",
+            "state_mount": (
+                "${FS_CANDIDATE_STATE_DIR:?candidate state directory is required}"
+                ":/run/flow-steward-candidate-state:rw"
+            ),
+            "runtime_mount": (
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}"
+                "/runtime:/run/flow-steward-runtime:rw"
+            ),
+        },
+        "docker-compose.compact.yaml": {
+            "state_root": "/run/flow-steward-install-state",
+            "state_mount": (
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:/run/flow-steward-install-state:rw"
+            ),
+            "runtime_mount": (
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}"
+                "/runtime:/run/flow-steward-runtime:rw"
+            ),
+        },
     }
-    for compose_file, state_root in expected.items():
+    for compose_file, paths in expected.items():
         service = _service_config("fs-cli", compose_file=compose_file)
-        assert service["environment"]["FS_INSTALLER_STATE_DIR"] == state_root
-        assert service["environment"]["FS_CONFIGURATION_STATE_ROOT"] == state_root
-        assert any(f":{state_root}:" in str(volume) for volume in service["volumes"])
+        state_root = paths["state_root"]
+
+        assert service["environment"].get("FS_CONFIGURATION_STATE_ROOT") == state_root, (
+            f"{compose_file}: fs-cli must read configuration from its mounted installer state"
+        )
+        if compose_file != "docker-compose.yaml":
+            assert service["environment"]["FS_INSTALLER_STATE_DIR"] == state_root
+        assert paths["state_mount"] in service["volumes"]
+        if "identity_mount" in paths:
+            assert paths["identity_mount"] in service["volumes"]
+        assert paths["runtime_mount"] in service["volumes"]
 
 
 def test_compact_runtime_and_cli_use_their_canonical_image_roles() -> None:

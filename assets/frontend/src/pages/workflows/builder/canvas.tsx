@@ -243,7 +243,20 @@ export function WorkflowCanvasBuilderSurface({
           action: typeof owner.undoGraphIntentIfLatest === "function" ? { label: t("react.workflows.undo", "Undo"), onAction: () => { owner.undoGraphIntentIfLatest(token); } } : undefined,
         });
       } else if (event.command === "paste") {
-        setGraphEditNotice({ label: t("react.workflows.clipboard_pasted", "Pasted to the unapplied structure."), tone: "success" });
+        const rootCount = event.roots.length;
+        const rawName = String(event.rootLabels[0] || event.roots[0]?.id || "").trim();
+        const nameCharacters = Array.from(rawName);
+        const name = nameCharacters.length > 80 ? `${nameCharacters.slice(0, 79).join("")}…` : nameCharacters.join("");
+        const owner = event.authority.changeSet;
+        setGraphEditNotice({
+          label: rootCount === 1
+            ? t("react.workflows.clipboard_pasted_named", "Pasted {name} to the unapplied structure.", { name })
+            : t("react.workflows.clipboard_pasted_count", "{count} items pasted to the unapplied structure.", { count: rootCount }),
+          tone: "success",
+          action: typeof owner.undoGraphIntentIfLatest === "function"
+            ? { label: t("react.workflows.undo", "Undo"), onAction: () => { owner.undoGraphIntentIfLatest(event.intentToken); } }
+            : undefined,
+        });
       }
     };
   });
@@ -311,7 +324,9 @@ export function WorkflowCanvasBuilderSurface({
       return;
     }
     const title = result.reason === "clipboard_failed"
-      ? t("react.workflows.clipboard_write_failed", "Could not copy to clipboard.")
+      ? command === "paste"
+        ? t("react.workflows.clipboard_read_failed", "Could not read from clipboard.")
+        : t("react.workflows.clipboard_write_failed", "Could not copy to clipboard.")
       : result.reason === "visual_commit_failed"
         ? t("react.workflows.clipboard_visual_failed", "The copy was added, but its canvas placement needs attention.")
         : result.reason === "busy"

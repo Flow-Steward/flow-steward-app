@@ -1367,6 +1367,12 @@ def test_fs_cli_compose_service_has_no_durable_service_side_effects():
             "/var/run/docker.sock:/var/run/docker.sock",
             "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:rw",
         ]
+        if compose_path.name == "docker-compose.yaml":
+            expected_volumes = [
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:/run/flow-steward-install-state:rw",
+                "${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:${FS_INSTALLER_STATE_DIR:-${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}/.flow-steward}:rw",
+                *expected_volumes,
+            ]
         if compose_path.name == "docker-compose.prod.yaml":
             expected_volumes = [
                 "${FS_CANDIDATE_STATE_DIR:?candidate state directory is required}:/run/flow-steward-candidate-state:rw",

@@ -67,7 +67,7 @@ function WorkflowDetailPageContent({
     setStepBlockKey, reactionFormVisible, setReactionFormVisible, automationScopeKind,
     setAutomationScopeKind, saveNotice, saveNoticeIsError, setSaveNotice,
     setSaveError, savingWorkflowSurface, setSavingWorkflowSurface, builderConfirmDialog,
-    requestConfirmation, data, selectedProjectId, serverRevision,
+    requestConfirmation, data, selectedProjectId, hookProjectId, hookProjectContext, serverRevision,
     workflow, workflowContractQuery, selectedCanvasIssue, setSelectedCanvasIssue,
     header, changeSet, authorDefinitionRows, publishedBlocks,
     validationErrorGroups, validationWarningGroups, openNewStepDrawerRef, openGroupDrawerRef,
@@ -252,14 +252,14 @@ function WorkflowDetailPageContent({
   const hookTestRun = useWorkflowTestRunController({
     launchLock,
     onRevisionConflict: hookScope.childChangeSet.reportConflict,
-    selectedProjectId,
+    selectedProjectId: hookProjectId,
     selectedStep: inHook ? selectedStep : null,
     serverRevision: hookScope.childRevision,
     stepContractPreviewQuery,
     stepTestRunBlockedReason,
     workflowContractQuery,
     workflowId: hookScope.childWorkflowId || workflowId,
-    stepTestRunScope: JSON.stringify([workflowId, serverRevision ?? null, hookScope.effectiveHookId, hookScope.childWorkflowId]),
+    stepTestRunScope: JSON.stringify([workflowId, hookProjectId, hookScope.authorityEpoch, serverRevision ?? null, hookScope.effectiveHookId, hookScope.childWorkflowId]),
     workflowTestRunBlockedReason,
   });
   const normalRun = useWorkflowNormalRunController({
@@ -306,17 +306,17 @@ function WorkflowDetailPageContent({
   }
 
   const hookNavigation = useWorkflowHookNavigation({
-    ownerKey: JSON.stringify([workflowId, selectedProjectId]),
+    ownerKey: JSON.stringify([workflowId, selectedProjectId, hookProjectId, hookScope.authorityEpoch]),
     hookScope, authorGroupRows: authorDefinitionRows.groupRows, authorStructureLocked, allowHookDeclaration,
     drawerMode, selectedGroupId, selectedStepId, confirmDiscardParameters,
     searchParams, setSearchParams, setSaveError,
   });
   const drawer = useWorkflowDrawerController({
-    localToolDraftOwnerKey: JSON.stringify([workflowId, selectedProjectId]),
+    localToolDraftOwnerKey: JSON.stringify([workflowId, selectedProjectId, inHook ? hookProjectId : "author", inHook ? hookScope.authorityEpoch : null]),
     stepToolCategoryDraft,
     captureLocalToolDraftOwner: (canvasId: string) => {
       const member = parseHookNodeId(canvasId);
-      if (member?.memberStepId) return member.hookId === hookScope.effectiveHookId
+      if (member?.memberStepId) return hookProjectId && member.hookId === hookScope.effectiveHookId
         ? hookScope.childChangeSet.captureStagedStepNoticeOwner(member.memberStepId) : null;
       return changeSet.captureStagedStepNoticeOwner(canvasId);
     },
@@ -571,6 +571,8 @@ function WorkflowDetailPageContent({
     if (nodeId) ignoreAsyncResult(canvasNavigation.openStep(nodeId, "", "test-run"));
   });
   const groupActions = useWorkflowGroupActions({
+    ownerKey: JSON.stringify([workflowId, inHook ? hookProjectId : selectedProjectId, inHook ? hookScope.authorityEpoch : null, drawerMode, selectedGroupId]),
+    isAuthorityCurrent: inHook ? hookScope.isChildAuthorityCurrent : undefined,
     changeSet: stepChangeSet,
     deletionGuard,
     groupCreateMode,
@@ -623,7 +625,8 @@ function WorkflowDetailPageContent({
     hookDeclarationIssues: stepChangeSet.applyIssues.filter((issue) => issue.path?.startsWith("steps." + (selectedStep?.runtimeId || selectedStepId) + ".")),
     selectedCanvasIssue,
     selectedIssueWorkflowContractSection,
-    selectedProjectId,
+    selectedProjectId: inHook ? hookProjectId : selectedProjectId,
+    hookProjectId,
     selectedStep,
     setStepAgentId,
     setStepKindDraft,
@@ -737,7 +740,9 @@ function WorkflowDetailPageContent({
         placementChildChangeSet: hookScope.childChangeSet,
         placementChildWorkflowId: hookScope.childWorkflowId,
         placementChildHookId: hookScope.effectiveHookId,
-        canvasCommandViewIdentity: JSON.stringify([hookScope.effectiveHookId, hookScope.childWorkflowId]),
+        hookProjectId, hookProjectContext,
+        hookAuthorityKey: hookScope.authorityEpoch,
+        canvasCommandViewIdentity: JSON.stringify([hookProjectId, hookScope.authorityEpoch, hookScope.effectiveHookId, hookScope.childWorkflowId]),
         // A restored revision replaces saved parameters: the next editor opens from the server.
         forgetEditorSelection: () => {
           setSelectedStepId("");

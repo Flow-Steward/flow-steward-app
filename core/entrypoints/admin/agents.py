@@ -6,7 +6,7 @@ Admin API routes — Agents CRUD with DB backend + relationship management.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 if TYPE_CHECKING:
     from core.application.registry.db_store import RegistryDBStore
@@ -30,6 +30,7 @@ from core.application.registry.contract_validation import (
 )
 from core.application.registry.identifier_keys import unique_text_key
 from core.application.registry.projected_artifact_rows import (
+    guardrail_assignable_catalog_rows,
     projected_catalog_row_matches,
     projection_aware_catalog_row,
     projection_aware_catalog_rows,
@@ -161,6 +162,7 @@ def list_agents(
     request: Request,
     enabled_only: Annotated[bool, Query()] = False,
     search: Annotated[str | None, Query()] = None,
+    usage: Annotated[Literal["guardrail"] | None, Query()] = None,
 ):
     """List all agents — admin role required when auth is enforced."""
     auth_user = getattr(request.state, "auth_user", None)
@@ -203,7 +205,10 @@ def list_agents(
                 fields=("agent_id", "display_name", "description", "category"),
             )
         )
-    return [row for row in (rows or []) if row_in_account_scope(row, scope)]
+    rows = [row for row in (rows or []) if row_in_account_scope(row, scope)]
+    if usage == "guardrail":
+        return guardrail_assignable_catalog_rows(db, rows, account_id=scope.account_id)
+    return rows
 
 
 @agent_types_router.get(

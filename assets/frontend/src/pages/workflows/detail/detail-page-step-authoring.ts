@@ -67,7 +67,7 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     setStepAgentId, stepOptional, setStepOptional, stepBlockKey,
     setStepBlockKey, setSaveNotice, setSaveError, savingWorkflowSurface,
     setSavingWorkflowSurface, requestConfirmation, data, availableProjectsQuery,
-    linkedProjectQuery, selectedProjectId, workflowContractQuery, workflowRecord,
+    linkedProjectQuery, selectedProjectId, hookProjectId, workflowContractQuery, workflowRecord,
     setStagedStepSaveNotice, refetchWorkflowSurfaces, changeSet, editSession, hookScope,
     inHook, stepWorkflowId, stepChangeSet, stepServerRevision,
     stepWorkflow, stepDefinitionRows, stepCreateContextInScope, refetchStepSurfaces,
@@ -98,7 +98,7 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
   });
   const agentWorkflowRecord = objectOrEmpty(stepWorkflow);
   const agentDrafts = useAgentStepDrafts({
-    owner: stableJson([workflowId, selectedProjectId, stepWorkflowId, inHook, hookScope.effectiveHookId, selectedStepId || "new", stepKindDraft]),
+    owner: stableJson([workflowId, inHook ? hookProjectId : selectedProjectId, inHook ? hookScope.authorityEpoch : null, stepWorkflowId, inHook, hookScope.effectiveHookId, selectedStepId || "new", stepKindDraft]),
     raw: objectOrEmpty(selectedStep?.raw), createContext: stepCreateContext,
   });
   const agentPreviewBindingValue = agentPreviewBinding(stepOverrideDraft);
@@ -140,7 +140,7 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     enabled:
       drawerMode === "step" &&
       (stepKindDraft === "transform" || stepKindDraft === "tabular_feed") &&
-      Boolean(workflowId),
+      Boolean(stepWorkflowId) && (!inHook || hookScope.childChangeSet.ownerReady),
     retry: false,
   });
   const selectedStepAuthoredId =
@@ -166,10 +166,10 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
   const savedHookStep = Array.isArray(state.workflow?.steps)
     ? state.workflow.steps.find((step) => step.step_id === activeHookFrame?.stepId) : undefined;
   const savedHookDeclaration = objectOrEmpty(objectOrEmpty(objectOrEmpty(savedHookStep?.override).invoke_workflow).hook);
-  const hookPresentation = activeHookFrame && !activeHookFrame.declarationPending &&
+  const hookPresentation = hookProjectId && activeHookFrame && !activeHookFrame.declarationPending &&
     activeHookFrame.targetWorkflowId === stepWorkflowId && activeHookFrame.bindingRevision > 0 &&
     textOrEmpty(savedHookDeclaration.hook_id) === hookScope.effectiveHookId
-    ? { parentWorkflowId: workflowId, projectId: selectedProjectId, hookId: hookScope.effectiveHookId,
+    ? { parentWorkflowId: workflowId, projectId: hookProjectId, hookId: hookScope.effectiveHookId,
       stepId: activeHookFrame.stepId, bindingRevision: activeHookFrame.bindingRevision,
       childWorkflowId: stepWorkflowId, declaration: savedHookDeclaration } : null;
   const stepOptions = useWorkflowStepOptionsController({
@@ -178,7 +178,7 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     definitionRows: stepDefinitionRows,
     drawerMode,
     linkedProjectQuery,
-    selectedProjectId,
+    selectedProjectId: inHook ? hookProjectId : selectedProjectId,
     selectedStep,
     setSearchParams,
     stepAgentId,
@@ -190,7 +190,7 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     workflowId: stepWorkflowId,
   });
   const httpIntent = useHttpRequestIntent(stableJson([stepWorkflowId, selectedStep?.runtimeId || "new", stepKindDraft]), onStepInputValidationChange);
-  const stepActions = useWorkflowStepActions({
+  const stepActionsController = useWorkflowStepActions({
     agentDrafts, agentWorkflowRecord,
     httpIntent,
     changeSet: stepChangeSet,
@@ -227,6 +227,13 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     stepOverrideDraft,
     workflowId: stepWorkflowId,
   });
+  const stepActions = {
+    ...stepActionsController,
+    handleSaveStep: (...args: Parameters<typeof stepActionsController.handleSaveStep>) => {
+      if (inHook && !hookScope.isChildAuthorityCurrent()) return Promise.resolve();
+      return stepActionsController.handleSaveStep(...args);
+    },
+  };
   const { setStepFormSaveState, stepFormSaveState } = stepActions;
   useEffect(() => {
     setStepFormSaveState("idle");

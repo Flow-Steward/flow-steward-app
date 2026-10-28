@@ -7998,6 +7998,18 @@ msgstr "Jūsų rolė leidžia peržiūrėti šį projektą, bet ne jį keisti."
 msgid "react.registry.action"
 msgstr "veiksmas:"
 
+msgid "react.registry.action_created"
+msgstr "Sukurta"
+
+msgid "react.registry.action_deleted"
+msgstr "Ištrinta"
+
+msgid "react.registry.action_restored"
+msgstr "Atkurta"
+
+msgid "react.registry.action_updated"
+msgstr "Atnaujinta"
+
 msgid "react.registry.actions_for_value0"
 msgstr "{value0} veiksmai"
 
@@ -8326,6 +8338,9 @@ msgid "react.registry.comma_separated_agent_ids_leave_empty_to_apply_this_guardr
 msgstr ""
 "Agentų ID, atskirti kableliais. Palikite tuščią, kad apsaugos taisyklė būtų "
 "taikoma visiems agentams."
+
+msgid "react.registry.comparing_revision_values"
+msgstr "Lyginama {previous} su {selected}"
 
 msgid "react.registry.comparing_value0_value1"
 msgstr "Lyginama #{value0} -> #{value1}"
@@ -9210,6 +9225,18 @@ msgstr "Suteiktos aprėptys"
 msgid "react.registry.guardrail"
 msgstr "Apsaugos taisyklė"
 
+msgid "react.registry.guardrail_agent_unavailable"
+msgstr "Šis agentas negali būti priskirtas apsaugos taisyklei. Prieš išsaugodami pašalinkite jo nuorodą."
+
+msgid "react.registry.guardrail_agent_unverified"
+msgstr "Pasirinkto agento nuoroda išsaugoma, kol tikrinama priskyrimo galimybė."
+
+msgid "react.registry.guardrail_agents_load_failed"
+msgstr "Nepavyko įkelti agentų sąrašo."
+
+msgid "react.registry.guardrail_agents_retry"
+msgstr "Bandyti dar kartą įkelti agentus"
+
 msgid "react.registry.guardrail_config"
 msgstr "Apsaugos taisyklės konfigūracija"
 
@@ -9225,6 +9252,12 @@ msgstr "Apsaugos taisyklės informacijos skyriai"
 msgid "react.registry.guardrail_policy_entries_can_be_listed_and_managed_directly_from_react"
 msgstr ""
 "Apsaugos politikos įrašus galima peržiūrėti ir tvarkyti React sąsajoje."
+
+msgid "react.registry.guardrail_scope_choices_required"
+msgstr "Prieš kurdami apsaugos taisyklę įkelkite agentų sąrašą ir pasirinkite bent vieną galimą agentą."
+
+msgid "react.registry.guardrail_scope_unavailable"
+msgstr "Prieš išsaugodami agentų aprėptį pašalinkite nepasiekiamų agentų nuorodas."
 
 msgid "react.registry.guardrails_catalog"
 msgstr "Apsaugos taisyklių katalogas"
@@ -10502,14 +10535,32 @@ msgstr "Atkūrimas pritaiko pasirinktą versiją"
 msgid "react.registry.restore_failed"
 msgstr "Atkurti nepavyko."
 
+msgid "react.registry.restore_saved_revision_question"
+msgstr "Atkurti šią išsaugotą versiją?"
+
+msgid "react.registry.restore_saved_revision_title"
+msgstr "Išsaugotos versijos atkūrimas"
+
+msgid "react.registry.restore_target"
+msgstr "Paskirtis: {value0}/{value1}."
+
 msgid "react.registry.restore_this_revision"
 msgstr "Atkurti šią versiją"
 
 msgid "react.registry.restore_value0_value1"
 msgstr "Atkurti {value0}/{value1}"
 
+msgid "react.registry.restore_workflow_revision_as_new"
+msgstr "Atkurti {value0} kaip naują versiją?"
+
+msgid "react.registry.restored_saved_revision"
+msgstr "Atkurta ši išsaugota versija."
+
 msgid "react.registry.restored_value0_value1_from_entry_value2"
 msgstr "Atkurta {value0}/{value1} iš įrašo #{value2}."
+
+msgid "react.registry.restored_workflow_revision_as_new"
+msgstr "Atkurta {value0} kaip nauja versija."
 
 msgid "react.registry.restoring"
 msgstr "Atkuriama…"
@@ -10688,6 +10739,9 @@ msgstr "Išsaugotos užklausos būsena atnaujinta."
 
 msgid "react.registry.saved_query_updated"
 msgstr "Išsaugota užklausa atnaujinta."
+
+msgid "react.registry.saved_revision"
+msgstr "Išsaugota versija"
 
 msgid "react.registry.saves_no_base_skill_and_no_secondary_skills"
 msgstr "Išsaugoma be pagrindinio ir papildomų įgūdžių."
@@ -11310,6 +11364,9 @@ msgid "react.registry.workflow_discovery_uses_this_metadata_for_retrieval_and_ra
 msgstr ""
 "Darbo eigų paieška naudoja šiuos metaduomenis paieškai ir reitingavimui. Šie "
 "laukai yra techniniai ir padeda gerinti darbo eigų kūrimo kokybę."
+
+msgid "react.registry.workflow_output_label_path"
+msgstr "Išvestys · Rezultatas {index} · Žyma"
 
 msgid "react.registry.workflow_restore_conflict"
 msgstr "Darbo eiga pasikeitė po to, kai atidarėte šią versiją, todėl niekas neatkurta. Uždarykite ir vėl atidarykite versiją, kad ją atkurtumėte pagal dabartinę darbo eigą."
@@ -13731,6 +13788,9 @@ msgstr "Nė vienas katalogo laukas neatitinka paieškos."
 msgid "react.registry.no_data_contracts_match_search"
 msgstr "Nė viena duomenų sutartis neatitinka paieškos."
 
+msgid "react.workflows.all_projects"
+msgstr "Visi projektai"
+
 msgid "react.workflows.body_end_disconnect_group"
 msgstr "Atjungti nuo grupės pabaigos"
 
@@ -14038,6 +14098,15 @@ msgstr "Paruošti srautą publikavimui"
 
 msgid "react.workflows.preparing_workflow"
 msgstr "Ruošiama darbo eiga"
+
+msgid "react.workflows.project_filter_failed"
+msgstr "Projekto filtras nepasiekiamas"
+
+msgid "react.workflows.project_filter_unavailable"
+msgstr "Šis projektas nepasiekiamas dabartinėje darbo srityje. Pasirinkite projektą arba „Visi projektai“."
+
+msgid "react.workflows.project_membership_invalid"
+msgstr "Nepavyko patikrinti pasirinkto projekto darbo eigų. Pasirinkite projektą arba bandykite dar kartą."
 
 msgid "react.workflows.recently_added"
 msgstr "Neseniai pridėti"
@@ -27283,6 +27352,15 @@ msgstr "Nėra ką įklijuoti: pirmiausia nukopijuokite žingsnius darbo eigos dr
 
 msgid "react.workflows.clipboard_pasted"
 msgstr "Įklijuota į nepritaikytą struktūrą."
+
+msgid "react.workflows.clipboard_read_failed"
+msgstr "Nepavyko perskaityti iškarpinės turinio."
+
+msgid "react.workflows.clipboard_pasted_named"
+msgstr "Į nepritaikytą struktūrą įklijuota: {name}."
+
+msgid "react.workflows.clipboard_pasted_count"
+msgstr "Į nepritaikytą struktūrą įklijuoti elementai: {count}."
 
 msgid "react.workflows.clipboard_write_failed"
 msgstr "Nepavyko nukopijuoti į iškarpinę."

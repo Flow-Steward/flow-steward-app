@@ -426,3 +426,24 @@ def projected_catalog_row_matches(
     if not normalized_query:
         return True
     return normalized_query in " ".join(str(row.get(field) or "") for field in fields).casefold()
+
+
+def guardrail_assignable_catalog_rows(
+    db_store: Any,
+    visible_rows: list[dict[str, Any]],
+    *,
+    account_id: str,
+) -> list[dict[str, Any]]:
+    """Restrict an already scoped, merged and searched agent catalog to FK targets.
+
+    Display provenance is not eligibility: active projections can replace a
+    durable row's display content, while virtual-only projections have no FK.
+    """
+    normalized_account_id = str(account_id or "").strip()
+    if not normalized_account_id or not visible_rows:
+        return []
+    candidate_ids = [str(row.get("agent_id") or "").strip() for row in visible_rows]
+    eligible_ids = db_store.guardrail_assignable_agent_ids(
+        candidate_ids, account_id=normalized_account_id
+    )
+    return [row for row in visible_rows if str(row.get("agent_id") or "").strip() in eligible_ids]

@@ -556,6 +556,9 @@ export function useWorkflowDrawerController(ctx: Record<string, any>) {
       normalizedDrawer === "workflow-test-run" ||
       normalizedDrawer === "test-run"
     ) {
+      // One location owns the launch request while its invalid-input guard awaits.
+      if (request.consumed) return;
+      request.consumed = true;
       ignoreAsyncResult(openWorkflowTestRunDrawer());
       clearDrawerParams();
       return;

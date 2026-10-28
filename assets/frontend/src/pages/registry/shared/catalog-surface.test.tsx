@@ -1,6 +1,6 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
 
@@ -78,7 +78,7 @@ function renderCatalogSurface({
     },
   });
 
-  return render(
+  const view = render(
     <I18nContext.Provider value={{ ...fallbackContext, locale, t: (key, text = "", params) => fallbackContext.t(key, locale === "lt" ? ({
       "settings.extensions.enabled": "įjungta",
       "settings.notifications.status.disabled": "išjungta",
@@ -99,6 +99,7 @@ function renderCatalogSurface({
       </MemoryRouter>
     </QueryClientProvider></I18nContext.Provider>,
   );
+  return { ...view, queryClient };
 }
 
 /** Three tool rows: two enabled, one disabled, all separately searchable. */
@@ -126,6 +127,53 @@ async function chooseOption(comboboxName: string, optionName: string) {
   fireEvent.click(screen.getByRole("combobox", { name: comboboxName }));
   fireEvent.click(await screen.findByRole("option", { name: optionName }));
 }
+
+describe("guardrail Create paused enumeration", () => {
+  it("blocks creation during an offline paused refetch while retaining cached selections", async () => {
+    const agentRows = [{ agent_id: "writer", display_name: "Writer" }];
+    const queryKey = ["registry", "guardrail-create-agents", undefined] as const;
+    mockedCreateRegistryEntity.mockReset();
+    mockedUseHasCapability.mockReturnValue(true);
+    mockedFetchRegistryList.mockReset();
+    mockedFetchRegistryList.mockImplementation(async (endpoint) =>
+      endpoint === "/api/agents?usage=guardrail" ? agentRows : [],
+    );
+    const wasOnline = onlineManager.isOnline();
+    const { queryClient } = renderCatalogSurface();
+    try {
+      onlineManager.setOnline(true);
+      fireEvent.click(screen.getByRole("button", { name: "New Guardrail" }));
+      fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Paused scope" } });
+      fireEvent.change(screen.getByLabelText("Pattern 1"), { target: { value: "FORBIDDEN" } });
+      fireEvent.click(await screen.findByRole("checkbox", { name: /Toggle Writer/i }));
+      await waitFor(() => expect(screen.getByRole("button", { name: /Create entry/i })).toBeEnabled());
+      expect(queryClient.getQueryState(queryKey)).toMatchObject({
+        status: "success", fetchStatus: "idle", data: agentRows,
+      });
+      const readsBeforePause = mockedFetchRegistryList.mock.calls.length;
+      await act(async () => {
+        onlineManager.setOnline(false);
+        await queryClient.refetchQueries({ queryKey, exact: true });
+      });
+      expect(queryClient.getQueryState(queryKey)).toMatchObject({
+        status: "success", fetchStatus: "paused", data: agentRows,
+      });
+      expect(mockedFetchRegistryList).toHaveBeenCalledTimes(readsBeforePause);
+      expect(screen.getByText("writer", { exact: true })).toBeVisible();
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Create entry/i })).toBeDisabled();
+        expect(screen.getByRole("checkbox", { name: /Toggle Writer/i })).toBeDisabled();
+      });
+      fireEvent.submit(screen.getByTestId("registry-create-form"));
+      expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
+      expect(screen.getByText("writer", { exact: true })).toBeVisible();
+    } finally {
+      // A failed RED assertion must never leave the global query manager offline.
+      onlineManager.setOnline(wasOnline);
+      queryClient.clear();
+    }
+  });
+});
 
 describe("RegistryCatalogSurface", () => {
   it("keeps enabled tool filter membership when status labels are Lithuanian", async () => {
@@ -155,7 +203,7 @@ describe("RegistryCatalogSurface", () => {
     mockedDeleteMcpProjectedToolConfirmed.mockResolvedValue({ status: "deleted" });
 
     mockedFetchRegistryList.mockImplementation(async (endpoint) => {
-      if (endpoint === "/api/agents") {
+      if (endpoint === "/api/agents" || endpoint === "/api/agents?usage=guardrail") {
         return [
           { agent_id: "writer", display_name: "Writer" },
           { agent_id: "reviewer", display_name: "Reviewer" },
@@ -799,5 +847,89 @@ describe("RegistryCatalogSurface", () => {
     expect(
       screen.queryByRole("heading", { name: "Catalog entries" }),
     ).not.toBeInTheDocument();
+  });
+  it("creates guardrails only with the backend's guardrail-eligible agents, retaining installed durable choices", async () => {
+    const manual = { agent_id: "writer", display_name: "Own Writer" };
+    const installed = { agent_id: "extension.guard-install.bridge", display_name: "Installed Durable Writer", source_install_id: "guard-install" };
+    const shared = { agent_id: "shared", display_name: "Shared Reader" };
+    const virtual = { agent_id: "extension.guard-install.virtual", display_name: "Virtual Showcase Reader", source_install_id: "guard-install" };
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents?usage=guardrail") return [manual, installed];
+      if (endpoint === "/api/agents") return [manual, installed, shared, virtual];
+      return [];
+    });
+    renderCatalogSurface();
+    fireEvent.click(screen.getByRole("button", { name: "New Guardrail" }));
+    fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Owned policy" } });
+    fireEvent.change(screen.getByLabelText("Pattern 1"), { target: { value: "FORBIDDEN" } });
+    const writer = await screen.findByRole("checkbox", { name: /Toggle Own Writer/i });
+    expect(screen.queryByRole("checkbox", { name: /Shared Reader/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Virtual Showcase Reader/i })).not.toBeInTheDocument();
+    const bridge = screen.getByRole("checkbox", { name: /Toggle Installed Durable Writer/i });
+    fireEvent.click(writer);
+    fireEvent.click(bridge);
+    fireEvent.submit(screen.getByTestId("registry-create-form"));
+    await waitFor(() => expect(mockedCreateRegistryEntity).toHaveBeenCalled());
+    expect(mockedFetchRegistryList).toHaveBeenCalledWith("/api/agents?usage=guardrail");
+    const [endpoint, payload] = mockedCreateRegistryEntity.mock.calls[0];
+    expect(endpoint).toBe("/api/guardrails");
+    expect(payload).toMatchObject({ display_name: "Owned policy", config: { patterns: ["FORBIDDEN"] } });
+    expect((payload as Record<string, unknown>).agents).toEqual(expect.arrayContaining(["writer", installed.agent_id]));
+    expect((payload as Record<string, unknown>).agents).toHaveLength(2);
+  });
+
+  it("does not fall back to the ordinary catalog when guardrail eligibility cannot load", async () => {
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents?usage=guardrail") throw new Error("Agent choices could not be loaded.");
+      if (endpoint === "/api/agents") return [{ agent_id: "shared", display_name: "Shared Reader" }];
+      return [];
+    });
+    renderCatalogSurface();
+    fireEvent.click(screen.getByRole("button", { name: "New Guardrail" }));
+    fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Owned policy" } });
+    fireEvent.change(screen.getByLabelText("Pattern 1"), { target: { value: "FORBIDDEN" } });
+    await waitFor(() => expect(mockedFetchRegistryList).toHaveBeenCalledWith("/api/agents?usage=guardrail"));
+    expect(screen.queryByRole("checkbox", { name: /Shared Reader/i })).not.toBeInTheDocument();
+    fireEvent.submit(screen.getByTestId("registry-create-form"));
+    expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/could not be loaded|failed to load|unable to load/i).length).toBeGreaterThan(0);
+  });
+
+});
+
+
+describe("guardrail Create enumeration authority", () => {
+  it("retains a selection removed by refetch until explicit removal and blocks cached choices on error", async () => {
+    let reads = 0;
+    mockedCreateRegistryEntity.mockReset();
+    mockedUseHasCapability.mockReturnValue(true);
+    mockedFetchRegistryList.mockReset();
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents?usage=guardrail") {
+        reads += 1;
+        if (reads === 1) return [{ agent_id: "writer", display_name: "Writer" }, { agent_id: "reviewer", display_name: "Reviewer" }];
+        if (reads === 2) return [{ agent_id: "reviewer", display_name: "Reviewer" }];
+        throw new Error("Agent choices could not be loaded.");
+      }
+      return [];
+    });
+    const { queryClient } = renderCatalogSurface();
+    fireEvent.click(screen.getByRole("button", { name: "New Guardrail" }));
+    fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Retained create scope" } });
+    fireEvent.change(screen.getByLabelText("Pattern 1"), { target: { value: "FORBIDDEN" } });
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Toggle Writer/i }));
+    await queryClient.invalidateQueries({ queryKey: ["registry", "guardrail-create-agents"] });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Remove writer/i })).toBeVisible());
+    expect(screen.getByRole("button", { name: /Create entry/i })).toBeDisabled();
+    fireEvent.submit(screen.getByTestId("registry-create-form"));
+    expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Remove writer/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Toggle Reviewer/i }));
+    expect(screen.getByRole("button", { name: /Create entry/i })).toBeEnabled();
+    await queryClient.invalidateQueries({ queryKey: ["registry", "guardrail-create-agents"] });
+    await screen.findByText(/failed to load agent choices/i);
+    expect(screen.getByRole("button", { name: /Create entry/i })).toBeDisabled();
+    fireEvent.submit(screen.getByTestId("registry-create-form"));
+    expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
   });
 });

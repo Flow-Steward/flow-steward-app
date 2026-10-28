@@ -876,6 +876,19 @@ export function useWorkflowTestRunController(ctx: Record<string, any> & {
       }
     },
   });
+  // An observer method reads its newest options; bind the public launcher to
+  // this committed Step authority so held callbacks cannot revive after A→B→A.
+  const ownedStepTestRunMutation = {
+    ...stepTestRunMutation,
+    mutate: (...args: Parameters<typeof stepTestRunMutation.mutate>) => {
+      if (!stepAuthorityCurrent(stepAuthority)) return;
+      stepTestRunMutation.mutate(...args);
+    },
+    mutateAsync: (...args: Parameters<typeof stepTestRunMutation.mutateAsync>) => {
+      if (!stepAuthorityCurrent(stepAuthority)) return Promise.reject(new Error("Step Test Run owner changed before submission."));
+      return stepTestRunMutation.mutateAsync(...args);
+    },
+  };
   const workflowTestRunInterfaceDisabled = objectOrEmpty(objectOrEmpty(workflowContractQuery.data).interface).enabled === false;
   const workflowTestRunInputRows = useMemo(() => {
     const contractInterface = objectOrEmpty(
@@ -958,7 +971,7 @@ export function useWorkflowTestRunController(ctx: Record<string, any> & {
     stepTestRunInputRows,
     stepTestRunInputs,
     stepTestRunMessage: visibleStepSession?.message ?? "",
-    stepTestRunMutation,
+    stepTestRunMutation: ownedStepTestRunMutation,
     stepTestRunPayload: visibleStepSession?.payload ?? null,
     stepTestRunSummary,
     workflowTestRunApprovalComment,

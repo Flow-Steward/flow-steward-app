@@ -7,6 +7,9 @@ from core.application.workflows import (
     workflow_entrypoint_repository,
     workflow_provider_trigger_repository,
 )
+from core.application.workflows.workflow_entrypoint_input_service import (
+    WorkflowEntrypointInputValidationError,
+)
 from core.application.workflows.workflow_trigger_catalog import list_workflow_trigger_catalog
 from core.application.workflows.workflow_webhook_creation_service import (
     WorkflowWebhookCreateCommand,
@@ -508,18 +511,22 @@ def _register_workflow_webhook_routes(ctx: dict[str, Any]) -> None:
             "files": list(body.files or []),
         }
         mapping = _normalize_mapping(entrypoint.get("input_mapping_jsonb"))
-        workflow_inputs = _build_workflow_inputs(
-            workflow_id=workflow_id,
-            mapping=mapping,
-            sources=sources,
-            fallback_body=dict(body.body or {}),
-            file_refs=list(body.files or []),
-        )
-        validation = WorkflowInterfaceService().validate_inputs_for_workflow_id(
-            str(workflow_id or "").strip(),
-            workflow_inputs,
-            channel="webhook",
-        )
+        try:
+            workflow_inputs = _build_workflow_inputs(
+                workflow_id=workflow_id,
+                mapping=mapping,
+                sources=sources,
+                fallback_body=dict(body.body or {}),
+                file_refs=list(body.files or []),
+            )
+            validation = WorkflowInterfaceService().validate_inputs_for_workflow_id(
+                str(workflow_id or "").strip(),
+                workflow_inputs,
+                channel="webhook",
+            )
+        except WorkflowEntrypointInputValidationError as exc:
+            workflow_inputs = exc.workflow_inputs
+            validation = exc.validation
         return {
             "workflow_id": str(workflow_id or "").strip(),
             "entry_key": str(entry_key or "").strip(),

@@ -43,6 +43,7 @@ export type ClipboardCommit = {
   intentToken: GraphIntentToken;
   removed?: DeletionClosure;
   roots: WorkflowNodeRef[];
+  rootLabels: readonly string[];
   /** Absolute display canvas-world coordinates; the bridge converts to parent-local once. */
   worldPositions: ReadonlyMap<string, CanvasPosition>;
   placement: WorkflowPlacement;
@@ -198,11 +199,22 @@ export function createWorkflowClipboardCommands(deps: Dependencies) {
       ownerKey: authority.owner.ownerKey, workflowId: authority.owner.workflowId, projectId: authority.owner.projectId,
       canvasWorkflowId: authority.canvasWorkflowId, viewKey: authority.viewKey, generation: authority.generation,
     } : undefined });
-  const commit = (authority: ClipboardAuthority, event: Omit<ClipboardCommit, "intentToken">, operations: WorkflowChangeOperation[], written: boolean) => {
+  const commit = (authority: ClipboardAuthority, event: Omit<ClipboardCommit, "intentToken" | "rootLabels">, operations: WorkflowChangeOperation[], written: boolean) => {
     const intentToken = authority.changeSet.stageGraphIntent(operations);
     if (!intentToken) return result(event.command, "stale", written, false, authority);
     awaitingPublication = graphPublicationProof(authority);
-    try { deps.onCommitted({ ...event, intentToken }); } catch { return result(event.command, "visual_commit_failed", written, true, authority); }
+    const rootLabels = event.roots.map((root) => {
+      const operation = root.kind === "step"
+        ? operations.find((item) => item.op === "create_step" && item.step.step_id === root.id)
+        : root.kind === "group"
+          ? operations.find((item) => item.op === "create_group" && item.group.group_id === root.id)
+          : operations.find((item) => item.op === "create_for_each" && item.for_each.for_each_id === root.id);
+      const label = operation?.op === "create_step" ? operation.step.display_name
+        : operation?.op === "create_group" ? operation.group.display_name
+          : operation?.op === "create_for_each" ? operation.for_each.display_name : root.id;
+      return String(label || root.id).trim() || root.id;
+    });
+    try { deps.onCommitted({ ...event, rootLabels, intentToken }); } catch { return result(event.command, "visual_commit_failed", written, true, authority); }
     return result(event.command, undefined, written, true, authority);
   };
   const run = async (command: ClipboardCommand, expectedRetry?: ClipboardAuthority): Promise<ClipboardCommandResult> => {

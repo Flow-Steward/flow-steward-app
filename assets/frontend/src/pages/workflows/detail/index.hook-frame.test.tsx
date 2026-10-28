@@ -1,3 +1,9 @@
+import { useContext } from "react";
+import { AuthContext } from "@/lib/auth/context";
+import type * as ProjectContextModule from "@/pages/workflows/shared/project-context";
+import type * as HookScopeModule from "./detail-hook-scope";
+import type * as GroupActionsModule from "./detail-group-actions";
+import type * as TestRunControllerModule from "./detail-test-run-controller";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -15,6 +21,7 @@ import {
   mockedTestRunWorkflowStep,
   mockedTestRunWorkflow,
   mockedFetchWorkflowContract,
+  mockedFetchWorkflowTransformActions,
   postedChangeSets,
   dryRunChangeSets,
   renderPage,
@@ -51,6 +58,37 @@ vi.mock("@/pages/jobs/detail", async () => {
 // The selected run's own observer reads the parent archive (Results no longer embed Job Details).
 vi.mock("@/pages/jobs/detail/job-execution-snapshot", () => ({ useJobExecutionSnapshot: (jobId: string, enabled: boolean) => ({
   snapshot: !enabled ? null : jobId === "child-marks" ? executionEvidence.child : jobId === "parent-marks" ? executionEvidence.parent : null, pending: false, error: null }) }));
+
+// Observe real public controllers without replacing their behavior or their child/IO consumers.
+const hookAuthorityControllers = vi.hoisted(() => ({
+  scope: null as ReturnType<typeof HookScopeModule.useWorkflowHookScope> | null,
+  group: null as ReturnType<typeof GroupActionsModule.useWorkflowGroupActions> | null,
+  childRun: null as ReturnType<typeof TestRunControllerModule.useWorkflowTestRunController> | null,
+}));
+vi.mock("./detail-hook-scope", async (importOriginal) => {
+  const actual = await importOriginal<typeof HookScopeModule>();
+  return { ...actual, useWorkflowHookScope: (ctx: Parameters<typeof actual.useWorkflowHookScope>[0]) => {
+    const controller = actual.useWorkflowHookScope(ctx);
+    hookAuthorityControllers.scope = controller;
+    return controller;
+  } };
+});
+vi.mock("./detail-group-actions", async (importOriginal) => {
+  const actual = await importOriginal<typeof GroupActionsModule>();
+  return { ...actual, useWorkflowGroupActions: (ctx: Parameters<typeof actual.useWorkflowGroupActions>[0]) => {
+    const controller = actual.useWorkflowGroupActions(ctx);
+    hookAuthorityControllers.group = controller;
+    return controller;
+  } };
+});
+vi.mock("./detail-test-run-controller", async (importOriginal) => {
+  const actual = await importOriginal<typeof TestRunControllerModule>();
+  return { ...actual, useWorkflowTestRunController: (ctx: Parameters<typeof actual.useWorkflowTestRunController>[0]) => {
+    const controller = actual.useWorkflowTestRunController(ctx);
+    if (ctx.workflowId === "client_beta" && ctx.selectedStep) hookAuthorityControllers.childRun = controller;
+    return controller;
+  } };
+});
 
 vi.setConfig({ testTimeout: 20_000 });
 
@@ -256,6 +294,214 @@ function frame() {
   return screen.getByText((_, element) => element?.getAttribute("data-hook-frame") === "before_finish");
 }
 
+/** Real child query responses are independently held after an unbound Hook is materialized. */
+function installFirstAddWithDeferredChild() {
+  installHookedWorkflow({ connected: false });
+  const detail = mockedFetchWorkflowDetail.getMockImplementation()!;
+  const canvas = mockedFetchWorkflowCanvasGraph.getMockImplementation()!;
+  let releaseDetail: () => void = () => undefined;
+  let releaseCanvas: () => void = () => undefined;
+  let failCanvas: (error: Error) => void = () => undefined;
+  const detailReady = new Promise<void>((resolve) => { releaseDetail = resolve; });
+  const canvasReady = new Promise<void>((resolve, reject) => { releaseCanvas = resolve; failCanvas = reject; });
+  mockedFetchWorkflowDetail.mockImplementation(async (workflowId: string) => {
+    if (workflowId === "client_fix") await detailReady;
+    return detail(workflowId);
+  });
+  mockedFetchWorkflowCanvasGraph.mockImplementation(async (workflowId: string) => {
+    if (workflowId === "client_fix") await canvasReady;
+    return canvas(workflowId);
+  });
+  return { releaseDetail, releaseCanvas, failCanvas };
+}
+
+async function chooseFirstHookStep() {
+  fireEvent.click(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "Add step to Before the order is finished" })).getByRole("button", { name: "StepA step in this hook." }));
+  await choosePaletteOption("Set variable");
+}
+
+it("refuses a ready Hook child when its matching selection ticket loses the binding before acquisition", async () => {
+  installHookedWorkflow();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const hookKey = ["workflows", "hooks", "project_alpha", "weekly_report"];
+  const router = createMemoryRouter([{ path: "/registry/workflows/:workflowId/builder",
+    element: <WorkflowsDetailPage embedded surface="builder" /> }],
+  { initialEntries: ["/registry/workflows/weekly_report/builder?project_id=project_alpha"] });
+  const view = render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
+  try {
+    await screen.findByRole("group", { name: "Open step Fix the customer name" }, { timeout: 5_000 });
+    await waitFor(() => expect(hookAuthorityControllers.scope!.isChildAuthorityCurrent()).toBe(true));
+    const scope = hookAuthorityControllers.scope!;
+    const boundFrame = scope.framesByHook.get("before_finish")!;
+    const readyOwner = await scope.acquireCreationOwner("before_finish", "client_fix");
+    if (!readyOwner) throw new Error("Expected the connected Hook's committed child before changing its binding");
+    expect(scope.childChangeSet.operations).toEqual([]);
+    let acquired: Awaited<ReturnType<typeof scope.acquireCreationOwner>> | undefined;
+
+    await act(async () => {
+      // Reproduce the real await boundary used by the creation command. The
+      // selection ticket is valid when ensure resolves, then its cache changes.
+      const target = await scope.ensureHookWorkflow(boundFrame);
+      expect(target).toBe("client_fix");
+      const hooks = client.getQueryData<{ hooks: Array<{ hook_id: string; binding: { target_workflow_id: string } | null }> }>(hookKey)!;
+      expect(hooks.hooks.find((hook) => hook.hook_id === "before_finish")?.binding?.target_workflow_id).toBe("client_fix");
+      client.setQueryData(hookKey, { ...hooks, hooks: hooks.hooks.map((hook) => hook.hook_id === "before_finish"
+        ? { ...hook, binding: null } : hook) });
+      // The authoritative cache is unbound while React still exposes the old
+      // committed capability; no mocked readiness or query status is involved.
+      expect(client.getQueryData<{ hooks: Array<{ binding: unknown }> }>(hookKey)?.hooks[0].binding).toBeNull();
+      expect(scope.isCreationOwnerCurrent(readyOwner)).toBe(true);
+      acquired = await scope.acquireCreationOwner("before_finish", target);
+    });
+
+    expect(acquired).toBeNull();
+    expect(hookAuthorityControllers.scope!.childChangeSet.operations).toEqual([]);
+    expect(hookAuthorityControllers.scope!.childChangeSet.journal.items).toEqual([]);
+    expect(screen.queryByRole("dialog", { name: "Step editor" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Step label" })).not.toBeInTheDocument();
+    expect(fetchSpy.mock.calls.filter(([input]) => stringFromUnknownValue(input).endsWith("/create-and-bind"))).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); client.clear(); }
+});
+
+it("waits for an explicitly selected connected Hook before adding to its own child among two ready Hooks", async () => {
+  installHookedWorkflow();
+  addSecondHook();
+  const view = renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
+  try {
+    await screen.findByRole("group", { name: "Open step Fix the customer name" }, { timeout: 5_000 });
+    await screen.findByRole("group", { name: "Open step Other: Fix the customer name" }, { timeout: 5_000 });
+    // Frame projection reads both children independently; neither is selected yet.
+    expect(hookAuthorityControllers.scope!.effectiveHookId).toBe("");
+    expect(hookAuthorityControllers.scope!.childWorkflowId).toBe("");
+    const authorBefore = structuredClone(hookAuthorityControllers.scope!.canvasChangeSet.preview);
+    await chooseFirstHookStep();
+
+    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Set variable");
+    expect(screen.getAllByRole("dialog", { name: "Step editor" })).toHaveLength(1);
+    const scope = hookAuthorityControllers.scope!;
+    expect(scope.effectiveHookId).toBe("before_finish");
+    expect(scope.childWorkflowId).toBe("client_fix");
+    expect(scope.childChangeSet.workflowId).toBe("client_fix");
+    expect(scope.childChangeSet.journal.items).toHaveLength(1);
+    expect(scope.childChangeSet.operations).toEqual([
+      { op: "insert_step_between", source: { kind: "step", id: "fix_name" }, outcome: { name: "success" },
+        step: expect.objectContaining({ step_id: "set_variable", step_kind: "set_variable", group_id: null }) },
+    ]);
+    expect(scope.canvasChangeSet.preview).toEqual(authorBefore);
+    expect(await screen.findByRole("group", { name: "Open step Set variable" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Open step Other: Fix the customer name" })).toBeInTheDocument();
+    expect(screen.getAllByRole("group", { name: "Open step Set variable" })).toHaveLength(1);
+    expect(fetchSpy.mock.calls.filter(([input]) => stringFromUnknownValue(input).endsWith("/create-and-bind"))).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); }
+});
+
+// Keep the legacy first-Add test in its original position and unchanged.
+it("waits for the first Hook child's detail and canvas before opening exactly one new step", async () => {
+  const child = installFirstAddWithDeferredChild();
+  const view = renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
+  try {
+    await waitFor(() => expect(within(frame()).getByText("Empty")).toBeInTheDocument());
+    expect(screen.queryByText(/Connected:/)).not.toBeInTheDocument();
+    await chooseFirstHookStep();
+    await waitFor(() =>
+      expect(fetchSpy.mock.calls.some(([input]) => stringFromUnknownValue(input).endsWith("/hooks/before_finish/create-and-bind"))).toBe(true),
+    );
+    const body = JSON.parse(String(fetchSpy.mock.calls.find(([input]) => stringFromUnknownValue(input).endsWith("/create-and-bind"))?.[1]?.body || "{}"));
+    expect(body).toMatchObject({ expected_revision: 0, child_workflow_id: "weekly_report_before_finish" });
+    await waitFor(() => expect(hookAuthorityControllers.scope!.childWorkflowId).toBe("client_fix"));
+    expect(screen.queryByRole("textbox", { name: "Step label" })).not.toBeInTheDocument();
+    expect(hookAuthorityControllers.scope!.childChangeSet.operations).toEqual([]);
+
+    // Detail alone cannot authorize the editor while its matching canvas is pending.
+    await act(async () => { child.releaseDetail(); });
+    await waitFor(() => expect(hookAuthorityControllers.scope!.childRevision).toBe(3));
+    expect(screen.queryByRole("textbox", { name: "Step label" })).not.toBeInTheDocument();
+    expect(hookAuthorityControllers.scope!.childChangeSet.operations).toEqual([]);
+    await act(async () => { child.releaseCanvas(); });
+
+    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Set variable");
+    expect(screen.getAllByRole("dialog", { name: "Step editor" })).toHaveLength(1);
+    const scope = hookAuthorityControllers.scope!;
+    expect(scope.childChangeSet.workflowId).toBe("client_fix");
+    expect(scope.childChangeSet.journal.items).toHaveLength(1);
+    expect(scope.childChangeSet.preview.steps.filter((step) => step.step_id === "set_variable")).toEqual([
+      expect.objectContaining({ step_id: "set_variable", step_kind: "set_variable" }),
+    ]);
+    expect(screen.getByRole("group", { name: "Open step Prepare the order" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Open step Order finished" })).toBeInTheDocument();
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+    expect(fetchSpy.mock.calls.filter(([input]) => stringFromUnknownValue(input).endsWith("/create-and-bind"))).toHaveLength(1);
+  } finally { view.unmount(); child.releaseDetail(); child.releaseCanvas(); }
+});
+
+it.each(["project withdrawal", "palette dismissal"] as const)("retires a pending first Hook step after %s without reviving it on recovery", async (retirement) => {
+  const child = installFirstAddWithDeferredChild();
+  const entry = "/registry/workflows/weekly_report/builder?project_id=project_alpha";
+  const view = renderPage({ surface: "builder", initialEntry: entry });
+  try {
+    await waitFor(() => expect(within(frame()).getByText("Empty")).toBeInTheDocument());
+    await chooseFirstHookStep();
+    await waitFor(() => expect(hookAuthorityControllers.scope!.childWorkflowId).toBe("client_fix"));
+    expect(hookAuthorityControllers.scope!.childChangeSet.operations).toEqual([]);
+    expect(screen.queryByRole("textbox", { name: "Step label" })).not.toBeInTheDocument();
+
+    if (retirement === "project withdrawal") {
+      await act(async () => { await view.router.navigate("/registry/workflows/weekly_report/builder?project_id=missing"); });
+      await waitFor(() => expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled());
+      await act(async () => { await view.router.navigate(entry); });
+      await waitFor(() => expect(hookAuthorityControllers.scope!.childWorkflowId).toBe("client_fix"));
+    } else {
+      const palette = screen.getByRole("dialog", { name: "Add step" });
+      fireEvent.keyDown(within(palette).getByRole("combobox", { name: "Search steps" }), { key: "Escape" });
+      expect(screen.queryByRole("dialog", { name: "Add step" })).not.toBeInTheDocument();
+    }
+    await act(async () => { child.releaseDetail(); child.releaseCanvas(); });
+    await screen.findByRole("group", { name: "Open step Fix the customer name" });
+    expect(screen.queryByRole("textbox", { name: "Step label" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Open step Set variable" })).not.toBeInTheDocument();
+    expect(hookAuthorityControllers.scope!.childChangeSet.operations).toEqual([]);
+    expect(hookAuthorityControllers.scope!.childChangeSet.journal.items).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+
+    // A fresh current choice works; the retired choice must not add a second action.
+    await chooseFirstHookStep();
+    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Set variable");
+    expect(hookAuthorityControllers.scope!.childChangeSet.workflowId).toBe("client_fix");
+    expect(hookAuthorityControllers.scope!.childChangeSet.journal.items).toHaveLength(1);
+    expect(fetchSpy.mock.calls.filter(([input]) => stringFromUnknownValue(input).endsWith("/create-and-bind"))).toHaveLength(1);
+  } finally { view.unmount(); child.releaseDetail(); child.releaseCanvas(); }
+});
+
+
+it("ends a pending first Hook step when the new child's canvas read fails", async () => {
+  const child = installFirstAddWithDeferredChild();
+  const view = renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
+  try {
+    await waitFor(() => expect(within(frame()).getByText("Empty")).toBeInTheDocument());
+    await chooseFirstHookStep();
+    await waitFor(() => expect(hookAuthorityControllers.scope!.childWorkflowId).toBe("client_fix"));
+    expect(screen.getByRole("dialog", { name: "Add step" })).toBeInTheDocument();
+    await act(async () => { child.releaseDetail(); });
+    await waitFor(() => expect(hookAuthorityControllers.scope!.childRevision).toBe(3));
+    expect(hookAuthorityControllers.scope!.childChangeSet.operations).toEqual([]);
+    await act(async () => { child.failCanvas(new Error("Child canvas unavailable")); });
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add step" })).not.toBeInTheDocument());
+    expect(screen.queryByRole("textbox", { name: "Step label" })).not.toBeInTheDocument();
+    expect(hookAuthorityControllers.scope!.childChangeSet.operations).toEqual([]);
+    expect(hookAuthorityControllers.scope!.childChangeSet.journal.items).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); child.releaseDetail(); child.releaseCanvas(); }
+});
+
 
 function addNestedClientContainers() {
   const detail = mockedFetchWorkflowDetail.getMockImplementation()!;
@@ -292,6 +538,574 @@ function addNestedClientContainers() {
     } as never;
   });
 }
+
+/** Keep the generic Run fallback A while giving Hook authoring two real choices. */
+function installExplicitHookProjectChoices() {
+  installHookedWorkflow();
+  addNestedClientContainers();
+  mockedFindWorkflowLinkedProjectId.mockResolvedValue("project_alpha");
+  mockedFetchWorkflowLinkedProjects.mockResolvedValue([
+    { id: "project_alpha", name: "Alpha project" },
+    { id: "project_beta", name: "Beta project" },
+  ] as never);
+  const detail = mockedFetchWorkflowDetail.getMockImplementation()!;
+  const canvas = mockedFetchWorkflowCanvasGraph.getMockImplementation()!;
+  mockedFetchWorkflowDetail.mockImplementation(async (id: string) => {
+    if (id !== "client_beta") return detail(id);
+    const definition = await detail("client_fix");
+    return { ...definition, workflow_id: "client_beta", display_name: "Beta client actions",
+      // The local preview takes labels from this definition, not just its canvas graph.
+      steps: (definition.steps || []).map((step) => ({ ...step, display_name: `Beta: ${step.display_name}` })),
+    } as never;
+  });
+  mockedFetchWorkflowCanvasGraph.mockImplementation(async (id: string) => {
+    if (id !== "client_beta") return canvas(id);
+    const graph = await canvas("client_fix");
+    return { ...graph, workflow: { ...graph.workflow, id: "client_beta", display_name: "Beta client actions" },
+      steps: graph.steps.map((step) => ({ ...step, display_name: `Beta: ${step.display_name}` })) };
+  });
+  const previous = fetchSpy.getMockImplementation()!;
+  const requests: Array<{ path: string; method: string }> = [];
+  fetchSpy.mockImplementation(async (input, init) => {
+    const url = new URL(stringFromUnknownValue(input), "http://localhost");
+    requests.push({ path: url.pathname, method: init?.method || "GET" });
+    const hookPath = /^\/api\/projects\/([^/]+)\/workflows\/weekly_report\/hooks(?:\/before_finish)?$/;
+    const match = hookPath.exec(url.pathname);
+    if (match && !["project_alpha", "project_beta"].includes(match[1])) return json({ detail: "Project unavailable" }, 404);
+    if (match?.[1] === "project_beta") {
+      const row = {
+        project_id: "project_beta", workflow_id: "weekly_report", hook_id: "before_finish", step_id: "before_finish",
+        display_name: HOOK.display_name, description: HOOK.description, contract_version: 1,
+        hook_semantic_digest: "beta-digest", contract: HOOK, binding_revision: 1,
+        binding: { revision_id: "beta-r1", target_workflow_id: "client_beta", input_mapping: { customer: "customer" }, output_mapping: { customer: "customer" } },
+      };
+      return json(url.pathname.endsWith("/hooks") ? { project_id: "project_beta", workflow_id: "weekly_report", hooks: [row] } : row);
+    }
+    if (url.pathname === "/api/projects/project_beta/workflows") return json({ project_id: "project_beta", workflow_ids: ["weekly_report", "client_beta"] });
+    if (url.pathname === "/api/projects/project_beta/workflows/client_beta/where-used") return json({ project_id: "project_beta", workflow_id: "client_beta", consumers: [{ kind: "hook", caller_workflow_id: "weekly_report", hook_id: "before_finish", step_id: "before_finish" }] });
+    return previous(input, init);
+  });
+  return requests;
+}
+
+type HookActor = { userId: string; accountId: string };
+const HOOK_ACTOR_A: HookActor = { userId: "author-a", accountId: "account-a" };
+
+/** Keep the same mounted builder and QueryClient while the real auth context changes. */
+function renderActorHookBuilder(actor: HookActor = HOOK_ACTOR_A) {
+  mockedUseAuth.mockImplementation(function useContextBackedAuth() {
+    const context = useContext(AuthContext);
+    if (!context) throw new Error("Missing test auth context");
+    return context;
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter([{ path: "/registry/workflows/:workflowId/builder", element: <WorkflowsDetailPage embedded surface="builder" /> }], {
+    initialEntries: ["/registry/workflows/weekly_report/builder?project_id=project_beta"],
+  });
+  const content = (current: HookActor) => <AuthContext.Provider value={{ session: {
+    authenticated: true, roles: ["admin"], user: { id: current.userId, account_id: current.accountId, roles: ["admin"] },
+  } } as ReturnType<typeof mockedUseAuth>}><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></AuthContext.Provider>;
+  const view = render(content(actor));
+  return { ...view, client, router, switchActor: (next: HookActor) => view.rerender(content(next)) };
+}
+
+it.each([
+  ["account", { userId: "author-a", accountId: "account-b" }],
+  ["user", { userId: "author-b", accountId: "account-a" }],
+] as const)("keeps a private child journal and retired callbacks isolated across cached %s switches", async (_, actorB) => {
+  const requests = installExplicitHookProjectChoices();
+  const view = renderActorHookBuilder();
+  try {
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    // Populate successful membership under both identities before the dirty switch.
+    view.switchActor(actorB);
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    view.switchActor(HOOK_ACTOR_A);
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    await stageHookStep();
+    const heldApply = hookAuthorityControllers.scope!.canvasChangeSet.apply;
+    const heldStage = hookAuthorityControllers.scope!.childChangeSet.stageGraphIntent;
+    const heldDiscard = hookAuthorityControllers.scope!.canvasChangeSet.discard;
+    const currentProject = within(screen.getByTestId("hook-project-picker")).getByRole("combobox", { name: "Project for hooks" });
+    expect(currentProject).toHaveTextContent("Beta project");
+    const afterSwitch = requests.length;
+    view.switchActor(actorB);
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Pending client action" })).not.toBeInTheDocument());
+    expect(within(screen.getByTestId("hook-project-picker")).getByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Beta project");
+    await act(async () => {
+      expect(await heldApply()).toBe(false);
+      expect(heldStage([{ op: "delete_step", step_id: "fix_name" }])).toBeNull();
+      heldDiscard();
+    });
+    expect(requests.slice(afterSwitch).filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+    view.switchActor(HOOK_ACTOR_A);
+    expect(await screen.findByRole("group", { name: "Open step Pending client action" }, { timeout: 5_000 })).toBeInTheDocument();
+    // Returning to A restores its draft, while A's old callback occurrence stays retired.
+    await act(async () => {
+      expect(await heldApply()).toBe(false);
+      expect(heldStage([{ op: "delete_step", step_id: "fix_name" }])).toBeNull();
+      heldDiscard();
+    });
+    expect(screen.getByRole("group", { name: "Open step Pending client action" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Apply changes/ })).toBeEnabled();
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+    expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
+    expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
+  } finally { view.unmount(); view.client.clear(); }
+});
+
+it("retires a held child Test Run callback through cached actor A to B to A without changing project", async () => {
+  installExplicitHookProjectChoices();
+  const view = renderActorHookBuilder();
+  const actorB = { userId: "author-a", accountId: "account-b" };
+  try {
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    view.switchActor(actorB);
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    view.switchActor(HOOK_ACTOR_A);
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    const card = await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    const user = userEvent.setup({ skipHover: true });
+    await user.hover(card);
+    const play = await within(card).findByRole("button", { name: "Test step" });
+    fireEvent.mouseOut(card, { relatedTarget: play });
+    fireEvent.mouseOver(play, { relatedTarget: card });
+    await user.click(play);
+    const drawer = await screen.findByRole("dialog", { name: "Step editor" });
+    fireEvent.change(within(drawer).getByRole("textbox", { name: "Step Test Run Summary" }), { target: { value: "Actor A's child test" } });
+    await waitFor(() => expect(within(drawer).getByRole("button", { name: "Run step test run" })).toBeEnabled());
+    const heldRun = hookAuthorityControllers.childRun!.stepTestRunMutation.mutateAsync;
+    view.switchActor(actorB);
+    fireEvent.change(await within(drawer).findByRole("textbox", { name: "Step Test Run Summary" }), { target: { value: "Current actor B's child test" } });
+    await waitFor(() => expect(within(drawer).getByRole("button", { name: "Run step test run" })).toBeEnabled());
+    await act(async () => { await heldRun().catch(() => undefined); });
+    expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
+    view.switchActor(HOOK_ACTOR_A);
+    fireEvent.change(await within(drawer).findByRole("textbox", { name: "Step Test Run Summary" }), { target: { value: "Current actor A's child test" } });
+    await waitFor(() => expect(within(drawer).getByRole("button", { name: "Run step test run" })).toBeEnabled());
+    await act(async () => { await heldRun().catch(() => undefined); });
+    expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
+    expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); view.client.clear(); }
+});
+
+it.each([
+  ["group", "checks", "Client checks", "Save group"],
+  ["for_each", "items", "Client items", "Save For each"],
+])("rejects a held child %s Save callback after membership withdrawal", async (kind, id, name, saveLabel) => {
+  const requests = installExplicitHookProjectChoices();
+  const view = renderActorHookBuilder();
+  try {
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    const container = await screen.findByText((_, element) => element?.getAttribute(kind === "group" ? "data-group-id" : "data-for-each-id") === `hook:before_finish:${id}`);
+    within(container).getAllByRole("button", { name: new RegExp(name) })[0].focus();
+    await userEvent.keyboard("{Enter}");
+    const drawer = await screen.findByRole("dialog", { name: kind === "group" ? "Group editor" : "For each editor" });
+    fireEvent.change(within(drawer).getByRole("textbox", { name: "Display name" }), { target: { value: `${name} from prior owner` } });
+    await waitFor(() => expect(within(drawer).getByRole("button", { name: saveLabel })).toBeEnabled());
+    const heldSave = hookAuthorityControllers.group!.handleSaveGroup;
+    mockedFetchWorkflowLinkedProjects.mockRejectedValue(new Error("Membership unavailable"));
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument());
+    expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
+    const afterWithdrawal = requests.length;
+    await act(async () => { await heldSave(); });
+    expect(requests.slice(afterWithdrawal).filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); view.client.clear(); }
+});
+
+it.each([
+  ["group", "checks", "Client checks", "Save group", "success"],
+  ["for_each", "items", "Client items", "Save For each", "failure"],
+])("retires a late child %s Save acknowledgement after membership withdrawal", async (kind, id, name, saveLabel, outcome) => {
+  installExplicitHookProjectChoices();
+  let releaseSave: (response: Response) => void = () => undefined;
+  const pendingSave = new Promise<Response>((resolve) => { releaseSave = resolve; });
+  const previous = fetchSpy.getMockImplementation()!;
+  const saveRequests: string[] = [];
+  fetchSpy.mockImplementation(async (input, init) => {
+    const path = new URL(stringFromUnknownValue(input), "http://localhost").pathname;
+    if (path === "/api/workflows/client_beta/changes" && init?.method === "POST") {
+      saveRequests.push(path);
+      return pendingSave;
+    }
+    return previous(input, init);
+  });
+  const view = renderActorHookBuilder();
+  try {
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    const container = await screen.findByText((_, element) => element?.getAttribute(kind === "group" ? "data-group-id" : "data-for-each-id") === `hook:before_finish:${id}`);
+    within(container).getAllByRole("button", { name: new RegExp(name) })[0].focus();
+    await userEvent.keyboard("{Enter}");
+    const drawer = await screen.findByRole("dialog", { name: kind === "group" ? "Group editor" : "For each editor" });
+    fireEvent.change(within(drawer).getByRole("textbox", { name: "Display name" }), { target: { value: `${name} pending save` } });
+    await waitFor(() => expect(within(drawer).getByRole("button", { name: saveLabel })).toBeEnabled());
+    const heldSave = hookAuthorityControllers.group!.handleSaveGroup;
+    let saveFlight: Promise<void> | undefined;
+    act(() => { saveFlight = heldSave(); });
+    await waitFor(() => expect(saveRequests).toHaveLength(1));
+    const beforeSerial = hookAuthorityControllers.group!.groupSaveSerial;
+    mockedFetchWorkflowLinkedProjects.mockRejectedValue(new Error("Membership unavailable"));
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument());
+    expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
+    // Observe the still-open real editor: neither a prior success nor error may replace its feedback.
+    const errorsBefore = screen.queryAllByRole("alert").map((alert) => alert.textContent);
+    await act(async () => {
+      releaseSave(outcome === "success" ? json({ workflow_id: "client_beta", revision: 4, applied: true, issues: [] }) : json({ detail: "Old child save failed" }, 500));
+      await saveFlight;
+    });
+    expect(hookAuthorityControllers.group!.groupSaveSerial).toEqual(beforeSerial);
+    expect(screen.queryByText("Group settings saved.")).not.toBeInTheDocument();
+    expect(screen.queryByText("For each settings saved.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Old child save failed")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("alert").map((alert) => alert.textContent)).toEqual(errorsBefore);
+    expect(saveRequests).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: kind === "group" ? "Group editor" : "For each editor" })).toBeInTheDocument();
+
+  } finally { view.unmount(); view.client.clear(); }
+});
+
+it("lets the current actor intentionally discard its suspended child draft without a server write", async () => {
+  const requests = installExplicitHookProjectChoices();
+  const view = renderActorHookBuilder();
+  try {
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    await stageHookStep();
+    mockedFetchWorkflowLinkedProjects.mockRejectedValue(new Error("Membership unavailable"));
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Apply changes/ })).toBeDisabled());
+    const afterWithdrawal = requests.length;
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Discard changes" })).not.toBeInTheDocument());
+    mockedFetchWorkflowLinkedProjects.mockResolvedValue([{ id: "project_alpha", name: "Alpha project" }, { id: "project_beta", name: "Beta project" }] as never);
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    expect(await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Open step Pending client action" })).not.toBeInTheDocument();
+    expect(requests.slice(afterWithdrawal).filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); view.client.clear(); }
+});
+
+it("does not query an empty transform catalog target after child Hook authority withdrawal", async () => {
+  installExplicitHookProjectChoices();
+  const detail = mockedFetchWorkflowDetail.getMockImplementation()!;
+  const canvas = mockedFetchWorkflowCanvasGraph.getMockImplementation()!;
+  mockedFetchWorkflowDetail.mockImplementation(async (id) => {
+    const row = await detail(id);
+    return id !== "client_beta" ? row : { ...row, steps: (row.steps || []).map((step) => step.step_id === "fix_name"
+      ? { ...step, step_kind: "transform", override: { transform: { action_id: "text.trim", input: { source: "state.inputs.customer" }, result_target: "state.customer" } } } : step) } as never;
+  });
+  mockedFetchWorkflowCanvasGraph.mockImplementation(async (id) => {
+    const graph = await canvas(id);
+    return id !== "client_beta" ? graph : { ...graph, steps: graph.steps.map((step) => step.id === "fix_name" ? { ...step, kind: "transform" } : step) };
+  });
+  const catalogs: string[] = [];
+  const actions = mockedFetchWorkflowTransformActions.getMockImplementation()!;
+  mockedFetchWorkflowTransformActions.mockImplementation(async (id) => { catalogs.push(id); return actions(id); });
+  const view = renderActorHookBuilder();
+  try {
+    const card = await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    fireEvent.contextMenu(card);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+    const editor = await screen.findByRole("dialog", { name: "Step editor" });
+    await within(editor).findByRole("textbox", { name: "Step label" });
+    await waitFor(() => expect(catalogs).toContain("client_beta"));
+    mockedFetchWorkflowLinkedProjects.mockRejectedValue(new Error("Membership unavailable"));
+    await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument());
+    expect(catalogs).not.toContain("");
+    expect(catalogs.every((id) => id === "client_beta")).toBe(true);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); view.client.clear(); }
+});
+
+it.each([
+  ["no explicit project", ""],
+  ["missing project", "?project_id=missing-project"],
+  ["unlinked project", "?project_id=unlinked-project"],
+])("keeps direct Builder Hooks unselected for %s despite the generic Run fallback A", async (_, search) => {
+  const requests = installExplicitHookProjectChoices();
+  renderPage({ surface: "builder", initialEntry: `/registry/workflows/weekly_report/builder${search}` });
+  await screen.findByRole("group", { name: "Open step Prepare the order" });
+  const picker = await screen.findByTestId("hook-project-picker");
+  const select = within(picker).getByRole("combobox", { name: "Project for hooks" });
+  // The picker only appears after the linked-project query resolves. Confirm both
+  // authorized choices exist; an empty mocked project list must not hide fallback.
+  fireEvent.click(select);
+  expect(await screen.findByRole("option", { name: "Alpha project" })).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "Beta project" })).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(select).toHaveTextContent("Choose a linked project");
+  expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
+  expect(screen.queryByRole("group", { name: "Open step Fix the customer name" })).not.toBeInTheDocument();
+  // Mount the real declaration/binding consumer as well as the canvas list consumer.
+  fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
+  const editor = await screen.findByRole("dialog", { name: "Step editor" });
+  expect(await within(editor).findByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument();
+  expect(requests.filter(({ path }) => /\/hooks(?:\/|$)/.test(path))).toEqual([]);
+  expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+  expect(postedChangeSets()).toEqual([]);
+  expect(changeUrls).toEqual([]);
+  expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
+  expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
+});
+
+it("waits for authorized Hook membership before reading a selected project's bindings", async () => {
+  const requests = installExplicitHookProjectChoices();
+  let resolveMembership: (projects: Array<{ id: string; name: string }>) => void = () => undefined;
+  const membership = new Promise<Array<{ id: string; name: string }>>((resolve) => { resolveMembership = resolve; });
+  mockedFetchWorkflowLinkedProjects.mockReturnValue(membership as never);
+  renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_beta" });
+  await screen.findByRole("group", { name: "Open step Prepare the order" });
+  expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
+  fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
+  const editor = await screen.findByRole("dialog", { name: "Step editor" });
+  expect(await within(editor).findByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument();
+  expect(requests.filter(({ path }) => /\/hooks(?:\/|$)/.test(path))).toEqual([]);
+  expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument();
+  await act(async () => { resolveMembership([{ id: "project_alpha", name: "Alpha project" }, { id: "project_beta", name: "Beta project" }]); });
+  expect(await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 })).toBeInTheDocument();
+  expect(requests.some(({ path }) => path.startsWith("/api/projects/project_alpha/workflows/weekly_report/hooks"))).toBe(false);
+  expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+});
+
+it.each([403, 404])("withdraws Builder Hook authority when authorized link enumeration returns HTTP %s", async (status) => {
+  const requests = installExplicitHookProjectChoices();
+  const actualContext = await vi.importActual<typeof ProjectContextModule>("@/pages/workflows/shared/project-context");
+  mockedFetchWorkflowLinkedProjects.mockImplementation(actualContext.fetchWorkflowLinkedProjects);
+  const previous = fetchSpy.getMockImplementation()!;
+  const membershipRequests: string[] = [];
+  const catalogRequests: string[] = [];
+  fetchSpy.mockImplementation(async (input, init) => {
+    const path = new URL(stringFromUnknownValue(input), "http://localhost").pathname;
+    if (path === "/api/v2/projects") {
+      catalogRequests.push(path);
+      return json({ projects: [{ id: "project_alpha", name: "Alpha project" }, { id: "project_beta", name: "Beta project" }], total_pages: 1 });
+    }
+    if (path === "/api/projects/project_beta/workflows") {
+      membershipRequests.push(path);
+      return json({ detail: "Selected project unavailable" }, status);
+    }
+    return previous(input, init);
+  });
+  renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_beta" });
+  await screen.findByRole("group", { name: "Open step Prepare the order" });
+  await waitFor(() => expect(catalogRequests).toEqual(["/api/v2/projects"]));
+  await waitFor(() => expect(membershipRequests.length).toBeGreaterThan(0));
+  // Hook enumeration and the independent Hook-of context both validate this same endpoint.
+  expect([...new Set(membershipRequests)]).toEqual(["/api/projects/project_beta/workflows"]);
+  expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
+  expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
+  fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
+  const editor = await screen.findByRole("dialog", { name: "Step editor" });
+  expect(await within(editor).findByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument();
+  expect(requests.filter(({ path }) => /\/hooks(?:\/|$)/.test(path))).toEqual([]);
+  expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument();
+  expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+  expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
+  expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
+});
+
+it("rejects a held child delete after its Hook project loses authority and does not revive it on recovery", async () => {
+  const requests = installExplicitHookProjectChoices();
+  let releaseGuard: (response: Response) => void = () => undefined;
+  const guardResponse = new Promise<Response>((resolve) => { releaseGuard = resolve; });
+  const previous = fetchSpy.getMockImplementation()!;
+  const guardReads: URL[] = [];
+  fetchSpy.mockImplementation(async (input, init) => {
+    const url = new URL(stringFromUnknownValue(input), "http://localhost");
+    if (url.pathname === "/api/workflows/client_beta/reactions" && (!init?.method || init.method === "GET")) {
+      guardReads.push(url);
+      return guardResponse;
+    }
+    return previous(input, init);
+  });
+  const validEntry = "/registry/workflows/weekly_report/builder?project_id=project_beta";
+  const view = renderPage({ surface: "builder", initialEntry: validEntry });
+  const card = await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+  fireEvent.contextMenu(card);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+  const editor = await screen.findByRole("dialog", { name: "Step editor" });
+  await within(editor).findByRole("textbox", { name: "Step label" });
+  fireEvent.click(within(editor).getByRole("button", { name: "Delete step" }));
+  await waitFor(() => expect(guardReads.some((url) => url.searchParams.get("project_id") === "project_beta" && url.searchParams.get("scope_id") === "fix_name")).toBe(true));
+  await act(async () => { await view.router.navigate("/registry/workflows/weekly_report/builder?project_id=invalid-project"); });
+  const response = json({ workflow_id: "client_beta", project_id: "project_beta", scope_kind: "step", scope_id: "fix_name", reactions: [], available_trigger_sources: [] });
+  let parsedGuard: () => void = () => undefined;
+  const parsed = new Promise<void>((resolve) => { parsedGuard = resolve; });
+  const readJson = response.json.bind(response);
+  response.json = async () => { const value = await readJson(); parsedGuard(); return value; };
+  await act(async () => { releaseGuard(response); await parsed; });
+  expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument();
+  await act(async () => { await view.router.navigate(validEntry); });
+  expect(await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Discard changes" })).not.toBeInTheDocument();
+  expect(postedChangeSets()).toEqual([]);
+  expect(changeUrls).toEqual([]);
+  expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+});
+
+it("does not resume an isolated Hook run's preview after its project authority is withdrawn", async () => {
+  const requests = installExplicitHookProjectChoices();
+  let releaseRun: (result: Awaited<ReturnType<typeof mockedTestRunWorkflow>>) => void = () => undefined;
+  const heldRun = new Promise<Awaited<ReturnType<typeof mockedTestRunWorkflow>>>((resolve) => { releaseRun = resolve; });
+  mockedTestRunWorkflow.mockReturnValue(heldRun);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter([{ path: "/registry/workflows/:workflowId/builder", element: <WorkflowsDetailPage embedded surface="builder" /> }], {
+    initialEntries: ["/registry/workflows/weekly_report/builder?project_id=project_beta"],
+  });
+  const view = render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
+  try {
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
+    const editor = await screen.findByRole("dialog", { name: "Step editor" });
+    fireEvent.click(within(editor).getByRole("tab", { name: "Test Run" }));
+    const run = await within(editor).findByRole("button", { name: "Run hook test run" });
+    await waitFor(() => expect(run).toBeEnabled());
+    fireEvent.click(run);
+    await waitFor(() => expect(mockedTestRunWorkflow).toHaveBeenCalledWith(expect.objectContaining({ workflowId: "client_beta", projectId: "project_beta" })));
+    mockedFetchWorkflowLinkedProjects.mockRejectedValue(new Error("Hook project membership unavailable"));
+    await act(async () => { await client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Run hook test run" })).not.toBeInTheDocument());
+    const afterWithdrawal = requests.length;
+    await act(async () => { releaseRun({ job_id: "old-beta-run", status: "completed", final_status: "success", workflow_outputs: { customer: "Acme" } } as never); await heldRun; });
+    expect(requests.slice(afterWithdrawal).filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+    expect(requests.some(({ path, method }) => path.includes("/hooks/") && method === "POST")).toBe(false);
+    expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1);
+    expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); client.clear(); }
+});
+
+it.each(["URL", "picker"])("keeps explicit Builder project B from %s through nested child editing and fresh reload", async (entryKind) => {
+  const requests = installExplicitHookProjectChoices();
+  const view = renderPage({ surface: "builder", initialEntry: `/registry/workflows/weekly_report/builder?account_id=account-7&from=hook-authority${entryKind === "URL" ? "&project_id=project_beta" : ""}` });
+  const select = within(await screen.findByTestId("hook-project-picker")).getByRole("combobox", { name: "Project for hooks" });
+  if (entryKind === "picker") {
+    expect(select).toHaveTextContent("Choose a linked project");
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole("option", { name: "Beta project" }));
+  }
+  await waitFor(() => expect(select).toHaveTextContent("Beta project"));
+  await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+  expect(requests).toContainEqual({ path: "/api/projects/project_beta/workflows/weekly_report/hooks", method: "GET" });
+  expect(requests.some(({ path }) => path.startsWith("/api/projects/project_alpha/workflows/weekly_report/hooks"))).toBe(false);
+  expect(view.router.state.location.search).toContain("project_id=project_beta");
+  expect(view.router.state.location.search).toContain("account_id=account-7");
+  expect(view.router.state.location.search).toContain("from=hook-authority");
+  const card = await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" });
+  fireEvent.contextMenu(card);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+  const editor = await screen.findByRole("dialog", { name: "Step editor" });
+  const structure = await within(editor).findByTestId("step-structure-setup");
+  expect(structure).toHaveTextContent("Hook Before the order is finished");
+  expect(structure).toHaveTextContent("Client items");
+  // Real child editor IO reads must target B's distinct workflow, not A's child.
+  await waitFor(() => expect(requests.some(({ path }) => path.startsWith("/api/workflows/client_beta/") && path.includes("available-variables"))).toBe(true));
+  expect(requests.some(({ path }) => path.startsWith("/api/workflows/client_fix/") && path.includes("available-variables"))).toBe(false);
+  const reloadEntry = `${view.router.state.location.pathname}${view.router.state.location.search}`;
+  view.unmount();
+  requests.length = 0;
+  const { unmount: unmountReload } = renderPage({ surface: "builder", initialEntry: reloadEntry });
+  try {
+    const reloadPicker = await screen.findByTestId("hook-project-picker");
+    expect(within(reloadPicker).getByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Beta project");
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    expect(requests).toContainEqual({ path: "/api/projects/project_beta/workflows/weekly_report/hooks", method: "GET" });
+    expect(requests.some(({ path }) => path.startsWith("/api/projects/project_alpha/workflows/weekly_report/hooks"))).toBe(false);
+    expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { unmountReload(); }
+});
+
+it.each(["invalid URL", "failed membership refresh"])("withdraws dirty child Hook authority after %s and restores its unapplied journal only for valid B", async (withdrawal) => {
+  const requests = installExplicitHookProjectChoices();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const validEntry = "/registry/workflows/weekly_report/builder?project_id=project_beta&account_id=account-7";
+  const router = createMemoryRouter([{ path: "/registry/workflows/:workflowId/builder", element: <WorkflowsDetailPage embedded surface="builder" /> }], { initialEntries: [validEntry] });
+  const view = render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
+  try {
+    await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" }, { timeout: 5_000 });
+    await stageHookStep();
+    expect(screen.getByRole("group", { name: "Open step Pending client action" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Apply changes/ })).toBeEnabled();
+    // Settle this authorized check before observing withdrawal: a background
+    // membership refresh retains authority until its error commits.
+    await waitFor(() => {
+      expect(hookAuthorityControllers.scope?.canvasChangeSet.checkState).toBe("checked");
+      const childChecks = fetchSpy.mock.calls
+        .filter(([input, init]) => new URL(stringFromUnknownValue(input), "http://localhost").pathname === "/api/workflows/client_beta/changes" && init?.method === "POST")
+        .map(([, init]) => JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
+      expect(childChecks).toEqual(expect.arrayContaining([expect.objectContaining({
+        dry_run: true, expected_revision: 3,
+        operations: expect.arrayContaining([expect.objectContaining({
+          op: "insert_step_between", source: { id: "fix_name", kind: "step" }, outcome: { name: "success" },
+          step: expect.objectContaining({ step_id: "set_variable", display_name: "Pending client action" }),
+        })]),
+      })]));
+    });
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+    const beforeWithdrawal = requests.length;
+
+    if (withdrawal === "invalid URL") {
+      // A changed external/deep-link context cannot inherit authority from B's
+      // unapplied child journal, even though the ordinary Run fallback is A.
+      await act(async () => { await router.navigate("/registry/workflows/weekly_report/builder?project_id=invalid-project&account_id=account-7"); });
+      const picker = await screen.findByTestId("hook-project-picker");
+      await waitFor(() => expect(within(picker).getByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Choose a linked project"));
+    } else {
+      mockedFetchWorkflowLinkedProjects.mockRejectedValue(new Error("Hook project membership unavailable"));
+      await act(async () => {
+        await client.refetchQueries({ type: "active", predicate: (query) => query.queryKey[0] === "workflows" && query.queryKey[1] === "weekly_report"
+          && ["hook-projects", "schedule-projects"].includes(String(query.queryKey[2])) });
+      });
+      expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
+    }
+
+    // The old activeOwner must not redraw a writable child from its cached graph.
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Pending client action" })).not.toBeInTheDocument());
+    expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument();
+    expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
+    for (const button of screen.queryAllByRole("button", { name: /Apply changes|Save parameters|Run hook test run/ })) expect(button).toBeDisabled();
+    expect(requests.slice(beforeWithdrawal).filter(({ path }) => /\/projects\/(invalid-project|project_alpha)\/.*\/hooks(?:\/|$)/.test(path))).toEqual([]);
+    expect(requests.slice(beforeWithdrawal).filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+    expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
+    expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
+
+    // Revocation does not silently discard the user's unapplied journal. It is
+    // usable again only after the same B context regains verified membership.
+    mockedFetchWorkflowLinkedProjects.mockResolvedValue([
+      { id: "project_alpha", name: "Alpha project" },
+      { id: "project_beta", name: "Beta project" },
+    ] as never);
+    await act(async () => {
+      if (withdrawal === "invalid URL") await router.navigate(validEntry);
+      await client.refetchQueries({ type: "active", predicate: (query) => query.queryKey[0] === "workflows" && query.queryKey[1] === "weekly_report"
+        && ["hook-projects", "schedule-projects"].includes(String(query.queryKey[2])) });
+    });
+    const picker = await screen.findByTestId("hook-project-picker");
+    await waitFor(() => expect(within(picker).getByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Beta project"));
+    expect(await screen.findByRole("group", { name: "Open step Pending client action" }, { timeout: 5_000 })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Apply changes/ })).toBeEnabled();
+    expect(requests.some(({ path }) => path.startsWith("/api/projects/project_alpha/workflows/weekly_report/hooks"))).toBe(false);
+    expect(postedChangeSets()).toEqual([]);
+    expect(changeUrls).toEqual([]);
+  } finally { view.unmount(); client.clear(); }
+});
+
 
 it.each([false, true])("refreshes selected-project Hook-of membership after successful binding Save from linked=%s", async (initiallyLinked) => {
   installHookedWorkflow();

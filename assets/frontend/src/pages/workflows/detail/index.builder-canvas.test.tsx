@@ -2617,8 +2617,12 @@ it("places a Default Append at its named ghost after deleting a card whose ID is
   serveChangesWithDryRun(cleanDryRun);
   serveDeleteReactionGets((url) => stepRuleReply(url, []));
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
-  await screen.findByRole("region", { name: "Workflow canvas" });
-  const canvas = () => within(screen.getByRole("region", { name: "Workflow canvas" }));
+  const canvasRegion = await screen.findByRole("region", { name: "Workflow canvas" });
+  const canvasQueries = within(canvasRegion);
+  const canvas = () => {
+    expect(canvasRegion).toBeInTheDocument();
+    return canvasQueries;
+  };
 
   fireEvent.click(await canvas().findByRole("group", { name: "Open step Mark Default" }));
   const deleteEditor = await screen.findByRole("dialog", { name: "Step editor" });
@@ -2648,8 +2652,11 @@ it("places a Default Append at its named ghost after deleting a card whose ID is
   fireEvent.click(await canvas().findByRole("group", { name: "Open step Mark High" }));
   expect(loadManualLayout("weekly_report")).toEqual(manual);
 
-  const history = (redo: boolean) => fireEvent.keyDown(screen.getByRole("region", { name: "Workflow canvas" }),
-    { key: "z", code: "KeyZ", ctrlKey: true, shiftKey: redo });
+  const history = (redo: boolean) => {
+    expect(canvasRegion).toBeInTheDocument();
+    return fireEvent.keyDown(canvasRegion,
+      { key: "z", code: "KeyZ", ctrlKey: true, shiftKey: redo });
+  };
   const unchanged = () => {
     const positions = loadManualLayout("weekly_report");
     for (const [id, position] of Object.entries(oldManual)) if (id !== "set_variable_3") expect(positions[id]).toEqual(position);

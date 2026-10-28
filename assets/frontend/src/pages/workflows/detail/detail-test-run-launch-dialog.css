@@ -1,0 +1,14 @@
+.fs-dialog:has([data-workflow-test-run-launch]) {
+  --fs-form-dialog-body-padding: var(--fs-space-200) var(--fs-space-300) var(--fs-space-300);
+}
+
+.fs-dialog:has([data-workflow-test-run-launch]) > .fs-dialog-header,
+.fs-dialog:has([data-workflow-test-run-launch]) > .fs-dialog-footer {
+  flex-shrink: 0;
+}
+
+.workflow-test-run-launch [role="note"] {
+  color: var(--fs-text-primary);
+  border-color: var(--fs-status-warning-border);
+  background: var(--fs-status-warning-bg);
+}

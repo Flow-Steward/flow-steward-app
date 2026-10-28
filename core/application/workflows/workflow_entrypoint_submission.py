@@ -14,6 +14,7 @@ from core.application.workflows.workflow_entrypoint_idempotency_service import (
     WorkflowEntrypointIdempotencyService,
 )
 from core.application.workflows.workflow_entrypoint_input_service import (
+    WorkflowEntrypointInputValidationError,
     WorkflowEntrypointMappingError,
 )
 from core.application.workflows.workflow_entrypoint_launch import WorkflowEntrypointLaunchService
@@ -199,6 +200,13 @@ class WorkflowEntrypointSubmissionUseCase:
                 sources=staged_sources,
                 fallback_body=fallback_body,
                 file_refs=file_descriptors,
+            )
+        except WorkflowEntrypointInputValidationError as exc:
+            return self._failure(
+                failure_kind="invalid_request",
+                code="workflow_input_validation_failed",
+                error="Workflow input validation failed",
+                errors=exc.errors,
             )
         except Exception as exc:
             mapping_error = isinstance(exc, WorkflowEntrypointMappingError)

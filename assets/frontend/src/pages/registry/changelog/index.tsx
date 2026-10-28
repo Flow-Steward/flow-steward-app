@@ -24,7 +24,14 @@ import {
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { HttpError } from "@/lib/http/errors";
-import { changelogRevisionPresentation } from "@/pages/registry/shared/changelog-revision";
+import {
+  changelogActionLabel,
+  changelogComparisonLabel,
+  changelogRevisionLabel,
+  changelogRevisionRestoreCopy,
+  changelogRevisionPresentation,
+  workflowChangePathLabel,
+} from "@/pages/registry/shared/changelog-revision";
 import {
   useWorkflowRestoreContext,
   type WorkflowRestoreContext,
@@ -341,10 +348,11 @@ export function RegistryChangelogPage() {
       }
       captured = restoreContext.context;
     }
+    const restoreCopy = changelogRevisionRestoreCopy(target.entityType, target.entityId, selectedEntry, target.entryId, t);
     const confirmed = await requestConfirmation({
-      body: t("react.registry.apply_changelog_entry_value0_to_value1_value2", "Apply changelog entry #{value0} to {value1}/{value2}?", { value0: target.entryId, value1: target.entityType, value2: target.entityId }),
+      body: restoreCopy.body,
       confirmLabel: t("trash.row_actions.restore", "Restore"),
-      title: t("react.registry.restore_value0_value1", "Restore {value0}/{value1}", { value0: target.entityType, value1: target.entityId }),
+      title: restoreCopy.title,
     });
     if (!confirmed) {
       return;
@@ -359,9 +367,7 @@ export function RegistryChangelogPage() {
       await restoreChangelogEntry(
         captured ? { ...target, expectedRevision: captured.expectedRevision ?? undefined } : target,
       );
-      setRestoreMessage(
-        t("react.registry.restored_value0_value1_from_entry_value2", "Restored {value0}/{value1} from entry #{value2}.", { value0: target.entityType, value1: target.entityId, value2: target.entryId }),
-      );
+      setRestoreMessage(restoreCopy.success);
       await queryClient.invalidateQueries({ queryKey: ["registry", "changelog"] });
     } catch (error) {
       if (captured && error instanceof HttpError && error.status === 409) {
@@ -615,10 +621,10 @@ export function RegistryChangelogPage() {
                     <span className="font-medium">
                       {firstStringFromUnknownValue([row.entity_type, t("project_detail.connections.status.unknown", "unknown")])} / {firstStringFromUnknownValue([row.entity_id, "—"])}
                     </span>
-                    <span className="text-xs text-slate-400">{firstStringFromUnknownValue([row.action, "change"])}</span>
+                    <span className="text-xs text-slate-400">{changelogActionLabel(row.action || row.event || row.kind, t) || "change"}</span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-400">{t("react.registry.entry", "entry #")}{id || "—"} • {firstStringFromUnknownValue([row.author, "system"])} •{" "}
-                    {formatUserDateTime(row.created_at, userTimezone)}
+                  <div className="mt-1 text-xs text-slate-400"><span>{changelogRevisionLabel(firstStringFromUnknownValue([row.entity_type, ""]), row, t)}</span> • {t("react.registry.entry", "Entry #")}{id || "—"} • {firstStringFromUnknownValue([row.author || row.actor, "system"])} •{" "}
+                    {formatUserDateTime(row.created_at || row.timestamp || row.updated_at, userTimezone)}
                   </div>
                 </button>
               );
@@ -688,7 +694,7 @@ export function RegistryChangelogPage() {
           <div className="w-full max-w-5xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-slate-950/50">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-medium text-white">{t("react.registry.revision", "Revision #")}{selectedEntryRef || "—"}</h2>
+                <h2 className="text-lg font-medium text-white">{changelogRevisionLabel(selectedEntityType, selectedEntry, t)} • {t("react.registry.entry", "Entry #")}{selectedEntryRef || "—"}</h2>
                 <p className="mt-1 text-sm text-slate-400">
                   {choose(
                     allTrue([Boolean(selectedEntityType), Boolean(selectedEntityId)]),
@@ -751,7 +757,7 @@ export function RegistryChangelogPage() {
                     {historyRows.map((row, index) => {
                       const rowId = entryRef(row) || firstStringFromUnknownValue([row.id, index]);
                       const author = normalizeText(row.author || row.actor || row.username, t);
-                      const action = normalizeText(row.action || row.change_type || row.kind, t);
+                      const action = normalizeText(changelogActionLabel(row.action || row.change_type || row.kind, t), t);
                       const createdAt = formatUserDateTime(row.created_at || row.timestamp || row.updated_at, userTimezone);
                       const source = normalizeText(row.source || row.origin || row.provider, t);
                       return (
@@ -760,7 +766,7 @@ export function RegistryChangelogPage() {
                           className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-200"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-medium">{t("react.registry.entry_variant_965fdbac", "Entry #")}{rowId || "—"}</span>
+                            <span className="font-medium"><span>{changelogRevisionLabel(selectedEntityType, row, t)}</span> • {t("react.registry.entry_variant_965fdbac", "Entry #")}{rowId || "—"}</span>
                             <span className="text-xs text-slate-400">{createdAt}</span>
                           </div>
                           <div className="mt-1 text-xs text-slate-400">
@@ -779,7 +785,7 @@ export function RegistryChangelogPage() {
                   <CardDescription>
                     {revisionPresentation.explanation || choose(
                       Boolean(previousEntryId),
-                      t("react.registry.display_comparing_revisions", "Comparing #{previous} to #{selected}", { previous: previousEntryId, selected: selectedEntryRef }),
+                      changelogComparisonLabel(selectedEntityType, previousEntry, selectedEntry, previousEntryId, selectedEntryRef, t),
                       t("react.registry.no_previous_revision_available_for_the_selected_entry", "No previous revision available for the selected entry."),
                     )}
                   </CardDescription>
@@ -824,11 +830,16 @@ export function RegistryChangelogPage() {
                         className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-200"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-medium">{normalizeText(change.path || change.key || `change-${index + 1}`, t)}</span>
+                          <span className="font-medium">
+                            {normalizeText(workflowChangePathLabel(selectedEntityType, change.path || change.key || `change-${index + 1}`, t), t)}
+                            {workflowChangePathLabel(selectedEntityType, change.path || change.key || "", t) !== normalizeText(change.path || change.key || "", t)
+                              ? <code className="ml-2 text-xs opacity-70">{normalizeText(change.path || change.key, t)}</code>
+                              : null}
+                          </span>
                           <span className="text-xs text-slate-400">{normalizeText(change.change || change.type || "updated", t)}</span>
                         </div>
                         <div className="mt-1 text-xs text-slate-400">
-                          {t("project_edit.diff.from", "from:")}{" "}{normalizeText(change.from || change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(change.to || change.after, t)}
+                          {t("project_edit.diff.from", "from:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "from") ? change.from : change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "to") ? change.to : change.after, t)}
                         </div>
                       </div>
                     ))}

@@ -1187,6 +1187,11 @@ EOF
       printf 'bind\t%s\t/run/flow-steward-candidate-state\ttrue\n' \
         "$normalized_candidate_state_dir"
       printf 'bind\t%s\t/app/.env.prod\ttrue\n' "$normalized_candidate_prod_env"
+    else
+      printf 'bind\t%s\t/run/flow-steward-install-state\ttrue\n' \
+        "$normalized_installer_state"
+      printf 'bind\t%s\t%s\ttrue\n' \
+        "$normalized_installer_state" "$normalized_installer_state"
     fi
   )
   expected_mounts=$(printf '%s\n' "$expected_mounts" | LC_ALL=C sort)

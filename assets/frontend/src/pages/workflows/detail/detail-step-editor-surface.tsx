@@ -172,7 +172,7 @@ export function StepEditorSurface({
     <HookBindingEditor
       canAuthor={canAuthor}
       hookId={stepHookId}
-      projectId={selectedProjectId || ""}
+      projectId={ctx.hookProjectId || ""}
       workflowId={workflowId}
       stepCount={stepHookFrame?.stepCount || 0}
       onClear={typeof ctx.clearHook === "function" ? async () => {
@@ -183,7 +183,7 @@ export function StepEditorSurface({
         }) : true;
         if (confirmed) ctx.clearHook(stepHookId);
       } : undefined}
-      projectPicker={<WorkflowHookProjectPicker workflowId={ctx.ownerWorkflowId || workflowId} projectId={selectedProjectId || ""} onProjectChange={ctx.onProjectChange} />}
+      projectPicker={<WorkflowHookProjectPicker workflowId={ctx.ownerWorkflowId || workflowId} projectId={ctx.hookProjectId || ""} onProjectChange={ctx.onProjectChange} />}
     />
   ) : null;
   // Collect, Break and Continue live only in a sequence For each body.
@@ -428,7 +428,7 @@ export function StepEditorSurface({
               to stay in its DOM (hidden by CSS but still clickable by assistive
               tools), offering a protected workflow's step run the server refuses. */}
           {renderWhen(drawerMode === "step" && drawerTab === "test-run" && Boolean(stepHookId), (
-            declarationPending ? <p className="text-xs fs-ink-secondary" role="status">{bindingBlockedReason}</p> : <HookTestRunPanel key={`${workflowId}:${stepHookId}`} onTestRunStarted={onHookTestRunStarted} blockedReason={bindingBlockedReason} hookId={stepHookId} projectId={selectedProjectId || ""} workflowId={workflowId} />
+            declarationPending ? <p className="text-xs fs-ink-secondary" role="status">{bindingBlockedReason}</p> : <HookTestRunPanel key={`${workflowId}:${stepHookId}:${ctx.hookAuthorityKey}`} onTestRunStarted={onHookTestRunStarted} blockedReason={bindingBlockedReason} hookId={stepHookId} projectId={ctx.hookProjectId || ""} workflowId={workflowId} />
           ))}
           {renderWhen(drawerMode === "step" && drawerTab === "test-run" && !stepHookId, (
             <div className="mt-2 space-y-2">

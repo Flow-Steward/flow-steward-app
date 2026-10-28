@@ -349,3 +349,184 @@ def test_public_agent_skill_and_tool_details_resolve_active_extension_projection
     assert agent["agent_id"] == projected["agent"]["agent_id"]
     assert skill["skill_id"] == projected["skill"]["skill_id"]
     assert tool.tool_id == projected["tool"]["tool_id"]
+
+
+@pytest.mark.parametrize("search", [None, "policy guard"])
+def test_agent_catalog_guardrail_usage_filters_by_durable_owner_without_changing_reads(
+    monkeypatch, search
+):
+    """Readable projection/global rows are not necessarily writable FK targets."""
+    import core.entrypoints.admin.agents as agent_routes
+    from core.application.management.scope import normalize_scope
+    from core.application.registry import projected_artifact_rows as projection_rows
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    owner = "00000000-0000-0000-0000-000000000002"
+    foreign = "00000000-0000-0000-0000-000000000099"
+    bridge_id = "extension.policy-guard-install.bridge"
+    virtual_id = "extension.policy-guard-install.virtual"
+    durable_rows = [
+        {"agent_id": "policy_guard_manual", "account_id": owner, "enabled": True},
+        {"agent_id": "policy_guard_disabled", "account_id": owner, "enabled": False},
+        {"agent_id": "policy_guard_shared", "account_id": None, "enabled": True},
+        {"agent_id": "policy_guard_foreign", "account_id": foreign, "enabled": True},
+        {"agent_id": "policy_guard_deleted", "account_id": owner, "deleted_at": "2026-10-27"},
+        {
+            "agent_id": bridge_id,
+            "account_id": owner,
+            "source_install_id": "policy-guard-install",
+            "enabled": True,
+        },
+        {
+            "agent_id": "extension.policy-inactive.old",
+            "account_id": owner,
+            "source_install_id": "policy-inactive",
+            "enabled": True,
+        },
+    ]
+    for row in durable_rows:
+        row["display_name"] = "Policy Guard " + row["agent_id"]
+
+    class ProjectionReader:
+        def list_projections(self, *, account_id, only_active):
+            assert account_id == owner
+            assert only_active is True
+            # Return persisted projection-shaped data to the real catalog merger,
+            # not an invented guardrail capability flag on already merged rows.
+            return [
+                {
+                    "account_id": owner,
+                    "install_id": "policy-guard-install",
+                    "release_id": "policy-release",
+                    "artifact_kind": "agent",
+                    "artifact_id": local_id,
+                    "projection": {
+                        "agent_id": local_id,
+                        "display_name": f"Policy Guard {local_id}",
+                        "enabled": True,
+                    },
+                    "is_active": True,
+                }
+                for local_id in ("bridge", "virtual")
+            ]
+
+    class AgentCatalogStore:
+        extension_runtime_store = ProjectionReader()
+        dsn = ""
+
+        def list_agents(self, enabled_only=False):
+            return [
+                dict(row)
+                for row in durable_rows
+                if not row.get("deleted_at") and (not enabled_only or row.get("enabled", True))
+            ]
+
+        def search_entities(self, query, entity_type=None):
+            assert query == "policy guard"
+            assert entity_type == "agent"
+            return [{"entity_id": row["agent_id"]} for row in self.list_agents()]
+
+        def guardrail_assignable_agent_ids(self, candidate_ids, *, account_id):
+            # Fake of the proposed *repository read*; SQL parity is independently
+            # covered by the existing real-PostgreSQL writer boundary below.
+            # No install/projection metadata decides durability or ownership.
+            return {
+                row["agent_id"]
+                for row in durable_rows
+                if row["agent_id"] in candidate_ids and row.get("account_id") == account_id
+            }
+
+    store = AgentCatalogStore()
+    monkeypatch.setattr(agent_routes, "_get_db", lambda: store)
+    monkeypatch.setattr(
+        projection_rows, "active_extension_ids_for_account", lambda *_a, **_k: set()
+    )
+    monkeypatch.setattr(
+        projection_rows, "active_extension_versions_for_account", lambda *_a, **_k: {}
+    )
+    monkeypatch.setattr(
+        projection_rows,
+        "resolve_projection_dependency_availability",
+        lambda *_a, **_k: {"new_runs_blocked": False},
+    )
+    app = FastAPI()
+    app.state.test_roles = ["admin"]
+
+    @app.middleware("http")
+    async def account_scope(request, call_next):
+        request.state.auth_user = {"roles": list(app.state.test_roles), "account_id": owner}
+        request.state.scope_context = normalize_scope(account_id=owner)
+        return await call_next(request)
+
+    app.include_router(agent_routes.router)
+    params = {"search": search} if search else {}
+    with TestClient(app) as client:
+        ordinary = client.get("/api/agents", params=params)
+        usage = client.get("/api/agents", params={**params, "usage": "guardrail"})
+        ordinary_after = client.get("/api/agents", params=params)
+        app.state.test_roles = ["viewer"]
+        forbidden = client.get("/api/agents", params={**params, "usage": "guardrail"})
+    assert ordinary.status_code == usage.status_code == ordinary_after.status_code == 200
+    assert forbidden.status_code == 403, "usage must retain the existing admin boundary"
+    readable = {
+        "policy_guard_manual",
+        "policy_guard_disabled",
+        "policy_guard_shared",
+        bridge_id,
+        virtual_id,
+    }
+    assert {row["agent_id"] for row in ordinary.json()} == readable
+    assert ordinary_after.json() == ordinary.json(), "usage must not mutate ordinary discovery"
+    # Baseline meaningful RED: usage is ignored today and still returns shared
+    # and virtual rows, both rejected by the real same-account durable writer.
+    assert {row["agent_id"] for row in usage.json()} == {
+        "policy_guard_manual",
+        "policy_guard_disabled",
+        bridge_id,
+    }
+
+
+def test_guardrail_agent_usage_resolves_default_account_without_auth_middleware(monkeypatch):
+    import core.entrypoints.admin.agents as agent_routes
+    from core.application.auth.config import DEFAULT_ACCOUNT_ID
+    from core.application.registry.projected_artifact_rows import guardrail_assignable_catalog_rows
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    class DefaultAccountStore:
+        dsn = ""
+
+        def __init__(self):
+            self.calls = []
+
+        def list_agents(self, enabled_only=False):
+            return [
+                {"agent_id": "own_disabled", "account_id": DEFAULT_ACCOUNT_ID, "enabled": False},
+                {"agent_id": "shared", "account_id": None},
+            ]
+
+        def guardrail_assignable_agent_ids(self, candidate_ids, *, account_id):
+            self.calls.append((candidate_ids, account_id))
+            assert account_id == DEFAULT_ACCOUNT_ID
+            return {"own_disabled"}
+
+    store = DefaultAccountStore()
+    monkeypatch.setattr(agent_routes, "_get_db", lambda: store)
+    app = FastAPI()
+    app.include_router(agent_routes.router)
+    with TestClient(app) as client:
+        response = client.get("/api/agents", params={"usage": "guardrail"})
+        unsupported_usage = client.get("/api/agents", params={"usage": "execution"})
+    assert response.status_code == 200
+    assert [row["agent_id"] for row in response.json()] == ["own_disabled"]
+    assert store.calls == [(["own_disabled", "shared"], DEFAULT_ACCOUNT_ID)]
+    assert unsupported_usage.status_code == 422
+    store.calls.clear()
+    assert (
+        guardrail_assignable_catalog_rows(
+            store, [{"agent_id": "shared", "account_id": None}], account_id=" "
+        )
+        == []
+    )
+    assert store.calls == [], "unresolved account must not query all/shared candidates"

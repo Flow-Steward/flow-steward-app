@@ -8,12 +8,62 @@ import shlex
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_FRESHNESS_HELPER = ROOT / "core/entrypoints/cli/scripts/frontend_shell_freshness.sh"
+SCALABLE_CONFIG_STATE_ROOT = "/run/flow-steward-install-state"
+SCALABLE_COMPOSE_FILES = (
+    ROOT / "infra/docker/docker-compose.yaml",
+    ROOT / "infra/docker/scalable/cli-host-directories.yaml",
+    ROOT / "infra/docker/scalable/cli-host-directories-artifacts.yaml",
+)
+
+
+def _render_scalable_compose_config(
+    tmp_path: Path, *, environment: dict[str, str]
+) -> dict[str, Any]:
+    env_file = tmp_path / "empty-compose.env"
+    env_file.write_text("", encoding="utf-8")
+    command = ["docker", "compose", "-p", "cli-state-path-contract"]
+    for compose_file in SCALABLE_COMPOSE_FILES:
+        command.extend(("-f", str(compose_file)))
+    command.extend(
+        (
+            "--env-file",
+            str(env_file),
+            "--profile",
+            "cli",
+            "--profile",
+            "storage-seaweedfs",
+            "config",
+            "--format",
+            "json",
+        )
+    )
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"docker compose config must render without contacting the daemon: {result.stderr[:1000]}"
+    )
+    return json.loads(result.stdout)
+
+
+def _bind_mounts_by_target(service: dict[str, Any]) -> dict[str, str]:
+    return {
+        str(volume["target"]): str(volume["source"])
+        for volume in service.get("volumes", [])
+        if isinstance(volume, dict) and volume.get("type") == "bind"
+    }
 
 
 def _frontend_shell_build_required(frontend_dir: Path, *extra_inputs: Path) -> bool:
@@ -48,6 +98,54 @@ def test_shell_compose_helper_reads_flow_steward_stack_state() -> None:
     assert "FS_COMPOSE_FILES" in source
     assert "FS_COMPOSE_PROFILES" in source
     assert "fs_compose()" in source
+
+
+def test_nested_compose_keeps_selected_state_as_a_docker_host_path(tmp_path: Path) -> None:
+    selected_state = tmp_path / "state outside checkout"
+    runtime_state = selected_state / "runtime"
+    runtime_state.mkdir(parents=True)
+    (runtime_state / "seaweedfs-s3.json").write_text("{}\n", encoding="utf-8")
+    selected_state_text = str(selected_state)
+    compose_environment = {
+        "HOME": os.environ.get("HOME", "/tmp"),
+        "PATH": os.environ.get("PATH", ""),
+        "ENVIRONMENT": "development",
+        "FS_STACK_ENVIRONMENT": "development",
+        "FS_DOCKER_HOST_PROJECT_ROOT": str(ROOT),
+        "FS_INSTALLER_STATE_DIR": selected_state_text,
+    }
+
+    outer = _render_scalable_compose_config(tmp_path, environment=compose_environment)
+    cli = outer["services"]["fs-cli"]
+    cli_environment = cli["environment"]
+    cli_mounts = _bind_mounts_by_target(cli)
+    configuration_root = cli_environment["FS_CONFIGURATION_STATE_ROOT"]
+    installer_state_root = cli_environment["FS_INSTALLER_STATE_DIR"]
+
+    assert configuration_root == SCALABLE_CONFIG_STATE_ROOT
+    assert cli_mounts.get(configuration_root) == selected_state_text
+    assert cli_mounts.get(str(installer_state_root)) == selected_state_text
+    assert cli_mounts.get(str(ROOT)) == str(ROOT)
+
+    nested_environment = {
+        **compose_environment,
+        **{str(key): str(value) for key, value in cli_environment.items() if value is not None},
+    }
+    nested = _render_scalable_compose_config(tmp_path, environment=nested_environment)
+    expected_runtime = str(runtime_state)
+    for service_name in ("fs-app", "fs-worker", "control-plane"):
+        mounts = _bind_mounts_by_target(nested["services"][service_name])
+        assert mounts.get("/run/flow-steward-runtime") == expected_runtime, (
+            f"nested {service_name} bind must resolve from the selected Docker-host state"
+        )
+
+    seaweed_mounts = _bind_mounts_by_target(nested["services"]["seaweedfs-config"])
+    assert seaweed_mounts.get("/run/flow-steward-runtime/seaweedfs-s3.json") == str(
+        runtime_state / "seaweedfs-s3.json"
+    ), "nested SeaweedFS config bind must resolve from the selected Docker-host state"
+    assert installer_state_root == selected_state_text, (
+        "fs-cli must retain the selected Docker-host state identity for nested Compose and locks"
+    )
 
 
 def test_shell_compose_helper_parses_stack_env_without_sourcing_it(tmp_path: Path) -> None:

@@ -67,7 +67,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add step to changes" })).not.toBeInTheDocument();
     expect(boundary.writes).toEqual([]);
-  });
+  }, SMART_SETUP_JOURNEY_TIMEOUT);
 
   it("asks before discarding invalid input and preserves it when Close is cancelled", async () => {
     const user = userEvent.setup();

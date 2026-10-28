@@ -576,12 +576,18 @@ services:
     environment:
       <<: *installation-mode-environment
       HOME: /tmp
+      FS_CONFIGURATION_STATE_ROOT: /run/flow-steward-install-state
+      FS_INSTALLER_STATE_DIR: ${FS_INSTALLER_STATE_DIR:-${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}/.flow-steward}
       FS_DOCKER_HOST_PROJECT_ROOT: ${FS_DOCKER_HOST_PROJECT_ROOT:-}
       FS_INSTALLER_USE_HOST_PYTHON: "0"
       FS_LOAD_REPO_DOTENV: "0"
       TERM: ${TERM:-}
       PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
     volumes:
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:/run/flow-steward-install-state:rw
+      # Nested Compose resolves runtime bind sources on the Docker host; lifecycle locks
+      # also use FS_INSTALLER_STATE_DIR, so expose the selected state at that same path.
+      - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}:${FS_INSTALLER_STATE_DIR:-${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}/.flow-steward}:rw
       - ${FS_DOCKER_HOST_PROJECT_ROOT:-../../}:${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime:/run/flow-steward-runtime:rw

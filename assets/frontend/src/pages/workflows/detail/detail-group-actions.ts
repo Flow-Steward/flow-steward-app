@@ -2,7 +2,7 @@ import { parseGroupConcurrency } from "./detail-group-concurrency";
 import { announceCanvasToast, watchGraphIntent } from "@/pages/workflows/builder/canvas-toast-feed";
 import { planGroupBodyChange } from "@/pages/workflows/builder/canvas-group-selection";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   applyWorkflowChanges,
@@ -74,6 +74,23 @@ export function useWorkflowGroupActions(ctx: Record<string, any>) {
     workflowId,
   } = ctx as Record<string, any> & { changeSet: WorkflowChangeSetController; groupDraft: GroupDraft };
 
+  const ownerKey = JSON.stringify([ctx.ownerKey || "", workflowId, selectedGroup?.groupId || "", groupCreateMode, groupDraft]);
+  const [owner, setOwner] = useState({ key: ownerKey });
+  if (owner.key !== ownerKey) setOwner({ key: ownerKey });
+  const committedOwner = useRef<typeof owner | null>(null);
+  const saveFlight = useRef<{ owner: typeof owner } | null>(null);
+  useLayoutEffect(() => {
+    committedOwner.current = owner;
+    if (saveFlight.current && saveFlight.current.owner !== owner) {
+      saveFlight.current = null;
+      setSavingWorkflowSurface((current: string) => current === "group" ? "" : current);
+    }
+    return () => { if (committedOwner.current === owner) committedOwner.current = null; };
+  }, [owner, setSavingWorkflowSurface]);
+  const { isAuthorityCurrent } = ctx;
+  const isCurrent = useCallback(() => committedOwner.current === owner && isAuthorityCurrent?.() !== false,
+    [isAuthorityCurrent, owner]);
+
   const isForEach = groupDraft.containerKind === "for_each";
   const updateOp = (id: string, patch: Record<string, unknown>): WorkflowChangeOperation =>
     isForEach
@@ -132,6 +149,7 @@ export function useWorkflowGroupActions(ctx: Record<string, any>) {
   }
 
   async function handleSaveGroup() {
+    if (!isCurrent()) return;
     const validation = draftValidation();
     if (validation) {
       setSaveError(validation);
@@ -202,17 +220,22 @@ export function useWorkflowGroupActions(ctx: Record<string, any>) {
     }
     setSaveNotice("");
     setSavingWorkflowSurface("group");
+    const flight = { owner };
+    saveFlight.current = flight;
     try {
+      if (!isCurrent()) return;
       const result = await applyWorkflowChanges(workflowId, {
         expected_revision: serverRevision,
         operations: [updateOp(groupId, configPatch)],
       });
+      if (!isCurrent() || saveFlight.current !== flight) return;
       if (result?.revision) {
         changeSet.rebase(result.revision, serverRevision);
         // The saved settings are one action of the history: Undo takes them back locally.
         changeSet.recordSavedChange?.([updateOp(groupId, configPatch)], result.revision);
       }
       await refetchWorkflowSurfaces();
+      if (!isCurrent() || saveFlight.current !== flight) return;
       setSaveNotice(
         isForEach
           ? t("react.workflows.for_each_settings_saved", "For each settings saved.")
@@ -220,6 +243,7 @@ export function useWorkflowGroupActions(ctx: Record<string, any>) {
       );
       markGroupSaved(false);
     } catch (error) {
+      if (!isCurrent() || saveFlight.current !== flight) return;
       if (isWorkflowRevisionConflict(error)) {
         changeSet.reportConflict();
         setSaveError(
@@ -239,7 +263,10 @@ export function useWorkflowGroupActions(ctx: Record<string, any>) {
           (error instanceof Error ? error.message : t("react.workflows.failed_to_save_group", "Failed to save group.")),
       );
     } finally {
-      setSavingWorkflowSurface("");
+      if (isCurrent() && saveFlight.current === flight) {
+        saveFlight.current = null;
+        setSavingWorkflowSurface("");
+      }
     }
   }
 

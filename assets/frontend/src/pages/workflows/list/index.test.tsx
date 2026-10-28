@@ -39,6 +39,27 @@ const mockedUseCanReadWorkflowRegistry = vi.mocked(useCanReadWorkflowRegistry);
 const mockedFetchWorkflows = vi.mocked(fetchWorkflows);
 const mockedFetchJson = vi.mocked(fetchJson);
 
+function installWorkflowHttpFixture(createdWorkflowId = "custom_workflow_1") {
+  mockedFetchJson.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), "http://localhost");
+    const method = init?.method || "GET";
+    if (method === "GET" && url.pathname === "/api/v2/projects") {
+      return { projects: [{ id: "project-123", name: "Selected project" }], page: 1, per_page: 200, total: 1, total_pages: 1 } as never;
+    }
+    const membership = /^\/api\/projects\/([^/]+)\/workflows$/.exec(url.pathname);
+    if (method === "GET" && membership) {
+      return { project_id: decodeURIComponent(membership[1]), workflow_ids: [], operator_default_workflow_id: "", project_workflows: [] } as never;
+    }
+    if (method === "POST" && url.pathname === "/api/workflows") return { workflow_id: createdWorkflowId } as never;
+    throw new Error(`Unexpected fixture request: ${method} ${url.pathname}`);
+  });
+}
+
+function workflowCreateRequests() {
+  return mockedFetchJson.mock.calls.filter(([input, init]) => String(input) === "/api/workflows" && init?.method === "POST");
+}
+
+
 /**
  * Finds one element by a property of itself rather than by walking the tree:
  * `closest` and `querySelector` are DOM traversal, which the Testing Library
@@ -107,6 +128,7 @@ describe("WorkflowsListPage", () => {
     let calls = 0;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = new URL(String(input), "http://localhost");
+      if (url.pathname === "/api/v2/projects") return new Response(JSON.stringify({ projects: [], page: 1, per_page: 200, total: 0, total_pages: 1 }), { headers: { "content-type": "application/json" } });
       expect(url.pathname).toBe("/api/workflows");
       expect(url.searchParams.get("search")).toBe("nightly");
       calls += 1;
@@ -122,7 +144,7 @@ describe("WorkflowsListPage", () => {
       field.focus();
       const row = screen.getByRole("link", { name: "Nightly reconciliation" });
       await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(calls).toBe(2);
       expect(pending).toBeDefined();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
       expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
@@ -144,6 +166,8 @@ describe("WorkflowsListPage", () => {
     mockedUseIsAdmin.mockReset();
     mockedUseCanReadWorkflowRegistry.mockReset();
     mockedFetchWorkflows.mockReset();
+    mockedFetchJson.mockReset();
+    installWorkflowHttpFixture();
     mockedUseIsAdmin.mockReturnValue(true);
     mockedUseCanReadWorkflowRegistry.mockReturnValue(true);
     mockedFetchWorkflows.mockResolvedValue([
@@ -413,7 +437,7 @@ describe("WorkflowsListPage RBAC and create parity", () => {
     mockedUseIsAdmin.mockReturnValue(true);
     mockedUseCanReadWorkflowRegistry.mockReturnValue(true);
     mockedFetchWorkflows.mockResolvedValue([] as never);
-    mockedFetchJson.mockResolvedValue({} as never);
+    installWorkflowHttpFixture();
   });
 
   it("requires a display name, then a workflow id, before posting", async () => {
@@ -431,7 +455,7 @@ describe("WorkflowsListPage RBAC and create parity", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
     expect(await within(dialog).findByText("Workflow ID is required.")).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/^Workflow ID/)).toHaveAttribute("aria-invalid", "true");
-    expect(mockedFetchJson).not.toHaveBeenCalled();
+    expect(workflowCreateRequests()).toEqual([]);
   });
 
   it("makes the workflow id from the display name until the id is typed", async () => {
@@ -450,7 +474,7 @@ describe("WorkflowsListPage RBAC and create parity", () => {
   it("opens the builder for the workflow id the create response returns", async () => {
     // Not the id that was typed: the backend may hand back a different one, and
     // the page has to follow the response.
-    mockedFetchJson.mockResolvedValue({ workflow_id: "custom_workflow_1" } as never);
+    installWorkflowHttpFixture("custom_workflow_1");
     renderPageWithLocation();
     await screen.findByText("No workflows found");
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
@@ -471,7 +495,7 @@ describe("WorkflowsListPage RBAC and create parity", () => {
   });
 
   it("creates and opens a workflow in the selected project context", async () => {
-    mockedFetchJson.mockResolvedValue({ workflow_id: "project_workflow" } as never);
+    installWorkflowHttpFixture("project_workflow");
     renderPageWithLocation("/registry/workflows?project_id=project-123");
     await screen.findByText("No workflows found");
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
@@ -488,7 +512,8 @@ describe("WorkflowsListPage RBAC and create parity", () => {
         "/registry/workflows/project_workflow/builder?project_id=project-123",
       );
     });
-    const request = vi.mocked(mockedFetchJson).mock.calls[0]?.[1];
+    expect(workflowCreateRequests()).toHaveLength(1);
+    const request = workflowCreateRequests()[0]?.[1];
     const body = JSON.parse(String(request?.body)) as Record<string, unknown>;
     expect(body.project_id).toBe("project-123");
   });
@@ -505,8 +530,8 @@ describe("WorkflowsListPage RBAC and create parity", () => {
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalled());
-    const request = vi.mocked(mockedFetchJson).mock.calls[0]?.[1];
+    await waitFor(() => expect(workflowCreateRequests()).toHaveLength(1));
+    const request = workflowCreateRequests()[0]?.[1];
     const body = JSON.parse(String(request?.body)) as Record<string, unknown>;
     expect(body).not.toHaveProperty("enabled");
   });

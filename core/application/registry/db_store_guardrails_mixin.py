@@ -127,6 +127,31 @@ class RegistryDBStoreGuardrailsMixin:
         clauses.append("account_id::text = %s")
         params.append(normalized_account_id)
 
+    def guardrail_assignable_agent_ids(
+        self, candidate_ids: list[str], *, account_id: str
+    ) -> set[str]:
+        """Return durable, nondeleted candidates owned by the resolved account.
+
+        Disabled agents remain valid scope targets. This read does not replace
+        the writer's transactional ownership check or the assignment FK.
+        """
+        normalized_account_id = str(account_id or "").strip()
+        if not normalized_account_id:
+            raise ValueError("account_id is required for guardrail assignment")
+        normalized_ids = list(dict.fromkeys(str(value or "").strip() for value in candidate_ids))
+        normalized_ids = [value for value in normalized_ids if value]
+        if not normalized_ids:
+            return set()
+        with self._cursor() as cur:
+            cur.execute(
+                """SELECT agent_id FROM registry_agents
+                   WHERE agent_id = ANY(%s)
+                     AND account_id::text = %s
+                     AND deleted_at IS NULL""",
+                (normalized_ids, normalized_account_id),
+            )
+            return {str(row["agent_id"]) for row in cur.fetchall()}
+
     def get_guardrail(
         self,
         guardrail_id: str,

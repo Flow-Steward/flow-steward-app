@@ -600,6 +600,25 @@ class CliRuntimeOperations:
         for host_directory, destination in context.host_directory_mounts:
             canonical_host_sources.add(str(host_directory))
             required_mounts.add(("bind", str(host_directory), destination, True))
+        if context.environment["FS_STACK_ENVIRONMENT"] != "production":
+            installer_state_root = context.environment["FS_INSTALLER_STATE_DIR"]
+            canonical_host_sources.add(installer_state_root)
+            required_mounts.update(
+                {
+                    (
+                        "bind",
+                        installer_state_root,
+                        "/run/flow-steward-install-state",
+                        True,
+                    ),
+                    (
+                        "bind",
+                        installer_state_root,
+                        installer_state_root,
+                        True,
+                    ),
+                }
+            )
         if context.candidate_state_dir is not None and context.candidate_prod_env is not None:
             canonical_host_sources.update(
                 (str(context.candidate_state_dir), str(context.candidate_prod_env))

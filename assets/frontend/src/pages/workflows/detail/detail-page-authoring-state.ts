@@ -10,6 +10,7 @@ import type { CanvasClipboardSnapshot, CanvasCommandSelection, CanvasConfirmedCr
 import { deriveDeletionBatch } from "@/pages/workflows/builder/canvas-delete-batch";
 import type { ClipboardAuthority, ClipboardCommand } from "@/pages/workflows/detail/detail-clipboard-commands";
 import { ROOT_PLACEMENT, stepPlacement, type WorkflowDefinitionModel, type WorkflowPlacement } from "@/pages/workflows/builder/change-set";
+import { useWorkflowHookProjectContext } from "./detail-hook-project-context";
 import { useWorkflowHookScope } from "@/pages/workflows/detail/detail-hook-scope";
 import { hookMemberId, parseHookNodeId, withHookFrames } from "@/pages/workflows/builder/hook-frames";
 import { useWorkflowChangeSet, type StagedStepNoticeOwner } from "@/pages/workflows/detail/detail-change-set";
@@ -246,6 +247,14 @@ export function useWorkflowDetailAuthoringState(
   const openStepDrawerRef = useRef<((stepId: string) => unknown) | null>(null);
   const authorStructureLocked = data.exportPolicyQuery.data?.structure_change_allowed === false || objectOrEmpty(workflowRecord.portability).structure_change_allowed === false;
   const allowHookDeclaration = developmentMode && isAdmin && !authorStructureLocked;
+  const hookProjectHint = searchParams.has("project_id")
+    ? (searchParams.get("project_id") || "").trim()
+    : String(workflowRecord.project_id || objectOrEmpty(workflowRecord.project).id || "").trim();
+  const hookProjectContext = useWorkflowHookProjectContext({
+    workflowId, projectHint: hookProjectHint,
+    enabled: surface === "builder" && isAdmin && detailQuery.isSuccess,
+  });
+  const hookProjectId = hookProjectContext.projectId;
   const hookScope = useWorkflowHookScope({
     authorChangeSet: changeSet,
     enabled: surface === "builder",
@@ -258,7 +267,9 @@ export function useWorkflowDetailAuthoringState(
     setSelectedGroupId,
     groupCreateMode,
     structureLocked: authorStructureLocked,
-    projectId: selectedProjectId,
+    projectId: hookProjectId,
+    actorKey: hookProjectContext.actorKey,
+    authorProjectId: selectedProjectId,
     requestConfirmation,
     selectedStepId,
     setAutomationScopeKind,
@@ -273,7 +284,7 @@ export function useWorkflowDetailAuthoringState(
     workflow,
     workflowId,
   });
-  const inHook = hookScope.scopeActive && (drawerMode === "step" || drawerMode === "group");
+  const inHook = (hookScope.scopeActive || hookScope.scopePending) && (drawerMode === "step" || drawerMode === "group");
   const stepWorkflowId = inHook ? hookScope.childWorkflowId : workflowId;
   const stepChangeSet = inHook ? hookScope.childChangeSet : changeSet;
   const stepServerRevision = inHook ? hookScope.childRevision : serverRevision;
@@ -295,8 +306,8 @@ export function useWorkflowDetailAuthoringState(
     changeSet: stepChangeSet,
     owner: {
       workflowId: stepWorkflowId,
-      projectId: selectedProjectId,
-      ownerKey: JSON.stringify([workflowId, selectedProjectId, stepWorkflowId, inHook, hookScope.effectiveHookId,
+      projectId: inHook ? hookProjectId : selectedProjectId,
+      ownerKey: JSON.stringify([workflowId, inHook ? hookProjectId : selectedProjectId, inHook ? hookScope.authorityEpoch : null, stepWorkflowId, inHook, hookScope.effectiveHookId,
         drawerMode, drawerMode === "step" ? selectedStep?.runtimeId : selectedGroup?.groupId]),
       selectionId: drawerMode === "step" ? selectedStep?.runtimeId || "" : selectedGroup?.groupId || "",
       serverRevision: stepServerRevision,
@@ -328,7 +339,7 @@ export function useWorkflowDetailAuthoringState(
       const member = parseHookNodeId(selection.canvasId);
       if (member && !member.memberStepId) return null; // A visual Hook frame is never a child Group.
       const child = Boolean(member);
-      if (child && (member?.hookId !== hookScope.effectiveHookId || !hookScope.childWorkflowId ||
+      if (child && (!hookProjectId || member?.hookId !== hookScope.effectiveHookId || !hookScope.childWorkflowId ||
         hookScope.childWorkflow?.workflow_id !== hookScope.childWorkflowId || !hookScope.childRevision ||
         ![...hookScope.frames.values()].some((frame) => frame.hookId === member.hookId && frame.targetWorkflowId === hookScope.childWorkflowId))) return null;
       if (!child && authorStructureLocked) return null;
@@ -345,9 +356,9 @@ export function useWorkflowDetailAuthoringState(
         changeSet: commandChangeSet,
         target: { kind, id }, canvasId: selection.canvasId, generation: canvasSelection.generation, localStep,
         owner: {
-          workflowId: commandWorkflowId, projectId: selectedProjectId, selectionId: batch ? JSON.stringify(canvasSelection.ids) : id,
+          workflowId: commandWorkflowId, projectId: child ? hookProjectId : selectedProjectId, selectionId: batch ? JSON.stringify(canvasSelection.ids) : id,
           serverRevision: commandRevision, structureLocked: !child && authorStructureLocked,
-          ownerKey: JSON.stringify([workflowId, selectedProjectId, commandWorkflowId, child ? member?.hookId : "author", batch ? canvasSelection.ids : selection.canvasId, canvasSelection.generation]),
+          ownerKey: JSON.stringify([workflowId, child ? hookProjectId : selectedProjectId, child ? hookScope.authorityEpoch : null, commandWorkflowId, child ? member?.hookId : "author", batch ? canvasSelection.ids : selection.canvasId, canvasSelection.generation]),
         },
       };
     };
@@ -373,11 +384,11 @@ export function useWorkflowDetailAuthoringState(
       return {
         changeSet: first.changeSet, owner: first.owner,
         targets: rows.map((row) => row!.target), canvasIds: [...canvasSelection.ids], generation: canvasSelection.generation,
-        ownerScopeKey: JSON.stringify([workflowId, selectedProjectId, first.owner.workflowId, firstHook?.hookId || "author"]),
+        ownerScopeKey: JSON.stringify([workflowId, first.owner.projectId, firstHook ? hookScope.authorityEpoch : null, first.owner.workflowId, firstHook?.hookId || "author"]),
       };
     };
     return () => { graphDeleteReaderRef.current = () => null; graphDeleteBatchReaderRef.current = () => null; pasteRootReaderRef.current = () => null; };
-  }, [authorDefinitionRows, authorStructureLocked, changeSet, hookScope, selectedProjectId, serverRevision, workflowId]);
+  }, [authorDefinitionRows, authorStructureLocked, changeSet, hookProjectId, hookScope, selectedProjectId, serverRevision, workflowId]);
   const readClipboardAuthority = useCallback((snapshot: CanvasClipboardSnapshot, command: ClipboardCommand): ClipboardAuthority | null => {
     const ids = [...snapshot.ids];
     if (!ids.length) {
@@ -590,7 +601,7 @@ export function useWorkflowDetailAuthoringState(
     setReactionFormVisible, automationScopeKind, setAutomationScopeKind, saveNotice,
     saveNoticeIsError, setSaveNotice, setSaveError, savingWorkflowSurface,
     setSavingWorkflowSurface, builderConfirmDialog, requestConfirmation, data,
-    availableProjectsQuery, linkedProjectQuery, selectedProjectId, serverRevision,
+    availableProjectsQuery, linkedProjectQuery, selectedProjectId, hookProjectId, hookProjectContext, serverRevision,
     workflow, workflowContractQuery, workflowRecord, selectedCanvasIssue,
     setSelectedCanvasIssue, setStagedStepSaveNotice, header, refetchWorkflowSurfaces,
     changeSet, editSession, authorDefinitionRows, publishedBlocks, validationErrorGroups,

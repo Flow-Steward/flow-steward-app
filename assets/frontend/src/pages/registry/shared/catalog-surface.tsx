@@ -2,7 +2,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { RegistryCreateDialog } from "./catalog-create-dialog";
 import { buildCreatePayload, cloneIdentifier, cloneBodyKey, renderWhen, renderChoice } from "./catalog-create-payload";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -51,6 +51,7 @@ import type {
 } from "@/pages/registry/shared/catalog-surface-helpers";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { useHasCapability } from "@/lib/auth/capabilities";
+import { AuthContext } from "@/lib/auth/context";
 
 type RegistryCatalogSurfaceProps = {
   createLabel?: string;
@@ -111,6 +112,7 @@ export function RegistryCatalogSurface({
   title,
 }: Readonly<RegistryCatalogSurfaceProps>) {
   const { t } = useI18n();
+  const accountId = useContext(AuthContext)?.session?.user?.account_id;
   const canAdministerPlatform = useHasCapability("administer_platform");
   const effectiveReadOnly = readOnly || !canAdministerPlatform;
   const navigate = useNavigate();
@@ -198,8 +200,8 @@ export function RegistryCatalogSurface({
   }, [modelOptionsQuery.data]);
 
   const guardrailAgentsQuery = useQuery({
-    queryKey: ["registry", "guardrail-create-agents"],
-    queryFn: () => fetchRegistryList("/api/agents"),
+    queryKey: ["registry", "guardrail-create-agents", accountId],
+    queryFn: () => fetchRegistryList("/api/agents?usage=guardrail"),
     enabled: endpoint === "/api/guardrails" && !effectiveReadOnly && createFormOpen,
   });
 
@@ -231,11 +233,40 @@ export function RegistryCatalogSurface({
         subtitle: agentId,
         selected,
         searchText: `${agentId} ${title}`,
-        badges: [{ label: selected ? t("project_history.selected", "selected") : t("react.registry.available", "available"), tone: selected ? "linked" as const : "available" as const }],
+        badges: [
+          { label: selected ? t("project_history.selected", "selected") : t("react.registry.available", "available"), tone: selected ? "linked" as const : "available" as const },
+          ...(agent.enabled === false ? [{ label: t("settings.mcp.status.disabled", "Disabled"), tone: "disabled" as const }] : []),
+        ],
       }];
     }),
     [guardrailAgentIdSet, guardrailAgentOptions, t],
   );
+
+  const guardrailEligibleAgentIds = new Set(guardrailAgentRows.map((row) => row.id));
+  const unavailableGuardrailAgentIds = guardrailAgentIds.filter((id) => !guardrailEligibleAgentIds.has(id));
+  const guardrailAssignmentRows = [
+    ...guardrailAgentRows,
+    ...unavailableGuardrailAgentIds.map((id) => ({
+      id,
+      title: id,
+      selected: true,
+      disabled: true,
+      searchText: id,
+      description: guardrailAgentsQuery.isSuccess && guardrailAgentsQuery.fetchStatus === "idle"
+        ? t("react.registry.guardrail_agent_unavailable", "This agent is unavailable for guardrail assignment. Remove its reference before saving.")
+        : t("react.registry.guardrail_agent_unverified", "The selected agent reference is retained while assignment availability is being checked."),
+      badges: [{
+        label: guardrailAgentsQuery.isSuccess && guardrailAgentsQuery.fetchStatus === "idle"
+          ? t("monitoring.health.unavailable", "Unavailable")
+          : t("project_history.selected", "selected"),
+        tone: "disabled" as const,
+      }],
+    })),
+  ];
+  const guardrailScopeValid = guardrailAgentsQuery.isSuccess
+    && guardrailAgentsQuery.fetchStatus === "idle"
+    && guardrailAgentIds.length > 0
+    && !unavailableGuardrailAgentIds.length;
 
   const refreshList = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: listQueryKey });
@@ -551,6 +582,9 @@ export function RegistryCatalogSurface({
         toolPrompt,
       }, t);
 
+      if (endpoint === "/api/guardrails" && !guardrailScopeValid) {
+        throw new Error(t("react.registry.guardrail_scope_choices_required", "Load the agent choices and select at least one available agent before creating the guardrail."));
+      }
       const createResponse = await createRegistryEntity(endpoint, payload);
       const responseRecord = objectOrEmpty(createResponse);
       const createdId =
@@ -745,9 +779,10 @@ export function RegistryCatalogSurface({
             setGuardrailConfigJson,
             guardrailConfigJson,
             guardrailAgentsQuery,
+            guardrailScopeValid,
             setGuardrailAgentSearch,
             setGuardrailAgentIds,
-            guardrailAgentRows,
+            guardrailAgentRows: guardrailAssignmentRows,
             guardrailAgentSearch,
             guardrailAgentOptions,
             createError,

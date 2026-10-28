@@ -312,7 +312,11 @@ def _build_entrypoint_client(
     redeliver_task=None,
     enqueue_impl=None,
     validation_impl=None,
+    workflow_interface=None,
     workflow_enabled: bool = True,
+    interface_enabled: bool = True,
+    interface_input_mode: str = "fields",
+    interface_strict_inputs: bool = False,
     workflow_exists: bool = True,
     workflow_lookup_error: Exception | None = None,
 ) -> tuple[TestClient, dict[str, Any]]:
@@ -366,17 +370,29 @@ def _build_entrypoint_client(
         lambda _workflow_id: set(expected_input_names or {"title"}),
     )
 
+    from core.application.registry.workflow_contract_service import (
+        WorkflowInterfaceService as _CanonicalWorkflowInterfaceService,
+    )
+
+    canonical_service = _CanonicalWorkflowInterfaceService()
+
     class _WorkflowInterfaceService:
         def interface_for_workflow_id(self, workflow_id):
+            if workflow_interface is not None:
+                return workflow_interface
             return SimpleNamespace(
                 expected_inputs=[
                     SimpleNamespace(name=name) for name in sorted(expected_input_names or {"title"})
                 ],
-                enabled=True,
+                enabled=interface_enabled,
+                input_mode=interface_input_mode,
+                strict_inputs=interface_strict_inputs,
                 workflow_id=workflow_id,
             )
 
         def validate_inputs(self, interface, payload, channel=""):
+            if workflow_interface is not None:
+                return canonical_service.validate_inputs(interface, payload, channel=channel)
             return SimpleNamespace(
                 ok=True,
                 errors=[],
@@ -385,6 +401,10 @@ def _build_entrypoint_client(
             )
 
         def validate_inputs_for_workflow_id(self, workflow_id, inputs, channel):
+            if workflow_interface is not None:
+                return canonical_service.validate_inputs(
+                    workflow_interface, inputs, channel=channel
+                )
             if validation_impl is not None:
                 return validation_impl(workflow_id, inputs, channel)
             return type(
@@ -394,7 +414,11 @@ def _build_entrypoint_client(
                     "ok": True,
                     "errors": [],
                     "inputs": dict(inputs or {}),
-                    "interface": {"enabled": True, "workflow_id": workflow_id, "channel": channel},
+                    "interface": {
+                        "enabled": interface_enabled,
+                        "workflow_id": workflow_id,
+                        "channel": channel,
+                    },
                 },
             )()
 
@@ -4714,3 +4738,535 @@ def _unit_trigger_mutation_owner_fences(monkeypatch):
         "core.application.workflows.workflow_provider_trigger_service.workflow_trigger_transaction",
         lambda *_args, **_kwargs: nullcontext(),
     )
+
+
+# These regressions inject one actual WorkflowInterface object into both the
+# input builder and canonical validator. The helper's legacy canned mode remains
+# available for unrelated route tests.
+def _strict_entrypoint_interface(
+    expected_inputs: list[dict[str, Any]],
+    *,
+    enabled: bool = True,
+    input_mode: str = "fields",
+    strict_inputs: bool = True,
+    trigger_channels: list[str] | None = None,
+    input_schema: dict[str, Any] | None = None,
+):
+    from core.application.registry.workflow_contract import WorkflowInterface
+
+    contract = {
+        "enabled": enabled,
+        "input_mode": input_mode,
+        "strict_inputs": strict_inputs,
+        "trigger_channels": trigger_channels if trigger_channels is not None else ["webhook"],
+        "expected_inputs": expected_inputs,
+    }
+    if input_schema is not None:
+        contract["input_schema"] = input_schema
+    return WorkflowInterface.model_validate(contract)
+
+
+def _strict_webhook_response(client, body: dict[str, Any]):
+    return client.post(
+        "/webhook/workflows/inventory_sync",
+        json=body,
+        headers={"Authorization": "Bearer token-123"},
+    )
+
+
+def test_strict_webhook_rejects_undeclared_body_input_before_enqueue(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"title": "WH-4", "hack": 1})
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "workflow_input_validation_failed"
+    assert ("workflow.input.unknown", "inputs.hack") in {
+        (error["code"], error["path"]) for error in response.json()["errors"]
+    }
+    assert state["reservation_attempts"] == 0
+    assert state["enqueued"] == 0
+
+
+@pytest.mark.parametrize("reserved_key", ["project_id", "files"])
+def test_strict_webhook_rejects_reserved_raw_body_keys(monkeypatch, reserved_key):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(
+        client, {"title": "WH-4", reserved_key: [] if reserved_key == "files" else "other"}
+    )
+
+    assert response.status_code == 400
+    assert ("workflow.input.unknown", f"inputs.{reserved_key}") in {
+        (error["code"], error["path"]) for error in response.json()["errors"]
+    }
+    assert state["enqueued"] == 0
+
+
+def test_strict_webhook_mapping_consumes_nested_body_source(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        entrypoint_overrides={"input_mapping_jsonb": {"title": "body.external.title"}},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"external": {"title": "WH-5"}})
+
+    assert response.status_code == 202, response.text
+    assert state["last_enqueue"]["extra_state"]["inputs"]["title"] == "WH-5"
+
+
+def test_strict_webhook_mapping_consumes_reserved_source_key(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        entrypoint_overrides={"input_mapping_jsonb": {"title": "body.project_id"}},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"project_id": "WH-5"})
+
+    assert response.status_code == 202, response.text
+    assert state["last_enqueue"]["extra_state"]["inputs"]["title"] == "WH-5"
+
+
+def test_strict_webhook_whole_body_mapping_consumes_all_body_keys(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "payload", "type": "object", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"payload"},
+        entrypoint_overrides={"input_mapping_jsonb": {"payload": "body"}},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"title": "WH-6", "hack": 1})
+
+    assert response.status_code == 202, response.text
+    assert state["last_enqueue"]["extra_state"]["inputs"]["payload"] == {
+        "title": "WH-6",
+        "hack": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    ("mapping", "expected_code"),
+    [
+        ({"undeclared_target": "body.hack"}, "mapping_failed"),
+        ({"title": "cookie.title"}, "sensitive_header_mapping"),
+    ],
+)
+def test_strict_webhook_mapping_errors_precede_raw_unknowns(monkeypatch, mapping, expected_code):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        entrypoint_overrides={"input_mapping_jsonb": mapping},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"title": "WH-7", "hack": 1})
+
+    assert response.status_code == 400
+    assert response.json()["code"] == expected_code
+    assert state["enqueued"] == 0
+
+
+def test_entrypoint_builder_unsupported_mapping_precedes_raw_unknowns():
+    from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+    from core.application.workflows.workflow_entrypoint_input_service import (
+        WorkflowEntrypointInputService,
+        WorkflowEntrypointMappingError,
+    )
+
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    canonical = WorkflowInterfaceService()
+
+    class _SameInterfaceService:
+        def interface_for_workflow_id(self, _workflow_id):
+            return interface
+
+        def validate_inputs_for_workflow_id(self, _workflow_id, inputs, *, channel):
+            return canonical.validate_inputs(interface, inputs, channel=channel)
+
+    service = WorkflowEntrypointInputService(_SameInterfaceService())
+
+    with pytest.raises(WorkflowEntrypointMappingError, match="Unsupported mapping selector"):
+        service.build_inputs(
+            workflow_id="wf.inventory.sync",
+            mapping={"title": "cookie.title"},
+            sources={"body": {"title": "WH-7", "hack": 1}},
+            fallback_body={"title": "WH-7", "hack": 1},
+            file_refs=[],
+        )
+
+
+@pytest.mark.parametrize(
+    ("source", "roots", "value"),
+    [
+        ("query.external", {"query": {"external": "WH-query"}}, "WH-query"),
+        ("headers.x-external", {"headers": {"X-External": "WH-header"}}, "WH-header"),
+        ("form.external", {"form": {"external": "WH-form"}}, "WH-form"),
+    ],
+)
+def test_strict_webhook_non_body_mapping_does_not_consume_raw_body_key(source, roots, value):
+    from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+    from core.application.workflows.workflow_entrypoint_input_service import (
+        WorkflowEntrypointInputService,
+    )
+
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    canonical = WorkflowInterfaceService()
+
+    class _SameInterfaceService:
+        def interface_for_workflow_id(self, _workflow_id):
+            return interface
+
+        def validate_inputs_for_workflow_id(self, _workflow_id, inputs, *, channel):
+            return canonical.validate_inputs(interface, inputs, channel=channel)
+
+    service = WorkflowEntrypointInputService(_SameInterfaceService())
+
+    with pytest.raises(RuntimeError, match="Workflow input validation failed") as raised:
+        service.build_inputs(
+            workflow_id="wf.inventory.sync",
+            mapping={"title": source},
+            sources={"body": {"hack": 1}, **roots},
+            fallback_body={"hack": 1},
+            file_refs=[],
+        )
+
+    assert raised.value.validation.interface["enabled"] is True
+    assert raised.value.workflow_inputs["title"] == value
+    assert ("workflow.input.unknown", "inputs.hack") in {
+        (error["code"], error["path"]) for error in raised.value.errors
+    }
+
+
+@pytest.mark.parametrize(
+    ("expected_inputs", "body", "field_code", "field_path"),
+    [
+        (
+            [{"name": "title", "type": "string", "required": True}],
+            {"hack": 1},
+            "workflow.input.required",
+            "inputs.title",
+        ),
+        (
+            [{"name": "count", "type": "number", "required": True}],
+            {"count": "bad", "hack": 1},
+            "workflow.input.invalid_type",
+            "inputs.count",
+        ),
+        (
+            [{"name": "title", "type": "string", "default": "fixed"}],
+            {"title": "caller", "hack": 1},
+            "workflow.input.override_forbidden",
+            "inputs.title",
+        ),
+    ],
+)
+def test_strict_webhook_preserves_field_errors_with_raw_unknown(
+    monkeypatch, expected_inputs, body, field_code, field_path
+):
+    input_names = {row["name"] for row in expected_inputs}
+    interface = _strict_entrypoint_interface(expected_inputs)
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names=input_names,
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, body)
+
+    assert response.status_code == 400
+    codes = {(error["code"], error["path"]) for error in response.json()["errors"]}
+    assert (field_code, field_path) in codes
+    assert ("workflow.input.unknown", "inputs.hack") in codes
+    assert state["enqueued"] == 0
+
+
+def test_strict_webhook_preserves_disabled_interface_behavior(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}], enabled=False
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"title": "WH-8", "hack": 1})
+
+    assert response.status_code == 202, response.text
+    assert state["last_enqueue"]["extra_state"]["inputs"]["title"] == "WH-8"
+    assert "hack" not in state["last_enqueue"]["extra_state"]["inputs"]
+
+
+def test_non_strict_webhook_keeps_existing_extra_drop_behavior(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}], strict_inputs=False
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"title": "WH-9", "extra": "discarded"})
+
+    assert response.status_code == 202, response.text
+    assert state["last_enqueue"]["extra_state"]["inputs"]["title"] == "WH-9"
+    assert "extra" not in state["last_enqueue"]["extra_state"]["inputs"]
+
+
+def test_passthrough_and_json_schema_keep_builder_extra_drop_behavior(monkeypatch):
+    from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+    from core.application.workflows.workflow_entrypoint_input_service import (
+        WorkflowEntrypointInputService,
+    )
+
+    canonical = WorkflowInterfaceService()
+    for interface in (
+        _strict_entrypoint_interface([], input_mode="passthrough"),
+        _strict_entrypoint_interface(
+            [],
+            input_mode="json_schema",
+            input_schema={
+                "type": "object",
+                "properties": {"files": {"type": "array"}},
+                "additionalProperties": False,
+            },
+        ),
+    ):
+
+        class _SameInterfaceService:
+            def __init__(self, contract):
+                self._contract = contract
+
+            def interface_for_workflow_id(self, _workflow_id):
+                return self._contract
+
+            def validate_inputs_for_workflow_id(self, _workflow_id, inputs, *, channel):
+                return canonical.validate_inputs(self._contract, inputs, channel=channel)
+
+        service = WorkflowEntrypointInputService(_SameInterfaceService(interface))
+        mapped = service.build_inputs(
+            workflow_id="wf.inventory.sync",
+            mapping={},
+            sources={"body": {"extra": "discarded"}},
+            fallback_body={"extra": "discarded"},
+            file_refs=[],
+        )
+        assert "extra" not in mapped
+        assert service.validate_inputs("wf.inventory.sync", mapped, channel="webhook").ok
+
+
+def test_strict_webhook_default_omission_and_file_refs_remain_unchanged(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "default": "fixed"}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {"hack": 1})
+
+    assert response.status_code == 400
+    errors = response.json()["errors"]
+    assert errors == [
+        {
+            "code": "workflow.input.unknown",
+            "message": "Workflow input 'hack' is not declared by this workflow interface",
+            "path": "inputs.hack",
+            "severity": "error",
+            "channel": "webhook",
+        }
+    ]
+    assert state["enqueued"] == 0
+
+
+def test_strict_webhook_default_omission_keeps_configured_default(monkeypatch):
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "default": "fixed"}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        workflow_interface=interface,
+    )
+
+    response = _strict_webhook_response(client, {})
+
+    assert response.status_code == 202, response.text
+    assert state["last_enqueue"]["extra_state"]["inputs"]["title"] == "fixed"
+
+
+def test_entrypoint_builder_keeps_derived_file_refs(monkeypatch):
+    from core.application.workflows.workflow_entrypoint_input_service import (
+        WorkflowEntrypointInputService,
+    )
+
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+
+    canonical = WorkflowInterfaceService()
+
+    class _SameInterfaceService:
+        def interface_for_workflow_id(self, _workflow_id):
+            return interface
+
+        def validate_inputs_for_workflow_id(self, _workflow_id, inputs, *, channel):
+            return canonical.validate_inputs(interface, inputs, channel=channel)
+
+    file_refs = [{"artifact_id": "artifact-1", "filename": "input.txt"}]
+    service = WorkflowEntrypointInputService(_SameInterfaceService())
+    mapped = service.build_inputs(
+        workflow_id="wf.inventory.sync",
+        mapping={},
+        sources={"body": {"title": "WH-file"}},
+        fallback_body={"title": "WH-file"},
+        file_refs=file_refs,
+    )
+
+    assert mapped["files"] == file_refs
+
+
+def test_strict_webhook_dry_run_renders_raw_body_validation_errors(monkeypatch):
+    def scope(_request, **_kwargs):
+        return normalize_scope(
+            account_id="acct-1",
+            allowed_project_ids=frozenset({"7"}),
+            allowed_workflow_ids=frozenset({"wf.inventory.sync"}),
+        )
+
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        request_scope=scope,
+        workflow_interface=interface,
+    )
+
+    response = client.post(
+        "/api/workflows/wf.inventory.sync/triggers/webhooks/inventory_sync/dry-run",
+        json={"body": {"title": "WH-10", "project_id": "other"}},
+    )
+
+    assert response.status_code == 200, response.text
+    validation = response.json()["validation"]
+    assert validation["ok"] is False
+    assert ("workflow.input.unknown", "inputs.project_id") in {
+        (error["code"], error["path"]) for error in validation["errors"]
+    }
+    assert validation["interface"]["trigger_channels"] == ["webhook"]
+    assert "hack" not in response.json()["mapped_inputs"]
+    assert state["enqueued"] == 0
+
+
+def test_strict_webhook_dry_run_keeps_declared_automapping(monkeypatch):
+    def scope(_request, **_kwargs):
+        return normalize_scope(
+            account_id="acct-1",
+            allowed_project_ids=frozenset({"7"}),
+            allowed_workflow_ids=frozenset({"wf.inventory.sync"}),
+        )
+
+    interface = _strict_entrypoint_interface(
+        [{"name": "title", "type": "string", "required": True}]
+    )
+    client, state = _build_entrypoint_client(
+        monkeypatch,
+        expected_input_names={"title"},
+        request_scope=scope,
+        workflow_interface=interface,
+    )
+
+    response = client.post(
+        "/api/workflows/wf.inventory.sync/triggers/webhooks/inventory_sync/dry-run",
+        json={"body": {"title": "WH-12"}},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["validation"]["ok"] is True
+    assert response.json()["validation"]["interface"]["trigger_channels"] == ["webhook"]
+    assert state["enqueued"] == 0
+
+
+def test_strict_webhook_definition_channel_and_secret_phases_short_circuit_unknowns(
+    monkeypatch,
+):
+    from core.infrastructure.security.secret_reference import SecretReference
+
+    cases = [
+        (
+            _strict_entrypoint_interface(
+                [{"name": "title", "type": "string", "required": True}],
+                trigger_channels=[],
+            ),
+            {"title": "WH-13", "hack": 1},
+            "workflow.interface.trigger_channels_missing",
+        ),
+        (
+            _strict_entrypoint_interface(
+                [{"name": "title", "type": "string", "required": True}],
+                trigger_channels=["api"],
+            ),
+            {"title": "WH-14", "hack": 1},
+            "workflow.input.channel_forbidden",
+        ),
+        (
+            _strict_entrypoint_interface([{"name": "title", "type": "string", "required": True}]),
+            {
+                "title": SecretReference(name="title", ref_key="workflow:test:title").to_wire(),
+                "hack": 1,
+            },
+            "workflow.input.invalid_type",
+        ),
+    ]
+    for interface, body, expected_code in cases:
+        client, state = _build_entrypoint_client(
+            monkeypatch,
+            expected_input_names={"title"},
+            workflow_interface=interface,
+        )
+        response = _strict_webhook_response(client, body)
+        assert response.status_code == 400
+        errors = response.json()["errors"]
+        assert errors[0]["code"] == expected_code
+        assert not any(error["code"] == "workflow.input.unknown" for error in errors)
+        assert state["enqueued"] == 0

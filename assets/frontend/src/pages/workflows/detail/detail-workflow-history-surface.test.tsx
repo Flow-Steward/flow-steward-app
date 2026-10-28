@@ -56,7 +56,7 @@ describe("WorkflowHistorySurface", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Revision 1/i }));
     fireEvent.click(screen.getByRole("button", { name: /Restore this revision/i }));
     // Inside the builder drawer the confirmation must sit on the body, above the revision drawer.
-    const confirmation = await screen.findByRole("dialog", { name: "Restore workflow/orders" });
+    const confirmation = await screen.findByRole("dialog", { name: "Restore saved revision" });
     expect(container).not.toContainElement(confirmation);
     fireEvent.click(await screen.findByRole("button", { name: "Restore" }));
 

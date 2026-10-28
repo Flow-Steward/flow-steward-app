@@ -156,14 +156,27 @@ export function useWorkflowChangeSet({
   serverRevision,
   workflowId,
   placementViewKey = "",
+  enabled = true,
+  discardEnabled = enabled,
+  authorityKey = "",
 }: {
   refetchWorkflowSurfaces: () => Promise<unknown>;
   serverDefinition: WorkflowDefinitionModel;
   serverRevision: number | null;
   workflowId: string;
   placementViewKey?: string;
+  /** Suspend a retained journal when its external editing authority is unavailable. */
+  enabled?: boolean;
+  discardEnabled?: boolean;
+  authorityKey?: string;
 }) {
   const { t } = useI18n();
+  const authorityIdentity = JSON.stringify([workflowId, enabled, discardEnabled, authorityKey]);
+  const [authority, setAuthority] = useState({ key: authorityIdentity, enabled });
+  if (authority.key !== authorityIdentity) setAuthority({ key: authorityIdentity, enabled });
+  const committedAuthority = useRef<typeof authority | null>(null);
+  const authorityCurrent = useCallback(() => enabled && committedAuthority.current === authority, [authority, enabled]);
+  const discardCurrent = useCallback(() => discardEnabled && committedAuthority.current === authority, [authority, discardEnabled]);
   const [journalState, setJournalState] = useState<{ owner: string; journal: GraphJournal; writeVersion: number }>(() => ({
     owner: workflowId,
     journal: emptyGraphJournal(),
@@ -217,13 +230,13 @@ export function useWorkflowChangeSet({
   const ownerEpochRef = useRef(0);
   const ownerIdRef = useRef(workflowId);
   const ownerMatches = useCallback((owner: string, epoch: number) => (
-    ownerIdRef.current === owner && ownerEpochRef.current === epoch
+    committedAuthority.current?.enabled === true && ownerIdRef.current === owner && ownerEpochRef.current === epoch
   ), []);
-  const updateJournal = useCallback((change: (current: GraphJournal) => GraphJournal) => {
-    if (ownerIdRef.current !== workflowId) return;
+  const updateJournal = useCallback((change: (current: GraphJournal) => GraphJournal, localDiscard = false) => {
+    if (!(localDiscard ? discardCurrent() : authorityCurrent()) || ownerIdRef.current !== workflowId) return;
     journalWriteVersionRef.current += 1;
     setJournalState((current) => {
-      if (ownerIdRef.current !== workflowId) return current;
+      if (!(localDiscard ? discardCurrent() : authorityCurrent()) || ownerIdRef.current !== workflowId) return current;
       return {
         owner: workflowId,
         journal: change(current.owner === workflowId ? current.journal : emptyGraphJournal()),
@@ -231,7 +244,7 @@ export function useWorkflowChangeSet({
         writeVersion: current.writeVersion + 1,
       };
     });
-  }, [workflowId]);
+  }, [authorityCurrent, discardCurrent, workflowId]);
   const [baseRevision, setBaseRevision] = useState<number | null>(null);
   const [applying, setApplying] = useState(false);
   const applyingRef = useRef(false);
@@ -250,6 +263,19 @@ export function useWorkflowChangeSet({
   const ownRevisionsRef = useRef(new Set<number>());
   const expectOwnRevisionRef = useRef(false);
   const lastServerRef = useRef<{ owner: string; revision: number | null; definition: WorkflowDefinitionModel } | null>(null);
+
+  useLayoutEffect(() => {
+    committedAuthority.current = authority;
+    ownerEpochRef.current += 1;
+    checkSequenceRef.current += 1;
+    if (!authority.enabled) {
+      setApplying(false);
+      applyingRef.current = false;
+    }
+    return () => {
+      if (committedAuthority.current === authority) committedAuthority.current = null;
+    };
+  }, [authority]);
 
   // The hook can be reused for another workflow while an old request is pending.
   // Retire its local journal and diagnostics before that owner can stage or Apply.
@@ -348,27 +374,28 @@ export function useWorkflowChangeSet({
   useEffect(() => {
     checkSequenceRef.current += 1;
     const sequence = checkSequenceRef.current;
-    if (!operations.length || conflict || !checkRevision || !workflowId) {
+    if (!enabled || !operations.length || conflict || !checkRevision || !workflowId) {
       // An idle reset must not repeatedly interrupt a pending journal transition.
       if (committedCheckRef.current !== IDLE_CHECK) setCheck(IDLE_CHECK);
       return undefined;
     }
     setCheck((current) => ({ ...current, state: "checking" }));
     const timer = globalThis.setTimeout(() => {
+      if (!authorityCurrent()) return;
       applyWorkflowChanges(workflowId, {
         expected_revision: checkRevision,
         operations,
         dry_run: true,
       })
         .then((result) => {
-          if (sequence !== checkSequenceRef.current) return;
+          if (!authorityCurrent() || sequence !== checkSequenceRef.current) return;
           const blocking = issueList(result?.blocking_issues);
           const blockingIds = new Set(blocking.map(issueIdentity));
           const kept = issueList(result?.issues).filter((issue) => !blockingIds.has(issueIdentity(issue)));
           setCheck({ state: "checked", blocking, kept });
         })
         .catch((error: unknown) => {
-          if (sequence !== checkSequenceRef.current) return;
+          if (!authorityCurrent() || sequence !== checkSequenceRef.current) return;
           if (isWorkflowRevisionConflict(error)) {
             setConflict(true);
             setCheck(IDLE_CHECK);
@@ -383,7 +410,7 @@ export function useWorkflowChangeSet({
         });
     }, DRY_RUN_DELAY_MS);
     return () => globalThis.clearTimeout(timer);
-  }, [checkRevision, conflict, operations, workflowId]);
+  }, [authorityCurrent, checkRevision, conflict, enabled, operations, workflowId]);
 
   // Before Apply: what Apply would refuse, and what the saved definition would keep.
   // The local estimate is only a fallback for a dry run that could not be made.
@@ -407,7 +434,7 @@ export function useWorkflowChangeSet({
 
   /** One graph command, even when it expands to multiple structural operations. */
   const stageGraphIntent = useCallback((next: WorkflowChangeOperation[], message = ""): GraphIntentToken | null => {
-    if (ownerIdRef.current !== workflowId || !next.length) return null;
+    if (!authorityCurrent() || ownerIdRef.current !== workflowId || !next.length) return null;
     // Allocate before the pure updater. The serial never resets on Discard or
     // owner changes, and controller identity prevents collisions across mounts.
     const token: GraphIntentToken = { controller: intentTokenControllerRef.current, serial: ++intentTokenSerialRef.current };
@@ -416,7 +443,7 @@ export function useWorkflowChangeSet({
     updateJournal((current) => appendGraphIntent(current, next, { intentToken: token }));
     clearStagingDiagnostics(message);
     return token;
-  }, [clearStagingDiagnostics, serverRevision, updateJournal, workflowId]);
+  }, [authorityCurrent, clearStagingDiagnostics, serverRevision, updateJournal, workflowId]);
 
   /**
    * A form, drawer, palette or hook edit: one action of the history like any
@@ -591,9 +618,9 @@ export function useWorkflowChangeSet({
   }, [baseDefinition, updateJournal, workflowId]);
 
   const discard = useCallback(() => {
-    if (ownerIdRef.current !== workflowId) return;
+    if (!discardCurrent() || ownerIdRef.current !== workflowId) return;
     ++journalResetEpochRef.current;
-    updateJournal((current) => discardGraphJournal(current));
+    updateJournal((current) => discardGraphJournal(current), true);
     setPlacementReplay(null);
     setBaseRevision(null);
     setHeld(null);
@@ -603,7 +630,7 @@ export function useWorkflowChangeSet({
     setApplyIssues([]);
     applyIssuesRevisionRef.current = null;
     setNotice(t("react.workflows.change_set_discarded", "Unapplied structure changes discarded."));
-  }, [t, updateJournal, workflowId]);
+  }, [discardCurrent, t, updateJournal, workflowId]);
 
   const reportConflict = useCallback(() => {
     if (ownerIdRef.current !== workflowId) return;
@@ -683,7 +710,7 @@ export function useWorkflowChangeSet({
   }, [workflowId]);
 
   const apply = useCallback(async () => {
-    if (ownerIdRef.current !== workflowId || !operations.length || applying) {
+    if (!authorityCurrent() || ownerIdRef.current !== workflowId || !operations.length || applying) {
       return false;
     }
     const expectedRevision = baseRevision ?? serverRevision;
@@ -760,7 +787,7 @@ export function useWorkflowChangeSet({
         applyingRef.current = false;
       }
     }
-  }, [applying, baseDefinition, baseRevision, operations, ownerMatches, refetchWorkflowSurfaces, serverRevision, t, updateJournal, workflowId]);
+  }, [applying, authorityCurrent, baseDefinition, baseRevision, operations, ownerMatches, refetchWorkflowSurfaces, serverRevision, t, updateJournal, workflowId]);
 
   /**
    * Continue a recovered session (a reload): its history, cursor and unapplied
@@ -847,7 +874,7 @@ export function useWorkflowChangeSet({
     redoSeq,
     candidateOperations,
     /** The rendered journal belongs to this controller, beyond its empty loading projection. */
-    get ownerReady() { return journalState.owner === workflowId; },
+    get ownerReady() { return enabled && journalState.owner === workflowId; },
     applyError,
     applyIssues,
     applyRefused,

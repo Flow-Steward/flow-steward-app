@@ -12176,6 +12176,7 @@
   {
     "canonical_name": "HOME",
     "code_read_locations": [
+      "tests/unit/test_docker_compose_env.py",
       "infra/docker/docker-compose.oauth-browser.yaml"
     ],
     "conditional_groups": [],

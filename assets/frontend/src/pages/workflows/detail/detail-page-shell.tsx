@@ -461,7 +461,9 @@ export function WorkflowDetailPageShell({ ctx }: Readonly<{ ctx: WorkflowDetailP
             renderStepKindSmartSetup,
             renderStepStructureSetup,
             savingWorkflowSurface,
-            selectedProjectId,
+            selectedProjectId: ctx.hookScopeActive ? ctx.hookProjectId : selectedProjectId,
+            hookProjectId: ctx.hookProjectId,
+            hookAuthorityKey: ctx.hookAuthorityKey,
             selectedStep,
             selectedStepAuthoredId,
             selectedStepId,
@@ -639,7 +641,7 @@ export function WorkflowDetailPageShell({ ctx }: Readonly<{ ctx: WorkflowDetailP
           availabilityNotice={workflowAvailabilityNotice}
           missingExtensions={ctx.workflowMissingExtensions}
           headerContext={canAuthor && ctx.hookFrames instanceof Map && ctx.hookFrames.size
-            ? <WorkflowHookProjectPicker compact workflowId={workflowId} projectId={selectedProjectId || ""} onProjectChange={ctx.onScheduleProjectChange} />
+            ? <WorkflowHookProjectPicker compact workflowId={workflowId} projectId={ctx.hookProjectId || ""} onProjectChange={ctx.onScheduleProjectChange} />
             : null}
           backHref={workflowDetailPathWithProject}
           canvasGraph={displayCanvasGraph}

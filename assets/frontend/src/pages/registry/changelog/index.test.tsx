@@ -66,14 +66,14 @@ function staleRevision(): HttpError {
 }
 
 async function openWorkflowRevision(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByText(/entry #new-content/u));
+  await user.click(await screen.findByText(/Entry #new-content/iu));
 }
 
 async function confirmRestore(user: ReturnType<typeof userEvent.setup>) {
   const restore = screen.getByRole("button", { name: "Restore selected revision" });
   await waitFor(() => expect(restore).toBeEnabled());
   await user.click(restore);
-  await screen.findByRole("dialog", { name: "Restore workflow/owned-workflow" });
+  await screen.findByRole("dialog", { name: "Restore saved revision" });
 }
 
 describe("RegistryChangelogPage validation issues", () => {
@@ -124,7 +124,7 @@ describe("RegistryChangelogPage validation issues", () => {
     mockedFetchChangelogHistory.mockRejectedValue(new Error("Access denied"));
     renderPage();
 
-    await user.click(await screen.findByText(/entry #2/u));
+    await user.click(await screen.findByText(/Entry #2/iu));
 
     expect(await screen.findByText("Access denied")).toBeInTheDocument();
     expect(screen.queryByText("No history rows found.")).not.toBeInTheDocument();
@@ -149,7 +149,7 @@ describe("RegistryChangelogPage validation issues", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByText(/entry #selected-event/u));
+    await user.click(await screen.findByText(/Entry #selected-event/iu));
 
     expect(await screen.findByText("Lifecycle event")).toBeInTheDocument();
     expect(screen.queryByText("Revision diff")).not.toBeInTheDocument();
@@ -174,7 +174,7 @@ describe("RegistryChangelogPage validation issues", () => {
     mockedFetchChangelogHistory.mockResolvedValue(entries);
     renderPage();
 
-    await user.click(await screen.findByText(/entry #content-after-marker/u));
+    await user.click(await screen.findByText(/Entry #content-after-marker/iu));
 
     expect(await screen.findByText(/not a content comparison/i)).toBeInTheDocument();
     expect(screen.queryByText("Revision diff")).not.toBeInTheDocument();
@@ -200,7 +200,7 @@ describe("RegistryChangelogPage validation issues", () => {
     vi.mocked(restoreChangelogEntry).mockResolvedValue({});
     renderPage();
 
-    await user.click(await screen.findByText(/entry #new-content/u));
+    await user.click(await screen.findByText(/Entry #new-content/iu));
 
     expect(await screen.findByText("display_name")).toBeInTheDocument();
     expect(fetchChangelogDiff).toHaveBeenCalledWith({
@@ -212,7 +212,7 @@ describe("RegistryChangelogPage validation issues", () => {
     await waitFor(() => expect(restoreChangelogEntry).toHaveBeenCalledWith({
       entityType: "workflow", entityId: "owned-workflow", entryId: "new-content", expectedRevision: 7,
     }));
-    expect(await screen.findByText("Restored workflow/owned-workflow from entry #new-content.")).toBeInTheDocument();
+    expect(await screen.findByText("Restored this saved revision.")).toBeInTheDocument();
   });
 
   it("restores other entity types without a workflow revision", async () => {
@@ -226,7 +226,7 @@ describe("RegistryChangelogPage validation issues", () => {
     mockedRestoreChangelogEntry.mockResolvedValue({});
     renderPage();
 
-    await user.click(await screen.findByText(/entry #tool-new/u));
+    await user.click(await screen.findByText(/Entry #tool-new/iu));
     await user.click(screen.getByRole("button", { name: "Restore selected revision" }));
     await user.click(await screen.findByRole("button", { name: "Restore" }));
 
@@ -305,7 +305,7 @@ describe("RegistryChangelogPage validation issues", () => {
     const restore = screen.getByRole("button", { name: "Restore selected revision" });
     expect(restore).toBeDisabled();
     await user.click(restore);
-    expect(screen.queryByRole("dialog", { name: "Restore workflow/owned-workflow" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Restore saved revision" })).not.toBeInTheDocument();
     expect(restoreChangelogEntry).not.toHaveBeenCalled();
     expect(fetchWorkflowCurrentRevision).toHaveBeenCalledTimes(1);
   });
@@ -356,7 +356,7 @@ describe("RegistryChangelogPage validation issues", () => {
     await confirmRestore(user);
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Restore workflow/owned-workflow" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Restore saved revision" })).not.toBeInTheDocument());
     expect(restoreChangelogEntry).not.toHaveBeenCalled();
   });
 
@@ -370,11 +370,213 @@ describe("RegistryChangelogPage validation issues", () => {
     mockedFetchChangelogHistory.mockResolvedValue(entries);
     renderPage();
 
-    await user.click(await screen.findByText(/entry #unknown-kind/u));
+    await user.click(await screen.findByText(/Entry #unknown-kind/iu));
 
     expect(await screen.findByText(/revision type is unavailable/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Restore selected revision" })).not.toBeInTheDocument();
     expect(fetchChangelogDiff).not.toHaveBeenCalled();
     expect(restoreChangelogEntry).not.toHaveBeenCalled();
   });
+
+  it("uses numbered workflow revisions in the list, history and content comparison", async () => {
+    const user = userEvent.setup();
+    const entries: ChangelogEntry[] = [
+      { id: "numbered-new", entity_type: "workflow", entity_id: "owned-workflow", revision: 2, action: "update", revision_kind: "content" },
+      { id: "numbered-old", entity_type: "workflow", entity_id: "owned-workflow", revision: 1, action: "create", revision_kind: "content" },
+    ];
+    mockedFetchChangelogList.mockResolvedValue(entries);
+    mockedFetchChangelogHistory.mockResolvedValue(entries);
+    renderPage();
+
+    const selected = await screen.findByRole("button", { name: /Revision 2/u });
+    expect(selected).toHaveTextContent("Entry #numbered-new");
+    await user.click(selected);
+
+    expect(await screen.findByText("Comparing Revision 1 to Revision 2")).toBeVisible();
+    // The main list and the history card both retain the numbered saved revision.
+    expect(screen.getAllByText("Revision 2").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Revision 1").length).toBeGreaterThanOrEqual(2);
+    expect(fetchChangelogDiff).toHaveBeenCalledWith({
+      entityType: "workflow", entityId: "owned-workflow", fromEntryId: "numbered-old", toEntryId: "numbered-new",
+    });
+  });
+
+  it.each([
+    ["update", "Updated", "content"],
+    ["create", "Created", "content"],
+    ["delete", "Deleted", "lifecycle"],
+    ["restore", "Restored", "lifecycle"],
+  ] as const)("labels the known %s action in the list and history without making lifecycle restorable", async (action, label, revisionKind) => {
+    const user = userEvent.setup();
+    const entries: ChangelogEntry[] = [{ id: "known-action", entity_type: "tool", entity_id: "t1", action, revision_kind: revisionKind }];
+    mockedFetchChangelogList.mockResolvedValue(entries);
+    mockedFetchChangelogHistory.mockResolvedValue(entries);
+    renderPage();
+
+    const row = await screen.findByRole("button", { name: /Entry #known-action/iu });
+    expect(row).toHaveTextContent(label);
+    await user.click(row);
+    await waitFor(() => {
+      expect(screen.getAllByText(new RegExp(`\\b${label}\\b`, "u")).length).toBeGreaterThanOrEqual(2);
+    });
+    if (revisionKind === "lifecycle") {
+      expect(screen.getByText("Lifecycle event")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Restore selected revision" })).not.toBeInTheDocument();
+    }
+  });
+
+  it.each([
+    ["display_name", "Display name"],
+    ["settings.callable.expected_outputs[0].label", "Outputs · Output 1 · Label"],
+  ] as const)("shows the known workflow field %s in plain language with its raw path available", async (path, label) => {
+    const user = userEvent.setup();
+    mockedFetchChangelogList.mockResolvedValue(WORKFLOW_ENTRIES);
+    mockedFetchChangelogHistory.mockResolvedValue(WORKFLOW_ENTRIES);
+    mockedFetchChangelogDiff.mockResolvedValue({ changes: [{ path, change: "changed", from: "Before", to: "After" }] });
+    renderPage();
+    await openWorkflowRevision(user);
+
+    expect(await screen.findByText(label)).toBeVisible();
+    expect(screen.getByText(path)).toBeInTheDocument();
+    expect(screen.getByText(/from:\s*Before\s*• to:\s*After/u)).toBeVisible();
+  });
+
+  it.each(["custom.audit/v2", "__proto__", "constructor"])("keeps unknown action %s, actor, time and source beside the saved-revision fallback", async (action) => {
+    const user = userEvent.setup();
+    const entries: ChangelogEntry[] = [{
+      id: "metadata-entry", entity_type: "tool", entity_id: "t1", action, revision_kind: "content",
+      author: "ana", created_at: "retained-event-time", source: "manual",
+    }];
+    mockedFetchChangelogList.mockResolvedValue(entries);
+    mockedFetchChangelogHistory.mockResolvedValue(entries);
+    renderPage();
+    const row = await screen.findByRole("button", { name: /Entry #metadata-entry/iu });
+    expect(row).toHaveTextContent("Saved revision");
+    expect(row).toHaveTextContent(action);
+    expect(row).toHaveTextContent("ana");
+    expect(row).toHaveTextContent("retained-event-time");
+    await user.click(row);
+
+    const historyMetadata = await screen.findByText(/source:\s*manual/u);
+    expect(historyMetadata).toBeVisible();
+    expect(historyMetadata).toHaveTextContent(`action: ${action} • author: ana • source: manual`);
+  });
+
+  it("confirms a numbered workflow restore as a new revision while retaining its target diagnostics", async () => {
+    const user = userEvent.setup();
+    const entries: ChangelogEntry[] = [{ id: "restore-entry", entity_type: "workflow", entity_id: "owned-workflow", revision: 2, action: "update", revision_kind: "content" }];
+    mockedFetchChangelogList.mockResolvedValue(entries);
+    mockedFetchChangelogHistory.mockResolvedValue(entries);
+    mockedRestoreChangelogEntry.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /Entry #restore-entry/iu }));
+    await confirmRestore(user);
+
+    const confirmation = screen.getByRole("dialog", { name: "Restore saved revision" });
+    expect(confirmation).toHaveTextContent("Restore Revision 2 as a new revision?");
+    expect(confirmation).toHaveTextContent("workflow/owned-workflow");
+    expect(confirmation).toHaveTextContent("Entry #restore-entry");
+    expect(restoreChangelogEntry).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+
+    expect(await screen.findByText("Restored Revision 2 as a new revision.")).toBeVisible();
+    expect(restoreChangelogEntry).toHaveBeenCalledTimes(1);
+    expect(restoreChangelogEntry).toHaveBeenCalledWith({
+      entityType: "workflow", entityId: "owned-workflow", entryId: "restore-entry", expectedRevision: 7,
+    });
+  });
+
+  it("restores an unnumbered non-workflow saved revision without guessing its name or promising a numeric revision", async () => {
+    const user = userEvent.setup();
+    const entries: ChangelogEntry[] = [{
+      id: "legacy-ref", entity_type: "tool", entity_id: "t1", action: "custom.audit/v2", revision_kind: "content",
+      snapshot: { display_name: "Historical title only" },
+    }];
+    mockedFetchChangelogList.mockResolvedValue(entries);
+    mockedFetchChangelogHistory.mockResolvedValue(entries);
+    mockedRestoreChangelogEntry.mockResolvedValue({});
+    renderPage();
+    const row = await screen.findByRole("button", { name: /Entry #legacy-ref/iu });
+    expect(row).toHaveTextContent("Saved revision");
+    expect(row).toHaveTextContent("custom.audit/v2");
+    await user.click(row);
+    await user.click(screen.getByRole("button", { name: "Restore selected revision" }));
+
+    const confirmation = await screen.findByRole("dialog", { name: "Restore saved revision" });
+    expect(confirmation).toHaveTextContent("Restore this saved revision?");
+    expect(confirmation).toHaveTextContent("tool/t1");
+    expect(confirmation).toHaveTextContent("Entry #legacy-ref");
+    expect(confirmation).not.toHaveTextContent("Historical title only");
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(await screen.findByText("Restored this saved revision.")).toBeVisible();
+    expect(restoreChangelogEntry).toHaveBeenCalledWith({ entityType: "tool", entityId: "t1", entryId: "legacy-ref" });
+    expect(fetchWorkflowCurrentRevision).not.toHaveBeenCalled();
+  });
+
+  it("retains an unknown path and change kind without guessing friendly names", async () => {
+    const user = userEvent.setup();
+    mockedFetchChangelogList.mockResolvedValue(WORKFLOW_ENTRIES);
+    mockedFetchChangelogHistory.mockResolvedValue(WORKFLOW_ENTRIES);
+    mockedFetchChangelogDiff.mockResolvedValue({
+      changes: [{ path: "settings.vendor_x.custom[3].token", change: "provider_delta", from: "old", to: "new" }],
+    });
+    renderPage();
+    await openWorkflowRevision(user);
+
+    expect(await screen.findByText("settings.vendor_x.custom[3].token")).toBeVisible();
+    expect(screen.getByText("provider_delta")).toBeVisible();
+    expect(screen.getByText(/from:\s*old\s*• to:\s*new/u)).toBeVisible();
+  });
+
+  it("keeps workflow-shaped paths raw for a non-workflow entity", async () => {
+    const user = userEvent.setup();
+    const entries: ChangelogEntry[] = [
+      { id: "tool-path-new", entity_type: "tool", entity_id: "t1", action: "update", revision_kind: "content" },
+      { id: "tool-path-old", entity_type: "tool", entity_id: "t1", action: "create", revision_kind: "content" },
+    ];
+    mockedFetchChangelogList.mockResolvedValue(entries);
+    mockedFetchChangelogHistory.mockResolvedValue(entries);
+    mockedFetchChangelogDiff.mockResolvedValue({ changes: [{
+      path: "settings.callable.expected_outputs[0].label", from: "old", to: "new",
+    }] });
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /Entry #tool-path-new/iu }));
+
+    expect(await screen.findByText("settings.callable.expected_outputs[0].label")).toBeVisible();
+    expect(screen.queryByText("Outputs · Output 1 · Label")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [{ from: 0, before: 91, to: false, after: "alias" }, /from:\s*0\s*• to:\s*false/u],
+    [{ from: false, before: "alias", to: 0, after: 91 }, /from:\s*false\s*• to:\s*0/u],
+    [{ from: null, before: "alias before", to: "", after: "alias after" }, /from:\s*—\s*• to:\s*—/u],
+    [{ from: "", before: "alias before", to: null, after: "alias after" }, /from:\s*—\s*• to:\s*—/u],
+    [{ before: "legacy before", after: "legacy after" }, /from:\s*legacy before\s*• to:\s*legacy after/u],
+    [{ from: { title: "structured" }, to: ["one", "two"] }, /from:\s*—\s*• to:\s*2 items/u],
+  ] as const)("renders own primitive and empty values before considering absent-key aliases: %j", async (values, expected) => {
+    const user = userEvent.setup();
+    mockedFetchChangelogList.mockResolvedValue(WORKFLOW_ENTRIES);
+    mockedFetchChangelogHistory.mockResolvedValue(WORKFLOW_ENTRIES);
+    mockedFetchChangelogDiff.mockResolvedValue({ changes: [{ path: "settings.custom_value", ...values }] });
+    renderPage();
+    await openWorkflowRevision(user);
+
+    expect(await screen.findByText(expected)).toBeVisible();
+  });
+
+  it("keeps numeric revision labels scoped to workflow content on the registry page", async () => {
+    const entries: ChangelogEntry[] = [{
+      id: "tool-revision-2", entity_type: "tool", entity_id: "t1", revision: 2,
+      action: "update", revision_kind: "content",
+    }];
+    mockedFetchChangelogList.mockResolvedValue(entries);
+    mockedFetchChangelogHistory.mockResolvedValue(entries);
+    renderPage();
+
+    const row = await screen.findByRole("button", { name: /Entry #tool-revision-2/u });
+    expect(row).toHaveTextContent("Saved revision");
+    expect(row).toHaveTextContent("Entry #tool-revision-2");
+    expect(row).not.toHaveTextContent(/\bRevision 2\b/u);
+  });
+
 });

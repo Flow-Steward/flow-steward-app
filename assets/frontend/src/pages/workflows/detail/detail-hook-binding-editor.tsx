@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsValueChip, RequiredLabel } from "@/components/shared/design-system";
@@ -210,10 +210,14 @@ function HookTestRunPanelContent({ projectId, workflowId, hookId, blockedReason,
   const [busy, setBusy] = useState(false);
 
   const runGeneration = useRef(0);
-  useEffect(() => () => { runGeneration.current += 1; }, [projectId, workflowId, hookId]);
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; runGeneration.current += 1; };
+  }, [projectId, workflowId, hookId]);
 
   async function runTest() {
-    if (!hook || !binding || blockedReason) return;
+    if (!mounted.current || !projectId || !hookQuery.isSuccess || !hook || !binding || blockedReason) return;
     const generation = ++runGeneration.current;
     setBusy(true);
     setIssues([]);
@@ -226,11 +230,11 @@ function HookTestRunPanelContent({ projectId, workflowId, hookId, blockedReason,
         taskSummary: t("react.workflows.hook_test_summary", "Test of the hook {hook}", { hook: hook.display_name }),
         inputs: childInputs,
       });
-      if (runGeneration.current !== generation) return;
+      if (!mounted.current || runGeneration.current !== generation) return;
       const initialJobId = text(run.job_id);
       if (initialJobId) onTestRunStarted?.(initialJobId, hookId);
       if (run.thread_id && workflowTestRunIsPending(run)) run = await waitForWorkflowTestRunState(run.thread_id);
-      if (runGeneration.current !== generation) return;
+      if (!mounted.current || runGeneration.current !== generation) return;
       if (text(run.job_id) && text(run.job_id) !== initialJobId) onTestRunStarted?.(text(run.job_id), hookId);
       const status = testRunStatus(run.final_status || run.status);
       const childOutputs = workflowTestRunOutputs(run);
@@ -247,13 +251,13 @@ function HookTestRunPanelContent({ projectId, workflowId, hookId, blockedReason,
         result.output = preview.sample_output;
         result.issues = preview.issues || [];
       }
-      if (runGeneration.current === generation) setTestResult(result);
+      if (mounted.current && runGeneration.current === generation) setTestResult(result);
     } catch (error) {
-      if (runGeneration.current !== generation) return;
+      if (!mounted.current || runGeneration.current !== generation) return;
       const found = hookErrorIssues(error);
       setIssues(found.length ? found : [{ message: error instanceof Error ? error.message : String(error) }]);
     } finally {
-      if (runGeneration.current === generation) setBusy(false);
+      if (mounted.current && runGeneration.current === generation) setBusy(false);
     }
   }
 
