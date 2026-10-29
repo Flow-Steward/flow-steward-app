@@ -22,4 +22,9 @@ def serialize_projects_grid_row(project: dict[str, Any]) -> dict[str, Any]:
         "operator_default_workflow_id": str(
             project.get("operator_default_workflow_id") or ""
         ).strip(),
+        "workflow_ids": [
+            workflow_id
+            for value in project.get("workflow_ids") or []
+            if (workflow_id := str(value or "").strip())
+        ],
     }

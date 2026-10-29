@@ -198,7 +198,7 @@ describe("WorkflowsListPage", () => {
     expect(within(card).getByText("No workflows found")).toBeInTheDocument();
     const table = within(card).getByRole("table", { name: "Workflows catalog" });
     expect(within(table).queryByRole("columnheader", { name: "ID" })).not.toBeInTheDocument();
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(7);
     expect(within(table).queryByRole("cell")).not.toBeInTheDocument();
   });
 

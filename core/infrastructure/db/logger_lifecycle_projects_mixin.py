@@ -39,6 +39,16 @@ def _projects_order_by(sort: str | None, direction: str | None) -> str:
     return f"ORDER BY {expression} {keyword}, p.name ASC"
 
 
+#: The workflows a project lists: its enabled bindings that were not removed,
+#: the same ones GET /api/projects/{id}/workflows answers as workflow_ids.
+_PROJECT_WORKFLOW_IDS_SELECT = (
+    "COALESCE((SELECT array_agg(b.workflow_id ORDER BY b.workflow_id)"
+    " FROM project_workflows b"
+    " WHERE b.project_id = p.id AND b.enabled = true AND b.deleted_at IS NULL),"
+    " ARRAY[]::text[]) AS workflow_ids"
+)
+
+
 class PlatformLoggerLifecycleProjectsMixin:
     conn: Any
     _column_exists: Any
@@ -176,9 +186,10 @@ class PlatformLoggerLifecycleProjectsMixin:
             else ""
         )
         default_workflow_select = (
-            "COALESCE(pw.workflow_id, '') AS operator_default_workflow_id"
+            "COALESCE(pw.workflow_id, '') AS operator_default_workflow_id,"
+            f" {_PROJECT_WORKFLOW_IDS_SELECT}"
             if self._table_exists("project_workflows")
-            else "'' AS operator_default_workflow_id"
+            else "'' AS operator_default_workflow_id, ARRAY[]::text[] AS workflow_ids"
         )
         with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
             cur.execute(
@@ -267,9 +278,10 @@ class PlatformLoggerLifecycleProjectsMixin:
             else ""
         )
         default_workflow_select = (
-            "COALESCE(pw.workflow_id, '') AS operator_default_workflow_id"
+            "COALESCE(pw.workflow_id, '') AS operator_default_workflow_id,"
+            f" {_PROJECT_WORKFLOW_IDS_SELECT}"
             if self._table_exists("project_workflows")
-            else "'' AS operator_default_workflow_id"
+            else "'' AS operator_default_workflow_id, ARRAY[]::text[] AS workflow_ids"
         )
         with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
             cur.execute(

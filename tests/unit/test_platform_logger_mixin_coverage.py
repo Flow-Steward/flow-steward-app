@@ -191,6 +191,12 @@ def test_lifecycle_and_project_query_helpers_cover_extracted_mixin() -> None:
     assert "LEFT JOIN workspaces w ON w.id = p.workspace_id" in project_list_sql
     assert "LEFT JOIN project_workflows pw" in project_list_sql
     assert "operator_default_workflow_id" in project_list_sql
+    # Both readers list each project's workflows: enabled bindings not removed.
+    for query in project_queries:
+        flat = " ".join(query.split())
+        assert "array_agg(b.workflow_id ORDER BY b.workflow_id)" in flat
+        assert "b.enabled = true AND b.deleted_at IS NULL" in flat
+        assert "AS workflow_ids" in flat
     assert logger.count_projects(search="Project", account_id="acc_default") == 7
     assert logger.get_project(PROJECT_A_UUID)["id"] == PROJECT_A_UUID
 

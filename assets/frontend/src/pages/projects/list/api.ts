@@ -6,6 +6,8 @@ export type ProjectListItem = {
   id: string;
   name: string;
   operator_default_workflow_id?: string;
+  /** The workflows the project lists (its enabled bindings). */
+  workflow_ids?: string[];
   updated_at?: string;
   [key: string]: unknown;
 };
