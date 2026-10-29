@@ -322,3 +322,49 @@ def test_extension_workflow_projection_uses_install_scoped_public_id(monkeypatch
 
     assert rows[0]["workflow_id"] == "extension.install-a.deploy"
     assert rows[0]["local_workflow_id"] == "deploy"
+
+
+def test_projected_agents_tools_and_skills_read_only_shared_categories(monkeypatch) -> None:
+    from core.application.registry.projected_artifact_rows import projected_artifact_rows
+
+    def _projection(kind: str, id_key: str, local_id: str, category: object) -> dict:
+        body = {id_key: local_id, "display_name": local_id}
+        if category is not None:
+            body["category"] = category
+        return {
+            "install_id": "install-a",
+            "release_id": "release-a",
+            "artifact_id": local_id,
+            "artifact_kind": kind,
+            "projection": body,
+        }
+
+    projections = [
+        _projection("agent", "agent_id", "demo_agent", None),
+        _projection("tool", "tool_id", "demo_tool", "demo"),
+        _projection("skill", "skill_id", "demo_skill", " Marketing "),
+    ]
+    store = SimpleNamespace(
+        extension_runtime_store=SimpleNamespace(list_projections=lambda **_kwargs: projections)
+    )
+    monkeypatch.setattr(
+        "core.application.registry.projected_artifact_rows.active_extension_ids_for_account",
+        lambda *_args, **_kwargs: set(),
+    )
+    monkeypatch.setattr(
+        "core.application.registry.projected_artifact_rows.active_extension_versions_for_account",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        "core.application.registry.projected_artifact_rows.resolve_projection_dependency_availability",
+        lambda *_args, **_kwargs: {"new_runs_blocked": False},
+    )
+
+    def _category(kind: str, id_key: str) -> str:
+        (row,) = projected_artifact_rows(store, kind, id_key)
+        return row["category"]
+
+    assert _category("agent", "agent_id") == "other"
+    assert _category("tool", "tool_id") == "other"
+    assert _category("skill", "skill_id") == "marketing"
+    assert projections[1]["projection"]["category"] == "demo"

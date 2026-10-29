@@ -13,6 +13,10 @@ from core.application.extensions.projection_dependency_availability import (
     missing_extension_describer,
     resolve_projection_dependency_availability,
 )
+from core.application.registry.catalog_categories import (
+    DEFAULT_CATALOG_CATEGORY,
+    known_catalog_category,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +224,12 @@ def projected_artifact_rows(
                 if key in availability:
                     snapshot[key] = availability[key]
 
+        if artifact_kind in {"agent", "tool", "skill"}:
+            # An extension files what it ships under the shared list too; a
+            # category outside it reads as the default rather than leaking out.
+            snapshot["category"] = (
+                known_catalog_category(snapshot.get("category")) or DEFAULT_CATALOG_CATEGORY
+            )
         if artifact_kind == "agent":
             raw_skills = list(snapshot.get("skills") or [])
             if not raw_skills and snapshot.get("base_skill"):
