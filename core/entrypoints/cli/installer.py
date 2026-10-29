@@ -87,7 +87,9 @@ def _field_option(field: FieldSpec) -> click.Option:
         kwargs["is_flag"] = True
     else:
         kwargs["type"] = str
-    return click.Option([option_name], **kwargs)
+    # The field key, not the option name, is the value's name: `--setting` fills
+    # operator_settings.
+    return click.Option([option_name, field.key], **kwargs)
 
 
 def _params() -> list[click.Parameter]:

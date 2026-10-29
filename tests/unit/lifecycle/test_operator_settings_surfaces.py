@@ -215,3 +215,15 @@ def test_the_same_setting_again_is_no_change_and_no_restart(installed) -> None:
 
     assert unchanged.operator_settings == {PRIVATE: "1"}
     assert not runtime.recreated()
+
+
+def test_install_sh_setting_option_fills_the_operator_settings_field() -> None:
+    """The live check found `--setting` reaching the installer as `setting`."""
+    from core.application.installer.spec import INSTALLER_SPEC
+    from core.entrypoints.cli.installer import _field_option
+
+    field = next(item for item in INSTALLER_SPEC.fields if item.key == "operator_settings")
+    option = _field_option(field)
+
+    assert option.opts == ["--setting"]
+    assert option.name == "operator_settings"
