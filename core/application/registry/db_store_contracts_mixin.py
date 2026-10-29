@@ -48,8 +48,6 @@ class RegistryDBStoreContractsMixin:
             skill_id = str(item.get("skill_id") or "").strip()
             if skill_id:
                 ordered_skill_ids.append(skill_id)
-        if "role_type" not in agent or not str(agent.get("role_type") or "").strip():
-            agent["role_type"] = str(agent.get("agent_type_key") or "").strip()
         if "base_skill" not in agent or not str(agent.get("base_skill") or "").strip():
             agent["base_skill"] = ordered_skill_ids[0] if ordered_skill_ids else ""
         if "secondary_skills" not in agent or not isinstance(agent.get("secondary_skills"), list):
@@ -86,41 +84,6 @@ class RegistryDBStoreContractsMixin:
             if skill_id and skill_id not in deduped:
                 deduped.append(skill_id)
         return deduped
-
-    def _resolve_agent_type_id_cur(self, cur, data: dict) -> str:
-        raw_type = data.get("agent_type_id")
-        raw_type_text = str(raw_type or "").strip()
-        if raw_type_text:
-            cur.execute("SELECT id FROM agent_types WHERE id::text = %s", (raw_type_text,))
-            row = cur.fetchone()
-            if row:
-                return str(row["id"]).strip()
-
-        type_key = str(data.get("agent_type_key") or "").strip()
-        if not type_key:
-            type_key = str(data.get("role_type") or "").strip()
-        if not type_key:
-            type_key = str(raw_type or "").strip()
-        if not type_key:
-            raise ValueError(
-                "Agent seed is missing explicit agent_type_key/role_type/agent_type_id."
-            )
-
-        cur.execute("SELECT id FROM agent_types WHERE key = %s", (type_key,))
-        row = cur.fetchone()
-        if not row:
-            raise ValueError(
-                f"Unknown agent_type '{type_key}'. Seed agent_types first or pass a valid agent_type_id."
-            )
-        return str(row["id"]).strip()
-
-    def list_agent_types(self, enabled_only: bool = False) -> list[dict]:
-        with self._cursor() as cur:
-            if enabled_only:
-                cur.execute("SELECT * FROM agent_types WHERE enabled = true ORDER BY key")
-            else:
-                cur.execute("SELECT * FROM agent_types ORDER BY key")
-            return [dict(r) for r in cur.fetchall()]
 
     @staticmethod
     def _build_contract_schema(items: list[dict]) -> dict:

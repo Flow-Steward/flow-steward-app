@@ -107,7 +107,11 @@ describe("RegistryAgentsDetailPage", () => {
     mockedFetchJson.mockReset();
     mockedFetchRegistryList.mockResolvedValue([]);
     mockedReplaceAgentRelationships.mockResolvedValue({ status: "updated" });
-    mockedFetchJson.mockResolvedValue({
+    mockedFetchJson.mockImplementation(async (url) => (url === "/api/catalog-categories" ? [
+      { id: "marketing", label: "Marketing" },
+      { id: "sales", label: "Sales" },
+      { id: "other", label: "Other" },
+    ] : {
       provider_options: [
         {
           provider_id: "llmext_acme_llm_deepseek_abc123",
@@ -127,7 +131,7 @@ describe("RegistryAgentsDetailPage", () => {
           { model_id: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
         ],
       },
-    });
+    }));
   });
 
   it.each([[true, "Taip"], [false, "Ne"]])("localizes agent facts without changing the agent identifier when enabled is %s", async (enabled, enabledLabel) => {
@@ -154,13 +158,12 @@ describe("RegistryAgentsDetailPage", () => {
     expect(screen.getByText("user-version_42", { selector: "dd" })).toBeInTheDocument();
   });
 
-  it("localizes the category placeholder without changing the agent's category value", async () => {
-    mockedFetchRegistryDetail.mockResolvedValue({ agent_id: "sample_launch_copywriter", display_name: "Owner agent", enabled: true, category: "owner-category", config: {}, prompts: {}, skills: [], tools: [] } as never);
+  it("localizes the category select and shows the agent's category by its shared label", async () => {
+    mockedFetchRegistryDetail.mockResolvedValue({ agent_id: "sample_launch_copywriter", display_name: "Owner agent", enabled: true, category: "sales", config: {}, prompts: {}, skills: [], tools: [] } as never);
     renderPage("lt");
     await screen.findByText("Owner agent");
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
-    expect(screen.getByLabelText("Kategorija")).toHaveAttribute("placeholder", "Kategorija");
-    expect(screen.getByLabelText("Kategorija")).toHaveValue("owner-category");
+    await waitFor(() => expect(selectedLabel("Kategorija")).toBe("Sales"));
   });
 
   it("persists agent skills through relationship endpoints", async () => {
@@ -628,12 +631,11 @@ describe("RegistryAgentsDetailPage", () => {
     });
   });
 
-  it("persists config category and one canonical agent type field", async () => {
+  it("persists the config category chosen from the shared category list", async () => {
     const agent = {
       agent_id: "sample_launch_copywriter",
       display_name: "Launch Copywriter",
-      category: "marketing",
-      agent_type_key: "copywriter",
+      category: "sales",
       enabled: false,
       config: { timeout_minutes: 12 },
       prompts: {},
@@ -645,8 +647,7 @@ describe("RegistryAgentsDetailPage", () => {
     };
     mockedFetchRegistryDetail.mockImplementation(async () => ({ ...agent }));
     mockedPatchRegistryEntity.mockImplementation(async (_endpoint, _id, patch) => {
-      // API read rows resolve the canonical type key alongside its stored ID.
-      Object.assign(agent, patch, { agent_type_key: patch.agent_type_id });
+      Object.assign(agent, patch);
       return { status: "updated" };
     });
 
@@ -659,15 +660,17 @@ describe("RegistryAgentsDetailPage", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: ` ${configPatchFixture.description} ` },
     });
-    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "quality" } });
-    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "checker" } });
+    expect(screen.queryByLabelText("Type")).not.toBeInTheDocument();
+    await waitFor(() => expect(selectedLabel("Category")).toBe("Sales"));
+    expect(optionLabels("Category")).toEqual(["Marketing", "Sales", "Other"]);
+    chooseOption("Category", "Marketing");
     fireEvent.click(screen.getByRole("button", { name: "Save config" }));
 
     await waitFor(() => expect(mockedPatchRegistryEntity).toHaveBeenCalled());
     const payload = mockedPatchRegistryEntity.mock.calls[0]?.[2];
     // Shared with actual AgentPatch validation, not just a permissive API mock.
     expect(payload).toEqual(configPatchFixture);
-    expect(payload).not.toHaveProperty("agent_type_key");
+    expect(payload).not.toHaveProperty("agent_type_id");
     expect(payload).not.toHaveProperty("builder_metadata_jsonb");
     expect(payload).not.toHaveProperty("enabled");
     expect(payload).not.toHaveProperty("skills");
@@ -684,8 +687,7 @@ describe("RegistryAgentsDetailPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
     expect(screen.getByLabelText("Display Name")).toHaveValue(configPatchFixture.display_name);
     expect(screen.getByLabelText("Description")).toHaveValue(configPatchFixture.description);
-    expect(screen.getByLabelText("Category")).toHaveValue(configPatchFixture.category);
-    expect(screen.getByLabelText("Type")).toHaveValue(configPatchFixture.agent_type_id);
+    await waitFor(() => expect(selectedLabel("Category")).toBe("Marketing"));
   });
 
   it("renders agent I/O rows in a horizontal detail layout", async () => {

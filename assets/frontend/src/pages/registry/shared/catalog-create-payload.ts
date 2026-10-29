@@ -70,7 +70,7 @@ export type CreatePayloadContext = {
   agentModelRoute: string;
   agentModelOptions: AgentModelRoute[];
   agentSystemPrompt: string;
-  agentTypeId: string;
+  category: string;
   createForm: EntityForm;
   endpoint: string;
   guardrailAgentIds: string[];
@@ -80,16 +80,19 @@ export type CreatePayloadContext = {
   guardrailRuleType: string;
   guardrailSeverity: "error" | "warning";
   idKey: string;
-  skillCategory: string;
   skillInstructions: string;
-  toolCategory: string;
   toolImplementationType: string;
   toolPrompt: string;
 };
 
+function requireCategory(value: string, t: I18nContextValue["t"]) {
+  const category = normalizeString(value);
+  if (!category) throw new Error(t("react.registry.category_is_required", "Category is required."));
+  return category;
+}
+
 function buildAgentPayload(basePayload: RegistryEntity, context: CreatePayloadContext, t: I18nContextValue["t"] = fallbackContext.t): RegistryEntity {
-  const resolvedAgentType = normalizeString(context.agentTypeId);
-  if (!resolvedAgentType) throw new Error(t("react.registry.agent_type_is_required", "Agent type is required."));
+  const category = requireCategory(context.category, t);
   const resolvedSystemPrompt = normalizeString(context.agentSystemPrompt);
   if (!resolvedSystemPrompt) throw new Error(t("react.registry.system_prompt_is_required", "System prompt is required."));
   const resolvedAgentId = requireSlugIdentifier(context.createForm.identifier, "Agent ID", t);
@@ -102,7 +105,7 @@ function buildAgentPayload(basePayload: RegistryEntity, context: CreatePayloadCo
     agent_id: resolvedAgentId,
     display_name: normalizeString(context.createForm.display_name) || resolvedAgentId,
     description: normalizeString(context.createForm.description),
-    agent_type_id: resolvedAgentType,
+    category,
     prompts: { system: resolvedSystemPrompt, skill_prompts: {}, context_template: "" },
     skills: [],
     tools: [],
@@ -128,7 +131,7 @@ function buildToolPayload(basePayload: RegistryEntity, context: CreatePayloadCon
     ...basePayload,
     tool_id: resolvedToolId,
     display_name: requireDisplayName(context.createForm.display_name, t),
-    category: normalizeString(context.toolCategory) || "general",
+    category: requireCategory(context.category, t),
     prompt: normalizeString(context.toolPrompt),
     implementation: { type: normalizeString(context.toolImplementationType) || "internal" },
     enabled: Boolean(context.createForm.enabled),
@@ -142,7 +145,7 @@ function buildSkillPayload(basePayload: RegistryEntity, context: CreatePayloadCo
     ...basePayload,
     skill_id: resolvedSkillId,
     display_name: requireDisplayName(context.createForm.display_name, t),
-    category: normalizeString(context.skillCategory) || "analysis",
+    category: requireCategory(context.category, t),
     instructions: parseLines(context.skillInstructions),
     enabled: Boolean(context.createForm.enabled),
     version: normalizeString(basePayload.version) || "1.0.0",

@@ -444,7 +444,7 @@ class WorkflowPortabilityExportMixin:
                         _dependency_option(
                             row,
                             value_keys=("agent_id", "id"),
-                            description_keys=("agent_type_label", "skill_names", "model"),
+                            description_keys=("skill_names", "model"),
                         )
                         for row in agent_rows
                     )

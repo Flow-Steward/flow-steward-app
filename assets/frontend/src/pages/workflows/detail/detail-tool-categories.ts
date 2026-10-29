@@ -11,7 +11,7 @@ export function isToolCategory(value: string): value is ToolCategory {
 export function connectorToolCategory(row: Record<string, unknown>, config: Record<string, unknown> = {}): ToolCategory {
   const id = stringFromUnknownValue(row.connector_id || config.connector_id);
   if (row.source === "extension" || id.startsWith("extension.") || row.extension_id || config.extension_id) return "extension_tools";
-  if (row.source === "mcp_connector" || row.category === "mcp_tool_action" || id.startsWith("connector.mcp.")) return "mcp_tools";
+  if (row.source === "mcp_connector" || id.startsWith("connector.mcp.")) return "mcp_tools";
   return "connector";
 }
 

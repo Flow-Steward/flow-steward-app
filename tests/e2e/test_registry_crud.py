@@ -21,7 +21,7 @@ from tests.e2e.helpers import (
     post_json,
     unique_id,
 )
-from tests.e2e.neutral_registry import NEUTRAL_AGENT_ID, NEUTRAL_AGENT_ROLE_TYPE
+from tests.e2e.neutral_registry import NEUTRAL_AGENT_CATEGORY, NEUTRAL_AGENT_ID
 
 pytestmark = [pytest.mark.e2e]
 
@@ -44,26 +44,12 @@ def registry_available(server_available):
         pytest.skip("Registry admin routes not available")
 
 
-def _discover_agent_type_id() -> str:
-    """Find a valid agent_type_id string from existing agents."""
-    resp = get("/api/agents")
-    if resp.status_code != 200:
-        return NEUTRAL_AGENT_ROLE_TYPE  # sensible default
-    agents = resp.json() if isinstance(resp.json(), list) else resp.json().get("agents", [])
-    for a in agents:
-        type_key = a.get("agent_type_key") or a.get("agent_type_id")
-        if type_key:
-            return str(type_key)
-    return NEUTRAL_AGENT_ROLE_TYPE
-
-
 # ── Agents ───────────────────────────────────────────────────────────────────
 
 
 class TestAgentCRUD:
     def test_agent_crud_lifecycle(self, registry_available):
         agent_id = unique_id("e2e_agent")
-        agent_type = _discover_agent_type_id()
         with E2ECleanup() as cleanup:
             # Create
             create_resp = post_json(
@@ -71,7 +57,7 @@ class TestAgentCRUD:
                 {
                     "agent_id": agent_id,
                     "display_name": f"E2E Agent {agent_id}",
-                    "agent_type_id": agent_type,
+                    "category": NEUTRAL_AGENT_CATEGORY,
                     "description": "Temporary E2E test agent",
                     "enabled": False,
                 },
@@ -138,14 +124,13 @@ class TestAgentCRUD:
     def test_agent_clone(self, registry_available):
         agent_id = unique_id("e2e_clone_src")
         clone_id = unique_id("e2e_clone_dst")
-        agent_type = _discover_agent_type_id()
         with E2ECleanup() as cleanup:
             post_json(
                 "/api/agents",
                 {
                     "agent_id": agent_id,
                     "display_name": "Clone Source",
-                    "agent_type_id": agent_type,
+                    "category": NEUTRAL_AGENT_CATEGORY,
                     "enabled": False,
                 },
             )
@@ -165,14 +150,13 @@ class TestAgentCRUD:
 
     def test_agent_contract_validation(self, registry_available):
         agent_id = unique_id("e2e_validate")
-        agent_type = _discover_agent_type_id()
         with E2ECleanup() as cleanup:
             post_json(
                 "/api/agents",
                 {
                     "agent_id": agent_id,
                     "display_name": "Validation Target",
-                    "agent_type_id": agent_type,
+                    "category": NEUTRAL_AGENT_CATEGORY,
                     "enabled": False,
                 },
             )
@@ -481,7 +465,6 @@ class TestAgentSkillRelationship:
     def test_agent_skill_link_unlink(self, registry_available):
         """Link an existing enabled skill to a new agent, then unlink."""
         agent_id = unique_id("e2e_rel_agent")
-        agent_type = _discover_agent_type_id()
         with E2ECleanup() as cleanup:
             # Create agent
             create_resp = post_json(
@@ -489,7 +472,7 @@ class TestAgentSkillRelationship:
                 {
                     "agent_id": agent_id,
                     "display_name": "Relationship Agent",
-                    "agent_type_id": agent_type,
+                    "category": NEUTRAL_AGENT_CATEGORY,
                     "enabled": True,
                 },
             )

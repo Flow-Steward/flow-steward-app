@@ -85,10 +85,7 @@ def _connector_operations(
 def _operation_display_name(tool: dict[str, Any], func: dict[str, Any], operation_id: str) -> str:
     implementation = _json_object(tool.get("implementation"))
     config = _json_object(tool.get("config"))
-    is_mcp_action = (
-        str(tool.get("category") or "").strip() == "mcp_tool_action"
-        or str(implementation.get("type") or "").strip() == "mcp"
-    )
+    is_mcp_action = str(implementation.get("type") or "").strip() == "mcp"
     return str(
         func.get("display_name")
         or func.get("label")
@@ -245,8 +242,7 @@ def _registry_tool_connector_rows(
     mcp_tool_ids = {
         str(tool.get("tool_id") or "").strip()
         for tool in tools
-        if str(tool.get("category") or "").strip() == "mcp_tool_action"
-        or str(_json_object(tool.get("implementation")).get("type") or "").strip() == "mcp"
+        if str(_json_object(tool.get("implementation")).get("type") or "").strip() == "mcp"
     }
     ready_mcp_tool_ids = _registry_tool_ids_ready_for_account(
         db, mcp_tool_ids, account_id=account_id

@@ -9,7 +9,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from core.application.management import ServiceError, ToolCommandService, ToolQueryService
 from core.application.management.command_models import (
@@ -32,6 +32,7 @@ from core.application.management.query_models import (
     ToolValidationView,
 )
 from core.application.management.scope import ScopeContext, scope_from_principal
+from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.contract_validation import (
     format_validation_error_detail,
     validate_tool_readiness,
@@ -50,7 +51,7 @@ _TOOL_SAVE_REQUEST_EXAMPLE = {
     "display_name": "GitHub Issue Lookup",
     "description": "Fetch issue details by repository and issue number.",
     "enabled": False,
-    "category": "github",
+    "category": "developer-tools",
     "prompt": "Look up the requested issue and summarize its current state.",
     "interface": {
         "function_name": "lookup_issue",
@@ -186,13 +187,18 @@ class ToolSave(BaseModel):
     display_name: str
     description: str = ""
     enabled: bool = False
-    category: str = "general"
+    category: str = ""
     prompt: str = ""
     interface: ToolInterfaceInput = {}
     implementation: dict = {}
     config: dict = {}
     builder_metadata_jsonb: dict = {}
     tags: list[str] = []
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        return catalog_category(v)
 
 
 class ToolPatch(BaseModel):
@@ -206,6 +212,11 @@ class ToolPatch(BaseModel):
     config: dict | None = None
     builder_metadata_jsonb: dict | None = None
     tags: list[str] | None = None
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str | None) -> str | None:
+        return None if v is None else catalog_category(v)
 
 
 class RestoreRevisionRequest(BaseModel):

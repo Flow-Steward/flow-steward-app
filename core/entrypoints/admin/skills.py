@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from core.application.management.command_models import SkillMutationResultView
 from core.application.management.query_models import (
@@ -21,6 +21,7 @@ from core.application.management.query_models import (
 from core.application.registry.active_workflow_dependencies import (
     enabled_workflow_dependencies,
 )
+from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.contract_validation import (
     format_validation_error_detail,
     validate_contract_items,
@@ -50,7 +51,7 @@ _SKILL_SAVE_REQUEST_EXAMPLE = {
     "display_name": "Draft Release Notes",
     "description": "Draft customer-facing release notes from a prepared changelog.",
     "enabled": False,
-    "category": "writing",
+    "category": "marketing",
     "skill_type": "secondary",
     "instructions": ["Summarize the most important user-visible changes first."],
     "prompt_template": "Turn the changelog into release notes.",
@@ -172,7 +173,11 @@ class SkillSave(BaseModel):
     examples: list[dict] = []
     builder_metadata_jsonb: dict = {}
     tags: list[str] = []
-    supported_role_types: list[str] = []
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        return catalog_category(v)
 
 
 class SkillCreate(SkillSave):
@@ -192,7 +197,11 @@ class SkillPatch(BaseModel):
     examples: list[dict] | None = None
     builder_metadata_jsonb: dict | None = None
     tags: list[str] | None = None
-    supported_role_types: list[str] | None = None
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str | None) -> str | None:
+        return None if v is None else catalog_category(v)
 
 
 class InputItem(BaseModel):
@@ -717,7 +726,7 @@ def clone_skill(
         "account_id": scope.account_id,
         "display_name": body.display_name or f"{source.get('display_name', skill_id)} (Copy)",
         "description": source.get("description", ""),
-        "category": source.get("category", "general"),
+        "category": source.get("category"),
         "skill_type": source.get("skill_type", "secondary"),
         "instructions": list(source.get("instructions") or []),
         "prompt_template": str(source.get("prompt_template") or ""),
@@ -727,7 +736,6 @@ def clone_skill(
         "enabled": False,
         "version": source.get("version", "1.0.0"),
         "tags": list(source.get("tags") or []),
-        "supported_role_types": list(source.get("supported_role_types") or []),
     }
     db.save_skill(clone_data, author=scope.actor_name)
     _get_registry().reload_all()

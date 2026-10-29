@@ -6,10 +6,12 @@ import logging
 from copy import deepcopy
 from typing import Any
 
+from core.application.registry.catalog_categories import known_catalog_category
+
 logger = logging.getLogger(__name__)
 
 _STANDARD_TOOLS_MODULE = "core.application.orchestration.tools.standard_tools"
-_STANDARD_TOOL_CATEGORY = "standard_tool_action"
+_STANDARD_TOOL_CATEGORY = "data"
 _CONNECTOR_ONLY_CONFIG = {"agent_exposure": "connector_only"}
 
 
@@ -672,7 +674,7 @@ def _tool_payload(existing: dict[str, Any] | None, desired: dict[str, Any]) -> d
         or desired["tool_id"],
         "description": desired.get("description", ""),
         "enabled": existing.get("enabled", desired.get("enabled", True)),
-        "category": existing.get("category") or desired.get("category", "general"),
+        "category": known_catalog_category(existing.get("category")) or desired["category"],
         "prompt": desired.get("prompt", ""),
         "interface": deepcopy(desired.get("interface", {})),
         "implementation": deepcopy(desired.get("implementation", {})),

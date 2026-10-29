@@ -8103,6 +8103,9 @@ msgstr ""
 msgid "react.registry.catalog_field_variant_b749eaf0"
 msgstr ""
 
+msgid "react.registry.category_is_required"
+msgstr ""
+
 msgid "react.registry.change_entries"
 msgstr ""
 
@@ -10606,6 +10609,9 @@ msgid "react.registry.select_at_least_one_agent"
 msgstr ""
 
 msgid "react.registry.select_at_least_one_resource_before_saving_the_dataset"
+msgstr ""
+
+msgid "react.registry.select_category"
 msgstr ""
 
 msgid "react.registry.select_connector"

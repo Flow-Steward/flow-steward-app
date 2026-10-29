@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from core.application.registry.agent_manifest import refuse_agent_phases
+from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.db_store_agent_contract_mixin import (
     RegistryDBStoreAgentContractMixin,
 )
@@ -106,9 +107,8 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 conditions.append(A_DELETED_AT_IS_NULL_VALUE)
             where_sql = SQL_AND.join(conditions)
             cur.execute(
-                f"""SELECT a.*, at.key AS agent_type_key, at.label AS agent_type_label
+                f"""SELECT a.*
                    FROM registry_agents a
-                   LEFT JOIN agent_types at ON at.id = a.agent_type_id
                    WHERE {where_sql}""",
                 tuple(params),
             )
@@ -158,9 +158,8 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 conditions.append(SQL_AGENT_ENABLED_TRUE)
             where_sql = f"WHERE {SQL_AND.join(conditions)}" if conditions else ""
             cur.execute(
-                f"""SELECT a.*, at.key AS agent_type_key, at.label AS agent_type_label
+                f"""SELECT a.*
                     FROM registry_agents a
-                    LEFT JOIN agent_types at ON at.id = a.agent_type_id
                     {where_sql}
                     ORDER BY a.agent_id"""
             )
@@ -246,8 +245,7 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                         a.display_name,
                         a.enabled,
                         LEFT(COALESCE(a.description, ''), 160) AS description_preview,
-                        at.key AS agent_type_key,
-                        at.label AS agent_type_label,
+                        COALESCE(a.category, '') AS category,
                         COALESCE(a.config->>'model', '') AS model,
                         COALESCE(cap_summary.skill_names, '') AS skill_names,
                         COALESCE(cap_summary.skill_count, 0) AS skill_count,
@@ -261,7 +259,6 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                         {", COALESCE(a.visible_in_catalog, true) AS visible_in_catalog" if has_visible_in_catalog else ""}
                         {builder_select}
                     FROM registry_agents a
-                    LEFT JOIN agent_types at ON at.id = a.agent_type_id
                     LEFT JOIN (
                         SELECT
                             ac.agent_id,
@@ -310,10 +307,6 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
         builder_metadata = normalize_builder_metadata(data.get("builder_metadata_jsonb"))
 
         with self._transaction() as cur:
-            agent_type_id = self._resolve_agent_type_id_cur(
-                cur,
-                {**data, "skills": skills},
-            )
             payload = {
                 "agent_id": agent_id,
                 "version": data.get("version", "1.0.0"),
@@ -327,7 +320,6 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 "outputs": data.get("outputs", []),
                 "depends_on": json.dumps(data.get("depends_on", {"soft": [], "hard": []})),
                 "tags": data.get("tags", []),
-                "agent_type_id": agent_type_id,
                 "builder_metadata_jsonb": json.dumps(builder_metadata),
             }
             columns = [
@@ -343,7 +335,6 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 "outputs",
                 "depends_on",
                 "tags",
-                "agent_type_id",
             ]
             updates = [
                 VERSION_EXCLUDED_VERSION_SQL,
@@ -357,11 +348,10 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 "outputs = EXCLUDED.outputs",
                 "depends_on = EXCLUDED.depends_on",
                 TAGS_EXCLUDED_TAGS_SQL,
-                "agent_type_id = EXCLUDED.agent_type_id",
             ]
             optional_columns = [
                 ("builder_metadata_jsonb", payload.get("builder_metadata_jsonb")),
-                ("category", str(data.get("category") or "").strip()),
+                ("category", catalog_category(data.get("category"))),
                 ("account_id", _system_registry_account_id(data)),
                 ("project_id", str(data.get("project_id") or "").strip() or None),
                 ("scope_kind", str(data.get("scope_kind") or "system").strip() or "system"),

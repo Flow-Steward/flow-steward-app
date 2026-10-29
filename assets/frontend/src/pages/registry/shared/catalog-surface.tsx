@@ -1,11 +1,8 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { RegistryCreateDialog } from "./catalog-create-dialog";
+import { useCatalogCategories } from "./catalog-categories";
 import { buildCreatePayload, cloneIdentifier, cloneBodyKey, renderWhen, renderChoice } from "./catalog-create-payload";
-import {
-  cloneAgentTypeOptions,
-  sourceAgentTypeValue,
-} from "./catalog-clone-agent-type";
 import { useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -141,15 +138,13 @@ export function RegistryCatalogSurface({
   const listHref = useHref(listPath);
   const createModalId = useMemo(() => modalIdForEndpoint(endpoint), [endpoint]);
 
-  const [agentTypeId, setAgentTypeId] = useState("");
+  const [category, setCategory] = useState("");
   const [agentSystemPrompt, setAgentSystemPrompt] = useState("");
   const [agentModelRoute, setAgentModelRoute] = useState("");
 
-  const [toolCategory, setToolCategory] = useState("general");
   const [toolPrompt, setToolPrompt] = useState("");
   const [toolImplementationType, setToolImplementationType] = useState("internal");
 
-  const [skillCategory, setSkillCategory] = useState("analysis");
   const [skillInstructions, setSkillInstructions] = useState("");
 
   const [guardrailMode, setGuardrailMode] = useState<"deterministic" | "semantic">("deterministic");
@@ -166,11 +161,6 @@ export function RegistryCatalogSurface({
     refetchInterval: 20_000,
   });
 
-  const agentTypesQuery = useQuery({
-    queryKey: ["registry", "agent-types"],
-    queryFn: () => fetchRegistryList("/api/agent-types"),
-    enabled: endpoint === "/api/agents" && !effectiveReadOnly,
-  });
   const modelOptionsQuery = useQuery({
     queryKey: ["model-selection", "options"],
     queryFn: () => fetchJson<Record<string, unknown>>("/api/model-selection/options"),
@@ -215,7 +205,11 @@ export function RegistryCatalogSurface({
     [listQuery.data],
   );
 
-  const rows = useMemo(() => buildGridRows(endpoint, idKey, items, t), [endpoint, idKey, items, t]);
+  const categories = useCatalogCategories();
+  const rows = useMemo(
+    () => buildGridRows(endpoint, idKey, items, t, categories.labelOf),
+    [categories.labelOf, endpoint, idKey, items, t],
+  );
   const showsIdentifierField = endpoint !== "/api/guardrails";
   const requiresIdentifier = endpoint === "/api/agents" || endpoint === "/api/tools" || endpoint === "/api/skills";
   const requiresDisplayName = endpoint === "/api/tools" || endpoint === "/api/skills" || endpoint === "/api/guardrails";
@@ -280,13 +274,11 @@ export function RegistryCatalogSurface({
   function resetCreateState() {
     setCreateForm(EMPTY_FORM);
     setCreateError("");
-    setAgentTypeId("");
+    setCategory("");
     setAgentSystemPrompt("");
     setAgentModelRoute("");
-    setToolCategory("general");
     setToolPrompt("");
     setToolImplementationType("internal");
-    setSkillCategory("analysis");
     setSkillInstructions("");
     setGuardrailMode("deterministic");
     setGuardrailRuleType("forbidden_patterns");
@@ -307,36 +299,7 @@ export function RegistryCatalogSurface({
   const [cloneSourceId, setCloneSourceId] = useState("");
   const [cloneId, setCloneId] = useState("");
   const [cloneError, setCloneError] = useState("");
-  const [cloneSourceAgentTypeId, setCloneSourceAgentTypeId] = useState("");
-  const [cloneAgentTypeId, setCloneAgentTypeId] = useState("");
   const rowTriggerLabelRef = useRef("");
-
-  const cloneSourceAgent = items.find(
-    (item) => normalizeString(item[idKey]) === cloneSourceId,
-  );
-  const cloneAgentTypes = useMemo(
-    () => (Array.isArray(agentTypesQuery.data) ? agentTypesQuery.data : []),
-    [agentTypesQuery.data],
-  );
-  const sourceTypeIsRegistered = Boolean(
-    sourceAgentTypeValue(cloneSourceAgent, cloneAgentTypes),
-  );
-  const cloneTypeOptions = cloneAgentTypeOptions(
-    cloneAgentTypes,
-    cloneSourceAgentTypeId,
-    cloneAgentTypeId,
-  );
-
-  useEffect(() => {
-    if (endpoint !== "/api/agents" || !cloneSourceId || cloneSourceAgentTypeId) {
-      return;
-    }
-    const sourceType = sourceAgentTypeValue(cloneSourceAgent, cloneAgentTypes);
-    if (sourceType) {
-      setCloneSourceAgentTypeId(sourceType);
-      setCloneAgentTypeId(sourceType);
-    }
-  }, [cloneAgentTypes, cloneSourceAgent, cloneSourceAgentTypeId, cloneSourceId, endpoint]);
 
   async function submitClone() {
     const sourceId = normalizeString(cloneSourceId);
@@ -345,26 +308,12 @@ export function RegistryCatalogSurface({
     }
     try {
       const nextId = cloneIdentifier(endpoint, cloneId, t);
-      if (endpoint === "/api/agents" && !sourceTypeIsRegistered && !cloneAgentTypeId) {
-        setCloneError(t(
-          "react.registry.clone_agent_type_required",
-          "Select an agent type before cloning this source.",
-        ));
-        return;
-      }
       setCloneError("");
       setMessage("");
       setSaving(true);
-      const typeOverride = endpoint === "/api/agents"
-        && cloneAgentTypeId
-        && cloneAgentTypeId !== cloneSourceAgentTypeId
-        ? cloneAgentTypeId
-        : undefined;
-      await cloneEntity(sourceId, nextId, typeOverride);
+      await cloneEntity(sourceId, nextId);
       setCloneSourceId("");
       setCloneId("");
-      setCloneSourceAgentTypeId("");
-      setCloneAgentTypeId("");
     } catch (error) {
       setCloneError(error instanceof Error ? error.message : t("react.registry.failed_to_clone_entity", "Failed to clone entity."));
     } finally {
@@ -384,15 +333,12 @@ export function RegistryCatalogSurface({
     setCloneSourceId("");
     setCloneId("");
     setCloneError("");
-    setCloneSourceAgentTypeId("");
-    setCloneAgentTypeId("");
     focusRowTrigger();
   }
 
   const cloneEntity = useCallback(async (
     entityId: string,
     nextId: string,
-    agentTypeId?: string,
   ): Promise<void> => {
     const baseId = normalizeString(entityId);
     if (!baseId) {
@@ -403,10 +349,7 @@ export function RegistryCatalogSurface({
       `${endpoint}/${encodeURIComponent(baseId)}/clone`,
       {
         method: "POST",
-        body: JSON.stringify({
-          [resolvedCloneBodyKey]: nextId,
-          ...(endpoint === "/api/agents" && agentTypeId ? { agent_type_id: agentTypeId } : {}),
-        }),
+        body: JSON.stringify({ [resolvedCloneBodyKey]: nextId }),
       },
     );
     const resolvedId = normalizeString(cloneResponse[resolvedCloneBodyKey] || nextId);
@@ -458,12 +401,6 @@ export function RegistryCatalogSurface({
       setCloneSourceId(entityId);
       setCloneId("");
       setCloneError("");
-      const sourceRow = items.find((item) => normalizeString(item[idKey]) === entityId);
-      const sourceType = endpoint === "/api/agents"
-        ? sourceAgentTypeValue(sourceRow, cloneAgentTypes)
-        : "";
-      setCloneSourceAgentTypeId(sourceType);
-      setCloneAgentTypeId(sourceType);
       return;
     }
 
@@ -628,7 +565,7 @@ export function RegistryCatalogSurface({
         agentModelOptions,
         agentModelRoute,
         agentSystemPrompt,
-        agentTypeId,
+        category,
         createForm,
         endpoint,
         guardrailAgentIds,
@@ -638,9 +575,7 @@ export function RegistryCatalogSurface({
         guardrailRuleType,
         guardrailSeverity,
         idKey,
-        skillCategory,
         skillInstructions,
-        toolCategory,
         toolImplementationType,
         toolPrompt,
       }, t);
@@ -813,22 +748,18 @@ export function RegistryCatalogSurface({
             setCreateForm,
             createForm,
             requiresDisplayName,
-            setAgentTypeId,
-            agentTypesQuery,
-            agentTypeId,
+            setCategory,
+            category,
+            categoryOptions: categories.options,
             setAgentSystemPrompt,
             agentSystemPrompt,
             setAgentModelRoute,
             agentModelOptions,
             agentModelRoute,
-            setToolCategory,
-            toolCategory,
             setToolImplementationType,
             toolImplementationType,
             setToolPrompt,
             toolPrompt,
-            setSkillCategory,
-            skillCategory,
             setSkillInstructions,
             skillInstructions,
             setGuardrailMode,
@@ -897,29 +828,6 @@ export function RegistryCatalogSurface({
                 value={cloneId}
               />
             </label>
-            {renderWhen(endpoint === "/api/agents", (
-              <div className="fs-field">
-                <span className="fs-field-label">
-                  {t("react.registry.clone_agent_type", "Agent type for copy")}
-                </span>
-                <DsSelect
-                  ariaLabel={t("react.registry.clone_agent_type", "Agent type for copy")}
-                  onChange={setCloneAgentTypeId}
-                  options={cloneTypeOptions}
-                  placeholder={t("registry.agents.agent_type.select", "Select agent type")}
-                  required
-                  value={cloneAgentTypeId}
-                />
-                {renderWhen(!sourceTypeIsRegistered, (
-                  <p className="fs-field-help">
-                    {t(
-                      "react.registry.clone_agent_type_help",
-                      "The source agent type is missing or isn't in the supported catalog. Choose a type for the copy.",
-                    )}
-                  </p>
-                ))}
-              </div>
-            ))}
             {renderWhen(Boolean(cloneError), <DsAlert title={cloneError} tone="danger" />)}
           </DsDialog>
         ))}

@@ -401,14 +401,9 @@ class RetentionSettingsSaveView(ViewModel):
     settings: dict[str, Any] = Field(default_factory=dict)
 
 
-class AgentTypeView(ViewModel):
-    id: str | None = None
-    key: str | None = None
-    display_name: str | None = None
-    description: str | None = None
-    enabled: bool | None = None
-    skill_count: int | None = None
-    tool_count: int | None = None
+class CatalogCategoryView(ViewModel):
+    id: str
+    label: str
 
 
 class AgentSkillAssignmentView(ViewModel):
@@ -428,9 +423,7 @@ class AgentRecordView(ViewModel):
     display_name: str | None = None
     description: str | None = None
     enabled: bool | None = None
-    agent_type_id: str | None = None
-    agent_type_key: str | None = None
-    role_type: str | None = None
+    category: str | None = None
     base_skill: str | None = None
     secondary_skills: list[str] = Field(default_factory=list)
     local_instructions: list[str] = Field(default_factory=list)
@@ -499,7 +492,6 @@ class SkillRecordView(ViewModel):
     examples: list[dict[str, Any]] = Field(default_factory=list)
     builder_metadata_jsonb: dict[str, Any] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
-    supported_role_types: list[str] = Field(default_factory=list)
 
 
 class SkillsListView(ViewModel):

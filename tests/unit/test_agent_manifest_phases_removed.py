@@ -43,7 +43,7 @@ def test_saving_an_agent_with_phases_is_refused_before_any_write() -> None:
 @pytest.mark.parametrize(
     "model, payload",
     [
-        (AgentSave, {"agent_id": "writer", "display_name": "Writer", "role_type": "writer"}),
+        (AgentSave, {"agent_id": "writer", "display_name": "Writer", "category": "marketing"}),
         (AgentPatch, {"display_name": "Writer"}),
     ],
 )

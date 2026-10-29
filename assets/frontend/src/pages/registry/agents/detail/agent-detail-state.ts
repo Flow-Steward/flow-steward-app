@@ -180,7 +180,6 @@ export function useAgentDetailState() {
     [modelOptionsQuery.data],
   );
   const draftSeed: AgentDraft = {
-    agentType: firstStringFromUnknownValue([entity.agent_type_key, entity.agent_type_id, ""]).trim(),
     baseSkill: persistedBaseSkill,
     category: firstStringFromUnknownValue([entity.category, ""]).trim(),
     compositionRole: builderMetadataDraft.compositionRole,
@@ -256,7 +255,7 @@ export function useAgentDetailState() {
       return left.label.localeCompare(right.label);
     });
 
-  // Four rows, not six. Category and Type were read-only copies of the editable
+  // Four rows, not five. Category was a read-only copy of the editable
   // inputs eight lines above them in the same panel, and a value the user edits
   // here is a form field, not a fact.
   // The base skill's own facts, so they can sit under its own field instead of

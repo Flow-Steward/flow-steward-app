@@ -80,7 +80,7 @@ export function buildGridConfig(
       empty_state: { title: t("react.registry.no_agents_found", "No agents found"), description: t("react.registry.create_one_using_the_button_above", "Create one using the button above.") },
       columns: [
         { key: "display_name", label: t("react.registry.agent", "Agent"), type: "link", link_href: `${nativeListPath}/{agent_id}` },
-        { key: "_type_label", label: t("trash.columns.type", "Type"), type: "text" },
+        { key: "_category", label: t("trash.columns.category", "Category"), type: "badge", width: "130px" },
         { key: "_caps_text", label: t("react.registry.skills", "Skills"), type: "text", truncate: true, truncate_width: "16rem" },
         { key: "_tools_count", label: t("react.registry.tools", "Tools"), type: "text", width: "110px" },
         { key: "_model", label: t("registry.agents.field.model", "Model"), type: "text", width: "160px", truncate: true, truncate_width: "10rem" },

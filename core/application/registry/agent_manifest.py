@@ -59,7 +59,6 @@ class AgentManifest:
     description: str
     enabled: bool
     prompts: AgentPrompts
-    role_type: str  # canonical role taxonomy key
     base_skill: str  # primary skill executor for this agent
     skills: list[str]  # skill_ids this agent can deliver
     tools: list[str]  # tool_ids this agent has access to
@@ -78,9 +77,7 @@ class AgentManifest:
     config: dict = field(default_factory=dict)  # model, max_iterations, timeout, etc.
     quality: dict = field(default_factory=dict)  # retry_on_failure, validation_hook
     builder_metadata: dict = field(default_factory=dict)
-    agent_type_id: str | None = None
-    agent_type_key: str = ""
-    agent_type_label: str = ""
+    category: str = ""
 
     @classmethod
     def from_db_row(cls, row: dict) -> AgentManifest:
@@ -135,7 +132,6 @@ class AgentManifest:
             description=row.get("description", ""),
             enabled=row.get("enabled", True),
             prompts=AgentPrompts.from_dict(prompts_raw),
-            role_type=str(row.get("role_type") or row.get("agent_type_key") or ""),
             base_skill=base_skill,
             secondary_skills=secondary_skills,
             skills=ordered_skill_ids,
@@ -164,13 +160,7 @@ class AgentManifest:
             config=config,
             quality=quality,
             builder_metadata=normalize_builder_metadata(row.get("builder_metadata_jsonb")),
-            agent_type_id=(
-                str(row.get("agent_type_id") or "").strip()
-                if row.get("agent_type_id") is not None
-                else None
-            ),
-            agent_type_key=str(row.get("agent_type_key") or ""),
-            agent_type_label=str(row.get("agent_type_label") or ""),
+            category=str(row.get("category") or ""),
         )
 
     def to_dict(self) -> dict:
@@ -189,7 +179,6 @@ class AgentManifest:
                 "context_sections": self.prompts.context_sections,
                 "examples": self.prompts.examples,
             },
-            "role_type": self.role_type,
             "base_skill": self.base_skill,
             "secondary_skills": self.secondary_skills,
             "skills": self.skills,
@@ -202,9 +191,7 @@ class AgentManifest:
             "config": self.config,
             "quality": self.quality,
             "builder_metadata_jsonb": normalize_builder_metadata(self.builder_metadata),
-            "agent_type_id": self.agent_type_id,
-            "agent_type_key": self.agent_type_key,
-            "agent_type_label": self.agent_type_label,
+            "category": self.category,
         }
 
     def has_skill(self, skill_id: str) -> bool:

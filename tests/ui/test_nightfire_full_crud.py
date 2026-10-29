@@ -838,35 +838,10 @@ class TestNightfireFullCrud:
                 state="visible",
                 timeout=10_000,
             )
-            page.locator("#create-agent-type-id, select[name='agent_type_id']").first.wait_for(
-                state="visible",
-                timeout=10_000,
-            )
-            options = page.locator(
-                "#create-agent-type-id option:not([disabled]), "
-                "select[name='agent_type_id'] option:not([disabled])"
-            )
-            if options.count() < 2:
-                agent_types_resp = requests.get(
-                    f"{base_url}/api/agent-types",
-                    verify=VERIFY_SSL,
-                    timeout=20,
-                )
-                assert agent_types_resp.ok, (
-                    f"Agent types API failed: {agent_types_resp.status_code}"
-                )
-                payload = agent_types_resp.json() or []
-                rows = payload if isinstance(payload, list) else payload.get("agent_types", [])
-                assert isinstance(rows, list), f"Unexpected agent types payload: {payload!r}"
-                assert rows == [] or options.count() >= 2, (
-                    "Agent type records exist, but the create-agent form did not expose them."
-                )
-                return
             page.fill("input[name='agent_id']", agent_id)
             page.fill("input[name='display_name']", f"Nightfire Agent {agent_id}")
-            page.locator("#create-agent-type-id, select[name='agent_type_id']").first.select_option(
-                index=1
-            )
+            page.get_by_role("combobox", name="Category").click()
+            page.get_by_role("option", name="Other").click()
             page.fill(
                 "#create-description, textarea[name='description']",
                 "Nightfire CRUD coverage agent",

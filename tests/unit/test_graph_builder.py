@@ -275,7 +275,7 @@ class TestGraphBuilderDynamicNodes:
                 "display_name": f"Draft summary {suffix}",
                 "description": "Drafts a short summary",
                 "enabled": True,
-                "category": "analysis",
+                "category": "data",
                 "skill_type": "secondary",
                 "instructions": ["Write a concise summary of the topic."],
                 "tags": [],
@@ -305,7 +305,7 @@ class TestGraphBuilderDynamicNodes:
             db.save_agent(
                 {
                     "agent_id": agent_id,
-                    "agent_type_key": "researcher",
+                    "category": "ai",
                     "display_name": f"{name} {suffix}",
                     "description": f"{name} for graph builder tests",
                     "enabled": enabled,

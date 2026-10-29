@@ -6,6 +6,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any
 
+from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.db_store_common import (
     BUILDER_METADATA_JSONB_EXCLUDED_BUILDER_METADATA_SQL,
     BUILDER_METADATA_JSONB_S_VALUE,
@@ -372,7 +373,6 @@ class RegistryDBStoreSkillsMixin:
         input_schema = self._build_contract_schema(expected_inputs)
         output_schema = self._build_contract_schema(expected_outputs)
         has_skill_type = self._column_exists("registry_skills", "skill_type")
-        has_supported_roles = self._column_exists("registry_skills", "supported_role_types")
         has_builder_metadata = self._column_exists("registry_skills", "builder_metadata_jsonb")
         has_deleted_at = self._column_exists("registry_skills", "deleted_at")
         has_deleted_by = self._column_exists("registry_skills", "deleted_by")
@@ -390,7 +390,7 @@ class RegistryDBStoreSkillsMixin:
                 "display_name": data.get("display_name", skill_id),
                 "description": data.get("description", ""),
                 "enabled": data.get("enabled", True),
-                "category": data.get("category", ""),
+                "category": catalog_category(data.get("category")),
                 "instructions": data.get("instructions", []),
                 "prompt_template": data.get("prompt_template", ""),
                 "examples": json.dumps(data.get("examples", [])),
@@ -399,7 +399,6 @@ class RegistryDBStoreSkillsMixin:
                 "output_schema": json.dumps(output_schema),
                 "builder_metadata_jsonb": json.dumps(builder_metadata),
                 "skill_type": str(data.get("skill_type") or "secondary").strip() or "secondary",
-                "supported_role_types": list(data.get("supported_role_types") or []),
             }
             optional_columns = [
                 ("account_id", _system_registry_account_id(data)),
@@ -429,59 +428,7 @@ class RegistryDBStoreSkillsMixin:
             for column_name, column_value in optional_columns:
                 if column_name in optional_column_names:
                     payload[column_name] = column_value
-            if has_skill_type and has_supported_roles:
-                cur.execute(
-                    psycopg_runtime.sql.SQL(
-                        """INSERT INTO registry_skills
-                       (skill_id, version, display_name, description, enabled,
-                        category, instructions, prompt_template, examples, tags, input_schema, output_schema,
-                        skill_type, supported_role_types{builder_column}{optional_columns})
-                       VALUES (%(skill_id)s, %(version)s, %(display_name)s, %(description)s, %(enabled)s,
-                               %(category)s, %(instructions)s, %(prompt_template)s, %(examples)s, %(tags)s, %(input_schema)s, %(output_schema)s,
-                               %(skill_type)s, %(supported_role_types)s{builder_value}{optional_values})
-                       ON CONFLICT (skill_id) DO UPDATE SET
-                           version = EXCLUDED.version,
-                           display_name = EXCLUDED.display_name,
-                           description = EXCLUDED.description,
-                           enabled = EXCLUDED.enabled,
-                           category = EXCLUDED.category,
-                           instructions = EXCLUDED.instructions,
-                           prompt_template = EXCLUDED.prompt_template,
-                           examples = EXCLUDED.examples,
-                           tags = EXCLUDED.tags,
-                           input_schema = EXCLUDED.input_schema,
-                           output_schema = EXCLUDED.output_schema,
-                           skill_type = EXCLUDED.skill_type,
-                           supported_role_types = EXCLUDED.supported_role_types{builder_update}{optional_updates}{clear_deleted_assignments}"""
-                    ).format(
-                        clear_deleted_assignments=clear_deleted_assignments,
-                        builder_column=psycopg_runtime.sql.SQL(BUILDER_METADATA_JSONB_VALUE)
-                        if has_builder_metadata
-                        else psycopg_runtime.sql.SQL(""),
-                        builder_value=psycopg_runtime.sql.SQL(BUILDER_METADATA_JSONB_S_VALUE)
-                        if has_builder_metadata
-                        else psycopg_runtime.sql.SQL(""),
-                        builder_update=psycopg_runtime.sql.SQL(
-                            BUILDER_METADATA_JSONB_EXCLUDED_BUILDER_METADATA_SQL
-                        )
-                        if has_builder_metadata
-                        else psycopg_runtime.sql.SQL(""),
-                        optional_columns=psycopg_runtime.sql.SQL(
-                            "".join(f", {column}" for column in optional_column_names)
-                        ),
-                        optional_values=psycopg_runtime.sql.SQL(
-                            "".join(f", %({column})s" for column in optional_column_names)
-                        ),
-                        optional_updates=psycopg_runtime.sql.SQL(
-                            "".join(
-                                f", {column} = EXCLUDED.{column}"
-                                for column in optional_column_names
-                            )
-                        ),
-                    ),
-                    payload,
-                )
-            elif has_skill_type:
+            if has_skill_type:
                 cur.execute(
                     psycopg_runtime.sql.SQL(
                         """INSERT INTO registry_skills

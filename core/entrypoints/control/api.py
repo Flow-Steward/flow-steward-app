@@ -7,8 +7,8 @@ from fastapi import APIRouter
 
 def create_control_router() -> APIRouter:
     """Create and return the combined control-plane APIRouter."""
-    from core.entrypoints.admin.agents import agent_types_router
     from core.entrypoints.admin.agents import router as agents_router
+    from core.entrypoints.admin.catalog_categories import router as catalog_categories_router
     from core.entrypoints.admin.changelog import router as changelog_router
     from core.entrypoints.admin.data_contracts import router as data_contracts_router
     from core.entrypoints.admin.datasets import router as datasets_router
@@ -27,7 +27,7 @@ def create_control_router() -> APIRouter:
 
     router = APIRouter()
     router.include_router(agents_router)
-    router.include_router(agent_types_router)
+    router.include_router(catalog_categories_router)
     router.include_router(tools_router)
     router.include_router(skills_router)
     router.include_router(workflows_router)

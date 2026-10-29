@@ -6,7 +6,6 @@ from contextlib import contextmanager
 from typing import Any, cast
 
 from core.application.management.mcp_connector_common import (
-    _MCP_PROJECTED_TOOL_CATEGORY,
     _MCP_PROJECTED_TOOL_TAGS,
     MCP_OUTPUT_PROJECTION_CONFIG_KEY,
     _maybe_registry_manager,
@@ -17,6 +16,10 @@ from core.application.management.mcp_connector_common import (
     _projected_tools_for_connector,
     _registry_tool_implementation,
     _tool_parameters_from_schema,
+)
+from core.application.registry.catalog_categories import (
+    DEFAULT_CATALOG_CATEGORY,
+    known_catalog_category,
 )
 from core.infrastructure.db.db_pool import (
     register_transaction_after_commit,
@@ -74,7 +77,7 @@ class McpConnectorProjectionMixin:
             "description": description
             or f"Derived MCP action '{remote_tool_name}' from {connector_display_name or 'the connector'}.",
             "enabled": enabled,
-            "category": _MCP_PROJECTED_TOOL_CATEGORY,
+            "category": DEFAULT_CATALOG_CATEGORY,
             "prompt": "",
             "interface": {
                 "functions": [
@@ -228,14 +231,18 @@ class McpConnectorProjectionMixin:
                 raise ServiceValidationError(
                     f"allowlisted tool '{projected_tool_id}' is not part of the discovered MCP catalog"
                 )
-            db_store.save_tool(
-                self._build_projected_tool_manifest(
-                    connector_row,
-                    tool_definition,
-                    enabled=bool(connector_row.get("enabled", True)),
-                ),
-                author="system",
+            manifest = self._build_projected_tool_manifest(
+                connector_row,
+                tool_definition,
+                enabled=bool(connector_row.get("enabled", True)),
             )
+            # A resync keeps the category someone filed the tool under.
+            filed = known_catalog_category(
+                (db_store.get_tool(projected_tool_id) or {}).get("category")
+            )
+            if filed:
+                manifest["category"] = filed
+            db_store.save_tool(manifest, author="system")
 
         for projected_tool_id in sorted(existing_tools):
             if projected_tool_id in allowlisted_tools:

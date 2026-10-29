@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from core.application.registry.builder_metadata import normalize_builder_metadata
+from core.application.registry.catalog_categories import DEFAULT_CATALOG_CATEGORY
 
 
 @dataclass
@@ -27,7 +28,6 @@ class SkillManifest:
     prompt_template: str = ""
     examples: list[dict] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
-    supported_role_types: list[str] = field(default_factory=list)
     builder_metadata: dict = field(default_factory=dict)
 
     @classmethod
@@ -59,7 +59,7 @@ class SkillManifest:
             display_name=row["display_name"],
             description=row.get("description", ""),
             enabled=row.get("enabled", True),
-            category=row.get("category", "general"),
+            category=str(row.get("category") or DEFAULT_CATALOG_CATEGORY),
             skill_type=str(row.get("skill_type") or "secondary"),
             instructions=list(row.get("instructions") or []),
             prompt_template=str(row.get("prompt_template") or ""),
@@ -69,7 +69,6 @@ class SkillManifest:
             output_schema=dict(row.get("output_schema") or {}),
             examples=list(row.get("examples") or []),
             tags=list(row.get("tags") or []),
-            supported_role_types=list(row.get("supported_role_types") or []),
             builder_metadata=normalize_builder_metadata(row.get("builder_metadata_jsonb")),
         )
 
@@ -90,6 +89,5 @@ class SkillManifest:
             "output_schema": self.output_schema,
             "examples": self.examples,
             "tags": self.tags,
-            "supported_role_types": self.supported_role_types,
             "builder_metadata_jsonb": normalize_builder_metadata(self.builder_metadata),
         }

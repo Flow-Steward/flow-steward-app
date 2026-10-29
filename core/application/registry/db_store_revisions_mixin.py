@@ -2,6 +2,7 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from core.application.registry.catalog_categories import known_catalog_category
 from core.application.workflows import workflow_history_snapshot
 
 from .db_store_common import *  # NOSONAR
@@ -165,8 +166,6 @@ class RegistryDBStoreRevisionsMixin:
             "_tools",
             "_inputs",
             "_outputs",
-            "agent_type_key",
-            "agent_type_label",
         ):
             payload.pop(key, None)
         return payload
@@ -212,6 +211,10 @@ class RegistryDBStoreRevisionsMixin:
         return payload
 
     def _normalize_restore_payload(self, entity_type: str, entity_id: str, snapshot: dict) -> dict:
+        if entity_type in {"agent", "tool", "skill"}:
+            # A revision saved before categories came from the shared list
+            # restores under the default category rather than failing.
+            snapshot = {**snapshot, "category": known_catalog_category(snapshot.get("category"))}
         if entity_type == "agent":
             return self._normalize_agent_restore_payload(entity_id, snapshot)
         if entity_type == "tool":

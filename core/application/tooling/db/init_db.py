@@ -17,6 +17,10 @@ from pathlib import Path
 from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.registry.catalog_categories import (
+    CATALOG_CATEGORY_IDS,
+    DEFAULT_CATALOG_CATEGORY,
+)
 from core.application.tooling.db import migration_runner
 from core.infrastructure.config import runtime_config as core_config
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
@@ -178,24 +182,22 @@ def cleanup_retired_project_schema(*, dsn: str | None = None) -> dict[str, int]:
                 END $$;
                 """
             )
-            cur.execute(
-                """
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1
-                        FROM information_schema.columns
-                        WHERE table_schema = 'public'
-                          AND table_name = 'registry_skills'
-                          AND column_name = 'supported_role_types'
-                    ) THEN
-                        ALTER TABLE ONLY public.registry_skills
-                        ADD COLUMN supported_role_types text[] DEFAULT '{}'::text[] NOT NULL;
-                    END IF;
-                END $$;
-                """
-            )
             cur.execute("ALTER TABLE ONLY public.projects DROP COLUMN IF EXISTS db_type")
+            cur.execute(
+                "ALTER TABLE ONLY public.registry_skills DROP COLUMN IF EXISTS supported_role_types"
+            )
+            cur.execute(
+                "ALTER TABLE ONLY public.registry_agents DROP COLUMN IF EXISTS agent_type_id"
+            )
+            cur.execute("DROP TABLE IF EXISTS public.agent_types")
+            recategorized = 0
+            for table in ("registry_agents", "registry_tools", "registry_skills"):
+                cur.execute(
+                    f"UPDATE public.{table} SET category = %s "  # nosec B608 - fixed table names
+                    "WHERE category IS NULL OR NOT (category = ANY(%s))",
+                    (DEFAULT_CATALOG_CATEGORY, sorted(CATALOG_CATEGORY_IDS)),
+                )
+                recategorized += max(cur.rowcount or 0, 0)
     finally:
         conn.close()
 
@@ -204,13 +206,15 @@ def cleanup_retired_project_schema(*, dsn: str | None = None) -> dict[str, int]:
         "(dropped_db_type=1, "
         "ensured_extension_install_runtime_status=1, "
         "ensured_project_connection_runtime_status=1, "
-        "ensured_skill_supported_role_types=1)"
+        "dropped_agent_types=1, "
+        f"recategorized_registry_rows={recategorized})"
     )
     return {
         "dropped_db_type": 1,
         "ensured_extension_install_runtime_status": 1,
         "ensured_project_connection_runtime_status": 1,
-        "ensured_skill_supported_role_types": 1,
+        "dropped_agent_types": 1,
+        "recategorized_registry_rows": recategorized,
     }
 
 

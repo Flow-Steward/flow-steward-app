@@ -102,13 +102,6 @@ CREATE TRIGGER trg_accounts_updated BEFORE UPDATE ON public.accounts FOR EACH RO
 
 
 --
--- Name: agent_types trg_agent_types_updated; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_agent_types_updated BEFORE UPDATE ON public.agent_types FOR EACH ROW EXECUTE FUNCTION public.registry_update_timestamp();
-
-
---
 -- Name: registry_agents trg_agents_updated; Type: TRIGGER; Schema: public; Owner: -
 --
 

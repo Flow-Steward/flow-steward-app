@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction, SyntheticEvent } from "react";
 import { DsAlert, DsCheckbox, DsDialog, DsSelect } from "@/components/shared/design-system";
 import { AssignmentSelector } from "@/components/shared/assignment-selector";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { normalizeString, objectOrEmpty, type EntityForm, type RegistryEntity } from "./catalog-surface-helpers";
+import type { EntityForm, RegistryEntity } from "./catalog-surface-helpers";
 import { renderWhen, type AgentModelRoute } from "./catalog-create-payload";
 import {
   GuardrailRuleEditor,
@@ -30,22 +30,18 @@ type RegistryCreateDialogProps = {
   setCreateForm: Dispatch<SetStateAction<EntityForm>>;
   createForm: EntityForm;
   requiresDisplayName: boolean;
-  setAgentTypeId: (value: string) => void;
-  agentTypesQuery: { data?: RegistryEntity[] };
-  agentTypeId: string;
+  setCategory: (value: string) => void;
+  category: string;
+  categoryOptions: Array<{ value: string; label: string }>;
   setAgentSystemPrompt: (value: string) => void;
   agentSystemPrompt: string;
   setAgentModelRoute: (value: string) => void;
   agentModelOptions: Array<AgentModelRoute & { label: string; providerLabel: string }>;
   agentModelRoute: string;
-  setToolCategory: (value: string) => void;
-  toolCategory: string;
   setToolImplementationType: (value: string) => void;
   toolImplementationType: string;
   setToolPrompt: (value: string) => void;
   toolPrompt: string;
-  setSkillCategory: (value: string) => void;
-  skillCategory: string;
   setSkillInstructions: (value: string) => void;
   skillInstructions: string;
   setGuardrailMode: (value: "deterministic" | "semantic") => void;
@@ -85,22 +81,18 @@ export function RegistryCreateDialog({
   setCreateForm,
   createForm,
   requiresDisplayName,
-  setAgentTypeId,
-  agentTypesQuery,
-  agentTypeId,
+  setCategory,
+  category,
+  categoryOptions,
   setAgentSystemPrompt,
   agentSystemPrompt,
   setAgentModelRoute,
   agentModelOptions,
   agentModelRoute,
-  setToolCategory,
-  toolCategory,
   setToolImplementationType,
   toolImplementationType,
   setToolPrompt,
   toolPrompt,
-  setSkillCategory,
-  skillCategory,
   setSkillInstructions,
   skillInstructions,
   setGuardrailMode,
@@ -203,29 +195,26 @@ export function RegistryCreateDialog({
                   />
                 </div>
 
+                {renderWhen(["/api/agents", "/api/tools", "/api/skills"].includes(endpoint), (
+                  <div className="fs-field">
+                    <span className="fs-field-label" id="create-category-label">
+                      <span>{t("trash.columns.category", "Category")}</span>
+                      <span aria-hidden="true" className="fs-required">*</span>
+                    </span>
+                    <DsSelect
+                      ariaLabel={t("trash.columns.category", "Category")}
+                      labelledBy="create-category-label"
+                      onChange={setCategory}
+                      options={categoryOptions}
+                      placeholder={t("react.registry.select_category", "Select category")}
+                      required
+                      value={category}
+                    />
+                  </div>
+                ))}
+
                 {renderWhen(endpoint === "/api/agents", (
                   <>
-                    <div className="fs-field">
-                      <span className="fs-field-label">
-                        <span>{t("registry.agents.field.agent_type", "Agent Type")}</span>
-                        <span aria-hidden="true" className="fs-required">*</span>
-                      </span>
-                      <DsSelect
-                        ariaLabel={t("registry.agents.field.agent_type", "Agent Type")}
-                        onChange={setAgentTypeId}
-                        options={(agentTypesQuery.data || []).flatMap((agentType) => {
-                          const row = objectOrEmpty(agentType);
-                          const value = normalizeString(row.key || row.agent_type_id || row.role_type);
-                          if (!value) {
-                            return [];
-                          }
-                          return [{ value, label: normalizeString(row.label || row.display_name || value) }];
-                        })}
-                        placeholder={t("registry.agents.agent_type.select", "Select agent type")}
-                        required
-                        value={agentTypeId}
-                      />
-                    </div>
                     <div className="fs-field">
                       <label className="fs-field-label" htmlFor="create-system-prompt">
                         <span>{t("registry.agents.field.system_prompt", "System Prompt")}</span>
@@ -271,25 +260,14 @@ export function RegistryCreateDialog({
 
                 {renderWhen(endpoint === "/api/tools", (
                   <>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="fs-field">
-                        <span className="fs-field-label">{t("trash.columns.category", "Category")}</span>
-                        <DsSelect
-                          ariaLabel={t("trash.columns.category", "Category")}
-                          onChange={setToolCategory}
-                          options={[{ value: "knowledge", label: t("react.registry.knowledge", "knowledge") }, { value: "code", label: t("react.registry.code", "code") }, { value: "version_control", label: "version_control" }, { value: "testing", label: t("react.registry.testing", "testing") }, { value: "integration", label: t("react.registry.integration", "integration") }, { value: "ui_automation", label: "ui_automation" }, { value: "general", label: t("react.registry.general", "general") }]}
-                          value={toolCategory}
-                        />
-                      </div>
-                      <div className="fs-field">
-                        <span className="fs-field-label">{t("registry.tools.field.implementation", "Implementation")}</span>
-                        <DsSelect
-                          ariaLabel={t("registry.tools.field.implementation", "Implementation")}
-                          onChange={setToolImplementationType}
-                          options={[{ value: "internal", label: t("react.registry.internal", "internal") }, { value: "mcp", label: "mcp" }, { value: "native", label: t("react.registry.native", "native") }]}
-                          value={toolImplementationType}
-                        />
-                      </div>
+                    <div className="fs-field">
+                      <span className="fs-field-label">{t("registry.tools.field.implementation", "Implementation")}</span>
+                      <DsSelect
+                        ariaLabel={t("registry.tools.field.implementation", "Implementation")}
+                        onChange={setToolImplementationType}
+                        options={[{ value: "internal", label: t("react.registry.internal", "internal") }, { value: "mcp", label: "mcp" }, { value: "native", label: t("react.registry.native", "native") }]}
+                        value={toolImplementationType}
+                      />
                     </div>
                     <div className="fs-field">
                       <label className="fs-field-label" htmlFor="create-tool-prompt">
@@ -307,15 +285,6 @@ export function RegistryCreateDialog({
 
                 {renderWhen(endpoint === "/api/skills", (
                   <>
-                    <div className="fs-field">
-                      <span className="fs-field-label">{t("trash.columns.category", "Category")}</span>
-                      <DsSelect
-                        ariaLabel={t("trash.columns.category", "Category")}
-                        onChange={setSkillCategory}
-                        options={[{ value: "analysis", label: t("react.registry.analysis", "analysis") }, { value: "planning", label: t("react.registry.planning", "planning") }, { value: "design", label: t("react.registry.design", "design") }, { value: "development", label: t("react.registry.development", "development") }, { value: "delivery", label: t("react.registry.delivery", "delivery") }, { value: "quality", label: t("react.registry.quality", "quality") }, { value: "review", label: t("react.workflows.review_variant_c97ace4c", "review") }, { value: "knowledge", label: t("react.registry.knowledge", "knowledge") }, { value: "rework", label: t("react.registry.rework", "rework") }, { value: "security", label: t("react.registry.security", "security") }, { value: "documentation", label: t("react.registry.documentation", "documentation") }]}
-                        value={skillCategory}
-                      />
-                    </div>
                     <div className="fs-field">
                       <label className="fs-field-label" htmlFor="create-skill-instructions">
                         {t("registry.skills.field.instructions_short", "Instructions")}</label>

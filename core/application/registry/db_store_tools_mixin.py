@@ -6,6 +6,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
+from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.db_store_common import (
     DELETED_AT_IS_NULL_VALUE,
     DESCRIPTION_EXCLUDED_DESCRIPTION_SQL,
@@ -426,7 +427,7 @@ class RegistryDBStoreToolsMixin:
             "display_name": payload.get("display_name", tool_id),
             "description": payload.get("description", ""),
             "enabled": payload.get("enabled", True),
-            "category": payload.get("category", "general"),
+            "category": catalog_category(payload.get("category")),
             "prompt": payload.get("prompt", ""),
             "interface": json.dumps(payload.get("interface", {})),
             "implementation": json.dumps(payload.get("implementation", {})),

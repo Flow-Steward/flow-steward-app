@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from core.application.registry.builder_metadata import normalize_builder_metadata
+from core.application.registry.catalog_categories import DEFAULT_CATALOG_CATEGORY
 
 _BUILTIN_MCP_CONNECTOR_BY_SERVER: dict[str, str] = {
     "fs": "builtin_fs_mcp",
@@ -310,7 +311,7 @@ class ToolManifest(BaseModel):
     display_name: str
     description: str = ""
     enabled: bool = True
-    category: str = "general"
+    category: str = DEFAULT_CATALOG_CATEGORY
     prompt: str = ""
     interface: ToolInterface = Field(default_factory=ToolInterface)
     implementation: ToolImplementation = Field(default_factory=ToolImplementation)
@@ -375,7 +376,7 @@ class ToolManifest(BaseModel):
             "display_name": row.get("display_name") or row.get("tool_id"),
             "description": row.get("description", ""),
             "enabled": row.get("enabled", True),
-            "category": row.get("category", "general"),
+            "category": row.get("category") or DEFAULT_CATALOG_CATEGORY,
             "prompt": row.get("prompt", ""),
             "interface": interface_raw,
             "implementation": implementation_raw,

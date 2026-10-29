@@ -182,7 +182,7 @@ class TestIDPatternValidation:
             agent_id=agent_id,
             version="1.0.0",
             display_name="Test",
-            agent_type_id="executor",
+            category="operations",
             description="",
             enabled=False,
             prompts={},
@@ -244,51 +244,28 @@ class TestIDPatternValidation:
             self._validate_agent_id("my.agent")
 
 
-class TestAgentTypeIdValidation:
-    """BUG-1: AgentSave.agent_type_id must accept either a slug/key or a UUID.
+class TestAgentCategoryValidation:
+    """An agent's category is one of the shared catalog categories, never free text."""
 
-    GET /api/agents/{id} exposes agent_type_id as the UUID FK, and the registry
-    detail save helper PUTs the whole loaded entity back — so the GET->PUT
-    round-trip sends a hyphenated UUID. The slug-only validator rejected it (422)
-    and broke agent editing from the UI. save_agent's _resolve_agent_type_id_cur
-    already resolves a UUID back to its agent_type, so the validator must allow it.
-    """
-
-    def _validate_agent_type_id(self, agent_type_id: str):
+    def _validate_category(self, category: str):
         from core.entrypoints.admin.agents import AgentSave
 
-        return AgentSave(
-            agent_id="review_agent",
-            display_name="Test",
-            agent_type_id=agent_type_id,
-        )
+        return AgentSave(agent_id="review_agent", display_name="Test", category=category)
 
-    def test_slug_agent_type_id_accepted(self):
-        model = self._validate_agent_type_id("content_author")
-        assert model.agent_type_id == "content_author"
+    def test_shared_category_accepted(self):
+        assert self._validate_category("marketing").category == "marketing"
 
-    def test_uuid_agent_type_id_accepted(self):
-        # The exact failing value from the bug report (a UUID FK).
-        uuid_value = "a44f0703-e8bb-4283-b652-983f6ea9e1df"
-        model = self._validate_agent_type_id(uuid_value)
-        assert model.agent_type_id == uuid_value
+    def test_category_is_normalized(self):
+        assert self._validate_category(" Developer-Tools ").category == "developer-tools"
 
-    def test_uppercase_uuid_agent_type_id_accepted(self):
-        model = self._validate_agent_type_id("A44F0703-E8BB-4283-B652-983F6EA9E1DF")
-        assert model.agent_type_id.lower() == "a44f0703-e8bb-4283-b652-983f6ea9e1df"
+    def test_blank_category_files_under_other(self):
+        assert self._validate_category("").category == "other"
 
-    def test_garbage_agent_type_id_rejected(self):
+    def test_free_text_category_rejected(self):
         from pydantic import ValidationError
 
-        with pytest.raises(ValidationError):
-            self._validate_agent_type_id("not a uuid or slug!")
-
-    def test_hyphenated_non_uuid_agent_type_id_rejected(self):
-        from pydantic import ValidationError
-
-        # Hyphens are only allowed in UUID form, not arbitrary slugs.
-        with pytest.raises(ValidationError):
-            self._validate_agent_type_id("content-author")
+        with pytest.raises(ValidationError, match="category must be one of"):
+            self._validate_category("analysis")
 
 
 # ===========================================================================
@@ -602,7 +579,7 @@ class TestXSSPrevention:
             agent_id="test_xss",
             version="1.0.0",
             display_name='<script>alert("xss")</script>',
-            agent_type_id="executor",
+            category="operations",
             description="",
             enabled=False,
             prompts={},

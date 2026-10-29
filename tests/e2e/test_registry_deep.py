@@ -30,7 +30,7 @@ from tests.e2e.helpers import (
     put_json,
     unique_id,
 )
-from tests.e2e.neutral_registry import NEUTRAL_AGENT_ID, NEUTRAL_AGENT_ROLE_TYPE
+from tests.e2e.neutral_registry import NEUTRAL_AGENT_CATEGORY, NEUTRAL_AGENT_ID
 
 pytestmark = [pytest.mark.e2e]
 
@@ -104,7 +104,7 @@ def registry_entities(server_available):
         {
             "agent_id": a_id,
             "display_name": f"E2E Deep Agent {uid}",
-            "role_type": NEUTRAL_AGENT_ROLE_TYPE,
+            "category": NEUTRAL_AGENT_CATEGORY,
             "enabled": False,
         },
     )
@@ -116,7 +116,7 @@ def registry_entities(server_available):
             {
                 "agent_id": a_id,
                 "display_name": f"E2E Deep Agent {uid} v2",
-                "role_type": NEUTRAL_AGENT_ROLE_TYPE,
+                "category": NEUTRAL_AGENT_CATEGORY,
                 "enabled": False,
                 "description": "e2e-deep-fixture",
             },
@@ -176,7 +176,7 @@ def registry_entities(server_available):
             {
                 "agent_id": created["agent_id"],
                 "display_name": f"E2E Deep Agent {uid} v3",
-                "role_type": NEUTRAL_AGENT_ROLE_TYPE,
+                "category": NEUTRAL_AGENT_CATEGORY,
                 "enabled": True,
                 "skills": [{"skill_id": created["skill_id"]}],
                 "description": "e2e-deep-fixture-skill-link",
@@ -354,19 +354,16 @@ class TestAgentPerformance:
             assert isinstance(data, dict), f"performance body should be a dict: {data}"
 
 
-# ── Agent Types ────────────────────────────────────────────────────────────────
+# ── Catalog categories ───────────────────────────────────────────────────────
 
 
-class TestAgentTypes:
-    def test_agent_types_list(self, server_available):
-        """GET /api/agent-types returns a list of known agent types."""
-        resp = get("/api/agent-types")
-        assert resp.status_code == 200, (
-            f"agent-types returned {resp.status_code} — route mounted in admin/routes/agents.py"
-        )
-        data = resp.json()
-        types = data if isinstance(data, list) else (data or {}).get("agent_types") or []
-        assert isinstance(types, list)
+class TestCatalogCategories:
+    def test_catalog_categories_list(self, server_available):
+        """GET /api/catalog-categories returns the shared category list."""
+        resp = get("/api/catalog-categories")
+        assert resp.status_code == 200, f"catalog-categories returned {resp.status_code}"
+        ids = [row["id"] for row in resp.json()]
+        assert "other" in ids and "marketing" in ids
 
 
 # ── History/Diff for All Entity Types ─────────────────────────────────────────

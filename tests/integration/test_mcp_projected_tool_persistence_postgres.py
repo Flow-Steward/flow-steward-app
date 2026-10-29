@@ -162,7 +162,7 @@ def test_ordinary_project_tool_update_derives_tenant_from_project(disposable_db)
             "display_name": "Ordinary project tool",
             "description": "Before update",
             "enabled": True,
-            "category": "general",
+            "category": "other",
             "prompt": "",
             "interface": {"functions": []},
             "implementation": {"type": "internal"},

@@ -2359,7 +2359,7 @@ class TestDBStoreGuardrails:
             {
                 "agent_id": agent_id,
                 "display_name": "Guardrail Detail Writer",
-                "agent_type_key": "researcher",
+                "category": "ai",
                 "account_id": DEFAULT_ACCOUNT_ID,
             }
         )

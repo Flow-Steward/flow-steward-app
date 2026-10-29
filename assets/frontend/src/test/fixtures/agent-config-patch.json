@@ -1,8 +1,7 @@
 {
   "display_name": "Updated Fixture Agent",
   "description": "Updated description",
-  "category": "quality",
-  "agent_type_id": "checker",
+  "category": "marketing",
   "config": {
     "timeout_minutes": 12,
     "provider": "",

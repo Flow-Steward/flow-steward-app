@@ -37,7 +37,6 @@ export const AGENT_TABS = localizedAGENT_TABS();
 export type AgentTabKey = (typeof AGENT_TABS)[number]["key"];
 
 export type AgentDraft = {
-  agentType: string;
   baseSkill: string;
   category: string;
   compositionRole: string;

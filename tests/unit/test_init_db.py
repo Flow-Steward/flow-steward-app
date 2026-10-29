@@ -165,14 +165,20 @@ def test_cleanup_retired_project_schema_removes_db_type(
     executed_sql = "\n".join(sql for sql, _params in calls)
     assert "DROP COLUMN IF EXISTS db_type" in executed_sql
     assert "ADD COLUMN runtime_status text DEFAULT 'unknown'::text NOT NULL" in executed_sql
-    assert "ADD COLUMN supported_role_types text[] DEFAULT '{}'::text[] NOT NULL" in executed_sql
+    assert "DROP COLUMN IF EXISTS supported_role_types" in executed_sql
+    assert "DROP COLUMN IF EXISTS agent_type_id" in executed_sql
+    assert "DROP TABLE IF EXISTS public.agent_types" in executed_sql
     assert "project_type" not in executed_sql
+    recategorized = [params for sql, params in calls if "SET category" in sql]
+    assert len(recategorized) == 3
+    assert all(params[0] == "other" and "marketing" in params[1] for params in recategorized)
     assert calls[-1] == ("close", None)
     assert summary == {
         "dropped_db_type": 1,
         "ensured_extension_install_runtime_status": 1,
         "ensured_project_connection_runtime_status": 1,
-        "ensured_skill_supported_role_types": 1,
+        "dropped_agent_types": 1,
+        "recategorized_registry_rows": 9,
     }
 
 
@@ -385,7 +391,7 @@ def test_initialize_database_runs_clean_bootstrap_sequence(monkeypatch) -> None:
                 "dropped_db_type": 1,
                 "ensured_extension_install_runtime_status": 1,
                 "ensured_project_connection_runtime_status": 1,
-                "ensured_skill_supported_role_types": 1,
+                "dropped_agent_types": 1,
             }
         ),
     )
@@ -456,7 +462,7 @@ def test_initialize_database_runs_clean_bootstrap_sequence(monkeypatch) -> None:
             "dropped_db_type": 1,
             "ensured_extension_install_runtime_status": 1,
             "ensured_project_connection_runtime_status": 1,
-            "ensured_skill_supported_role_types": 1,
+            "dropped_agent_types": 1,
         },
         "workflow_knowledge_graph": {
             "graph_name": "platform_workflow_graph",

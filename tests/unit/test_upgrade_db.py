@@ -54,7 +54,7 @@ def test_upgrade_database_runs_upgrade_sequence(monkeypatch) -> None:
                 "dropped_db_type": 1,
                 "ensured_extension_install_runtime_status": 1,
                 "ensured_project_connection_runtime_status": 1,
-                "ensured_skill_supported_role_types": 1,
+                "dropped_agent_types": 1,
             }
         ),
     )
@@ -185,7 +185,7 @@ def test_upgrade_database_runs_upgrade_sequence(monkeypatch) -> None:
         "dropped_db_type": 1,
         "ensured_extension_install_runtime_status": 1,
         "ensured_project_connection_runtime_status": 1,
-        "ensured_skill_supported_role_types": 1,
+        "dropped_agent_types": 1,
     }
     assert summary["workflow_knowledge_graph"] == {
         "graph_name": "platform_workflow_graph",
@@ -420,7 +420,7 @@ def test_upgrade_database_aligns_runtime_status_before_seed(monkeypatch) -> None
         return {
             "ensured_extension_install_runtime_status": 1,
             "ensured_project_connection_runtime_status": 1,
-            "ensured_skill_supported_role_types": 1,
+            "dropped_agent_types": 1,
         }
 
     def seed(*, dsn=None, author="system", root=None):
@@ -502,7 +502,7 @@ def test_upgrade_database_aligns_runtime_status_before_seed(monkeypatch) -> None
     assert summary["schema_cleanup"] == {
         "ensured_extension_install_runtime_status": 1,
         "ensured_project_connection_runtime_status": 1,
-        "ensured_skill_supported_role_types": 1,
+        "dropped_agent_types": 1,
     }
 
 

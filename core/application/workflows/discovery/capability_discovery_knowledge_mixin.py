@@ -137,7 +137,7 @@ class CapabilityDiscoveryKnowledgeMixin:
                 "io_field",
                 "step_kind",
                 "phase_category",
-                "agent_type",
+                "agent_category",
                 "skill_category",
                 "tool_category",
             ),

@@ -60,7 +60,7 @@ _ENTITY_KIND_SCORE_MULTIPLIERS = {
     "io_field": 0.76,
     "step_kind": 0.7,
     "phase_category": 0.7,
-    "agent_type": 0.68,
+    "agent_category": 0.68,
     "skill_category": 0.68,
     "tool_category": 0.68,
 }

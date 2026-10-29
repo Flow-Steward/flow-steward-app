@@ -123,6 +123,19 @@ function renderToolCatalog() {
 }
 
 /** Picks a value from the published Select: open the trigger, then the option. */
+const CATALOG_CATEGORIES = [
+  { id: "data", label: "Data" },
+  { id: "marketing", label: "Marketing" },
+  { id: "other", label: "Other" },
+];
+
+/** Answers the shared category list; every other JSON request gets `fallback`. */
+function mockCatalogCategories(fallback: (url: string) => Promise<unknown> = async () => ({})) {
+  mockedFetchJson.mockImplementation(async (url) =>
+    url === "/api/catalog-categories" ? CATALOG_CATEGORIES : fallback(String(url)),
+  );
+}
+
 async function chooseOption(comboboxName: string, optionName: string) {
   fireEvent.click(screen.getByRole("combobox", { name: comboboxName }));
   fireEvent.click(await screen.findByRole("option", { name: optionName }));
@@ -314,59 +327,10 @@ describe("RegistryCatalogSurface", () => {
     expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(false);
   });
 
-  it("requires a registered type when cloning an agent with an unsupported role type", async () => {
-    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
-      if (endpoint === "/api/agents") {
-        return [{ agent_id: "extension.install-1.source_specialist", display_name: "Source specialist", role_type: "source_specialist" }];
-      }
-      if (endpoint === "/api/agent-types") {
-        return [{ key: "researcher", label: "Researcher", enabled: true }];
-      }
-      return [];
-    });
-    mockedFetchJson.mockResolvedValue({ agent_id: "source_specialist_copy" });
-    renderCatalogSurface({
-      createLabel: "Agent",
-      description: "Agent catalog",
-      endpoint: "/api/agents",
-      idKey: "agent_id",
-      listGridId: "agents-grid",
-      listQueryKey: ["registry", "agents"],
-      title: "Agents catalog",
-    });
-
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Actions for extension.install-1.source_specialist" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Clone" }));
-
-    expect(await screen.findByText("The source agent type is missing or isn't in the supported catalog. Choose a type for the copy.")).toBeVisible();
-    await user.type(screen.getByLabelText("New ID"), "source_specialist_copy");
-    await user.click(screen.getByRole("button", { name: "Clone" }));
-    expect(await screen.findByText("Select an agent type before cloning this source.")).toBeVisible();
-    expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(false);
-
-    await chooseOption("Agent type for copy", "Researcher");
-    await user.click(screen.getByRole("button", { name: "Clone" }));
-    await waitFor(() => {
-      expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(true);
-    });
-    const cloneCall = mockedFetchJson.mock.calls.find(([url]) => String(url).includes("/clone"));
-    expect(JSON.parse(String(cloneCall?.[1]?.body))).toEqual({
-      agent_id: "source_specialist_copy",
-      agent_type_id: "researcher",
-    });
-  });
-
-  it("preserves the source type without requiring a clone-time type change", async () => {
-    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
-      if (endpoint === "/api/agents") {
-        return [{ agent_id: "writer", display_name: "Writer", agent_type_key: "researcher" }];
-      }
-      if (endpoint === "/api/agent-types") {
-        return [{ key: "researcher", label: "Researcher", enabled: true }];
-      }
-      return [];
-    });
+  it("clones an agent without asking for an agent type", async () => {
+    mockedFetchRegistryList.mockImplementation(async (endpoint) =>
+      endpoint === "/api/agents" ? [{ agent_id: "writer", display_name: "Writer", category: "marketing" }] : [],
+    );
     mockedFetchJson.mockResolvedValue({ agent_id: "writer_copy" });
     renderCatalogSurface({
       createLabel: "Agent",
@@ -381,6 +345,7 @@ describe("RegistryCatalogSurface", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Actions for writer" }));
     await user.click(await screen.findByRole("menuitem", { name: "Clone" }));
+    expect(screen.queryByRole("combobox", { name: "Agent type for copy" })).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("New ID"), "writer_copy");
     await user.click(screen.getByRole("button", { name: "Clone" }));
 
@@ -469,12 +434,8 @@ describe("RegistryCatalogSurface", () => {
   });
 
   it("shows a field-specific agent id error before submitting malformed ids", async () => {
-    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
-      if (endpoint === "/api/agent-types") {
-        return [{ key: "writer", label: "Writer" }];
-      }
-      return [];
-    });
+    mockedFetchRegistryList.mockResolvedValue([]);
+    mockCatalogCategories();
     renderCatalogSurface({
       createLabel: "Agent",
       description: "Agent catalog",
@@ -490,7 +451,8 @@ describe("RegistryCatalogSurface", () => {
     fireEvent.change(screen.getByLabelText(/^AGENT_ID/), {
       target: { value: "BAD TEST bad id!@#" },
     });
-    await chooseOption("Agent Type", "Writer");
+    expect(screen.queryByRole("combobox", { name: "Agent Type" })).not.toBeInTheDocument();
+    await chooseOption("Category", "Marketing");
     fireEvent.change(screen.getByLabelText(/^System Prompt/), {
       target: { value: "Analyze the request." },
     });
@@ -505,18 +467,16 @@ describe("RegistryCatalogSurface", () => {
   });
 
   it("blocks agent creation and offers retry when model catalog loading fails", async () => {
-    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
-      if (endpoint === "/api/agent-types") {
-        return [{ key: "writer", label: "Writer" }];
-      }
-      return [];
-    });
-    mockedFetchJson
-      .mockRejectedValueOnce(new Error("catalog offline"))
-      .mockResolvedValueOnce({
+    mockedFetchRegistryList.mockResolvedValue([]);
+    let modelCatalogCalls = 0;
+    mockCatalogCategories(async () => {
+      modelCatalogCalls += 1;
+      if (modelCatalogCalls === 1) throw new Error("catalog offline");
+      return {
         provider_models: { openai: [{ model_id: "gpt-5.6-sol", label: "GPT-5.6 Sol" }] },
         provider_options: [{ provider_id: "openai", label: "OpenAI" }],
-      });
+      };
+    });
     renderCatalogSurface({
       createLabel: "Agent",
       description: "Agent catalog",
@@ -543,7 +503,8 @@ describe("RegistryCatalogSurface", () => {
     expect(screen.queryByText("Model catalog is unavailable.")).not.toBeInTheDocument();
   });
 
-  it("requires tool id and display name before creating a tool", async () => {
+  it("requires tool id, display name and category before creating a tool", async () => {
+    mockCatalogCategories();
     renderCatalogSurface({
       createLabel: "Tool",
       description: "Tool catalog",
@@ -582,6 +543,11 @@ describe("RegistryCatalogSurface", () => {
       target: { value: "Review Tool" },
     });
     fireEvent.submit(form);
+    expect(await screen.findAllByText("Category is required.")).not.toHaveLength(0);
+    expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
+
+    await chooseOption("Category", "Data");
+    fireEvent.submit(form);
 
     await waitFor(() => {
       expect(mockedCreateRegistryEntity).toHaveBeenCalledWith(
@@ -589,6 +555,7 @@ describe("RegistryCatalogSurface", () => {
         expect.objectContaining({
           tool_id: "std.review_tool",
           display_name: "Review Tool",
+          category: "data",
         }),
       );
     });

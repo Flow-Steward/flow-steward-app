@@ -460,7 +460,6 @@ CREATE TABLE public.registry_skills (
     output_schema jsonb DEFAULT '{}'::jsonb NOT NULL,
     deleted_at timestamp with time zone,
     skill_type text DEFAULT 'secondary'::text NOT NULL,
-    supported_role_types text[] DEFAULT '{}'::text[] NOT NULL,
     account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid,
     project_id uuid,
     scope_kind text DEFAULT 'system'::text NOT NULL,

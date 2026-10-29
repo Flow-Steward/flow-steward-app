@@ -62,8 +62,8 @@ def step_kind_node_id(step_kind: str) -> str:
     return f"step_kind:{_text(step_kind)}"
 
 
-def agent_type_node_id(agent_type: str) -> str:
-    return f"agent_type:{_text(agent_type)}"
+def agent_category_node_id(category: str) -> str:
+    return f"agent_category:{_text(category)}"
 
 
 def _visible_catalog_row(row: Mapping[str, Any]) -> bool:

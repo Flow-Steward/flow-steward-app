@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+
 from core.application.registry.db_store import RegistryDBStore
 from tests._db_env import resolve_test_db_dsn
 
@@ -19,20 +20,16 @@ def test_guardrail_crud_and_audit_are_account_scoped(pg_conn) -> None:
 
     try:
         with pg_conn.cursor() as cur:
-            cur.execute("SELECT id FROM agent_types ORDER BY id LIMIT 1")
-            agent_type_id = cur.fetchone()[0]
             cur.execute(
                 """INSERT INTO registry_agents
-                   (agent_id, display_name, agent_type_id, account_id)
-                   VALUES (%s, %s, %s, %s), (%s, %s, %s, %s)""",
+                   (agent_id, display_name, account_id)
+                   VALUES (%s, %s, %s), (%s, %s, %s)""",
                 (
                     owner_agent,
                     "Guardrail owner agent",
-                    agent_type_id,
                     owner_account,
                     foreign_agent,
                     "Guardrail foreign agent",
-                    agent_type_id,
                     foreign_account,
                 ),
             )
@@ -159,25 +156,22 @@ def test_guardrail_assignment_requires_durable_same_account_even_for_installed_i
     inserted = [manual, bridge, shared, foreign_agent, deleted]
     try:
         with pg_conn.cursor() as cur:
-            cur.execute("SELECT id FROM agent_types ORDER BY id LIMIT 1")
-            agent_type = cur.fetchone()[0]
             cur.executemany(
                 """INSERT INTO registry_agents
-                   (agent_id, display_name, agent_type_id, account_id, source_install_id, enabled)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                   (agent_id, display_name, account_id, source_install_id, enabled)
+                   VALUES (%s, %s, %s, %s, %s)""",
                 [
-                    (manual, "Guard disabled manual", agent_type, owner, None, False),
+                    (manual, "Guard disabled manual", owner, None, False),
                     (
                         bridge,
                         "Guard installed durable",
-                        agent_type,
                         owner,
                         f"guard_install_{suffix}",
                         True,
                     ),
-                    (shared, "Guard shared", agent_type, None, None, True),
-                    (foreign_agent, "Guard foreign", agent_type, foreign, None, True),
-                    (deleted, "Guard deleted", agent_type, owner, None, True),
+                    (shared, "Guard shared", None, None, True),
+                    (foreign_agent, "Guard foreign", foreign, None, True),
+                    (deleted, "Guard deleted", owner, None, True),
                 ],
             )
             cur.execute(

@@ -21,13 +21,11 @@ def test_relationship_replace_rejects_foreign_account_skills_and_tools(pg_conn) 
     store = RegistryDBStore(resolve_test_db_dsn())
     try:
         with pg_conn.cursor() as cur:
-            cur.execute("SELECT id FROM agent_types ORDER BY id LIMIT 1")
-            agent_type_id = cur.fetchone()[0]
             cur.execute(
                 """INSERT INTO registry_agents
-                   (agent_id, display_name, agent_type_id, account_id)
-                   VALUES (%s, %s, %s, %s)""",
-                (agent_id, "Scope agent", agent_type_id, agent_account),
+                   (agent_id, display_name, account_id)
+                   VALUES (%s, %s, %s)""",
+                (agent_id, "Scope agent", agent_account),
             )
             cur.execute(
                 """INSERT INTO registry_skills (skill_id, display_name, account_id)
@@ -82,13 +80,11 @@ def test_legacy_relationship_writer_waits_for_the_shared_agent_lock(pg_conn) -> 
     store = RegistryDBStore(resolve_test_db_dsn())
     try:
         with pg_conn.cursor() as cur:
-            cur.execute("SELECT id FROM agent_types ORDER BY id LIMIT 1")
-            agent_type_id = cur.fetchone()[0]
             cur.execute(
                 """INSERT INTO registry_agents
-                   (agent_id, display_name, agent_type_id, account_id)
-                   VALUES (%s, %s, %s, %s)""",
-                (agent_id, "Lock agent", agent_type_id, account_id),
+                   (agent_id, display_name, account_id)
+                   VALUES (%s, %s, %s)""",
+                (agent_id, "Lock agent", account_id),
             )
             cur.execute(
                 """INSERT INTO registry_skills (skill_id, display_name, account_id)
@@ -142,13 +138,11 @@ def test_patch_revision_restore_preserves_relationship_added_after_stale_read(pg
     store = RegistryDBStore(resolve_test_db_dsn())
     try:
         with pg_conn.cursor() as cur:
-            cur.execute("SELECT id FROM agent_types ORDER BY id LIMIT 1")
-            agent_type_id = cur.fetchone()[0]
             cur.execute(
                 """INSERT INTO registry_agents
-                   (agent_id, display_name, agent_type_id, account_id)
-                   VALUES (%s, %s, %s, %s)""",
-                (agent_id, "Revision agent", agent_type_id, account_id),
+                   (agent_id, display_name, account_id)
+                   VALUES (%s, %s, %s)""",
+                (agent_id, "Revision agent", account_id),
             )
             cur.executemany(
                 """INSERT INTO registry_skills (skill_id, display_name, account_id)

@@ -459,10 +459,6 @@ export type WorkflowStepContractPreview = {
   skill_id?: string;
   block_key?: string;
   published_block?: Record<string, unknown> | null;
-  role_type?: {
-    key?: string;
-    label?: string;
-  };
   skill?: {
     id?: string;
     label?: string;

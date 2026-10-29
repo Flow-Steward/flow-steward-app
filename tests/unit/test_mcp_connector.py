@@ -5678,7 +5678,7 @@ class TestMcpConnectorCommandService:
                 "display_name": "Other Connector / Catalog Read",
                 "description": "Existing projected tool",
                 "enabled": True,
-                "category": "mcp_tool_action",
+                "category": "other",
                 "prompt": "",
                 "interface": {
                     "functions": [
@@ -6166,7 +6166,7 @@ class TestMcpConnectorCommandService:
                 "display_name": "Flow Steward MCP / Catalog Read",
                 "description": "Projected MCP tool",
                 "enabled": True,
-                "category": "mcp_tool_action",
+                "category": "other",
                 "prompt": "",
                 "interface": {
                     "functions": [
@@ -6333,7 +6333,7 @@ class TestMcpConnectorCommandService:
                     "display_name": tool_id,
                     "description": "Projected MCP tool",
                     "enabled": False,
-                    "category": "mcp_tool_action",
+                    "category": "other",
                     "prompt": "",
                     "interface": {"functions": []},
                     "implementation": {

@@ -713,7 +713,7 @@ _STATIC_ROOT = Path("assets").resolve()
 _AUTH_REGISTRY_READ_PATTERNS = (
     re.compile(r"^/api/changelog(?:/|$)"),
     re.compile(r"^/api/agents(?:/|$)"),
-    re.compile(r"^/api/agent-types(?:/|$)"),
+    re.compile(r"^/api/catalog-categories(?:/|$)"),
     re.compile(r"^/api/tools(?:/|$)"),
     re.compile(r"^/api/skills(?:/|$)"),
     re.compile(r"^/api/workflows(?:/|$)"),

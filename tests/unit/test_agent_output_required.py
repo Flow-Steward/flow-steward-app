@@ -32,8 +32,8 @@ def agent_output_fixture():
     db = RegistryDBStore(dsn)
     with psycopg.connect(dsn, autocommit=True) as conn:
         row = conn.execute(
-            "INSERT INTO registry_agents (agent_id, display_name, enabled, agent_type_id) "
-            "SELECT %s, %s, false, id FROM agent_types WHERE key = 'researcher' RETURNING agent_id",
+            "INSERT INTO registry_agents (agent_id, display_name, enabled) "
+            "VALUES (%s, %s, false) RETURNING agent_id",
             (agent_id, "Audit output fixture"),
         ).fetchone()
         assert row == (agent_id,)

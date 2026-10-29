@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 PRIMITIVE_VALUE_TYPES = {"text", "json", "list", "number", "boolean"}
 STRUCTURED_VALUE_TYPES = {"json", "list"}
-CONNECTOR_PUBLIC_CATEGORIES = {"integrations", "design"}
 
 
 def _normalize_value_type(raw_type: Any) -> str:
@@ -121,12 +120,9 @@ def _extract_workflow_callable_interface(settings: Any, *, steps: Any = None) ->
 
 def _tool_is_connector_candidate(tool: dict[str, Any], interface: dict[str, Any]) -> bool:
     _ = interface
-    category = str(tool.get("category") or "").strip().lower()
     tags = {
         str(tag or "").strip().lower() for tag in (tool.get("tags") or []) if str(tag or "").strip()
     }
-    if category in CONNECTOR_PUBLIC_CATEGORIES:
-        return True
     return bool(tags & {"connector", "integration", "external", "provider"})
 
 

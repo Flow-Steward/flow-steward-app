@@ -8115,6 +8115,9 @@ msgstr "Catalog Field"
 msgid "react.registry.catalog_field_variant_b749eaf0"
 msgstr "Catalog field"
 
+msgid "react.registry.category_is_required"
+msgstr "Category is required."
+
 msgid "react.registry.change_entries"
 msgstr "Change entries"
 
@@ -10714,6 +10717,9 @@ msgstr "Select at least one agent."
 
 msgid "react.registry.select_at_least_one_resource_before_saving_the_dataset"
 msgstr "Select at least one resource before saving the dataset."
+
+msgid "react.registry.select_category"
+msgstr "Select category"
 
 msgid "react.registry.select_connector"
 msgstr "Select connector"

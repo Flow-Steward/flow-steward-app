@@ -489,7 +489,6 @@ class IOResolverPreviewMixin:
             "skill_id": str(step.get("skill_id") or "").strip(),
             "block_key": str(step.get("block_key") or "").strip(),
             "published_block": None,
-            "role_type": None,
             "skill": {
                 "id": str(step.get("skill_id") or "").strip(),
                 "label": "",
@@ -647,7 +646,6 @@ class IOResolverPreviewMixin:
                 }
             )
 
-        agent = self._get_agent(resolved_agent_id) if resolved_agent_id else {}
         skill = self._get_skill(resolved_skill_id) if resolved_skill_id else {}
         return {
             "workflow_id": str((workflow or {}).get("workflow_id") or workflow_id).strip(),
@@ -667,10 +665,6 @@ class IOResolverPreviewMixin:
                 if resolved_block_key
                 else None
             ),
-            "role_type": {
-                "key": str((agent or {}).get("agent_type_key") or "").strip(),
-                "label": str((agent or {}).get("agent_type_label") or "").strip(),
-            },
             "skill": {
                 "id": str((skill or {}).get("skill_id") or resolved_skill_id).strip(),
                 "label": str((skill or {}).get("display_name") or "").strip(),

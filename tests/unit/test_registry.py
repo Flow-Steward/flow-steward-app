@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
 from tests._db_env import dsn_unreachable_reason, resolve_test_db_dsn
 from tests._workflow_definitions import edge, linear_graph, linear_workflow, node
 
@@ -110,7 +111,7 @@ def user_authored_catalog():
             "display_name": f"Draft summary {suffix}",
             "description": "Drafts a short summary",
             "enabled": True,
-            "category": "analysis",
+            "category": "data",
             "instructions": [],
             "tags": [],
             "expected_inputs": [],
@@ -121,7 +122,7 @@ def user_authored_catalog():
     db.save_agent(
         {
             "agent_id": ids.agent_id,
-            "agent_type_key": "researcher",
+            "category": "ai",
             "display_name": f"Writer {suffix}",
             "description": "Writes weekly reports",
             "enabled": True,
@@ -589,7 +590,7 @@ class TestRegistryDatasetColumnCompatibility:
                 "display_name": "Review Summary",
                 "description": "",
                 "enabled": True,
-                "category": "quality",
+                "category": "operations",
                 "instructions": [],
                 "input_schema": {},
                 "output_schema": {},
@@ -692,7 +693,6 @@ class TestRegistryDatasetColumnCompatibility:
             if agent_id == "scout"
             else [{"name": "git_diff", "type": "text"}]
         )
-        db.get_agent.return_value = {"agent_type_key": "composer", "agent_type_label": "Developer"}
         db.get_skill.return_value = {
             "skill_id": "draft_summary",
             "display_name": "Implement Story",
@@ -717,7 +717,7 @@ class TestRegistryDatasetColumnCompatibility:
         assert "nice_to_have" in optional_names
         assert "custom_note" in custom_names
         assert "code_output" in output_names
-        assert preview["role_type"]["key"] == "composer"
+        assert "role_type" not in preview
         assert preview["skill"]["id"] == "draft_summary"
 
     def test_step_contract_preview_ignores_tool_runtime_io_in_builder_contract(self):
@@ -746,7 +746,6 @@ class TestRegistryDatasetColumnCompatibility:
             {"name": "code_output", "type": "text", "required": True}
         ]
         db.get_agent_outputs.return_value = []
-        db.get_agent.return_value = {"agent_type_key": "composer", "agent_type_label": "Developer"}
         db.get_skill.return_value = {
             "skill_id": "draft_summary",
             "display_name": "Implement Story",
@@ -1330,7 +1329,6 @@ class TestRegistryDatasetColumnCompatibility:
                 ],
             }
         }
-        db.get_agent.return_value = {"agent_type_key": "designer", "agent_type_label": "Designer"}
         db.get_skill.return_value = {
             "skill_id": "outline_plan",
             "display_name": "Design Architecture",
@@ -3294,7 +3292,7 @@ class TestPublicContractProjection:
                     "display_name": f"Projection Skill {suffix}",
                     "description": "Projection test skill",
                     "enabled": True,
-                    "category": "analysis",
+                    "category": "data",
                     "instructions": [],
                     "tags": [],
                     "expected_inputs": [
@@ -3325,7 +3323,7 @@ class TestPublicContractProjection:
             db.save_agent(
                 {
                     "agent_id": agent_id,
-                    "agent_type_key": "researcher",
+                    "category": "ai",
                     "display_name": f"Projection Agent {suffix}",
                     "description": "Projection test agent",
                     "enabled": True,
@@ -3410,7 +3408,8 @@ class TestPublicContractProjection:
                 "display_name": "Sample Tasks Sync",
                 "description": "Update Sample Tasks task state",
                 "enabled": True,
-                "category": "integrations",
+                "category": "other",
+                "tags": ["integration"],
                 "interface": {
                     "function_name": "update_task",
                     "parameters": [
@@ -3528,7 +3527,7 @@ class TestPublicContractProjection:
                     "display_name": f"Projection Connector {suffix}",
                     "description": "Projection connector test",
                     "enabled": True,
-                    "category": "integrations",
+                    "category": "other",
                     "prompt": "",
                     "interface": {
                         "function_name": "sync_record",
@@ -3539,7 +3538,7 @@ class TestPublicContractProjection:
                     },
                     "implementation": {},
                     "config": {},
-                    "tags": [],
+                    "tags": ["integration"],
                 },
                 author="test",
             )

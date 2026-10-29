@@ -196,12 +196,6 @@ CREATE TABLE public.workflow_runtime_dependencies (
 
 
 --
--- Name: agent_types id; Type: DEFAULT; Schema: public; Owner: -
---
-
-
-
---
 -- Name: auth_email_change_requests id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -599,22 +593,6 @@ ALTER TABLE ONLY public.workspaces
 
 ALTER TABLE ONLY public.workspaces
     ADD CONSTRAINT workspaces_tenant_account_key_key UNIQUE (tenant_id, account_id, workspace_key);
-
-
---
--- Name: agent_types agent_types_key_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.agent_types
-    ADD CONSTRAINT agent_types_key_key UNIQUE (key);
-
-
---
--- Name: agent_types agent_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.agent_types
-    ADD CONSTRAINT agent_types_pkey PRIMARY KEY (id);
 
 
 --

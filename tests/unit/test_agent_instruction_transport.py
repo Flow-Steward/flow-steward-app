@@ -69,7 +69,7 @@ def authored_runtime(audit_db, monkeypatch):
         {
             "agent_id": agent_id,
             "display_name": "Report writer",
-            "agent_type_key": "researcher",
+            "category": "ai",
             "enabled": True,
             "skills": [skill_id],
             "tools": [],

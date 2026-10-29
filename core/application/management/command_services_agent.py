@@ -11,6 +11,7 @@ from core.application.management.errors import (
     ServiceNotFoundError,
 )
 from core.application.management.scope import ScopeContext
+from core.application.registry.catalog_categories import known_catalog_category
 from core.application.registry.identifier_keys import unique_text_key
 from core.application.registry.projected_artifact_rows import projection_aware_catalog_row
 
@@ -117,73 +118,6 @@ class AgentCommandService:
         return prompts
 
     @staticmethod
-    def _resolve_clone_agent_type(db: Any, source: Mapping[str, Any], override: str | None) -> str:
-        """Preserve a registered source type or require an explicit supported override."""
-        list_types = getattr(db, "list_agent_types", None)
-        if not callable(list_types):
-            all_types: list[dict[str, Any]] = []
-            enabled_types: list[dict[str, Any]] = []
-        else:
-            all_rows = list_types(enabled_only=False)
-            enabled_rows = list_types(enabled_only=True)
-            all_types = (
-                [dict(row) for row in all_rows if isinstance(row, Mapping)]
-                if isinstance(all_rows, list)
-                else []
-            )
-            enabled_types = (
-                [dict(row) for row in enabled_rows if isinstance(row, Mapping)]
-                if isinstance(enabled_rows, list)
-                else []
-            )
-
-        def find_type(value: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
-            candidate = str(value or "").strip()
-            if not candidate:
-                return None
-            return next(
-                (
-                    row
-                    for row in rows
-                    if candidate
-                    in {
-                        str(row.get("id") or "").strip(),
-                        str(row.get("key") or row.get("agent_type_key") or "").strip(),
-                    }
-                ),
-                None,
-            )
-
-        if override:
-            selected = find_type(override, enabled_types)
-            if selected is None:
-                message = "Choose an enabled agent type from the existing catalog for this copy."
-                raise ServiceConflictError(
-                    message,
-                    payload={"error": message, "code": "agent_clone_type_invalid"},
-                )
-        else:
-            source_type = next(
-                (
-                    str(source.get(key) or "").strip()
-                    for key in ("agent_type_key", "agent_type_id", "role_type")
-                    if str(source.get(key) or "").strip()
-                ),
-                "",
-            )
-            selected = find_type(source_type, all_types)
-            if selected is None:
-                message = "Select an existing agent type for the cloned agent."
-                raise ServiceConflictError(
-                    message,
-                    payload={"error": message, "code": "agent_clone_type_required"},
-                )
-
-        return str(
-            selected.get("key") or selected.get("agent_type_key") or selected.get("id") or ""
-        ).strip()
-
-    @staticmethod
     def _own_io_rows(
         db: Any,
         source: Mapping[str, Any],
@@ -232,7 +166,6 @@ class AgentCommandService:
         *,
         target_agent_id: str | None = None,
         display_name: str | None = None,
-        agent_type_id: str | None = None,
         author: str = "admin",
         scope: ScopeContext | None = None,
     ) -> dict[str, Any]:
@@ -338,8 +271,6 @@ class AgentCommandService:
                 },
             )
 
-        resolved_agent_type_id = self._resolve_clone_agent_type(db, source, agent_type_id)
-
         requested_id = str(target_agent_id or f"{source_agent_id}_copy").strip()
         resolved_target_id = unique_text_key(
             requested_id,
@@ -351,7 +282,6 @@ class AgentCommandService:
             "scope_kind": "account",
             "display_name": display_name or f"{source.get('display_name', source_agent_id)} (Copy)",
             "description": source.get("description", ""),
-            "agent_type_id": resolved_agent_type_id,
             "prompts": self._skill_prompts(source, skill_ids),
             "skills": skill_ids,
             "tools": tool_ids,
@@ -363,7 +293,7 @@ class AgentCommandService:
             "config": dict(source.get("config") or {}),
             "quality": dict(source.get("quality") or {}),
             "builder_metadata_jsonb": dict(source.get("builder_metadata_jsonb") or {}),
-            "category": source.get("category", ""),
+            "category": known_catalog_category(source.get("category")),
             "enabled": False,
             "version": source.get("version", "1.0.0"),
             "tags": list(source.get("tags") or []),

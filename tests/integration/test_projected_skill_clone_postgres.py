@@ -12,7 +12,7 @@ from core.application.extensions.extension_runtime import (
 )
 from core.application.extensions.install import DBExtensionInstallStore
 from core.application.extensions.runtime_store_db import DBExtensionRuntimeStore
-from core.application.management.errors import ServiceConflictError, ServiceError
+from core.application.management.errors import ServiceError
 from core.application.management.scope import ScopeContext
 from core.application.registry.db_store import RegistryDBStore
 from core.application.registry.projected_artifact_rows import projection_bridge_id
@@ -85,7 +85,6 @@ def _install_virtual_agent_with_skill(
         "description": "Projected agent with a virtual installed skill.",
         "version": "1.0.0",
         "enabled": True,
-        "agent_type_key": "researcher",
         "prompts": {
             "system": "Use the installed skill.",
             "skill_prompts": {
@@ -243,7 +242,7 @@ def test_clone_materializes_virtual_installed_skill_reference_and_contract(
 
 
 @pytest.mark.integration
-def test_clone_requires_registered_type_for_projected_source_specialist_and_accepts_override(
+def test_clone_files_a_projection_with_a_legacy_category_under_other(
     disposable_db, disposable_db_conn
 ):
     from core.application.management.command_services_agent import AgentCommandService
@@ -261,47 +260,23 @@ def test_clone_requires_registered_type_for_projected_source_specialist_and_acce
             for row in runtime.list_projections(account_id=DEFAULT_ACCOUNT_ID, only_active=True)
             if row.artifact_kind == "agent" and row.artifact_id == agent_local_id
         )
-        unsupported_projection = dict(agent_projection.projection)
-        unsupported_projection.pop("agent_type_key", None)
-        unsupported_projection.pop("agent_type_id", None)
-        unsupported_projection["role_type"] = "source_specialist"
+        legacy_projection = dict(agent_projection.projection)
+        legacy_projection["category"] = "analysis"
         runtime.upsert_projection(
-            agent_projection.model_copy(update={"projection": unsupported_projection})
+            agent_projection.model_copy(update={"projection": legacy_projection})
         )
         clone_service = AgentCommandService(get_db=lambda: store, reload_registry=lambda: None)
-
-        with pytest.raises(ServiceConflictError) as missing_type:
-            clone_service.clone_agent(
-                source_id,
-                target_agent_id=target_id,
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test"),
-            )
-        assert missing_type.value.payload["code"] == "agent_clone_type_required"
-        assert store.get_agent(target_id) is None
-        assert store.get_skill(skill_id) is None
-
-        with pytest.raises(ServiceConflictError) as invalid_type:
-            clone_service.clone_agent(
-                source_id,
-                target_agent_id=target_id,
-                agent_type_id="source_specialist",
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test"),
-            )
-        assert invalid_type.value.payload["code"] == "agent_clone_type_invalid"
-        assert store.get_agent(target_id) is None
-        assert store.get_skill(skill_id) is None
 
         result = clone_service.clone_agent(
             source_id,
             target_agent_id=target_id,
-            agent_type_id="researcher",
             scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test"),
         )
 
         saved = store.get_agent(target_id)
         assert result["agent_id"] == target_id
         assert saved is not None
-        assert saved["agent_type_key"] == "researcher"
+        assert saved["category"] == "other"
         assert saved["enabled"] is False
         assert [row["skill_id"] for row in saved["skills"]] == [skill_id]
         assert store.get_agent_inputs(target_id)[0]["source"] == f"skill:{skill_id}"

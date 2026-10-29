@@ -129,12 +129,6 @@ def _compose_agent_skills(payload: dict) -> list[str]:
 
 def _normalize_agent_payload(payload: dict) -> dict:
     normalized = dict(payload or {})
-    role_type = str(normalized.get("role_type") or "").strip()
-    if role_type:
-        normalized["agent_type_key"] = role_type
-        if not str(normalized.get("agent_type_id") or "").strip():
-            normalized["agent_type_id"] = role_type
-
     skills = _compose_agent_skills(normalized)
     if skills:
         normalized["skills"] = skills

@@ -52,7 +52,7 @@ def test_tool_manifest_normalizes_legacy_type_and_derives_contract_schemas():
             "version": "1.2.3",
             "display_name": "Search Tool",
             "enabled": True,
-            "category": "analysis",
+            "category": "data",
             "prompt": "Use this tool for semantic search.",
             "interface": {
                 "function_name": "search_code",
@@ -172,7 +172,7 @@ def test_registry_db_store_save_tool_persists_canonical_tool_artifact_payload():
             "display_name": "Context Lookup",
             "description": "Lookup external docs",
             "enabled": True,
-            "category": "research",
+            "category": "data",
             "prompt": "Query external knowledge.",
             "interface": {
                 "function_name": "lookup_docs",
@@ -261,7 +261,7 @@ def test_tool_registry_exposes_typed_catalog_entries():
         "display_name": "Search Tool",
         "description": "Search indexed code.",
         "enabled": True,
-        "category": "analysis",
+        "category": "data",
         "prompt": "Search the codebase.",
         "interface": {
             "function_name": "search_code",
@@ -315,7 +315,7 @@ def test_sync_builtin_standard_tools_preserves_config_and_forces_connector_only(
                     "display_name": "Custom Text Tools",
                     "description": "old",
                     "enabled": False,
-                    "category": "custom",
+                    "category": "marketing",
                     "prompt": "old prompt",
                     "interface": {},
                     "implementation": {},
@@ -347,13 +347,15 @@ def test_sync_builtin_standard_tools_preserves_config_and_forces_connector_only(
     assert saved_text["version"] == "9.9.9"
     assert saved_text["display_name"] == "Custom Text Tools"
     assert saved_text["enabled"] is False
-    assert saved_text["category"] == "custom"
+    assert saved_text["category"] == "marketing"
     assert saved_text["config"] == {
         "owner": "ops",
         "agent_exposure": "connector_only",
     }
     assert saved_text["tags"] == ["custom-tag"]
     assert store.saved["std.json"]["config"] == {"agent_exposure": "connector_only"}
+    # A category from before the shared list is replaced by the shipped one.
+    assert store.saved["std.json"]["category"] == "data"
 
 
 def test_sync_builtin_standard_tools_is_idempotent_against_canonical_db_payloads():

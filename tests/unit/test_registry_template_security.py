@@ -32,7 +32,7 @@ def test_agent_update_rejects_forbidden_context_template_path():
     body = {
         "agent_id": "composer",
         "display_name": "Developer",
-        "agent_type_id": "composer",
+        "category": "developer-tools",
         "version": "1.0.0",
         "description": "",
         "enabled": False,

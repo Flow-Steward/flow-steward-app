@@ -260,8 +260,7 @@ class CapabilityDiscoveryCatalogMixin:
                 display_name,
                 row.get("description"),
                 row.get("description_preview"),
-                row.get("role_type"),
-                row.get("agent_type_key"),
+                row.get("category"),
                 row.get("skill_names"),
                 *builder_fields,
             )

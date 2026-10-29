@@ -98,9 +98,6 @@ class _Store(RegistryDBStoreAgentsMixin):
     def _column_exists(self, _table, column):
         return column == "account_id"
 
-    def _resolve_agent_type_id_cur(self, _cur, _data):
-        return "type-1"
-
     def _log_change_cur(self, _cur, _entity_type, _entity_id, _action, snapshot, _author):
         self.logged_snapshot = snapshot
 
@@ -309,7 +306,7 @@ def test_agent_save_persists_category_when_schema_column_is_available():
             "agent_id": "agent-1",
             "display_name": "Agent",
             "account_id": "account-1",
-            "category": "quality",
+            "category": "operations",
         },
         sync_relationships=False,
     )
@@ -318,7 +315,7 @@ def test_agent_save_persists_category_when_schema_column_is_available():
         (sql, params) for sql, params in store.cursor.calls if "INSERT INTO registry_agents" in sql
     )
     assert "category" in insert_sql
-    assert insert_params["category"] == "quality"
+    assert insert_params["category"] == "operations"
 
 
 def test_agent_patch_revision_restores_materialized_post_save_relationships():

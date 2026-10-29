@@ -8242,6 +8242,9 @@ msgstr "Katalogo laukas"
 msgid "react.registry.catalog_field_variant_b749eaf0"
 msgstr "Katalogo laukas"
 
+msgid "react.registry.category_is_required"
+msgstr "Kategorija privaloma."
+
 msgid "react.registry.change_entries"
 msgstr "Pakeitimų įrašai"
 
@@ -10875,6 +10878,9 @@ msgstr "Pasirinkite bent vieną agentą."
 
 msgid "react.registry.select_at_least_one_resource_before_saving_the_dataset"
 msgstr "Prieš išsaugodami duomenų rinkinį pasirinkite bent vieną išteklių."
+
+msgid "react.registry.select_category"
+msgstr "Pasirinkite kategoriją"
 
 msgid "react.registry.select_connector"
 msgstr "Pasirinkite jungtį"

@@ -330,7 +330,7 @@ def run_admin_smoke_scenarios(context: dict[str, Any]) -> None:
             ("validate", "/api/validate"),
             ("graph", "/api/graph"),
             ("runs", "/api/runs"),
-            ("agent-types", "/api/agent-types"),
+            ("catalog-categories", "/api/catalog-categories"),
             ("changelog", "/api/changelog"),
             ("changelog-stats", "/api/changelog/stats"),
         ]:

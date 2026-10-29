@@ -176,7 +176,7 @@ def test_workflow_catalog_groups_projected_mcp_tools_under_one_source() -> None:
             "display_name": "Drive / create_file",
             "description": "Create a file.",
             "enabled": True,
-            "category": "mcp_tool_action",
+            "category": "other",
             "interface": {
                 "functions": [
                     {
@@ -199,7 +199,7 @@ def test_workflow_catalog_groups_projected_mcp_tools_under_one_source() -> None:
             "display_name": "Drive / search_files",
             "description": "Search files.",
             "enabled": True,
-            "category": "mcp_tool_action",
+            "category": "other",
             "interface": {
                 "functions": [
                     {

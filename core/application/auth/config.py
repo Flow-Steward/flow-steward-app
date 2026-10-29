@@ -152,7 +152,7 @@ METRICS_TOKEN = str(_runtime_env.get("FS_METRICS_TOKEN", "") or "").strip()
 AUTH_ADMIN_ONLY_PATTERNS = (
     re.compile(r"^/admin(?:/|$)"),
     re.compile(r"^/api/agents(?:/|$)"),
-    re.compile(r"^/api/agent-types(?:/|$)"),
+    re.compile(r"^/api/catalog-categories(?:/|$)"),
     re.compile(r"^/api/tools(?:/|$)"),
     re.compile(r"^/api/skills(?:/|$)"),
     # NOTE: `/api/workflows` is intentionally NOT admin-only. It is covered by the

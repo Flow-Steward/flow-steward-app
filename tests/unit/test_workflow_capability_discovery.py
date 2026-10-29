@@ -246,7 +246,7 @@ class _FakeWorkflowDB:
                 "description": "Summarize and analyze support tickets.",
                 "enabled": True,
                 "visible_in_catalog": True,
-                "agent_type_key": "reasoning",
+                "category": "ai",
                 "skill_names": "ticket_summary",
                 "builder_metadata_jsonb": {
                     "purpose": "Analyze or review inbound support cases before a human or system action.",
@@ -265,7 +265,7 @@ class _FakeWorkflowDB:
                 "description": "Summarize ticket content into short actionable notes.",
                 "enabled": True,
                 "visible_in_catalog": True,
-                "category": "analysis",
+                "category": "data",
                 "builder_metadata_jsonb": {
                     "purpose": "Extract concise conclusions from support messages.",
                     "use_cases": ["summarization", "triage notes"],
@@ -1124,7 +1124,7 @@ def test_discovery_lexical_agent_and_skill_candidates_include_contract_names(mon
             "description": "Catalog agent that produces launch copy.",
             "enabled": True,
             "visible_in_catalog": True,
-            "agent_type_key": "reasoning",
+            "category": "ai",
             "skill_names": "fixture_write_launch_copy",
             "builder_metadata_jsonb": {
                 "purpose": "Use the launch-copy skill to draft a short marketing message.",
@@ -1504,7 +1504,7 @@ def test_discovery_lexical_candidates_match_builder_metadata_terms():
             "description": "General assistance.",
             "enabled": True,
             "visible_in_catalog": True,
-            "agent_type_key": "reasoning",
+            "category": "ai",
             "skill_names": "",
             "builder_metadata_jsonb": {
                 "purpose": "Review risky billing escalations before a human approval handoff.",

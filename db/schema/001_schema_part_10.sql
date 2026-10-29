@@ -737,14 +737,6 @@ ALTER TABLE ONLY public.registry_agent_tools
 
 
 --
--- Name: registry_agents registry_agents_agent_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.registry_agents
-    ADD CONSTRAINT registry_agents_agent_type_id_fkey FOREIGN KEY (agent_type_id) REFERENCES public.agent_types(id);
-
-
---
 -- Name: registry_fields registry_fields_data_contract_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 

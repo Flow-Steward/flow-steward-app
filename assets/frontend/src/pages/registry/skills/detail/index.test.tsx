@@ -60,14 +60,14 @@ describe("RegistrySkillsDetailPage", () => {
     mockedFetchJson.mockReset();
   });
 
-  it("localizes the skill category placeholder without changing the saved category value", async () => {
-    mockedFetchRegistryDetail.mockResolvedValue({ skill_id: "review_summary", display_name: "Owner skill", enabled: true, category: "owner-category", description: "Owner description", expected_inputs: [], expected_outputs: [], instructions: [] });
+  it("localizes the skill category select and shows the saved category by its shared label", async () => {
+    mockedFetchRegistryDetail.mockResolvedValue({ skill_id: "review_summary", display_name: "Owner skill", enabled: true, category: "sales", description: "Owner description", expected_inputs: [], expected_outputs: [], instructions: [] });
     mockedFetchRegistryList.mockResolvedValue([]);
-    mockedFetchJson.mockResolvedValue([]);
+    mockedFetchJson.mockImplementation(async (url) => (url === "/api/catalog-categories" ? [{ id: "sales", label: "Sales" }, { id: "other", label: "Other" }] : []));
     renderPage("lt");
-    expect(await screen.findByLabelText("Kategorija")).toHaveAttribute("placeholder", "Kategorija");
+    const select = await screen.findByRole("combobox", { name: "Kategorija" });
     await waitFor(() => {
-      expect(screen.getByLabelText("Kategorija")).toHaveValue("owner-category");
+      expect(select).toHaveTextContent("Sales");
       expect(screen.getByDisplayValue("Owner description")).toBeInTheDocument();
     });
   });

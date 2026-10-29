@@ -141,7 +141,17 @@ export function buildPayload(
   return payload;
 }
 
-export function buildGridRows(endpoint: string, idKey: string, items: RegistryEntity[], t: I18nContextValue["t"] = fallbackContext.t): GridEntityRow[] {
+export function buildGridRows(
+  endpoint: string,
+  idKey: string,
+  items: RegistryEntity[],
+  t: I18nContextValue["t"] = fallbackContext.t,
+  categoryLabel: (id: string) => string = (id) => id,
+): GridEntityRow[] {
+  const categoryCell = (item: RegistryEntity) => {
+    const category = normalizeString(item.category);
+    return category ? categoryLabel(category) : "—";
+  };
   if (endpoint === "/api/agents") {
     return items.map((item) => {
       const skills = Array.isArray(item._skills) ? item._skills : [];
@@ -156,8 +166,7 @@ export function buildGridRows(endpoint: string, idKey: string, items: RegistryEn
       return {
         ...item,
         _entity_id: agentId,
-        _type_label:
-          normalizeString(item.agent_type_label || item.agent_type_key || item.agent_type_id) || "untyped",
+        _category: categoryCell(item),
         _caps_text: skillsLabel,
         _tools_count: t("react.registry.display_agent_tool_count", "{count} tools", { count: toolCount }),
         _model: normalizeString(item.model || objectOrEmpty(item.config).model) || "—",
@@ -182,7 +191,7 @@ export function buildGridRows(endpoint: string, idKey: string, items: RegistryEn
         _entity_id: toolId,
         description_short:
           normalizeString(item.description_preview) || firstStringFromUnknownValue([item.description, ""]).slice(0, 80),
-        _category: normalizeString(item.category) || "—",
+        _category: categoryCell(item),
         _impl_type: normalizeString(item.impl_type || implementation.type) || "—",
         _cost_tier: normalizeString(item.cost_tier || config.cost_tier) || "—",
         _availability_reason: availabilityReason,
@@ -205,7 +214,7 @@ export function buildGridRows(endpoint: string, idKey: string, items: RegistryEn
         _entity_id: skillId,
         description_preview:
           normalizeString(item.description_preview) || normalizeString(item.description),
-        _category: normalizeString(item.category) || "general",
+        _category: categoryCell(item),
         _instruction_count: Number(item.instruction_count || instructions.length || 0),
         _contract: "loading",
         _enabled_label: item.enabled ? "enabled" : "disabled",

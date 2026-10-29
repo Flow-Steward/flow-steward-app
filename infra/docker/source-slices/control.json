@@ -255,6 +255,7 @@
     "core/application/registry/builtin_mcp_tools.py",
     "core/application/registry/builtin_standard_tools.py",
     "core/application/registry/builtin_step_kind_profiles.py",
+    "core/application/registry/catalog_categories.py",
     "core/application/registry/contract_item_validation.py",
     "core/application/registry/db_store.py",
     "core/application/registry/db_store_agent_contract_mixin.py",

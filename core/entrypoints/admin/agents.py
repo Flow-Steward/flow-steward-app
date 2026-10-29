@@ -19,7 +19,6 @@ from core.application.management import AgentCommandService
 from core.application.management.command_models import AgentMutationResultView
 from core.application.management.query_models import (
     AgentRecordView,
-    AgentTypeView,
     AgentValidationView,
 )
 from core.application.registry.active_workflow_dependencies import (
@@ -76,14 +75,12 @@ VIOLATES_FOREIGN_KEY_VALUE = "violates foreign key"
 
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
-agent_types_router = APIRouter(prefix="/api", tags=["agents"])
 
 _AGENT_SAVE_REQUEST_EXAMPLE = {
     "agent_id": "release_writer",
     "display_name": "Release Writer",
     "description": "Drafts release notes from validated version inputs.",
-    "agent_type_id": "content_author",
-    "role_type": "content_author",
+    "category": "marketing",
     "enabled": False,
     "prompts": {
         "system": "Write concise release notes for the provided version.",
@@ -217,24 +214,6 @@ def list_agents(
     if usage == "guardrail":
         return guardrail_assignable_catalog_rows(db, rows, account_id=scope.account_id)
     return rows
-
-
-@agent_types_router.get(
-    "/agent-types",
-    response_model=list[AgentTypeView],
-    responses={
-        400: {"description": "Bad request"},
-        403: {"description": "Forbidden"},
-        404: {"description": "Not found"},
-        409: {"description": "Conflict"},
-        500: {"description": "Internal server error"},
-        503: {"description": "Service unavailable"},
-    },
-)
-def list_agent_types(enabled_only: Annotated[bool, Query()] = False):
-    """List available agent types."""
-    db = _get_db()
-    return db.list_agent_types(enabled_only=enabled_only)
 
 
 @router.get(
@@ -476,14 +455,6 @@ def patch_agent(
     merged = {**existing, **updates}
     merged["agent_id"] = agent_id
 
-    if "agent_type_id" in updates:
-        # GET exposes derived type aliases alongside the canonical UUID. An
-        # explicit type edit must not let those stale aliases win when the
-        # store resolves the replacement key.
-        merged.pop("agent_type_key", None)
-        merged.pop("agent_type_label", None)
-        merged.pop("role_type", None)
-
     # Normalize skills/tools: get_agent returns list-of-dicts but
     # save_agent expects list-of-IDs.
     if merged.get("skills") and isinstance(merged["skills"][0], dict):
@@ -671,7 +642,6 @@ __all__ = [
     "_reject_standard_tool_actions_for_agent",
     "_validate_agent_context_template",
     "_validate_agent_provider_model",
-    "agent_types_router",
     "list_agents",
     "router",
     "validate_agent_skill_compatibility",

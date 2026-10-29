@@ -87,7 +87,6 @@ def _build_tool_provider_manifest(binding: dict, spec: dict):
             "display_name": tool_name,
             "description": description,
             "enabled": True,
-            "category": "integrations",
             "interface": {
                 "function_name": tool_name,
                 "parameters": [

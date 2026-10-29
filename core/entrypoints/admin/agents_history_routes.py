@@ -84,7 +84,6 @@ def register_agent_history_routes(
                 source_agent_id=agent_id,
                 target_agent_id=body.agent_id,
                 display_name=body.display_name,
-                agent_type_id=body.agent_type_id,
                 author=scope.actor_name,
                 scope=scope,
             )

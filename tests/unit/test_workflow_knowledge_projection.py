@@ -150,7 +150,7 @@ def test_build_workflow_knowledge_projection_normalizes_workflow_graph(monkeypat
         "display_name": "Weather Researcher",
         "description": "Analyzes weather inputs and writes a short brief.",
         "enabled": True,
-        "agent_type_key": "scout",
+        "category": "data",
         "model": "gpt-5.5",
         "_inputs": [
             {
@@ -175,7 +175,7 @@ def test_build_workflow_knowledge_projection_normalizes_workflow_graph(monkeypat
             "display_name": "Weather Researcher",
             "description": "Analyzes weather inputs and writes a short brief.",
             "enabled": True,
-            "agent_type_key": "scout",
+            "category": "data",
             "model": "gpt-5.5",
             "builder_metadata_jsonb": {
                 "purpose": "Review and summarize weather payloads.",
@@ -311,7 +311,7 @@ def test_build_workflow_knowledge_projection_normalizes_workflow_graph(monkeypat
     assert "reaction:weather_brief:on_timeout" in node_ids
     assert "step_kind:agent" in node_ids
     assert not any(node_id.startswith(("phase:", "phase_category:")) for node_id in node_ids)
-    assert "agent_type:scout" in node_ids
+    assert "agent_category:data" in node_ids
     assert "skill_category:weather" in node_ids
     assert "io_field:city" in node_ids
     assert "io_field:weather_brief" in node_ids
@@ -322,7 +322,7 @@ def test_build_workflow_knowledge_projection_normalizes_workflow_graph(monkeypat
     assert "uses_skill" in edge_kinds
     assert "has_reaction" in edge_kinds
     assert "classifies_step_kind" in edge_kinds
-    assert "classifies_agent_type" in edge_kinds
+    assert "classifies_agent_category" in edge_kinds
     assert "agent_has_skill" in edge_kinds
     assert "consumes_input" in edge_kinds
     assert "produces_output" in edge_kinds
@@ -408,7 +408,7 @@ def test_build_workflow_catalog_projection_merges_workflows_and_capabilities(mon
             "display_name": "City Editor",
             "description": "Edits city summaries.",
             "enabled": True,
-            "agent_type_key": "editor",
+            "category": "data",
             "model": "gpt-5.5-mini",
         }
     ]
@@ -644,13 +644,13 @@ def test_build_workflow_catalog_projection_skips_explicitly_hidden_and_disabled_
             "agent_id": "visible_agent",
             "display_name": "Visible Agent",
             "enabled": True,
-            "agent_type_key": "scout",
+            "category": "data",
         },
         {
             "agent_id": "e2e_hidden_agent",
             "display_name": "Hidden Agent",
             "enabled": False,
-            "agent_type_key": "scout",
+            "category": "data",
         },
     ]
     db.agents["visible_agent"] = {

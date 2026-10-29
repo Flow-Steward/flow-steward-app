@@ -6,6 +6,7 @@ import { buildAgentConfigPayload, compatibleModelOptionsForProvider } from "./ag
 import { providerOptionLabel } from "@/lib/utils/provider-options";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
+import { useCatalogCategories } from "@/pages/registry/shared/catalog-categories";
 import { renderWhen } from "./agent-detail-page-helpers";
 import { type useAgentDetailState } from "./agent-detail-state";
 
@@ -50,6 +51,7 @@ export function AgentConfigPanel({
   setSaveStatus,
 }: Readonly<AgentConfigPanelProps>) {
   const { t } = useI18n();
+  const categories = useCatalogCategories();
   return (
     <div className="fs-panel-group">
       <div className="fs-panel-heading">
@@ -86,29 +88,16 @@ export function AgentConfigPanel({
       </div>
       <div className="fs-form-grid">
         <div className="fs-field">
-          <label className="fs-field-label" htmlFor="agent-category">
-            {t("trash.columns.category", "Category")}</label>
-          <input
-            className="fs-input"
+          <span className="fs-field-label" id="agent-category-label">
+            {t("trash.columns.category", "Category")}</span>
+          <DsSelect
+            ariaLabel={t("trash.columns.category", "Category")}
             id="agent-category"
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, category: event.target.value }))
-            }
-            placeholder={t("trash.columns.category", "Category")}
+            labelledBy="agent-category-label"
+            onChange={(category) => setDraft((current) => ({ ...current, category }))}
+            options={categories.options}
+            placeholder={t("react.registry.select_category", "Select category")}
             value={draft.category}
-          />
-        </div>
-        <div className="fs-field">
-          <label className="fs-field-label" htmlFor="agent-type">
-            {t("trash.columns.type", "Type")}</label>
-          <input
-            className="fs-input"
-            id="agent-type"
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, agentType: event.target.value }))
-            }
-            placeholder={t("react.registry.agent_type", "agent type")}
-            value={draft.agentType}
           />
         </div>
         <div className="fs-field">
@@ -216,8 +205,7 @@ export function AgentConfigPanel({
             ignoreAsyncResult(saveEntityPatch({
               display_name: draft.displayName.trim(),
               description: draft.description.trim(),
-              category: draft.category.trim(),
-              agent_type_id: draft.agentType.trim(),
+              category: draft.category,
               config: buildAgentConfigPayload(
                 agentConfig,
                 draft.provider,

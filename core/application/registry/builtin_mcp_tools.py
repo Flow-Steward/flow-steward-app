@@ -6,6 +6,7 @@ import logging
 from copy import deepcopy
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.registry.catalog_categories import known_catalog_category
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def _legacy_kb_write_manifest() -> dict:
         "display_name": "Knowledge Base Write",
         "description": "Persist learnings and delivery knowledge entries.",
         "enabled": True,
-        "category": "knowledge",
+        "category": "documents",
         "prompt": "Write concise reusable knowledge back to the project KB.",
         "interface": {"functions": []},
         "implementation": {"type": "internal"},
@@ -47,7 +48,7 @@ def _workflow_ops_manifest() -> dict:
         "display_name": "Workflow Ops",
         "description": "Workflow discovery, validation, triggering, result, and control tools.",
         "enabled": True,
-        "category": "workflow",
+        "category": "operations",
         "prompt": (
             "Use project_list to discover projects, project_jobs to inspect recent activity, workflow_list "
             "to discover workflows in the selected project, "
@@ -225,7 +226,7 @@ def _tool_payload(existing: dict | None, desired: dict) -> dict:
         or desired["tool_id"],
         "description": desired.get("description", ""),
         "enabled": existing.get("enabled", desired.get("enabled", True)),
-        "category": existing.get("category") or desired.get("category", "general"),
+        "category": known_catalog_category(existing.get("category")) or desired["category"],
         "prompt": desired.get("prompt", ""),
         "interface": deepcopy(desired.get("interface", {})),
         "implementation": deepcopy(desired.get("implementation", {})),

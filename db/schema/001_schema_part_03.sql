@@ -558,7 +558,6 @@ CREATE TABLE public.registry_agents (
     tags text[] DEFAULT '{}'::text[] NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    agent_type_id uuid DEFAULT gen_random_uuid() NOT NULL,
     deleted_at timestamp with time zone,
     account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid,
     project_id uuid,

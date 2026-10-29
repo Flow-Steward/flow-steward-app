@@ -45,9 +45,6 @@ _MCP_CONNECTOR_MUTATION_PRINCIPAL_TYPES = {
 _MCP_CONNECTOR_SYNC_STATUS_VALUES = {"never", "success", "failed"}
 
 
-_MCP_PROJECTED_TOOL_CATEGORY = "mcp_tool_action"
-
-
 _MCP_PROJECTED_TOOL_TAGS = ["mcp", "derived"]
 
 

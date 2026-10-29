@@ -12,8 +12,8 @@ from core.application.workflows.knowledge_projection_common import (
     _summary_rows,
     _text,
     _visible_catalog_row,
+    agent_category_node_id,
     agent_node_id,
-    agent_type_node_id,
     group_node_id,
     io_field_node_id,
     reaction_node_id,
@@ -653,9 +653,7 @@ class _WorkflowKnowledgeProjectionBuilder:
         builder_summary = builder_metadata_summary(
             (summary_row or {}).get("builder_metadata_jsonb")
         )
-        agent_type = (
-            _text((summary_row or {}).get("agent_type_key") or "unspecified") or "unspecified"
-        )
+        category = _text((summary_row or {}).get("category") or "unspecified") or "unspecified"
         model = _text((summary_row or {}).get("model"))
         input_rows = _normalize_contract_rows(
             (row or {}).get("_inputs")
@@ -679,7 +677,7 @@ class _WorkflowKnowledgeProjectionBuilder:
                     f"Agent ID: {agent_id}",
                     f"Description: {description}" if description else "",
                     f"Builder guidance: {builder_summary}" if builder_summary else "",
-                    f"Agent type: {agent_type}",
+                    f"Category: {category}",
                     f"Model: {model}" if model else "",
                     f"Expected inputs: {', '.join(_field_names(input_rows))}" if input_rows else "",
                     f"Expected outputs: {', '.join(_field_names(output_rows))}"
@@ -690,7 +688,7 @@ class _WorkflowKnowledgeProjectionBuilder:
             ),
             metadata={
                 "agent_id": agent_id,
-                "agent_type": agent_type,
+                "category": category,
                 "model": model,
                 "enabled": bool((summary_row or {}).get("enabled", True)),
                 "visible_in_catalog": (summary_row or {}).get("visible_in_catalog", True)
@@ -706,19 +704,19 @@ class _WorkflowKnowledgeProjectionBuilder:
         self._add_node_with_document(node)
         self._link_contract_fields(source_node=node, fields=input_rows, direction="input")
         self._link_contract_fields(source_node=node, fields=output_rows, direction="output")
-        type_node = WorkflowKnowledgeNode(
-            id=agent_type_node_id(agent_type),
-            kind="agent_type",
-            label=agent_type,
-            metadata={"agent_type": agent_type},
+        category_node = WorkflowKnowledgeNode(
+            id=agent_category_node_id(category),
+            kind="agent_category",
+            label=category,
+            metadata={"category": category},
         )
-        self._projection.add_node(type_node)
+        self._projection.add_node(category_node)
         self._projection.add_edge(
             WorkflowKnowledgeEdge(
-                id=f"agent_type:{agent_id}:{agent_type}",
-                kind="classifies_agent_type",
+                id=f"agent_category:{agent_id}:{category}",
+                kind="classifies_agent_category",
                 source_id=node.id,
-                target_id=type_node.id,
+                target_id=category_node.id,
             )
         )
         for skill_row in _as_list(

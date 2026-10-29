@@ -625,8 +625,6 @@ def _dependency_option(
     metadata = {
         key: _redact_sensitive(row.get(key), key=key)
         for key in (
-            "agent_type_key",
-            "agent_type_label",
             "category",
             "model",
             "skill_count",

@@ -368,11 +368,6 @@ class WorkflowEditorPublishedBlockView(ViewModel):
     source_ref: str = ""
 
 
-class WorkflowEditorRoleTypeView(ViewModel):
-    key: str = ""
-    label: str = ""
-
-
 class WorkflowEditorSkillRefView(ViewModel):
     id: str = ""
     label: str = ""
@@ -409,7 +404,6 @@ class WorkflowEditorStepContractPreviewView(ViewModel):
                 "agent_id": "release_writer",
                 "skill_id": "draft_release_notes",
                 "published_block": None,
-                "role_type": {"key": "writer", "label": "Writer"},
                 "skill": {"id": "draft_release_notes", "label": DRAFT_RELEASE_NOTES_VALUE},
                 "locked_required": [
                     {
@@ -448,7 +442,6 @@ class WorkflowEditorStepContractPreviewView(ViewModel):
     skill_id: str = ""
     block_key: str = ""
     published_block: WorkflowEditorPublishedBlockView | None = None
-    role_type: WorkflowEditorRoleTypeView | None = None
     skill: WorkflowEditorSkillRefView = Field(default_factory=WorkflowEditorSkillRefView)
     locked_required: list[WorkflowEditorContractInputView] = Field(default_factory=list)
     unresolved_required: list[WorkflowEditorContractInputView] = Field(default_factory=list)

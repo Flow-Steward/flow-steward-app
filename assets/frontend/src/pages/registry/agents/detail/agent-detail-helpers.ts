@@ -21,7 +21,7 @@ export function registryOptionLabel(row: Record<string, unknown>, id: string): s
 }
 
 export function isStandardToolAction(row: Record<string, unknown>, id: string): boolean {
-  const source = firstStringFromUnknownValue([row.source, row.category, ""]).trim().toLowerCase();
+  const source = firstStringFromUnknownValue([row.source, ""]).trim().toLowerCase();
   return id.startsWith("std.") || source === "standard_tool_action";
 }
 

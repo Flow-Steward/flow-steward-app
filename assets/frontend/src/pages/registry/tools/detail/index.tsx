@@ -6,11 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router";
 
-import { DsAlert, DsCard, DsPageHeader, DsTabs, PageContainer } from "@/components/shared/design-system";
+import { DsAlert, DsCard, DsPageHeader, DsSelect, DsTabs, PageContainer } from "@/components/shared/design-system";
 import { fetchJson } from "@/lib/http/client";
 import { isHttpError } from "@/lib/http/errors";
 import { useKeyedState } from "@/lib/react/useKeyedState";
 import { BuilderMetadataEditor } from "@/pages/registry/shared/builder-metadata-editor";
+import { useCatalogCategories } from "@/pages/registry/shared/catalog-categories";
 import {
   builderMetadataDraftFromUnknown,
   builderMetadataPayload,
@@ -476,6 +477,7 @@ function ToolConfigPanel({
   setSaveStatus: (status: string) => void;
 }>) {
   const { t } = useI18n();
+  const categories = useCatalogCategories();
   return (
     <div className="fs-panel-group">
       <div className="fs-panel-heading"><div><h2 className="fs-panel-title">{t("react.registry.tool_config", "Tool Config")}</h2></div></div>
@@ -485,8 +487,16 @@ function ToolConfigPanel({
           <input className="fs-input" id="tool-display-name" name="display_name" onChange={(event) => setDraft((current) => ({ ...current, displayName: event.target.value }))} placeholder={t("react.registry.display_name", "Display name")} type="text" value={draft.displayName} />
         </div>
         <div className="fs-field">
-          <label className="fs-field-label" htmlFor="tool-category">{t("trash.columns.category", "Category")}</label>
-          <input className="fs-input" id="tool-category" name="category" onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))} placeholder={t("trash.columns.category", "Category")} type="text" value={draft.category} />
+          <span className="fs-field-label" id="tool-category-label">{t("trash.columns.category", "Category")}</span>
+          <DsSelect
+            ariaLabel={t("trash.columns.category", "Category")}
+            id="tool-category"
+            labelledBy="tool-category-label"
+            onChange={(category) => setDraft((current) => ({ ...current, category }))}
+            options={categories.options}
+            placeholder={t("react.registry.select_category", "Select category")}
+            value={draft.category}
+          />
         </div>
         <div className="fs-field full">
           <label className="fs-field-label" htmlFor="tool-description">{t("registry.workflows.simulation.description", "Description")}</label>
@@ -506,7 +516,7 @@ function ToolConfigPanel({
         </details>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <button className="fs-button primary" disabled={saving} onClick={() => ignoreAsyncResult(onSave({ display_name: draft.displayName.trim(), name: draft.displayName.trim(), category: draft.category.trim(), description: draft.description.trim() }))} type="button">{t("settings.extensions.save_config", "Save Config")}</button>
+        <button className="fs-button primary" disabled={saving} onClick={() => ignoreAsyncResult(onSave({ display_name: draft.displayName.trim(), name: draft.displayName.trim(), category: draft.category, description: draft.description.trim() }))} type="button">{t("settings.extensions.save_config", "Save Config")}</button>
         <button className="fs-button" onClick={() => { setDraft(draftSeed); setSaveStatus(""); }} type="button">{t("trash.reset", "Reset")}</button>
       </div>
     </div>

@@ -62,7 +62,7 @@ def _manifest(tool_id: str, connector_id: str) -> dict:
         "display_name": "Projected catalog read",
         "description": "Projected MCP tool",
         "enabled": True,
-        "category": "mcp_tool_action",
+        "category": "other",
         "prompt": "",
         "interface": {"functions": []},
         "implementation": {

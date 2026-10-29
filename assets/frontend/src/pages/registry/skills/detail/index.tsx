@@ -8,6 +8,7 @@ import { Link, useSearchParams } from "react-router";
 import {
   DsAlert,
   DsPageHeader,
+  DsSelect,
   DsTabs,
   PageContainer,
 } from "@/components/shared/design-system";
@@ -15,6 +16,7 @@ import { fetchJson } from "@/lib/http/client";
 import { useKeyedState } from "@/lib/react/useKeyedState";
 import { fetchRegistryList } from "@/pages/registry/shared/api";
 import { BuilderMetadataEditor } from "@/pages/registry/shared/builder-metadata-editor";
+import { useCatalogCategories } from "@/pages/registry/shared/catalog-categories";
 import {
   builderMetadataDraftFromUnknown,
   builderMetadataPayload,
@@ -125,6 +127,7 @@ function normalizeDataContractOptions(rows: Array<Record<string, unknown>>): Dat
 
 export function RegistrySkillsDetailPage() {
   const { t } = useI18n();
+  const categories = useCatalogCategories();
   // The URL owns the active section, so every tab stays directly addressable
   // and survives a reload. Same shape as agents/detail.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -374,16 +377,14 @@ export function RegistrySkillsDetailPage() {
           />
         </div>
         <div className="fs-field">
-          <label className="fs-field-label" htmlFor="skill-category">{t("trash.columns.category", "Category")}</label>
-          <input
-            className="fs-input"
+          <span className="fs-field-label" id="skill-category-label">{t("trash.columns.category", "Category")}</span>
+          <DsSelect
+            ariaLabel={t("trash.columns.category", "Category")}
             id="skill-category"
-            name="category"
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, category: event.target.value }))
-            }
-            placeholder={t("trash.columns.category", "Category")}
-            type="text"
+            labelledBy="skill-category-label"
+            onChange={(category) => setDraft((current) => ({ ...current, category }))}
+            options={categories.options}
+            placeholder={t("react.registry.select_category", "Select category")}
             value={draft.category}
           />
         </div>
@@ -409,7 +410,7 @@ export function RegistrySkillsDetailPage() {
             ignoreAsyncResult(saveEntityPatch({
               display_name: draft.displayName.trim(),
               name: draft.displayName.trim(),
-              category: draft.category.trim(),
+              category: draft.category,
               description: draft.description.trim(),
             }));
           }}

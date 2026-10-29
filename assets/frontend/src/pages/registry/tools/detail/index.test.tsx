@@ -140,11 +140,12 @@ describe("RegistryToolsDetailPage", () => {
     expect(screen.getByLabelText("Display Name")).toHaveValue("Demo Content Tools");
   });
 
-  it("localizes the tool category placeholder without changing the saved category value", async () => {
-    mockedFetchRegistryDetail.mockResolvedValue({ tool_id: "sample_content_tools", display_name: "Owner tool", enabled: true, category: "owner-category", interface: {} } as never);
+  it("localizes the tool category select and shows the saved category by its shared label", async () => {
+    mockedFetchRegistryDetail.mockResolvedValue({ tool_id: "sample_content_tools", display_name: "Owner tool", enabled: true, category: "sales", interface: {} } as never);
+    mockedFetchJson.mockImplementation(async (url) => (url === "/api/catalog-categories" ? [{ id: "sales", label: "Sales" }, { id: "other", label: "Other" }] : []));
     renderPage("lt");
-    expect(await screen.findByLabelText("Kategorija")).toHaveAttribute("placeholder", "Kategorija");
-    expect(screen.getByLabelText("Kategorija")).toHaveValue("owner-category");
+    const select = await screen.findByRole("combobox", { name: "Kategorija" });
+    await waitFor(() => expect(select).toHaveTextContent("Sales"));
   });
 
   it("renders action contracts from tool interface functions", async () => {

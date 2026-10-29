@@ -21,7 +21,7 @@ from typing import Any
 import requests
 
 NEUTRAL_AGENT_ID = "writer"
-NEUTRAL_AGENT_ROLE_TYPE = "researcher"
+NEUTRAL_AGENT_CATEGORY = "other"
 NEUTRAL_SKILL_ID = "draft_summary"
 NEUTRAL_SKILL_OUTPUT = "summary_doc"
 #: Workflow that pauses on an Approval step after the draft step.
@@ -63,7 +63,7 @@ _NEUTRAL_AGENT: dict[str, Any] = {
     "agent_id": NEUTRAL_AGENT_ID,
     "display_name": "Writer",
     "description": "Drafts short summaries for the neutral E2E workflows.",
-    "role_type": NEUTRAL_AGENT_ROLE_TYPE,
+    "category": NEUTRAL_AGENT_CATEGORY,
     "enabled": True,
     "prompts": {
         "system": "You write short, factual summaries of the requested topic.",

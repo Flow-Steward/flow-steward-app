@@ -10859,11 +10859,10 @@ class TestExtensionEndpoints:
 class TestAdminAPIEndpoints:
     """Test admin API endpoints."""
 
-    def test_api_agent_types_endpoint(self, client):
-        resp = client.get("/api/agent-types")
-        assert resp.status_code in (200, 404, 500)
-        if resp.status_code == 200:
-            assert isinstance(resp.json(), list)
+    def test_api_catalog_categories_endpoint(self, client):
+        resp = client.get("/api/catalog-categories")
+        assert resp.status_code == 200
+        assert {"id": "other", "label": "Other"} in resp.json()
 
     def test_api_agents_endpoint(self, client):
         resp = client.get("/api/agents")

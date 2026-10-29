@@ -420,7 +420,7 @@ class ToolCommandService:
             "account_id": resolved.account_id,
             "display_name": command.display_name or f"{source.get('display_name', tool_id)} (Copy)",
             "description": source.get("description", ""),
-            "category": source.get("category", "general"),
+            "category": source.get("category"),
             "prompt": source.get("prompt", ""),
             "implementation": dict(source.get("implementation") or {}),
             "interface": dict(source.get("interface") or {}),

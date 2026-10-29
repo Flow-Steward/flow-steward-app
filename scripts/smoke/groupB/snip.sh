@@ -285,7 +285,7 @@ b06(){
 # ---------- B07 : skill rename preserves the I/O contract ----------
 b07(){
  sk="${T}_sk7"
- S="{\"skill_id\":\"$sk\",\"display_name\":\"v1\",\"description\":\"smoke\",\"category\":\"analysis\",\"skill_type\":\"prompt\",\"instructions\":[\"x\"],\"expected_inputs\":[{\"name\":\"x\",\"type\":\"text\",\"required\":true}],\"expected_outputs\":[{\"name\":\"y\",\"type\":\"text\",\"required\":true},{\"name\":\"z\",\"type\":\"json\",\"required\":false}]}"
+ S="{\"skill_id\":\"$sk\",\"display_name\":\"v1\",\"description\":\"smoke\",\"category\":\"data\",\"skill_type\":\"prompt\",\"instructions\":[\"x\"],\"expected_inputs\":[{\"name\":\"x\",\"type\":\"text\",\"required\":true}],\"expected_outputs\":[{\"name\":\"y\",\"type\":\"text\",\"required\":true},{\"name\":\"z\",\"type\":\"json\",\"required\":false}]}"
  api POST /api/skills "$S" >/dev/null
  Q="select coalesce(output_schema::text,'')||'#'||coalesce(input_schema::text,'')||'#'||(select count(*) from registry_skill_outputs where skill_id='$sk')||'/'||(select count(*) from registry_skill_inputs where skill_id='$sk') from registry_skills where skill_id='$sk';"
  pre=$(PSQL "$Q")
@@ -299,8 +299,8 @@ b07(){
 # ---------- B08 : purging a skill used by a DISABLED agent must be guarded ----------
 b08(){
  sk="${T}_sk8"; ag="${T}_ag8"
- S="{\"skill_id\":\"$sk\",\"display_name\":\"s8\",\"description\":\"smoke\",\"category\":\"analysis\",\"skill_type\":\"prompt\",\"instructions\":[\"x\"],\"expected_inputs\":[{\"name\":\"x\",\"type\":\"text\",\"required\":true}],\"expected_outputs\":[{\"name\":\"y\",\"type\":\"text\",\"required\":true}]}"
- A="{\"agent_id\":\"$ag\",\"display_name\":\"a8\",\"description\":\"smoke\",\"role_type\":\"analyst\",\"base_skill\":\"$sk\",\"enabled\":false,\"category\":\"analysis\"}"
+ S="{\"skill_id\":\"$sk\",\"display_name\":\"s8\",\"description\":\"smoke\",\"category\":\"data\",\"skill_type\":\"prompt\",\"instructions\":[\"x\"],\"expected_inputs\":[{\"name\":\"x\",\"type\":\"text\",\"required\":true}],\"expected_outputs\":[{\"name\":\"y\",\"type\":\"text\",\"required\":true}]}"
+ A="{\"agent_id\":\"$ag\",\"display_name\":\"a8\",\"description\":\"smoke\",\"base_skill\":\"$sk\",\"enabled\":false,\"category\":\"data\"}"
  api POST /api/skills "$S" >/dev/null; api PATCH "/api/skills/$sk" '{"enabled":true}' >/dev/null
  api POST /api/agents "$A" >/dev/null
  api POST "/api/trash/registry_skill/$sk/trash" '{}' >/dev/null
@@ -402,7 +402,7 @@ b13(){
 # ---------- B14 : trash and restore write an audit row ----------
 b14(){
  sk="${T}_sk14"
- S="{\"skill_id\":\"$sk\",\"display_name\":\"s14\",\"description\":\"smoke\",\"category\":\"analysis\",\"skill_type\":\"prompt\",\"instructions\":[\"x\"],\"expected_inputs\":[{\"name\":\"x\",\"type\":\"text\",\"required\":true}],\"expected_outputs\":[{\"name\":\"y\",\"type\":\"text\",\"required\":true}]}"
+ S="{\"skill_id\":\"$sk\",\"display_name\":\"s14\",\"description\":\"smoke\",\"category\":\"data\",\"skill_type\":\"prompt\",\"instructions\":[\"x\"],\"expected_inputs\":[{\"name\":\"x\",\"type\":\"text\",\"required\":true}],\"expected_outputs\":[{\"name\":\"y\",\"type\":\"text\",\"required\":true}]}"
  api POST /api/skills "$S" >/dev/null
  n(){ PSQL "select count(*) from registry_changelog where entity_id='$sk';"; }
  a=$(n); api POST "/api/trash/registry_skill/$sk/trash"   '{}' >/dev/null; b=$(n)

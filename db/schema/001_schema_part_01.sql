@@ -102,28 +102,6 @@ CREATE TABLE public.platform_schema_state (
 
 
 --
--- Name: agent_types; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.agent_types (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    key text NOT NULL,
-    label text NOT NULL,
-    description text DEFAULT ''::text,
-    enabled boolean DEFAULT true NOT NULL,
-    deleted_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: agent_types_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-
-
---
 -- Name: auth_email_change_requests; Type: TABLE; Schema: public; Owner: -
 --
 

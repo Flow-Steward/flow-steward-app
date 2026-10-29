@@ -7,12 +7,10 @@ import re
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from core.application.registry.agent_manifest import refuse_agent_phases
+from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.prompt_contracts import validate_skill_prompt
 
 _ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
-_UUID_PATTERN = re.compile(
-    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-)
 
 
 class AgentSave(BaseModel):
@@ -25,8 +23,7 @@ class AgentSave(BaseModel):
     agent_id: str
     version: str = "1.0.0"
     display_name: str
-    agent_type_id: str = ""
-    role_type: str = ""
+    category: str = ""
     base_skill: str = ""
     secondary_skills: list[str] = []
     local_instructions: list[str] = []
@@ -38,35 +35,10 @@ class AgentSave(BaseModel):
             raise ValueError("agent_id must match [a-z][a-z0-9_]* (lowercase, no spaces)")
         return v
 
-    @field_validator("agent_type_id")
+    @field_validator("category")
     @classmethod
-    def validate_agent_type_id(cls, v: str) -> str:
-        normalized = str(v or "").strip()
-        if not normalized:
-            return ""
-        # Accept either the agent_type slug/key ([a-z][a-z0-9_]*) or the UUID FK.
-        # GET exposes agent_type_id as the UUID, so a full GET->PUT round-trip
-        # (the registry detail save helper PUTs the whole entity) sends the UUID;
-        # save_agent (_resolve_agent_type_id_cur) resolves a UUID back to its type.
-        if not (_ID_PATTERN.match(normalized) or _UUID_PATTERN.match(normalized)):
-            raise ValueError("agent_type_id must be an agent_type key ([a-z][a-z0-9_]*) or a UUID")
-        return normalized
-
-    @field_validator("role_type")
-    @classmethod
-    def validate_role_type(cls, v: str) -> str:
-        normalized = str(v or "").strip()
-        if not normalized:
-            return ""
-        if not _ID_PATTERN.match(normalized):
-            raise ValueError("role_type must match [a-z][a-z0-9_]* (lowercase, no spaces)")
-        return normalized
-
-    @model_validator(mode="after")
-    def validate_role_binding(self):
-        if not str(self.agent_type_id or "").strip() and not str(self.role_type or "").strip():
-            raise ValueError("agent_type_id or role_type is required")
-        return self
+    def validate_category(cls, v: str) -> str:
+        return catalog_category(v)
 
     description: str = ""
     enabled: bool = False
@@ -113,8 +85,6 @@ class AgentPatch(BaseModel):
             )
         return values
 
-    agent_type_id: str | None = None
-    role_type: str | None = None
     base_skill: str | None = None
     secondary_skills: list[str] | None = None
     local_instructions: list[str] | None = None
@@ -130,6 +100,11 @@ class AgentPatch(BaseModel):
     builder_metadata_jsonb: dict | None = None
     depends_on: dict | None = None
     tags: list[str] | None = None
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str | None) -> str | None:
+        return None if v is None else catalog_category(v)
 
 
 class SkillAdd(BaseModel):
@@ -181,17 +156,6 @@ class RestoreRevisionRequest(BaseModel):
 class AgentCloneRequest(BaseModel):
     agent_id: str | None = None
     display_name: str | None = None
-    agent_type_id: str | None = None
-
-    @field_validator("agent_type_id")
-    @classmethod
-    def validate_clone_agent_type_id(cls, value: str | None) -> str | None:
-        normalized = str(value or "").strip()
-        if not normalized:
-            return None
-        if not (_ID_PATTERN.match(normalized) or _UUID_PATTERN.match(normalized)):
-            raise ValueError("agent_type_id must be an agent type key or UUID")
-        return normalized
 
 
 class AgentInputItem(BaseModel):

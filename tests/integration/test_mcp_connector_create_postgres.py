@@ -402,7 +402,7 @@ def test_callback_cannot_restore_tokens_after_concurrent_lifecycle_change(
                 "display_name": "Race projected tool",
                 "description": "Projection removed by connector trash",
                 "enabled": True,
-                "category": "mcp_tool_action",
+                "category": "other",
                 "prompt": "",
                 "interface": {"functions": []},
                 "implementation": {

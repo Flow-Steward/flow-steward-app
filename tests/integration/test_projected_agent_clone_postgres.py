@@ -133,7 +133,6 @@ def test_projected_agent_clone_persists_complete_content_and_ordered_owned_relat
             "source_install_id": f"clone-{suffix}",
             "display_name": "Projected source",
             "description": "Complete copy source",
-            "agent_type_key": "researcher",
             "prompts": {
                 "system": "Keep system",
                 "context_template": "Keep context",
@@ -175,7 +174,7 @@ def test_projected_agent_clone_persists_complete_content_and_ordered_owned_relat
             "config": {"model": "fixture-model"},
             "quality": {"determinism": "high"},
             "builder_metadata_jsonb": {"purpose": "review"},
-            "category": "review",
+            "category": "marketing",
             "enabled": True,
             "version": "2.3.0",
             "tags": ["catalog", "review"],
@@ -209,7 +208,7 @@ def test_projected_agent_clone_persists_complete_content_and_ordered_owned_relat
         assert saved["scope_kind"] == "account"
         assert saved["enabled"] is False
         assert saved["display_name"] == "Projected source (Copy)"
-        assert saved["agent_type_key"] == source["agent_type_key"]
+        assert saved["category"] == source["category"]
         assert saved["description"] == source["description"]
         assert saved["prompts"]["system"] == "Keep system"
         assert saved["prompts"]["context_template"] == "Keep context"
@@ -287,7 +286,7 @@ def test_projected_agent_clone_rolls_back_agent_relationships_and_changelog(
             "agent_id": source_id,
             "account_id": DEFAULT_ACCOUNT_ID,
             "display_name": "Rollback source",
-            "agent_type_key": "researcher",
+            "category": "marketing",
             "prompts": {
                 "system": "Source prompt",
                 "skill_prompts": {

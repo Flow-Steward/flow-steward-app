@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from core.application.registry.catalog_categories import (
+    DEFAULT_CATALOG_CATEGORY,
+    known_catalog_category,
+)
 from core.application.workflows.workflow_catalog_identity import projected_block_key
 
 from .extension_contract_v2 import ALLOWED_WIDGET_TYPES
@@ -271,7 +275,7 @@ def build_extension_grounding_tool(
         "description": str(descriptor.get("description") or "").strip(),
         "enabled": True,
         "visible_in_catalog": True,
-        "category": str(listing.get("category") or "extensions").strip() or "extensions",
+        "category": known_catalog_category(listing.get("category")) or DEFAULT_CATALOG_CATEGORY,
         "tags": [str(value) for value in listing.get("tags") or [] if str(value).strip()],
         "scope_kind": "account",
         "account_id": str(account_id or "").strip(),

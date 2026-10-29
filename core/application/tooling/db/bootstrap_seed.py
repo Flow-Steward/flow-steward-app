@@ -191,13 +191,6 @@ def apply_lookup_seed(*, dsn: str | None = None) -> dict[str, int]:
                 columns=["key", "label"],
                 conflict_columns=["key"],
             ),
-            "agent_types": _upsert_rows(
-                conn,
-                table="agent_types",
-                rows=list(payload.get("agent_types") or []),
-                columns=["key", "label", "description", "enabled"],
-                conflict_columns=["key"],
-            ),
             "provider_types": _upsert_rows(
                 conn,
                 table="provider_types",

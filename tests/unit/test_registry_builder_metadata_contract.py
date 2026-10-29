@@ -55,7 +55,6 @@ def test_registry_saves_ignore_alternate_serialized_metadata(
     db._column_exists = MagicMock(
         side_effect=lambda _table, column: column == "builder_metadata_jsonb"
     )
-    db._resolve_agent_type_id_cur = MagicMock(return_value=None)
     db._lock_agent_relationship_parent = MagicMock(return_value={"account_id": "account"})
     db._require_relationship_capabilities_in_scope = MagicMock()
     db._sync_workflow_runtime_dependencies = MagicMock()

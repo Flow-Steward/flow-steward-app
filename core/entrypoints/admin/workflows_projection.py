@@ -58,7 +58,7 @@ class _WorkflowValidationDBView:
             "display_name": manifest.display_name,
             "description": manifest.description,
             "enabled": bool(manifest.enabled),
-            "role_type": manifest.role_type,
+            "category": manifest.category,
             "_skills": [
                 {
                     "skill_id": skill_id,
@@ -140,7 +140,6 @@ class _WorkflowValidationDBView:
             "output_schema": dict(manifest.output_schema or {}),
             "examples": list(manifest.examples or []),
             "tags": list(manifest.tags or []),
-            "supported_role_types": list(manifest.supported_role_types or []),
             "_inputs": list(manifest.expected_inputs or []),
             "_outputs": list(manifest.expected_outputs or []),
             "using_agents": [
@@ -342,7 +341,6 @@ class _WorkflowValidationDBView:
         payload["projection_mode"] = _normalize_text(payload.get("projection_mode") or "derived")
         payload["_inputs"] = list(payload.get("_inputs") or payload.get("public_inputs") or [])
         payload["_outputs"] = list(payload.get("_outputs") or payload.get("public_outputs") or [])
-        payload.setdefault("supported_role_types", [])
         payload.setdefault("instructions", [])
         payload.setdefault("examples", [])
         payload.setdefault("tags", [])

@@ -551,9 +551,6 @@ def _agent_stub_db(agent_id: str = "scout") -> SimpleNamespace:
         get_agent=lambda current_agent_id: dict(agent) if current_agent_id == agent_id else None,
         list_agents=lambda enabled_only=False, search=None: [dict(agent)],
         list_agents_summary=lambda enabled_only=False: [dict(agent)],
-        list_agent_types=lambda enabled_only=False: [
-            {"agent_type_id": "default", "display_name": "Default"}
-        ],
         get_agent_skills=lambda current_agent_id: (
             list(skills) if current_agent_id == agent_id else []
         ),
@@ -601,7 +598,7 @@ def _tool_stub_db(tool_id: str = "search_docs") -> SimpleNamespace:
         "tool_id": tool_id,
         "display_name": "Search Docs",
         "enabled": True,
-        "category": "knowledge",
+        "category": "documents",
     }
     return SimpleNamespace(
         get_tool=lambda current_tool_id: dict(tool) if current_tool_id == tool_id else None,
@@ -748,9 +745,7 @@ class TestAgentCRUD:
                 "display_name": "Enabled Agent",
                 "description": "Canonical enabled record",
                 "enabled": True,
-                "agent_type_id": None,
-                "agent_type_key": None,
-                "role_type": None,
+                "category": None,
                 "base_skill": None,
                 "secondary_skills": [],
                 "local_instructions": [],
@@ -947,16 +942,18 @@ class TestAgentCRUD:
         )
         assert resp.status_code in (400, 422, 500)
 
-    def test_create_agent_missing_agent_type_rejected(self, registry_client):
+    def test_create_agent_free_text_category_rejected(self, registry_client):
         resp = registry_client.post(
             "/api/agents",
             json={
-                "agent_id": "test_agent_missing_type",
+                "agent_id": "test_agent_free_text_category",
                 "display_name": "Test Agent",
+                "category": "analysis",
                 "prompts": {"system": "You are a test agent."},
             },
         )
         assert resp.status_code == 422
+        assert "category must be one of" in resp.text
 
     def test_create_agent_rolls_back_invalid_enabled_save(self, registry_client):
         try:
@@ -982,7 +979,7 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "broken_agent_save",
                     "display_name": "Broken Agent",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                     "enabled": True,
                 },
             )
@@ -1009,7 +1006,7 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "standard_tool_agent",
                     "display_name": "Standard Tool Agent",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                     "tools": ["std.numbers"],
                 },
             )
@@ -1044,7 +1041,7 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "duplicate_agent",
                     "display_name": "Duplicate Agent",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                 },
             )
 
@@ -1076,7 +1073,7 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "account_agent",
                     "display_name": "Account Agent",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                 },
             )
 
@@ -1090,15 +1087,12 @@ class TestAgentCRUD:
             pytest.fail(f"agent routes not importable: {e}")
 
         mock_db = MagicMock()
-        mock_db.list_agent_types.return_value = [
-            {"id": "composer-id", "key": "composer", "enabled": True}
-        ]
         mock_db.get_agent.side_effect = lambda agent_id: (
             {
                 "agent_id": "review_agent",
                 "account_id": "00000000-0000-0000-0000-000000000002",
                 "display_name": "Review Agent",
-                "agent_type_id": "composer",
+                "category": "developer-tools",
             }
             if agent_id == "review_agent"
             else {"agent_id": agent_id}
@@ -1122,15 +1116,12 @@ class TestAgentCRUD:
         import core.entrypoints.admin.agents as agent_routes
 
         mock_db = MagicMock()
-        mock_db.list_agent_types.return_value = [
-            {"id": "composer-id", "key": "composer", "enabled": True}
-        ]
         mock_db.get_agent.side_effect = lambda agent_id: (
             {
                 "agent_id": "review_agent",
                 "account_id": "00000000-0000-0000-0000-000000000002",
                 "display_name": "Review Agent",
-                "agent_type_id": "composer",
+                "category": "developer-tools",
             }
             if agent_id == "review_agent"
             else None
@@ -1145,7 +1136,7 @@ class TestAgentCRUD:
         assert response.json()["correlation_id"]
         assert "secret" not in response.text
 
-    def test_clone_agent_route_forwards_explicit_existing_type(self, registry_client):
+    def test_clone_agent_route_forwards_identity_only(self, registry_client):
         import core.entrypoints.admin.agents as agent_routes
 
         command = MagicMock()
@@ -1157,23 +1148,26 @@ class TestAgentCRUD:
         with patch.object(agent_routes, "_agent_command_service", return_value=command):
             response = registry_client.post(
                 "/api/agents/source_agent/clone",
-                json={"agent_id": "manual_copy", "agent_type_id": "researcher"},
+                json={"agent_id": "manual_copy", "display_name": "Manual copy"},
             )
 
         assert response.status_code == 200, response.text
         command.clone_agent.assert_called_once()
-        assert command.clone_agent.call_args.kwargs["agent_type_id"] == "researcher"
+        kwargs = command.clone_agent.call_args.kwargs
+        assert kwargs["target_agent_id"] == "manual_copy"
+        assert kwargs["display_name"] == "Manual copy"
+        assert "agent_type_id" not in kwargs
 
-    def test_clone_agent_route_returns_actionable_type_conflict(self, registry_client):
+    def test_clone_agent_route_returns_actionable_conflict(self, registry_client):
         import core.entrypoints.admin.agents as agent_routes
         from core.application.management.errors import ServiceConflictError
 
         command = MagicMock()
         command.clone_agent.side_effect = ServiceConflictError(
-            "Select a type for this copy.",
+            "Install the missing dependencies first.",
             payload={
-                "error": "Select a type for this copy.",
-                "code": "agent_clone_type_required",
+                "error": "Install the missing dependencies first.",
+                "code": "agent_clone_dependencies_unavailable",
             },
         )
         with patch.object(agent_routes, "_agent_command_service", return_value=command):
@@ -1182,7 +1176,7 @@ class TestAgentCRUD:
             )
 
         assert response.status_code == 409
-        assert response.json()["detail"]["code"] == "agent_clone_type_required"
+        assert response.json()["detail"]["code"] == "agent_clone_dependencies_unavailable"
 
     def test_update_agent_rolls_back_invalid_enabled_save(self, registry_client):
         try:
@@ -1193,7 +1187,7 @@ class TestAgentCRUD:
         existing = {
             "agent_id": "composer",
             "display_name": "Developer",
-            "agent_type_id": "composer",
+            "category": "developer-tools",
             "enabled": True,
             "skills": [],
             "tools": [],
@@ -1216,7 +1210,7 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "composer",
                     "display_name": "Developer",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                     "enabled": True,
                 },
             )
@@ -1244,7 +1238,7 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "composer",
                     "display_name": "Developer",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                     "tools": ["std.text"],
                 },
             )
@@ -1260,7 +1254,7 @@ class TestAgentCRUD:
         existing = {
             "agent_id": "composer",
             "display_name": "Developer",
-            "agent_type_id": "composer",
+            "category": "developer-tools",
             "enabled": False,
             "skills": [],
             "tools": [],
@@ -1291,7 +1285,7 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "composer",
                     "display_name": "Developer",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                     "config": {
                         "provider": "llmext_acme_deepseek_abc123",
                         "model": "deepseek/deepseek-chat",
@@ -1315,7 +1309,7 @@ class TestAgentCRUD:
             "agent_id": "account_agent",
             "account_id": "acc-owner",
             "display_name": "Account Agent",
-            "agent_type_id": "composer",
+            "category": "developer-tools",
             "enabled": False,
             "skills": [],
             "tools": [],
@@ -1340,26 +1334,20 @@ class TestAgentCRUD:
                 json={
                     "agent_id": "account_agent",
                     "display_name": "Updated Account Agent",
-                    "agent_type_id": "composer",
+                    "category": "developer-tools",
                 },
             )
 
         assert response.status_code == 200, response.text
         assert mock_db.save_agent.call_args.args[0]["account_id"] == "acc-owner"
 
-    def test_patch_agent_persists_category_and_type_without_builder_side_effects(
-        self, registry_client
-    ):
+    def test_patch_agent_persists_category_without_builder_side_effects(self, registry_client):
         import core.entrypoints.admin.agents as agent_routes
 
         existing = {
             "agent_id": "composer",
             "display_name": "Developer",
-            "category": "engineering",
-            "agent_type_id": "e49f4d54-20d3-4d0f-a273-d7bbde88247a",
-            "agent_type_key": "composer",
-            "agent_type_label": "Developer",
-            "role_type": "composer",
+            "category": "other",
             "enabled": False,
             "skills": [],
             "tools": [],
@@ -1378,16 +1366,12 @@ class TestAgentCRUD:
         ):
             response = registry_client.patch(
                 "/api/agents/composer",
-                json={"category": "quality", "agent_type_id": "proofreader"},
+                json={"category": "marketing"},
             )
 
         assert response.status_code == 200, response.text
         saved = mock_db.save_agent.call_args.args[0]
-        assert saved["category"] == "quality"
-        assert saved["agent_type_id"] == "proofreader"
-        assert "agent_type_key" not in saved
-        assert "agent_type_label" not in saved
-        assert "role_type" not in saved
+        assert saved["category"] == "marketing"
 
     def test_patch_agent_clears_explicit_provider_and_model_override(self, registry_client):
         import core.entrypoints.admin.agents as agent_routes
@@ -1396,7 +1380,7 @@ class TestAgentCRUD:
             "agent_id": "composer",
             "account_id": "acc-owner",
             "display_name": "Developer",
-            "agent_type_id": "composer",
+            "category": "developer-tools",
             "enabled": False,
             "skills": [],
             "tools": [],
@@ -1440,7 +1424,7 @@ class TestAgentCRUD:
         existing = {
             "agent_id": "composer",
             "display_name": "Developer",
-            "agent_type_id": "composer",
+            "category": "developer-tools",
             "enabled": True,
             "skills": [],
             "tools": [],
@@ -5229,7 +5213,6 @@ class TestWorkflowCRUD:
                     "agent_id": "scout",
                     "display_name": "Scout",
                     "enabled": True,
-                    "agent_type_label": "Scout",
                 }
             ],
             list_skills_summary=lambda enabled_only=False: [
@@ -6253,8 +6236,6 @@ class TestWorkflowCRUD:
         )
         mock_db.get_agent.return_value = {
             "agent_id": "composer",
-            "agent_type_key": "composer",
-            "agent_type_label": "Developer",
         }
         mock_db.get_skill.return_value = {
             "skill_id": "draft_summary",
@@ -6291,7 +6272,7 @@ class TestWorkflowCRUD:
         assert "unresolved_required" in body
         assert "optional" in body
         assert "custom" in body
-        assert body.get("role_type", {}).get("key") == "composer"
+        assert "role_type" not in body
         locked_names = {item.get("name") for item in body.get("locked_required", [])}
         unresolved_names = {item.get("name") for item in body.get("unresolved_required", [])}
         assert "branch_name" not in locked_names
@@ -6455,8 +6436,6 @@ class TestWorkflowCRUD:
         ]
         mock_db.get_agent.return_value = {
             "agent_id": "designer",
-            "agent_type_key": "designer",
-            "agent_type_label": "Designer",
         }
         mock_db.get_skill.return_value = {
             "skill_id": "outline_plan",
@@ -9725,7 +9704,7 @@ class TestWorkflowCRUD:
                 "display_name": "Drive / create_file",
                 "description": "Create a file.",
                 "enabled": True,
-                "category": "mcp_tool_action",
+                "category": "other",
                 "interface": {
                     "functions": [
                         {
@@ -9752,7 +9731,7 @@ class TestWorkflowCRUD:
                 "display_name": "Drive / search_files",
                 "description": "Search files.",
                 "enabled": True,
-                "category": "mcp_tool_action",
+                "category": "other",
                 "interface": {
                     "functions": [
                         {
@@ -9782,7 +9761,7 @@ class TestWorkflowCRUD:
                     "display_name": "Drive / unavailable",
                     "enabled": True,
                     "availability_status": "unavailable",
-                    "category": "mcp_tool_action",
+                    "category": "other",
                     "interface": {
                         "functions": [
                             {
@@ -9799,7 +9778,7 @@ class TestWorkflowCRUD:
                     "display_name": "Drive / foreign",
                     "enabled": True,
                     "account_id": "another-account",
-                    "category": "mcp_tool_action",
+                    "category": "other",
                     "interface": {
                         "functions": [
                             {

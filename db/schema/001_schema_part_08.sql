@@ -574,13 +574,6 @@ CREATE INDEX idx_registry_agents_active ON public.registry_agents USING btree (a
 
 
 --
--- Name: idx_registry_agents_agent_type_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_registry_agents_agent_type_id ON public.registry_agents USING btree (agent_type_id);
-
-
---
 -- Name: idx_registry_data_contracts_active; Type: INDEX; Schema: public; Owner: -
 --
 
