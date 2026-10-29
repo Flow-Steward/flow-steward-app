@@ -118,6 +118,12 @@ def test_compact_command_explains_unsupported_host_operation(
     assert expected in result.stderr
     assert "not available in Compact" in result.stderr
     assert "Docker" in result.stderr
+    # `config set NAME=VALUE` out of habit: the Compact path for host settings.
+    compact_path = "Host settings on Compact: ./install.sh --setting NAME=VALUE"
+    assert (compact_path in result.stderr) is (expected == "config")
+    assert ("docs.flowsteward.org/docs/reference/host-settings" in result.stderr) is (
+        expected == "config"
+    )
 
 
 @pytest.mark.parametrize(

@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from core.application.installer import InstallConfig
 from core.infrastructure.installer import gateway as installer_gateway_module
 from core.infrastructure.installer import gateway_cli_runtime
@@ -1704,6 +1705,9 @@ def test_compact_refuses_the_commands_it_has_no_runtime_for(
     assert "reinstalling will not help" in result.stderr
     assert "rerun ./install.sh from updated sources" in result.stderr
     assert "Remediation: rerun ./install.sh, then retry" not in result.stderr
+    # `config set NAME=VALUE` out of habit: the Compact path for host settings.
+    compact_path = "Host settings on Compact: ./install.sh --setting NAME=VALUE"
+    assert (compact_path in result.stderr) is (args[0] == "config")
     assert _log(fake_repo) == ""
 
 

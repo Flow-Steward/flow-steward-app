@@ -2411,7 +2411,11 @@ fi
 # refuses `environment`, before Docker is asked anything. Placed after the help above,
 # so `config --help` still answers with the page that explains this.
 if [ "$compact_mode" -eq 1 ] && [ "$compact_retained_cli_command" -eq 1 ]; then
-  fail "Unsupported Compact platform command: $top_level_command runs in a retained CLI container, and a Compact installation does not have one, so reinstalling will not help. To update this installation, rerun ./install.sh from updated sources; for its state, run ./flow-steward status. To switch this installation to Scalable, run ./install.sh --deployment-profile scalable." 2
+  compact_config_hint=""
+  if [ "$top_level_command" = "config" ]; then
+    compact_config_hint=" Host settings on Compact: ./install.sh --setting NAME=VALUE. Settings: https://docs.flowsteward.org/docs/reference/host-settings"
+  fi
+  fail "Unsupported Compact platform command: $top_level_command runs in a retained CLI container, and a Compact installation does not have one, so reinstalling will not help. To update this installation, rerun ./install.sh from updated sources; for its state, run ./flow-steward status. To switch this installation to Scalable, run ./install.sh --deployment-profile scalable.${compact_config_hint}" 2
 fi
 
 if ! command -v docker >/dev/null 2>&1; then

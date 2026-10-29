@@ -148,12 +148,22 @@ class LlmProviderExtensionUseCases:
         normalized = str(value or "").strip()
         if not normalized:
             return ""
-        from core.application.extensions.url_safety import assert_safe_remote_https_url
+        from core.application.extensions.url_safety import (
+            assert_safe_remote_https_url,
+            private_addresses_hint,
+        )
 
         try:
             return assert_safe_remote_https_url(normalized, purpose="llm_provider_remote_base_url")
         except Exception as exc:
-            raise LlmProviderExtensionError(422, "remote_base_url is not allowed") from exc
+            # A private address is refused with how to allow one; other reasons stay terse.
+            hint = private_addresses_hint()
+            detail = (
+                f"remote_base_url is not allowed. {hint}"
+                if hint in str(exc)
+                else "remote_base_url is not allowed"
+            )
+            raise LlmProviderExtensionError(422, detail) from exc
 
     def list_sources(self, account_id: str) -> dict[str, Any]:
         from core.application.settings.llm_verification_policy import (
