@@ -184,12 +184,25 @@ def private_addresses_hint() -> str:
     )
 
 
-def with_private_address_hint(detail: str, errors: Any) -> str:
-    """An extension refused a private address itself: say how to allow one here."""
-    blocked = isinstance(errors, list) and any(
-        isinstance(error, dict) and error.get("code") == NETWORK_BLOCKED_CODE for error in errors
-    )
-    return f"{detail}. {private_addresses_hint()}" if blocked else detail
+def _as_mapping(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def with_private_address_hint(detail: str, connector_result: Any) -> str:
+    """An extension refused a private address itself: say how to allow one here.
+
+    The extension's code arrives in its own response (``error_code`` and ``errors``),
+    which the connector result carries under ``invocation``.
+    """
+    result = _as_mapping(connector_result)
+    invocation = _as_mapping(result.get("invocation"))
+    response = _as_mapping(invocation.get("response"))
+    codes = {response.get("error_code")}
+    for source in (result, invocation, response):
+        errors = source.get("errors")
+        if isinstance(errors, list):
+            codes.update(error.get("code") for error in errors if isinstance(error, dict))
+    return f"{detail}. {private_addresses_hint()}" if NETWORK_BLOCKED_CODE in codes else detail
 
 
 def allow_private_provider_addresses() -> bool:

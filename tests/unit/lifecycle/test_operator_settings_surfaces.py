@@ -57,14 +57,31 @@ def test_an_extension_that_blocks_a_private_address_gets_the_same_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("FS_DEPLOYMENT_PROFILE", "compact")
-    detail = "Docling base_url host 'docling-serve' is not allowed"
+    detail = "Docling base_url host 'docling-serve' resolves to disallowed address '172.29.0.8'"
+    # The shape the live check saw: the code is in the extension's own response.
+    live = {
+        "detail": detail,
+        "invocation": {
+            "status": "failed",
+            "response": {
+                "ok": False,
+                "error_code": "network_blocked",
+                "errors": [{"code": "network_blocked", "message": detail}],
+            },
+        },
+    }
 
-    blocked = url_safety.with_private_address_hint(
-        detail, [{"code": "network_blocked", "message": detail}]
+    blocked = url_safety.with_private_address_hint(detail, live)
+    top_level = url_safety.with_private_address_hint(
+        detail, {"errors": [{"code": "network_blocked"}]}
     )
-    other = url_safety.with_private_address_hint(detail, [{"code": "invalid_connection"}])
+    other = url_safety.with_private_address_hint(
+        detail, {"invocation": {"response": {"error_code": "invalid_connection"}}}
+    )
 
     assert blocked.startswith(detail) and COMPACT_COMMAND in blocked
+    assert HOST_SETTINGS_DOCS_URL in blocked
+    assert COMPACT_COMMAND in top_level
     assert other == detail
 
 
