@@ -158,6 +158,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/management/project_polic
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/registry/__init__.py \
     core/application/registry/builder_metadata.py \
+    core/application/registry/catalog_categories.py \
     core/application/registry/identifier_keys.py \
     core/application/registry/tool_manifest.py \
     core/application/registry/workflow_contract.py \
