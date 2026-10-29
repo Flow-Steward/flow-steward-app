@@ -1,3 +1,14 @@
+source_import_provenance:
+  kind: squashed_history_import
+  official_import_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git commit SHA
+  legacy_history_tip: 6ac810b07e32ddcb148cc0c57ef0e78489f79f39  # pragma: allowlist secret - historical Git commit SHA
+  original_ledger_sha256: b6f8520642d174c3d801d5a8e288d006979f7c9235be341408137a0d01b78427  # pragma: allowlist secret - public ledger content SHA-256
+  audit_record: docs/operations/historical-ledger-import.md
+  verification_semantics: >-
+    Source-import anchors bind carried-forward historical acceptance, not fresh
+    test execution or packaged runtime verification at the import commit.
+    Original commits, statuses, and evidence paths remain recorded below.
+
 epic: release-stabilization-2026-08-05
 source_commit: e584fe547b43fc184637a3b07eaf963e921ef2ee  # pragma: allowlist secret - git commit SHA, not a credential
 task_brief: docs/tasks/release-stabilization-2026-08-05/task.md
@@ -296,7 +307,9 @@ rows:
     title: API phase creation can append after terminal and report false success
     sources: [REVIEW-B-P0-3]
     technical_status: fixed_verified
-    verified_commit: d0e31fab73cbfeaeee5cd543c55eba784ac288ba  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d0e31fab73cbfeaeee5cd543c55eba784ac288ba  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       RegistryDBStoreWorkflowStepsMixin.add_phase used raw
       COALESCE(MAX(sort_order), -1) + 1, so POST /api/workflows/{id}/phases
@@ -367,7 +380,9 @@ rows:
     title: Skill lifecycle corrupts dependents and invalid registry state has global graph blast radius
     sources: [REVIEW-B-P0-2, REVIEW-B-P1-disabled-agent-skill]
     technical_status: fixed_verified
-    verified_commit: 970d2ab0f83691a87e9b3beed8339d25f055a401  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 970d2ab0f83691a87e9b3beed8339d25f055a401  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Unified trash did not run the skill dependency guard, hard-delete checked
       enabled agents only, and DELETE /api/skills/{id} bypassed both. Graph
@@ -528,7 +543,9 @@ rows:
     title: Phase-exit rejection rework can replay a committed external effect
     sources: [REVIEW-B-P0-1]
     technical_status: fixed_verified
-    verified_commit: 6531889f942665da978e96189f71a7af207fb9ed  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 6531889f942665da978e96189f71a7af207fb9ed  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Phase rejection intentionally resets the phase cursor, so external-effect safety
       depends on the durable claim identity surviving that rework and process restart.
@@ -611,7 +628,9 @@ rows:
     title: Workflow-bound extension effect loses trusted runtime project identity
     sources: [A5-001]
     technical_status: fixed_verified
-    verified_commit: 6531889f942665da978e96189f71a7af207fb9ed  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 6531889f942665da978e96189f71a7af207fb9ed  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Connector runtime read identifiers only from top-level graph state. The worker
       already assembled a trusted runtime envelope from durable job/project rows, but
@@ -717,7 +736,9 @@ rows:
     title: Shipped worker identity is not bootstrapped and can exclude later projects
     sources: [REVIEW-B-P0-5, REVIEW-B-P0-6]
     technical_status: fixed_verified
-    verified_commit: d0e31fab73cbfeaeee5cd543c55eba784ac288ba  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d0e31fab73cbfeaeee5cd543c55eba784ac288ba  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Production Compose required FS_WORKER_MCP_BEARER_TOKEN before fs-worker
       could start, but the supported installer never issued it. The documented
@@ -943,7 +964,9 @@ rows:
     title: Active File Transfer extension dependencies are absent from the packaged runtime
     sources: [A5-002]
     technical_status: fixed_verified
-    verified_commit: 6531889f942665da978e96189f71a7af207fb9ed  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 6531889f942665da978e96189f71a7af207fb9ed  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       File Transfer declared a complete hash-pinned Paramiko dependency tree and
       shipped the matching wheels, but the runtime image never invoked the canonical
@@ -1043,7 +1066,9 @@ rows:
     title: Readiness and CLI diagnostics can be false green, empty, or mutually inconsistent
     sources: [A5-003, A5-008, REVIEW-B-E13]
     technical_status: fixed_verified
-    verified_commit: 83e63b274f5eec2f98a0bb6c1a62c0cbee94841e  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 83e63b274f5eec2f98a0bb6c1a62c0cbee94841e  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Runtime readiness marked queue delivery healthy whenever its summary query
       loaded, even when the summary required intervention, and counted only new
@@ -1263,7 +1288,9 @@ rows:
     title: Configured quick_fix completion and invalid container-path preflight are unproven
     sources: [REVIEW-B-P0-4]
     technical_status: fixed_verified
-    verified_commit: e2d685e
+    verification_basis: source_import
+    legacy_historical_verified_commit: e2d685e
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: >-
       Both halves proven on the packaged candidate once the owner had configured a
       model provider through its UI. A configured quick_fix run reached
@@ -1358,7 +1385,9 @@ rows:
     title: Claimed A-E permanent release smoke runner is incomplete and currently executes no groups
     sources: [RECONCILIATION-SMOKE-001]
     technical_status: fixed_verified
-    verified_commit: 238d29c
+    verification_basis: source_import
+    legacy_historical_verified_commit: 238d29c
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: >-
       EXIT CONDITION MET. The complete gate ran twice against the same immutable
       packaged candidate with a controlled app+worker restart between the runs,
@@ -1502,7 +1531,9 @@ rows:
       which is exactly why the earlier 66-test matrix passed while production
       failed. Two neighbouring tests were rewritten onto the same real-shaped
       store for the same reason.
-    verified_commit: 7ba087f
+    verification_basis: source_import
+    legacy_historical_verified_commit: 7ba087f
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       On the running candidate after the fix: delete-plan returns
       data_connection_count=1 with the connection listed and
@@ -1592,7 +1623,9 @@ rows:
       10-30 seconds has not been re-measured, and closing the row without that
       would overclaim.
     technical_status: fixed_verified
-    verified_commit: 0b604fc
+    verification_basis: source_import
+    legacy_historical_verified_commit: 0b604fc
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     browser_evidence: >-
       The half held back earlier — projection reconciliation measured in the
       browser rather than at the API — is now measured, on packaged candidate
@@ -1687,9 +1720,12 @@ rows:
       worse than an accurate handover.
     technical_status: fixed_verified
     source_fix_commit: 3ed983dddfc13bbcbe79f3cdf27eced2529cce9b  # pragma: allowlist secret - git commit SHA
-    verified_commit: 3ed983dddfc13bbcbe79f3cdf27eced2529cce9b  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3ed983dddfc13bbcbe79f3cdf27eced2529cce9b  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       A handled-in-node skill contract failure returned durable
       unresolved_step_failure state instead of raising through the graph callback.
@@ -1863,7 +1899,9 @@ rows:
       The test double was also missing the store's author parameter, which is why
       it accepted a call the real store would have rejected; 113 passed after the
       signature was aligned.
-    verified_commit: 3c088d8
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3c088d8
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Release gate B15 PASS on the running candidate, reporting the real actor
       (fs-smoke@release.local) as the changelog author.
@@ -1932,7 +1970,9 @@ rows:
       change — which is why guessing those fields here, across 16 dialects,
       would have been the wrong move.
     technical_status: fixed_verified
-    verified_commit: 9859cb9
+    verification_basis: source_import
+    legacy_historical_verified_commit: 9859cb9
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     scope_decision: >-
       Full scope approved by the owner, with the constraint that database
       knowledge must not enter Python: this connector is the worked example
@@ -2020,7 +2060,9 @@ rows:
     title: Service-account create drawer has broad sticky defaults
     sources: [A5-006]
     technical_status: fixed_verified
-    verified_commit: 4ed25ae
+    verification_basis: source_import
+    legacy_historical_verified_commit: 4ed25ae
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Two defects in one surface. openCreateAccountDrawer set the drawer mode and
       nothing else, so opening New after viewing an account carried that
@@ -2078,7 +2120,9 @@ rows:
       tests/unit/test_trash_lifecycle.py::
       test_registry_entity_trash_and_restore_are_written_to_the_changelog and
       test_lifecycle_changelog_rows_are_not_restorable_content_revisions; 67 passed.
-    verified_commit: 3c088d8
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3c088d8
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Release gate B14 PASS on the running candidate. B09 — which exists to prove a
       purged workflow cannot be resurrected from a history entry — still PASS.
@@ -2101,7 +2145,9 @@ rows:
     title: Grounding and task submission failures discard the actionable typed cause
     sources: [REVIEW-B-P1-grounding, REVIEW-B-P2-task-validation]
     technical_status: fixed_verified
-    verified_commit: 9b6019d
+    verification_basis: source_import
+    legacy_historical_verified_commit: 9b6019d
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Two surfaces threw away a cause they already held.
       GROUNDING: verify_worker_mcp_grounding reported "the machine token is
@@ -2153,7 +2199,9 @@ rows:
     title: Project workflow bindings cannot be explicitly removed
     sources: [REVIEW-B-P2-workflow-unlink]
     technical_status: fixed_verified
-    verified_commit: e54ec18
+    verification_basis: source_import
+    legacy_historical_verified_commit: e54ec18
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Unbinding a workflow set enabled=false and is_default=false but left
       deleted_at untouched, so the row survived and stayed in the
@@ -2203,7 +2251,9 @@ rows:
     title: Password reset token verification discloses account email
     sources: [REVIEW-B-C14]
     technical_status: fixed_verified
-    verified_commit: aac5bec
+    verification_basis: source_import
+    legacy_historical_verified_commit: aac5bec
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       POST /api/auth/password-reset/verify echoed the account's username/email
       alongside the validity flag. The endpoint is unauthenticated and takes only
@@ -2251,7 +2301,9 @@ rows:
       reason — see RS5-029 — and both checks pass now. The documentation contradiction
       this row is actually about has not been addressed yet.
     technical_status: fixed_verified
-    verified_commit: a2134b5
+    verification_basis: source_import
+    legacy_historical_verified_commit: a2134b5
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       README and docs/GUIDE.md stated that the Outgoing Email extension accepts
       only ports 25/465/587/2525, exposes STARTTLS/SSL only and requires
@@ -2296,7 +2348,9 @@ rows:
     title: Connector deletion leaves live-looking derived tool projections
     sources: [A5-015]
     technical_status: fixed_verified
-    verified_commit: 2b752b2
+    verification_basis: source_import
+    legacy_historical_verified_commit: 2b752b2
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Deleting an MCP connector disabled its projected registry tools but left
       their availability untouched. The rows survive on purpose — the projected
@@ -2458,7 +2512,9 @@ rows:
     title: Notification settings silently select the first project
     sources: [A5-012]
     technical_status: fixed_verified
-    verified_commit: a666700
+    verification_basis: source_import
+    legacy_historical_verified_commit: a666700
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       effectiveProjectId = selectedProjectId || projects[0].id. With no
       selection the routing editor opened for the first project and the select
@@ -2493,7 +2549,9 @@ rows:
     title: MCP wrong-scope business errors can be transport-success results
     sources: [A5-013]
     technical_status: fixed_verified
-    verified_commit: fa7e6fe
+    verification_basis: source_import
+    legacy_historical_verified_commit: fa7e6fe
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       MCP tools return their typed envelope as a normal string return value, and
       the SDK marks any normal return isError=false. An authorization refusal
@@ -2560,7 +2618,9 @@ rows:
       test_tools_search_returns_the_same_row_schema_as_an_unfiltered_list and
       test_tools_search_still_honours_enabled_only; both confirmed to fail against
       the pre-fix code (schema set mismatch, and [None] != []). 7 passed.
-    verified_commit: 826adca
+    verification_basis: source_import
+    legacy_historical_verified_commit: 826adca
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Release gate B16 PASS, B17 (the equivalent workflows check) still PASS.
     notes: >-
@@ -2591,7 +2651,9 @@ rows:
       test_summarize_data_connection_rows_drops_the_inlined_schema_snapshot and
       test_summarize_data_connection_rows_tolerates_non_list_input; 5 passed.
       Frontend project edit suite 25/25.
-    verified_commit: cb1de36
+    verification_basis: source_import
+    legacy_historical_verified_commit: cb1de36
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Release gate B18 PASS "largest project detail 6876 bytes" — a 43x reduction on
       the same project. Verified on the running candidate that the response no longer
@@ -2613,7 +2675,9 @@ rows:
     title: Advertised extra_state origin is silently discarded
     sources: [REVIEW-B-P2-extra-state-origin]
     technical_status: fixed_verified
-    verified_commit: 4a8e10e
+    verification_basis: source_import
+    legacy_historical_verified_commit: 4a8e10e
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       The submission allowlist advertises four public annotations — description,
       origin, priority and task_type — and rejects anything else by name. Three
@@ -2662,7 +2726,9 @@ rows:
     title: Trash renders a definitive false-empty state before initial load
     sources: [A5-014]
     technical_status: fixed_verified
-    verified_commit: 1d64eac
+    verification_basis: source_import
+    legacy_historical_verified_commit: 1d64eac
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       The page pushed an empty dataset into the grid while the first query was
       still in flight, so the grid rendered its "No deleted items found" state —
@@ -2707,7 +2773,9 @@ rows:
       The existing test asserted the disclosure, so it was inverted to assert the
       security contract: no username, no email, and the address absent from the
       response body. 69 passed.
-    verified_commit: aac5bec
+    verification_basis: source_import
+    legacy_historical_verified_commit: aac5bec
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Release gate C14 PASS "verify response carries no address"; C15 PASS; group C
       10/10 on the running candidate.
@@ -2726,7 +2794,9 @@ rows:
     title: Every shipped extension declares a platform floor the shipped platform cannot satisfy
     sources: [REVIEW-B-CANDIDATE-2026-08-05]
     technical_status: fixed_verified
-    verified_commit: 970d2ab
+    verification_basis: source_import
+    legacy_historical_verified_commit: 970d2ab
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     proving_test: >-
       tests/unit/test_extension_contract_v2.py::
       test_runtime_platform_version_is_the_host_contract_not_the_app_build_version
@@ -2795,7 +2865,9 @@ rows:
     title: A job whose project was deleted is unrecoverable and pins readiness red forever
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: fc420bc
+    verification_basis: source_import
+    legacy_historical_verified_commit: fc420bc
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Both the job command and job query paths conflated "the project lookup
       failed" with "the project no longer exists". _require_job_in_scope raised
@@ -2843,7 +2915,9 @@ rows:
     title: The documented stuck-job kill action kills the API container itself
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: b3afa03
+    verification_basis: source_import
+    legacy_historical_verified_commit: b3afa03
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       A worker id is built as f"{socket.gethostname()}-{os.getpid()}"
       (worker/queue_lease_store.py, worker/worker_bootstrap.py), and the pid in
@@ -2903,7 +2977,9 @@ rows:
     title: Deployment doctor reports missing MCP auth on every correct deployment
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: 7ebe460
+    verification_basis: source_import
+    legacy_historical_verified_commit: 7ebe460
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       deployment_doctor_common._resolve_bearer_token looked only at
       MCP_BEARER_TOKEN and FS_SESSION_TOKEN, in the process environment and then
@@ -2945,7 +3021,9 @@ rows:
     title: Installer demands a durable backup secret that nothing generates
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: f7cb551
+    verification_basis: source_import
+    legacy_historical_verified_commit: f7cb551
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       FS_BACKUP_ENCRYPTION_KEY is declared in the env manifest exactly like
       ENCRYPTION_KEY — installer_managed, doctor_required, doctor_secret, secret,
@@ -2993,7 +3071,9 @@ rows:
     title: Connector catalog never returns project connections, so no connector step can be bound
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: 6531889
+    verification_basis: source_import
+    legacy_historical_verified_commit: 6531889
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       _list_project_connections_for_catalog tries two stores and both lack the
       method. The admin db handle is a RegistryDBStore, which has no
@@ -3040,7 +3120,9 @@ rows:
     title: The gate this epic verified with runs no tests, and two budgets stayed red behind it
     sources: [REVIEW-B-PROCESS-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: a9af0bd
+    verification_basis: source_import
+    legacy_historical_verified_commit: a9af0bd
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       lint.sh --fast runs run_base_checks: ruff, ruff format, mypy, bandit, CI
       excludes and frontend lint. It executes no Python tests at all —
@@ -3113,7 +3195,9 @@ rows:
       release was adopted, GHSA-2v37-7h3g-55p8 was disclosed through vite ->
       postcss -> nanoid 3.3.16. The latter affected every nanoid version below
       3.3.17, while the existing PostCSS range allowed a patched 3.x release.
-    verified_commit: 3ed983dddfc13bbcbe79f3cdf27eced2529cce9b  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3ed983dddfc13bbcbe79f3cdf27eced2529cce9b  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     failing_test: >-
       The mandatory Docker frontend audit first failed on
       GHSA-5p4m-2wfm-xmqj through eslint -> @eslint/eslintrc -> js-yaml 4.3.0,
@@ -3154,7 +3238,9 @@ rows:
     title: A refused phase add still renumbers the workflow terminal
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: 4429516
+    verification_basis: source_import
+    legacy_historical_verified_commit: 4429516
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       RegistryDBStoreWorkflowStepsMixin.add_phase shifts every phase at or after
       the insert position up by one to make room, and commits. The authoring
@@ -3201,7 +3287,9 @@ rows:
     title: Operator recovery paths verified on the packaged candidate (no defect)
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: invalid
-    verified_commit: e2d685e
+    verification_basis: source_import
+    legacy_historical_verified_commit: e2d685e
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Recorded as a verified-negative so these paths are not re-investigated:
       two suspected release blockers did not reproduce, and one previously
@@ -3238,7 +3326,9 @@ rows:
     title: Production env template omits SECURITY_PII_SALT, so every agent run fails
     sources: [REVIEW-B-CANDIDATE-2026-08-06]
     technical_status: fixed_verified
-    verified_commit: d0e31fa
+    verification_basis: source_import
+    legacy_historical_verified_commit: d0e31fa
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     proving_test: >-
       The repair is in the registry, not the template. SECURITY_PII_SALT moved
       from groups [audit_tools] / environments [local_development] to
@@ -3362,8 +3452,11 @@ rows:
     title: Security posture loop uses a nonexistent project lifecycle column and hides iteration failure
     sources: [RRA10-P0-03, REVIEW-B-2026-08-10-P0-1]
     technical_status: fixed_verified
-    verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The control process wired PlatformConnectionStore into security_posture_scan,
@@ -3424,8 +3517,11 @@ rows:
     title: Command dispatch and production store ports return false success without durable mutation
     sources: [RRA10-P0-01, REVIEW-B-2026-08-10-P0-2]
     technical_status: fixed_verified
-    verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The public command router constructed CommandDispatchService with the provider
@@ -3501,8 +3597,11 @@ rows:
     title: Workflow lifecycle deletion can invalidate a non-terminal dependent job
     sources: [RRA10-P0-04]
     technical_status: fixed_verified
-    verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       Workflow deletion, unified trash/hard-delete, project-workflow bulk lifecycle,
@@ -3563,8 +3662,11 @@ rows:
     title: Empty HITL allowed actions hide controls while enforcement fails open
     sources: [RRA10-P1-02, REVIEW-B-2026-08-10-P1-HITL]
     technical_status: fixed_verified
-    verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       ApprovalQueryService defaulted approve/reject only while repairing a missing
@@ -3619,8 +3721,11 @@ rows:
     title: AI Builder inherited routing discards the verified database provider identity
     sources: [RRA10-P1-01]
     technical_status: fixed_verified
-    verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       resolve_inherited_account_route selected the correct verified model_providers
@@ -3690,8 +3795,11 @@ rows:
     title: Release smoke can pass without exercising the named packaged candidate
     sources: [RRA10-P1-05, REVIEW-B-2026-08-10-release-gate]
     technical_status: fixed_verified
-    verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The release runner treated A/E as source-mounted pytest references, defaulted
@@ -3817,8 +3925,11 @@ rows:
     title: Full gate, packaged provenance, and durable release inputs are not closed
     sources: [RRA10-P1-04, RRA10-P1-06]
     technical_status: fixed_verified
-    verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 5d86f0aea5e77a45141a26d5c4ee5ea02ad93dcb  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The ledger validator unconditionally queried the Git object database, while
@@ -3971,8 +4082,11 @@ rows:
     title: Replace partial store seam checks with complete production composition contracts
     sources: [RRA11-P1-01, RRA13-P1-01]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence_2026_08_14: >-
       Exact immutable candidate 1d0bc76d0fda passed A25 through the public API:
       connection ownership, redacted discovery, HMAC expiry and replay denial, token
@@ -4065,8 +4179,11 @@ rows:
     title: Make project workspace and extension deletion planning complete and fail closed
     sources: [RRA11-P0-01, RRA13-P0-05]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence_2026_08_14: >-
       Exact immutable candidate 1d0bc76d0fda passed A27. Populated restore preserved
       dependency counts, a mutated dependency invalidated the hard-delete plan without
@@ -4146,8 +4263,11 @@ rows:
     title: Restore truthful dashboard metrics and real LLM cost capture
     sources: [RRA11-P1-02, RRA13-CLOSED-COST]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 9411658de28413e52e630a61a70b4a898e46ca43  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 9411658de28413e52e630a61a70b4a898e46ca43  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4197,7 +4317,9 @@ rows:
     title: Restore trace reactions and provider-event operational surfaces
     sources: [RRA11-P1-01]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4238,8 +4360,11 @@ rows:
     title: Make candidate build restart and rollback reproducible and immutable
     sources: [RRA11-P0-02, RRA13-P1-06]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence_2026_08_14: >-
       Exact immutable candidate 1d0bc76d0fda passed E09-E12 and E14 on its isolated
       data plane: writer-barrier upgrade, dump/restore parity with AGE and knowledge
@@ -4322,7 +4447,9 @@ rows:
     title: Preserve project execution context across restart replay resume and scheduling
     sources: [RRA11-P1-01]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4362,8 +4489,11 @@ rows:
     title: Make CLI diagnostics use deployed production configuration and render safely
     sources: [RRA11-P1-03, RRA13-CLOSED-CLI]
     technical_status: fixed_verified
-    verified_commit: 47492356792e2790901169ed045dbe52d34ff32a  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 9411658de28413e52e630a61a70b4a898e46ca43  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 47492356792e2790901169ed045dbe52d34ff32a  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 9411658de28413e52e630a61a70b4a898e46ca43  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4411,7 +4541,9 @@ rows:
     title: Restore assistant reuse of existing workflows
     sources: [RRA11-P1-01]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4445,7 +4577,9 @@ rows:
     title: Release scheduled execution locks reliably and observably
     sources: [RRA11-P1-01]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4477,8 +4611,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-16
-    verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4750,8 +4887,11 @@ rows:
     title: Align monitoring readiness with backend truth
     sources: [RRA11-P1-02, RRA13-CLOSED-READINESS]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 9411658de28413e52e630a61a70b4a898e46ca43  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 9411658de28413e52e630a61a70b4a898e46ca43  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4791,7 +4931,9 @@ rows:
     title: Close bounded runtime and documentation inconsistencies
     sources: [RRA11-P2]
     technical_status: fixed_verified
-    verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 5aa47630c61fbc3bb873096fa7d9af9ce898255d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: *final_candidate_runtime
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
@@ -4827,8 +4969,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-16
-    verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
     runtime_evidence: >-
@@ -4997,8 +5142,11 @@ rows:
     title: Unify full project update with authoritative extension workflow binding
     sources: [RRA13-P0-02]
     technical_status: fixed_verified
-    verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Exact candidate evidence is recorded in runtime_evidence_2026_08_14 below.
     runtime_evidence_2026_08_14: >-
@@ -5043,8 +5191,11 @@ rows:
     title: Permit platform-issued artifact uploads without weakening extension SSRF protection
     sources: [RRA13-P0-03]
     technical_status: fixed_verified
-    verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Exact candidate evidence is recorded in runtime_evidence_2026_08_14 below.
     runtime_evidence_2026_08_14: >-
@@ -5092,8 +5243,11 @@ rows:
     title: Publish one authenticated production MCP ingress and align documentation
     sources: [RRA13-P0-04]
     technical_status: fixed_verified
-    verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Exact candidate evidence is recorded in runtime_evidence_2026_08_14 below.
     runtime_evidence_2026_08_14: >-
@@ -5140,8 +5294,11 @@ rows:
     title: Use one writable worktree-root policy for task story and parallel execution
     sources: [RRA13-P1-02]
     technical_status: fixed_verified
-    verified_commit: d3f4b7863b39b64c8b288ddbf15dc626adc5b5aa  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: b4464bf39e018bac8f71a968b2eacd057406f596  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d3f4b7863b39b64c8b288ddbf15dc626adc5b5aa  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: b4464bf39e018bac8f71a968b2eacd057406f596  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Parallel/story worktree setup always chooses a sibling directory under the
       repository parent. Normal branch setup already falls back to a repository-local
@@ -5194,8 +5351,11 @@ rows:
     title: Make Guardrail Config save preserve explicit agent scope
     sources: [RRA13-P1-03]
     technical_status: fixed_verified
-    verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Exact candidate evidence is recorded in runtime_evidence_2026_08_14 below.
     runtime_evidence_2026_08_14: >-
@@ -5237,8 +5397,11 @@ rows:
     title: Enforce the configured human-rejection rework budget
     sources: [RRA13-P1-04]
     technical_status: fixed_verified
-    verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 1d0bc76d0fdad779a176e96882f1985499b5eae7  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     runtime_evidence: >-
       Exact candidate evidence is recorded in runtime_evidence_2026_08_14 below.
     runtime_evidence_2026_08_14: >-
@@ -5282,8 +5445,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-15-r2
-    verified_commit: 3c9490001be816e3a3d2acf1ccd6fbf2f4fcf481  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 8626eaa5f92cac92e68c6bad352ca022ceaf88ac  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3c9490001be816e3a3d2acf1ccd6fbf2f4fcf481  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 8626eaa5f92cac92e68c6bad352ca022ceaf88ac  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
     root_cause: >-
@@ -5359,8 +5525,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-15-r2
-    verified_commit: 60e87008daeaea9f82c763cde90b16edec7f2291  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 8626eaa5f92cac92e68c6bad352ca022ceaf88ac  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 60e87008daeaea9f82c763cde90b16edec7f2291  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 8626eaa5f92cac92e68c6bad352ca022ceaf88ac  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
     root_cause: >-
@@ -5437,8 +5606,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-16
-    verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
     root_cause: >-
@@ -5546,8 +5718,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-15
-    verified_commit: b43073f1869691c8f5096d63c53bdf8023955690  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: fcc7277a958e739104e54b6db146e0b99d539f99  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: b43073f1869691c8f5096d63c53bdf8023955690  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: fcc7277a958e739104e54b6db146e0b99d539f99  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
     root_cause: >-
@@ -5584,8 +5759,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-15
-    verified_commit: b43073f1869691c8f5096d63c53bdf8023955690  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: fcc7277a958e739104e54b6db146e0b99d539f99  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: b43073f1869691c8f5096d63c53bdf8023955690  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: fcc7277a958e739104e54b6db146e0b99d539f99  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
     root_cause: >-
@@ -5621,8 +5799,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-16
-    verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: dd2cc95499aac5e332ef24d6d99afc95b4bdb23f  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d56a533f5b3b47cf4d34471bad75d442bf0a63e8  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     packaged_evidence: *final_candidate_packaged
     cleanup_evidence: *final_candidate_cleanup
     root_cause: >-
@@ -5758,7 +5939,9 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-18
-    verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       execute_transform_step returns a structured runtime reason, but the graph node
       nests it under artifacts.transform.errors while unresolved terminal failure
@@ -5812,7 +5995,9 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-18
-    verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Registry workflow normalization checks only for stop_success and appends a
       default success terminal beside any submitted stop_fail. Ordered topology then
@@ -5863,7 +6048,9 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-18
-    verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Project create intentionally resolves omitted workflow_ids from
       list_workflow_choices, but that helper starts with raw durable registry rows and
@@ -5912,7 +6099,9 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-18
-    verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 2724a7d527422a4eb0d7a1b2f6375a897f1a7c51  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       set_state_path mirrors dynamic result targets into workflow_data because
       undeclared top-level keys do not survive OrchestratorState graph materialization.
@@ -5965,8 +6154,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-19
-    verified_commit: aa556518e13dbaf968a1f7f95bc5ce5ec0bc790d  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 226b61be4ea3ebd84ba96cb368f0e211e872920e  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: aa556518e13dbaf968a1f7f95bc5ce5ec0bc790d  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 226b61be4ea3ebd84ba96cb368f0e211e872920e  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       _has_explicit_exhaustive_terminal_routing scans every branch step in every phase
@@ -6049,8 +6241,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-20
-    verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The authoring topology service checks branch position only inside its own phase,
@@ -6117,8 +6312,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-20
-    verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       Dataset listing delegates extension bridge rows to projection-aware catalog
@@ -6180,8 +6378,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-20
-    verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 4972faf362726aa4afc22442375d0a4e8f66ed0e  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The Track2 build mixin invokes _deterministic_refine_output_fallback for every
@@ -6247,8 +6448,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-21
-    verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       build_candidate.sh checks only tracked and staged diffs, then sends the live
@@ -6306,8 +6510,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-21
-    verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       data_connection_ids is classified as an IT-only API/UI field, and the application
@@ -6353,8 +6560,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-21
-    verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       Saved-query create and update validate only dataset reachability before calling the
@@ -6407,8 +6617,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-21
-    verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Dataset execution retains structured connector errors, but the shared unresolved
       step projection extracts detailed reasons only for transform and tabular_feed.
@@ -6455,8 +6668,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-21
-    verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       The global-search category registry is a manually curated subset. It omits public
       release entities including extensions, guardrails, data contracts, saved queries,
@@ -6501,8 +6717,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       App and MCP builds use mutable python:3.12-slim bases and production Compose defaults
@@ -6559,8 +6778,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       Canonical extension SDK source changed without rebuilding or versioning the copied
@@ -6626,8 +6848,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-21
-    verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: d5afb4206008aee76824e546f5928d78a0ed575c  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       test_smtp_extension imports extensions.flowsteward_outgoing_email, but the public
@@ -6678,8 +6903,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       Extension lifecycle still dual-writes extension_installs and the legacy
@@ -6732,8 +6960,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The shipped spike_investigation workflow relies on a real model to infer whether a
@@ -6785,8 +7016,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Model resolution correctly refuses to choose between several eligible providers,
       but the synchronous AI Builder turn route does not map ModelUnavailableError into a
@@ -6832,8 +7066,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       log_action attempts SAVEPOINT whenever job_id is present without first checking
       whether the psycopg connection is inside a transaction. Worker calls commonly use
@@ -6879,8 +7116,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       Global search registered administrative entity families but dispatches them using
@@ -6936,8 +7176,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The saved-query contract identifies named parameters with
@@ -6989,8 +7232,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       PUT /api/workflows/{id} is implemented as metadata-only, but it accepts the broad
       WorkflowSave model containing phases. It runs validation against the persisted
@@ -7036,8 +7282,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       execute_dataset_query_step loads the dataset and validates the saved-query contract
       before checking whether the current project is assigned to that dataset. Contract
@@ -7082,8 +7331,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-22
-    verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 619e38cd89d4a2c23470123381f0cc39d113acd1  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Switch validation checks only that selector exists and cases has a supported
       container type. It has no allowed-key contract, while runtime reads only selector,
@@ -7133,8 +7385,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-23
-    verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       The job header derives its phase from the normalized lifecycle/job/runtime
       projection, while the hero fact can retain a separate stale or absent current-phase
@@ -7184,8 +7439,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-23
-    verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The project-scoped contract path checks only that project_workflows contains the
@@ -7244,8 +7502,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-24
-    verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       groupB B01 sends project trash and hard-delete immediately after job terminal state,
       discards both HTTP statuses and bodies, performs no absence verification, and has no
@@ -7297,8 +7558,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-23
-    verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: db584727024b6ed3692df3a2dceeccfaec367adc  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       The new application-owned strict-key contract validates only the selected nested
       override[step_kind] mapping. The surrounding persisted override envelope has no
@@ -7355,8 +7619,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-24
-    verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       STEP_OVERRIDE_ALLOWED_KEYS is built as the union of every canonical step-kind name
       plus cross-cutting keys. Validation therefore accepts any known step-kind wrapper on
@@ -7412,8 +7679,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-24
-    verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       The frontend Dashboard command center was extracted from index.tsx into
       command-center.tsx, but a Python behavioral-marker contract still searches the old
@@ -7465,8 +7735,11 @@ rows:
     technical_status: fixed_verified
     review_status: accepted
     reviewer: agent-release-audit-2026-08-24
-    verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 3ba6157d831c5b61f52a878ee26a14c73f8cd4f9  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       ExtensionUninstallPersistenceService pins the owning extension_installs row before
       taking the uninstall inventory table locks, matching provider-discovery's order.
@@ -7521,8 +7794,11 @@ rows:
     title: Reject model-invented external endpoints before AI Builder draft or apply
     sources: [REVIEW-A-RC24-AI-BUILDER-PROVENANCE]
     technical_status: fixed_verified
-    verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The deterministic Builder pipeline treats M1's typed external evidence as provenance.
@@ -7585,8 +7861,11 @@ rows:
     technical_status: open_confirmed
     release_blocking: false
     owner_disposition: accepted_post_release_tooling_debt
-    verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       The verifier now writes checksummed external phase artifacts, but
       CandidateEvidenceStore.verified_manifest validates only candidate SHA, run ID, phases,
@@ -7653,8 +7932,11 @@ rows:
     title: Count smoke-owned registry entities in final candidate residue verification
     sources: [REVIEW-A-RC24-REGISTRY-FIXTURE-RESIDUE]
     technical_status: fixed_verified
-    verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       candidate_residue_check.py counts projects, jobs, project workflow/dataset/connection
       links, callbacks, tokens, extension state, queues, and artifact files. It never counts
@@ -7706,8 +7988,11 @@ rows:
     title: Align KB relevance evidence, visible items, totals, and pagination
     sources: [REVIEW-B-RC23-KB-RELEVANCE-TOTALS, REVIEW-A-RC24-KB-RELEVANCE-REVIEW]
     technical_status: fixed_verified
-    verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: e7ac8f695370a02609c690c2677ff472fb942a40  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     root_cause: >-
       Postgres unified retrieval serializes both unavailable vector evidence and a measured
       zero similarity as vector_similarity=0.0. The shared relevance helper sees only
@@ -7892,8 +8177,11 @@ rows:
     title: Guardrails require an account ownership and authorization boundary
     sources: [REVIEW-B-P0-7, REVIEW-B-C04, RRA10-P0-02]
     technical_status: fixed_verified
-    verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       The additive ownership migration existed, but the guardrail store treated
@@ -7967,8 +8255,11 @@ rows:
     title: Workflow catalog requires the OSS default-registry-account fail-closed boundary
     sources: [REVIEW-B-C08, RRA10-P1-03]
     technical_status: fixed_verified
-    verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
-    packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verification_basis: source_import
+    legacy_historical_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
+    legacy_historical_packaged_verified_commit: 21aee3d0738d15fe89d6aa9f6fe968943aafa775  # pragma: allowlist secret - git commit SHA
+    packaged_verified_commit: 8ccdb15b8b3f420d36c0fc882afd0146085c051b  # pragma: allowlist secret - public Git import commit SHA
     requires_immutable_candidate: true
     root_cause: >-
       Workflow admin routes resolved a caller ScopeContext but did not enforce the
