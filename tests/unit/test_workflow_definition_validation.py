@@ -393,15 +393,38 @@ def test_lane_cannot_exit_through_a_sibling_lane() -> None:
     assert "workflow.graph.group_exit_foreign" in codes(validate_workflow_definition(payload))
 
 
-@pytest.mark.parametrize("kind", ["stop_success", "stop_fail", "approval", "wait", "if", "switch"])
-def test_lane_rejects_control_and_waiting_kinds(kind: str) -> None:
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "if",
+        "switch",
+        "approval",
+        "wait",
+        "stop_success",
+        "stop_fail",
+        "collect",
+        "break",
+        "continue",
+    ],
+)
+def test_lane_rejects_unsupported_kinds_with_friendly_refusal(kind: str) -> None:
+    override = (
+        {"collect": {"target": "state.items", "source": "state.item"}} if kind == "collect" else {}
+    )
     payload = parallel(
-        [in_group(step("x1", kind), "p", "left"), in_group(step("y1"), "p", "right")],
+        [
+            in_group(step("x1", kind, override=override), "p", "left"),
+            in_group(step("y1"), "p", "right"),
+        ],
         [edge("y1", exit_ref("p", "right"))],
     )
-    assert "workflow.placement.lane_kind_unsupported" in codes(
-        validate_workflow_definition(payload)
+    issues = validate_workflow_definition(payload)
+    issue = next(
+        item for item in issues if item["code"] == "workflow.placement.lane_kind_unsupported"
     )
+    assert issue["message"] == "This step cannot be added inside a parallel lane."
+    assert issue["message_key"] == "react.workflows.palette_refused_in_lane"
+    assert issue["path"] == "steps.x1"
 
 
 def test_for_each_with_lanes_body_runs_lanes_inside_each_item() -> None:

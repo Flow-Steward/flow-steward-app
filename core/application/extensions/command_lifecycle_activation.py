@@ -191,6 +191,12 @@ class ExtensionLifecycleActivationOperations:
                 record.state = "active"
             if hasattr(runtime_store, "set_projection_active_for_install"):
                 runtime_store.set_projection_active_for_install(record.install_id, is_active=True)
+            if release is not None:
+                self._install.materialize_dataset_execution_bridges(
+                    install_record=record,
+                    release=release,
+                    account_id=account_id,
+                )
             # Last, so nothing that can fail runs after it: an extension that
             # declares itself a provider becomes one from its own typed manifest
             # fields. A failure raises and the whole enable unwinds, because
@@ -301,11 +307,6 @@ class ExtensionLifecycleActivationOperations:
             install_id=record.install_id,
             release_id=release.release_id,
         )
-        self._install.materialize_dataset_execution_bridges(
-            install_record=record,
-            release=release,
-            account_id=account_id,
-        )
 
     @staticmethod
     def _release_for_record(runtime_store: Any, record: Any) -> Any | None:
@@ -385,18 +386,12 @@ class ExtensionLifecycleActivationOperations:
         previous_projections: list[Any],
     ) -> None:
         install_id = _normalize_text(getattr(record, "install_id", ""))
-        self._install.remove_dataset_execution_bridges(install_id=install_id)
         if hasattr(runtime_store, "delete_projections_for_install"):
             runtime_store.delete_projections_for_install(install_id)
+        self._install.remove_dataset_execution_bridges(install_id=install_id, account_id=account_id)
         if hasattr(runtime_store, "upsert_projection"):
             for projection in previous_projections:
                 runtime_store.upsert_projection(projection)
-        if release is not None and previous_projections:
-            self._install.materialize_dataset_execution_bridges(
-                install_record=record,
-                release=release,
-                account_id=account_id,
-            )
         if hasattr(store, "set_state"):
             store.set_state(
                 extension_id=record.extension_id,
@@ -405,6 +400,12 @@ class ExtensionLifecycleActivationOperations:
             )
         else:
             record.state = previous_state
+        if release is not None and previous_projections and previous_state == "active":
+            self._install.materialize_dataset_execution_bridges(
+                install_record=record,
+                release=release,
+                account_id=account_id,
+            )
         sync_legacy_enabled_projection(
             self._context.logger(),
             record.extension_id,

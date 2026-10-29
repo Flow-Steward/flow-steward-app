@@ -58,6 +58,36 @@ describe("workflow Interface typing preserves editable row identity", () => {
     }]);
   });
 
+  it("explains the disabled default and saves an optional select only as a configured fixed default", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<EditorHarness editor="input" onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: "Add input" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "priority");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "select");
+    await user.type(screen.getByRole("textbox", { name: "Options" }), "normal, urgent");
+
+    const defaultValue = screen.getByRole("combobox", { name: "Default value" });
+    const fixedDefault = screen.getByRole("checkbox", { name: "Fixed default (callers may not supply this input)" });
+    expect(screen.getByRole("checkbox", { name: "Required" })).not.toBeChecked();
+    expect(defaultValue).toBeDisabled();
+    expect(defaultValue).toHaveAccessibleDescription(/Enable Fixed default.*even if the input is optional/u);
+    await user.click(fixedDefault);
+    expect(defaultValue).toBeEnabled();
+    await user.selectOptions(defaultValue, "normal");
+    await user.click(screen.getByRole("button", { name: "Save contract" }));
+    expect(onSave).toHaveBeenLastCalledWith([{
+      name: "priority", type: "select", required: false, options: ["normal", "urgent"], default: "normal",
+    }]);
+
+    await user.click(fixedDefault);
+    expect(defaultValue).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Save contract" }));
+    expect(onSave).toHaveBeenLastCalledWith([{
+      name: "priority", type: "select", required: false, options: ["normal", "urgent"],
+    }]);
+  });
+
   it("keeps the empty input focused across an unrelated parent render", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();

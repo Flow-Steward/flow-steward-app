@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.entrypoints.admin import (
     workflows_common,
     workflows_routes_history,
@@ -171,6 +172,7 @@ def test_workflow_catalog_groups_projected_mcp_tools_under_one_source() -> None:
     db.list_tools.return_value = [
         {
             "tool_id": "drive.create_file",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "display_name": "Drive / create_file",
             "description": "Create a file.",
             "enabled": True,
@@ -193,6 +195,7 @@ def test_workflow_catalog_groups_projected_mcp_tools_under_one_source() -> None:
         },
         {
             "tool_id": "drive.search_files",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "display_name": "Drive / search_files",
             "description": "Search files.",
             "enabled": True,
@@ -214,9 +217,15 @@ def test_workflow_catalog_groups_projected_mcp_tools_under_one_source() -> None:
             },
         },
     ]
+    ready_tools = {row["tool_id"]: row for row in db.list_tools.return_value}
+    db.get_tool.side_effect = ready_tools.get
 
     with (
-        patch.object(workflows_routes_read, "_request_scope", return_value=object()),
+        patch.object(
+            workflows_routes_read,
+            "_request_scope",
+            return_value={"account_id": DEFAULT_ACCOUNT_ID},
+        ),
         patch.object(workflows_routes_read, "_get_db", return_value=db),
         patch.object(
             workflows_routes_read,

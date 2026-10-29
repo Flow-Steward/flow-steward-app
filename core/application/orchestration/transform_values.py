@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import copy
 import json
-import math
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
+
+from core.infrastructure import standard_array, standard_boolean, standard_money, standard_numbers
 
 TRANSFORM_VALUE_TYPES = {"text", "number", "money", "boolean", "object", "array", "json"}
 
@@ -47,26 +48,16 @@ def _coerce_value(value: Any, value_type: str) -> Any:
             return copy.deepcopy(value)
         raise ValueError(f"{type(value).__name__} is not an object")
     if normalized == "array":
-        if isinstance(value, list):
-            return copy.deepcopy(value)
-        raise ValueError(f"{type(value).__name__} is not an array")
+        return standard_array.coerce(value)
     raise ValueError(f"unsupported value type '{value_type}'")
 
 
 def _money_decimal(value: Any) -> Decimal:
-    if isinstance(value, bool) or value is None:
-        raise ValueError("value is not a money amount")
-    try:
-        amount = value if isinstance(value, Decimal) else Decimal(str(value).strip())
-    except (InvalidOperation, ValueError) as exc:
-        raise ValueError("value is not a money amount") from exc
-    if not amount.is_finite():
-        raise ValueError("money amount must be finite")
-    return amount
+    return standard_money.to_decimal(value)
 
 
 def _money_text(value: Any) -> str:
-    return format(_money_decimal(value), "f")
+    return standard_money.to_text(value)
 
 
 def _coerce_text(value: Any) -> Any:
@@ -77,32 +68,9 @@ def _coerce_text(value: Any) -> Any:
     return str(value)
 
 
-def _coerce_number(value: Any) -> Any:
-    if isinstance(value, bool):
-        raise ValueError("boolean is not a number")
-    if isinstance(value, (int, float)):
-        number = float(value)
-    elif isinstance(value, str):
-        text = value.strip()
-        if not text:
-            raise ValueError("empty string is not a number")
-        number = float(text)
-    else:
-        raise ValueError(f"{type(value).__name__} is not a number")
-    if not math.isfinite(number):
-        raise ValueError("number must be finite")
-    return int(number) if number.is_integer() else number
+def _coerce_number(value: Any) -> int | float:
+    return standard_numbers.coerce(value)
 
 
-def _coerce_boolean(value: Any) -> Any:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "1", "yes", "on"}:
-            return True
-        if lowered in {"false", "0", "no", "off", ""}:
-            return False
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return value != 0
-    raise ValueError(f"{type(value).__name__} is not a boolean")
+def _coerce_boolean(value: Any) -> bool:
+    return standard_boolean.coerce(value)

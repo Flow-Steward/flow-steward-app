@@ -442,6 +442,9 @@ class ToolRecordView(ViewModel):
     availability_status: str = "available"
     availability_reason_code: str = "none"
     availability_reason_text: str = ""
+    agent_relationship_assignable: bool | None = None
+    agent_relationship_reason_code: str = "unknown"
+    agent_relationship_reason_text: str = ""
 
 
 class ToolsHealthView(ViewModel):

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from core.application.auth.enforce import require_roles
+from core.application.management import AgentCommandService
 from core.application.management.command_models import AgentMutationResultView
 from core.application.management.query_models import (
     AgentRecordView,
@@ -139,6 +140,13 @@ def _get_db() -> RegistryDBStore:
     if not rm.db_store:
         raise HTTPException(status_code=503, detail="DB backend not configured")
     return rm.db_store
+
+
+def _agent_command_service() -> AgentCommandService:
+    return AgentCommandService(
+        get_db=_get_db,
+        reload_registry=lambda: _get_registry().reload_all(),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -271,10 +279,22 @@ def get_agent(agent_id: str, request: Request):
         503: {"description": "Service unavailable"},
     },
 )
-def get_agent_contract_validation(agent_id: str):
+def get_agent_contract_validation(agent_id: str, request: Request):
     """Validate agent readiness for enable/test/invoke operations."""
     db = _get_db()
-    validation = _get_agent_validation(db, agent_id)
+    scope = request_scope(request)
+    agent = projection_aware_catalog_row(
+        db,
+        "agent",
+        "agent_id",
+        agent_id,
+        db.get_agent(agent_id),
+        account_id=scope.account_id,
+    )
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+    assert_row_in_account_scope(agent, scope, detail=f"Agent '{agent_id}' not found")
+    validation = _get_agent_validation(db, agent_id, account_id=scope.account_id)
     return {"agent_id": agent_id, "validation": validation}
 
 
@@ -322,7 +342,7 @@ def create_agent(
     try:
         with db._transaction():
             db.save_agent(data, author=scope.actor_name)
-            validation = _get_agent_validation(db, agent_id)
+            validation = _get_agent_validation(db, agent_id, account_id=scope.account_id)
             enforce_enabled_save_validation(
                 entity_type="agent",
                 entity_id=agent_id,
@@ -383,7 +403,7 @@ def update_agent(
     try:
         with db._transaction():
             db.save_agent(data, author=scope.actor_name)
-            validation = _get_agent_validation(db, agent_id)
+            validation = _get_agent_validation(db, agent_id, account_id=scope.account_id)
             enforce_enabled_save_validation(
                 entity_type="agent",
                 entity_id=agent_id,
@@ -499,7 +519,7 @@ def patch_agent(
     try:
         with db._transaction():
             db.save_agent(merged, author=scope.actor_name, sync_relationships=False)
-            validation = _get_agent_validation(db, agent_id)
+            validation = _get_agent_validation(db, agent_id, account_id=scope.account_id)
             enforce_enabled_save_validation(
                 entity_type="agent",
                 entity_id=agent_id,
@@ -532,9 +552,8 @@ def toggle_agent(agent_id: str, request: Request):
     current = db.get_agent(agent_id)
     if not current:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-    assert_row_in_account_scope(
-        current, request_scope(request), detail=f"Agent '{agent_id}' not found"
-    )
+    scope = request_scope(request)
+    assert_row_in_account_scope(current, scope, detail=f"Agent '{agent_id}' not found")
     if bool(current.get("enabled", False)):
         dependencies = enabled_workflow_dependencies(db, agent_ids=[agent_id])
         if dependencies:
@@ -551,7 +570,7 @@ def toggle_agent(agent_id: str, request: Request):
                 },
             )
     if not bool(current.get("enabled", False)):
-        validation = _get_agent_validation(db, agent_id)
+        validation = _get_agent_validation(db, agent_id, account_id=scope.account_id)
         if not validation.get("valid", False):
             raise HTTPException(
                 status_code=400,
@@ -613,6 +632,7 @@ register_agent_history_routes(
     get_agent_validation=lambda db, agent_id: _get_agent_validation(db, agent_id),
     get_scope=request_scope,
     assert_in_scope=assert_row_in_account_scope,
+    clone_agent_command=lambda **kwargs: _agent_command_service().clone_agent(**kwargs),
 )
 register_agent_relationship_routes(
     router,

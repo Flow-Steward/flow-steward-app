@@ -716,6 +716,35 @@ def run_extension_invocation(
                 if k in ctx
             }
         return result
+    except subprocess.TimeoutExpired as exc:
+        operation_id = _runtime_payload_operation_id(payload)
+        runtime_source = ctx.get("source")
+        runtime_source = runtime_source.strip()[:128] if isinstance(runtime_source, str) else ""
+        timeout_text = f"{timeout:g} second{'s' if timeout != 1 else ''}"
+        if runtime_source == "registry_saved_queries":
+            message = f"Saved query timed out after {timeout_text}."
+        else:
+            message = f"Extension operation timed out after {timeout_text}."
+        _log.warning(
+            "Extension subprocess timed out",
+            extra={
+                "extension_timeout": True,
+                "extension_key": extension_key,
+                "extension_operation_id": operation_id,
+                "extension_timeout_seconds": timeout,
+                "extension_exception_type": type(exc).__name__,
+                "extension_runtime_source": runtime_source,
+            },
+        )
+        return {
+            "status": "failed",
+            "detail": message,
+            "command": command,
+            "bundle_root": bundle_root,
+            "timeout_seconds": timeout,
+            "response": {},
+            "errors": [{"code": "extension_timeout", "message": message}],
+        }
     except Exception as exc:
         return {
             "status": "failed",

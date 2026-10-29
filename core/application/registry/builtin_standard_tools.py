@@ -26,6 +26,7 @@ def _standard_manifest(
     description_key: str,
     functions: list[dict[str, Any]],
     builder_metadata_jsonb: dict[str, Any],
+    implementation_module: str = _STANDARD_TOOLS_MODULE,
 ) -> dict[str, Any]:
     return {
         "tool_id": tool_id,
@@ -41,7 +42,7 @@ def _standard_manifest(
         "interface": {"functions": functions},
         "implementation": {
             "type": "internal",
-            "module": _STANDARD_TOOLS_MODULE,
+            "module": implementation_module,
         },
         "config": dict(_CONNECTOR_ONLY_CONFIG),
         "tags": ["builtin", "standard-tool-action"],
@@ -209,12 +210,423 @@ def _json_manifest() -> dict[str, Any]:
     )
 
 
-def builtin_standard_tool_manifests() -> dict[str, dict[str, Any]]:
+def _additional_stage_one_functions() -> dict[str, list[dict[str, Any]]]:
+    """New standard operations; existing seven connector contracts stay intact."""
     return {
+        "std.text": [
+            {
+                "name": "trim",
+                "display_name": "Trim",
+                "description": "Trim using deterministic text operations.",
+                "label_key": "registry.tools.standard.text.trim.label",
+                "description_key": "registry.tools.standard.text.trim.description",
+                "parameters": [{"name": "value", "type": "string", "required": True}],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "title_case",
+                "display_name": "Title Case",
+                "description": "Title Case using deterministic text operations.",
+                "label_key": "registry.tools.standard.text.title_case.label",
+                "description_key": "registry.tools.standard.text.title_case.description",
+                "parameters": [{"name": "value", "type": "string", "required": True}],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "replace",
+                "display_name": "Replace",
+                "description": "Replace using deterministic text operations.",
+                "label_key": "registry.tools.standard.text.replace.label",
+                "description_key": "registry.tools.standard.text.replace.description",
+                "parameters": [
+                    {"name": "value", "type": "string", "required": True},
+                    {"name": "find", "type": "string", "required": True},
+                    {"name": "replace_with", "type": "string", "required": True},
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "append",
+                "display_name": "Append",
+                "description": "Append using deterministic text operations.",
+                "label_key": "registry.tools.standard.text.append.label",
+                "description_key": "registry.tools.standard.text.append.description",
+                "parameters": [
+                    {"name": "value", "type": "string", "required": True},
+                    {"name": "append_value", "type": "json", "required": True},
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "pad",
+                "display_name": "Pad",
+                "description": "Pad using deterministic text operations.",
+                "label_key": "registry.tools.standard.text.pad.label",
+                "description_key": "registry.tools.standard.text.pad.description",
+                "parameters": [
+                    {"name": "value", "type": "string", "required": True},
+                    {"name": "width", "type": "number", "required": True},
+                    {"name": "fill_char", "type": "string", "required": False, "default": " "},
+                    {
+                        "name": "side",
+                        "type": "string",
+                        "required": False,
+                        "values": ["left", "right"],
+                        "default": "left",
+                    },
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+        ],
+        "std.numbers": [
+            {
+                "name": "coerce",
+                "display_name": "Coerce Number",
+                "description": "Coerce Number using deterministic number operations.",
+                "label_key": "registry.tools.standard.numbers.coerce.label",
+                "description_key": "registry.tools.standard.numbers.coerce.description",
+                "parameters": [{"name": "value", "type": "json", "required": True}],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+            {
+                "name": "add",
+                "display_name": "Add",
+                "description": "Add using deterministic number operations.",
+                "label_key": "registry.tools.standard.numbers.add.label",
+                "description_key": "registry.tools.standard.numbers.add.description",
+                "parameters": [
+                    {"name": "value", "type": "number", "required": True},
+                    {"name": "operand", "type": "number", "required": True},
+                ],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+            {
+                "name": "subtract",
+                "display_name": "Subtract",
+                "description": "Subtract using deterministic number operations.",
+                "label_key": "registry.tools.standard.numbers.subtract.label",
+                "description_key": "registry.tools.standard.numbers.subtract.description",
+                "parameters": [
+                    {"name": "value", "type": "number", "required": True},
+                    {"name": "operand", "type": "number", "required": True},
+                ],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+            {
+                "name": "multiply",
+                "display_name": "Multiply",
+                "description": "Multiply using deterministic number operations.",
+                "label_key": "registry.tools.standard.numbers.multiply.label",
+                "description_key": "registry.tools.standard.numbers.multiply.description",
+                "parameters": [
+                    {"name": "value", "type": "number", "required": True},
+                    {"name": "factor", "type": "number", "required": True},
+                ],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+            {
+                "name": "divide",
+                "display_name": "Divide",
+                "description": "Divide using deterministic number operations.",
+                "label_key": "registry.tools.standard.numbers.divide.label",
+                "description_key": "registry.tools.standard.numbers.divide.description",
+                "parameters": [
+                    {"name": "value", "type": "number", "required": True},
+                    {"name": "divisor", "type": "number", "required": True},
+                ],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+            {
+                "name": "floor",
+                "display_name": "Floor",
+                "description": "Floor using deterministic number operations.",
+                "label_key": "registry.tools.standard.numbers.floor.label",
+                "description_key": "registry.tools.standard.numbers.floor.description",
+                "parameters": [{"name": "value", "type": "number", "required": True}],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+            {
+                "name": "ceil",
+                "display_name": "Ceil",
+                "description": "Ceil using deterministic number operations.",
+                "label_key": "registry.tools.standard.numbers.ceil.label",
+                "description_key": "registry.tools.standard.numbers.ceil.description",
+                "parameters": [{"name": "value", "type": "number", "required": True}],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+        ],
+        "std.money": [
+            {
+                "name": "coerce",
+                "display_name": "Coerce Money",
+                "description": "Coerce Money using deterministic money operations.",
+                "label_key": "registry.tools.standard.money.coerce.label",
+                "description_key": "registry.tools.standard.money.coerce.description",
+                "parameters": [{"name": "value", "type": "json", "required": True}],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "add",
+                "display_name": "Add Money",
+                "description": "Add Money using deterministic money operations.",
+                "label_key": "registry.tools.standard.money.add.label",
+                "description_key": "registry.tools.standard.money.add.description",
+                "parameters": [
+                    {"name": "value", "type": "string", "required": True},
+                    {"name": "operand", "type": "string", "required": True},
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "subtract",
+                "display_name": "Subtract Money",
+                "description": "Subtract Money using deterministic money operations.",
+                "label_key": "registry.tools.standard.money.subtract.label",
+                "description_key": "registry.tools.standard.money.subtract.description",
+                "parameters": [
+                    {"name": "value", "type": "string", "required": True},
+                    {"name": "operand", "type": "string", "required": True},
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "multiply",
+                "display_name": "Multiply Money",
+                "description": "Multiply Money using deterministic money operations.",
+                "label_key": "registry.tools.standard.money.multiply.label",
+                "description_key": "registry.tools.standard.money.multiply.description",
+                "parameters": [
+                    {"name": "value", "type": "string", "required": True},
+                    {"name": "factor", "type": "string", "required": True},
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+            {
+                "name": "round",
+                "display_name": "Round Money",
+                "description": "Round Money using deterministic money operations.",
+                "label_key": "registry.tools.standard.money.round.label",
+                "description_key": "registry.tools.standard.money.round.description",
+                "parameters": [
+                    {"name": "value", "type": "string", "required": True},
+                    {"name": "decimals", "type": "number", "required": False, "default": 2},
+                    {
+                        "name": "mode",
+                        "type": "string",
+                        "required": False,
+                        "values": ["half_up", "half_even", "ceil", "floor"],
+                    },
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+        ],
+        "std.boolean": [
+            {
+                "name": "coerce",
+                "display_name": "Coerce Boolean",
+                "description": "Coerce Boolean using deterministic boolean operations.",
+                "label_key": "registry.tools.standard.boolean.coerce.label",
+                "description_key": "registry.tools.standard.boolean.coerce.description",
+                "parameters": [{"name": "value", "type": "json", "required": True}],
+                "returns": {"name": "result", "type": "boolean", "required": True},
+            }
+        ],
+        "std.array": [
+            {
+                "name": "length",
+                "display_name": "Array Length",
+                "description": "Array Length using deterministic array operations.",
+                "label_key": "registry.tools.standard.array.length.label",
+                "description_key": "registry.tools.standard.array.length.description",
+                "parameters": [{"name": "value", "type": "array", "required": True}],
+                "returns": {"name": "result", "type": "number", "required": True},
+            },
+            {
+                "name": "first",
+                "display_name": "First Item",
+                "description": "First Item using deterministic array operations.",
+                "label_key": "registry.tools.standard.array.first.label",
+                "description_key": "registry.tools.standard.array.first.description",
+                "parameters": [
+                    {"name": "value", "type": "array", "required": True},
+                    {"name": "default", "type": "json", "required": False},
+                ],
+                "returns": {"name": "result", "type": "json", "required": True},
+            },
+            {
+                "name": "at",
+                "display_name": "Item At Index",
+                "description": "Item At Index using deterministic array operations.",
+                "label_key": "registry.tools.standard.array.at.label",
+                "description_key": "registry.tools.standard.array.at.description",
+                "parameters": [
+                    {"name": "value", "type": "array", "required": True},
+                    {"name": "index", "type": "number", "required": True},
+                    {"name": "default", "type": "json", "required": False},
+                ],
+                "returns": {"name": "result", "type": "json", "required": True},
+            },
+            {
+                "name": "compact",
+                "display_name": "Compact",
+                "description": "Compact using deterministic array operations.",
+                "label_key": "registry.tools.standard.array.compact.label",
+                "description_key": "registry.tools.standard.array.compact.description",
+                "parameters": [{"name": "value", "type": "array", "required": True}],
+                "returns": {"name": "result", "type": "array", "required": True},
+            },
+            {
+                "name": "join_text",
+                "display_name": "Join Text",
+                "description": "Join Text using deterministic array operations.",
+                "label_key": "registry.tools.standard.array.join_text.label",
+                "description_key": "registry.tools.standard.array.join_text.description",
+                "parameters": [
+                    {"name": "value", "type": "array", "required": True},
+                    {"name": "separator", "type": "string", "required": True},
+                ],
+                "returns": {"name": "result", "type": "string", "required": True},
+            },
+        ],
+        "std.json": [
+            {
+                "name": "omit",
+                "display_name": "Omit Paths",
+                "description": "Omit Paths using deterministic json operations.",
+                "label_key": "registry.tools.standard.json.omit.label",
+                "description_key": "registry.tools.standard.json.omit.description",
+                "parameters": [
+                    {"name": "value", "type": "object", "required": True},
+                    {"name": "paths", "type": "array", "required": True},
+                ],
+                "returns": {"name": "result", "type": "object", "required": True},
+            },
+            {
+                "name": "get",
+                "display_name": "Get Path",
+                "description": "Get Path using deterministic json operations.",
+                "label_key": "registry.tools.standard.json.get.label",
+                "description_key": "registry.tools.standard.json.get.description",
+                "parameters": [
+                    {"name": "value", "type": "json", "required": True},
+                    {"name": "path", "type": "string", "required": True},
+                    {"name": "default", "type": "json", "required": False},
+                ],
+                "returns": {"name": "result", "type": "json", "required": True},
+            },
+            {
+                "name": "set",
+                "display_name": "Set Path",
+                "description": "Set Path using deterministic json operations.",
+                "label_key": "registry.tools.standard.json.set.label",
+                "description_key": "registry.tools.standard.json.set.description",
+                "parameters": [
+                    {"name": "value", "type": "object", "required": True},
+                    {"name": "path", "type": "string", "required": True},
+                    {"name": "new_value", "type": "json", "required": True},
+                ],
+                "returns": {"name": "result", "type": "object", "required": True},
+            },
+            {
+                "name": "keys",
+                "display_name": "Object Keys",
+                "description": "Object Keys using deterministic json operations.",
+                "label_key": "registry.tools.standard.json.keys.label",
+                "description_key": "registry.tools.standard.json.keys.description",
+                "parameters": [{"name": "value", "type": "object", "required": True}],
+                "returns": {"name": "result", "type": "array", "required": True},
+            },
+            {
+                "name": "values",
+                "display_name": "Object Values",
+                "description": "Object Values using deterministic json operations.",
+                "label_key": "registry.tools.standard.json.values.label",
+                "description_key": "registry.tools.standard.json.values.description",
+                "parameters": [{"name": "value", "type": "object", "required": True}],
+                "returns": {"name": "result", "type": "array", "required": True},
+            },
+        ],
+    }
+
+
+def _date_manifest() -> dict[str, Any]:
+    from core.application.orchestration.date_actions import build_date_actions
+
+    types = {"text": "string", "number": "number", "object": "object", "array": "array"}
+    functions = []
+    for action in build_date_actions().values():
+        parameters = [{"name": "value", "type": types[action.input_type], "required": True}]
+        for name, schema in action.params_schema["properties"].items():
+            parameter = {
+                "name": name,
+                "type": schema["type"],
+                "required": name in action.required_params,
+            }
+            if "default" in schema:
+                parameter["default"] = schema["default"]
+            choices = schema.get("enum")
+            if choices and all(isinstance(choice, str) for choice in choices):
+                parameter["values"] = choices
+            # ToolParameter supports string choices only. Numeric bounds/choices
+            # remain enforced by the common date dispatcher without coercion.
+            parameters.append(parameter)
+        suffix = action.tool_action_id
+        functions.append(
+            {
+                "name": suffix,
+                "display_name": action.display_name,
+                "description": f"{action.display_name} using deterministic date operations.",
+                "label_key": f"registry.tools.standard.date.{suffix}.label",
+                "description_key": f"registry.tools.standard.date.{suffix}.description",
+                "parameters": parameters,
+                "returns": _result_return(types[action.output_type]),
+            }
+        )
+    return _standard_manifest(
+        tool_id="std.date",
+        display_name="Dates and time",
+        description="Deterministic date, timezone and interval Standard Tool Actions.",
+        label_key="registry.tools.standard.date.label",
+        description_key="registry.tools.standard.date.description",
+        functions=functions,
+        implementation_module="core.application.orchestration.tools.standard_date_actions",
+        builder_metadata_jsonb={
+            "purpose": "Parse and shape dates, timezones and meeting intervals deterministically.",
+            "composition_role": "deterministic_transform",
+            "determinism_level": "deterministic",
+            "safe_for_auto_use": True,
+        },
+    )
+
+
+def builtin_standard_tool_manifests() -> dict[str, dict[str, Any]]:
+    manifests = {
         "std.numbers": _numbers_manifest(),
         "std.text": _text_manifest(),
         "std.json": _json_manifest(),
+        "std.date": _date_manifest(),
     }
+    for tool_id, functions in _additional_stage_one_functions().items():
+        if tool_id in manifests:
+            manifests[tool_id]["interface"]["functions"].extend(functions)
+            continue
+        category = tool_id.removeprefix("std.")
+        manifests[tool_id] = _standard_manifest(
+            tool_id=tool_id,
+            display_name={"array": "Arrays"}.get(category, category.title()),
+            description=f"Deterministic {category} Standard Tool Actions.",
+            label_key=f"registry.tools.standard.{category}.label",
+            description_key=f"registry.tools.standard.{category}.description",
+            functions=functions,
+            implementation_module=f"core.application.orchestration.tools.standard_{category}_actions",
+            builder_metadata_jsonb={
+                "purpose": f"Apply deterministic {category} transformations without using an agent.",
+                "composition_role": "deterministic_transform",
+                "determinism_level": "deterministic",
+                "safe_for_auto_use": True,
+            },
+        )
+    return manifests
 
 
 def _presentation(source: dict[str, Any]) -> dict[str, str]:

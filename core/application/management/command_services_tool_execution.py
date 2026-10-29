@@ -289,6 +289,8 @@ class ToolExecutionService:
                 scope=resolved_scope,
                 audit=audit,
                 extension_id=extension_id,
+                installed_extension=extension,
+                operation_id=direct_operation_id,
                 artifact_inputs=list(getattr(body, "artifact_inputs", None) or []),
                 artifact_outputs=list(getattr(body, "artifact_outputs", None) or []),
                 artifact_output_specs=list(getattr(body, "artifact_output_specs", None) or []),
@@ -317,6 +319,7 @@ class ToolExecutionService:
             finalized = runtime_grants.finalize_prepared_extension_grants(
                 self._artifact_plane,
                 prepared_grants,
+                invocation=invocation,
             )
             if finalized.errors:
                 invocation = {

@@ -83,6 +83,12 @@ def template_format(config: Mapping[str, Any]) -> str:
     return _text(config.get("format")) or DEFAULT_FORMAT
 
 
+def _normalize_input_type(value: Any) -> str:
+    """Keep the legacy list spelling aligned with Transform's array type."""
+    input_type = _text(value) or "text"
+    return "array" if input_type == "list" else input_type
+
+
 def template_inputs(config: Mapping[str, Any]) -> list[dict[str, Any]]:
     """The declared inputs, normalized; malformed rows are reported by validation."""
     rows = config.get("inputs")
@@ -93,7 +99,7 @@ def template_inputs(config: Mapping[str, Any]) -> list[dict[str, Any]]:
         declared.append(
             {
                 "name": _text(row.get("name")),
-                "type": _text(row.get("type")) or "text",
+                "type": _normalize_input_type(row.get("type")),
                 "required": row.get("required") is not False,
                 "source": _text(row.get("source")),
             }
@@ -173,12 +179,13 @@ def _validate_template_inputs(raw_inputs: list[Any], issue: Any) -> None:
         elif name in seen:
             issue(f"{field}.name", "input_name_duplicate", f"The input name '{name}' is used twice")
         seen.add(name)
-        input_type = _text(row.get("type")) or "text"
+        declared_type = _text(row.get("type")) or "text"
+        input_type = _normalize_input_type(declared_type)
         if input_type not in INPUT_TYPES:
             issue(
                 f"{field}.type",
                 "input_type_invalid",
-                f"Input '{name}' has type '{input_type}'; use one of {', '.join(INPUT_TYPES)}",
+                f"Input '{name}' has type '{declared_type}'; use one of {', '.join(INPUT_TYPES)}",
             )
         source = _text(row.get("source"))
         problem = _source_problem(source) if source else "is missing"

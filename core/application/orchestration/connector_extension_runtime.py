@@ -7,6 +7,7 @@ import logging
 import time
 from typing import Any
 
+from core.application.extensions import artifact_presentation
 from core.application.extensions.operation_support import extension_operation_contract
 from core.application.extensions.secret_reflection import (
     collect_secret_values,
@@ -45,7 +46,6 @@ from core.application.orchestration.connector_grants import (
 from core.application.orchestration.connector_mapping import (
     _HOST_TEST_MODE_SUPPRESSION_FLAG,
     _TOKEN_EXTENSION,
-    _project_extension_output_aliases,
     _to_object,
 )
 from core.application.orchestration.step_activity import step_progress_reporter
@@ -805,6 +805,7 @@ def _dispatch_extension_runtime(
     produced_artifacts: list[dict[str, Any]] = []
     produced_datasets: list[dict[str, Any]] = []
     grant_outputs: dict[str, Any] = {}
+    finalized_grants = None
     if (
         grant_plane is not None
         and prepared_grants is not None
@@ -818,6 +819,8 @@ def _dispatch_extension_runtime(
                 grant_plane,
                 prepared_grants,
                 already_finalized=early_finalized_outputs,
+                invocation=invocation,
+                accept_presentations=not bool(external_effect_id),
             )
             if finalized_grants.errors:
                 invocation = {
@@ -899,6 +902,7 @@ def _dispatch_extension_runtime(
         invocation.pop("produced_datasets", None)
         invocation.pop("grant_outputs", None)
     if external_effect_id:
+        confirmed_success = False
         try:
             from core.application.extensions.external_effects import (
                 apply_external_effect_confirmation,
@@ -929,6 +933,10 @@ def _dispatch_extension_runtime(
             if confirmed_effect:
                 invocation = apply_external_effect_confirmation(invocation, confirmed_effect)
                 external_effect = public_confirmed_external_effect(confirmed_effect)
+                confirmed_success = (
+                    str(confirmed_effect.get("status") or "").strip().lower() == "succeeded"
+                    and invocation.get("status") == "succeeded"
+                )
                 if invocation.get("status") != "succeeded":
                     produced_artifacts = []
                     produced_datasets = []
@@ -945,54 +953,41 @@ def _dispatch_extension_runtime(
             produced_artifacts = []
             produced_datasets = []
             grant_outputs = {}
-    log_host_extension_invocation(
+        produced_artifacts, produced_datasets, grant_outputs = (
+            artifact_presentation.finalize_external_effect_presentations(
+                grant_plane,
+                prepared_grants,
+                finalized_grants,
+                invocation,
+                confirmed_success=confirmed_success,
+                produced_artifacts=produced_artifacts,
+                produced_datasets=produced_datasets,
+                grant_outputs=grant_outputs,
+            )
+        )
+    else:
+        artifact_presentation.strip_failed_presentation_claims(prepared_grants, invocation)
+    from core.application.orchestration.connector_action_completion import (
+        complete_connector_extension_action,
+    )
+
+    return complete_connector_extension_action(
         bl=bl,
         extension=extension,
-        extension_id=resolved_extension_id or ext_id or install_id,
-        invocation_type=f"action:{op_id}",
-        request={
-            "action_id": op_id,
-            "input_payload": dict(event_input_payload or {}),
-            "target": logged_target,
-            "connector_install_id": install_id or None,
-            "connection_binding": dict(connection_binding or {}),
-        },
+        resolved_extension_id=resolved_extension_id,
+        ext_id=ext_id,
+        install_id=install_id,
+        op_id=op_id,
+        event_input_payload=event_input_payload,
+        logged_target=logged_target,
+        connection_binding=connection_binding,
         invocation=invocation,
         runtime_context=runtime_context,
-        request_context={
-            "source": "connector_step_runtime",
-            "connector_install_id": install_id or None,
-            "external_effect_id": external_effect_id or None,
-            **({"dataset_page": dataset_page_context} if dataset_page_context is not None else {}),
-        },
-        action_id=op_id,
-        external_effect_id=external_effect_id or None,
-    )
-    ok = str(invocation.get("status") or "").strip().lower() == "succeeded"
-    visible_produced_artifacts = produced_artifacts if ok else []
-    visible_produced_datasets = produced_datasets if ok else []
-    visible_grant_outputs = grant_outputs if ok else {}
-    result = {
-        "handled": True,
-        "ok": ok,
-        "runtime": "extension_action",
-        "extension_id": resolved_extension_id or ext_id or install_id,
-        "action_id": op_id,
-        # Operation semantics come from the installed immutable manifest, not
-        # from an extension-controlled response envelope.
-        "operation_kind": operation_contract.operation_kind,
-        "invocation": invocation,
-        "external_effect": external_effect,
-        "produced_artifacts": visible_produced_artifacts,
-        "produced_datasets": visible_produced_datasets,
-        "grant_outputs": visible_grant_outputs,
-        "detail": ""
-        if ok
-        else str(invocation.get("detail") or "Connector extension action failed"),
-    }
-    return _project_extension_output_aliases(
-        result,
-        visible_grant_outputs=visible_grant_outputs,
-        visible_produced_artifacts=visible_produced_artifacts,
-        visible_produced_datasets=visible_produced_datasets,
+        dataset_page_context=dataset_page_context,
+        external_effect_id=external_effect_id,
+        operation_kind=operation_contract.operation_kind,
+        external_effect=external_effect,
+        produced_artifacts=produced_artifacts,
+        produced_datasets=produced_datasets,
+        grant_outputs=grant_outputs,
     )

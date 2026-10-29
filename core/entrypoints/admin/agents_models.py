@@ -181,6 +181,17 @@ class RestoreRevisionRequest(BaseModel):
 class AgentCloneRequest(BaseModel):
     agent_id: str | None = None
     display_name: str | None = None
+    agent_type_id: str | None = None
+
+    @field_validator("agent_type_id")
+    @classmethod
+    def validate_clone_agent_type_id(cls, value: str | None) -> str | None:
+        normalized = str(value or "").strip()
+        if not normalized:
+            return None
+        if not (_ID_PATTERN.match(normalized) or _UUID_PATTERN.match(normalized)):
+            raise ValueError("agent_type_id must be an agent type key or UUID")
+        return normalized
 
 
 class AgentInputItem(BaseModel):

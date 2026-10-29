@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
 from core.application.jobs import scheduled_job_runtime
 from core.application.management import (
     command_service_runtime,
@@ -127,7 +128,9 @@ def build_service_factories(
         ),
         build_runtime_payload=build_runtime_payload,
         resolve_job_project_name=resolve_job_project_name,
-        resolve_artifact=artifact_plane.get_artifact if artifact_plane is not None else None,
+        resolve_artifact=ArtifactPresentationResolver(artifact_plane)
+        if artifact_plane is not None
+        else None,
         get_project_by_id=lambda project_id: project_store().get_project(project_id),
         snapshot_serializers_module=snapshot_serializers_module,
     )

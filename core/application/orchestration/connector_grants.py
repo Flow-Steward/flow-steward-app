@@ -353,6 +353,8 @@ def _prepare_grants_for_extension_action(
         audit=audit,
         extension_id=str(extension.get("extension_key") or extension.get("extension_id") or ""),
         before_materialize_outputs=before_materialize_outputs,
+        installed_extension=extension,
+        operation_id=action_id,
         **requests,
     )
     return plane, prepared

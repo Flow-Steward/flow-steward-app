@@ -33,9 +33,11 @@ class ExtensionLifecycleRecoveryOperations:
         previous_projections: list[Any] | None = None,
     ) -> None:
         normalized_install_id = _normalize_text(failed_install_id)
-        self._install.remove_dataset_execution_bridges(install_id=normalized_install_id)
         if normalized_install_id and hasattr(runtime_store, "delete_projections_for_install"):
             runtime_store.delete_projections_for_install(normalized_install_id)
+        self._install.remove_dataset_execution_bridges(
+            install_id=normalized_install_id, account_id=account_id
+        )
         if normalized_install_id and hasattr(runtime_store, "delete_entitlement"):
             runtime_store.delete_entitlement(normalized_install_id)
         if previous is None:
@@ -67,18 +69,18 @@ class ExtensionLifecycleRecoveryOperations:
         for projection in previous_projections or []:
             if hasattr(runtime_store, "upsert_projection"):
                 runtime_store.upsert_projection(projection)
-        if previous_release is not None:
-            self._install.materialize_dataset_execution_bridges(
-                install_record=restored,
-                release=previous_release,
-                account_id=account_id,
-            )
         previous_state = _normalize_text(previous.get("state"))
         if previous_state and previous_state != "active" and hasattr(install_store, "set_state"):
             install_store.set_state(
                 extension_id=extension_id,
                 account_id=account_id,
                 state=previous_state,
+            )
+        if previous_release is not None and previous_state == "active":
+            self._install.materialize_dataset_execution_bridges(
+                install_record=restored,
+                release=previous_release,
+                account_id=account_id,
             )
         if normalized_install_id and normalized_install_id != _normalize_text(
             getattr(restored, "install_id", "")

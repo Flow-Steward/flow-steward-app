@@ -275,9 +275,9 @@ export function ContainerCard({
         <CanvasPortControl source={{ kind: containerKind, id: containerId }} sourceLabel={displayName} port={data.ports.find((port) => port.outcome.name === "error")!} readOnly={data.readOnly} position={Position.Bottom} style={{ bottom: 0, left: "calc(100% - 24px)" }} />
       </div> : null}
       <span className="workflow-runtime-mark"><CanvasRuntimeMark mark={data.runtimeMark} /><CanvasContainerRuntimeMark mark={data.containerRuntimeMark} containerId={containerId} /></span>
-      {data.laneFrames?.map((lane) => <div className="workflow-parallel-frame" key={lane.id} style={{ left: lane.x, top: lane.y, width: lane.width, height: lane.height }}>
+      {data.laneFrames?.map((lane, index) => <div className="workflow-parallel-frame" key={lane.id} style={{ left: lane.x, top: lane.y, width: lane.width, height: lane.height }}>
         <svg width="100%" height="100%" aria-hidden="true"><rect x="0.75" y="0.75" width={lane.width - 1.5} height={lane.height - 1.5} rx="12" /></svg>
-        <span className="workflow-lane-label">{t("react.workflows.parallel_lane_label", "Parallel lane {lane}", { lane: lane.id })}</span>
+        <span className="workflow-lane-label">{t("react.workflows.parallel_lane_label", "Parallel lane {lane}", { lane: index + 1 })}</span>
       </div>)}
       {showAdd && onAddStep ? <>
         {data.laneFrames?.filter((frame) => frame.addControl).map((frame) => {

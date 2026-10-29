@@ -632,6 +632,19 @@ def _validate_artifact_policy_grants(
     policy_index: int,
     errors: list[dict[str, str]],
 ) -> None:
+    from .artifact_presentation import installed_presentation_policy
+
+    try:
+        installed_presentation_policy(
+            {"artifact_policies": [policy]}, str(policy.get("operation_id") or "")
+        )
+    except ValueError:
+        _error(
+            errors,
+            path=f"extension_contract_v2.artifact_policies[{policy_index}]",
+            message="Artifact presentation requires one artifact output binding and claim_output",
+            code="invalid_artifact_presentation_policy",
+        )
     for group in ARTIFACT_POLICY_GRANT_GROUPS:
         raw_items = policy.get(group)
         if raw_items is None:

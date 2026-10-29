@@ -51,6 +51,7 @@ from core.application.orchestration.transform_values import (
     _normalize_type,
 )
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+from core.infrastructure.date_types import DATE_ERROR_CODES, DateValueError
 
 
 class TransformRuntimeFailure(Exception):
@@ -221,7 +222,11 @@ def _execute_action_pipeline(
             raise TransformRuntimeFailure(
                 [
                     _runtime_error(
-                        reason="action_execution_failed",
+                        reason=(
+                            exc.code
+                            if isinstance(exc, DateValueError) and exc.code in DATE_ERROR_CODES
+                            else "action_execution_failed"
+                        ),
                         field_index=field_index,
                         field_to=field_to,
                         selector=selector,

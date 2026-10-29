@@ -124,7 +124,8 @@ class ExtensionInstallProjectionService:
             for row in runtime_store.list_projections(account_id=account_id, only_active=False)
             if _normalize_text(getattr(row, "install_id", ""))
             == _normalize_text(install_record.install_id)
-            and _normalize_text(getattr(row, "artifact_kind", "")) in {"dataset", "saved_query"}
+            and _normalize_text(getattr(row, "artifact_kind", ""))
+            in {"dataset", "saved_query", "skill"}
         ]
         self._materialize_with_transaction(
             registry_store=registry_store,
@@ -155,6 +156,17 @@ class ExtensionInstallProjectionService:
                 release_id=release.release_id,
                 projections=projections,
             )
+            from core.application.extensions.projected_skill_bridge import (
+                materialize_projected_skill_anchors,
+            )
+
+            materialize_projected_skill_anchors(
+                registry_store,
+                account_id=account_id,
+                install_id=install_record.install_id,
+                release_id=release.release_id,
+                projections=projections,
+            )
 
         if self._run_with_lifecycle_connection(registry_store, materialize):
             return
@@ -165,7 +177,7 @@ class ExtensionInstallProjectionService:
             return
         materialize()
 
-    def remove_dataset_bridges(self, *, install_id: str) -> None:
+    def remove_dataset_bridges(self, *, install_id: str, account_id: str = "") -> None:
         normalized_install_id = _normalize_text(install_id)
         if not normalized_install_id:
             return
@@ -185,9 +197,31 @@ class ExtensionInstallProjectionService:
 
         def remove() -> None:
             remove_projected_dataset_bridges(registry_store, install_id=normalized_install_id)
+            if account_id:
+                from core.application.extensions.projected_skill_bridge import (
+                    remove_projected_skill_anchors,
+                )
+
+                remove_projected_skill_anchors(
+                    registry_store,
+                    account_id=account_id,
+                    install_id=normalized_install_id,
+                )
 
         if not self._run_with_lifecycle_connection(registry_store, remove):
             remove()
+
+    def deactivate_projected_skills(self, *, install_id: str, account_id: str) -> None:
+        registry_store = self._registry_store(required_methods=())
+        deactivate = getattr(registry_store, "deactivate_projected_skill_anchors", None)
+        if not callable(deactivate):
+            return
+
+        def apply() -> None:
+            deactivate(account_id=account_id, install_id=install_id)
+
+        if not self._run_with_lifecycle_connection(registry_store, apply):
+            apply()
 
     def _registry_store(self, *, required_methods: tuple[str, ...]) -> Any | None:
         logger = self._context.logger()

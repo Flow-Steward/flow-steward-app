@@ -18,7 +18,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
-
 from tests.support.extension_icon import EXTENSION_ICON_PNG
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -88,6 +87,16 @@ from core.application.orchestration.models import (
     ExternalAgentRegisterRequestV1,
     ExternalAgentReportRequestV1,
 )
+
+
+def _agent_clone_projection_lookup(source):
+    def lookup(_db, artifact_kind, _id_key, artifact_id, fallback, **_kwargs):
+        if artifact_kind == "agent" and artifact_id == source.get("agent_id"):
+            return source
+        return fallback
+
+    return lookup
+
 
 EXTERNAL_PROJECT_ID = "00000000-0000-0000-0000-000000000701"
 EXTERNAL_PROJECT_ID_DENIED = "00000000-0000-0000-0000-000000000799"
@@ -15938,6 +15947,48 @@ class TestToolCommandService:
 
         assert "remove associations first" in str(exc.value).lower()
 
+    @pytest.mark.parametrize(
+        "implementation",
+        [
+            {"type": "python", "module": "extensions.catalog.tool"},
+            {"type": "mcp", "owner_tenant_id": "tenant-a"},
+        ],
+        ids=["python", "mcp"],
+    )
+    def test_clone_tool_refuses_projection_with_install_owned_runtime(self, implementation):
+        from core.application.management import command_services_tool as tool_commands
+
+        source = {
+            "tool_id": "extension.install-1.catalog_tool",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "display_name": "Catalog Tool",
+            "implementation": implementation,
+        }
+        db = MagicMock()
+        db.get_tool.return_value = None
+        service = ToolCommandService(
+            get_db=lambda: db,
+            reload_registry=MagicMock(),
+            get_tool_validation=lambda *_args: {"valid": True, "errors": [], "warnings": []},
+            format_validation_error_detail=lambda **kwargs: kwargs,
+        )
+
+        with (
+            patch.object(
+                tool_commands, "projection_aware_catalog_row", create=True, return_value=source
+            ),
+            pytest.raises(ServiceConflictError) as exc,
+        ):
+            service.clone_tool(
+                "extension.install-1.catalog_tool",
+                ToolCloneInput(tool_id="catalog_tool_copy"),
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a"),
+            )
+
+        assert exc.value.payload["code"] == "tool_clone_runtime_dependency_unavailable"
+        db.save_tool.assert_not_called()
+
     def test_clone_tool_creates_disabled_copy(self):
         db = MagicMock()
         db.get_tool.side_effect = [
@@ -17667,3 +17718,751 @@ def _unit_schedule_owner_fence(monkeypatch):
         "core.application.management.command_services_project_run_requests_mixin.workflow_trigger_transaction",
         lambda *_args, **_kwargs: nullcontext(),
     )
+
+
+class TestAgentCommandServiceClone:
+    @staticmethod
+    def _commands():
+        assert hasattr(command_services_module, "AgentCommandService"), (
+            "Agent clone policy service is missing"
+        )
+        from core.application.management import command_services_agent
+
+        return command_services_agent
+
+    def test_clone_projected_skill_prompts_use_exact_install_reference(self):
+        agent_commands = self._commands()
+        install_id = "install-1"
+        skill_id = "extension.install-1.summarize_support_ticket"
+        source = {
+            "source_install_id": install_id,
+            "prompts": {
+                "skill_prompts": {
+                    "summarize_support_ticket": "Authored local-ID prompt",
+                    "support_ticket": "Do not match by suffix",
+                }
+            },
+            "skills": [
+                {"skill_id": skill_id, "skill_prompt": ""},
+                {
+                    "skill_id": "extension.install-1.other_skill",
+                    "skill_prompt": "Explicit override",
+                },
+            ],
+        }
+
+        prompts = agent_commands.AgentCommandService._skill_prompts(
+            source,
+            [skill_id, "extension.install-1.other_skill"],
+        )
+
+        assert prompts["skill_prompts"] == {
+            skill_id: "Authored local-ID prompt",
+            "extension.install-1.other_skill": "Explicit override",
+            "support_ticket": "Do not match by suffix",
+        }
+
+    def test_clone_keeps_canonical_prompt_when_projected_assignment_is_empty(self):
+        agent_commands = self._commands()
+        skill_id = "extension.install-1.canonical_skill"
+        source = {
+            "source_install_id": "install-1",
+            "prompts": {"skill_prompts": {skill_id: "Canonical authored prompt"}},
+            "skills": [{"skill_id": skill_id, "skill_prompt": ""}],
+        }
+
+        prompts = agent_commands.AgentCommandService._skill_prompts(source, [skill_id])
+
+        assert prompts["skill_prompts"] == {skill_id: "Canonical authored prompt"}
+
+    def test_clone_prefers_nonempty_assignment_over_projected_local_alias(self):
+        agent_commands = self._commands()
+        skill_id = "extension.install-1.local_skill"
+        source = {
+            "source_install_id": "install-1",
+            "prompts": {"skill_prompts": {"local_skill": "Authored alias prompt"}},
+            "skills": [{"skill_id": skill_id, "skill_prompt": "Explicit assignment prompt"}],
+        }
+
+        prompts = agent_commands.AgentCommandService._skill_prompts(source, [skill_id])
+
+        assert prompts["skill_prompts"] == {skill_id: "Explicit assignment prompt"}
+
+    def test_clone_projection_preserves_owned_content_and_relationship_snapshot(self):
+        agent_commands = self._commands()
+
+        source = {
+            "agent_id": "extension.install-1.catalog_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "display_name": "Catalog Agent",
+            "description": "Full source description",
+            "agent_type_key": "composer",
+            "prompts": {"system": "System", "context_template": "Context"},
+            "skills": [
+                {"skill_id": "base_skill", "skill_prompt": "Base prompt", "sort_order": 0},
+                {"skill_id": "review_skill", "skill_prompt": "Review prompt", "sort_order": 1},
+            ],
+            "tools": [
+                {"tool_id": "lookup_tool", "sort_order": 0},
+                {"tool_id": "format_tool", "sort_order": 1},
+            ],
+            "inputs": {"required": [{"name": "topic", "type": "text"}], "optional": []},
+            "outputs": ["summary"],
+            "_inputs": [
+                {"name": "topic", "type": "text", "required": True, "source": "own"},
+                {
+                    "name": "skill_context",
+                    "type": "object",
+                    "required": False,
+                    "source": "skill:base_skill",
+                },
+            ],
+            "_outputs": [
+                {"name": "summary", "type": "text", "required": True, "source": "own"},
+                {
+                    "name": "audit",
+                    "type": "object",
+                    "required": False,
+                    "source": "skill:review_skill",
+                },
+            ],
+            "depends_on": {"soft": ["prior_agent"], "hard": []},
+            "config": {"model": "fixture-model"},
+            "quality": {"determinism": "high"},
+            "builder_metadata_jsonb": {"purpose": "review"},
+            "category": "review",
+            "version": "2.3.0",
+            "tags": ["catalog", "review"],
+            "enabled": True,
+            "source_install_id": "install-1",
+        }
+        db = MagicMock()
+        db.list_agent_types.side_effect = lambda enabled_only=False: [
+            {"id": "composer-id", "key": "composer", "enabled": True},
+            {"id": "researcher-id", "key": "researcher", "enabled": True},
+        ]
+        db.get_agent.side_effect = lambda key: (
+            {"agent_id": key, "account_id": DEFAULT_ACCOUNT_ID} if key == "prior_agent" else None
+        )
+        db.get_skill.side_effect = lambda key: {
+            "skill_id": key,
+            "account_id": None if key == "base_skill" else DEFAULT_ACCOUNT_ID,
+        }
+        db.get_tool.side_effect = lambda key: {
+            "tool_id": key,
+            "account_id": None if key == "lookup_tool" else DEFAULT_ACCOUNT_ID,
+        }
+        reload_registry = MagicMock()
+        service = agent_commands.AgentCommandService(
+            get_db=lambda: db, reload_registry=reload_registry
+        )
+
+        with patch.object(
+            agent_commands,
+            "projection_aware_catalog_row",
+            side_effect=_agent_clone_projection_lookup(source),
+        ):
+            result = service.clone_agent(
+                source["agent_id"],
+                target_agent_id="catalog_agent_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="operator"),
+            )
+
+        payload = db.save_agent.call_args.args[0]
+        assert result["agent_id"] == "catalog_agent_copy"
+        assert payload == {
+            "agent_id": "catalog_agent_copy",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "scope_kind": "account",
+            "display_name": "Catalog Agent (Copy)",
+            "description": "Full source description",
+            "agent_type_id": "composer",
+            "prompts": {
+                "system": "System",
+                "context_template": "Context",
+                "skill_prompts": {"base_skill": "Base prompt", "review_skill": "Review prompt"},
+            },
+            "skills": ["base_skill", "review_skill"],
+            "tools": ["lookup_tool", "format_tool"],
+            "inputs": {"required": [{"name": "topic", "type": "text"}], "optional": []},
+            "outputs": ["summary"],
+            "structured_inputs": [
+                {"name": "topic", "type": "text", "required": True, "source": "own"}
+            ],
+            "structured_outputs": [
+                {"name": "summary", "type": "text", "required": True, "source": "own"}
+            ],
+            "depends_on": {"soft": ["prior_agent"], "hard": []},
+            "config": {"model": "fixture-model"},
+            "quality": {"determinism": "high"},
+            "builder_metadata_jsonb": {"purpose": "review"},
+            "category": "review",
+            "enabled": False,
+            "version": "2.3.0",
+            "tags": ["catalog", "review"],
+        }
+        assert "source_install_id" not in payload
+        reload_registry.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ("projection_inputs", "projection_outputs", "anchor_inputs", "anchor_outputs"),
+        [
+            (
+                [{"name": "current_input", "type": "json", "required": True}],
+                [{"name": "current_output", "type": "text", "required": True}],
+                [],
+                [],
+            ),
+            (
+                [],
+                [],
+                [{"name": "stale_input", "type": "text"}],
+                [{"name": "stale_output", "type": "text"}],
+            ),
+        ],
+        ids=["virtual-projection", "explicit-empty-over-stale-anchor"],
+    )
+    def test_clone_uses_projected_owned_io_over_durable_anchor(
+        self, projection_inputs, projection_outputs, anchor_inputs, anchor_outputs
+    ):
+        agent_commands = self._commands()
+        source = {
+            "agent_id": "extension.install-1.projected_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "agent_type_key": "researcher",
+            "display_name": "Projected agent",
+            "structured_inputs": projection_inputs,
+            "structured_outputs": projection_outputs,
+            "skills": [],
+            "tools": [],
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.list_agent_types.return_value = [
+            {"id": "researcher-id", "key": "researcher", "enabled": True}
+        ]
+        db.get_agent_own_inputs.return_value = anchor_inputs
+        db.get_agent_own_outputs.return_value = anchor_outputs
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with patch.object(
+            agent_commands,
+            "projection_aware_catalog_row",
+            side_effect=_agent_clone_projection_lookup(source),
+        ):
+            service.clone_agent(
+                source["agent_id"],
+                target_agent_id="manual_projection_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+            )
+
+        payload = db.save_agent.call_args.args[0]
+        assert payload["structured_inputs"] == projection_inputs
+        assert payload["structured_outputs"] == projection_outputs
+
+    def test_clone_rejects_unregistered_projected_role_type_before_persistence(self):
+        agent_commands = self._commands()
+        source = {
+            "agent_id": "extension.install-1.role_typed_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "role_type": "analyst",
+            "skills": [],
+            "tools": [],
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.list_agent_types.return_value = [
+            {"id": "researcher-id", "key": "researcher", "enabled": True}
+        ]
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceConflictError) as exc,
+        ):
+            service.clone_agent(
+                source["agent_id"],
+                target_agent_id="role_typed_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+            )
+
+        assert exc.value.payload["code"] == "agent_clone_type_required"
+        db.save_agent.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "override",
+        ["researcher", "00000000-0000-0000-0000-000000000001"],
+        ids=["catalog-key", "catalog-id"],
+    )
+    def test_clone_accepts_registered_type_override_for_unregistered_projected_role(self, override):
+        agent_commands = self._commands()
+        source = {
+            "agent_id": "extension.install-1.role_typed_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "role_type": "analyst",
+            "skills": [],
+            "tools": [],
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.list_agent_types.side_effect = lambda enabled_only=False: [
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "key": "researcher",
+                "enabled": True,
+            }
+        ]
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with patch.object(
+            agent_commands,
+            "projection_aware_catalog_row",
+            side_effect=_agent_clone_projection_lookup(source),
+        ):
+            service.clone_agent(
+                source["agent_id"],
+                target_agent_id="role_typed_copy",
+                agent_type_id=override,
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+            )
+
+        assert db.save_agent.call_args.args[0]["agent_type_id"] == "researcher"
+
+    def test_clone_preserves_registered_disabled_source_type(self):
+        agent_commands = self._commands()
+        source = {
+            "agent_id": "extension.install-1.disabled_type_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "agent_type_key": "legacy_agent_type",
+            "skills": [],
+            "tools": [],
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.list_agent_types.side_effect = lambda enabled_only=False: (
+            [{"id": "00000000-0000-0000-0000-000000000002", "key": "researcher", "enabled": True}]
+            if enabled_only
+            else [
+                {
+                    "id": "00000000-0000-0000-0000-000000000002",
+                    "key": "researcher",
+                    "enabled": True,
+                },
+                {
+                    "id": "00000000-0000-0000-0000-000000000003",
+                    "key": "legacy_agent_type",
+                    "enabled": False,
+                },
+            ]
+        )
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with patch.object(
+            agent_commands,
+            "projection_aware_catalog_row",
+            side_effect=_agent_clone_projection_lookup(source),
+        ):
+            service.clone_agent(
+                source["agent_id"],
+                target_agent_id="disabled_type_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+            )
+
+        payload = db.save_agent.call_args.args[0]
+        assert payload["agent_type_id"] == "legacy_agent_type"
+        assert payload["enabled"] is False
+
+    def test_clone_rejects_disabled_or_unknown_type_override(self):
+        agent_commands = self._commands()
+        source = {
+            "agent_id": "extension.install-1.role_typed_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "role_type": "analyst",
+            "skills": [],
+            "tools": [],
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.list_agent_types.side_effect = lambda enabled_only=False: (
+            [{"id": "researcher-id", "key": "researcher", "enabled": True}]
+            if enabled_only
+            else [
+                {"id": "researcher-id", "key": "researcher", "enabled": True},
+                {"id": "legacy-id", "key": "legacy", "enabled": False},
+            ]
+        )
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with patch.object(
+            agent_commands,
+            "projection_aware_catalog_row",
+            side_effect=_agent_clone_projection_lookup(source),
+        ):
+            with pytest.raises(ServiceConflictError) as disabled:
+                service.clone_agent(
+                    source["agent_id"],
+                    target_agent_id="disabled_type_copy",
+                    agent_type_id="legacy",
+                    scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+                )
+            assert disabled.value.payload["code"] == "agent_clone_type_invalid"
+
+            with pytest.raises(ServiceConflictError) as unknown:
+                service.clone_agent(
+                    source["agent_id"],
+                    target_agent_id="unknown_type_copy",
+                    agent_type_id="analyst",
+                    scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+                )
+            assert unknown.value.payload["code"] == "agent_clone_type_invalid"
+
+        db.save_agent.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "dependency_account", [None, DEFAULT_ACCOUNT_ID], ids=["global", "account"]
+    )
+    def test_clone_references_durable_installed_dependencies_without_transferring_ownership(
+        self, dependency_account
+    ):
+        from copy import deepcopy
+
+        agent_commands = self._commands()
+
+        source = {
+            "agent_id": "extension.install-1.source",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "agent_type_key": "researcher",
+            "skills": [{"skill_id": "installed_skill", "skill_prompt": "Keep prompt"}],
+            "tools": [{"tool_id": "installed_tool"}],
+            "depends_on": {"soft": ["installed_soft"], "hard": ["installed_hard"]},
+        }
+        owner = {
+            "account_id": dependency_account,
+            "scope_kind": "account" if dependency_account else "system",
+            "source_install_id": "install-1",
+            "enabled": True,
+        }
+        skill = {**owner, "skill_id": "installed_skill"}
+        tool = {
+            **owner,
+            "tool_id": "installed_tool",
+            "implementation": {"type": "mcp", "owner_tenant_id": "tenant-a"},
+        }
+        agents = {key: {**owner, "agent_id": key} for key in ("installed_soft", "installed_hard")}
+        original = deepcopy([source, skill, tool, agents])
+        db = MagicMock()
+        db.list_agent_types.return_value = [
+            {"id": "researcher-id", "key": "researcher", "enabled": True}
+        ]
+        db.get_agent.side_effect = agents.get
+        db.get_skill.return_value = skill
+        db.get_tool.return_value = tool
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with patch.object(
+            agent_commands,
+            "projection_aware_catalog_row",
+            side_effect=_agent_clone_projection_lookup(source),
+        ):
+            result = service.clone_agent(
+                source["agent_id"],
+                target_agent_id="manual_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a"),
+            )
+
+        assert result["agent_id"] == "manual_copy"
+        payload = db.save_agent.call_args.args[0]
+        assert payload["skills"] == ["installed_skill"]
+        assert payload["tools"] == ["installed_tool"]
+        assert payload["depends_on"] == source["depends_on"]
+        assert payload["prompts"]["skill_prompts"] == {"installed_skill": "Keep prompt"}
+        assert payload["account_id"] == DEFAULT_ACCOUNT_ID
+        assert payload["enabled"] is False
+        assert "source_install_id" not in payload
+        assert [source, skill, tool, agents] == original
+        db.save_skill.assert_not_called()
+        db.save_tool.assert_not_called()
+        db.save_agent.assert_called_once()
+
+    def test_clone_projection_refuses_foreign_or_virtual_dependencies_before_save(self):
+        agent_commands = self._commands()
+
+        source = {
+            "agent_id": "extension.install-1.catalog_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "skills": [{"skill_id": "foreign_skill"}],
+            "tools": [{"tool_id": "virtual_tool"}],
+            "depends_on": {"soft": [], "hard": ["virtual_agent_dependency"]},
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.get_skill.return_value = {"skill_id": "foreign_skill", "account_id": "account-other"}
+        db.get_tool.return_value = None
+        reload_registry = MagicMock()
+        service = agent_commands.AgentCommandService(
+            get_db=lambda: db, reload_registry=reload_registry
+        )
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceConflictError) as exc,
+        ):
+            service.clone_agent(
+                source["agent_id"],
+                target_agent_id="catalog_agent_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+            )
+
+        assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
+        assert exc.value.payload["skill_ids"] == ["foreign_skill"]
+        assert exc.value.payload["tool_ids"] == ["virtual_tool"]
+        assert exc.value.payload["agent_ids"] == ["virtual_agent_dependency"]
+        db.save_agent.assert_not_called()
+        reload_registry.assert_not_called()
+
+    def test_clone_projection_hides_foreign_agent_source(self):
+        agent_commands = self._commands()
+        from core.application.management.errors import ServiceNotFoundError
+
+        source = {"agent_id": "extension.install-1.foreign", "account_id": "account-other"}
+        db = MagicMock()
+        db.get_agent.return_value = None
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceNotFoundError),
+        ):
+            service.clone_agent(
+                source["agent_id"],
+                target_agent_id="foreign_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+            )
+
+        db.save_agent.assert_not_called()
+
+    def test_clone_does_not_reload_registry_when_store_transaction_fails(self):
+        agent_commands = self._commands()
+
+        source = {
+            "agent_id": "extension.install-1.catalog_agent",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "agent_type_key": "researcher",
+        }
+        db = MagicMock()
+        db.list_agent_types.return_value = [
+            {"id": "researcher-id", "key": "researcher", "enabled": True}
+        ]
+        db.get_agent.return_value = None
+        db.save_agent.side_effect = RuntimeError("injected store failure")
+        reload_registry = MagicMock()
+        service = agent_commands.AgentCommandService(
+            get_db=lambda: db, reload_registry=reload_registry
+        )
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceError, match="Failed to clone agent"),
+        ):
+            service.clone_agent(
+                source["agent_id"],
+                target_agent_id="catalog_agent_copy",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+            )
+
+        reload_registry.assert_not_called()
+
+    def test_clone_hides_source_from_disallowed_project(self):
+        agent_commands = self._commands()
+        from core.application.management.errors import ServiceNotFoundError
+
+        source = {
+            "agent_id": "project_source",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "project_id": "project-b",
+            "scope_kind": "project",
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceNotFoundError),
+        ):
+            service.clone_agent(
+                "project_source",
+                scope=ScopeContext(
+                    account_id=DEFAULT_ACCOUNT_ID,
+                    allowed_project_ids=frozenset({"project-a"}),
+                ),
+            )
+
+        db.save_agent.assert_not_called()
+
+    def test_clone_refuses_visible_project_source_without_project_target_contract(self):
+        agent_commands = self._commands()
+
+        source = {
+            "agent_id": "project_source",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "project_id": "project-a",
+            "scope_kind": "project",
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceConflictError) as exc,
+        ):
+            service.clone_agent(
+                "project_source",
+                scope=ScopeContext(
+                    account_id=DEFAULT_ACCOUNT_ID,
+                    project_id="project-a",
+                    allowed_project_ids=frozenset({"project-a"}),
+                ),
+            )
+
+        assert exc.value.payload["code"] == "agent_clone_project_scope_unsupported"
+        db.save_agent.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "allowed_project",
+        ["project-a", "project-b"],
+        ids=["dependency-outside-allow-list", "visible-dependency-cannot-widen"],
+    )
+    def test_clone_refuses_same_account_dependency_from_another_project(self, allowed_project):
+        agent_commands = self._commands()
+
+        source = {
+            "agent_id": "account_source",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "skills": [],
+            "tools": [{"tool_id": "project_tool"}],
+            "depends_on": {"soft": [], "hard": []},
+        }
+        project_tool = {
+            "tool_id": "project_tool",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "project_id": "project-b",
+            "scope_kind": "project",
+            "implementation": {"type": "internal"},
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.get_tool.return_value = project_tool
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceConflictError) as exc,
+        ):
+            service.clone_agent(
+                "account_source",
+                scope=ScopeContext(
+                    account_id=DEFAULT_ACCOUNT_ID,
+                    allowed_project_ids=frozenset({allowed_project}),
+                ),
+            )
+
+        assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
+        assert exc.value.payload["tool_ids"] == ["project_tool"]
+        db.save_agent.assert_not_called()
+
+    def test_clone_refuses_mcp_dependency_owned_by_another_tenant(self):
+        agent_commands = self._commands()
+
+        source = {
+            "agent_id": "account_source",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "skills": [],
+            "tools": [{"tool_id": "foreign_tenant_tool"}],
+            "depends_on": {"soft": [], "hard": []},
+        }
+        foreign_tool = {
+            "tool_id": "foreign_tenant_tool",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "implementation": {"type": "mcp", "owner_tenant_id": "tenant-b"},
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.get_tool.return_value = foreign_tool
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceConflictError) as exc,
+        ):
+            service.clone_agent(
+                "account_source",
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a"),
+            )
+
+        assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
+        assert exc.value.payload["tool_ids"] == ["foreign_tenant_tool"]
+        db.save_agent.assert_not_called()
+
+    def test_clone_refuses_connector_only_standard_tool_dependency(self):
+        agent_commands = self._commands()
+        source = {
+            "agent_id": "source",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "tools": [{"tool_id": "std.numbers"}],
+        }
+        db = MagicMock()
+        db.get_agent.return_value = None
+        db.get_tool.return_value = {"tool_id": "std.numbers", "account_id": None, "enabled": True}
+        service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+        with (
+            patch.object(
+                agent_commands,
+                "projection_aware_catalog_row",
+                side_effect=_agent_clone_projection_lookup(source),
+            ),
+            pytest.raises(ServiceConflictError) as exc,
+        ):
+            service.clone_agent("source", scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID))
+        assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
+        assert exc.value.payload["tool_ids"] == ["std.numbers"]
+        db.save_agent.assert_not_called()

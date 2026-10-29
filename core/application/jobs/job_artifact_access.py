@@ -21,6 +21,8 @@ class JobArtifactDownload:
     filename: str
     content_type: str
     size_bytes: int
+    # Presentation MIME never widens inline-preview eligibility.
+    preview_content_type: str | None = None
 
 
 def _metadata_dict(value: Any) -> dict[str, Any]:
@@ -112,12 +114,18 @@ def resolve_job_artifact_download(
     except (TypeError, ValueError):
         raise ServiceConflictError("Artifact metadata is invalid") from None
 
+    from core.application.extensions.artifact_presentation import artifact_presentation_view
+
+    # Ownership and availability above are checked against the original row.
+    preview_content_type = str(metadata.get("content_type") or "application/octet-stream").strip()
+    metadata = artifact_presentation_view(metadata, resolve_artifact=resolve_artifact)
     return JobArtifactDownload(
         artifact_id=normalized_artifact_id,
         filename=str(metadata.get("filename") or "artifact.bin").strip() or "artifact.bin",
         content_type=str(metadata.get("content_type") or "application/octet-stream").strip()
         or "application/octet-stream",
         size_bytes=size_bytes,
+        preview_content_type=preview_content_type,
     )
 
 

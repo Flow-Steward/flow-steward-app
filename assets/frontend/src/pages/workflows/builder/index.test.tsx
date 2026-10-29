@@ -552,7 +552,7 @@ describe("WorkflowsBuilderPage", () => {
       "href",
       "/registry/workflows/sample_content_campaign_router?project_id=project_alpha",
     );
-    expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied");
+    expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied · 1 error");
     expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Discard changes" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /1 error/i })).toBeInTheDocument();

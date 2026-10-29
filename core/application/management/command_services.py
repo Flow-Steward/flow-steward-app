@@ -4,6 +4,7 @@ from __future__ import annotations
 from core.application.extensions.binding_service import ExtensionBindingService
 
 from .command_services_common import *  # NOSONAR
+from .command_services_agent import AgentCommandService
 from .command_services_approval import ApprovalCommandService
 from .command_services_dispatch import CommandDispatchService
 from .command_services_event import EventCommandService

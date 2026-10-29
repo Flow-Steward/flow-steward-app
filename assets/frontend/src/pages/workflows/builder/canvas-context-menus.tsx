@@ -298,10 +298,20 @@ export function paneMenuLevel(host: CanvasMenuHost, clientPoint: Point): CanvasM
     items.push(
       { key: "step", label: t("react.workflows.add_step_here", "Add step here"), shortcut: "A", onSelect: () => host.openNewStepAt({}, { point, clientPoint }) },
       { key: "note", label: t("react.workflows.add_note_here", "Add note here"), shortcut: "N", ...(host.notesDisabled ? { disabledReason: t("react.workflows.notes_busy", "Notes are saving. Try again in a moment.") } : {}), onSelect: () => host.addNoteAt(point) },
-      { key: "paste", label: t("react.workflows.paste_here", "Paste here"), shortcut: "⌘V", ...(host.paste && host.canPaste ? {} : { disabledReason: t("react.workflows.paste_nothing", "Copy a step or a group first.") }), onSelect: () => host.paste?.(clientPoint) },
-      { kind: "separator", key: "sep" },
     );
   }
+  items.push({
+    key: "paste",
+    label: t("react.workflows.paste_here", "Paste here"),
+    shortcut: "⌘V",
+    ...(host.structureLocked
+      ? { disabledReason: t("react.workflows.paste_read_only_reason", "This workflow's structure is read-only. Paste into a workflow you can edit.") }
+      : host.paste && host.canPaste
+        ? {}
+        : { disabledReason: t("react.workflows.paste_nothing", "Copy a step or a group first.") }),
+    onSelect: () => host.paste?.(clientPoint),
+  });
+  if (!host.structureLocked) items.push({ kind: "separator", key: "sep" });
   items.push(
     { key: "all", label: t("react.workflows.select_all", "Select all"), shortcut: "⌘A", onSelect: host.selectAll },
     { key: "fit", label: t("react.workflows.fit_view", "Fit view"), shortcut: "Shift+1", onSelect: host.fitView },

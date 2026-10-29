@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import unicodedata
 from typing import Any
 
 from core.infrastructure.security.config import SECURITY_PII_SALT
@@ -509,4 +510,77 @@ def build_external_effect_identity(
             extension_install_id=extension_install_id,
         ),
         "request_fingerprint": request_fingerprint,
+    }
+
+
+def _safe_external_effect_guidance(value: Any) -> str:
+    """Accept only bounded plain text, using the shared upstream-message guard."""
+    if (
+        not isinstance(value, str)
+        or len(value) > 512
+        or any(unicodedata.category(char).startswith("C") for char in value)
+    ):
+        return ""
+    from core.application.orchestration.step_failures import safe_upstream_message
+
+    return safe_upstream_message({"message": value})
+
+
+def redact_external_effect_guidance(
+    summary: dict[str, Any], *, project_id: str | None = None
+) -> dict[str, Any]:
+    """Redact diagnostic text before ledger persistence or legacy-ledger display."""
+    result = dict(summary)
+    guidance = _safe_external_effect_guidance(result.pop("guidance", None))
+    if guidance:
+        from core.infrastructure.security.prompt_safety import redact_text_for_persistence
+
+        guidance = _safe_external_effect_guidance(
+            redact_text_for_persistence(guidance, project_id=project_id, context_type="display")
+        )
+        if guidance:
+            result["guidance"] = guidance
+    return result
+
+
+def external_effect_guidance_errors(confirmed_effect: Any) -> list[dict[str, str]]:
+    """Read only confirmed ambiguous-effect diagnostics; never authorize a retry."""
+    effect = _as_dict(confirmed_effect)
+    if _text(effect.get("status")).lower() != "timeout_unknown":
+        return []
+    summary = redact_external_effect_guidance(
+        _as_dict(effect.get("response_summary_jsonb")),
+        project_id=_text(effect.get("project_id")) or None,
+    )
+    guidance = summary.get("guidance")
+    return [{"code": "external_effect_timeout_unknown", "message": guidance}] if guidance else []
+
+
+def apply_external_effect_confirmation(
+    invocation: dict[str, Any],
+    confirmed_effect: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Fail a successful consumer result unless the ledger confirms success."""
+    if not confirmed_effect or _text(invocation.get("status")).lower() != "succeeded":
+        return invocation
+    status = _text(confirmed_effect.get("status")).lower()
+    if status == "succeeded":
+        projected = _as_dict(confirmed_effect.get("__confirmed_replay_invocation"))
+        if projected:
+            return projected
+        status = "invalid"
+    code = {
+        "failed": "external_effect_failed",
+        "timeout_unknown": "external_effect_timeout_unknown",
+    }.get(status, "external_effect_confirmation_invalid")
+    guidance_errors = external_effect_guidance_errors(confirmed_effect)
+    return {
+        "status": "failed",
+        "detail": code,
+        "response": {
+            "ok": False,
+            "error_code": code,
+            **({"guidance": guidance_errors[0]["message"]} if guidance_errors else {}),
+        },
+        "errors": guidance_errors or [{"code": code}],
     }

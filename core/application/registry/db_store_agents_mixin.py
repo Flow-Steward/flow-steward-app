@@ -463,6 +463,15 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                     if str(row.get("skill_id") or "").strip()
                 }
                 changelog_snapshot["prompts"] = snapshot_prompts
+            if sync_relationships and ("structured_inputs" in data or "structured_outputs" in data):
+                # The public own-contract writers reuse this active transaction.
+                # Materialization then derives inherited skill/tool I/O from the
+                # clone's own durable relationship rows before the changelog is saved.
+                if "structured_inputs" in data:
+                    self.set_agent_inputs(agent_id, list(data.get("structured_inputs") or []))
+                if "structured_outputs" in data:
+                    self.set_agent_outputs(agent_id, list(data.get("structured_outputs") or []))
+                self.materialize_agent_contract(agent_id)
             self._log_change_cur(
                 cur,
                 "agent",

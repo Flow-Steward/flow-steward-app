@@ -404,7 +404,17 @@ def list_connector_catalog(
     project_connections = _list_project_connections_for_catalog(
         db, project_id=normalized_project_id
     )
-    registry_operation_index = _registry_tool_operation_index(db)
+    allowlisted_mcp_tool_ids = {
+        str(tool_id or "").strip().removeprefix("connector.")
+        for connector in connectors
+        if isinstance(connector, dict)
+        for tool_id in (connector.get("allowlisted_tools") or [])
+    }
+    registry_operation_index = _registry_tool_operation_index(
+        db,
+        account_id=str(getattr(catalog_scope, "account_id", "") or "").strip(),
+        tool_ids=allowlisted_mcp_tool_ids,
+    )
     ui_locale = resolve_ui_locale(request)
 
     normalized_connections = [
@@ -426,7 +436,11 @@ def list_connector_catalog(
     }
     _append_catalog_connectors(
         catalog_rows,
-        _registry_tool_connector_rows(db, locale=ui_locale),
+        _registry_tool_connector_rows(
+            db,
+            locale=ui_locale,
+            account_id=str(getattr(catalog_scope, "account_id", "") or "").strip(),
+        ),
         seen_connector_ids,
         excluded_tool_ids=grouped_mcp_tool_ids,
     )

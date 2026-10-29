@@ -6,6 +6,7 @@ import contextlib
 import os
 import tempfile
 import time
+from collections.abc import Mapping
 from typing import Any
 
 import psycopg
@@ -16,6 +17,7 @@ from core.application.tabular_feed.snapshot_repository import (
     SnapshotConflictError,
     SnapshotRepository,
 )
+from core.infrastructure.date_types import DateLexicon, DateValueError
 from core.infrastructure.extension_runtime.object_storage import APPLICATION_JSON_VALUE
 from core.infrastructure.tabular_feed.actions import (
     _apply_rule as _actions_apply_rule,
@@ -136,8 +138,13 @@ def _reading_feed(fmt: str):
         raise FeedReadError(f"{message}: {detail}" if detail else message) from exc
 
 
-def _apply_rule(row: dict[str, Any], rule: dict[str, Any]) -> bool:
-    return _actions_apply_rule(row, rule)
+def _apply_rule(
+    row: dict[str, Any],
+    rule: dict[str, Any],
+    *,
+    date_lexicons: Mapping[str, DateLexicon] | None = None,
+) -> bool:
+    return _actions_apply_rule(row, rule, date_lexicons=date_lexicons)
 
 
 def checksum(action: dict[str, Any]) -> dict[str, Any]:
@@ -242,7 +249,9 @@ def read(action: dict[str, Any]) -> dict[str, Any]:
         )
 
 
-def transform(action: dict[str, Any]) -> dict[str, Any]:
+def transform(
+    action: dict[str, Any], *, date_lexicons: Mapping[str, DateLexicon] | None = None
+) -> dict[str, Any]:
     payload = _input(action)
     with _dataset_lazyframe(action, _text(payload.get("dataset_handle"))) as (df, source_meta):
         rules = _normalize_actions(payload)
@@ -256,7 +265,11 @@ def transform(action: dict[str, Any]) -> dict[str, Any]:
                 out_df,
                 normalized_rules,
                 row_count=int(source_meta.get("row_count") or 0),
+                date_lexicons=date_lexicons,
             )
+        except DateValueError as exc:
+            path = "rules" if _as_list(payload.get("rules")) else "actions"
+            return _fail(exc.code, str(exc), path=path)
         except (TypeError, ValueError) as exc:
             return _fail("invalid_rules", str(exc), path="rules")
         try:
@@ -912,6 +925,7 @@ def execute_operation(
     *,
     plane: ArtifactDatasetPlane,
     snapshot_repository: SnapshotRepository | None = None,
+    date_lexicons: Mapping[str, DateLexicon] | None = None,
 ) -> dict[str, Any]:
     handler = ACTION_HANDLERS.get(_text(action_id))
     if handler is None:
@@ -920,6 +934,8 @@ def execute_operation(
     payload["action_id"] = _text(action_id)
     with injected_plane(plane), injected_snapshot_repository(snapshot_repository):
         try:
+            if _text(action_id) == "transform":
+                return transform(payload, date_lexicons=date_lexicons)
             return handler(payload)
         except FeedReadError as exc:
             return _fail(READ_FAILED, str(exc))

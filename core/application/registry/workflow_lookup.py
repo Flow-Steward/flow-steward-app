@@ -25,6 +25,25 @@ def get_registry_artifact_row(
     if callable(getter):
         row = getter(normalized)
         if isinstance(row, dict):
+            if artifact_kind == "skill" and _is_skill_projection_anchor(row):
+                if str(row.get("account_id") or "").strip() != str(account_id or "").strip():
+                    return None
+                from core.application.registry.projected_artifact_rows import (
+                    projected_artifact_rows,
+                )
+
+                return next(
+                    (
+                        dict(projected)
+                        for projected in projected_artifact_rows(
+                            db_store, "skill", "skill_id", account_id=account_id
+                        )
+                        if str(projected.get("skill_id") or "").strip() == normalized
+                        and str(projected.get("source_install_id") or "").strip()
+                        == str(row.get("source_install_id") or "").strip()
+                    ),
+                    None,
+                )
             return dict(row)
 
     from core.application.registry.projected_artifact_rows import projected_artifact_rows
@@ -51,6 +70,14 @@ def is_projection_anchor(row: Any) -> bool:
     workflow_id = str(row.get("workflow_id") or "").strip()
     return str(row.get("projection_mode") or "").strip().lower() == "derived" or (
         workflow_id.startswith("extension.")
+        and bool(str(row.get("source_install_id") or "").strip())
+    )
+
+
+def _is_skill_projection_anchor(row: Any) -> bool:
+    return (
+        isinstance(row, dict)
+        and str(row.get("skill_id") or "").strip().startswith("extension.")
         and bool(str(row.get("source_install_id") or "").strip())
     )
 

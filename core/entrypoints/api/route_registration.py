@@ -1,5 +1,6 @@
 # ruff: noqa: F405, RUF100
 # mypy: ignore-errors
+from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
 from core.application.management.command_models import ApprovalDecisionInput
 from core.application.management.errors import ServiceConflictError
 from core.application.workflows.workflow_secret_default_service import (
@@ -220,7 +221,7 @@ def _initialize_shared_route_dependencies(current_app: FastAPI) -> None:
         request_client_ip=_request_client_ip,
         redirect=_redirect,
         flash=_flash,
-        resolve_artifact=_artifact_plane.get_artifact,
+        resolve_artifact=ArtifactPresentationResolver(_artifact_plane),
         artifact_plane=_artifact_plane,
     )
 

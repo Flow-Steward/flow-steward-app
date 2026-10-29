@@ -39,6 +39,15 @@ function outcomeName(graph: WorkflowCanvasGraph, source: WorkflowNodeRef, outcom
   return step?.ports?.find((port) => outcomeHandleId(port.outcome) === outcomeHandleId(outcome))?.label || fallback;
 }
 
+function laneIds(body: Record<string, unknown> | undefined): string[] {
+  if (body?.kind !== "lanes" || !Array.isArray(body.lanes)) return [];
+  return body.lanes.flatMap((lane) => {
+    if (!lane || typeof lane !== "object") return [];
+    const laneId = (lane as Record<string, unknown>).lane_id;
+    return typeof laneId === "string" && laneId ? [laneId] : [];
+  });
+}
+
 /** Presentation composition only. The raw Surface retains its gesture contract;
  * the detail-owned command is the sole creation authority. */
 export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps>) {
@@ -176,7 +185,16 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
     subtitle = "";
   } else if (group || forEach) {
     const owner = group?.display_name || forEach?.display_name || "";
-    subtitle = scope?.laneId ? t("react.workflows.palette_in_lane", "In {group} · lane {lane}", { group: owner, lane: scope.laneId }) : t("react.workflows.palette_in_group", "In {group}", { group: owner });
+    if (scope?.laneId) {
+      const ownerLanes = laneIds(group?.body || forEach?.body);
+      const laneIndex = ownerLanes.indexOf(scope.laneId);
+      const laneLabel = laneIndex >= 0
+        ? t("react.workflows.parallel_lane_label", "Parallel lane {lane}", { lane: laneIndex + 1 })
+        : t("react.workflows.parallel_lane", "Parallel lane");
+      subtitle = t("react.workflows.palette_in_lane_ordinal", "In {group} · {lane}", { group: owner, lane: laneLabel });
+    } else {
+      subtitle = t("react.workflows.palette_in_group", "In {group}", { group: owner });
+    }
   } else if (request?.at) {
     subtitle = t("react.workflows.palette_here", "Here, not connected yet");
   }
@@ -184,7 +202,7 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
     if (event.target instanceof Element) lastControl.current = event.target.closest<HTMLElement>("button, [role=button], [role=group]");
   }}>
     <WorkflowCanvasBuilderSurface {...props} creationSelection={creationSelection} creationIntentRetireNonce={creationIntentRetireNonce} canvasPlacementCommand={placementCommand} onCanvasReady={ready} onAppendStep={append} onInsertStep={insert} onOpenNewStep={(context, at) => open(context, undefined, undefined, at)} onOpenNewGroup={createContainer} />
-    {request ? <CanvasAddStepPalette key={request.requestId} clientPoint={request.clientPoint} title={title} subtitle={subtitle} projectId={props.projectId} sequenceForEach={Boolean(forEach?.body?.kind === "sequence" && !scope?.laneId && !scope?.groupId)} allowHookDeclaration={Boolean(props.allowHookDeclaration && rootScope && !props.structureLocked && onCreateStep)} allowGroup={rootScope || hookRoot} allowForEach={rootScope || hookRoot || sequenceGroup} inserting={Boolean(request.expectedEdge)} connected={Boolean(request.context.insert)} busy={busy} error={error} dragging={paletteDrag.dragging} onChoose={(choice) => { if (!paletteDrag.consumeClick()) chooseFromPalette(choice); }} onDragStart={paletteDrag.onDragStart} onDismiss={dismiss} /> : null}
+    {request ? <CanvasAddStepPalette key={request.requestId} clientPoint={request.clientPoint} title={title} subtitle={subtitle} projectId={props.projectId} laneId={scope?.laneId || undefined} sequenceForEach={Boolean(forEach?.body?.kind === "sequence" && !scope?.laneId && !scope?.groupId)} allowHookDeclaration={Boolean(props.allowHookDeclaration && rootScope && !props.structureLocked && onCreateStep)} allowGroup={rootScope || hookRoot} allowForEach={rootScope || hookRoot || sequenceGroup} inserting={Boolean(request.expectedEdge)} connected={Boolean(request.context.insert)} busy={busy} error={error} dragging={paletteDrag.dragging} onChoose={(choice) => { if (!paletteDrag.consumeClick()) chooseFromPalette(choice); }} onDragStart={paletteDrag.onDragStart} onDismiss={dismiss} /> : null}
     {paletteDrag.overlay}
   </div>;
 }

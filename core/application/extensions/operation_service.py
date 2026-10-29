@@ -513,6 +513,8 @@ class ExtensionOperationService:
                 dataset_outputs=list(getattr(body, "dataset_outputs", None) or []),
                 dataset_output_specs=list(getattr(body, "dataset_output_specs", None) or []),
                 before_materialize_outputs=register_marker,
+                installed_extension=context.extension,
+                operation_id=context.action_id,
             )
         if (
             self._extension_operation_handler_mode(
@@ -576,7 +578,7 @@ class ExtensionOperationService:
         self,
         context: _ActionExecutionContext,
         invocation: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], Any | None]:
         from core.application.extensions import runtime_grants
 
         prepared_grants = context.prepared_grants
@@ -586,18 +588,23 @@ class ExtensionOperationService:
             and (prepared_grants.artifact_output_ids or prepared_grants.dataset_output_ids)
             and invocation.get("status") == "succeeded"
         ):
-            return invocation
+            return invocation, None
         finalized = runtime_grants.finalize_prepared_extension_grants(
             self._artifact_plane,
             prepared_grants,
+            invocation=invocation,
+            accept_presentations=not bool(context.external_effect_id),
         )
         if finalized.errors:
-            return {
-                **invocation,
-                "status": "failed",
-                "detail": str(finalized.errors[0].get("code") or "grant_upload_failed"),
-                "errors": finalized.errors,
-            }
+            return (
+                {
+                    **invocation,
+                    "status": "failed",
+                    "detail": str(finalized.errors[0].get("code") or "grant_upload_failed"),
+                    "errors": finalized.errors,
+                },
+                None,
+            )
 
         grant_outputs: dict[str, Any] = {}
         for descriptor in prepared_grants.artifact_outputs:
@@ -613,7 +620,7 @@ class ExtensionOperationService:
         invocation["produced_artifacts"] = finalized.produced_artifacts
         invocation["produced_datasets"] = finalized.produced_datasets
         invocation["grant_outputs"] = grant_outputs
-        return invocation
+        return invocation, finalized
 
     def _process_action_response(
         self,
@@ -674,86 +681,21 @@ class ExtensionOperationService:
         *,
         confirm_external_effect: bool = True,
         protected_values: frozenset[str] = frozenset(),
+        finalized_grants: Any = None,
     ) -> None:
-        if (
-            self._artifact_plane is not None
-            and context.prepared_grants is not None
-            and invocation.get("status") != "succeeded"
-        ):
-            self._cleanup_prepared_action_grants(
-                context,
-                log_message="failed to cleanup prepared extension output grants: %s",
-            )
-            invocation.pop("produced_artifacts", None)
-            invocation.pop("produced_datasets", None)
-            invocation.pop("grant_outputs", None)
+        from .operation_service_resources import cleanup_action_resources
 
-        if not confirm_external_effect or not context.external_effect_id:
-            return
-        try:
-            from core.application.extensions.external_effects import (
-                apply_external_effect_confirmation,
-                confirm_external_effect_from_invocation,
-                public_confirmed_external_effect,
-            )
-
-            prepared_grants = context.prepared_grants
-            has_host_finalized_outputs = bool(
-                invocation.get("status") == "succeeded"
-                and self._artifact_plane is not None
-                and prepared_grants is not None
-                and (prepared_grants.artifact_output_ids or prepared_grants.dataset_output_ids)
-            )
-            host_outputs = (
-                {key: copy.deepcopy(invocation.get(key)) for key in _CLIENT_ACTION_OUTPUT_KEYS}
-                if has_host_finalized_outputs
-                else {}
-            )
-            confirmed_effect = confirm_external_effect_from_invocation(
-                context.bl,
-                effect_id=context.external_effect_id,
-                invocation=invocation,
-                claim_token=context.external_effect_claim_token,
-                account_id=str(context.audit.get("account_id") or "").strip(),
-                extension=context.extension,
-                operation_id=context.action_id,
-                protected_values=protected_values,
-                host_outputs=host_outputs,
-                expected_project_id=str(context.audit.get("project_id") or "").strip() or None,
-                expected_connection_id=str(
-                    context.audit.get("connection_id")
-                    or _target_connection_id(context.target)
-                    or ""
-                ).strip()
-                or None,
-            )
-            if confirmed_effect:
-                checked_invocation = apply_external_effect_confirmation(
-                    invocation,
-                    confirmed_effect,
-                )
-                context.external_effect = public_confirmed_external_effect(confirmed_effect)
-                if checked_invocation is not invocation:
-                    invocation.clear()
-                    invocation.update(checked_invocation)
-        except Exception as exc:
-            logger.warning("failed to confirm external effect: %s", exc)
-            if getattr(exc, "commit_outcome", "unknown") == "rolled_back":
-                self._cleanup_prepared_action_grants(
-                    context,
-                    log_message=(
-                        "failed to cleanup rollback-confirmed extension output grants: %s"
-                    ),
-                )
-            invocation.pop("produced_artifacts", None)
-            invocation.pop("produced_datasets", None)
-            invocation.pop("grant_outputs", None)
-            from core.application.extensions.external_effects import (
-                external_effect_confirmation_failure_invocation,
-            )
-
-            invocation.clear()
-            invocation.update(external_effect_confirmation_failure_invocation(exc))
+        cleanup_action_resources(
+            self,
+            context,
+            invocation,
+            confirm_external_effect=confirm_external_effect,
+            protected_values=protected_values,
+            finalized_grants=finalized_grants,
+            client_action_output_keys=_CLIENT_ACTION_OUTPUT_KEYS,
+            target_connection_id=_target_connection_id,
+            logger=logger,
+        )
 
     def _prepare_action_invocation(self, context: _ActionExecutionContext) -> None:
         try:
@@ -862,11 +804,12 @@ class ExtensionOperationService:
             invocation = external_effect_spawn_exception_invocation()
         invocation["status"] = _canonical_action_status(invocation.get("status"))
         secret_exposure = _invocation_exposes_secret(invocation, hydrated_secrets)
+        finalized_grants = None
         if secret_exposure:
             invocation = _secret_exposure_invocation()
         else:
             try:
-                invocation = self._finalize_action_grants(context, invocation)
+                invocation, finalized_grants = self._finalize_action_grants(context, invocation)
             except Exception:
                 from core.application.extensions.external_effects import (
                     external_effect_output_finalization_exception_invocation,
@@ -880,6 +823,7 @@ class ExtensionOperationService:
             invocation,
             confirm_external_effect=True,
             protected_values=hydrated_secrets,
+            finalized_grants=finalized_grants,
         )
         _log_action_invocation(context, invocation)
         client_invocation = _client_action_invocation(

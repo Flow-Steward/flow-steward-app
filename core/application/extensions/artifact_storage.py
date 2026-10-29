@@ -226,19 +226,24 @@ class LocalFilesystemStorageAdapter:
         path = self._path(key)
         self._ensure_shared_directory(os.path.dirname(path))
         payload = bytes(body)
-        try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError:
-            return False
+        parent = os.path.dirname(path)
+        fd, temporary_path = tempfile.mkstemp(prefix=".conditional-", dir=parent)
         try:
             with os.fdopen(fd, "wb") as stream:
                 stream.write(payload)
-            _share_with_storage_group(path, bits=_SHARED_FILE_GROUP_BITS)
-        except Exception:
-            with contextlib.suppress(Exception):
-                os.remove(path)
-            raise
-        return True
+                stream.flush()
+                os.fsync(stream.fileno())
+            _share_with_storage_group(temporary_path, bits=_SHARED_FILE_GROUP_BITS)
+            try:
+                # Both names are on the same filesystem. Link publishes a fully
+                # written inode atomically and refuses to replace an existing key.
+                os.link(temporary_path, path)
+            except FileExistsError:
+                return False
+            return True
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(temporary_path)
 
     def put_stream(
         self,

@@ -371,6 +371,374 @@ def test_readiness_accepts_valid_selector_syntax_independent_of_runtime_value(
     )
 
 
+def test_selector_preflight_rejects_object_member_on_known_batch_array_target() -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "set_rows",
+            "step_kind": "set_variable",
+            "override": {"set_variable": {"target": "state.rows", "value": [{"size": 1}]}},
+        },
+        {
+            "step_id": "make_batches",
+            "step_kind": "batch",
+            "override": {
+                "batch": {
+                    "source_path": "state.rows",
+                    "result_target": "state.b",
+                    "batch_size": 10,
+                }
+            },
+        },
+        {
+            "step_id": "render",
+            "step_kind": "template",
+            "override": {
+                "template": {
+                    "text": "{{ batches }}",
+                    "result_target": "state.rendered",
+                    "inputs": [{"name": "batches", "type": "array", "source": "state.b.size"}],
+                }
+            },
+        },
+        workflow_id="batch-selector-shape",
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert [issue["path"] for issue in issues] == [
+        "workflow.steps.render.override.template.inputs[0].source"
+    ]
+    assert "array" in issues[0]["message"]
+
+
+def test_selector_preflight_keeps_batch_indices_and_unknown_item_shape_valid() -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "set_rows",
+            "step_kind": "set_variable",
+            "override": {"set_variable": {"target": "state.rows", "value": [{"size": 1}]}},
+        },
+        {
+            "step_id": "make_batches",
+            "step_kind": "batch",
+            "override": {
+                "batch": {
+                    "source_path": "state.rows",
+                    "result_target": "state.b",
+                    "batch_size": 10,
+                }
+            },
+        },
+        {
+            "step_id": "render",
+            "step_kind": "template",
+            "override": {
+                "template": {
+                    "text": "{{ item }}",
+                    "result_target": "state.rendered",
+                    "inputs": [{"name": "item", "type": "json", "source": "state.b[0][0].size"}],
+                }
+            },
+        },
+        workflow_id="batch-selector-shape",
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert issues == []
+
+
+def test_selector_preflight_keeps_batch_paths_unknown_when_source_shape_is_unknown() -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "make_batches",
+            "step_kind": "batch",
+            "override": {
+                "batch": {
+                    "source_path": "state.dataset_result",
+                    "result_target": "state.b",
+                    "batch_size": 10,
+                }
+            },
+        },
+        {
+            "step_id": "render",
+            "step_kind": "template",
+            "override": {
+                "template": {
+                    "text": "{{ batches }}",
+                    "result_target": "state.rendered",
+                    "inputs": [{"name": "batches", "type": "json", "source": "state.b.size"}],
+                }
+            },
+        },
+        workflow_id="unknown-batch-selector-shape",
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert issues == []
+
+
+def test_selector_preflight_keeps_dataset_batch_descriptor_fields_valid() -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "set_dataset",
+            "step_kind": "set_variable",
+            "override": {
+                "set_variable": {
+                    # Runtime ignores this fallback when assignments is nonempty.
+                    "target": "state.rows",
+                    "value": [{"unexpected": "fallback"}],
+                    "assignments": {
+                        "state.rows": {
+                            "dataset_handle": "dataset:dst_selector_contract",
+                            "row_count": 12,
+                        }
+                    },
+                }
+            },
+        },
+        {
+            "step_id": "make_batches",
+            "step_kind": "batch",
+            "override": {
+                "batch": {
+                    "source_path": "state.rows",
+                    "result_target": "state.b",
+                    "batch_size": 10,
+                }
+            },
+        },
+        {
+            "step_id": "read_count",
+            "step_kind": "template",
+            "override": {
+                "template": {
+                    "text": "{{ count }}",
+                    "result_target": "state.count_text",
+                    "inputs": [{"name": "count", "type": "number", "source": "state.b.row_count"}],
+                }
+            },
+        },
+        workflow_id="dataset-batch-selector-shape",
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert issues == []
+
+
+def test_selector_preflight_rejects_member_on_http_artifact_handle_scalar() -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "fetch_user",
+            "step_kind": "http_request",
+            "override": {
+                "http_request": {
+                    "method": "GET",
+                    "url": "https://example.test/user",
+                    "response_mode": "artifact",
+                    "response_target": "state.user",
+                }
+            },
+        },
+        {
+            "step_id": "shape_user",
+            "step_kind": "transform",
+            "override": {
+                "transform": {
+                    "input": {"source": "state.user.body"},
+                    "mode": "scalar",
+                    "result_target": "state.shaped",
+                }
+            },
+        },
+        workflow_id="http-artifact-selector-shape",
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert [issue["path"] for issue in issues] == [
+        "workflow.steps.shape_user.override.transform.input.source"
+    ]
+    assert "scalar" in issues[0]["message"]
+
+
+@pytest.mark.parametrize("selector", ["state.user.name", "state.user[0]"])
+def test_selector_preflight_keeps_http_inline_json_descendants_valid(selector: str) -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "fetch_user",
+            "step_kind": "http_request",
+            "override": {
+                "http_request": {
+                    "method": "GET",
+                    "url": "https://example.test/user",
+                    "response_mode": "inline",
+                    "response_target": "state.user",
+                }
+            },
+        },
+        {
+            "step_id": "shape_user",
+            "step_kind": "transform",
+            "override": {
+                "transform": {
+                    "input": {"source": selector},
+                    "mode": "scalar",
+                    "result_target": "state.shaped",
+                }
+            },
+        },
+        workflow_id="http-inline-json-selector-shape",
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert issues == []
+
+
+def test_selector_preflight_keeps_http_default_mode_opaque() -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "fetch_user",
+            "step_kind": "http_request",
+            "override": {
+                "http_request": {
+                    "method": "GET",
+                    "url": "https://example.test/user",
+                    "response_target": "state.user",
+                }
+            },
+        },
+        {
+            "step_id": "shape_user",
+            "step_kind": "transform",
+            "override": {
+                "transform": {
+                    "input": {"source": "state.user.body"},
+                    "mode": "scalar",
+                    "result_target": "state.shaped",
+                }
+            },
+        },
+        workflow_id="http-default-selector-shape",
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert issues == []
+
+
+def test_selector_preflight_counts_group_incoming_edges_before_using_step_shape() -> None:
+    from core.application.orchestration.workflow_state_selector_contract import (
+        IMPOSSIBLE_SELECTOR_CODE,
+        validate_workflow_state_selectors,
+    )
+
+    workflow = linear_workflow(
+        {
+            "step_id": "fetch_user",
+            "step_kind": "http_request",
+            "override": {
+                "http_request": {
+                    "method": "GET",
+                    "url": "https://example.test/user",
+                    "response_mode": "artifact",
+                    "response_target": "state.user",
+                }
+            },
+        },
+        {
+            "step_id": "shape_user",
+            "step_kind": "transform",
+            "override": {
+                "transform": {
+                    "input": {"source": "state.user.body"},
+                    "mode": "scalar",
+                    "result_target": "state.shaped",
+                }
+            },
+        },
+        workflow_id="mixed-predecessor-selector-shape",
+    )
+    workflow["settings"]["execution_graph"]["edges"].append(
+        edge("alternate_group", node("shape_user"), source_kind="group")
+    )
+
+    issues = [
+        issue
+        for issue in validate_workflow_state_selectors(workflow)
+        if issue.get("code") == IMPOSSIBLE_SELECTOR_CODE
+    ]
+
+    assert issues == []
+
+
 def test_phase_message_selector_gets_an_explicit_replacement_hint() -> None:
     from core.application.orchestration.workflow_state_selector_contract import (
         PHASE_MESSAGE_SELECTOR_CODE,

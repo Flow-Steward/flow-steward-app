@@ -33,6 +33,19 @@ class RegistryDBStoreSkillsMixin:
     _exists: Callable[[str, str, str], bool]
     _build_contract_schema: Callable[[list[dict]], dict]
 
+    @staticmethod
+    def _assert_skill_anchor_mutable(row: dict | None, *, author: str = "") -> None:
+        if not row:
+            return
+        skill_id = str(row.get("skill_id") or "").strip()
+        install_id = str(row.get("source_install_id") or "").strip()
+        if (
+            skill_id.startswith("extension.")
+            and install_id
+            and str(author or "").strip() != f"extension-install:{install_id}"
+        ):
+            raise ValueError("Install-owned projected skills are read-only")
+
     def get_skill(self, skill_id: str) -> dict | None:
         with self._cursor() as cur:
             conditions = ["skill_id = %s"]
@@ -348,6 +361,7 @@ class RegistryDBStoreSkillsMixin:
 
     def save_skill(self, data: dict, author: str = "admin") -> None:
         skill_id = data["skill_id"]
+        self._assert_skill_anchor_mutable(self.get_skill(skill_id), author=author)
         is_new = not self._exists("registry_skills", "skill_id", skill_id)
         expected_inputs = data.get("expected_inputs")
         if expected_inputs is None:
@@ -614,6 +628,7 @@ class RegistryDBStoreSkillsMixin:
         snapshot = self.get_skill(skill_id)
         if not snapshot:
             raise KeyError(f"Skill '{skill_id}' not found")
+        self._assert_skill_anchor_mutable(snapshot, author=author)
         has_deleted_at = self._column_exists("registry_skills", "deleted_at")
         has_deleted_by = self._column_exists("registry_skills", "deleted_by")
         with self._transaction() as cur:
@@ -636,6 +651,7 @@ class RegistryDBStoreSkillsMixin:
         snapshot = self.get_skill(skill_id)
         if not snapshot:
             raise KeyError(f"Skill '{skill_id}' not found")
+        self._assert_skill_anchor_mutable(snapshot)
         with self._transaction() as cur:
             cur.execute(
                 "UPDATE registry_skills SET enabled = NOT enabled WHERE skill_id = %s RETURNING enabled",
@@ -710,6 +726,7 @@ class RegistryDBStoreSkillsMixin:
         snapshot = self.get_skill(skill_id)
         if not snapshot:
             raise KeyError(f"Skill '{skill_id}' not found")
+        self._assert_skill_anchor_mutable(snapshot)
         schema = self._build_contract_schema(inputs)
         with self._transaction() as cur:
             cur.execute("DELETE FROM registry_skill_inputs WHERE skill_id = %s", (skill_id,))
@@ -809,6 +826,7 @@ class RegistryDBStoreSkillsMixin:
         snapshot = self.get_skill(skill_id)
         if not snapshot:
             raise KeyError(f"Skill '{skill_id}' not found")
+        self._assert_skill_anchor_mutable(snapshot)
         schema = self._build_contract_schema(outputs)
         with self._transaction() as cur:
             cur.execute("DELETE FROM registry_skill_outputs WHERE skill_id = %s", (skill_id,))

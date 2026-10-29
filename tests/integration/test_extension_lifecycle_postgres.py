@@ -17,11 +17,13 @@ from core.application.extensions.data_migrations import (
     apply_extension_data_migrations,
     snapshot_extension_data,
 )
+from core.application.extensions.extension_runtime import ExtensionArtifactSnapshotRecord
 from core.application.extensions.managed_release_service import ManagedReleaseService
 from core.application.extensions.projected_dataset_bridge import projection_bridge_id
 from core.application.management.command_services import ExtensionBindingService
 from core.application.management.errors import ServiceConflictError
 from core.application.management.scope import ScopeContext
+from core.application.registry.db_store import RegistryDBStore
 from core.application.settings import llm_provider_extension_repository as llm_store
 from core.infrastructure.db import psycopg_runtime
 from core.infrastructure.db.platform_stores import PlatformIdentityStore, PlatformIntegrationStore
@@ -210,6 +212,9 @@ def _cleanup_lifecycle_fixtures(pg_conn) -> None:
         cur.execute(
             "DELETE FROM extension_registry_projections WHERE extension_id LIKE 'fixture.lifecycle-%%'"
         )
+        cur.execute(
+            "DELETE FROM registry_skills WHERE source_install_id IN (SELECT install_id FROM extension_installs WHERE extension_id LIKE 'fixture.lifecycle-%%')"
+        )
         cur.execute("DELETE FROM extension_installs WHERE extension_id LIKE 'fixture.lifecycle-%%'")
         cur.execute("DELETE FROM extension_releases WHERE extension_id LIKE 'fixture.lifecycle-%%'")
         cur.execute(
@@ -279,6 +284,112 @@ def test_extension_command_toggle_keeps_install_and_runtime_projection_aligned(
         ):
             service.disable_extension(seeded["extension_id"], scope=scope)
         assert _persisted_state() == ("active", True)
+    finally:
+        _cleanup_lifecycle_fixtures(pg_conn)
+        direct_conn = getattr(logger, "_direct_conn", None)
+        if direct_conn is not None:
+            direct_conn.close()
+
+
+@pytest.mark.integration
+def test_enable_materializes_skill_anchor_after_install_becomes_active(pg_conn, tmp_path) -> None:
+    seeded = _seed_lifecycle(pg_conn, tmp_path, uuid.uuid4().hex[:8])
+    pg_conn.commit()
+    logger = PlatformLogger(resolve_test_db_dsn())
+    service = ExtensionCommandService(get_logger=lambda: logger)
+    scope = ScopeContext(
+        account_id=DEFAULT_ACCOUNT_ID,
+        actor_id="admin",
+        principal_type="admin",
+    )
+    runtime_store = service._runtime_store()
+    skill_snapshot = ExtensionArtifactSnapshotRecord(
+        release_id=seeded["release_id"],
+        artifact_kind="skill",
+        artifact_id="lifecycle_skill",
+        snapshot={
+            "skill_id": "lifecycle_skill",
+            "display_name": "Lifecycle skill",
+            "enabled": True,
+            "instructions": ["Runtime-only instruction"],
+            "expected_inputs": [{"name": "request", "type": "text", "required": True}],
+            "expected_outputs": [{"name": "result", "type": "text", "required": True}],
+        },
+    )
+    runtime_store.replace_artifact_snapshots(seeded["release_id"], [skill_snapshot])
+    runtime_conn = getattr(runtime_store, "_conn", None)
+    if runtime_conn is not None:
+        runtime_conn.commit()
+    pg_conn.commit()
+    try:
+        assert service.disable_extension(seeded["extension_id"], scope=scope).state == "disabled"
+        assert service.enable_extension(seeded["extension_id"], scope=scope).state == "active"
+        skill_id = projection_bridge_id(seeded["install_id"], "lifecycle_skill")
+        registry_store = RegistryDBStore(resolve_test_db_dsn())
+        registry_store.extension_runtime_store = runtime_store
+        anchor = registry_store.get_skill(skill_id)
+        assert anchor is not None
+        assert anchor["source_install_id"] == seeded["install_id"]
+        assert anchor["enabled"] is False
+        assert anchor["instructions"] == []
+        from core.application.registry.workflow_lookup import get_registry_artifact_row
+
+        active = get_registry_artifact_row(
+            registry_store,
+            artifact_kind="skill",
+            id_key="skill_id",
+            artifact_id=skill_id,
+            platform_getter="get_skill",
+            account_id=DEFAULT_ACCOUNT_ID,
+        )
+        assert active is not None
+        assert active["instructions"] == ["Runtime-only instruction"]
+        assert service.disable_extension(seeded["extension_id"], scope=scope).state == "disabled"
+        assert registry_store.get_skill(skill_id) is not None
+        assert registry_store.get_skill_inputs(skill_id) == []
+        assert (
+            get_registry_artifact_row(
+                registry_store,
+                artifact_kind="skill",
+                id_key="skill_id",
+                artifact_id=skill_id,
+                platform_getter="get_skill",
+                account_id=DEFAULT_ACCOUNT_ID,
+            )
+            is None
+        )
+
+        with (
+            patch(
+                "core.application.extensions.command_lifecycle_activation.register_provider_from_extension",
+                side_effect=RuntimeError("injected failure after skill materialization"),
+            ),
+            pytest.raises(RuntimeError, match="after skill materialization"),
+        ):
+            service.enable_extension(seeded["extension_id"], scope=scope)
+        with pg_conn.cursor() as cur:
+            cur.execute(
+                "SELECT state FROM extension_installs WHERE install_id = %s",
+                (seeded["install_id"],),
+            )
+            assert cur.fetchone()[0] == "disabled"
+        anchor_after_rollback = registry_store.get_skill(skill_id)
+        assert anchor_after_rollback is not None
+        assert anchor_after_rollback["enabled"] is False
+        assert anchor_after_rollback["instructions"] == []
+        assert registry_store.get_skill_inputs(skill_id) == []
+        assert registry_store.get_skill_outputs(skill_id) == []
+        assert (
+            get_registry_artifact_row(
+                registry_store,
+                artifact_kind="skill",
+                id_key="skill_id",
+                artifact_id=skill_id,
+                platform_getter="get_skill",
+                account_id=DEFAULT_ACCOUNT_ID,
+            )
+            is None
+        )
     finally:
         _cleanup_lifecycle_fixtures(pg_conn)
         direct_conn = getattr(logger, "_direct_conn", None)

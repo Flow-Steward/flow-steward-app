@@ -8,6 +8,14 @@ from dataclasses import dataclass
 from typing import Any
 
 _TABULAR_FEED_ACTION_IDS = {
+    "date.parse",
+    "date.to_utc",
+    "date.to_timezone",
+    "date.format",
+    "date.add",
+    "date.part",
+    "date.start_of",
+    "date.end_of",
     "text.html_to_text",
     "text.trim",
     "text.upper",

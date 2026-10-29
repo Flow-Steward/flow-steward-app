@@ -221,3 +221,19 @@ it("keeps an unapplied Hook declaration Add disabled even on the protected paren
   expect(view.data.onOpenNewStep).not.toHaveBeenCalled();
   expect(view.data.onOpenNewGroup).not.toHaveBeenCalled();
 });
+
+it("labels lane headers by position instead of exposing persisted lane ids", () => {
+  const data: GroupNodeData = {
+    automationRules: [], group: { id: "delivery", display_name: "Delivery", body: { kind: "lanes" } },
+    isEntry: false, lanes: ["lane_a", "lane_b"], local: false, ports: [], unreachable: false, validationIssues: [],
+    onAutomation: vi.fn(), onOpenGroup: vi.fn(),
+    laneFrames: [
+      { id: "lane_a", x: 0, y: 0, width: 300, height: 180 },
+      { id: "lane_b", x: 0, y: 190, width: 300, height: 180 },
+    ],
+  };
+  render(<ReactFlowProvider><ContainerCard containerId="delivery" containerKind="group" displayName="Delivery" badges={null} data={data} onOpen={vi.fn()} /></ReactFlowProvider>);
+  expect(screen.getByText("Parallel lane 1")).toBeVisible();
+  expect(screen.getByText("Parallel lane 2")).toBeVisible();
+  expect(screen.queryByText(/lane_[ab]/)).not.toBeInTheDocument();
+});

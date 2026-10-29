@@ -34,127 +34,18 @@ import {
 } from "@/pages/workflows/detail/detail-helpers";
 import { isTruthy } from "@/lib/utils/unknown-values";
 import { UNKNOWN_POSITION, type WorkflowVariablesContext } from "@/pages/workflows/detail/detail-variable-filter";
-import { isHttpError } from "@/lib/http/errors";
 import {
   extensionConnectionEligibility,
   operationConnectionTypeIds,
 } from "@/pages/workflows/detail/detail-extension-connection";
-
-function resolveExtensionInstallAvailability(
-  isError: boolean,
-  error: unknown,
-  installState: unknown,
-): string {
-  if (isError) {
-    return isHttpError(error) && error.kind === "not_found" ? "removed" : "unavailable";
-  }
-  return textOrEmpty(installState) === "disabled" ? "disabled" : "active";
-}
-
-function connectorIsExtension(
-  connectorId: string,
-  connectorRow: Record<string, unknown>,
-  stepConfig: Record<string, unknown>,
-): boolean {
-  return (
-    textOrEmpty(connectorRow.source) === "extension" ||
-    connectorId.startsWith("extension.") ||
-    Boolean(textOrEmpty(connectorRow.extension_install_id)) ||
-    Boolean(textOrEmpty(stepConfig.extension_id))
-  );
-}
-
-function connectorCatalogOptionLabel(connectorRow: Record<string, unknown>): string {
-  return readableMetadata(connectorRow.display_name, [connectorRow.connector_id, connectorRow.extension_id, connectorRow.connector_install_id, connectorRow.extension_install_id]);
-}
-
-function extensionInstallIdFor(
-  isExtension: boolean,
-  connectorRow: Record<string, unknown>,
-  stepConfig: Record<string, unknown>,
-): string {
-  if (!isExtension) return "";
-  return textOrEmpty(
-    stepConfig.connector_install_id ||
-      connectorRow.extension_install_id ||
-      connectorRow.connector_install_id ||
-      connectorRow.install_id,
-  );
-}
-
-function connectorOperationIsStale({
-  availability,
-  installId,
-  isExtension,
-  isPending,
-  isSuccess,
-  operationId,
-  operationRows,
-}: {
-  availability: string;
-  installId: string;
-  isExtension: boolean;
-  isPending: boolean;
-  isSuccess: boolean;
-  operationId: string;
-  operationRows: Array<Record<string, unknown>>;
-}): boolean {
-  if (!isExtension || isPending || !operationId) return false;
-  if (availability !== "active") return true;
-  if (!isSuccess) return false;
-  if (!installId) return true;
-  return !operationRows.some(
-    (row) =>
-      textOrEmpty(row.operation_id || row.id || row.key || row.name) === operationId,
-  );
-}
-
-function connectorConnectionState({
-  availability,
-  connectionId,
-  connectionRequired,
-  connectionRows,
-  installId,
-  isExtension,
-  isPending,
-  isSuccess,
-  projectId,
-}: {
-  availability: string;
-  connectionId: string;
-  connectionRequired: boolean;
-  connectionRows: Array<Record<string, unknown>>;
-  installId: string;
-  isExtension: boolean;
-  isPending: boolean;
-  isSuccess: boolean;
-  projectId: string;
-}) {
-  const resolvable =
-    isExtension &&
-    connectionRequired &&
-    !isPending &&
-    availability === "active" &&
-    isSuccess;
-  const stale =
-    resolvable &&
-    Boolean(installId) &&
-    Boolean(connectionId) &&
-    !connectionRows.some(
-      (row) =>
-        textOrEmpty(
-          row.connection_id || row.connector_install_id || row.extension_install_id,
-        ) === connectionId,
-    );
-  const missing = resolvable && !stale && !connectionId;
-  const unavailable = missing && !connectionRows.length;
-  return {
-    needsProjectLink: unavailable && !textOrEmpty(projectId),
-    missing,
-    stale,
-    unavailable,
-  };
-}
+import {
+  connectorCatalogOptionLabel,
+  connectorConnectionState,
+  connectorIsExtension,
+  connectorOperationIsStale,
+  extensionInstallIdFor,
+  resolveExtensionInstallAvailability,
+} from "./detail-step-connector-readiness";
 
 export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
   const { t } = useI18n();
@@ -440,6 +331,8 @@ export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
   const stepToolCategory = selectedRuntimeConnectorId
     ? connectorToolCategory(selectedConnectorRow, { ...stepKindConfig, connector_id: selectedRuntimeConnectorId })
     : stepToolCategoryDraft || connectorToolCategory(selectedConnectorRow, stepKindConfig);
+  const selectedConnectorIsMcp = stepToolCategory === "mcp_tools";
+  const selectedConnectorIsDisabled = selectedConnectorRow.enabled === false;
   const connectorOptions = useMemo(
     () =>
       distinctLabelOptions(uniqueSelectOptions([
@@ -449,6 +342,7 @@ export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
           label: connectorCatalogOptionLabel(row) || (connectorToolCategory(row) === "extension_tools"
             ? t("react.workflows.unnamed_extension", "Unnamed extension")
             : t("react.workflows.unnamed_tool", "Unnamed tool")),
+          disabled: connectorToolCategory(row) === "mcp_tools" && row.enabled === false,
         })),
         // Only a saved source the catalog no longer has is unavailable.
         {
@@ -456,6 +350,7 @@ export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
           label: stepToolCategory === "extension_tools"
             ? t("react.workflows.unavailable_extension", "Unavailable extension")
             : t("react.workflows.unavailable_action", "Unavailable action"),
+          disabled: stepToolCategory === "mcp_tools",
         },
       ])).sort((left, right) => left.label.localeCompare(right.label, locale)),
     [connectorRows, selectedConnectorId, stepToolCategory, locale, t],
@@ -700,12 +595,25 @@ export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
             || (staleConnectorOperationId && value === selectedConnectorOperationId
               ? t("react.workflows.unavailable_action", "Unavailable action")
               : t("react.workflows.unnamed_action", "Unnamed action")),
+          disabled: selectedConnectorIsMcp
+            && (selectedConnectorIsDisabled || row.enabled === false),
         };
       }),
       // Only a saved action the catalog no longer has is unavailable.
-      { value: selectedConnectorOperationId, label: t("react.workflows.unavailable_action", "Unavailable action") },
+      {
+        value: selectedConnectorOperationId,
+        label: t("react.workflows.unavailable_action", "Unavailable action"),
+        disabled: selectedConnectorIsMcp,
+      },
     ])),
-    [connectorOperationRows, selectedConnectorOperationId, staleConnectorOperationId, t],
+    [
+      connectorOperationRows,
+      selectedConnectorIsDisabled,
+      selectedConnectorIsMcp,
+      selectedConnectorOperationId,
+      staleConnectorOperationId,
+      t,
+    ],
   );
   const connectorConnectionOptions = useMemo(
     () =>

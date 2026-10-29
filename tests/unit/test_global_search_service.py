@@ -815,7 +815,7 @@ class TestSearchPostgresSources:
             (
                 "saved_queries",
                 "dataset_query_templates",
-                "/registry/datasets",
+                "/registry/datasets/owner-dataset-1?tab=saved-queries",
             ),
             ("model_providers", "model_providers", "/settings/providers"),
             ("model_routes", "llm_provider_models", "/settings/providers"),
@@ -841,6 +841,7 @@ class TestSearchPostgresSources:
                         "description": "Catalog description",
                         "search_timestamp": "2026-07-30T12:00:00+00:00",
                         "project_id": None,
+                        "dataset_id": "owner-dataset-1",
                     }
                 ]
             ]
@@ -930,6 +931,59 @@ class TestSearchPostgresSources:
         sql, params = conn.cursor_impl.calls[0]
         assert all(clause in sql for clause in required_sql)
         assert sql.count("%s") == len(params)
+
+    @pytest.mark.parametrize(
+        ("project_ids", "expected_projection", "expected_project_id"),
+        [
+            ([PROJECT_A], "CAST(%s AS TEXT) AS project_id", PROJECT_A),
+            ([PROJECT_A, PROJECT_B], "NULL::text AS project_id", None),
+        ],
+    )
+    def test_saved_query_project_attribution_requires_single_scoped_project(
+        self,
+        project_ids: list[str],
+        expected_projection: str,
+        expected_project_id: str | None,
+    ) -> None:
+        conn = _RecordingConn(
+            results=[
+                [
+                    {
+                        "entity_id": "query-template-1",
+                        "dataset_id": "dataset-1",
+                        "title": "Saved query",
+                        "description": "Visible saved query",
+                        "search_timestamp": "2026-07-30T12:00:00+00:00",
+                        "project_id": expected_project_id,
+                    }
+                ]
+            ]
+        )
+        bl = MagicMock(conn=conn)
+        bl._column_exists = lambda _table, _column: False
+
+        payload = search_postgres_sources(
+            bl=bl,
+            query="Visible",
+            scope=_scope(tenant_id="tenant-1"),
+            filters={"workspace_id": "workspace-1"},
+            limit=5,
+            project_ids=project_ids,
+            groups=["saved_queries"],
+        )
+
+        item = payload["saved_queries"][0]
+        assert item["project_id"] == expected_project_id
+        sql, params = conn.cursor_impl.calls[0]
+        assert expected_projection in sql
+        assert "CAST(w.account_id AS TEXT) = %s" in sql
+        assert "CAST(w.tenant_id AS TEXT) = %s" in sql
+        assert "CAST(d.workspace_id AS TEXT) = %s" in sql
+        assert "SELECT 1 FROM project_datasets pd" in sql
+        assert "d.availability_mode = 'all_workspace_projects'" in sql
+        assert sql.count("%s") == len(params)
+        if expected_project_id is not None:
+            assert params[0] == expected_project_id
 
     def test_search_postgres_sources_scopes_queries_by_projects_and_job_id(self):
         conn = _RecordingConn(

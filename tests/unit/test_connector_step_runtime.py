@@ -6,9 +6,11 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tests._step_run_state import step_run_state
 
 from core.application.orchestration import (
     connector_events,
@@ -16,7 +18,6 @@ from core.application.orchestration import (
     connector_tool_runtime,
 )
 from core.application.orchestration.run_cursor import ForEachFrame
-from tests._step_run_state import step_run_state
 
 
 def _run_state(steps, *, active=0, **state):
@@ -3267,6 +3268,222 @@ def test_execute_connector_step_passes_external_effect_id_to_real_runtime(
     assert result["invocation"]["response"] == {"ok": True}
     assert confirm.call_args.kwargs["invocation"]["response"]["external_effect_id"] == "eff_spawn_1"
     confirm.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "confirmation",
+    ["unknown", "raised_unknown", "success", "presentation_commit_failure"],
+)
+def test_connector_defers_presentation_until_external_effect_confirmation(
+    tmp_path, monkeypatch, confirmation
+):
+    from core.application.extensions import runtime_grants
+    from core.application.extensions.artifact_dataset_plane_v2 import ArtifactDatasetPlane
+    from core.application.extensions.artifact_storage import LocalFilesystemStorageAdapter
+    from core.application.management.scope import ScopeContext
+    from core.application.orchestration.connector_step_runtime import execute_connector_step
+    from core.infrastructure.extension_runtime import extension_runtime
+    from core.infrastructure.extension_sdk.public.flowsteward_extension_sdk.artifacts import (
+        write_artifact_bytes,
+    )
+
+    monkeypatch.setenv(runtime_grants.FS_EXTENSION_TRUSTED_LOCAL_FS_ARTIFACT_GRANTS_ENV, "1")
+    plane = ArtifactDatasetPlane(storage=LocalFilesystemStorageAdapter(root_dir=str(tmp_path)))
+    extension = {
+        "runtime": {"contract_version": "extension_host_v2"},
+        "extension_key": "example.host-fixture",
+        "extension_install_id": "pi_effect_presentation",
+        "enabled": True,
+        "action_definitions": [{"action_id": "publish_record", "handler": {"mode": "extension"}}],
+        "artifact_policies": [
+            {
+                "operation_id": "publish_record",
+                "outputs": [
+                    {
+                        "kind": "artifact",
+                        "binding_key": "receipt",
+                        "presentation": {"claim_output": "attachment_presentation"},
+                    }
+                ],
+            }
+        ],
+        "compiled_manifest": {
+            "external_effects": [
+                {
+                    "operation_id": "publish_record",
+                    "effect_kind": "message_delivery",
+                    "channel": "api",
+                    "idempotency": "required",
+                }
+            ],
+            "operation_manifest": [
+                {
+                    "operation_id": "publish_record",
+                    "outputs": [
+                        {"name": "receipt"},
+                        {"name": "attachment_presentation"},
+                        {"name": "provider_reference"},
+                    ],
+                }
+            ],
+        },
+    }
+    prepared = runtime_grants.prepare_extension_grants(
+        plane=plane,
+        scope=ScopeContext(account_id="acc_alpha", project_id="project_alpha"),
+        audit={
+            "account_id": "acc_alpha",
+            "project_id": "project_alpha",
+            "job_id": "job_1",
+            "workflow_id": "wf_1",
+            "step_id": "publish-record",
+        },
+        extension_id="example.host-fixture",
+        installed_extension=extension,
+        operation_id="publish_record",
+        artifact_output_specs=[
+            {
+                "binding_key": "receipt",
+                "filename": "provider.bin",
+                "content_type": "application/octet-stream",
+                "max_size_bytes": 1000,
+            }
+        ],
+    )
+    registry = SimpleNamespace(tools=SimpleNamespace(get_tool=lambda _tool_id: None))
+    bl = MagicMock()
+    body = b"record-id,summary\n1,done\n"
+    seen: dict[str, Any] = {}
+
+    def run_extension_action(*_args, **kwargs):
+        receipt = write_artifact_bytes(
+            {"artifacts": {"outputs": kwargs["artifact_outputs"]}},
+            body,
+            binding_key="receipt",
+            content_type="application/octet-stream",
+        )
+        seen.update(receipt)
+        claim = {
+            key: receipt[key] for key in ("artifact_id", "binding_key", "size_bytes", "sha256")
+        }
+        claim.update(filename="provider.csv", content_type="text/csv")
+        return {
+            "status": "succeeded",
+            "response": {
+                "ok": True,
+                "result": {
+                    "attachment_presentation": claim,
+                    "provider_reference": "provider-message-1",
+                },
+            },
+        }
+
+    def confirm(*_args, **kwargs):
+        if confirmation == "raised_unknown":
+            error = RuntimeError("confirmation outcome unknown")
+            error.commit_outcome = "unknown"
+            raise error
+        if confirmation in {"success", "presentation_commit_failure"}:
+            from core.application.extensions.external_effect_replay import (
+                project_external_effect_replay,
+            )
+
+            return {
+                "effect_id": "eff_presentation_1",
+                "status": "succeeded",
+                "__confirmed_replay_invocation": project_external_effect_replay(
+                    extension=extension,
+                    operation_id="publish_record",
+                    invocation=kwargs["invocation"],
+                    protected_values=frozenset(),
+                    host_outputs=kwargs["host_outputs"],
+                ),
+            }
+        return {"effect_id": "eff_presentation_1", "status": "timeout_unknown"}
+
+    if confirmation == "presentation_commit_failure":
+        monkeypatch.setattr(
+            plane,
+            "commit_artifact_presentation",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("sidecar unavailable")),
+        )
+
+    with (
+        patch(
+            "core.application.registry.registry_manager.RegistryManager.instance",
+            return_value=registry,
+        ),
+        patch(
+            "core.infrastructure.extension_runtime.extension_runtime_helpers.resolve_extension_runtime_record",
+            return_value=(extension, bl),
+        ),
+        patch(
+            "core.application.orchestration.connector_extension_runtime._prepare_grants_for_extension_action",
+            return_value=(plane, prepared),
+        ),
+        patch(
+            "core.application.extensions.external_effects.cleanup_stale_external_effects",
+            return_value={},
+        ),
+        patch(
+            "core.application.extensions.external_effects.claim_external_effect",
+            return_value={
+                "effect": {
+                    "effect_id": "eff_presentation_1",
+                    "claim_token": "claim-1",
+                    "status": "claimed",
+                },
+                "should_spawn": True,
+                "suppressed": False,
+                "deduped": False,
+            },
+        ),
+        patch(
+            "core.application.extensions.external_effects.mark_external_effect_running",
+            return_value={"effect_id": "eff_presentation_1", "status": "running"},
+        ),
+        patch(
+            "core.application.extensions.external_effects.confirm_external_effect_from_invocation",
+            side_effect=confirm,
+        ) as confirm_call,
+        patch.object(extension_runtime, "run_extension_action", side_effect=run_extension_action),
+        patch(
+            "core.infrastructure.extension_runtime.extension_invocation_audit.log_host_extension_invocation"
+        ),
+    ):
+        result = execute_connector_step(
+            step={
+                "step_kind": "connector",
+                "connector_id": "example.host-fixture.publish_record",
+                "connector_install_id": "pi_effect_presentation",
+                "input_mapping_jsonb": {"record_id": "record-1"},
+            },
+            state=_run_state(
+                [{"step_id": "publish-record"}],
+                account_id="acc_alpha",
+                project_id="project_alpha",
+                workflow_id="wf_1",
+                job_id="job_1",
+                workspace_id="workspace_alpha",
+            ),
+        )
+
+    assert (
+        confirm_call.call_args.kwargs["host_outputs"]["produced_artifacts"][0]["filename"]
+        == "provider.bin"
+    )
+    assert plane.read_artifact_bytes(seen["artifact_id"], max_size_bytes=1000) == body
+    presentation_key = f"artifacts/{seen['artifact_id']}/_presentation.json"
+    if confirmation == "success":
+        assert result["ok"] is True
+        assert result["produced_artifacts"][0]["filename"] == "provider.csv"
+        assert plane._storage.get(presentation_key) is not None
+    else:
+        assert result["ok"] is False
+        assert result["produced_artifacts"] == []
+        assert result["grant_outputs"] == {}
+        assert result["invocation"]["status"] == "failed"
+        assert plane._storage.get(presentation_key) is None
 
 
 def test_workflow_external_effect_uses_stable_keyed_intent_across_payload_change(

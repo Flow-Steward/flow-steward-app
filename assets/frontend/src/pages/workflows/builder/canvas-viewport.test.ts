@@ -426,6 +426,19 @@ it("uses actual banner-adjusted stage, drawer width and bottom control rectangle
   expect(canvasPastePane(stage, 1440)).toBeNull();
 });
 
+it("keeps a paste pane when the minimap moves to the top-right above the bottom toolbar", () => {
+  render(createElement("div", { "data-testid": "paste-stage" },
+    createElement("div", { className: "workflow-canvas-toolbar", "data-testid": "paste-toolbar" }),
+    createElement("div", { className: "workflow-canvas-minimap", "data-testid": "paste-minimap" }),
+  ));
+  const stage = screen.getByTestId("paste-stage");
+  vi.spyOn(stage, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 64, 1200, 742));
+  vi.spyOn(screen.getByTestId("paste-toolbar"), "getBoundingClientRect").mockReturnValue(new DOMRect(204, 748, 790, 42));
+  vi.spyOn(screen.getByTestId("paste-minimap"), "getBoundingClientRect").mockReturnValue(new DOMRect(998, 80, 186, 53));
+
+  expect(canvasPastePane(stage, 0)).toEqual({ left: 16, top: 149, right: 1184, bottom: 732 });
+});
+
 it("fits actual library bounds in a smaller pane using a stage-local transform", () => {
   const bounds = { x: 1728, y: 240, width: 600, height: 220 };
   const pane = { left: 16, top: 136, right: 974, bottom: 726 };

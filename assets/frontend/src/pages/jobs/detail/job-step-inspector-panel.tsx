@@ -155,6 +155,11 @@ export function StepInspectorPanel({
   );
   const inputArtifacts = listFromUnknown(selectedStep.input_artifacts);
   const outputArtifacts = listFromUnknown(selectedStep.output_artifacts);
+  const isHttpRequest = selectedStep.step_type_label_key === "react.workflows.http_request";
+  const savedOutput = isHttpRequest ? objectOrEmpty(selectedStep.saved_output) : {};
+  const savedTarget = firstReadableText(savedOutput.target);
+  const hasSavedValue = Boolean(savedTarget) && Object.prototype.hasOwnProperty.call(savedOutput, "value");
+  const savedValueIsFile = savedOutput.is_file === true;
 
   return (
     <article className="fs-card min-w-0" data-testid={testId}>
@@ -212,9 +217,38 @@ export function StepInspectorPanel({
           </section>
         ) : null}
 
+        {hasSavedValue ? (
+          <section className="space-y-2" aria-labelledby={`${testId}-saved-response-heading`}>
+            <h3 className="text-sm font-semibold fs-ink-primary" id={`${testId}-saved-response-heading`}>
+              {savedValueIsFile
+                ? t("react.jobs.http_saved_file", "Saved file")
+                : t("react.jobs.http_saved_response", "Saved response")}
+            </h3>
+            <p className="text-sm fs-ink-secondary">
+              {savedValueIsFile
+                ? t("react.jobs.http_saved_file_target", "Saved file to {target}", { target: savedTarget })
+                : t("react.jobs.http_saved_body_target", "Saved to {target}", { target: savedTarget })}
+            </p>
+            {savedValueIsFile ? (
+              <p className="text-sm fs-ink-secondary">
+                {t("react.jobs.http_saved_file_guidance", "An artifact handle is stored at this target.")}
+              </p>
+            ) : (
+              <>
+                <p className="text-sm fs-ink-secondary">
+                  {t("react.jobs.http_saved_body_guidance", "Later steps select {target} directly; do not append .body.", { target: savedTarget })}
+                </p>
+                <ReadableDataFields value={{ value: savedOutput.value }} />
+              </>
+            )}
+          </section>
+        ) : null}
+
         <section className="space-y-2" aria-labelledby={`${testId}-outputs-heading`}>
           <h3 className="text-sm font-semibold fs-ink-primary" id={`${testId}-outputs-heading`}>
-            {t("registry.agent_detail.io.outputs", "Outputs")} </h3>
+            {isHttpRequest
+              ? t("react.jobs.http_response_diagnostics", "HTTP response diagnostics")
+              : t("registry.agent_detail.io.outputs", "Outputs")} </h3>
           <ReadableDataFields
             emptyText={t("react.jobs.no_step_outputs", "No step outputs were recorded.")}
             fieldLabelKeys={objectOrEmpty(selectedStep.output_field_label_keys)}

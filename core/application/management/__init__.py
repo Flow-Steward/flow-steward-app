@@ -11,6 +11,7 @@ CORE_APPLICATION_MANAGEMENT_QUERY_SERVICES_VALUE = "core.application.management.
 
 
 __all__ = [
+    "AgentCommandService",
     "ApprovalCommandService",
     "ApprovalQueryService",
     "EventCommandService",
@@ -37,6 +38,10 @@ __all__ = [
 ]
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "AgentCommandService": (
+        CORE_APPLICATION_MANAGEMENT_COMMAND_SERVICES_VALUE,
+        "AgentCommandService",
+    ),
     "ApprovalCommandService": (
         CORE_APPLICATION_MANAGEMENT_COMMAND_SERVICES_VALUE,
         "ApprovalCommandService",

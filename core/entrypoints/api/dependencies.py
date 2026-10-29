@@ -75,6 +75,11 @@ def resolve_artifact(artifact_id: str) -> dict[str, Any] | None:
     return _resolve_artifact(normalized)
 
 
+def get_artifact_resolver() -> Callable[[str], dict[str, Any] | None]:
+    """Preserve the configured resolver's separate post-authorization display reader."""
+    return _resolve_artifact if _resolve_artifact is not None else resolve_artifact
+
+
 def artifact_presigned_url(
     artifact_id: str,
     *,
@@ -126,6 +131,7 @@ __all__ = [
     "artifact_local_stream",
     "artifact_presigned_url",
     "artifact_read_bytes",
+    "get_artifact_resolver",
     "get_committed_checkpoint_values",
     "get_logger_only",
     "get_thread_state_snapshot",

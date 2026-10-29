@@ -208,8 +208,8 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
                   });
                 }}
                 value={selectedConnectorId}
-                options={[({ value: "", label: isToolAction ? t("react.workflows.choose_tool", "Choose tool") : t("react.workflows.choose_action_source", "Choose action source") }), ...connectorOptions.map((option: { label: string; value: string }) => (
-                  ({ value: option.value, label: option.label, icon: connectorOptionIcon(connectorRows, option.value) })
+                options={[({ value: "", label: isToolAction ? t("react.workflows.choose_tool", "Choose tool") : t("react.workflows.choose_action_source", "Choose action source") }), ...connectorOptions.map((option: { disabled?: boolean; label: string; value: string }) => (
+                  ({ value: option.value, label: option.label, disabled: option.disabled, icon: connectorOptionIcon(connectorRows, option.value) })
                 ))]}
               />
             </label>
@@ -239,8 +239,8 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
                   });
                 }}
                 value={selectedConnectorOperationId}
-                options={[({ value: "", label: t("react.workflows.choose_action", "Choose action") }), ...connectorOperationOptions.map((option: { label: string; value: string }) => (
-                  ({ value: option.value, label: option.label })
+                options={[({ value: "", label: t("react.workflows.choose_action", "Choose action") }), ...connectorOperationOptions.map((option: { disabled?: boolean; label: string; value: string }) => (
+                  ({ value: option.value, label: option.label, disabled: option.disabled })
                 ))]}
               />
             </label>
@@ -649,6 +649,11 @@ export function HttpRequestStepSetup({ ctx, inputClass }: Readonly<{ ctx: Workfl
                 value: textOrEmpty(stepKindConfig.response_target),
               })}
             {renderMessage("response_target")}
+            <span className="fs-field-helper">
+              {responseMode === "artifact"
+                ? t("react.workflows.http_artifact_target_guidance", "Artifact responses save a file handle at this target.")
+                : t("react.workflows.http_inline_target_guidance", "The response body is saved at this target. Select the target directly in later steps; do not append .body.")}
+            </span>
             </label>
             <HttpStatusesField label={t("react.workflows.expected_statuses", "Expected statuses")} value={stepKindConfig.expected_statuses} intent={httpIntent} message={messages.expected_statuses} serverError={Boolean(server.expected_statuses)} onChange={(value) => storeHttpField("http_request", "expected_statuses", value)} />
             <label data-http-field="timeout_seconds" className="block text-xs text-[var(--fs-text-secondary)]">

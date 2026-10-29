@@ -574,13 +574,13 @@ class _Validator:
         for step in self.steps.values():
             if self.is_lane_scope(step.scope):
                 if step.kind not in LANE_STEP_KINDS:
-                    self.issues.append(
-                        _issue(
-                            "workflow.placement.lane_kind_unsupported",
-                            f"A parallel lane cannot hold a {step.kind} step; a lane ends at its exit",
-                            step.path,
-                        )
+                    issue = _issue(
+                        "workflow.placement.lane_kind_unsupported",
+                        "This step cannot be added inside a parallel lane.",
+                        step.path,
                     )
+                    issue["message_key"] = "react.workflows.palette_refused_in_lane"
+                    self.issues.append(issue)
                 continue
             if step.kind in FOR_EACH_ONLY_STEP_KINDS and step.for_each_id is None:
                 self.issues.append(

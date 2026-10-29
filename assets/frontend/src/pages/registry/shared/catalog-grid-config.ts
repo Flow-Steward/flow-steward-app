@@ -148,8 +148,6 @@ export function buildGridConfig(
         { key: "display_name", label: t("react.registry.tool", "Tool"), type: "link", link_href: `${nativeListPath}/{tool_id}` },
         { key: "_category", label: t("trash.columns.category", "Category"), type: "badge" },
         { key: "_impl_type", label: t("registry.tools.field.implementation", "Implementation"), type: "badge" },
-        { key: "_cost_tier", label: t("react.registry.cost_tier", "Cost Tier"), type: "text" },
-        { key: "_availability_reason", label: t("react.registry.availability", "Availability"), type: "text", truncate: true, truncate_width: "18rem" },
         { key: "_enabled_label", label: t("extensions.runtime.status", "Status"), type: "badge", badge_map: { enabled: "green", disabled: "neutral", unavailable: "red" } },
       ],
       row_actions: writableRowActions(readOnly, [

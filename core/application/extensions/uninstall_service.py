@@ -215,6 +215,21 @@ class ExtensionUninstallService:
             context.runtime_store.delete_projections_for_install(resolved_install_id)
         if resolved_install_id and hasattr(context.runtime_store, "delete_entitlement"):
             context.runtime_store.delete_entitlement(resolved_install_id)
+        if resolved_install_id:
+            registry_store = getattr(context.bl, "db_store", None)
+            if registry_store is None and callable(
+                getattr(context.bl, "delete_projected_skill_anchors", None)
+            ):
+                registry_store = context.bl
+            if registry_store is None:
+                dsn = str(getattr(context.bl, "dsn", "") or "").strip()
+                if dsn:
+                    from core.application.registry.db_store import RegistryDBStore
+
+                    registry_store = RegistryDBStore(dsn)
+            cleanup = getattr(registry_store, "delete_projected_skill_anchors", None)
+            if callable(cleanup):
+                cleanup(account_id=context.account_id, install_id=resolved_install_id)
 
     def _reconcile_committed_bundle_cleanup(
         self,

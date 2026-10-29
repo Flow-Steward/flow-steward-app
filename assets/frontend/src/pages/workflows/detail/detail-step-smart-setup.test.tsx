@@ -512,6 +512,15 @@ describe("WorkflowStepKindSmartSetup batch builder", () => {
 });
 
 describe("WorkflowStepKindSmartSetup http_request builder", () => {
+  it.each([
+    ["inline", /body is saved at this target.*select the target directly.*do not append \.body/i],
+    ["artifact", /save a file handle at this target/i],
+  ])("guides the next selector for %s response mode", (response_mode, guidance) => {
+    renderHttpRequestSetup({ response_mode, response_target: "state.response", url: "https://api.example.test/data" });
+
+    expect(screen.getByText(guidance)).toBeInTheDocument();
+  });
+
   it("shows structured JSON bodies and keeps them structured when edited", () => {
     const { replaceStepKindConfigField } = renderHttpRequestSetup({
       body_template: {

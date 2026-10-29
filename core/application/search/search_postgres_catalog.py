@@ -215,6 +215,19 @@ def _catalog_query(
         )
 
     if group == "saved_queries":
+        normalized_project_ids = (
+            list(dict.fromkeys(str(value).strip() for value in project_ids if str(value).strip()))
+            if project_ids is not None
+            else None
+        )
+        project_id_projection = "NULL::text"
+        project_id_params: list[str] = []
+        if normalized_project_ids is not None and len(normalized_project_ids) == 1:
+            # A single scoped project is an exact attribution: the visibility
+            # predicate below proves this dataset is available in that project.
+            # Keep multi-project searches unassigned instead of guessing.
+            project_id_projection = "CAST(%s AS TEXT)"
+            project_id_params.append(normalized_project_ids[0])
         conditions = [
             "q.enabled = true",
             "q.deleted_at IS NULL",
@@ -223,7 +236,7 @@ def _catalog_query(
             "w.deleted_at IS NULL",
             _MESSAGE_CAST_W_ACCOUNT_ID_AS_TEXT_S,
         ]
-        params: list[Any] = [account_id]
+        params: list[Any] = [*project_id_params, account_id]
         if tenant_id:
             conditions.append(_MESSAGE_CAST_W_TENANT_ID_AS_TEXT_S)
             params.append(tenant_id)
@@ -231,7 +244,7 @@ def _catalog_query(
             conditions.append("CAST(d.workspace_id AS TEXT) = %s")
             params.append(workspace_id)
         if project_ids is not None:
-            normalized = [str(value).strip() for value in project_ids if str(value).strip()]
+            normalized = normalized_project_ids or []
             if normalized:
                 placeholders = ", ".join(["%s"] * len(normalized))
                 conditions.append(
@@ -253,10 +266,11 @@ def _catalog_query(
         return (
             f"""
             SELECT q.query_template_id AS entity_id,
+                   CAST(d.dataset_id AS TEXT) AS dataset_id,
                    q.display_name AS title,
                    COALESCE(q.description, '') AS description,
                    q.updated_at AS search_timestamp,
-                   NULL::text AS project_id
+                   {project_id_projection} AS project_id
               FROM dataset_query_templates q
               JOIN registry_datasets d ON d.dataset_id = q.dataset_id
               JOIN workspaces w ON w.id = d.workspace_id
@@ -499,6 +513,10 @@ def _catalog_rows(
             deep_link = f"{route}/{quote(entity_id, safe='')}"
         elif group == "projects":
             deep_link = f"/projects/{quote(entity_id, safe='')}"
+        elif group == "saved_queries":
+            dataset_id = str(row.get("dataset_id") or "").strip()
+            if dataset_id:
+                deep_link = f"{route}/{quote(dataset_id, safe='')}?tab=saved-queries"
         items.append(
             {
                 "group": group,

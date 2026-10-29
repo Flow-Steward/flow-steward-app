@@ -10,7 +10,7 @@ Design principles:
   supported.
 - DST policy: for ambiguous local times (fall-back) we pick the *first*
   occurrence (``fold=0``); for non-existent local times (spring-forward) we
-  move forward to the first valid minute.
+  retain the pre-transition offset (a UTC roundtrip advances by the gap).
 """
 
 from __future__ import annotations
@@ -20,59 +20,31 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from core.infrastructure.date_timezones import (
+    legacy_to_local,
+    legacy_to_utc,
+)
+from core.infrastructure.date_timezones import (
+    validate_timezone as _shared_validate_timezone,
+)
+
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 
-_IANA_LEGACY_ALIASES: dict[str, str] = {
-    # Common tzdb aliases that may be missing in minimal tzdata builds.
-    "US/Eastern": "America/New_York",
-    "US/Central": "America/Chicago",
-    "US/Mountain": "America/Denver",
-    "US/Pacific": "America/Los_Angeles",
-    "US/Alaska": "America/Anchorage",
-    "US/Hawaii": "Pacific/Honolulu",
-    "US/Arizona": "America/Phoenix",
-}
 
-
-def _canonical_timezone_name(tz_name: str) -> str:
-    return _IANA_LEGACY_ALIASES.get(tz_name, tz_name)
-
-
-def _is_loadable_timezone(tz_name: str) -> bool:
-    """Return True when ZoneInfo can load the timezone identifier."""
-    candidate = _canonical_timezone_name(tz_name)
+def is_valid_timezone(tz_name: str | None) -> bool:
+    """Return True if the legacy settings API can load the identifier."""
     try:
-        ZoneInfo(candidate)
-    except Exception:
+        _shared_validate_timezone(tz_name, strict=False)
+    except ValueError:
         return False
     return True
 
 
-def is_valid_timezone(tz_name: str | None) -> bool:
-    """Return True if *tz_name* is a recognised IANA timezone identifier."""
-    if not tz_name or not isinstance(tz_name, str):
-        return False
-    clean = tz_name.strip()
-    if not clean:
-        return False
-    # Prefer runtime ZoneInfo validation because some IANA aliases (for example
-    # "US/Eastern") are loadable even when not present in available_timezones().
-    return _is_loadable_timezone(clean)
-
-
 def validate_timezone(tz_name: str | None) -> str:
-    """Return the normalised timezone string or raise ``ValueError``."""
-    if not tz_name or not isinstance(tz_name, str):
-        raise ValueError("Timezone identifier is required.")
-    clean = tz_name.strip()
-    if not clean:
-        raise ValueError("Timezone identifier is required.")
-    canonical = _canonical_timezone_name(clean)
-    if not _is_loadable_timezone(canonical):
-        raise ValueError(f"Unknown IANA timezone: {clean}")
-    return canonical
+    """Return the legacy normalized timezone or its existing ValueError message."""
+    return _shared_validate_timezone(tz_name, strict=False)
 
 
 # ---------------------------------------------------------------------------
@@ -124,17 +96,12 @@ def to_utc(local_dt: datetime, tz_name: str) -> datetime:
 
     If *local_dt* is naive it is assumed to represent time in *tz_name*.
     """
-    tz = ZoneInfo(validate_timezone(tz_name))
-    local_dt = local_dt.replace(tzinfo=tz) if local_dt.tzinfo is None else local_dt.astimezone(tz)
-    return local_dt.astimezone(UTC)
+    return legacy_to_utc(local_dt, tz_name)
 
 
 def to_local(utc_dt: datetime, tz_name: str) -> datetime:
     """Convert a UTC datetime to the given local timezone."""
-    tz = ZoneInfo(validate_timezone(tz_name))
-    if utc_dt.tzinfo is None:
-        utc_dt = utc_dt.replace(tzinfo=UTC)
-    return utc_dt.astimezone(tz)
+    return legacy_to_local(utc_dt, tz_name)
 
 
 def format_local(utc_dt: datetime | None, tz_name: str, fmt: str = "%Y-%m-%d %H:%M:%S %Z") -> str:

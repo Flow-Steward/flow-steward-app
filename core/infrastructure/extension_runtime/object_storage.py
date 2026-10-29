@@ -738,6 +738,7 @@ class S3ObjectStorageAdapter:
         *,
         filename: str,
         ttl_seconds: int = 600,
+        content_type: str = "",
     ) -> str:
         """Create a browser-facing GET URL, or nothing when none can be promised.
 
@@ -767,6 +768,7 @@ class S3ObjectStorageAdapter:
                 "Bucket": self._bucket,
                 "Key": self._full_key(key),
                 "ResponseContentDisposition": disposition,
+                **({"ResponseContentType": content_type} if content_type else {}),
             },
             ExpiresIn=ttl,
         )

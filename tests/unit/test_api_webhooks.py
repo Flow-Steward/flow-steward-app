@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.errors import ServiceUnavailableError
 
@@ -415,8 +416,9 @@ def test_provider_webhook_resolves_exact_install_from_project_connection() -> No
 def client():
     """Create a TestClient with auth disabled and no real DB."""
     try:
-        from core.entrypoints.api.app_factory import create_app
         from fastapi.testclient import TestClient
+
+        from core.entrypoints.api.app_factory import create_app
 
         app = create_app()
         app.state.local_auth_enabled_override = lambda: False
@@ -2028,6 +2030,11 @@ class TestWorkflowEntrypoints:
     def _workflow_contract_service(self, mock_bl):
         # Model the registry owner independently from workflow_entrypoints.enabled.
         # Keep the real admission repository query and other cursor defaults.
+        from core.application.registry.registry_manager import RegistryManager
+        from core.application.registry.workflow_contract_service import (
+            WorkflowInterfaceService,
+        )
+
         registry_owners = {"wf.inventory.sync": {"enabled": True}}
         cursor = mock_bl.conn.cursor.return_value.__enter__.return_value
         default_row = cursor.fetchone.return_value
@@ -2044,19 +2051,52 @@ class TestWorkflowEntrypoints:
         cursor.fetchone.side_effect = lambda: (
             selected_owner if selected_owner is not None else default_row
         )
-        with patch(
-            "core.application.workflows.workflow_entrypoint_input_service.WorkflowInterfaceService"
-        ) as service_cls:
-            service_cls.return_value.interface_for_workflow_id.return_value = SimpleNamespace(
-                expected_inputs=[]
+        workflow_definition = {
+            "workflow_id": "wf.inventory.sync",
+            "settings": {
+                "callable": {
+                    "enabled": True,
+                    "trigger_channels": ["webhook"],
+                    "input_mode": "fields",
+                    "strict_inputs": True,
+                    "expected_inputs": [{"name": "title", "type": "string", "required": True}],
+                    "output_mode": "none",
+                }
+            },
+            "steps": [],
+        }
+        registry = object.__new__(RegistryManager)
+        registry._db_store = SimpleNamespace(
+            get_workflow=lambda workflow_id: (
+                workflow_definition if workflow_id == "wf.inventory.sync" else None
             )
-            service_cls.return_value.validate_inputs_for_workflow_id.return_value = SimpleNamespace(
-                ok=True,
-                errors=[],
-                inputs={"files": []},
-                interface={"enabled": True},
-            )
-            yield service_cls
+        )
+        validated_inputs: list[dict[str, object]] = []
+
+        class RecordingWorkflowInterfaceService(WorkflowInterfaceService):
+            def validate_inputs_for_workflow_id(self, workflow_id, payload, *, channel=""):
+                result = super().validate_inputs_for_workflow_id(
+                    workflow_id, payload, channel=channel
+                )
+                validated_inputs.append(
+                    {
+                        "workflow_id": workflow_id,
+                        "payload": dict(payload),
+                        "channel": channel,
+                        "ok": bool(result.ok),
+                        "inputs": dict(result.inputs),
+                    }
+                )
+                return result
+
+        with (
+            patch(
+                "core.application.workflows.workflow_entrypoint_input_service.WorkflowInterfaceService",
+                RecordingWorkflowInterfaceService,
+            ),
+            RegistryManager.process_instance_override(registry),
+        ):
+            yield SimpleNamespace(validated_inputs=validated_inputs)
 
     def test_canonical_public_workflow_entrypoint_route_is_available(self, client, mock_bl):
         entrypoint = {
@@ -2221,7 +2261,9 @@ class TestWorkflowEntrypoints:
         assert resp.json()["error"] == "Workflow input validation failed"
         mock_enqueue.assert_not_called()
 
-    def test_workflow_entrypoint_idempotency_header_deduplicates(self, client, mock_bl):
+    def test_workflow_entrypoint_idempotency_header_deduplicates(
+        self, client, mock_bl, _workflow_contract_service
+    ):
         entrypoint = {
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
@@ -2267,6 +2309,15 @@ class TestWorkflowEntrypoints:
         assert resp.status_code == 200
         assert resp.json()["deduplicated"] is True
         assert resp.json()["job_id"] == "77"
+        assert _workflow_contract_service.validated_inputs == [
+            {
+                "workflow_id": "wf.inventory.sync",
+                "payload": {"title": "Sync inventory now", "files": []},
+                "channel": "webhook",
+                "ok": True,
+                "inputs": {"title": "Sync inventory now", "files": []},
+            }
+        ]
         mock_enqueue.assert_not_called()
 
     def test_workflow_entrypoint_recovered_idempotency_claim_adopts_existing_job(
@@ -2991,11 +3042,12 @@ def _provider_trigger_client(
     resolved_provider_project=("proj-1", {"project_name": "Demo", "project_root": "/tmp"}),
     workflow_project_by_id=None,
 ):
-    from core.entrypoints.api import provider_webhooks as mod
-    from core.entrypoints.api import provider_webhooks_router as router_mod
     from fastapi import FastAPI
     from fastapi.responses import JSONResponse
     from fastapi.testclient import TestClient
+
+    from core.entrypoints.api import provider_webhooks as mod
+    from core.entrypoints.api import provider_webhooks_router as router_mod
 
     state = {"events": []}
     from contextlib import nullcontext

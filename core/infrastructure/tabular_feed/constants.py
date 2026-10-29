@@ -65,12 +65,47 @@ RULE_KEYS = {
     "text_replace",
     "text_append",
     "text_pad",
+    "date_operation",
 }
 
 RELATIONAL_OPS = {"filter", "dedupe_by", "sort", "group_by", "explode", "unnest"}
 
 CATALOG_VERSION = 1
 TABULAR_ACTION_CATALOG: dict[str, dict[str, Any]] = {
+    "date.parse": {"params": {"input_format", "locale", "century", "dst_policy", "timezone"}},
+    "date.to_utc": {"params": {"input_format", "locale", "century", "dst_policy", "timezone"}},
+    "date.to_timezone": {
+        "params": {"input_format", "locale", "century", "dst_policy", "timezone", "output_format"},
+        "required": {"timezone"},
+    },
+    "date.format": {
+        "params": {
+            "input_format",
+            "locale",
+            "century",
+            "dst_policy",
+            "timezone",
+            "output_format",
+            "output_locale",
+        },
+        "required": {"output_format"},
+    },
+    "date.add": {
+        "params": {"input_format", "locale", "century", "dst_policy", "timezone", "amount", "unit"},
+        "required": {"amount", "unit"},
+    },
+    "date.part": {
+        "params": {"input_format", "locale", "century", "dst_policy", "timezone", "part"},
+        "required": {"part"},
+    },
+    "date.start_of": {
+        "params": {"input_format", "locale", "century", "dst_policy", "timezone", "unit"},
+        "required": {"unit"},
+    },
+    "date.end_of": {
+        "params": {"input_format", "locale", "century", "dst_policy", "timezone", "unit"},
+        "required": {"unit"},
+    },
     "text.trim": {"params": set()},
     "text.html_to_text": {"params": set()},
     "text.upper": {"params": set()},

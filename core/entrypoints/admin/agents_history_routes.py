@@ -11,10 +11,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from core.application.management.command_models import AgentMutationResultView
+from core.application.management.errors import ServiceError
 from core.application.management.query_models import AgentDiffView, AgentRecordView
 from core.application.registry.contract_validation import format_validation_error_detail
 from core.application.registry.db_store import RestoreValidationError
-from core.application.registry.identifier_keys import unique_text_key
 from core.entrypoints.admin.agents_models import AgentCloneRequest, RestoreRevisionRequest
 from core.entrypoints.api.error_safety import safe_error_response
 
@@ -47,6 +47,7 @@ def register_agent_history_routes(
     get_agent_validation: Callable[[Any, str], dict],
     get_scope: Callable[[Request], Any],
     assert_in_scope: Callable[[dict, Any, str], None],
+    clone_agent_command: Callable[..., dict[str, Any]],
 ) -> None:
     @router.post(
         "/{agent_id}/clone",
@@ -77,45 +78,23 @@ def register_agent_history_routes(
         ],
     ):
         """Clone an existing agent into a new agent_id."""
-        db = get_db()
-        source = db.get_agent(agent_id)
-        if not source:
-            raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-        assert_in_scope(source, get_scope(request), detail=f"Agent '{agent_id}' not found")
-        target_id = unique_text_key(
-            body.agent_id or f"{agent_id}_copy",
-            lambda candidate: db.get_agent(candidate) is not None,
-        )
-
-        clone_data = {
-            "agent_id": target_id,
-            "account_id": source.get("account_id"),
-            "display_name": body.display_name or f"{source.get('display_name', agent_id)} (Copy)",
-            "description": source.get("description", ""),
-            "agent_type_id": source.get("agent_type_key") or source.get("agent_type_id"),
-            "prompts": source.get("prompts") or {},
-            "skills": [
-                c.get("skill_id") if isinstance(c, dict) else c
-                for c in (source.get("skills") or [])
-            ],
-            "tools": [
-                t.get("tool_id") if isinstance(t, dict) else t for t in (source.get("tools") or [])
-            ],
-            "inputs": source.get("inputs") or {"required": [], "optional": []},
-            "outputs": list(source.get("outputs") or []),
-            "depends_on": source.get("depends_on") or {"soft": [], "hard": []},
-            "config": dict(source.get("config") or {}),
-            "quality": dict(source.get("quality") or {}),
-            "enabled": False,
-            "version": source.get("version", "1.0.0"),
-            "tags": list(source.get("tags") or []),
-        }
+        scope = get_scope(request)
         try:
-            db.save_agent(clone_data, author=get_scope(request).actor_name)
-        except Exception as e:
-            return safe_error_response(logger, e, message="Failed to clone agent")
-        get_registry().reload_all()
-        return {"status": "cloned", "agent_id": target_id, "source_agent_id": agent_id}
+            return clone_agent_command(
+                source_agent_id=agent_id,
+                target_agent_id=body.agent_id,
+                display_name=body.display_name,
+                agent_type_id=body.agent_type_id,
+                author=scope.actor_name,
+                scope=scope,
+            )
+        except ServiceError as exc:
+            if int(exc.status_code or 500) >= 500:
+                return safe_error_response(logger, exc, message="Failed to clone agent")
+            detail = exc.payload if set(exc.payload) != {"error"} else str(exc)
+            raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+        except Exception as exc:
+            return safe_error_response(logger, exc, message="Failed to clone agent")
 
     @router.get(
         "/{agent_id}/history",

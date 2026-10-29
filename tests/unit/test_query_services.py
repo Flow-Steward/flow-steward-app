@@ -1372,6 +1372,98 @@ class TestQueryServices:
         assert [row["tool_id"] for row in payload["tools"]] == ["search_tool"]
         db.list_tools.assert_called_once_with(enabled_only=False)
 
+    def test_tool_query_marks_virtual_projection_unassignable(self):
+        from core.application.management import query_services_tool
+
+        projection = {
+            "tool_id": "extension.install-1.catalog_tool",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "source_install_id": "install-1",
+            "display_name": "Catalog Tool",
+            "enabled": True,
+        }
+        db = MagicMock()
+        db.list_tools.return_value = [
+            {"tool_id": "std.numbers", "account_id": None, "enabled": True},
+            {"tool_id": "shared_manual_tool", "account_id": None, "enabled": True},
+            {"tool_id": "account_manual_tool", "account_id": DEFAULT_ACCOUNT_ID, "enabled": True},
+            {
+                "tool_id": "installed_durable_tool",
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "source_install_id": "install-1",
+                "enabled": True,
+            },
+            {"tool_id": "foreign_manual_tool", "account_id": "account-other", "enabled": True},
+            {
+                "tool_id": "same_tenant_tool",
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "implementation": {"type": "mcp", "owner_tenant_id": "tenant-a"},
+                "enabled": True,
+            },
+            {
+                "tool_id": "foreign_tenant_tool",
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "implementation": {"type": "mcp", "owner_tenant_id": "tenant-other"},
+                "enabled": True,
+            },
+        ]
+        service = ToolQueryService(
+            get_db=lambda: db,
+            get_registry=MagicMock(),
+            get_tool_validation=lambda *_args: {"valid": True},
+        )
+
+        with patch.object(
+            query_services_tool,
+            "projection_aware_catalog_rows",
+            side_effect=lambda _db, _kind, _key, durable, **_kwargs: [*durable, projection],
+        ):
+            rows = service.list_tools(
+                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a")
+            ).dump()["tools"]
+
+        row = next(row for row in rows if row["tool_id"] == projection["tool_id"])
+        assert row["agent_relationship_assignable"] is False
+        assert row["agent_relationship_reason_code"] == "tool_not_assignable_in_current_scope"
+        assert "unavailable for assignment" in row["agent_relationship_reason_text"]
+        assert (
+            next(row for row in rows if row["tool_id"] == "shared_manual_tool")[
+                "agent_relationship_assignable"
+            ]
+            is True
+        )
+        assert (
+            next(row for row in rows if row["tool_id"] == "account_manual_tool")[
+                "agent_relationship_assignable"
+            ]
+            is True
+        )
+        assert (
+            next(row for row in rows if row["tool_id"] == "installed_durable_tool")[
+                "agent_relationship_assignable"
+            ]
+            is True
+        )
+        assert (
+            next(row for row in rows if row["tool_id"] == "std.numbers")[
+                "agent_relationship_assignable"
+            ]
+            is False
+        )
+        connector_only = next(row for row in rows if row["tool_id"] == "std.numbers")
+        assert connector_only["agent_relationship_reason_code"] == "tool_connector_only"
+        assert connector_only["agent_relationship_reason_text"] == (
+            "Standard Tool Actions are available only through connector workflow steps"
+        )
+        assert not any(row["tool_id"] == "foreign_manual_tool" for row in rows)
+        assert (
+            next(row for row in rows if row["tool_id"] == "same_tenant_tool")[
+                "agent_relationship_assignable"
+            ]
+            is True
+        )
+        assert not any(row["tool_id"] == "foreign_tenant_tool" for row in rows)
+
     def test_tool_query_service_contract_validation_returns_payload(self):
         db = MagicMock()
         db.get_tool.return_value = {

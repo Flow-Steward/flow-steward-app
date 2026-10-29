@@ -8301,6 +8301,15 @@ msgstr "Iškarpinės API nepasiekiama"
 msgid "react.registry.clone"
 msgstr "Klonuoti"
 
+msgid "react.registry.clone_agent_type"
+msgstr "Agento tipas kopijai"
+
+msgid "react.registry.clone_agent_type_help"
+msgstr "Šaltinio agento tipas nenurodytas arba jo nėra palaikomų tipų kataloge. Pasirinkite kopijos tipą."
+
+msgid "react.registry.clone_agent_type_required"
+msgstr "Prieš klonuodami šį šaltinį pasirinkite agento tipą."
+
 msgid "react.registry.clone_value0"
 msgstr "Klonuoti {value0}"
 
@@ -17046,6 +17055,9 @@ msgstr "Įjungti darbo eigą"
 
 msgid "react.workflows.enable_workflow_interface"
 msgstr "Įjungti darbo eigos sąsają"
+
+msgid "react.workflows.workflow_interface_enabled_help"
+msgstr "Paskelbia deklaruotą darbo eigos sąsają pasirinktais aktyvinimo kanalais. Aukščiau nurodyta darbo eigos būsena atskirai nustato, ar darbo eigą galima vykdyti."
 
 msgid "react.workflows.enabled_only"
 msgstr "Tik įjungtos"
@@ -27247,6 +27259,9 @@ msgstr "Grupėje {group}"
 msgid "react.workflows.palette_in_lane"
 msgstr "Grupėje {group} · juosta {lane}"
 
+msgid "react.workflows.palette_in_lane_ordinal"
+msgstr "Grupėje {group} · {lane}"
+
 msgid "react.workflows.palette_inline_loop"
 msgstr "Įterptinis ciklas"
 
@@ -27262,6 +27277,9 @@ msgstr "Nerasta atitinkančių žingsnių"
 
 msgid "react.workflows.palette_refused_group_on_connection"
 msgstr "Grupė turi savo rezultatus, todėl negali būti ant ryšio."
+
+msgid "react.workflows.palette_refused_in_lane"
+msgstr "Šio žingsnio negalima pridėti į lygiagrečią juostą."
 
 msgid "react.workflows.palette_refused_on_connection"
 msgstr "Ant ryšio gali būti tik žingsnis su vienu rezultatu Toliau."
@@ -27352,6 +27370,9 @@ msgstr "Nėra ką įklijuoti: pirmiausia nukopijuokite žingsnius darbo eigos dr
 
 msgid "react.workflows.clipboard_pasted"
 msgstr "Įklijuota į nepritaikytą struktūrą."
+
+msgid "react.workflows.paste_read_only_reason"
+msgstr "Šios darbo eigos struktūra yra tik skaitoma. Įklijuokite į redaguojamą darbo eigą."
 
 msgid "react.workflows.clipboard_read_failed"
 msgstr "Nepavyko perskaityti iškarpinės turinio."
@@ -28143,3 +28164,527 @@ msgstr "šį žingsnį"
 
 msgid "react.workflows.approval_run_cancelled"
 msgstr "vykdymas atšaukiamas"
+msgid "react.jobs.http_response_diagnostics"
+msgstr "HTTP atsakymo diagnostika"
+
+msgid "react.jobs.http_saved_response"
+msgstr "Išsaugotas atsakymas"
+
+msgid "react.jobs.http_saved_body_target"
+msgstr "Išsaugota į {target}"
+
+msgid "react.jobs.http_saved_body_guidance"
+msgstr "Vėlesniuose žingsniuose pasirinkite tiesiogiai {target}; nepridėkite .body."
+
+msgid "react.jobs.http_saved_file"
+msgstr "Išsaugotas failas"
+
+msgid "react.jobs.http_saved_file_target"
+msgstr "Failas išsaugotas į {target}"
+
+msgid "react.jobs.http_saved_file_guidance"
+msgstr "Šiame kelyje saugoma artefakto nuoroda."
+
+msgid "react.workflows.http_artifact_target_guidance"
+msgstr "Artefakto atsakymai šiame kelyje išsaugo failo nuorodą."
+
+msgid "react.workflows.http_inline_target_guidance"
+msgstr "Atsakymo turinys išsaugomas šiame kelyje. Vėlesniuose žingsniuose pasirinkite jį tiesiogiai; nepridėkite .body."
+
+msgid "react.registry.standard_tool_actions_connector_only"
+msgstr "Standartiniai įrankių veiksmai pasiekiami tik per jungčių darbo eigos žingsnius"
+
+msgid "react.workflows.status_structure_applied_with_issues"
+msgstr "Struktūra pritaikyta · {issues}"
+
+msgid "react.workflows.fixed_default_help"
+msgstr "Įjunkite fiksuotąją numatytąją reikšmę, kad galėtumėte ją redaguoti ir išsaugoti. Kai ji nustatyta, kviečianti pusė negali pateikti šios įvesties, net jei įvestis neprivaloma."
+
+msgid "date.month.1.abbr"
+msgstr "saus."
+
+msgid "date.month.1.abbr_standalone"
+msgstr "saus."
+
+msgid "date.month.1.full"
+msgstr "sausio"
+
+msgid "date.month.1.full_standalone"
+msgstr "sausis"
+
+msgid "date.month.10.abbr"
+msgstr "spal."
+
+msgid "date.month.10.abbr_standalone"
+msgstr "spal."
+
+msgid "date.month.10.full"
+msgstr "spalio"
+
+msgid "date.month.10.full_standalone"
+msgstr "spalis"
+
+msgid "date.month.11.abbr"
+msgstr "lapkr."
+
+msgid "date.month.11.abbr_standalone"
+msgstr "lapkr."
+
+msgid "date.month.11.full"
+msgstr "lapkričio"
+
+msgid "date.month.11.full_standalone"
+msgstr "lapkritis"
+
+msgid "date.month.12.abbr"
+msgstr "gruod."
+
+msgid "date.month.12.abbr_standalone"
+msgstr "gruod."
+
+msgid "date.month.12.full"
+msgstr "gruodžio"
+
+msgid "date.month.12.full_standalone"
+msgstr "gruodis"
+
+msgid "date.month.2.abbr"
+msgstr "vas."
+
+msgid "date.month.2.abbr_standalone"
+msgstr "vas."
+
+msgid "date.month.2.full"
+msgstr "vasario"
+
+msgid "date.month.2.full_standalone"
+msgstr "vasaris"
+
+msgid "date.month.3.abbr"
+msgstr "kov."
+
+msgid "date.month.3.abbr_standalone"
+msgstr "kov."
+
+msgid "date.month.3.full"
+msgstr "kovo"
+
+msgid "date.month.3.full_standalone"
+msgstr "kovas"
+
+msgid "date.month.4.abbr"
+msgstr "bal."
+
+msgid "date.month.4.abbr_standalone"
+msgstr "bal."
+
+msgid "date.month.4.full"
+msgstr "balandžio"
+
+msgid "date.month.4.full_standalone"
+msgstr "balandis"
+
+msgid "date.month.5.abbr"
+msgstr "geg."
+
+msgid "date.month.5.abbr_standalone"
+msgstr "geg."
+
+msgid "date.month.5.full"
+msgstr "gegužės"
+
+msgid "date.month.5.full_standalone"
+msgstr "gegužė"
+
+msgid "date.month.6.abbr"
+msgstr "birž."
+
+msgid "date.month.6.abbr_standalone"
+msgstr "birž."
+
+msgid "date.month.6.full"
+msgstr "birželio"
+
+msgid "date.month.6.full_standalone"
+msgstr "birželis"
+
+msgid "date.month.7.abbr"
+msgstr "liep."
+
+msgid "date.month.7.abbr_standalone"
+msgstr "liep."
+
+msgid "date.month.7.full"
+msgstr "liepos"
+
+msgid "date.month.7.full_standalone"
+msgstr "liepa"
+
+msgid "date.month.8.abbr"
+msgstr "rugp."
+
+msgid "date.month.8.abbr_standalone"
+msgstr "rugp."
+
+msgid "date.month.8.full"
+msgstr "rugpjūčio"
+
+msgid "date.month.8.full_standalone"
+msgstr "rugpjūtis"
+
+msgid "date.month.9.abbr"
+msgstr "rugs."
+
+msgid "date.month.9.abbr_standalone"
+msgstr "rugs."
+
+msgid "date.month.9.full"
+msgstr "rugsėjo"
+
+msgid "date.month.9.full_standalone"
+msgstr "rugsėjis"
+
+msgid "date.weekday.1.abbr"
+msgstr "Pr"
+
+msgid "date.weekday.1.full"
+msgstr "pirmadienis"
+
+msgid "date.weekday.1.short"
+msgstr "Pr"
+
+msgid "date.weekday.2.abbr"
+msgstr "An"
+
+msgid "date.weekday.2.full"
+msgstr "antradienis"
+
+msgid "date.weekday.2.short"
+msgstr "An"
+
+msgid "date.weekday.3.abbr"
+msgstr "Tr"
+
+msgid "date.weekday.3.full"
+msgstr "trečiadienis"
+
+msgid "date.weekday.3.short"
+msgstr "Tr"
+
+msgid "date.weekday.4.abbr"
+msgstr "Kt"
+
+msgid "date.weekday.4.full"
+msgstr "ketvirtadienis"
+
+msgid "date.weekday.4.short"
+msgstr "Kt"
+
+msgid "date.weekday.5.abbr"
+msgstr "Pn"
+
+msgid "date.weekday.5.full"
+msgstr "penktadienis"
+
+msgid "date.weekday.5.short"
+msgstr "Pn"
+
+msgid "date.weekday.6.abbr"
+msgstr "Št"
+
+msgid "date.weekday.6.full"
+msgstr "šeštadienis"
+
+msgid "date.weekday.6.short"
+msgstr "Št"
+
+msgid "date.weekday.7.abbr"
+msgstr "Sk"
+
+msgid "date.weekday.7.full"
+msgstr "sekmadienis"
+
+msgid "date.weekday.7.short"
+msgstr "Sk"
+
+msgid "registry.tools.standard.array.description"
+msgstr "Deterministinės operacijos: masyvai."
+
+msgid "registry.tools.standard.array.label"
+msgstr "Masyvai"
+
+msgid "registry.tools.standard.boolean.description"
+msgstr "Deterministinės operacijos: loginės reikšmės."
+
+msgid "registry.tools.standard.boolean.label"
+msgstr "Loginės reikšmės"
+
+msgid "registry.tools.standard.date.description"
+msgstr "Deterministinės operacijos: datos ir laikas."
+
+msgid "registry.tools.standard.date.label"
+msgstr "Datos ir laikas"
+
+msgid "registry.tools.standard.money.description"
+msgstr "Deterministinės operacijos: pinigai."
+
+msgid "registry.tools.standard.money.label"
+msgstr "Pinigai"
+
+msgid "registry.tools.standard.array.at.description"
+msgstr "Atlikti: elementas pagal indeksą."
+
+msgid "registry.tools.standard.array.at.label"
+msgstr "Elementas pagal indeksą"
+
+msgid "registry.tools.standard.array.compact.description"
+msgstr "Atlikti: pašalinti tuščius elementus."
+
+msgid "registry.tools.standard.array.compact.label"
+msgstr "Pašalinti tuščius elementus"
+
+msgid "registry.tools.standard.array.first.description"
+msgstr "Atlikti: pirmasis elementas."
+
+msgid "registry.tools.standard.array.first.label"
+msgstr "Pirmasis elementas"
+
+msgid "registry.tools.standard.array.join_text.description"
+msgstr "Atlikti: sujungti į tekstą."
+
+msgid "registry.tools.standard.array.join_text.label"
+msgstr "Sujungti į tekstą"
+
+msgid "registry.tools.standard.array.length.description"
+msgstr "Atlikti: ilgis."
+
+msgid "registry.tools.standard.array.length.label"
+msgstr "Ilgis"
+
+msgid "registry.tools.standard.boolean.coerce.description"
+msgstr "Atlikti: konvertuoti reikšmę."
+
+msgid "registry.tools.standard.boolean.coerce.label"
+msgstr "Konvertuoti reikšmę"
+
+msgid "registry.tools.standard.date.add.description"
+msgstr "Atlikti: pridėti."
+
+msgid "registry.tools.standard.date.add.label"
+msgstr "Pridėti"
+
+msgid "registry.tools.standard.date.combine.description"
+msgstr "Atlikti: sujungti datą ir laiką."
+
+msgid "registry.tools.standard.date.combine.label"
+msgstr "Sujungti datą ir laiką"
+
+msgid "registry.tools.standard.date.compare.description"
+msgstr "Atlikti: palyginti datas."
+
+msgid "registry.tools.standard.date.compare.label"
+msgstr "Palyginti datas"
+
+msgid "registry.tools.standard.date.diff.description"
+msgstr "Atlikti: datų skirtumas."
+
+msgid "registry.tools.standard.date.diff.label"
+msgstr "Datų skirtumas"
+
+msgid "registry.tools.standard.date.end_of.description"
+msgstr "Atlikti: laikotarpio pabaiga."
+
+msgid "registry.tools.standard.date.end_of.label"
+msgstr "Laikotarpio pabaiga"
+
+msgid "registry.tools.standard.date.format.description"
+msgstr "Atlikti: formatuoti datą."
+
+msgid "registry.tools.standard.date.format.label"
+msgstr "Formatuoti datą"
+
+msgid "registry.tools.standard.date.interval_duration.description"
+msgstr "Atlikti: intervalo trukmė."
+
+msgid "registry.tools.standard.date.interval_duration.label"
+msgstr "Intervalo trukmė"
+
+msgid "registry.tools.standard.date.interval_intersect_all.description"
+msgstr "Atlikti: intervalų sankirta."
+
+msgid "registry.tools.standard.date.interval_intersect_all.label"
+msgstr "Intervalų sankirta"
+
+msgid "registry.tools.standard.date.interval_make.description"
+msgstr "Atlikti: sukurti intervalą."
+
+msgid "registry.tools.standard.date.interval_make.label"
+msgstr "Sukurti intervalą"
+
+msgid "registry.tools.standard.date.interval_slots.description"
+msgstr "Atlikti: susitikimo laikai."
+
+msgid "registry.tools.standard.date.interval_slots.label"
+msgstr "Susitikimo laikai"
+
+msgid "registry.tools.standard.date.parse.description"
+msgstr "Atlikti: išanalizuoti datą."
+
+msgid "registry.tools.standard.date.parse.label"
+msgstr "Išanalizuoti datą"
+
+msgid "registry.tools.standard.date.part.description"
+msgstr "Atlikti: datos dalis."
+
+msgid "registry.tools.standard.date.part.label"
+msgstr "Datos dalis"
+
+msgid "registry.tools.standard.date.start_of.description"
+msgstr "Atlikti: laikotarpio pradžia."
+
+msgid "registry.tools.standard.date.start_of.label"
+msgstr "Laikotarpio pradžia"
+
+msgid "registry.tools.standard.date.to_timezone.description"
+msgstr "Atlikti: konvertuoti laiko juostą."
+
+msgid "registry.tools.standard.date.to_timezone.label"
+msgstr "Konvertuoti laiko juostą"
+
+msgid "registry.tools.standard.date.to_utc.description"
+msgstr "Atlikti: konvertuoti į utc."
+
+msgid "registry.tools.standard.date.to_utc.label"
+msgstr "Konvertuoti į UTC"
+
+msgid "registry.tools.standard.json.get.description"
+msgstr "Atlikti: gauti reikšmę."
+
+msgid "registry.tools.standard.json.get.label"
+msgstr "Gauti reikšmę"
+
+msgid "registry.tools.standard.json.keys.description"
+msgstr "Atlikti: objekto raktai."
+
+msgid "registry.tools.standard.json.keys.label"
+msgstr "Objekto raktai"
+
+msgid "registry.tools.standard.json.omit.description"
+msgstr "Atlikti: praleisti kelius."
+
+msgid "registry.tools.standard.json.omit.label"
+msgstr "Praleisti kelius"
+
+msgid "registry.tools.standard.json.set.description"
+msgstr "Atlikti: nustatyti reikšmę."
+
+msgid "registry.tools.standard.json.set.label"
+msgstr "Nustatyti reikšmę"
+
+msgid "registry.tools.standard.json.values.description"
+msgstr "Atlikti: objekto reikšmės."
+
+msgid "registry.tools.standard.json.values.label"
+msgstr "Objekto reikšmės"
+
+msgid "registry.tools.standard.money.add.description"
+msgstr "Atlikti: pridėti."
+
+msgid "registry.tools.standard.money.add.label"
+msgstr "Pridėti"
+
+msgid "registry.tools.standard.money.coerce.description"
+msgstr "Atlikti: konvertuoti reikšmę."
+
+msgid "registry.tools.standard.money.coerce.label"
+msgstr "Konvertuoti reikšmę"
+
+msgid "registry.tools.standard.money.multiply.description"
+msgstr "Atlikti: dauginti."
+
+msgid "registry.tools.standard.money.multiply.label"
+msgstr "Dauginti"
+
+msgid "registry.tools.standard.money.round.description"
+msgstr "Atlikti: apvalinti."
+
+msgid "registry.tools.standard.money.round.label"
+msgstr "Apvalinti"
+
+msgid "registry.tools.standard.money.subtract.description"
+msgstr "Atlikti: atimti."
+
+msgid "registry.tools.standard.money.subtract.label"
+msgstr "Atimti"
+
+msgid "registry.tools.standard.numbers.add.description"
+msgstr "Atlikti: pridėti."
+
+msgid "registry.tools.standard.numbers.add.label"
+msgstr "Pridėti"
+
+msgid "registry.tools.standard.numbers.ceil.description"
+msgstr "Atlikti: apvalinti aukštyn."
+
+msgid "registry.tools.standard.numbers.ceil.label"
+msgstr "Apvalinti aukštyn"
+
+msgid "registry.tools.standard.numbers.coerce.description"
+msgstr "Atlikti: konvertuoti reikšmę."
+
+msgid "registry.tools.standard.numbers.coerce.label"
+msgstr "Konvertuoti reikšmę"
+
+msgid "registry.tools.standard.numbers.divide.description"
+msgstr "Atlikti: dalyti."
+
+msgid "registry.tools.standard.numbers.divide.label"
+msgstr "Dalyti"
+
+msgid "registry.tools.standard.numbers.floor.description"
+msgstr "Atlikti: apvalinti žemyn."
+
+msgid "registry.tools.standard.numbers.floor.label"
+msgstr "Apvalinti žemyn"
+
+msgid "registry.tools.standard.numbers.multiply.description"
+msgstr "Atlikti: dauginti."
+
+msgid "registry.tools.standard.numbers.multiply.label"
+msgstr "Dauginti"
+
+msgid "registry.tools.standard.numbers.subtract.description"
+msgstr "Atlikti: atimti."
+
+msgid "registry.tools.standard.numbers.subtract.label"
+msgstr "Atimti"
+
+msgid "registry.tools.standard.text.append.description"
+msgstr "Atlikti: pridėti tekstą."
+
+msgid "registry.tools.standard.text.append.label"
+msgstr "Pridėti tekstą"
+
+msgid "registry.tools.standard.text.pad.description"
+msgstr "Atlikti: užpildyti tekstą."
+
+msgid "registry.tools.standard.text.pad.label"
+msgstr "Užpildyti tekstą"
+
+msgid "registry.tools.standard.text.replace.description"
+msgstr "Atlikti: pakeisti."
+
+msgid "registry.tools.standard.text.replace.label"
+msgstr "Pakeisti"
+
+msgid "registry.tools.standard.text.title_case.description"
+msgstr "Atlikti: didžiosios žodžių raidės."
+
+msgid "registry.tools.standard.text.title_case.label"
+msgstr "Didžiosios žodžių raidės"
+
+msgid "registry.tools.standard.text.trim.description"
+msgstr "Atlikti: pašalinti tarpus."
+
+msgid "registry.tools.standard.text.trim.label"
+msgstr "Pašalinti tarpus"

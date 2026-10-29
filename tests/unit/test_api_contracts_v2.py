@@ -489,3 +489,112 @@ def test_v2_jobs_omitting_test_run_source_keeps_unfiltered_list(monkeypatch):
     client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
     assert client.get("/api/v2/jobs").status_code == 200
     assert service.last_list_kwargs.get("task_source") is None
+
+
+@pytest.mark.parametrize(
+    "foreign_owner", [False, True], ids=["authorized-display", "foreign-artifact-no-sidecar"]
+)
+def test_v2_lazy_execution_steps_preserves_post_authorization_presentation_reader(
+    monkeypatch, foreign_owner
+):
+    from copy import deepcopy
+    from unittest.mock import MagicMock
+
+    from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
+    from core.entrypoints.api import dependencies
+
+    metadata = {
+        "artifact_id": "art-fixture",
+        "filename": "download.bin",
+        "content_type": "application/octet-stream",
+        "size_bytes": 21,
+        "object_key": "artifacts/art-fixture/body.bin",
+        "sha256": "a" * 64,
+        "owner_scope": {
+            "project_id": "foreign-project" if foreign_owner else PROJECT_ID,
+            "job_id": JOB_ID,
+        },
+    }
+    original = deepcopy(metadata)
+    claim = {
+        "artifact_id": "art-fixture",
+        "binding_key": "download",
+        "filename": "qa-orders.csv",
+        "content_type": "text/csv",
+        "size_bytes": 21,
+        "sha256": "a" * 64,
+    }
+    plane = SimpleNamespace(
+        get_artifact=MagicMock(return_value=metadata),
+        read_artifact_presentation=MagicMock(return_value=claim),
+    )
+    monkeypatch.setattr(dependencies, "_resolve_artifact", ArtifactPresentationResolver(plane))
+
+    class Service(_JobQueryService):
+        async def get_job_status(self, job_id, *, scope, **kwargs):
+            return _Payload({"id": job_id, "project_id": PROJECT_ID, "status": "completed"})
+
+        async def list_messages(self, job_id, **kwargs):
+            return _Payload(
+                {
+                    "messages": [
+                        {
+                            "id": "m-download",
+                            "step_id": "download",
+                            "from_agent": "connector_step",
+                            "status": "pass",
+                            "artifacts": {
+                                "step_kind": "connector",
+                                "output_payload": {"file": "artifact:art-fixture"},
+                            },
+                        }
+                    ],
+                    "has_more": False,
+                }
+            )
+
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=Service())
+    response = client.get(f"/api/v2/jobs/{JOB_ID}/execution-steps?limit=50")
+    assert response.status_code == 200
+    files = response.json()["data"]["steps"][0]["output_artifacts"]
+    if foreign_owner:
+        assert files == []
+        plane.read_artifact_presentation.assert_not_called()
+    else:
+        assert files == [
+            {
+                "artifact_id": "art-fixture",
+                "role": "output",
+                "filename": "qa-orders.csv",
+                "content_type": "text/csv",
+                "size_bytes": 21,
+                "available": True,
+                "download_url": f"/api/jobs/{JOB_ID}/artifacts/art-fixture",
+            }
+        ]
+        assert plane.read_artifact_presentation.call_count >= 1
+        assert all(
+            call.args[0]["owner_scope"] == metadata["owner_scope"]
+            for call in plane.read_artifact_presentation.call_args_list
+        )
+    assert metadata == original
+
+
+def test_v2_lazy_execution_steps_denied_job_never_reads_artifact_or_presentation(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
+    from core.entrypoints.api import dependencies
+
+    plane = SimpleNamespace(get_artifact=MagicMock(), read_artifact_presentation=MagicMock())
+    monkeypatch.setattr(dependencies, "_resolve_artifact", ArtifactPresentationResolver(plane))
+
+    class DeniedService(_JobQueryService):
+        async def get_job_status(self, job_id, *, scope, **kwargs):
+            raise ServiceForbiddenError("Job is not available in this scope")
+
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=DeniedService())
+    response = client.get(f"/api/v2/jobs/{JOB_ID}/execution-steps?limit=50")
+    assert response.status_code == 403
+    plane.get_artifact.assert_not_called()
+    plane.read_artifact_presentation.assert_not_called()

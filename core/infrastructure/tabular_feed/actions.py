@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
+from core.infrastructure import standard_money, standard_numbers
+from core.infrastructure.date_types import DateLexicon
 from core.infrastructure.html_text import html_to_text
 from core.infrastructure.rounding import quantize_decimal
 from core.infrastructure.tabular_feed.common import _as_dict, _as_list, _pl, _text
@@ -20,6 +23,12 @@ from core.infrastructure.tabular_feed.constants import RULE_KEYS, TABULAR_ACTION
 from core.infrastructure.tabular_feed.dataframe_ops import (
     _column_names,
     _validate_columns_exist,
+)
+from core.infrastructure.tabular_feed.date_actions import DATE_ACTION_IDS as _TABULAR_DATE_ACTIONS
+from core.infrastructure.tabular_feed.date_actions import (
+    _apply_date_rule_expression,
+    _is_date_rule,
+    apply_date_rule_to_row,
 )
 
 
@@ -44,6 +53,12 @@ def _validate_rule(rule: Any, index: int) -> dict[str, Any]:
         "floor_multiply",
     } and not _text(rule.get("target")):
         raise ValueError(f"rule {index} requires target")
+    if op == "date_operation":
+        action_id = _text(_as_dict(rule.get(op)).get("action_id"))
+        if action_id not in _TABULAR_DATE_ACTIONS:
+            raise ValueError(f"rule {index} has unsupported date action")
+        if not _text(rule.get("target")):
+            raise ValueError(f"rule {index} requires target")
     return rule
 
 
@@ -65,6 +80,9 @@ def _shared_action_to_legacy_rule(action: dict[str, Any]) -> dict[str, Any]:
     rule: dict[str, Any] = {"target": target} if target else {}
     if action.get("when") is not None:
         rule["when"] = action.get("when")
+    if action_id in _TABULAR_DATE_ACTIONS:
+        rule["date_operation"] = {"action_id": action_id, "params": params}
+        return rule
     for translate in (_numeric_action_rule, _text_action_rule, _value_action_rule):
         if translate(action_id, target, params, rule):
             return rule
@@ -179,9 +197,19 @@ def _simple_text_expression(target: str, rule: dict[str, Any]):
     return source.map_elements(html_to_text, return_dtype=pl.String)
 
 
-def _rule_expression(df: Any, rule: dict[str, Any]):
+def _rule_expression(
+    df: Any, rule: dict[str, Any], *, date_lexicons: Mapping[str, DateLexicon] | None = None
+):
     pl = _pl()
     target = _rule_target(rule)
+    condition = rule.get("when")
+    if _is_date_rule(rule):
+        return _apply_date_rule_expression(
+            df,
+            rule,
+            condition,
+            lexicons=date_lexicons or {},
+        )
     expr = None
     for build in (
         _numeric_rule_expression,
@@ -200,7 +228,6 @@ def _rule_expression(df: Any, rule: dict[str, Any]):
                 target, _as_dict(payload.get("mapping")), bool(payload.get("keep_unmapped", True))
             )
         raise ValueError("rule cannot be expressed as a column operation")
-    condition = rule.get("when")
     if condition not in (None, "", {}):
         original = pl.col(target) if target in _column_names(df) else pl.lit(None)
         expr = pl.when(_when_expr(condition)).then(expr).otherwise(original)
@@ -212,6 +239,7 @@ def _apply_rule_expressions(
     rules: list[dict[str, Any]],
     *,
     row_count: int | None = None,
+    date_lexicons: Mapping[str, DateLexicon] | None = None,
 ) -> tuple[Any, dict[str, int]]:
     result = df
     report: dict[str, int] = {str(index): 0 for index in range(len(rules))}
@@ -221,16 +249,18 @@ def _apply_rule_expressions(
         )
         condition = rule.get("when")
         report[str(index)] = _matching_row_count(result, condition, row_count)
-        result = _apply_frame_rule(result, rule, condition, index)
+        result = _apply_frame_rule(result, rule, condition, index, date_lexicons=date_lexicons)
     return result, report
 
 
 def _round_number(value: float, decimals: int, mode: Any) -> float:
     """Round in exact decimal arithmetic so the declared mode is what is applied."""
-    return float(quantize_decimal(Decimal(str(value)), decimals=decimals, mode=mode))
+    return standard_numbers.round_number(value, decimals, mode)
 
 
 def _money_quantize(value: Decimal, decimals: int, mode: Any) -> str:
+    if value.is_finite():
+        return standard_money.round_money(value, decimals, mode)
     return format(quantize_decimal(value, decimals=decimals, mode=mode), "f")
 
 
@@ -248,7 +278,12 @@ def _coerce_value(value: Any, target_type: str) -> Any:
     return value
 
 
-def _apply_rule(row: dict[str, Any], rule: dict[str, Any]) -> bool:
+def _apply_rule(
+    row: dict[str, Any],
+    rule: dict[str, Any],
+    *,
+    date_lexicons: Mapping[str, DateLexicon] | None = None,
+) -> bool:
     if not _condition_matches(row, rule.get("when")):
         return False
     if "rename" in rule:
@@ -261,6 +296,8 @@ def _apply_rule(row: dict[str, Any], rule: dict[str, Any]) -> bool:
         return _apply_row_coerce(row, rule)
     if "map_values" in rule:
         return _apply_row_map_values(row, rule)
+    if _is_date_rule(rule):
+        return apply_date_rule_to_row(row, rule, lexicons=date_lexicons or {})
     return _apply_row_numeric(row, rule)
 
 
@@ -521,7 +558,14 @@ def _matching_row_count(result: Any, condition: Any, row_count: int | None) -> i
     return int(count_frame.item() or 0)
 
 
-def _apply_frame_rule(result: Any, rule: dict[str, Any], condition: Any, index: int) -> Any:
+def _apply_frame_rule(
+    result: Any,
+    rule: dict[str, Any],
+    condition: Any,
+    index: int,
+    *,
+    date_lexicons: Mapping[str, DateLexicon] | None = None,
+) -> Any:
     if "rename" in rule:
         if condition not in (None, "", {}):
             raise ValueError(f"rules[{index}].rename does not support when")
@@ -538,7 +582,7 @@ def _apply_frame_rule(result: Any, rule: dict[str, Any], condition: Any, index: 
             [_text(column) for column in _as_list(rule.get("drop")) if _text(column)]
         )
     else:
-        result = result.with_columns(_rule_expression(result, rule))
+        result = result.with_columns(_rule_expression(result, rule, date_lexicons=date_lexicons))
     return result
 
 

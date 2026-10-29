@@ -341,6 +341,9 @@ class ExtensionCommandLifecycle:
             runtime_store = self._context.runtime_store()
             if hasattr(runtime_store, "set_projection_active_for_install"):
                 runtime_store.set_projection_active_for_install(record.install_id, is_active=False)
+            self._install.deactivate_projected_skills(
+                install_id=record.install_id, account_id=account_id
+            )
         except BaseException:
             self._restore_provider_state(descriptor, previous_provider)
             raise

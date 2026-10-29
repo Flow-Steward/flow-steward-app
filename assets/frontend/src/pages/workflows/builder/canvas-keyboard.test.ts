@@ -59,7 +59,10 @@ describe("canvas keys (Canvas › Keys)", () => {
   it("keeps editing keys off a protected structure and off focused controls", () => {
     const locked = context({ structureLocked: true });
     expect(runCanvasKey(key("KeyA"), locked)).toBe(false);
-    expect(runCanvasKey(key("KeyV", { metaKey: true }), locked)).toBe(false);
+    expect(runCanvasKey(key("KeyV", { metaKey: true }), locked)).toBe(true);
+    expect(locked.paste).toHaveBeenCalledOnce();
+    expect(runCanvasKey(key("KeyX", { metaKey: true }), locked)).toBe(false);
+    expect(locked.cut).not.toHaveBeenCalled();
     expect(runCanvasKey(key("ArrowLeft", { shiftKey: true }), locked)).toBe(false);
     expect(runCanvasKey(key("KeyC", { metaKey: true }), locked)).toBe(true);
     const onControl = context();

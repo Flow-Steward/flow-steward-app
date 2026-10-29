@@ -28,8 +28,8 @@ def _primary_skill_id(agent: dict | None) -> str | None:
     return None
 
 
-def _get_agent_validation(db, agent_id: str) -> dict:
-    return validate_agent_readiness(db, agent_id)
+def _get_agent_validation(db, agent_id: str, *, account_id: str | None = None) -> dict:
+    return validate_agent_readiness(db, agent_id, account_id=account_id)
 
 
 def _validate_agent_context_template(prompts: dict | None) -> None:

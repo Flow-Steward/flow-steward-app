@@ -205,6 +205,43 @@ def test_project_scoped_query_action_uses_explicit_project_selected_connection(
     assert captured["state_project_id"] == "3"
 
 
+def test_saved_query_timeout_response_exposes_only_typed_safe_error(monkeypatch):
+    db = _ProjectedDB()
+    client = _client(db, monkeypatch)
+    _capture_connector(monkeypatch)
+    monkeypatch.setattr(
+        "core.infrastructure.extension_runtime.extension_runtime.run_extension_action",
+        lambda *_args, **_kwargs: {
+            "status": "failed",
+            "detail": "Saved query timed out after 30 seconds.",
+            "command": ["PRIVATE_COMMAND_MARKER"],
+            "timeout_seconds": 30,
+            "response": {},
+            "errors": [
+                {
+                    "code": "extension_timeout",
+                    "message": "Saved query timed out after 30 seconds.",
+                }
+            ],
+        },
+    )
+
+    response = client.post(
+        f"/api/datasets/query-templates/{db.query_id}/preview",
+        json={"params": {}, "row_limit": 10, "project_id": "3"},
+    )
+
+    assert response.status_code == 200, response.json()
+    assert response.json()["ok"] is False
+    assert response.json()["errors"] == [
+        {
+            "code": "extension_timeout",
+            "message": "Saved query timed out after 30 seconds.",
+        }
+    ]
+    assert "PRIVATE_COMMAND_MARKER" not in response.text
+
+
 @pytest.mark.parametrize(("endpoint", "_action"), _ACTIONS)
 @pytest.mark.parametrize(
     ("case", "status", "code"),

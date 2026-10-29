@@ -15,6 +15,7 @@ from .uninstall_inventory_queries import (
     uninstall_inventory_row,
 )
 from .uninstall_llm_model_dependents import collect_llm_model_dependents
+from .uninstall_projected_skill_dependents import collect_projected_skill_dependents
 from .uninstall_workflow_dependents import collect_workflow_dependents
 
 
@@ -390,6 +391,9 @@ class ExtensionUninstallInventoryRepository:
                 account_id=account_id,
                 include_consumer_accounts=include_consumer_accounts,
             )
+        )
+        affected.extend(
+            collect_projected_skill_dependents(bl, install_id=install_id, account_id=account_id)
         )
         affected.extend(
             collect_llm_model_dependents(

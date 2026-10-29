@@ -165,12 +165,13 @@ def test_job_artifact_route_redirects_to_signed_storage_without_reading_body(
     )
 
 
-def _preview_endpoint(content_type: str, *, size_bytes: int = 8):
+def _preview_endpoint(content_type: str, *, size_bytes: int = 8, preview_content_type=None):
     query_service = SimpleNamespace(
         get_job_artifact_download=lambda *_args, **_kwargs: SimpleNamespace(
             artifact_id="art-1",
             filename="cover image.png",
             content_type=content_type,
+            preview_content_type=preview_content_type,
             size_bytes=size_bytes,
         )
     )
@@ -283,3 +284,14 @@ def test_job_artifact_preview_limit_comes_from_the_environment(
 
     assert too_big.status_code == 413
     assert fits.status_code == 200
+
+
+def test_presentation_mime_cannot_activate_an_inline_preview(monkeypatch):
+    monkeypatch.setattr(
+        dependencies,
+        "artifact_read_bytes",
+        lambda *_args, **_kwargs: pytest.fail("presentation cannot authorize a preview"),
+    )
+    endpoint = _preview_endpoint("application/pdf", preview_content_type="application/octet-stream")
+    response = asyncio.run(endpoint(SimpleNamespace(), "job-a", "art-1"))
+    assert response.status_code == 415

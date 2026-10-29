@@ -6,6 +6,7 @@ from core.application.registry.active_workflow_dependencies import (
     enabled_workflow_dependencies,
 )
 from core.application.registry.identifier_keys import require_tool_identifier, unique_text_key
+from core.application.registry.projected_artifact_rows import projection_aware_catalog_row
 
 from .command_services_common import *  # NOSONAR
 from .mcp_projected_tool_lifecycle import (
@@ -388,7 +389,26 @@ class ToolCommandService:
     ) -> ToolMutationResultView:
         resolved = _service_scope(scope)
         db = self._db()
-        source = self._require_tool_in_scope(db, tool_id, resolved)
+        source = projection_aware_catalog_row(
+            db,
+            "tool",
+            "tool_id",
+            tool_id,
+            db.get_tool(tool_id),
+            account_id=str(resolved.account_id or ""),
+        )
+        if not source or not _tool_row_in_scope(source, resolved):
+            raise ServiceNotFoundError(f"Tool '{tool_id}' not found")
+        if str(source.get("source_install_id") or "").strip():
+            message = "This installed tool cannot be copied while its runtime is owned by the extension install."
+            raise ServiceConflictError(
+                message,
+                payload={
+                    "error": message,
+                    "code": "tool_clone_runtime_dependency_unavailable",
+                    "tool_id": tool_id,
+                },
+            )
         _reject_public_mcp_projection_write(source)
         target_id = unique_text_key(
             _require_tool_write_identifier(command.tool_id or f"{tool_id}_copy"),

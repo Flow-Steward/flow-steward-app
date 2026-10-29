@@ -41,6 +41,8 @@ export type PaletteScope = {
   allowGroup: boolean;
   allowForEach: boolean;
   allowHookDeclaration?: boolean;
+  /** A parallel lane has a narrower set of supported step kinds. */
+  laneId?: string;
   /** Add step takes an occupied connection's place. */
   inserting: boolean;
   /** Add step was asked for after an outcome or on a connection: a note has no place there. */
@@ -52,6 +54,12 @@ const DATA_ORDER = ["set_variable", "transform", "tabular_feed", "dataset_query"
 const FLOW_ORDER = ["if", "switch", "approval", "wait", "container:for_each", "container:inline_loop", "batch", "break", "continue"];
 const FINISH_ORDER = ["stop_success", "stop_fail"];
 const FOR_EACH_ONLY = new Set(["collect", "break", "continue"]);
+// Mirror the server's LANE_STEP_KINDS. Unknown future palette kinds stay
+// unavailable in a lane until the server explicitly admits them.
+const LANE_ALLOWED_STEP_KINDS = new Set([
+  "agent", "connector", "invoke_workflow", "http_request", "dataset_query",
+  "transform", "tabular_feed", "file_from_base64", "template", "set_variable", "batch",
+]);
 
 function stepDescription(kind: string, t: Translate): string {
   switch (kind) {
@@ -113,6 +121,7 @@ function orderIndex(key: string): number {
 export function paletteEntries(scope: PaletteScope, t: Translate = fallbackContext.t): PaletteEntry[] {
   const onConnection = t("react.workflows.palette_refused_on_connection", "Only a step with one Next outcome can go on a connection.");
   const groupOnConnection = t("react.workflows.palette_refused_group_on_connection", "A group has its own outcomes, so it cannot go on a connection.");
+  const laneRefusal = t("react.workflows.palette_refused_in_lane", "This step cannot be added inside a parallel lane.");
   const entries: Array<[string, PaletteEntry]> = [];
   for (const option of localizedSTEP_KIND_OPTIONS(t)) {
     if (FOR_EACH_ONLY.has(option.value) && !scope.sequenceForEach) continue;
@@ -121,7 +130,9 @@ export function paletteEntries(scope: PaletteScope, t: Translate = fallbackConte
       family: familyOf(option.value === "connector" ? "agent" : option.value) as LocalStepChoice["family"],
       override: objectOrEmpty(JSON.parse(defaultOverrideForStepKind(option.value) || "{}")),
     };
-    const refused = scope.inserting && !stepInsertableBetween({ step_id: "palette_candidate", step_kind: base.stepKind, override: base.override }) ? onConnection : undefined;
+    const refused = scope.laneId && !LANE_ALLOWED_STEP_KINDS.has(option.value)
+      ? laneRefusal
+      : scope.inserting && !stepInsertableBetween({ step_id: "palette_candidate", step_kind: base.stepKind, override: base.override }) ? onConnection : undefined;
     if (option.value === "connector") {
       for (const category of ["connector", "extension_tools", "mcp_tools"] as const) {
         entries.push([`tool:${category}`, {
@@ -135,11 +146,12 @@ export function paletteEntries(scope: PaletteScope, t: Translate = fallbackConte
     }
     entries.push([option.value, { family: familyOf(option.value), iconKind: option.value, description: stepDescription(option.value, t), choice: base, ...(refused ? { disabledReason: refused } : {}) }]);
   }
-  if (scope.allowForEach) {
+  if (scope.allowForEach || scope.laneId) {
     // For each is a loop, not a kind of group: it sits in Flow, before Inline loop.
-    entries.push(["container:for_each", { family: "Flow", iconKind: "for_each", description: t("react.workflows.palette_desc_for_each", "Run the steps inside once for each item."), choice: { nodeKind: "for_each", catalogKey: "container:for_each", displayName: t("react.workflows.for_each", "For each"), family: "Flow", containerDefaults: { containerKind: "for_each" } }, ...(scope.inserting ? { disabledReason: groupOnConnection } : {}) }]);
+    const containerRefusal = scope.laneId ? laneRefusal : scope.inserting ? groupOnConnection : undefined;
+    entries.push(["container:for_each", { family: "Flow", iconKind: "for_each", description: t("react.workflows.palette_desc_for_each", "Run the steps inside once for each item."), choice: { nodeKind: "for_each", catalogKey: "container:for_each", displayName: t("react.workflows.for_each", "For each"), family: "Flow", containerDefaults: { containerKind: "for_each" } }, ...(containerRefusal ? { disabledReason: containerRefusal } : {}) }]);
     const inline: LocalContainerChoice = { nodeKind: "for_each", catalogKey: "container:inline_loop", displayName: t("react.workflows.palette_inline_loop", "Inline loop"), family: "Flow", presentation: "inline", containerDefaults: { containerKind: "for_each" } };
-    entries.push(["container:inline_loop", { family: "Flow", iconKind: "for_each", description: t("react.workflows.palette_desc_inline_loop", "Repeat a few simple steps for each item, inside its card."), choice: inline, ...(scope.inserting ? { disabledReason: groupOnConnection } : {}) }]);
+    entries.push(["container:inline_loop", { family: "Flow", iconKind: "for_each", description: t("react.workflows.palette_desc_inline_loop", "Repeat a few simple steps for each item, inside its card."), choice: inline, ...(containerRefusal ? { disabledReason: containerRefusal } : {}) }]);
   }
   const groups: PaletteEntry[] = [];
   if (scope.allowGroup) {

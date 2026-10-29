@@ -401,7 +401,13 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
                 artifact_id,
                 scope=request_scope(request),
             )
-            content_type = str(download.content_type or "").split(";", 1)[0].strip().lower()
+            preview_type = getattr(download, "preview_content_type", None)
+            content_type = (
+                str(download.content_type if preview_type is None else preview_type)
+                .split(";", 1)[0]
+                .strip()
+                .lower()
+            )
             if content_type not in _INLINE_PREVIEW_TYPES:
                 return JSONResponse({"error": "This file type has no preview"}, status_code=415)
             preview_limit = file_preview_max_bytes()

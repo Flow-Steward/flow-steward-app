@@ -4,8 +4,9 @@ import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { NOTE_DEFAULT_SIZE, type CanvasNoteDropPoint } from "@/pages/workflows/builder/canvas-notes";
 import { CanvasToolbarHint } from "@/pages/workflows/builder/canvas-shell-support";
+import { NOTE_DEFAULT_SIZE, type CanvasNoteDropPoint } from "@/pages/workflows/builder/canvas-notes";
+import { findCanvasNoteDropPoint } from "@/pages/workflows/builder/canvas-note-placement-geometry";
 
 const DRAG_THRESHOLD_PX = 4;
 
@@ -17,16 +18,21 @@ function pointOnCanvas(canvasRoot: HTMLElement | null, x: number, y: number): bo
   return !under?.closest(".react-flow__panel, .workflow-toolbar-popover");
 }
 
+type FlowPoint = { x: number; y: number };
+
 /**
  * Note on the canvas toolbar: a click places a sheet in the middle of the view; dragged,
  * a contour follows the pointer and the note lands where it is dropped. Dropped off the
  * canvas, or Escape while dragging, adds nothing.
  */
-export function CanvasNoteToolbarButton({ compact, disabled, canvasRootRef, zoom, onBeforePlace, onPlace }: Readonly<{
+export function CanvasNoteToolbarButton({ compact, disabled, canvasRootRef, zoom, inspectorWidth = 0, screenToFlow, flowToScreen, onBeforePlace, onPlace }: Readonly<{
   compact: boolean;
   disabled: boolean;
   canvasRootRef: RefObject<HTMLDivElement | null>;
   zoom: () => number;
+  inspectorWidth?: number;
+  screenToFlow?: (point: FlowPoint) => FlowPoint;
+  flowToScreen?: (point: FlowPoint) => FlowPoint;
   onBeforePlace: () => void;
   onPlace: (point?: CanvasNoteDropPoint) => void;
 }>) {
@@ -88,7 +94,11 @@ export function CanvasNoteToolbarButton({ compact, disabled, canvasRootRef, zoom
         onClick={() => {
           if (swallowClick.current) { swallowClick.current = false; return; }
           onBeforePlace();
-          onPlace();
+          const point = screenToFlow && flowToScreen
+            ? findCanvasNoteDropPoint(canvasRootRef.current, inspectorWidth, zoom(), screenToFlow, flowToScreen)
+            : undefined;
+          if (point) onPlace(point);
+          else onPlace();
         }}>
         <StickyNote aria-hidden="true" /><span className="workflow-toolbar-caption">{t("react.workflows.note", "Note")}</span>
       </Button>}</CanvasToolbarHint>

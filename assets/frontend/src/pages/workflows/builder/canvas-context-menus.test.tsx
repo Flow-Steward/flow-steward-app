@@ -133,6 +133,22 @@ describe("Canvas right-click menus", () => {
     expect(operations.map((operation) => operation.op)).toEqual(["create_group", "move_for_each", "set_entry", "set_entry"]);
   });
 
+  it("keeps Paste visible but disabled with a read-only reason on a protected canvas", () => {
+    const paste = vi.fn();
+    const { value } = host({ structureLocked: true, paste });
+    const level = paneMenuLevel(value, { x: 10, y: 20 });
+    expect(labels(level.items)).toEqual(["Paste here", "Select all", "Fit view"]);
+    const item = level.items?.find((candidate) => candidate.kind !== "separator" && candidate.key === "paste");
+    expect(item).toMatchObject({ disabledReason: "This workflow's structure is read-only. Paste into a workflow you can edit." });
+
+    render(<CanvasMenuSurface label="Canvas actions" anchor={{ x: 10, y: 20 }} onClose={vi.fn()} level={level} />);
+    const pasteItem = screen.getByRole("menuitem", { name: /Paste here/ });
+    expect(pasteItem).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("This workflow's structure is read-only. Paste into a workflow you can edit.")).toBeVisible();
+    fireEvent.click(pasteItem);
+    expect(paste).not.toHaveBeenCalled();
+  });
+
   it("adds a step or a note where empty canvas was right-clicked and says why Paste is unavailable", () => {
     const { value } = host();
     const level = paneMenuLevel(value, { x: 10, y: 20 });

@@ -103,7 +103,7 @@ export const CANVAS_KEY_BINDINGS: readonly CanvasKeyBinding[] = [
   { match: (e) => !mod(e) && !e.altKey && (e.key === "Delete" || e.key === "Backspace"), run: (c) => c.deleteSelection(), readOnly: true },
   { match: (e) => command(e, "KeyC"), run: (c) => c.copy(), readOnly: true },
   { match: (e) => command(e, "KeyX"), run: (c) => c.cut() },
-  { match: (e) => command(e, "KeyV"), run: (c) => c.paste() },
+  { match: (e) => command(e, "KeyV"), run: (c) => c.paste(), readOnly: true },
   { match: (e) => command(e, "KeyD"), run: (c) => c.duplicate(), readOnly: true },
   { match: (e) => historyKey(e) === "undo", run: (c) => c.undo(), readOnly: true, onControls: true },
   { match: (e) => historyKey(e) === "redo", run: (c) => c.redo(), readOnly: true, onControls: true },

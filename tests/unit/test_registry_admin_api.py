@@ -1090,6 +1090,9 @@ class TestAgentCRUD:
             pytest.fail(f"agent routes not importable: {e}")
 
         mock_db = MagicMock()
+        mock_db.list_agent_types.return_value = [
+            {"id": "composer-id", "key": "composer", "enabled": True}
+        ]
         mock_db.get_agent.side_effect = lambda agent_id: (
             {
                 "agent_id": "review_agent",
@@ -1119,6 +1122,9 @@ class TestAgentCRUD:
         import core.entrypoints.admin.agents as agent_routes
 
         mock_db = MagicMock()
+        mock_db.list_agent_types.return_value = [
+            {"id": "composer-id", "key": "composer", "enabled": True}
+        ]
         mock_db.get_agent.side_effect = lambda agent_id: (
             {
                 "agent_id": "review_agent",
@@ -1138,6 +1144,45 @@ class TestAgentCRUD:
         assert response.json()["error"] == "Failed to clone agent"
         assert response.json()["correlation_id"]
         assert "secret" not in response.text
+
+    def test_clone_agent_route_forwards_explicit_existing_type(self, registry_client):
+        import core.entrypoints.admin.agents as agent_routes
+
+        command = MagicMock()
+        command.clone_agent.return_value = {
+            "status": "cloned",
+            "agent_id": "manual_copy",
+            "source_agent_id": "source_agent",
+        }
+        with patch.object(agent_routes, "_agent_command_service", return_value=command):
+            response = registry_client.post(
+                "/api/agents/source_agent/clone",
+                json={"agent_id": "manual_copy", "agent_type_id": "researcher"},
+            )
+
+        assert response.status_code == 200, response.text
+        command.clone_agent.assert_called_once()
+        assert command.clone_agent.call_args.kwargs["agent_type_id"] == "researcher"
+
+    def test_clone_agent_route_returns_actionable_type_conflict(self, registry_client):
+        import core.entrypoints.admin.agents as agent_routes
+        from core.application.management.errors import ServiceConflictError
+
+        command = MagicMock()
+        command.clone_agent.side_effect = ServiceConflictError(
+            "Select a type for this copy.",
+            payload={
+                "error": "Select a type for this copy.",
+                "code": "agent_clone_type_required",
+            },
+        )
+        with patch.object(agent_routes, "_agent_command_service", return_value=command):
+            response = registry_client.post(
+                "/api/agents/source_agent/clone", json={"agent_id": "manual_copy"}
+            )
+
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "agent_clone_type_required"
 
     def test_update_agent_rolls_back_invalid_enabled_save(self, registry_client):
         try:
@@ -1548,6 +1593,10 @@ class TestAgentCRUD:
             pytest.fail(f"agent routes not importable: {e}")
 
         mock_db = MagicMock()
+        mock_db.get_agent.return_value = {
+            "agent_id": "proofreader",
+            "account_id": DEFAULT_ACCOUNT_ID,
+        }
         with (
             patch.object(agent_routes, "_get_db", return_value=mock_db),
             patch.object(
@@ -9726,6 +9775,51 @@ class TestWorkflowCRUD:
                 },
             },
         ]
+        mock_db.list_tools.return_value.extend(
+            [
+                {
+                    "tool_id": "drive.unavailable",
+                    "display_name": "Drive / unavailable",
+                    "enabled": True,
+                    "availability_status": "unavailable",
+                    "category": "mcp_tool_action",
+                    "interface": {
+                        "functions": [
+                            {
+                                "name": "drive.unavailable",
+                                "display_name": "Unavailable",
+                                "parameters": [],
+                                "returns": {},
+                            }
+                        ]
+                    },
+                },
+                {
+                    "tool_id": "drive.foreign",
+                    "display_name": "Drive / foreign",
+                    "enabled": True,
+                    "account_id": "another-account",
+                    "category": "mcp_tool_action",
+                    "interface": {
+                        "functions": [
+                            {
+                                "name": "drive.foreign",
+                                "display_name": "Foreign",
+                                "parameters": [],
+                                "returns": {},
+                            }
+                        ]
+                    },
+                },
+            ]
+        )
+        readiness_rows = {row["tool_id"]: row for row in mock_db.list_tools.return_value}
+        readiness_rows["drive.disabled"] = {
+            "tool_id": "drive.disabled",
+            "enabled": False,
+            "availability_status": "available",
+        }
+        mock_db.get_tool.side_effect = lambda tool_id: readiness_rows.get(tool_id)
 
         with (
             patch.object(workflow_routes, "_get_db", return_value=mock_db),
@@ -9741,6 +9835,10 @@ class TestWorkflowCRUD:
                         "allowlisted_tools": [
                             "drive.create_file",
                             "drive.search_files",
+                            "drive.disabled",
+                            "drive.unavailable",
+                            "drive.foreign",
+                            "drive.deleted",
                         ],
                         "enabled": True,
                         "status": "active",
@@ -9769,6 +9867,10 @@ class TestWorkflowCRUD:
             "create_file",
             "search_files",
         ]
+        assert {operation["tool_id"] for operation in row["operations"]} == {
+            "drive.create_file",
+            "drive.search_files",
+        }
         assert [operation["runtime_connector_id"] for operation in row["operations"]] == [
             "connector.drive.create_file",
             "connector.drive.search_files",
@@ -12313,6 +12415,8 @@ class _ScopedRegistryFakeDB:
 
     # agents
     def get_agent(self, agent_id):
+        if agent_id == "deleted_agent":
+            return None
         row = self.agents.get(agent_id)
         return dict(row) if row else None
 
@@ -12403,6 +12507,62 @@ class TestRegistryAccountScope:
         resp = client.get("/api/agents/acctA_agent")
         assert resp.status_code == 200
         assert resp.json()["agent_id"] == "acctA_agent"
+
+    def test_agent_contract_validation_is_account_scoped(self, monkeypatch):
+        import core.entrypoints.admin.agents as agent_routes
+
+        scope = normalize_scope(account_id="account-A")
+        client, _db = _scoped_agents_client(monkeypatch, scope)
+        validation = MagicMock(return_value={"valid": True, "errors": [], "warnings": []})
+        monkeypatch.setattr(agent_routes, "_get_agent_validation", validation)
+
+        denied = client.get("/api/agents/acctB_agent/contract-validation")
+        assert denied.status_code == 404
+        validation.assert_not_called()
+
+        missing = client.get("/api/agents/missing_agent/contract-validation")
+        assert missing.status_code == 404
+        deleted = client.get("/api/agents/deleted_agent/contract-validation")
+        assert deleted.status_code == 404
+        validation.assert_not_called()
+
+        allowed = client.get("/api/agents/acctA_agent/contract-validation")
+        assert allowed.status_code == 200
+        assert allowed.json()["validation"]["valid"] is True
+        validation.assert_called_once_with(
+            agent_routes._get_db(), "acctA_agent", account_id="account-A"
+        )
+
+    def test_agent_contract_validation_resolves_active_projected_agent(self, monkeypatch):
+        import core.entrypoints.admin.agents as agent_routes
+
+        scope = normalize_scope(account_id="account-A")
+        client, db = _scoped_agents_client(monkeypatch, scope)
+        db.get_agent = lambda _agent_id: None
+        projected = {
+            "agent_id": "extension.install-1.projected_agent",
+            "account_id": "account-A",
+            "source_install_id": "install-1",
+        }
+        lookup = MagicMock(return_value=projected)
+        validation = MagicMock(return_value={"valid": True, "errors": [], "warnings": []})
+        monkeypatch.setattr(agent_routes, "projection_aware_catalog_row", lookup)
+        monkeypatch.setattr(agent_routes, "_get_agent_validation", validation)
+
+        response = client.get("/api/agents/extension.install-1.projected_agent/contract-validation")
+
+        assert response.status_code == 200
+        lookup.assert_called_once_with(
+            db,
+            "agent",
+            "agent_id",
+            "extension.install-1.projected_agent",
+            None,
+            account_id="account-A",
+        )
+        validation.assert_called_once_with(
+            db, "extension.install-1.projected_agent", account_id="account-A"
+        )
 
     def test_get_global_agent_allowed(self, monkeypatch):
         scope = normalize_scope(account_id="account-A")

@@ -171,6 +171,30 @@ def test_json_input_braces_need_no_escaping() -> None:
     assert result["text"] == '{"name": "Ada", "tags": []}'
 
 
+@pytest.mark.parametrize("declared_type", ["array", "list"])
+def test_a_list_declared_type_runs_like_the_canonical_array_type(declared_type: str) -> None:
+    config = _config(
+        "{{ values | length }}",
+        [_input("values", "state.outputs.values", type_=declared_type)],
+    )
+    state = {"outputs": {"values": ["a", "b"]}}
+
+    assert validate_template_config(config, path_prefix="template") == []
+    result = execute_template_step(config, state)
+    assert result["ok"] is True
+    assert result["text"] == "2"
+
+
+def test_a_list_alias_still_rejects_a_non_array_value_with_canonical_error_text() -> None:
+    result = execute_template_step(
+        _config("{{ values }}", [_input("values", "state.outputs.values", type_="list")]),
+        {"outputs": {"values": {"first": "a"}}},
+    )
+
+    assert _reason(result) == "input_type"
+    assert "expected array, got object" in result["errors"][0]["message"]
+
+
 # --- missing values ------------------------------------------------------------------
 
 

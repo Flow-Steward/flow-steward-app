@@ -44,7 +44,81 @@ INPUT_FIELDS_BY_OPERATION: dict[str, set[str]] = {
 
 SUPPORTED_OUTPUT_FORMATS = {"csv", "tsv", "json", "jsonl", "ndjson", "parquet", "xlsx"}
 
+# Nested array/object cell actions stay in transform until tabular_feed declares
+# their nested-column input, result schema and null semantics. In particular,
+# list/struct operations must not silently inherit scalar Python behavior through
+# a Polars fallback. This is an explicit exclusion, not a second action catalog.
+TABULAR_ACTION_EXCLUSIONS: dict[str, str] = dict.fromkeys(
+    (
+        "array.length",
+        "array.first",
+        "array.at",
+        "array.compact",
+        "array.join_text",
+        "json.pick",
+        "json.omit",
+        "json.get",
+        "json.set",
+        "json.keys",
+        "json.values",
+        "json.stringify",
+    ),
+    "Nested cell actions need an explicit tabular schema and null policy; use transform.",
+)
+
 TABULAR_ACTION_PARAMS: dict[str, set[str]] = {
+    "date.parse": {"input_format", "locale", "century", "dst_policy", "timezone"},
+    "date.to_utc": {"input_format", "locale", "century", "dst_policy", "timezone"},
+    "date.to_timezone": {
+        "input_format",
+        "locale",
+        "century",
+        "dst_policy",
+        "timezone",
+        "output_format",
+    },
+    "date.format": {
+        "input_format",
+        "locale",
+        "century",
+        "dst_policy",
+        "timezone",
+        "output_format",
+        "output_locale",
+    },
+    "date.add": {
+        "input_format",
+        "locale",
+        "century",
+        "dst_policy",
+        "timezone",
+        "amount",
+        "unit",
+    },
+    "date.part": {
+        "input_format",
+        "locale",
+        "century",
+        "dst_policy",
+        "timezone",
+        "part",
+    },
+    "date.start_of": {
+        "input_format",
+        "locale",
+        "century",
+        "dst_policy",
+        "timezone",
+        "unit",
+    },
+    "date.end_of": {
+        "input_format",
+        "locale",
+        "century",
+        "dst_policy",
+        "timezone",
+        "unit",
+    },
     "text.trim": set(),
     "text.html_to_text": set(),
     "text.upper": set(),
@@ -72,6 +146,12 @@ TABULAR_ACTION_PARAMS: dict[str, set[str]] = {
 }
 
 TABULAR_ACTION_REQUIRED_PARAMS: dict[str, set[str]] = {
+    "date.to_timezone": {"timezone"},
+    "date.format": {"output_format"},
+    "date.add": {"amount", "unit"},
+    "date.part": {"part"},
+    "date.start_of": {"unit"},
+    "date.end_of": {"unit"},
     "text.replace": {"find", "replace_with"},
     "text.append": {"append_value"},
     "text.pad": {"width"},

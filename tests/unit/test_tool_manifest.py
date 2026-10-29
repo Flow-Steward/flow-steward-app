@@ -300,7 +300,10 @@ def test_tool_registry_exposes_typed_catalog_entries():
 
 
 def test_sync_builtin_standard_tools_preserves_config_and_forces_connector_only():
-    from core.application.registry.builtin_standard_tools import sync_builtin_standard_tools
+    from core.application.registry.builtin_standard_tools import (
+        builtin_standard_tool_manifests,
+        sync_builtin_standard_tools,
+    )
 
     class _Store:
         def __init__(self):
@@ -339,7 +342,7 @@ def test_sync_builtin_standard_tools_preserves_config_and_forces_connector_only(
     store = _Store()
     changed = sync_builtin_standard_tools(store)
 
-    assert set(changed) == {"std.numbers", "std.text", "std.json"}
+    assert set(changed) == set(builtin_standard_tool_manifests())
     saved_text = store.saved["std.text"]
     assert saved_text["version"] == "9.9.9"
     assert saved_text["display_name"] == "Custom Text Tools"
@@ -354,7 +357,10 @@ def test_sync_builtin_standard_tools_preserves_config_and_forces_connector_only(
 
 
 def test_sync_builtin_standard_tools_is_idempotent_against_canonical_db_payloads():
-    from core.application.registry.builtin_standard_tools import sync_builtin_standard_tools
+    from core.application.registry.builtin_standard_tools import (
+        builtin_standard_tool_manifests,
+        sync_builtin_standard_tools,
+    )
     from core.application.registry.tool_manifest import ToolManifest
 
     class _Store:
@@ -373,7 +379,7 @@ def test_sync_builtin_standard_tools_is_idempotent_against_canonical_db_payloads
 
     store = _Store()
 
-    assert set(sync_builtin_standard_tools(store)) == {"std.numbers", "std.text", "std.json"}
+    assert set(sync_builtin_standard_tools(store)) == set(builtin_standard_tool_manifests())
     store.saved.clear()
 
     assert sync_builtin_standard_tools(store) == []

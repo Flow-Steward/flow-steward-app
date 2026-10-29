@@ -100,6 +100,7 @@ import {
   canvasGraphFixture,
   mockedFetchWorkflowCanvasGraph,
   mockedFetchWorkflowDetail,
+  mockedFetchWorkflowExportPolicy,
   postedChangeSets,
   renderPage,
   workflowDetailFixture,
@@ -227,6 +228,49 @@ it.each(["auto", "manual"] as const)("duplicates a selected authored step as one
   expect(screen.getByRole("group", { name: "Open step Plan work" })).toBeVisible();
   expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied");
   expect(postedChangeSets()).toEqual([]);
+});
+
+it("reports protected paste refusal without reading the clipboard or staging a graph edit", async () => {
+  installWorkflow();
+  mockedFetchWorkflowExportPolicy.mockResolvedValueOnce({
+    workflow_id: "weekly_report",
+    extension_owned: true,
+    protected: true,
+    structure_change_allowed: false,
+  } as never);
+  const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  const readText = vi.fn(async () => { throw new DOMException("Read permission denied", "NotAllowedError"); });
+  const writeText = vi.fn(async () => undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText, readText } });
+  try {
+    renderPage({ surface: "builder" });
+    await screen.findByRole("group", { name: "Open step Plan work" });
+    const canvas = await screen.findByRole("region", { name: "Workflow canvas" });
+    const canvasIds = () => queryAllByAttribute("class", canvas, /(?:^|\s)react-flow__node(?:\s|$)/u)
+      .map((element) => element.getAttribute("data-id"))
+      .filter((id): id is string => id !== null)
+      .sort();
+    const before = canvasIds();
+    expect(before.length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("structure-status")).not.toBeInTheDocument();
+    const protection = screen.getByRole("note", { name: "Protected extension workflow" });
+    const protectionText = protection.textContent;
+    canvas.focus();
+    fireEvent.keyDown(canvas, { key: "v", code: "KeyV", ctrlKey: true });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This workflow's structure is read-only. Paste into a workflow you can edit.",
+    );
+    expect(readText).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(canvasIds()).toEqual(before);
+    expect(screen.queryByTestId("structure-status")).not.toBeInTheDocument();
+    expect(protection).toHaveTextContent(protectionText);
+    expect(postedChangeSets()).toEqual([]);
+  } finally {
+    if (original) Object.defineProperty(navigator, "clipboard", original);
+    else Reflect.deleteProperty(navigator, "clipboard");
+  }
 });
 
 it("reports a clipboard read denial as a paste failure without staging a change", async () => {

@@ -144,6 +144,22 @@ def _purge_authority_batch(storage: Any, keys: list[str]) -> dict[str, int]:
         or (key.startswith("datasets/") and key.endswith("/meta.json"))
     ]
     objects = [key for key in unique if key not in manifests and key not in sidecars]
+    # Job-owned purge already enumerates each authorized object prefix. The
+    # legacy no-job path must also remove an existing display sidecar before
+    # deleting the metadata that identifies its original object.
+    for key in sidecars:
+        if key.startswith("artifacts/_metadata/"):
+            artifact_id = key.removeprefix("artifacts/_metadata/").removesuffix(".json")
+            if artifact_id and "/" not in artifact_id and "\\" not in artifact_id:
+                presentation_key = f"artifacts/{artifact_id}/_presentation.json"
+                try:
+                    if (
+                        callable(getattr(storage, "get", None))
+                        and storage.get(presentation_key) is not None
+                    ):
+                        objects.append(presentation_key)
+                except Exception:
+                    return {"attempted": 0, "deleted": 0, "failed": 1}
     total = {"attempted": 0, "deleted": 0, "failed": 0}
     object_stats = purge_storage_keys(storage, objects)
     _add_cleanup_stats(total, object_stats)

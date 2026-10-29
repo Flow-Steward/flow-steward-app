@@ -9,8 +9,8 @@ const connectors = [
   { connector_id: "connector.std.text", display_name: "Text", source: "standard_tool_action", operations: [] },
 ];
 
-function mockCatalog() {
-  fetchSpy.mockImplementation(async (input) => new Response(JSON.stringify(String(input).includes("/meta/connector-catalog") ? { connectors } : { sections: [] }), { status: 200, headers: { "content-type": "application/json" } }));
+function mockCatalog(rows: unknown = connectors) {
+  fetchSpy.mockImplementation(async (input) => new Response(JSON.stringify(String(input).includes("/meta/connector-catalog") ? { connectors: rows } : { sections: [] }), { status: 200, headers: { "content-type": "application/json" } }));
   mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "tools", revision: 1, display_name: "Tools", steps: [], groups: [] } as never);
   mockedFetchWorkflowDag.mockResolvedValue({ nodes: [], edges: [] } as never);
   mockedFetchWorkflowValidation.mockResolvedValue({ validation: { valid: true, errors: [], warnings: [] } } as never);
@@ -132,4 +132,38 @@ it("says 'Unavailable action' only for a saved action the tool no longer has", a
   expect(screen.queryByText("Tool Action")).not.toBeInTheDocument();
   expect(screen.getByText("Action details", { selector: "summary" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open tool", hidden: true })).toHaveAttribute("href", "/registry/tools/std.json");
+}, 15_000);
+
+it("keeps a saved disabled MCP source and action visible but unselectable", async () => {
+  const disabledSource = {
+    connector_id: "mcp_disabled", display_name: "Disabled Docs", source: "mcp_connector", enabled: false,
+    operations: [{ operation_id: "search_docs", display_name: "Search docs", runtime_connector_id: "connector.docs.search_docs" }],
+  };
+  mockCatalog([...connectors, disabledSource]);
+  mockedFetchWorkflowDetail.mockResolvedValue({
+    workflow_id: "tools", revision: 1, display_name: "Tools", groups: [],
+    steps: [{
+      id: "saved-docs", step_id: "saved_docs", display_name: "Saved docs", step_kind: "connector",
+      connector_id: "mcp_disabled", override: { connector: { operation_id: "search_docs" } },
+    }],
+  } as never);
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(await screen.findByRole("button", { name: /Saved docs/i }));
+
+  const source = screen.getByRole("combobox", { name: "Tool" });
+  await user.click(source);
+  const sourceOptions = screen.getByRole("listbox", { name: "Tool options" });
+  const disabledSourceOption = within(sourceOptions).getByRole("option", { name: "Disabled Docs" });
+  expect(disabledSourceOption).toBeDisabled();
+  await user.click(disabledSourceOption);
+  expect(source).toHaveTextContent("Disabled Docs");
+
+  const action = screen.getByRole("combobox", { name: "Action" });
+  await user.click(action);
+  const actionOptions = screen.getByRole("listbox", { name: "Action options" });
+  const disabledActionOption = within(actionOptions).getByRole("option", { name: "Search docs" });
+  expect(disabledActionOption).toBeDisabled();
+  await user.click(disabledActionOption);
+  expect(action).toHaveTextContent("Search docs");
 }, 15_000);

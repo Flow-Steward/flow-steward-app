@@ -2,6 +2,10 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { RegistryCreateDialog } from "./catalog-create-dialog";
 import { buildCreatePayload, cloneIdentifier, cloneBodyKey, renderWhen, renderChoice } from "./catalog-create-payload";
+import {
+  cloneAgentTypeOptions,
+  sourceAgentTypeValue,
+} from "./catalog-clone-agent-type";
 import { useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +33,7 @@ import {
   DsAlert,
   DsDialog,
   DsPageHeader,
+  DsSelect,
   DsTable,
   PageContainer,
   RowActionMenu,
@@ -302,7 +307,36 @@ export function RegistryCatalogSurface({
   const [cloneSourceId, setCloneSourceId] = useState("");
   const [cloneId, setCloneId] = useState("");
   const [cloneError, setCloneError] = useState("");
+  const [cloneSourceAgentTypeId, setCloneSourceAgentTypeId] = useState("");
+  const [cloneAgentTypeId, setCloneAgentTypeId] = useState("");
   const rowTriggerLabelRef = useRef("");
+
+  const cloneSourceAgent = items.find(
+    (item) => normalizeString(item[idKey]) === cloneSourceId,
+  );
+  const cloneAgentTypes = useMemo(
+    () => (Array.isArray(agentTypesQuery.data) ? agentTypesQuery.data : []),
+    [agentTypesQuery.data],
+  );
+  const sourceTypeIsRegistered = Boolean(
+    sourceAgentTypeValue(cloneSourceAgent, cloneAgentTypes),
+  );
+  const cloneTypeOptions = cloneAgentTypeOptions(
+    cloneAgentTypes,
+    cloneSourceAgentTypeId,
+    cloneAgentTypeId,
+  );
+
+  useEffect(() => {
+    if (endpoint !== "/api/agents" || !cloneSourceId || cloneSourceAgentTypeId) {
+      return;
+    }
+    const sourceType = sourceAgentTypeValue(cloneSourceAgent, cloneAgentTypes);
+    if (sourceType) {
+      setCloneSourceAgentTypeId(sourceType);
+      setCloneAgentTypeId(sourceType);
+    }
+  }, [cloneAgentTypes, cloneSourceAgent, cloneSourceAgentTypeId, cloneSourceId, endpoint]);
 
   async function submitClone() {
     const sourceId = normalizeString(cloneSourceId);
@@ -311,12 +345,26 @@ export function RegistryCatalogSurface({
     }
     try {
       const nextId = cloneIdentifier(endpoint, cloneId, t);
+      if (endpoint === "/api/agents" && !sourceTypeIsRegistered && !cloneAgentTypeId) {
+        setCloneError(t(
+          "react.registry.clone_agent_type_required",
+          "Select an agent type before cloning this source.",
+        ));
+        return;
+      }
       setCloneError("");
       setMessage("");
       setSaving(true);
-      await cloneEntity(sourceId, nextId);
+      const typeOverride = endpoint === "/api/agents"
+        && cloneAgentTypeId
+        && cloneAgentTypeId !== cloneSourceAgentTypeId
+        ? cloneAgentTypeId
+        : undefined;
+      await cloneEntity(sourceId, nextId, typeOverride);
       setCloneSourceId("");
       setCloneId("");
+      setCloneSourceAgentTypeId("");
+      setCloneAgentTypeId("");
     } catch (error) {
       setCloneError(error instanceof Error ? error.message : t("react.registry.failed_to_clone_entity", "Failed to clone entity."));
     } finally {
@@ -336,10 +384,16 @@ export function RegistryCatalogSurface({
     setCloneSourceId("");
     setCloneId("");
     setCloneError("");
+    setCloneSourceAgentTypeId("");
+    setCloneAgentTypeId("");
     focusRowTrigger();
   }
 
-  const cloneEntity = useCallback(async (entityId: string, nextId: string): Promise<void> => {
+  const cloneEntity = useCallback(async (
+    entityId: string,
+    nextId: string,
+    agentTypeId?: string,
+  ): Promise<void> => {
     const baseId = normalizeString(entityId);
     if (!baseId) {
       return;
@@ -349,7 +403,10 @@ export function RegistryCatalogSurface({
       `${endpoint}/${encodeURIComponent(baseId)}/clone`,
       {
         method: "POST",
-        body: JSON.stringify({ [resolvedCloneBodyKey]: nextId }),
+        body: JSON.stringify({
+          [resolvedCloneBodyKey]: nextId,
+          ...(endpoint === "/api/agents" && agentTypeId ? { agent_type_id: agentTypeId } : {}),
+        }),
       },
     );
     const resolvedId = normalizeString(cloneResponse[resolvedCloneBodyKey] || nextId);
@@ -401,6 +458,12 @@ export function RegistryCatalogSurface({
       setCloneSourceId(entityId);
       setCloneId("");
       setCloneError("");
+      const sourceRow = items.find((item) => normalizeString(item[idKey]) === entityId);
+      const sourceType = endpoint === "/api/agents"
+        ? sourceAgentTypeValue(sourceRow, cloneAgentTypes)
+        : "";
+      setCloneSourceAgentTypeId(sourceType);
+      setCloneAgentTypeId(sourceType);
       return;
     }
 
@@ -834,6 +897,29 @@ export function RegistryCatalogSurface({
                 value={cloneId}
               />
             </label>
+            {renderWhen(endpoint === "/api/agents", (
+              <div className="fs-field">
+                <span className="fs-field-label">
+                  {t("react.registry.clone_agent_type", "Agent type for copy")}
+                </span>
+                <DsSelect
+                  ariaLabel={t("react.registry.clone_agent_type", "Agent type for copy")}
+                  onChange={setCloneAgentTypeId}
+                  options={cloneTypeOptions}
+                  placeholder={t("registry.agents.agent_type.select", "Select agent type")}
+                  required
+                  value={cloneAgentTypeId}
+                />
+                {renderWhen(!sourceTypeIsRegistered, (
+                  <p className="fs-field-help">
+                    {t(
+                      "react.registry.clone_agent_type_help",
+                      "The source agent type is missing or isn't in the supported catalog. Choose a type for the copy.",
+                    )}
+                  </p>
+                ))}
+              </div>
+            ))}
             {renderWhen(Boolean(cloneError), <DsAlert title={cloneError} tone="danger" />)}
           </DsDialog>
         ))}

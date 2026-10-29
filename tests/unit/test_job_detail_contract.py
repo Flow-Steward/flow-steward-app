@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from tests._step_run_state import step_run_state
 
 import core.application.reports.job_detail_contract as job_detail_contract_module
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
@@ -22,7 +23,6 @@ from core.application.reports.job_detail_sections import (
 )
 from core.application.reports.ui_projection_helpers import _build_message_steps
 from core.infrastructure.security.secret_detection import contains_detected_secret
-from tests._step_run_state import step_run_state
 
 
 class _Dump:
@@ -2739,6 +2739,208 @@ def test_a_step_output_list_keeps_its_recorded_preview() -> None:
     assert step["outputs"]["batch_sizes"] == [10, 10, 5]
 
 
+@pytest.mark.parametrize(
+    ("status", "response_target", "state_patch"),
+    [
+        ("fail", "state.user", {"user": {"id": 7}}),
+        ("unknown", "state.user", {"user": {"id": 7}}),
+        (None, "state.user", {"user": {"id": 7}}),
+        ("pass", "state.user", None),
+        ("pass", "state.user", {"other": {"id": 7}}),
+        ("pass", "", {"user": {"id": 7}}),
+        ("pass", "state.user[", {"user": {"id": 7}}),
+    ],
+)
+def test_http_saved_output_requires_a_successful_recorded_target(
+    status: str | None, response_target: str, state_patch: dict | None
+) -> None:
+    artifacts = {
+        "step_kind": "http_request",
+        "response_target": response_target,
+        "http_request": {"response_mode": "inline"},
+        "_state_patch": state_patch,
+        "output_payload": {
+            "status_code": 200,
+            "content_type": "application/json",
+            "body": {"id": 7},
+        },
+    }
+    message = {
+        "id": "m-http",
+        "step_id": "fetch_user",
+        "from_agent": "http_request_step",
+        "artifacts": artifacts,
+    }
+    if status is not None:
+        message["status"] = status
+    step = _build_message_steps([message])[0]
+
+    assert step.get("saved_output", {}) == {}
+
+
+def test_http_saved_output_is_separate_from_the_response_diagnostics() -> None:
+    step = _build_message_steps(
+        [
+            {
+                "id": "m-http",
+                "step_id": "fetch_user",
+                "from_agent": "http_request_step",
+                "status": "pass",
+                "artifacts": {
+                    "step_kind": "http_request",
+                    "response_target": "state.user",
+                    "http_request": {"response_mode": "inline"},
+                    "_state_patch": {"user": {"id": 7}},
+                    "output_payload": {
+                        "status_code": 200,
+                        "content_type": "application/json",
+                        "body": {"id": 7},
+                    },
+                },
+            }
+        ]
+    )[0]
+
+    assert step["outputs"] == {
+        "status_code": 200,
+        "content_type": "application/json",
+        "body": {"id": 7},
+    }
+    assert step["saved_output"] == {
+        "target": "state.user",
+        "value": {"id": 7},
+        "is_file": False,
+    }
+
+
+@pytest.mark.parametrize("value", [None, [], 0, False, "", ["x"], "body"])
+def test_http_saved_output_preserves_present_falsey_and_ordinary_values(value: object) -> None:
+    step = _build_message_steps(
+        [
+            {
+                "id": "m-http",
+                "step_id": "fetch_user",
+                "from_agent": "http_request_step",
+                "status": "pass",
+                "artifacts": {
+                    "step_kind": "http_request",
+                    "response_target": "state.user",
+                    "http_request": {"response_mode": "inline"},
+                    "_state_patch": {"user": value},
+                    "output_payload": {"status_code": 200, "body": value},
+                },
+            }
+        ]
+    )[0]
+
+    assert step["saved_output"] == {"target": "state.user", "value": value, "is_file": False}
+
+
+def test_http_saved_output_redacts_and_bounds_the_saved_value() -> None:
+    long_value = "x" * 70_000
+    step = _build_message_steps(
+        [
+            {
+                "id": "m-http",
+                "step_id": "fetch_user",
+                "from_agent": "http_request_step",
+                "status": "pass",
+                "artifacts": {
+                    "step_kind": "http_request",
+                    "response_target": "state.user",
+                    "http_request": {"response_mode": "inline"},
+                    "_state_patch": {"user": {"api_token": "private-token", "long": long_value}},
+                    "output_payload": {"status_code": 200, "body": {}},
+                },
+            }
+        ]
+    )[0]
+    encoded_saved = json.dumps(step["saved_output"], sort_keys=True)
+
+    assert "private-token" not in encoded_saved
+    assert "api_token" in encoded_saved
+    assert len(encoded_saved) < 50_000
+
+
+def test_http_artifact_saved_output_is_a_file_but_inline_artifact_text_is_not() -> None:
+    records = {
+        "art-7": {
+            "artifact_id": "art-7",
+            "owner_scope": {"project_id": "proj-42", "job_id": "job-42"},
+            "filename": "body.txt",
+            "content_type": "text/plain",
+            "size_bytes": 13,
+            "object_key": "artifacts/art-7/body.txt",
+            "sha256": "a" * 64,
+        }
+    }
+    artifact = _build_message_steps(
+        [
+            {
+                "id": "m-artifact",
+                "step_id": "download",
+                "from_agent": "http_request_step",
+                "status": "pass",
+                "artifacts": {
+                    "step_kind": "http_request",
+                    "response_target": "state.download",
+                    "http_request": {"response_mode": "artifact"},
+                    "_state_patch": {"download": "artifact:art-7"},
+                    "output_payload": {"status_code": 200, "file": "artifact:art-7"},
+                },
+            }
+        ],
+        project_id="proj-42",
+        job_id="job-42",
+        resolve_artifact=records.get,
+    )[0]
+    inline_text = _build_message_steps(
+        [
+            {
+                "id": "m-inline",
+                "step_id": "read_text",
+                "from_agent": "http_request_step",
+                "status": "pass",
+                "artifacts": {
+                    "step_kind": "http_request",
+                    "response_target": "state.body",
+                    "http_request": {"response_mode": "inline"},
+                    "_state_patch": {"body": "artifact:art-7"},
+                    "output_payload": {"status_code": 200, "body": "artifact:art-7"},
+                },
+            }
+        ],
+        project_id="proj-42",
+        job_id="job-42",
+        resolve_artifact=records.get,
+    )[0]
+
+    assert artifact["saved_output"] == {
+        "target": "state.download",
+        "value": "artifact:art-7",
+        "is_file": True,
+    }
+    assert "file" not in artifact["outputs"]
+    assert inline_text["saved_output"] == {
+        "target": "state.body",
+        "value": "artifact:art-7",
+        "is_file": False,
+    }
+    assert inline_text["outputs"]["body"] == "artifact:art-7"
+    assert artifact["output_artifacts"] == [
+        {
+            "artifact_id": "art-7",
+            "role": "output",
+            "filename": "body.txt",
+            "content_type": "text/plain",
+            "size_bytes": 13,
+            "available": True,
+            "download_url": "/api/jobs/job-42/artifacts/art-7",
+        }
+    ]
+    assert inline_text["output_artifacts"] == []
+
+
 _EXECUTION_ID = "3f0c9a52-0000-4000-8000-0000000000aa"
 
 
@@ -2884,8 +3086,9 @@ def test_compact_job_detail_preserves_acknowledgement_through_real_status_dto(ac
 
 
 def test_execution_page_publishes_typed_committed_trace_on_first_page_only():
-    from core.application.jobs.workflow_run_models import PublicWorkflowTraceV1
     from tests.unit.test_workflow_run_trace import one_trace
+
+    from core.application.jobs.workflow_run_models import PublicWorkflowTraceV1
 
     trace = PublicWorkflowTraceV1.model_validate(one_trace()).model_dump(mode="json")
 

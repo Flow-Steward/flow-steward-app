@@ -19,6 +19,7 @@ from core.application.orchestration.connector_mapping import (
     CONNECTOR_PREFIX,
     _to_object,
 )
+from core.infrastructure.date_types import DATE_ERROR_CODES, DateValueError
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +264,7 @@ def _dispatch_tool_runtime(
                     tool_id=tool_id,
                     function_name=selected_function,
                 )
-            return {
+            failure: dict[str, Any] = {
                 "handled": True,
                 "ok": False,
                 "runtime": "tool_manifest",
@@ -272,6 +273,9 @@ def _dispatch_tool_runtime(
                 "result": {},
                 "detail": str(exc),
             }
+            if isinstance(exc, DateValueError) and exc.code in DATE_ERROR_CODES:
+                failure["errors"] = [{"code": exc.code, "message": str(exc)}]
+            return failure
     return None
 
 

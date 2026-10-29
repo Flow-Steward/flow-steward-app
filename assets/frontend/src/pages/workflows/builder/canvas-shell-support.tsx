@@ -3,6 +3,7 @@ import { Background, MiniMap, Panel, useReactFlow, useViewport, type Connection,
 import { useState, useRef, useCallback, useLayoutEffect, useId, type ReactNode, type RefObject } from "react";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { chooseCanvasMinimapRect } from "./canvas-minimap-placement";
 import type { CanvasRunBarAction, CanvasRunBarProps } from "./canvas-run-bar";
 import type { CanvasNextStepSlot } from "./canvas-viewport";
 import type { CanvasNoteDropPoint } from "./canvas-notes";
@@ -200,7 +201,6 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
   const regionRef = useRef<HTMLDivElement>(null);
   const measuring = useRef(false);
   const [compact, setCompact] = useState(false);
-  const [minimapStacked, setMinimapStacked] = useState(true);
 
   const updatePlacement = useCallback(() => {
     const region = regionRef.current;
@@ -230,16 +230,22 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
       setCompact((current) => current === nextCompact ? current : nextCompact);
       const minimap = region.querySelector<HTMLElement>(".workflow-canvas-minimap");
       if (!minimap?.isConnected) return;
-      const gap = Number.parseFloat(getComputedStyle(region).columnGap) || 0;
       const minimapRect = minimap.getBoundingClientRect();
       const runbarRect = region.querySelector<HTMLElement>(".workflow-canvas-runbar")?.getBoundingClientRect();
-      // Evaluate the unstacked candidate, not the current stacked vertical
-      // position, so a wrapped run row cannot oscillate the minimap placement.
-      const candidateTop = available.bottom - minimapRect.height;
-      const candidateLeft = available.right - 16 - minimapRect.width;
-      const runbarOverlaps = Boolean(runbarRect && runbarRect.bottom + gap > candidateTop && runbarRect.right + gap > candidateLeft);
-      const nextStacked = toolbar.getBoundingClientRect().right + gap > candidateLeft || runbarOverlaps;
-      setMinimapStacked((current) => current === nextStacked ? current : nextStacked);
+      const stageElement = region.closest<HTMLElement>(".workflow-canvas-stage");
+      const stage = stageElement?.getBoundingClientRect();
+      if (!stage || ![stage.left, stage.top, stage.right, stage.bottom].every(Number.isFinite)) return;
+      const laneControls = [...(stageElement?.querySelectorAll<HTMLElement>(".workflow-container-lane-add") || [])]
+        .filter((element) => element.getClientRects().length > 0)
+        .map((element) => element.getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && rect.height > 0 && [rect.left, rect.top, rect.right, rect.bottom].every(Number.isFinite));
+      const obstructions = [toolbar.getBoundingClientRect(), ...(runbarRect ? [runbarRect] : []), ...laneControls];
+      const candidate = chooseCanvasMinimapRect(stage, available, minimapRect, obstructions);
+      minimap.style.left = `${candidate.left - available.left}px`;
+      minimap.style.top = `${candidate.top - available.top}px`;
+      minimap.style.right = "auto";
+      minimap.style.bottom = "auto";
+      region.dataset.minimapStacked = candidate.top < available.top ? "true" : "false";
     } finally { measuring.current = false; }
   }, []);
 
@@ -251,14 +257,33 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
     const toolbar = region?.querySelector<HTMLElement>(".workflow-canvas-toolbar");
     if (!region || !toolbar || globalThis.ResizeObserver === undefined) return;
     let active = true;
+    let placementFrame: number | null = null;
     const observer = new ResizeObserver(updatePlacement);
     observer.observe(region);
     observer.observe(toolbar);
     region.querySelectorAll<HTMLElement>(".workflow-canvas-minimap, .workflow-toolbar-caption, .workflow-canvas-runbar").forEach((element) => observer.observe(element));
+    const stage = region.closest<HTMLElement>(".workflow-canvas-stage");
+    stage?.querySelectorAll<HTMLElement>(".workflow-container-lane-add").forEach((element) => observer.observe(element));
+    const viewportElement = stage?.querySelector<HTMLElement>(".react-flow__viewport");
+    const viewportObserver = viewportElement && typeof globalThis.MutationObserver !== "undefined"
+      ? new MutationObserver(() => {
+        if (placementFrame !== null || typeof globalThis.requestAnimationFrame !== "function") return;
+        placementFrame = requestAnimationFrame(() => {
+          placementFrame = null;
+          if (active) updatePlacement();
+        });
+      })
+      : null;
+    if (viewportElement && viewportObserver) viewportObserver.observe(viewportElement, { attributes: true, attributeFilter: ["style"] });
     // A font becoming ready can change captions hidden by the compact row.
     // This one completion belongs to the same owner, never a global listener.
     if (document.fonts) ignoreAsyncResult(document.fonts.ready.then(() => { if (active) updatePlacement(); }));
-    return () => { active = false; observer.disconnect(); };
+    return () => {
+      active = false;
+      observer.disconnect();
+      viewportObserver?.disconnect();
+      if (placementFrame !== null && typeof globalThis.cancelAnimationFrame === "function") cancelAnimationFrame(placementFrame);
+    };
   }, [children, showMiniMap, updatePlacement]);
 
   return <Panel
@@ -266,7 +291,7 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
     ref={regionRef}
     className="workflow-canvas-controls"
     data-testid="workflow-canvas-controls"
-    data-minimap-stacked={minimapStacked ? "true" : "false"}
+    data-minimap-stacked="false"
     style={{ right: inspectorWidth }}
   >{children(compact)}</Panel>;
 }

@@ -8,6 +8,24 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from core.application.orchestration.tools.standard_json_actions import get, keys, omit, set, values
+from core.application.orchestration.tools.standard_number_actions import (
+    add,
+    ceil,
+    coerce,
+    divide,
+    floor,
+    multiply,
+    subtract,
+)
+from core.application.orchestration.tools.standard_text_actions import (
+    append,
+    pad,
+    replace,
+    title_case,
+    trim,
+)
+from core.infrastructure import standard_text
 from core.infrastructure.html_text import html_to_text as _html_to_text
 
 
@@ -20,13 +38,13 @@ def round(value: int | float, decimals: int = 0) -> dict[str, Any]:
 @tool
 def upper(value: Any) -> dict[str, Any]:
     """Return the input value as uppercase text."""
-    return {"result": ("" if value is None else str(value)).upper()}
+    return {"result": standard_text.upper("" if value is None else str(value))}
 
 
 @tool
 def lower(value: Any) -> dict[str, Any]:
     """Return the input value as lowercase text."""
-    return {"result": ("" if value is None else str(value)).lower()}
+    return {"result": standard_text.lower("" if value is None else str(value))}
 
 
 @tool
@@ -78,3 +96,23 @@ def _ensure_resolver_compatible(*tools: Any) -> None:
 
 
 _ensure_resolver_compatible(round, upper, lower, html_to_text, length, stringify, pick)
+
+_ensure_resolver_compatible(
+    get,
+    keys,
+    omit,
+    set,
+    values,
+    add,
+    ceil,
+    coerce,
+    divide,
+    floor,
+    multiply,
+    subtract,
+    append,
+    pad,
+    replace,
+    title_case,
+    trim,
+)

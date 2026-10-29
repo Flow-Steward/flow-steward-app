@@ -138,7 +138,9 @@ class ArtifactRetentionMixin:
                 continue
             claim_key = f"_replay_owners/artifact/{artifact_id}.json"
             manifest = _replay_owner_manifest(row, kind="artifact")
-            cleanup_keys = [object_key, claim_key]
+            from .artifact_presentation import presentation_key
+
+            cleanup_keys = [object_key, claim_key, presentation_key(artifact_id)]
             if manifest is not None:
                 cleanup_keys.append(manifest[0])
             if not all(_delete_verified(key) for key in cleanup_keys):

@@ -17,6 +17,8 @@ from core.application.management.errors import (
 )
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
+from .artifact_presentation import ArtifactPresentationAuthorization
+
 _TOKEN_APPLICATION_OCTET_STREAM = "application/octet-stream"
 _TOKEN_APPLICATION_JSON = "application/json"
 
@@ -42,6 +44,7 @@ class PreparedExtensionGrants:
     minted_dataset_output_ids: list[str] = field(default_factory=list)
     artifact_output_max_size_by_id: dict[str, int] = field(default_factory=dict)
     dataset_output_max_size_by_id: dict[str, int] = field(default_factory=dict)
+    artifact_presentations: tuple[ArtifactPresentationAuthorization, ...] = ()
     produced_artifacts: list[dict[str, Any]] = field(default_factory=list)
     produced_datasets: list[dict[str, Any]] = field(default_factory=list)
 
@@ -637,7 +640,16 @@ def prepare_extension_grants(
     dataset_outputs: list[str] | None = None,
     dataset_output_specs: list[dict[str, Any]] | None = None,
     before_materialize_outputs: Callable[[PreparedExtensionGrants], None] | None = None,
+    installed_extension: dict[str, Any] | None = None,
+    operation_id: str = "",
 ) -> PreparedExtensionGrants:
+    from .artifact_presentation import (
+        authorize_prepared_presentations,
+        installed_presentation_policy,
+        validate_presentation_requests,
+    )
+
+    presentation_policy = installed_presentation_policy(installed_extension, operation_id)
     prepared = PreparedExtensionGrants()
     artifact_input_rows = _grant_request_rows(artifact_inputs, kind="artifact")
     artifact_output_rows = _grant_request_rows(artifact_outputs, kind="artifact")
@@ -657,6 +669,9 @@ def prepare_extension_grants(
         "artifact": [item for item in artifact_output_specs or [] if isinstance(item, dict)],
         "dataset": [item for item in dataset_output_specs or [] if isinstance(item, dict)],
     }
+    validate_presentation_requests(
+        presentation_policy, artifact_output_rows, specs_by_kind["artifact"]
+    )
     planned_specs_by_kind: dict[str, list[tuple[dict[str, Any], str]]] = {
         "artifact": [],
         "dataset": [],
@@ -810,6 +825,9 @@ def prepare_extension_grants(
                     max_size_bytes=max_sizes.get(object_id),
                 )
             )
+    prepared.artifact_presentations = authorize_prepared_presentations(
+        prepared, presentation_policy
+    )
     return prepared
 
 
@@ -897,12 +915,10 @@ def finalize_prepared_extension_grants(
     prepared: PreparedExtensionGrants,
     *,
     already_finalized: dict[str, dict[str, Any]] | None = None,
+    invocation: dict[str, Any] | None = None,
+    accept_presentations: bool = True,
 ) -> FinalizedExtensionGrants:
-    """Finalize every prepared output; outputs finalized while the run went on are reused.
-
-    An output announced ready during the run was finalized then, which reads the
-    whole object; reading a large export a second time at the end bought nothing.
-    """
+    """Finalize prepared outputs, reusing byte checks already done during the run."""
     early = dict(already_finalized or {})
     artifacts, artifact_errors = finalize_uploads(
         plane,
@@ -931,17 +947,22 @@ def finalize_prepared_extension_grants(
             if key in prepared.dataset_output_ids
         }
     )
-    produced_artifacts = [
-        artifacts.get(str(meta.get("artifact_id") or ""), meta)
-        for meta in prepared.produced_artifacts
-    ]
-    produced_datasets = [
-        datasets.get(str(meta.get("dataset_id") or ""), meta) for meta in prepared.produced_datasets
-    ]
+    from .artifact_presentation import finalize_prepared_grant_presentations
+
+    produced_artifacts, produced_datasets, presentation_errors = (
+        finalize_prepared_grant_presentations(
+            plane,
+            prepared,
+            artifacts,
+            datasets,
+            invocation,
+            accept_claims=accept_presentations and not artifact_errors and not dataset_errors,
+        )
+    )
     return FinalizedExtensionGrants(
         artifacts=artifacts,
         datasets=datasets,
-        errors=[*artifact_errors, *dataset_errors],
+        errors=[*artifact_errors, *dataset_errors, *presentation_errors],
         produced_artifacts=produced_artifacts,
         produced_datasets=produced_datasets,
     )

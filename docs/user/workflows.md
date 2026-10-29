@@ -548,6 +548,9 @@ Supported step kinds:
 | `stop_success` | End workflow successfully. | Optional `message`/`reason`. |
 | `stop_fail` | End workflow as failed. | Optional `message`/`reason`. |
 
+For deterministic transform and connector operations, including date/time and
+interval calculations, see [Standard tools](standard-tools.md).
+
 ## Loop Patterns
 
 Iterate with a For each container over a ready collection, and put ordinary

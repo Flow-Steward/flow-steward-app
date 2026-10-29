@@ -1,7 +1,7 @@
 import { collectEvidenceItems } from "./job-review-evidence";
 import { StepInspectorPanel } from "./job-step-inspector-panel";
 import { ReadableDataFields } from "./readable-data-fields";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { fallbackContext } from "@/lib/i18n/context";
@@ -633,5 +633,51 @@ describe("StepInspectorPanel full text", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Show full text" })).not.toBeInTheDocument();
+  });
+});
+
+describe("HTTP response saved value", () => {
+  it("explains that the inline body is saved directly at its target beside diagnostics", () => {
+    render(
+      <StepInspectorPanel
+        selectedStep={{
+          title: "Fetch user",
+          step_type_label_key: "react.workflows.http_request",
+          status_label: "Completed",
+          outputs: { status_code: 200, content_type: "application/json", body: { name: "Ada" } },
+          saved_output: { target: "state.user", value: { name: "Ada" }, is_file: false },
+        }}
+        testId="step-inspector"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "HTTP response diagnostics" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Saved response" })).toBeInTheDocument();
+    expect(screen.getByText("Saved to state.user")).toBeInTheDocument();
+    expect(screen.getByText(/select state\.user directly/i)).toBeInTheDocument();
+    expect(screen.getByText(/do not append \.body/i)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Saved response" })).getByText("Ada"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("200")).toBeInTheDocument();
+  });
+
+  it("labels an artifact response as a saved file handle", () => {
+    render(
+      <StepInspectorPanel
+        selectedStep={{
+          title: "Download report",
+          step_type_label_key: "react.workflows.http_request",
+          status_label: "Completed",
+          outputs: { status_code: 200 },
+          saved_output: { target: "state.report_file", value: "artifact:art-7", is_file: true },
+        }}
+        testId="step-inspector"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "HTTP response diagnostics" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Saved file" })).toBeInTheDocument();
+    expect(screen.getByText("Saved file to state.report_file")).toBeInTheDocument();
   });
 });

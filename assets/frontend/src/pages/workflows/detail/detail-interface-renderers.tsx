@@ -46,17 +46,23 @@ type DefaultControlProps = {
 function DefaultConfiguredControl({ configured, controlId, controlName, updateRow }: Readonly<DefaultControlProps>) {
   const { t } = useI18n();
   return (
-    <label className="mt-1 flex items-center gap-2 text-[11px] text-[var(--fs-text-tertiary)]">
-      <input
-        checked={configured}
-        className="h-3.5 w-3.5 accent-[var(--fs-action-primary)]"
-        id={`${controlId}-configured`}
-        name={`${controlName}_configured`}
-        onChange={(event) => updateRow({ defaultConfigured: event.target.checked })}
-        type="checkbox"
-      />
-      <span>{t("react.workflows.fixed_default_callers_may_not_supply_this_input", "Fixed default (callers may not supply this input)")}</span>
-    </label>
+    <>
+      <label className="mt-1 flex items-center gap-2 text-[11px] text-[var(--fs-text-tertiary)]">
+        <input
+          aria-describedby={`${controlId}-default-help`}
+          checked={configured}
+          className="h-3.5 w-3.5 accent-[var(--fs-action-primary)]"
+          id={`${controlId}-configured`}
+          name={`${controlName}_configured`}
+          onChange={(event) => updateRow({ defaultConfigured: event.target.checked })}
+          type="checkbox"
+        />
+        <span>{t("react.workflows.fixed_default_callers_may_not_supply_this_input", "Fixed default (callers may not supply this input)")}</span>
+      </label>
+      <p className="fs-field-helper mt-1" id={`${controlId}-default-help`}>
+        {t("react.workflows.fixed_default_help", "Enable Fixed default to edit and save this value. Callers cannot supply this input while a fixed default is configured, even if the input is optional.")}
+      </p>
+    </>
   );
 }
 
@@ -140,7 +146,7 @@ function BooleanDefaultControl(props: Readonly<DefaultControlProps>) {
     <div className="mt-2 text-xs text-[var(--fs-text-primary)]">
       <label htmlFor={controlId}>{t("react.workflows.default_value", "Default value")}</label>
       <label className="mt-1 flex items-center gap-2 text-[var(--fs-text-primary)]">
-        <input checked={Boolean(row.default)} className="h-4 w-4 accent-[var(--fs-action-primary)]" disabled={!configured} id={controlId} name={controlName} onChange={(event) => updateRow({ default: event.target.checked })} type="checkbox" />
+        <input aria-describedby={`${controlId}-default-help`} checked={Boolean(row.default)} className="h-4 w-4 accent-[var(--fs-action-primary)]" disabled={!configured} id={controlId} name={controlName} onChange={(event) => updateRow({ default: event.target.checked })} type="checkbox" />
         <span>{row.default ? "true" : "false"}</span>
       </label>
       <DefaultConfiguredControl {...props} />
@@ -155,7 +161,7 @@ function SelectDefaultControl(props: Readonly<DefaultControlProps>) {
   return (
     <div className="mt-2 text-xs text-[var(--fs-text-primary)]">
       <label htmlFor={controlId}>{t("react.workflows.default_value", "Default value")}</label>
-      <select className={DEFAULT_FIELD_CLASS} disabled={!configured || !options.length} id={controlId} name={controlName} onChange={(event) => updateRow({ default: event.target.value })} value={stringFromUnknownValue(row.default)}>
+      <select aria-describedby={`${controlId}-default-help`} className={DEFAULT_FIELD_CLASS} disabled={!configured || !options.length} id={controlId} name={controlName} onChange={(event) => updateRow({ default: event.target.value })} value={stringFromUnknownValue(row.default)}>
         <option value="">{t("react.workflows.select_an_option", "Select an option")}</option>
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
@@ -170,7 +176,7 @@ function StructuredDefaultControl({ type, ...props }: Readonly<DefaultControlPro
   return (
     <div className="mt-2 text-xs text-[var(--fs-text-primary)]">
       <label htmlFor={controlId}>{t("react.workflows.default_value_json", "Default value (JSON)")}</label>
-      <textarea className={`${DEFAULT_FIELD_CLASS} font-mono`} disabled={!configured} id={controlId} name={controlName} onChange={(event) => updateRow({ default: event.target.value })} placeholder={type === "array" ? "[]" : "{}"} rows={3} value={stringFromUnknownValue(row.default)} />
+      <textarea aria-describedby={`${controlId}-default-help`} className={`${DEFAULT_FIELD_CLASS} font-mono`} disabled={!configured} id={controlId} name={controlName} onChange={(event) => updateRow({ default: event.target.value })} placeholder={type === "array" ? "[]" : "{}"} rows={3} value={stringFromUnknownValue(row.default)} />
       <DefaultConfiguredControl {...props} />
     </div>
   );
@@ -183,7 +189,7 @@ function ScalarDefaultControl({ type, ...props }: Readonly<DefaultControlProps &
   return (
     <div className="mt-2 text-xs text-[var(--fs-text-primary)]">
       <label htmlFor={controlId}>{t("react.workflows.default_value", "Default value")}</label>
-      <input className={DEFAULT_FIELD_CLASS} disabled={!configured} id={controlId} inputMode={numeric ? "decimal" : undefined} name={controlName} onChange={(event) => updateRow({ default: event.target.value })} placeholder={numeric ? "3" : "eu-west-1"} type={numeric ? "number" : "text"} value={stringFromUnknownValue(row.default)} />
+      <input aria-describedby={`${controlId}-default-help`} className={DEFAULT_FIELD_CLASS} disabled={!configured} id={controlId} inputMode={numeric ? "decimal" : undefined} name={controlName} onChange={(event) => updateRow({ default: event.target.value })} placeholder={numeric ? "3" : "eu-west-1"} type={numeric ? "number" : "text"} value={stringFromUnknownValue(row.default)} />
       <DefaultConfiguredControl {...props} />
     </div>
   );

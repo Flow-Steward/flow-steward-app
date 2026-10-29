@@ -30,6 +30,13 @@ class SkillRegistry:
             rows = self._db_store.list_skills()
             for row in rows:
                 try:
+                    if (
+                        str(row.get("skill_id") or "").startswith("extension.")
+                        and str(row.get("source_install_id") or "").strip()
+                    ):
+                        # Install-owned identity anchors have no active runtime
+                        # content. Active projections are loaded below.
+                        continue
                     manifest = SkillManifest.from_db_row(row)
                     self._skills[manifest.skill_id] = manifest
                 except Exception as e:

@@ -33,6 +33,7 @@ from core.application.workflows.workflow_step_kinds import (
 )
 
 AUTHORING_ERROR_CODE = "workflow.state_selector_invalid"
+IMPOSSIBLE_SELECTOR_CODE = "workflow.state_selector_impossible"
 RUNTIME_ERROR_CODE = "invalid_input_selector"
 
 
@@ -378,6 +379,206 @@ def validate_selector_references(
     return issues
 
 
+def _target_paths_overlap(left: str, right: str) -> bool:
+    """Whether either state write can replace or reshape the other's target."""
+    return left == right or any(
+        left.startswith(right + separator) or right.startswith(left + separator)
+        for separator in (".", "[")
+    )
+
+
+def _closed_target_shapes(workflow: Mapping[str, Any]) -> dict[str, tuple[str, tuple[str, int]]]:
+    """Find targets with a locally provable closed shape, without guessing unknown inputs."""
+    shapes: dict[str, tuple[str, tuple[str, int]]] = {}
+    known_array_paths: set[str] = set()
+    array_path_producer: dict[str, str] = {}
+    predecessors = _direct_predecessors(workflow)
+    for step in workflow.get("steps", []) if isinstance(workflow.get("steps"), list) else []:
+        if not isinstance(step, Mapping):
+            continue
+        if step.get("group_id") or step.get("for_each_id") or step.get("lane_id"):
+            continue
+        step_id = _text(step.get("step_id"))
+        kind = normalize_step_kind(step.get("step_kind") or step.get("kind"), default="")
+        override = _object(step.get("override"))
+        config = _object(override.get(kind))
+        assignments = config.get("assignments")
+        assignments_are_active = isinstance(assignments, Mapping) and bool(assignments)
+        target_fields = ("result_target", "response_target")
+        if not (kind == STEP_KIND_SET_VARIABLE and assignments_are_active):
+            target_fields = ("target", *target_fields)
+        written_paths = {
+            _text(config.get(field))
+            for field in target_fields
+            if _text(config.get(field)).startswith("state.")
+        }
+        if isinstance(assignments, Mapping):
+            written_paths.update(
+                _text(path) for path in assignments if _text(path).startswith("state.")
+            )
+        invalidated = {
+            path
+            for path in known_array_paths
+            if any(_target_paths_overlap(path, written) for written in written_paths)
+        }
+        known_array_paths.difference_update(invalidated)
+        for path in invalidated:
+            array_path_producer.pop(path, None)
+        if kind == STEP_KIND_SET_VARIABLE:
+            if assignments_are_active and isinstance(assignments, Mapping):
+                assignment_paths = [_text(path) for path in assignments]
+                for path, value in assignments.items():
+                    candidate = _text(path)
+                    overlaps_other_write = any(
+                        other != candidate and _target_paths_overlap(candidate, other)
+                        for other in assignment_paths
+                    )
+                    if (
+                        candidate.startswith("state.")
+                        and isinstance(value, list)
+                        and not overlaps_other_write
+                    ):
+                        known_array_paths.add(candidate)
+                        array_path_producer[candidate] = step_id
+            else:
+                target = _text(config.get("target"))
+                if target.startswith("state.") and isinstance(config.get("value"), list):
+                    known_array_paths.add(target)
+                    array_path_producer[target] = step_id
+            continue
+        if kind == STEP_KIND_BATCH:
+            target = _text(config.get("result_target"))
+            source = _text(config.get("source_path"))
+            source = source if source.startswith("state.") else f"state.{source}"
+            if source not in known_array_paths or array_path_producer.get(
+                source
+            ) != predecessors.get(step_id):
+                continue
+            shape = ("array", 2)
+            if target.startswith("state."):
+                known_array_paths.add(target)
+                array_path_producer[target] = step_id
+        elif kind == STEP_KIND_HTTP_REQUEST:
+            if _text(config.get("response_mode")).lower() != "artifact":
+                continue
+            target = _text(config.get("response_target"))
+            shape = ("scalar", 0)
+        else:
+            continue
+        if target.startswith("state.") and target != "state":
+            shapes[step_id] = (target, shape)
+    return shapes
+
+
+def _direct_predecessors(workflow: Mapping[str, Any]) -> dict[str, str]:
+    """Return only graph edges that uniquely feed an ordinary root step."""
+    settings = _object(workflow.get("settings"))
+    graph = _object(settings.get("execution_graph"))
+    edges = graph.get("edges")
+    if not isinstance(edges, list):
+        return {}
+    incoming: dict[str, list[tuple[str, str, str]]] = {}
+    for edge in edges:
+        if not isinstance(edge, Mapping):
+            continue
+        source = _object(edge.get("source"))
+        target = _object(edge.get("target"))
+        if target.get("kind") != "step":
+            continue
+        source_kind = _text(source.get("kind"))
+        source_id = _text(source.get("id"))
+        target_id = _text(target.get("id"))
+        if source_kind and source_id and target_id:
+            outcome = _text(_object(edge.get("outcome")).get("name"))
+            incoming.setdefault(target_id, []).append((source_kind, source_id, outcome))
+    return {
+        target_id: sources[0][1]
+        for target_id, sources in incoming.items()
+        if len(sources) == 1 and sources[0][0] == "step" and sources[0][2] == "success"
+    }
+
+
+def _shape_path_problem(
+    selector: str,
+    *,
+    producer_target: str,
+    shape: tuple[str, int],
+) -> str:
+    """Return why a known closed value cannot satisfy this selector suffix."""
+    try:
+        selector_tokens = parse_state_path(selector)
+        target_tokens = parse_state_path(producer_target)
+    except StatePathError:
+        return ""
+    if len(selector_tokens) <= len(target_tokens):
+        return ""
+    if selector_tokens[: len(target_tokens)] != target_tokens:
+        return ""
+    kind, array_depth = shape
+    for token in selector_tokens[len(target_tokens) :]:
+        if kind == "scalar":
+            return "the preceding step writes a scalar value at this path"
+        if kind != "array":
+            return ""
+        is_index = token.kind == "index" or (token.kind == "key" and str(token.value).isdigit())
+        if not is_index:
+            return "the preceding step writes an array at this path; select an item by index"
+        array_depth -= 1
+        if array_depth <= 0:
+            kind = "unknown"
+    return ""
+
+
+def _closed_shape_selector_issues(
+    workflow: Mapping[str, Any], *, workflow_path: str
+) -> list[dict[str, str]]:
+    shapes = _closed_target_shapes(workflow)
+    if not shapes:
+        return []
+    predecessors = _direct_predecessors(workflow)
+    if not predecessors:
+        return []
+    steps = workflow.get("steps")
+    if not isinstance(steps, list):
+        return []
+    step_by_id = {
+        _text(step.get("step_id")): step
+        for step in steps
+        if isinstance(step, Mapping) and _text(step.get("step_id"))
+    }
+    issues: list[dict[str, str]] = []
+    for step_id, step in step_by_id.items():
+        if step.get("group_id") or step.get("for_each_id") or step.get("lane_id"):
+            continue
+        producer_id = predecessors.get(step_id)
+        if producer_id not in step_by_id:
+            continue
+        shaped_target = shapes.get(producer_id or "")
+        if shaped_target is None:
+            continue
+        target, shape = shaped_target
+        step_path = f"{workflow_path}.steps.{step_id}"
+        for reference in discover_step_state_selectors(step, step_path=step_path):
+            problem = _shape_path_problem(
+                reference.selector,
+                producer_target=target,
+                shape=shape,
+            )
+            if problem:
+                issues.append(
+                    {
+                        "code": IMPOSSIBLE_SELECTOR_CODE,
+                        "message": (
+                            f"State selector '{reference.selector}' is impossible: {problem}"
+                        ),
+                        "path": reference.path,
+                        "severity": "error",
+                        "selector": reference.selector,
+                    }
+                )
+    return issues
+
+
 def validate_step_state_selectors(
     step: Mapping[str, Any], *, step_path: str = "step"
 ) -> list[dict[str, str]]:
@@ -477,11 +678,16 @@ def validate_workflow_state_selectors(
             step_path = f"{workflow_path}.steps.{str(step.get('step_id') or '').strip()}"
             references.extend(discover_step_state_selectors(step, step_path=step_path))
             references.extend(_boundary_entry_selectors(step, step_path))
-    return phase_scope_issues + validate_selector_references(references)
+    return (
+        phase_scope_issues
+        + validate_selector_references(references)
+        + _closed_shape_selector_issues(workflow, workflow_path=workflow_path)
+    )
 
 
 __all__ = [
     "AUTHORING_ERROR_CODE",
+    "IMPOSSIBLE_SELECTOR_CODE",
     "PHASE_MESSAGE_SELECTOR_CODE",
     "RUNTIME_ERROR_CODE",
     "StateSelectorReference",

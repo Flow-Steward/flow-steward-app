@@ -426,9 +426,22 @@ export function RegistryAgentsDetailPage() {
                           const toolId =
                             registryOptionId(row, ["tool_id", "id", "name"]) ||
                             `tool-${index + 1}`;
+                          const selected = lineList(draft.tools).includes(toolId);
+                          const relationshipUnavailable =
+                            row.agent_relationship_assignable === false;
+                          const relationshipReason =
+                            row.agent_relationship_reason_code === "tool_connector_only"
+                              ? t(
+                                  "react.registry.standard_tool_actions_connector_only",
+                                  "Standard Tool Actions are available only through connector workflow steps",
+                                )
+                              : firstStringFromUnknownValue([
+                                  row.agent_relationship_reason_text,
+                                ]);
                           return (
                             <DsCheckbox
-                              checked={lineList(draft.tools).includes(toolId)}
+                              checked={selected}
+                              disabled={relationshipUnavailable && !selected}
                               key={toolId}
                               onChange={() =>
                                 setDraft((current) => ({
@@ -438,8 +451,15 @@ export function RegistryAgentsDetailPage() {
                               }
                             >
                               <span className="fs-field">
-                                <span>{registryOptionLabel(row, toolId)}</span>
-                                <span className="fs-field-helper fs-table-mono">{toolId}</span>
+                                <span>
+                                  {registryOptionLabel(row, toolId)}
+                                  {relationshipUnavailable ? " (unavailable for assignment)" : ""}
+                                </span>
+                                <span className="fs-field-helper">
+                                  {relationshipUnavailable
+                                    ? relationshipReason || "Choose another saved tool."
+                                    : toolId}
+                                </span>
                               </span>
                             </DsCheckbox>
                           );

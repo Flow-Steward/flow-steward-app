@@ -4,6 +4,8 @@ Flow Steward is a self-hosted AI workflow automation platform. You build workflo
 
 For production topology, ingress/TLS, provider lifecycle, backup/restore, and profile switching, see [Compact and Scalable Production Deployment](operations/compact-scalable-deployment.md). Destructive same-profile installation replacement is documented in the [Installation Clone runbook](operations/installation-clone.md). Persistent paths and permissions are in the [Compact Deployment Data and Permission Registry](operations/compact-deployment-data-registry.md). Moving an existing installation to workflows without phases is a manual recreation: follow the [workflow steps rollout runbook](operations/workflow-steps-rollout.md) and check the [workflow steps compatibility matrix](operations/workflow-steps-compatibility.md) first.
 
+For the timezone database lookup policy and release image evidence, see [Date and timezone reproducibility](operations/date-time-reproducibility.md).
+
 ---
 
 ## Table of Contents

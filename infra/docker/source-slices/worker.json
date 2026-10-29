@@ -47,6 +47,7 @@
     "core/application/extensions/artifact_dataset_operations.py",
     "core/application/extensions/artifact_dataset_plane_v2.py",
     "core/application/extensions/artifact_plane_values.py",
+    "core/application/extensions/artifact_presentation.py",
     "core/application/extensions/artifact_retention.py",
     "core/application/extensions/artifact_storage.py",
     "core/application/extensions/binding_cleanup_service.py",
@@ -149,6 +150,7 @@
     "core/application/extensions/operation_effects.py",
     "core/application/extensions/operation_projection.py",
     "core/application/extensions/operation_service.py",
+    "core/application/extensions/operation_service_resources.py",
     "core/application/extensions/operation_support.py",
     "core/application/extensions/operation_targets.py",
     "core/application/extensions/platform_connection_operations.py",
@@ -158,6 +160,7 @@
     "core/application/extensions/project_connection_state.py",
     "core/application/extensions/project_state_hydration.py",
     "core/application/extensions/projected_dataset_bridge.py",
+    "core/application/extensions/projected_skill_bridge.py",
     "core/application/extensions/projection_dependency_availability.py",
     "core/application/extensions/provider_attachments.py",
     "core/application/extensions/provider_completion.py",
@@ -199,6 +202,7 @@
     "core/application/extensions/uninstall_persistence_service.py",
     "core/application/extensions/uninstall_plan_presentation.py",
     "core/application/extensions/uninstall_plan_service.py",
+    "core/application/extensions/uninstall_projected_skill_dependents.py",
     "core/application/extensions/uninstall_service.py",
     "core/application/extensions/uninstall_target_removal.py",
     "core/application/extensions/uninstall_workflow_dependents.py",
@@ -284,6 +288,7 @@
     "core/application/management/command_models_registry_tools.py",
     "core/application/management/command_service_runtime.py",
     "core/application/management/command_services.py",
+    "core/application/management/command_services_agent.py",
     "core/application/management/command_services_approval.py",
     "core/application/management/command_services_common.py",
     "core/application/management/command_services_dispatch.py",
@@ -416,6 +421,7 @@
     "core/application/orchestration/child_execution_runtime.py",
     "core/application/orchestration/classifier.py",
     "core/application/orchestration/collect_step_runtime.py",
+    "core/application/orchestration/connector_action_completion.py",
     "core/application/orchestration/connector_connection.py",
     "core/application/orchestration/connector_effects.py",
     "core/application/orchestration/connector_events.py",
@@ -430,6 +436,8 @@
     "core/application/orchestration/dataset_cursor_contracts.py",
     "core/application/orchestration/dataset_cursor_runtime.py",
     "core/application/orchestration/dataset_query_step_runtime.py",
+    "core/application/orchestration/date_action_support.py",
+    "core/application/orchestration/date_actions.py",
     "core/application/orchestration/expected_input_sources.py",
     "core/application/orchestration/extension_chat_model.py",
     "core/application/orchestration/external_effect_recovery.py",
@@ -554,6 +562,7 @@
     "core/application/registry/db_store_dataset_catalog_mixin.py",
     "core/application/registry/db_store_datasets_mixin.py",
     "core/application/registry/db_store_guardrails_mixin.py",
+    "core/application/registry/db_store_projected_skills_mixin.py",
     "core/application/registry/db_store_revisions_mixin.py",
     "core/application/registry/db_store_skills_mixin.py",
     "core/application/registry/db_store_tools_mixin.py",
@@ -753,6 +762,13 @@
     "core/infrastructure/config/version.py",
     "core/infrastructure/config/workflow_collection_limits.py",
     "core/infrastructure/config/workflow_file_limits.py",
+    "core/infrastructure/date_arithmetic.py",
+    "core/infrastructure/date_formatting.py",
+    "core/infrastructure/date_intervals.py",
+    "core/infrastructure/date_operations.py",
+    "core/infrastructure/date_parsing.py",
+    "core/infrastructure/date_timezones.py",
+    "core/infrastructure/date_types.py",
     "core/infrastructure/db/__init__.py",
     "core/infrastructure/db/action_log_store.py",
     "core/infrastructure/db/agent_message_store.py",
@@ -1000,6 +1016,12 @@
     "core/infrastructure/security/secret_detection.py",
     "core/infrastructure/security/secret_reference.py",
     "core/infrastructure/security/zip_guard.py",
+    "core/infrastructure/standard_array.py",
+    "core/infrastructure/standard_boolean.py",
+    "core/infrastructure/standard_json.py",
+    "core/infrastructure/standard_money.py",
+    "core/infrastructure/standard_numbers.py",
+    "core/infrastructure/standard_text.py",
     "core/infrastructure/static_catalog/__init__.py",
     "core/infrastructure/static_catalog/http_fetch.py",
     "core/infrastructure/static_catalog/icons.py",
@@ -1011,6 +1033,7 @@
     "core/infrastructure/tabular_feed/conditions.py",
     "core/infrastructure/tabular_feed/constants.py",
     "core/infrastructure/tabular_feed/dataframe_ops.py",
+    "core/infrastructure/tabular_feed/date_actions.py",
     "core/infrastructure/tabular_feed/engine.py",
     "core/infrastructure/tabular_feed/engine_plane.py",
     "core/infrastructure/tabular_feed/engine_snapshots.py",
@@ -1023,6 +1046,34 @@
     {
       "path": "core/application/orchestration/tools/standard_tools.py",
       "consumer": "core.application.registry.builtin_standard_tools:_STANDARD_TOOLS_MODULE (internal tool implementation.module)"
+    },
+    {
+      "path": "core/application/orchestration/tools/standard_array_actions.py",
+      "consumer": "core.application.registry.builtin_standard_tools: standard array connector implementation.module"
+    },
+    {
+      "path": "core/application/orchestration/tools/standard_boolean_actions.py",
+      "consumer": "core.application.registry.builtin_standard_tools: standard boolean connector implementation.module"
+    },
+    {
+      "path": "core/application/orchestration/tools/standard_date_actions.py",
+      "consumer": "core.application.registry.builtin_standard_tools: standard date connector implementation.module"
+    },
+    {
+      "path": "core/application/orchestration/tools/standard_json_actions.py",
+      "consumer": "core.application.registry.builtin_standard_tools: standard json connector implementation.module"
+    },
+    {
+      "path": "core/application/orchestration/tools/standard_money_actions.py",
+      "consumer": "core.application.registry.builtin_standard_tools: standard money connector implementation.module"
+    },
+    {
+      "path": "core/application/orchestration/tools/standard_number_actions.py",
+      "consumer": "core.application.registry.builtin_standard_tools: standard number connector implementation.module"
+    },
+    {
+      "path": "core/application/orchestration/tools/standard_text_actions.py",
+      "consumer": "core.application.registry.builtin_standard_tools: standard text connector implementation.module"
     }
   ],
   "package_data_paths": [
@@ -1101,6 +1152,22 @@
     {
       "path": "db/seeds/registry_seed.json",
       "consumer": "core.infrastructure.db.schema_state canonical seed fingerprint"
+    },
+    {
+      "path": "locales/en/LC_MESSAGES/ui.mo",
+      "consumer": "core.application.orchestration.date_action_support validated date lexicons through ui_i18n"
+    },
+    {
+      "path": "locales/en/meta.json",
+      "consumer": "core.application.orchestration.date_action_support validated date lexicons through ui_i18n"
+    },
+    {
+      "path": "locales/lt/LC_MESSAGES/ui.mo",
+      "consumer": "core.application.orchestration.date_action_support validated date lexicons through ui_i18n"
+    },
+    {
+      "path": "locales/lt/meta.json",
+      "consumer": "core.application.orchestration.date_action_support validated date lexicons through ui_i18n"
     }
   ]
 }

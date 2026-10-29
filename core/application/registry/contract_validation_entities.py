@@ -10,7 +10,7 @@ from .contract_validation_invoke import *  # noqa: F403,F401  # NOSONAR
 from .contract_item_validation import validate_contract_items
 
 
-def validate_skill_readiness(db, skill_id: str) -> dict:
+def validate_skill_readiness(db, skill_id: str, *, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
     from .workflow_lookup import get_registry_artifact_row
 
     cap = get_registry_artifact_row(
@@ -19,6 +19,7 @@ def validate_skill_readiness(db, skill_id: str) -> dict:
         id_key="skill_id",
         artifact_id=skill_id,
         platform_getter="get_skill",
+        account_id=account_id,
     )
     if not cap:
         return {
@@ -388,19 +389,28 @@ def validate_guardrail_readiness(
     return {"valid": not errors, "errors": errors, "warnings": warnings}
 
 
-def validate_agent_skill_compatibility(db, agent_id: str, skill_id: str) -> dict:
+def validate_agent_skill_compatibility(
+    db, agent_id: str, skill_id: str, *, account_id: str | None = None
+) -> dict:
     """Validate the compatibility of one agent<->skill pair."""
     errors: list[dict] = []
     warnings: list[dict] = []
 
     from .workflow_lookup import get_registry_artifact_row
 
+    resolved_account_id = str(account_id or "").strip()
+    if not resolved_account_id:
+        raw_agent = db.get_agent(agent_id) if callable(getattr(db, "get_agent", None)) else None
+        if isinstance(raw_agent, dict):
+            resolved_account_id = str(raw_agent.get("account_id") or "").strip()
+    resolved_account_id = resolved_account_id or DEFAULT_ACCOUNT_ID
     agent = get_registry_artifact_row(
         db,
         artifact_kind="agent",
         id_key="agent_id",
         artifact_id=agent_id,
         platform_getter="get_agent",
+        account_id=resolved_account_id,
     )
     if not isinstance(agent, dict):
         errors.append(
@@ -411,6 +421,17 @@ def validate_agent_skill_compatibility(db, agent_id: str, skill_id: str) -> dict
             )
         )
         return {"valid": False, "errors": errors, "warnings": warnings}
+    if account_id and str(agent.get("account_id") or "").strip() != str(account_id).strip():
+        errors.append(
+            _issue(
+                code="agent.not_found",
+                message=f"Agent '{agent_id}' not found",
+                path="agent",
+            )
+        )
+        return {"valid": False, "errors": errors, "warnings": warnings}
+    resolved_account_id = str(agent.get("account_id") or resolved_account_id).strip()
+    resolved_account_id = resolved_account_id or DEFAULT_ACCOUNT_ID
     # Disabled agents must remain editable: the supported lifecycle is to
     # configure their skill/tool contract first and enable them only after the
     # resulting readiness check passes. Runtime entrypoints enforce enabled
@@ -422,6 +443,7 @@ def validate_agent_skill_compatibility(db, agent_id: str, skill_id: str) -> dict
         id_key="skill_id",
         artifact_id=skill_id,
         platform_getter="get_skill",
+        account_id=resolved_account_id,
     )
     if not isinstance(cap_row, dict):
         errors.append(
@@ -457,7 +479,7 @@ def validate_agent_skill_compatibility(db, agent_id: str, skill_id: str) -> dict
             )
         )
 
-    cap_validation = validate_skill_readiness(db, skill_id)
+    cap_validation = validate_skill_readiness(db, skill_id, account_id=resolved_account_id)
     for issue in cap_validation.get("errors") or []:
         prefixed = dict(issue)
         prefixed["path"] = f"skill.{issue.get('path') or ''}".strip(".")
@@ -532,15 +554,22 @@ def validate_agent_skill_compatibility(db, agent_id: str, skill_id: str) -> dict
     return {"valid": not errors, "errors": errors, "warnings": warnings}
 
 
-def validate_agent_readiness(db, agent_id: str) -> dict:
+def validate_agent_readiness(db, agent_id: str, *, account_id: str | None = None) -> dict:
     from .workflow_lookup import get_registry_artifact_row
 
+    resolved_account_id = str(account_id or "").strip()
+    if not resolved_account_id:
+        raw_agent = db.get_agent(agent_id) if callable(getattr(db, "get_agent", None)) else None
+        if isinstance(raw_agent, dict):
+            resolved_account_id = str(raw_agent.get("account_id") or "").strip()
+    resolved_account_id = resolved_account_id or DEFAULT_ACCOUNT_ID
     agent = get_registry_artifact_row(
         db,
         artifact_kind="agent",
         id_key="agent_id",
         artifact_id=agent_id,
         platform_getter="get_agent",
+        account_id=resolved_account_id,
     )
     if not agent:
         return {
@@ -548,6 +577,15 @@ def validate_agent_readiness(db, agent_id: str) -> dict:
             "errors": [_issue(code="agent.not_found", message=f"Agent '{agent_id}' not found")],
             "warnings": [],
         }
+    if account_id and str(agent.get("account_id") or "").strip() != str(account_id).strip():
+        return {
+            "valid": False,
+            "errors": [_issue(code="agent.not_found", message=f"Agent '{agent_id}' not found")],
+            "warnings": [],
+        }
+
+    resolved_account_id = str(agent.get("account_id") or resolved_account_id).strip()
+    resolved_account_id = resolved_account_id or DEFAULT_ACCOUNT_ID
 
     errors: list[dict] = []
     warnings: list[dict] = []
@@ -597,6 +635,7 @@ def validate_agent_readiness(db, agent_id: str) -> dict:
             id_key="skill_id",
             artifact_id=cap_id,
             platform_getter="get_skill",
+            account_id=resolved_account_id,
         )
         if not cap_row:
             errors.append(
@@ -617,7 +656,9 @@ def validate_agent_readiness(db, agent_id: str) -> dict:
                 )
             )
 
-        pair_validation = validate_agent_skill_compatibility(db, agent_id, cap_id)
+        pair_validation = validate_agent_skill_compatibility(
+            db, agent_id, cap_id, account_id=resolved_account_id
+        )
         for issue in pair_validation.get("errors") or []:
             prefixed = dict(issue)
             prefixed["path"] = _indexed_path(PATH_AGENT_SKILLS, idx, str(issue.get("path") or ""))

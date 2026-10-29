@@ -90,6 +90,8 @@ ADR takes the next unused number; never reuse a retired number.
 | [0042](0042-bounded-state-selector-shape-proof.md) | Bounded state selector shape proof | Accepted |
 | [0043](0043-rabbitmq-transport-trust-boundary.md) | RabbitMQ transport trust boundary | Accepted |
 | [0044](0044-browser-local-workflow-edit-session.md) | Browser-Local Workflow Edit Session and One Whole-Content Writer | Accepted |
+| [0045](0045-terminal-artifact-presentation.md) | Terminal presentation claims for prepared extension artifacts | Accepted |
+| [0046](0046-projected-skill-identity-anchors.md) | Identity anchors for installed projected skills | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

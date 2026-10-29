@@ -227,8 +227,11 @@ class ExtensionCommandInstall:
             account_id=account_id,
         )
 
-    def remove_dataset_execution_bridges(self, *, install_id: str) -> None:
-        self._projections.remove_dataset_bridges(install_id=install_id)
+    def remove_dataset_execution_bridges(self, *, install_id: str, account_id: str = "") -> None:
+        self._projections.remove_dataset_bridges(install_id=install_id, account_id=account_id)
+
+    def deactivate_projected_skills(self, *, install_id: str, account_id: str) -> None:
+        self._projections.deactivate_projected_skills(install_id=install_id, account_id=account_id)
 
     def run_install_handshake(
         self,

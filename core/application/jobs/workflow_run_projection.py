@@ -225,6 +225,9 @@ def _safe_artifact(
         raise ArtifactResolverUnavailable("Artifact resolver is unavailable") from exc
     if not isinstance(stored, dict) or not _artifact_belongs_to_job(stored, job):
         return None
+    from core.application.extensions.artifact_presentation import artifact_presentation_view
+
+    stored = artifact_presentation_view(stored, resolve_artifact=resolve_artifact)
     canonical = {
         field: field_value
         for field, field_value in stored.items()

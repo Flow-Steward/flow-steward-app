@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from core.application.orchestration.date_actions import validate_date_action_params
 from core.application.orchestration.transform_action_contract import TransformAction
 from core.application.orchestration.transform_actions import _ACTIONS
 from core.application.orchestration.transform_selectors import (
@@ -16,6 +17,7 @@ from core.application.orchestration.transform_values import (
     _normalize_type,
     _types_compatible,
 )
+from core.infrastructure.date_types import DateValueError
 
 STATE_PREFIX = "state."
 
@@ -101,6 +103,8 @@ def _param_matches_schema(value: Any, schema: dict[str, Any]) -> bool:
         return True
     if expected == "string":
         return isinstance(value, str)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
     if expected == "number":
         if isinstance(value, bool):
             return False
@@ -396,6 +400,12 @@ def _validate_action_param(
                 path=f"{path}.{key}",
             )
         )
+        return
+    if action.category == "date":
+        try:
+            validate_date_action_params(action.action_id, {key: value})
+        except DateValueError as exc:
+            errors.append(_issue(code=exc.code, message=str(exc), path=f"{path}.{key}"))
 
 
 def _validate_param_source(

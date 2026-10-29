@@ -8160,6 +8160,15 @@ msgstr ""
 msgid "react.registry.clone"
 msgstr ""
 
+msgid "react.registry.clone_agent_type"
+msgstr ""
+
+msgid "react.registry.clone_agent_type_help"
+msgstr ""
+
+msgid "react.registry.clone_agent_type_required"
+msgstr ""
+
 msgid "react.registry.clone_value0"
 msgstr ""
 
@@ -16242,6 +16251,9 @@ msgid "react.workflows.enable_workflow"
 msgstr ""
 
 msgid "react.workflows.enable_workflow_interface"
+msgstr ""
+
+msgid "react.workflows.workflow_interface_enabled_help"
 msgstr ""
 
 msgid "react.workflows.enabled_only"
@@ -25850,6 +25862,9 @@ msgstr ""
 msgid "react.workflows.palette_in_lane"
 msgstr ""
 
+msgid "react.workflows.palette_in_lane_ordinal"
+msgstr ""
+
 msgid "react.workflows.palette_inline_loop"
 msgstr ""
 
@@ -25864,6 +25879,10 @@ msgid "react.workflows.palette_no_results"
 msgstr ""
 
 msgid "react.workflows.palette_refused_group_on_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/builder/canvas-palette-catalog.ts
+msgid "react.workflows.palette_refused_in_lane"
 msgstr ""
 
 msgid "react.workflows.palette_refused_on_connection"
@@ -25954,6 +25973,9 @@ msgid "react.workflows.clipboard_nothing_to_paste"
 msgstr ""
 
 msgid "react.workflows.clipboard_pasted"
+msgstr ""
+
+msgid "react.workflows.paste_read_only_reason"
 msgstr ""
 
 msgid "react.workflows.clipboard_read_failed"
@@ -26724,4 +26746,528 @@ msgid "react.workflows.recovery_current_step"
 msgstr ""
 
 msgid "react.workflows.approval_run_cancelled"
+msgstr ""
+msgid "react.jobs.http_response_diagnostics"
+msgstr ""
+
+msgid "react.jobs.http_saved_response"
+msgstr ""
+
+msgid "react.jobs.http_saved_body_target"
+msgstr ""
+
+msgid "react.jobs.http_saved_body_guidance"
+msgstr ""
+
+msgid "react.jobs.http_saved_file"
+msgstr ""
+
+msgid "react.jobs.http_saved_file_target"
+msgstr ""
+
+msgid "react.jobs.http_saved_file_guidance"
+msgstr ""
+
+msgid "react.workflows.http_artifact_target_guidance"
+msgstr ""
+
+msgid "react.workflows.http_inline_target_guidance"
+msgstr ""
+
+msgid "react.registry.standard_tool_actions_connector_only"
+msgstr ""
+
+msgid "react.workflows.status_structure_applied_with_issues"
+msgstr ""
+
+msgid "react.workflows.fixed_default_help"
+msgstr ""
+
+msgid "date.month.1.abbr"
+msgstr ""
+
+msgid "date.month.1.abbr_standalone"
+msgstr ""
+
+msgid "date.month.1.full"
+msgstr ""
+
+msgid "date.month.1.full_standalone"
+msgstr ""
+
+msgid "date.month.10.abbr"
+msgstr ""
+
+msgid "date.month.10.abbr_standalone"
+msgstr ""
+
+msgid "date.month.10.full"
+msgstr ""
+
+msgid "date.month.10.full_standalone"
+msgstr ""
+
+msgid "date.month.11.abbr"
+msgstr ""
+
+msgid "date.month.11.abbr_standalone"
+msgstr ""
+
+msgid "date.month.11.full"
+msgstr ""
+
+msgid "date.month.11.full_standalone"
+msgstr ""
+
+msgid "date.month.12.abbr"
+msgstr ""
+
+msgid "date.month.12.abbr_standalone"
+msgstr ""
+
+msgid "date.month.12.full"
+msgstr ""
+
+msgid "date.month.12.full_standalone"
+msgstr ""
+
+msgid "date.month.2.abbr"
+msgstr ""
+
+msgid "date.month.2.abbr_standalone"
+msgstr ""
+
+msgid "date.month.2.full"
+msgstr ""
+
+msgid "date.month.2.full_standalone"
+msgstr ""
+
+msgid "date.month.3.abbr"
+msgstr ""
+
+msgid "date.month.3.abbr_standalone"
+msgstr ""
+
+msgid "date.month.3.full"
+msgstr ""
+
+msgid "date.month.3.full_standalone"
+msgstr ""
+
+msgid "date.month.4.abbr"
+msgstr ""
+
+msgid "date.month.4.abbr_standalone"
+msgstr ""
+
+msgid "date.month.4.full"
+msgstr ""
+
+msgid "date.month.4.full_standalone"
+msgstr ""
+
+msgid "date.month.5.abbr"
+msgstr ""
+
+msgid "date.month.5.abbr_standalone"
+msgstr ""
+
+msgid "date.month.5.full"
+msgstr ""
+
+msgid "date.month.5.full_standalone"
+msgstr ""
+
+msgid "date.month.6.abbr"
+msgstr ""
+
+msgid "date.month.6.abbr_standalone"
+msgstr ""
+
+msgid "date.month.6.full"
+msgstr ""
+
+msgid "date.month.6.full_standalone"
+msgstr ""
+
+msgid "date.month.7.abbr"
+msgstr ""
+
+msgid "date.month.7.abbr_standalone"
+msgstr ""
+
+msgid "date.month.7.full"
+msgstr ""
+
+msgid "date.month.7.full_standalone"
+msgstr ""
+
+msgid "date.month.8.abbr"
+msgstr ""
+
+msgid "date.month.8.abbr_standalone"
+msgstr ""
+
+msgid "date.month.8.full"
+msgstr ""
+
+msgid "date.month.8.full_standalone"
+msgstr ""
+
+msgid "date.month.9.abbr"
+msgstr ""
+
+msgid "date.month.9.abbr_standalone"
+msgstr ""
+
+msgid "date.month.9.full"
+msgstr ""
+
+msgid "date.month.9.full_standalone"
+msgstr ""
+
+msgid "date.weekday.1.abbr"
+msgstr ""
+
+msgid "date.weekday.1.full"
+msgstr ""
+
+msgid "date.weekday.1.short"
+msgstr ""
+
+msgid "date.weekday.2.abbr"
+msgstr ""
+
+msgid "date.weekday.2.full"
+msgstr ""
+
+msgid "date.weekday.2.short"
+msgstr ""
+
+msgid "date.weekday.3.abbr"
+msgstr ""
+
+msgid "date.weekday.3.full"
+msgstr ""
+
+msgid "date.weekday.3.short"
+msgstr ""
+
+msgid "date.weekday.4.abbr"
+msgstr ""
+
+msgid "date.weekday.4.full"
+msgstr ""
+
+msgid "date.weekday.4.short"
+msgstr ""
+
+msgid "date.weekday.5.abbr"
+msgstr ""
+
+msgid "date.weekday.5.full"
+msgstr ""
+
+msgid "date.weekday.5.short"
+msgstr ""
+
+msgid "date.weekday.6.abbr"
+msgstr ""
+
+msgid "date.weekday.6.full"
+msgstr ""
+
+msgid "date.weekday.6.short"
+msgstr ""
+
+msgid "date.weekday.7.abbr"
+msgstr ""
+
+msgid "date.weekday.7.full"
+msgstr ""
+
+msgid "date.weekday.7.short"
+msgstr ""
+
+msgid "registry.tools.standard.array.description"
+msgstr ""
+
+msgid "registry.tools.standard.array.label"
+msgstr ""
+
+msgid "registry.tools.standard.boolean.description"
+msgstr ""
+
+msgid "registry.tools.standard.boolean.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.label"
+msgstr ""
+
+msgid "registry.tools.standard.money.description"
+msgstr ""
+
+msgid "registry.tools.standard.money.label"
+msgstr ""
+
+msgid "registry.tools.standard.array.at.description"
+msgstr ""
+
+msgid "registry.tools.standard.array.at.label"
+msgstr ""
+
+msgid "registry.tools.standard.array.compact.description"
+msgstr ""
+
+msgid "registry.tools.standard.array.compact.label"
+msgstr ""
+
+msgid "registry.tools.standard.array.first.description"
+msgstr ""
+
+msgid "registry.tools.standard.array.first.label"
+msgstr ""
+
+msgid "registry.tools.standard.array.join_text.description"
+msgstr ""
+
+msgid "registry.tools.standard.array.join_text.label"
+msgstr ""
+
+msgid "registry.tools.standard.array.length.description"
+msgstr ""
+
+msgid "registry.tools.standard.array.length.label"
+msgstr ""
+
+msgid "registry.tools.standard.boolean.coerce.description"
+msgstr ""
+
+msgid "registry.tools.standard.boolean.coerce.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.add.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.add.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.combine.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.combine.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.compare.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.compare.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.diff.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.diff.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.end_of.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.end_of.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.format.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.format.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_duration.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_duration.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_intersect_all.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_intersect_all.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_make.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_make.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_slots.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.interval_slots.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.parse.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.parse.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.part.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.part.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.start_of.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.start_of.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.to_timezone.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.to_timezone.label"
+msgstr ""
+
+msgid "registry.tools.standard.date.to_utc.description"
+msgstr ""
+
+msgid "registry.tools.standard.date.to_utc.label"
+msgstr ""
+
+msgid "registry.tools.standard.json.get.description"
+msgstr ""
+
+msgid "registry.tools.standard.json.get.label"
+msgstr ""
+
+msgid "registry.tools.standard.json.keys.description"
+msgstr ""
+
+msgid "registry.tools.standard.json.keys.label"
+msgstr ""
+
+msgid "registry.tools.standard.json.omit.description"
+msgstr ""
+
+msgid "registry.tools.standard.json.omit.label"
+msgstr ""
+
+msgid "registry.tools.standard.json.set.description"
+msgstr ""
+
+msgid "registry.tools.standard.json.set.label"
+msgstr ""
+
+msgid "registry.tools.standard.json.values.description"
+msgstr ""
+
+msgid "registry.tools.standard.json.values.label"
+msgstr ""
+
+msgid "registry.tools.standard.money.add.description"
+msgstr ""
+
+msgid "registry.tools.standard.money.add.label"
+msgstr ""
+
+msgid "registry.tools.standard.money.coerce.description"
+msgstr ""
+
+msgid "registry.tools.standard.money.coerce.label"
+msgstr ""
+
+msgid "registry.tools.standard.money.multiply.description"
+msgstr ""
+
+msgid "registry.tools.standard.money.multiply.label"
+msgstr ""
+
+msgid "registry.tools.standard.money.round.description"
+msgstr ""
+
+msgid "registry.tools.standard.money.round.label"
+msgstr ""
+
+msgid "registry.tools.standard.money.subtract.description"
+msgstr ""
+
+msgid "registry.tools.standard.money.subtract.label"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.add.description"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.add.label"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.ceil.description"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.ceil.label"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.coerce.description"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.coerce.label"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.divide.description"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.divide.label"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.floor.description"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.floor.label"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.multiply.description"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.multiply.label"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.subtract.description"
+msgstr ""
+
+msgid "registry.tools.standard.numbers.subtract.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.append.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.append.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.pad.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.pad.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.replace.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.replace.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.title_case.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.title_case.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.trim.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.trim.label"
 msgstr ""

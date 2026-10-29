@@ -772,21 +772,23 @@ it("saves an enabled interface draft without channels with an actionable not-rea
     fireEvent.click(await screen.findByRole("button", { name: "Weekly Report" }));
     const enabled = await screen.findByLabelText("Enable workflow interface");
     expect(enabled).toBeChecked();
-    expect(enabled).toHaveAccessibleDescription("Choose at least one trigger channel before running a Test Run.");
+    expect(screen.getByText("Enable workflow interface")).toBeVisible();
+    expect(screen.getByText(/Publishes the declared workflow interface/)).toBeVisible();
+    expect(enabled).toHaveAccessibleDescription(/Publishes the declared workflow interface on the selected trigger channels\. The Status above separately controls whether the workflow can run\. Choose at least one trigger channel before running a Test Run\./);
     // Save rests until a setting changes: an unrelated description edit sends the channel-less draft.
     fireEvent.change(screen.getByRole("textbox", { name: "Description" }), { target: { value: "Interface without channels" } });
     fireEvent.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await waitFor(() => expect(savedChannels).toEqual([[]]));
     await screen.findByText("Workflow settings saved.");
     // The not-ready warning stays with the switch, where it is repaired.
-    expect(enabled).toHaveAccessibleDescription("Choose at least one trigger channel before running a Test Run.");
+    expect(enabled).toHaveAccessibleDescription(/Publishes the declared workflow interface on the selected trigger channels\. The Status above separately controls whether the workflow can run\. Choose at least one trigger channel before running a Test Run\./);
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue("disabled");
     expect(screen.getByLabelText("UI")).not.toBeChecked();
     fireEvent.click(screen.getByLabelText("API"));
     fireEvent.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await waitFor(() => expect(savedChannels).toEqual([[], ["api"]]));
     await screen.findByText("Workflow settings saved.");
-    expect(enabled).not.toHaveAttribute("aria-describedby");
+    expect(enabled).toHaveAccessibleDescription(/Publishes the declared workflow interface on the selected trigger channels/);
     expect(screen.queryByText("Choose at least one trigger channel before running a Test Run.")).not.toBeInTheDocument();
   } finally { view.unmount(); }
 });

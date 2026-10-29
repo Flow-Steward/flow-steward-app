@@ -150,3 +150,89 @@ def test_a_registry_tool_operation_keeps_the_name_its_function_declares() -> Non
 
     assert row["operations"][0]["display_name"] == "Find a record"
     assert row["operations"][0]["description"] == "Find."
+
+
+# This inventory may only shrink: a newly introduced action must be declared in
+# a connector manifest or explicitly excluded with a product reason below.
+_CONNECTOR_ACTION_GAPS: frozenset[str] = frozenset()
+_CONNECTOR_ACTION_EXCLUSIONS = {
+    "map.values": "Mapping policy belongs to transform/tabular configuration, not a system connector.",
+}
+
+
+def test_transform_catalog_cannot_outgrow_connector_manifests() -> None:
+    from core.application.orchestration.transform_actions import list_transform_action_contracts
+
+    manifests = builtin_standard_tool_manifests()
+    missing = set()
+    actions = list_transform_action_contracts()
+    for action in actions:
+        action_id = action["action_id"]
+        if action_id in _CONNECTOR_ACTION_EXCLUSIONS:
+            assert _CONNECTOR_ACTION_EXCLUSIONS[action_id].strip()
+            continue
+        functions = manifests.get(action["tool_id"], {}).get("interface", {}).get("functions", [])
+        if action["tool_action_id"] not in {function["name"] for function in functions}:
+            missing.add(action_id)
+    # Exact equality detects both undocumented growth and stale gap entries.
+    assert missing == _CONNECTOR_ACTION_GAPS
+    assert set(_CONNECTOR_ACTION_EXCLUSIONS) <= {action["action_id"] for action in actions}
+
+
+def test_number_action_token_matches_persisted_connector_identity() -> None:
+    from core.application.orchestration.standard_tool_tokens import NUMBER
+
+    assert NUMBER == "std.numbers"
+    assert NUMBER in builtin_standard_tool_manifests()
+
+
+def test_catalog_guard_rejects_an_unrecorded_action(monkeypatch) -> None:
+    from core.application.orchestration import transform_actions
+
+    original = transform_actions.list_transform_action_contracts
+    monkeypatch.setattr(
+        transform_actions,
+        "list_transform_action_contracts",
+        lambda: [
+            *original(),
+            {"action_id": "text.future", "tool_id": "std.text", "tool_action_id": "future"},
+        ],
+    )
+    with pytest.raises(AssertionError):
+        test_transform_catalog_cannot_outgrow_connector_manifests()
+
+
+def test_tabular_nested_actions_have_an_explicit_exclusion() -> None:
+    from core.application.orchestration.transform_actions import list_transform_action_contracts
+    from core.application.tabular_feed.contracts import (
+        TABULAR_ACTION_EXCLUSIONS,
+        TABULAR_ACTION_PARAMS,
+    )
+
+    nested = {
+        action["action_id"]
+        for action in list_transform_action_contracts()
+        if action["category"] in {"array", "json"}
+    }
+    assert nested == set(TABULAR_ACTION_EXCLUSIONS)
+    assert not nested.intersection(TABULAR_ACTION_PARAMS)
+    assert all(reason.strip() for reason in TABULAR_ACTION_EXCLUSIONS.values())
+
+
+@pytest.mark.parametrize(
+    ("operation", "payload", "expected"),
+    [
+        ("round", {"value": 0.125, "decimals": 2}, 0.12),
+        ("upper", {"value": None}, ""),
+        ("lower", {"value": None}, ""),
+        ("length", {"value": [1, 2]}, 2),
+        ("length", {"value": 17}, 0),
+        ("stringify", {"value": {"b": 2, "a": 1}}, '{"a": 1, "b": 2}'),
+        ("pick", {"value": {"items": ["first", "last"]}, "path": "items.-1"}, "last"),
+        ("pick", {"value": {}, "path": "missing"}, None),
+    ],
+)
+def test_saved_connector_operations_keep_their_behavior(operation, payload, expected) -> None:
+    from core.application.orchestration.tools import standard_tools
+
+    assert getattr(standard_tools, operation).invoke(payload) == {"result": expected}

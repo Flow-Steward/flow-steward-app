@@ -12,6 +12,7 @@ from .db_store_blocks_mixin import RegistryDBStoreBlocksMixin
 from .db_store_agents_mixin import RegistryDBStoreAgentsMixin
 from .db_store_tools_mixin import RegistryDBStoreToolsMixin
 from .db_store_skills_mixin import RegistryDBStoreSkillsMixin
+from .db_store_projected_skills_mixin import RegistryDBStoreProjectedSkillsMixin
 from .db_store_workflows_mixin import RegistryDBStoreWorkflowsMixin
 from .db_store_guardrails_mixin import RegistryDBStoreGuardrailsMixin
 from .db_store_revisions_mixin import RegistryDBStoreRevisionsMixin
@@ -25,6 +26,7 @@ class RegistryDBStore(
     RegistryDBStoreBlocksMixin,
     RegistryDBStoreAgentsMixin,
     RegistryDBStoreToolsMixin,
+    RegistryDBStoreProjectedSkillsMixin,
     RegistryDBStoreSkillsMixin,
     RegistryDBStoreWorkflowsMixin,
     RegistryDBStoreGuardrailsMixin,

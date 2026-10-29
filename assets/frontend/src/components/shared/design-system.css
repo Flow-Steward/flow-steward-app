@@ -723,11 +723,11 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-button:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
 .fs-button:active:not(:disabled) { transform: scale(var(--fs-button-active-scale)); }
 
-/* Neutral variants use the neutral disabled roles; filled variants retain a
-   muted action identity through explicit fill, border and foreground roles.
-   No disabled subtree opacity fade is applied. */
+/* Neutral and primary variants use the neutral disabled roles; accent and
+   danger variants retain a muted action identity through explicit roles. No
+   disabled subtree opacity fade is applied. */
 .fs-button:disabled { cursor: not-allowed; opacity: var(--fs-button-disabled-opacity); background: var(--fs-button-disabled-bg); border-color: var(--fs-button-disabled-border); color: var(--fs-button-disabled-text); }
-.fs-button.primary:disabled { background: var(--fs-button-primary-disabled-bg); border-color: var(--fs-button-primary-disabled-bg); color: var(--fs-button-primary-disabled-text); }
+.fs-button.primary:disabled { background: var(--fs-button-disabled-bg); border-color: var(--fs-button-disabled-border); color: var(--fs-button-disabled-text); }
 .fs-button.accent:disabled { background: var(--fs-button-accent-disabled-bg); border-color: var(--fs-button-accent-disabled-bg); color: var(--fs-button-accent-disabled-text); }
 .fs-button.danger:disabled { background: var(--fs-button-danger-disabled-bg); border-color: var(--fs-button-danger-disabled-bg); color: var(--fs-button-danger-disabled-text); }
 .fs-button svg { width: var(--fs-button-icon-size-md); height: var(--fs-button-icon-size-md); flex: none; }

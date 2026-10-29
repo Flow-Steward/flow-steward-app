@@ -274,7 +274,91 @@ class ArtifactDatasetPlane(DatasetOperationsMixin, ArtifactRetentionMixin):
             ):
                 row = candidate
                 self._artifacts[artifact_id] = row
-        return dict(row) if row else None
+        if not row:
+            return None
+        # Canonical lookup must never read a presentation sidecar: callers
+        # have not yet checked job/project ownership or download availability.
+        result = dict(row)
+        result.pop("presentation", None)
+        return result
+
+    def read_artifact_presentation(
+        self, authorized_metadata: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Read display data only after the caller authorized the original row."""
+        from .artifact_presentation import _owner_json, matching_presentation, presentation_key
+
+        artifact_id = str(authorized_metadata.get("artifact_id") or "")
+        try:
+            original = self._storage.get(artifact_metadata_key(artifact_id))
+            row = json.loads(original) if original else None
+            if (
+                not isinstance(row, dict)
+                or row.get("artifact_id") != artifact_id
+                or row.get("object_key") != authorized_metadata.get("object_key")
+                or _owner_json(row) != _owner_json(authorized_metadata)
+                or row.get("sha256") != authorized_metadata.get("sha256")
+                or row.get("size_bytes") != authorized_metadata.get("size_bytes")
+                or not row.get("sha256")
+                or row.get("expired")
+                or row.get("upload_error")
+                or row.get("persistence_status") not in (None, "available")
+                or (row.get("expires_at") is not None and float(row["expires_at"]) <= time.time())
+            ):
+                return None
+            raw = self._storage.get(presentation_key(artifact_id))
+            return matching_presentation(row, json.loads(raw) if raw else None)
+        except Exception:
+            return None
+
+    def commit_artifact_presentation(
+        self,
+        artifact_id: str,
+        claim: dict[str, Any],
+        *,
+        expected_owner_json: str | None = None,
+        expected_object_key: str | None = None,
+    ) -> None:
+        from .artifact_presentation import (
+            _owner_json,
+            matching_presentation,
+            presentation_key,
+            validate_presentation_claim,
+        )
+
+        # Read durable original metadata first. Cached early-finalization rows do
+        # not authorize a sidecar after another process has removed the original.
+        raw = self._storage.get(artifact_metadata_key(artifact_id))
+        row = json.loads(raw) if raw else None
+        normalized = validate_presentation_claim(claim)
+
+        def original_matches(candidate):
+            return (
+                isinstance(candidate, dict)
+                and matching_presentation(candidate, normalized) is not None
+                and (expected_owner_json is None or _owner_json(candidate) == expected_owner_json)
+                and (
+                    expected_object_key is None
+                    or candidate.get("object_key") == expected_object_key
+                )
+            )
+
+        if not original_matches(row):
+            raise ValueError("artifact_presentation_original_unavailable")
+        key = presentation_key(artifact_id)
+        body = json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode()
+        put_if_absent = getattr(self._storage, "put_if_absent", None)
+        if not callable(put_if_absent):
+            raise ValueError("artifact_presentation_atomic_storage_required")
+        created = put_if_absent(key, body, content_type=APPLICATION_JSON_VALUE)
+        if not created and self._storage.get(key) != body:
+            raise ValueError("artifact_presentation_conflict")
+        # Recheck the fresh durable identity across the conditional publication.
+        refreshed = self._storage.get(artifact_metadata_key(artifact_id))
+        if not original_matches(json.loads(refreshed) if refreshed else None):
+            if created:
+                self._storage.delete(key)
+            raise ValueError("artifact_presentation_original_unavailable")
 
     def transfer_child_artifact_to_parent(
         self,
@@ -449,6 +533,11 @@ class ArtifactDatasetPlane(DatasetOperationsMixin, ArtifactRetentionMixin):
                 self._storage.delete(manifest[0])
                 if self._storage.stat(manifest[0]) is not None:
                     return False
+            from .artifact_presentation import presentation_key
+
+            self._storage.delete(presentation_key(artifact_id))
+            if self._storage.stat(presentation_key(artifact_id)) is not None:
+                return False
             metadata_key = artifact_metadata_key(artifact_id)
             self._storage.delete(metadata_key)
             if self._storage.stat(metadata_key) is not None:
@@ -592,6 +681,12 @@ class ArtifactDatasetPlane(DatasetOperationsMixin, ArtifactRetentionMixin):
                 self._storage.delete(manifest[0])
                 if self._storage.stat(manifest[0]) is not None:
                     return "unknown"
+            if normalized_kind == "artifact":
+                from .artifact_presentation import presentation_key
+
+                self._storage.delete(presentation_key(normalized_id))
+                if self._storage.stat(presentation_key(normalized_id)) is not None:
+                    return "unknown"
             self._storage.delete(metadata_key)
             if self._storage.stat(metadata_key) is not None:
                 return "unknown"
@@ -665,11 +760,23 @@ class ArtifactDatasetPlane(DatasetOperationsMixin, ArtifactRetentionMixin):
         presign = getattr(self._storage, "presign_public_download", None)
         if not callable(presign):
             return ""
+        from .artifact_presentation import ArtifactPresentationResolver, artifact_presentation_view
+
+        # The browser-download caller has already authorized this original.
+        view = artifact_presentation_view(row, resolve_artifact=ArtifactPresentationResolver(self))
+        presentation_type = (
+            {"content_type": view["content_type"]} if view.get("presentation") else {}
+        )
         url = str(
             presign(
                 object_key,
-                filename=str(filename or row.get("filename") or "artifact.bin"),
+                filename=str(
+                    view.get("filename")
+                    if view.get("presentation")
+                    else filename or row.get("filename") or "artifact.bin"
+                ),
                 ttl_seconds=ttl_seconds,
+                **presentation_type,
             )
             or ""
         ).strip()
@@ -825,6 +932,7 @@ class ArtifactDatasetPlane(DatasetOperationsMixin, ArtifactRetentionMixin):
                 error_code="artifact_size_limit_exceeded",
             )
         updated = dict(row)
+        updated.pop("presentation", None)
         updated["content_type"] = (
             str(content_type or updated.get("content_type") or OCTET_STREAM_VALUE).strip()
             or OCTET_STREAM_VALUE

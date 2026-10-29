@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
+from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
 from core.entrypoints.api import route_registration as api_routes
 from core.entrypoints.api.public_openapi_policy import PUBLIC_OPENAPI_POLICY
 from core.infrastructure.extension_runtime.extension_runtime_helpers import (
@@ -539,7 +540,7 @@ def create_app(
                 thread_id, config=runtime.CONFIG, logger=runtime.logger
             ),
             to_json_obj=runtime._to_json_obj,
-            resolve_artifact=runtime._artifact_plane.get_artifact,
+            resolve_artifact=ArtifactPresentationResolver(runtime._artifact_plane),
             artifact_presigned_url=runtime._artifact_plane.artifact_public_download_url,
             artifact_local_stream=runtime._artifact_plane.artifact_local_stream,
             artifact_read_bytes=runtime._artifact_plane.read_artifact_bytes,

@@ -209,3 +209,36 @@ it("searches names before descriptions: Wait finds Wait, and base64 still finds 
   fireEvent.change(search, { target: { value: "into a file" } });
   expect(screen.getAllByRole("option").map((option) => option.getAttribute("aria-label"))).toEqual(["File from base64"]);
 });
+
+it("disables every lane-forbidden palette choice and preserves all accepted lane steps", () => {
+  const onDragStart = vi.fn();
+  const laneScope = { laneId: "lane_a", sequenceForEach: false, allowGroup: false, allowForEach: false, onDragStart } as unknown as Partial<Parameters<typeof CanvasAddStepPalette>[0]>;
+  const view = renderPalette(laneScope);
+  const forbidden = ["If", "Switch", "Approval", "Wait", "Stop · success", "Stop · fail", "For each", "Inline loop"];
+  for (const label of forbidden) {
+    const option = screen.getByRole("option", { name: label });
+    expect(option).toHaveAttribute("aria-disabled", "true");
+    expect(option).toHaveAccessibleDescription("This step cannot be added inside a parallel lane.");
+    fireEvent.pointerDown(option, { pointerId: 1, button: 0 });
+    fireEvent.click(option);
+  }
+  expect(view.onChoose).not.toHaveBeenCalled();
+  expect(onDragStart).not.toHaveBeenCalled();
+
+  for (const label of ["Agent", "System tools", "Invoke workflow", "HTTP request", "DataSet", "Transform", "Tabular feed", "File from base64", "Template", "Set variable", "Batch"]) {
+    expect(screen.getByRole("option", { name: label })).not.toHaveAttribute("aria-disabled", "true");
+  }
+  for (const label of ["Collect", "Break", "Continue"]) expect(screen.queryByRole("option", { name: label })).not.toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "Group" })).not.toBeInTheDocument();
+});
+
+it.each(["Approval", "For each", "Inline loop"])("does not keyboard-select the lane-forbidden %s choice", (label) => {
+  const laneScope = { laneId: "lane_a" } as unknown as Partial<Parameters<typeof CanvasAddStepPalette>[0]>;
+  const view = renderPalette(laneScope);
+  const search = screen.getByRole("combobox", { name: "Search steps" });
+  fireEvent.change(search, { target: { value: label } });
+  fireEvent.keyDown(search, { key: "ArrowDown", code: "ArrowDown" });
+  fireEvent.keyDown(search, { key: "Enter", code: "Enter" });
+
+  expect(view.onChoose).not.toHaveBeenCalled();
+});

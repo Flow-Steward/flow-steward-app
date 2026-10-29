@@ -1,7 +1,10 @@
 """Canonical standard-tool identifiers used by transform actions."""
 
 TEXT = "std.text"
-NUMBER = "std.number"
+# Keep the persisted connector.std.numbers registry identity.
+NUMBER = "std.numbers"
 MONEY = "std.money"
 ARRAY = "std.array"
 JSON = "std.json"
+
+DATE = "std.date"

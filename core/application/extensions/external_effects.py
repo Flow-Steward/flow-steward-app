@@ -24,9 +24,14 @@ from core.application.extensions.external_effect_contracts import (
     _as_list,
     _int_payload_value,
     _rate_limit_scopes,
+    _safe_external_effect_guidance,
     _target_hashes,
     _target_summary,
     _text,
+    redact_external_effect_guidance,
+)
+from core.application.extensions.external_effect_contracts import (
+    apply_external_effect_confirmation as apply_external_effect_confirmation,
 )
 from core.application.extensions.external_effect_contracts import (
     build_external_effect_identity as build_external_effect_identity,
@@ -84,31 +89,6 @@ class ExternalEffectClaimTransitionLostError(RuntimeError):
 
     def __init__(self) -> None:
         super().__init__(self.code)
-
-
-def apply_external_effect_confirmation(
-    invocation: dict[str, Any],
-    confirmed_effect: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Fail a successful consumer result unless the ledger confirms success."""
-    if not confirmed_effect or _text(invocation.get("status")).lower() != "succeeded":
-        return invocation
-    status = _text(confirmed_effect.get("status")).lower()
-    if status == "succeeded":
-        projected = _as_dict(confirmed_effect.get(_CONFIRMED_REPLAY_INVOCATION))
-        if projected:
-            return projected
-        status = "invalid"
-    code = {
-        "failed": "external_effect_failed",
-        "timeout_unknown": "external_effect_timeout_unknown",
-    }.get(status, "external_effect_confirmation_invalid")
-    return {
-        "status": "failed",
-        "detail": code,
-        "response": {"ok": False, "error_code": code},
-        "errors": [{"code": code}],
-    }
 
 
 class ExternalEffectConfirmationLeaseLostError(RuntimeError):
@@ -533,6 +513,9 @@ def _response_summary(
             summary[key] = result.get(key)
     if invocation.get("status"):
         summary["invocation_status"] = invocation.get("status")
+    guidance = _safe_external_effect_guidance(result.get("guidance"))
+    if guidance:
+        summary["guidance"] = guidance
     trusted_outputs = host_outputs or {}
     produced_artifacts = _produced_output_summary(
         trusted_outputs.get("produced_artifacts"), kind="artifact"
@@ -774,6 +757,9 @@ def confirm_external_effect_from_invocation(
         error_code = SECRET_EXPOSURE_CODE
         error_text = SECRET_EXPOSURE_MESSAGE
         response_summary = {}
+    response_summary = redact_external_effect_guidance(
+        response_summary, project_id=expected_project_id
+    )
     normalized_account_id = _text(account_id)
     normalized_operation_id = _text(operation_id)
     normalized_claim_token = _text(claim_token)

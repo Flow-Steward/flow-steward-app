@@ -55,18 +55,36 @@ export function canvasPasteObstructions(stage: HTMLElement | null): CanvasPasteR
     .map((rect) => ({ x: rect.left, y: rect.top, width: rect.width, height: rect.height }));
 }
 
-/** Stage/drawer safe bounds; a conservative above-controls rectangle is only a fitting fallback. */
+/** Stage/drawer bounds minus the largest axis-aligned pane that clears bottom controls. */
 export function canvasPastePane(stage: HTMLElement | null, inspectorWidth: number, aboveControls = true): CanvasPasteBounds | null {
   if (!stage) return null;
   const rect = stage.getBoundingClientRect();
   if (![rect.left, rect.top, rect.right, rect.bottom, inspectorWidth].every(Number.isFinite)) return null;
   const bounds = { left: rect.left + 16, top: rect.top + 16, right: rect.right - Math.max(0, inspectorWidth) - 16, bottom: rect.bottom - 16 };
-  if (aboveControls) for (const control of canvasPasteObstructions(stage)) {
-    if (control.x + control.width > bounds.left && control.x < bounds.right && control.y > rect.top && control.y < rect.bottom) {
-      bounds.bottom = Math.min(bounds.bottom, control.y - 16);
+  if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) return null;
+  if (!aboveControls) return bounds;
+
+  const clearance = 16;
+  const controls = canvasPasteObstructions(stage);
+  const xEdges = [...new Set([bounds.left, bounds.right, ...controls.flatMap((control) => [
+    control.x - clearance, control.x + control.width + clearance,
+  ])])].filter((edge) => edge >= bounds.left && edge <= bounds.right).sort((left, right) => left - right);
+  const yEdges = [...new Set([bounds.top, bounds.bottom, ...controls.flatMap((control) => [
+    control.y - clearance, control.y + control.height + clearance,
+  ])])].filter((edge) => edge >= bounds.top && edge <= bounds.bottom).sort((top, bottom) => top - bottom);
+  let largestPane: CanvasPasteBounds | null = null;
+  let largestArea = 0;
+  for (const left of xEdges) for (const right of xEdges) {
+    if (right <= left) continue;
+    for (const top of yEdges) for (const bottom of yEdges) {
+      if (bottom <= top || controls.some((control) =>
+        right > control.x - clearance && left < control.x + control.width + clearance &&
+        bottom > control.y - clearance && top < control.y + control.height + clearance)) continue;
+      const area = (right - left) * (bottom - top);
+      if (area > largestArea) { largestArea = area; largestPane = { left, top, right, bottom }; }
     }
   }
-  return bounds.right > bounds.left && bounds.bottom > bounds.top ? bounds : null;
+  return largestPane;
 }
 
 /** Preserve an already usable anchor, including intentional source-card overlap and empty gaps between cards. */

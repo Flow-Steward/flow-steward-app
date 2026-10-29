@@ -8173,6 +8173,15 @@ msgstr "Clipboard API unavailable"
 msgid "react.registry.clone"
 msgstr "Clone"
 
+msgid "react.registry.clone_agent_type"
+msgstr "Agent type for copy"
+
+msgid "react.registry.clone_agent_type_help"
+msgstr "The source agent type is missing or isn't in the supported catalog. Choose a type for the copy."
+
+msgid "react.registry.clone_agent_type_required"
+msgstr "Select an agent type before cloning this source."
+
 msgid "react.registry.clone_value0"
 msgstr "Clone {value0}"
 
@@ -16798,6 +16807,9 @@ msgstr "Enable workflow"
 
 msgid "react.workflows.enable_workflow_interface"
 msgstr "Enable workflow interface"
+
+msgid "react.workflows.workflow_interface_enabled_help"
+msgstr "Publishes the declared workflow interface on the selected trigger channels. The Status above separately controls whether the workflow can run."
 
 msgid "react.workflows.enabled_only"
 msgstr "Enabled only"
@@ -26826,6 +26838,9 @@ msgstr "In {group}"
 msgid "react.workflows.palette_in_lane"
 msgstr "In {group} · lane {lane}"
 
+msgid "react.workflows.palette_in_lane_ordinal"
+msgstr "In {group} · {lane}"
+
 msgid "react.workflows.palette_inline_loop"
 msgstr "Inline loop"
 
@@ -26841,6 +26856,9 @@ msgstr "No matching steps"
 
 msgid "react.workflows.palette_refused_group_on_connection"
 msgstr "A group has its own outcomes, so it cannot go on a connection."
+
+msgid "react.workflows.palette_refused_in_lane"
+msgstr "This step cannot be added inside a parallel lane."
 
 msgid "react.workflows.palette_refused_on_connection"
 msgstr "Only a step with one Next outcome can go on a connection."
@@ -26931,6 +26949,9 @@ msgstr "Nothing to paste: copy steps on a workflow canvas first."
 
 msgid "react.workflows.clipboard_pasted"
 msgstr "Pasted to the unapplied structure."
+
+msgid "react.workflows.paste_read_only_reason"
+msgstr "This workflow's structure is read-only. Paste into a workflow you can edit."
 
 msgid "react.workflows.clipboard_read_failed"
 msgstr "Could not read from clipboard."
@@ -27721,3 +27742,527 @@ msgstr "this step"
 
 msgid "react.workflows.approval_run_cancelled"
 msgstr "the run is cancelled"
+msgid "react.jobs.http_response_diagnostics"
+msgstr "HTTP response diagnostics"
+
+msgid "react.jobs.http_saved_response"
+msgstr "Saved response"
+
+msgid "react.jobs.http_saved_body_target"
+msgstr "Saved to {target}"
+
+msgid "react.jobs.http_saved_body_guidance"
+msgstr "Later steps select {target} directly; do not append .body."
+
+msgid "react.jobs.http_saved_file"
+msgstr "Saved file"
+
+msgid "react.jobs.http_saved_file_target"
+msgstr "Saved file to {target}"
+
+msgid "react.jobs.http_saved_file_guidance"
+msgstr "An artifact handle is stored at this target."
+
+msgid "react.workflows.http_artifact_target_guidance"
+msgstr "Artifact responses save a file handle at this target."
+
+msgid "react.workflows.http_inline_target_guidance"
+msgstr "The response body is saved at this target. Select the target directly in later steps; do not append .body."
+
+msgid "react.registry.standard_tool_actions_connector_only"
+msgstr "Standard Tool Actions are available only through connector workflow steps"
+
+msgid "react.workflows.status_structure_applied_with_issues"
+msgstr "Structure applied · {issues}"
+
+msgid "react.workflows.fixed_default_help"
+msgstr "Enable Fixed default to edit and save this value. Callers cannot supply this input while a fixed default is configured, even if the input is optional."
+
+msgid "date.month.1.abbr"
+msgstr "Jan"
+
+msgid "date.month.1.abbr_standalone"
+msgstr "Jan"
+
+msgid "date.month.1.full"
+msgstr "January"
+
+msgid "date.month.1.full_standalone"
+msgstr "January"
+
+msgid "date.month.10.abbr"
+msgstr "Oct"
+
+msgid "date.month.10.abbr_standalone"
+msgstr "Oct"
+
+msgid "date.month.10.full"
+msgstr "October"
+
+msgid "date.month.10.full_standalone"
+msgstr "October"
+
+msgid "date.month.11.abbr"
+msgstr "Nov"
+
+msgid "date.month.11.abbr_standalone"
+msgstr "Nov"
+
+msgid "date.month.11.full"
+msgstr "November"
+
+msgid "date.month.11.full_standalone"
+msgstr "November"
+
+msgid "date.month.12.abbr"
+msgstr "Dec"
+
+msgid "date.month.12.abbr_standalone"
+msgstr "Dec"
+
+msgid "date.month.12.full"
+msgstr "December"
+
+msgid "date.month.12.full_standalone"
+msgstr "December"
+
+msgid "date.month.2.abbr"
+msgstr "Feb"
+
+msgid "date.month.2.abbr_standalone"
+msgstr "Feb"
+
+msgid "date.month.2.full"
+msgstr "February"
+
+msgid "date.month.2.full_standalone"
+msgstr "February"
+
+msgid "date.month.3.abbr"
+msgstr "Mar"
+
+msgid "date.month.3.abbr_standalone"
+msgstr "Mar"
+
+msgid "date.month.3.full"
+msgstr "March"
+
+msgid "date.month.3.full_standalone"
+msgstr "March"
+
+msgid "date.month.4.abbr"
+msgstr "Apr"
+
+msgid "date.month.4.abbr_standalone"
+msgstr "Apr"
+
+msgid "date.month.4.full"
+msgstr "April"
+
+msgid "date.month.4.full_standalone"
+msgstr "April"
+
+msgid "date.month.5.abbr"
+msgstr "May"
+
+msgid "date.month.5.abbr_standalone"
+msgstr "May"
+
+msgid "date.month.5.full"
+msgstr "May"
+
+msgid "date.month.5.full_standalone"
+msgstr "May"
+
+msgid "date.month.6.abbr"
+msgstr "Jun"
+
+msgid "date.month.6.abbr_standalone"
+msgstr "Jun"
+
+msgid "date.month.6.full"
+msgstr "June"
+
+msgid "date.month.6.full_standalone"
+msgstr "June"
+
+msgid "date.month.7.abbr"
+msgstr "Jul"
+
+msgid "date.month.7.abbr_standalone"
+msgstr "Jul"
+
+msgid "date.month.7.full"
+msgstr "July"
+
+msgid "date.month.7.full_standalone"
+msgstr "July"
+
+msgid "date.month.8.abbr"
+msgstr "Aug"
+
+msgid "date.month.8.abbr_standalone"
+msgstr "Aug"
+
+msgid "date.month.8.full"
+msgstr "August"
+
+msgid "date.month.8.full_standalone"
+msgstr "August"
+
+msgid "date.month.9.abbr"
+msgstr "Sep"
+
+msgid "date.month.9.abbr_standalone"
+msgstr "Sep"
+
+msgid "date.month.9.full"
+msgstr "September"
+
+msgid "date.month.9.full_standalone"
+msgstr "September"
+
+msgid "date.weekday.1.abbr"
+msgstr "Mon"
+
+msgid "date.weekday.1.full"
+msgstr "Monday"
+
+msgid "date.weekday.1.short"
+msgstr "Mo"
+
+msgid "date.weekday.2.abbr"
+msgstr "Tue"
+
+msgid "date.weekday.2.full"
+msgstr "Tuesday"
+
+msgid "date.weekday.2.short"
+msgstr "Tu"
+
+msgid "date.weekday.3.abbr"
+msgstr "Wed"
+
+msgid "date.weekday.3.full"
+msgstr "Wednesday"
+
+msgid "date.weekday.3.short"
+msgstr "We"
+
+msgid "date.weekday.4.abbr"
+msgstr "Thu"
+
+msgid "date.weekday.4.full"
+msgstr "Thursday"
+
+msgid "date.weekday.4.short"
+msgstr "Th"
+
+msgid "date.weekday.5.abbr"
+msgstr "Fri"
+
+msgid "date.weekday.5.full"
+msgstr "Friday"
+
+msgid "date.weekday.5.short"
+msgstr "Fr"
+
+msgid "date.weekday.6.abbr"
+msgstr "Sat"
+
+msgid "date.weekday.6.full"
+msgstr "Saturday"
+
+msgid "date.weekday.6.short"
+msgstr "Sa"
+
+msgid "date.weekday.7.abbr"
+msgstr "Sun"
+
+msgid "date.weekday.7.full"
+msgstr "Sunday"
+
+msgid "date.weekday.7.short"
+msgstr "Su"
+
+msgid "registry.tools.standard.array.description"
+msgstr "Deterministic operations for arrays."
+
+msgid "registry.tools.standard.array.label"
+msgstr "Arrays"
+
+msgid "registry.tools.standard.boolean.description"
+msgstr "Deterministic operations for boolean."
+
+msgid "registry.tools.standard.boolean.label"
+msgstr "Boolean"
+
+msgid "registry.tools.standard.date.description"
+msgstr "Deterministic operations for dates and time."
+
+msgid "registry.tools.standard.date.label"
+msgstr "Dates and time"
+
+msgid "registry.tools.standard.money.description"
+msgstr "Deterministic operations for money."
+
+msgid "registry.tools.standard.money.label"
+msgstr "Money"
+
+msgid "registry.tools.standard.array.at.description"
+msgstr "Run: item at index."
+
+msgid "registry.tools.standard.array.at.label"
+msgstr "Item at index"
+
+msgid "registry.tools.standard.array.compact.description"
+msgstr "Run: remove empty items."
+
+msgid "registry.tools.standard.array.compact.label"
+msgstr "Remove empty items"
+
+msgid "registry.tools.standard.array.first.description"
+msgstr "Run: first item."
+
+msgid "registry.tools.standard.array.first.label"
+msgstr "First item"
+
+msgid "registry.tools.standard.array.join_text.description"
+msgstr "Run: join as text."
+
+msgid "registry.tools.standard.array.join_text.label"
+msgstr "Join as text"
+
+msgid "registry.tools.standard.array.length.description"
+msgstr "Run: length."
+
+msgid "registry.tools.standard.array.length.label"
+msgstr "Length"
+
+msgid "registry.tools.standard.boolean.coerce.description"
+msgstr "Run: convert value."
+
+msgid "registry.tools.standard.boolean.coerce.label"
+msgstr "Convert value"
+
+msgid "registry.tools.standard.date.add.description"
+msgstr "Run: add."
+
+msgid "registry.tools.standard.date.add.label"
+msgstr "Add"
+
+msgid "registry.tools.standard.date.combine.description"
+msgstr "Run: combine date and time."
+
+msgid "registry.tools.standard.date.combine.label"
+msgstr "Combine date and time"
+
+msgid "registry.tools.standard.date.compare.description"
+msgstr "Run: compare dates."
+
+msgid "registry.tools.standard.date.compare.label"
+msgstr "Compare dates"
+
+msgid "registry.tools.standard.date.diff.description"
+msgstr "Run: date difference."
+
+msgid "registry.tools.standard.date.diff.label"
+msgstr "Date difference"
+
+msgid "registry.tools.standard.date.end_of.description"
+msgstr "Run: end of period."
+
+msgid "registry.tools.standard.date.end_of.label"
+msgstr "End of period"
+
+msgid "registry.tools.standard.date.format.description"
+msgstr "Run: format date."
+
+msgid "registry.tools.standard.date.format.label"
+msgstr "Format date"
+
+msgid "registry.tools.standard.date.interval_duration.description"
+msgstr "Run: interval duration."
+
+msgid "registry.tools.standard.date.interval_duration.label"
+msgstr "Interval duration"
+
+msgid "registry.tools.standard.date.interval_intersect_all.description"
+msgstr "Run: intersect intervals."
+
+msgid "registry.tools.standard.date.interval_intersect_all.label"
+msgstr "Intersect intervals"
+
+msgid "registry.tools.standard.date.interval_make.description"
+msgstr "Run: create interval."
+
+msgid "registry.tools.standard.date.interval_make.label"
+msgstr "Create interval"
+
+msgid "registry.tools.standard.date.interval_slots.description"
+msgstr "Run: meeting slots."
+
+msgid "registry.tools.standard.date.interval_slots.label"
+msgstr "Meeting slots"
+
+msgid "registry.tools.standard.date.parse.description"
+msgstr "Run: parse date."
+
+msgid "registry.tools.standard.date.parse.label"
+msgstr "Parse date"
+
+msgid "registry.tools.standard.date.part.description"
+msgstr "Run: date part."
+
+msgid "registry.tools.standard.date.part.label"
+msgstr "Date part"
+
+msgid "registry.tools.standard.date.start_of.description"
+msgstr "Run: start of period."
+
+msgid "registry.tools.standard.date.start_of.label"
+msgstr "Start of period"
+
+msgid "registry.tools.standard.date.to_timezone.description"
+msgstr "Run: convert timezone."
+
+msgid "registry.tools.standard.date.to_timezone.label"
+msgstr "Convert timezone"
+
+msgid "registry.tools.standard.date.to_utc.description"
+msgstr "Run: convert to utc."
+
+msgid "registry.tools.standard.date.to_utc.label"
+msgstr "Convert to UTC"
+
+msgid "registry.tools.standard.json.get.description"
+msgstr "Run: get value."
+
+msgid "registry.tools.standard.json.get.label"
+msgstr "Get value"
+
+msgid "registry.tools.standard.json.keys.description"
+msgstr "Run: object keys."
+
+msgid "registry.tools.standard.json.keys.label"
+msgstr "Object keys"
+
+msgid "registry.tools.standard.json.omit.description"
+msgstr "Run: omit paths."
+
+msgid "registry.tools.standard.json.omit.label"
+msgstr "Omit paths"
+
+msgid "registry.tools.standard.json.set.description"
+msgstr "Run: set value."
+
+msgid "registry.tools.standard.json.set.label"
+msgstr "Set value"
+
+msgid "registry.tools.standard.json.values.description"
+msgstr "Run: object values."
+
+msgid "registry.tools.standard.json.values.label"
+msgstr "Object values"
+
+msgid "registry.tools.standard.money.add.description"
+msgstr "Run: add."
+
+msgid "registry.tools.standard.money.add.label"
+msgstr "Add"
+
+msgid "registry.tools.standard.money.coerce.description"
+msgstr "Run: convert value."
+
+msgid "registry.tools.standard.money.coerce.label"
+msgstr "Convert value"
+
+msgid "registry.tools.standard.money.multiply.description"
+msgstr "Run: multiply."
+
+msgid "registry.tools.standard.money.multiply.label"
+msgstr "Multiply"
+
+msgid "registry.tools.standard.money.round.description"
+msgstr "Run: round."
+
+msgid "registry.tools.standard.money.round.label"
+msgstr "Round"
+
+msgid "registry.tools.standard.money.subtract.description"
+msgstr "Run: subtract."
+
+msgid "registry.tools.standard.money.subtract.label"
+msgstr "Subtract"
+
+msgid "registry.tools.standard.numbers.add.description"
+msgstr "Run: add."
+
+msgid "registry.tools.standard.numbers.add.label"
+msgstr "Add"
+
+msgid "registry.tools.standard.numbers.ceil.description"
+msgstr "Run: round up."
+
+msgid "registry.tools.standard.numbers.ceil.label"
+msgstr "Round up"
+
+msgid "registry.tools.standard.numbers.coerce.description"
+msgstr "Run: convert value."
+
+msgid "registry.tools.standard.numbers.coerce.label"
+msgstr "Convert value"
+
+msgid "registry.tools.standard.numbers.divide.description"
+msgstr "Run: divide."
+
+msgid "registry.tools.standard.numbers.divide.label"
+msgstr "Divide"
+
+msgid "registry.tools.standard.numbers.floor.description"
+msgstr "Run: round down."
+
+msgid "registry.tools.standard.numbers.floor.label"
+msgstr "Round down"
+
+msgid "registry.tools.standard.numbers.multiply.description"
+msgstr "Run: multiply."
+
+msgid "registry.tools.standard.numbers.multiply.label"
+msgstr "Multiply"
+
+msgid "registry.tools.standard.numbers.subtract.description"
+msgstr "Run: subtract."
+
+msgid "registry.tools.standard.numbers.subtract.label"
+msgstr "Subtract"
+
+msgid "registry.tools.standard.text.append.description"
+msgstr "Run: append."
+
+msgid "registry.tools.standard.text.append.label"
+msgstr "Append"
+
+msgid "registry.tools.standard.text.pad.description"
+msgstr "Run: pad text."
+
+msgid "registry.tools.standard.text.pad.label"
+msgstr "Pad text"
+
+msgid "registry.tools.standard.text.replace.description"
+msgstr "Run: replace."
+
+msgid "registry.tools.standard.text.replace.label"
+msgstr "Replace"
+
+msgid "registry.tools.standard.text.title_case.description"
+msgstr "Run: title case."
+
+msgid "registry.tools.standard.text.title_case.label"
+msgstr "Title case"
+
+msgid "registry.tools.standard.text.trim.description"
+msgstr "Run: trim."
+
+msgid "registry.tools.standard.text.trim.label"
+msgstr "Trim"

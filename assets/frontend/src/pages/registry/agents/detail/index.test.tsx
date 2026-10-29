@@ -54,6 +54,7 @@ function renderPage(locale = "en") {
       "extensions.repeater.yes": "Taip",
       "extensions.repeater.no": "Ne",
       "trash.columns.category": "Kategorija",
+      "react.registry.standard_tool_actions_connector_only": "Standartiniai įrankių veiksmai pasiekiami tik per jungčių darbo eigos žingsnius",
     } as Record<string, string>)[key] || fallback : fallback, params) }}>
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/registry/agents/sample_launch_copywriter"]}>
@@ -337,6 +338,153 @@ describe("RegistryAgentsDetailPage", () => {
     });
     expect(mockedPatchRegistryEntity).not.toHaveBeenCalled();
     expect(await screen.findByText("Saved.")).toBeInTheDocument();
+  });
+
+  it("shows virtual tools as unavailable and prevents new assignment", async () => {
+    mockedFetchRegistryDetail.mockResolvedValue({
+      agent_id: "sample_launch_copywriter",
+      display_name: "Launch Copywriter",
+      enabled: false,
+      config: {},
+      prompts: {},
+      skills: [],
+      tools: [],
+    } as never);
+    mockedFetchRegistryList.mockImplementation(async (endpoint) =>
+      endpoint === "/api/tools"
+        ? [
+            {
+              tool_id: "extension.install-1.catalog_tool",
+              display_name: "Catalog Tool",
+              enabled: true,
+              agent_relationship_assignable: false,
+              agent_relationship_reason_code: "tool_not_assignable_in_current_scope",
+              agent_relationship_reason_text:
+                "This tool is unavailable for assignment in the current project or tenant scope.",
+            },
+            {
+              tool_id: "stable_tool",
+              display_name: "Stable Tool",
+              enabled: true,
+              agent_relationship_assignable: true,
+            },
+            {
+              tool_id: "manual_tool",
+              display_name: "Manual Tool",
+              enabled: true,
+              agent_relationship_assignable: true,
+            },
+          ]
+        : [],
+    );
+
+    renderPage();
+
+    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
+    const projected = screen.getByRole("checkbox", {
+      name: /Catalog Tool.*unavailable for assignment/i,
+    });
+    expect(projected).toBeDisabled();
+    expect(
+      screen.getByText(
+        "This tool is unavailable for assignment in the current project or tenant scope.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Manual Tool/ })).toBeEnabled();
+  });
+
+  it.each([
+    ["en", "Standard Tool Actions are available only through connector workflow steps"],
+    ["lt", "Standartiniai įrankių veiksmai pasiekiami tik per jungčių darbo eigos žingsnius"],
+  ])("shows the localized connector-only assignment reason in %s", async (locale, reason) => {
+    mockedFetchRegistryDetail.mockResolvedValue({
+      agent_id: "sample_launch_copywriter",
+      display_name: "Launch Copywriter",
+      enabled: false,
+      config: {},
+      prompts: {},
+      skills: [],
+      tools: [],
+    } as never);
+    mockedFetchRegistryList.mockImplementation(async (endpoint) =>
+      endpoint === "/api/tools"
+        ? [{
+            tool_id: "std.numbers",
+            display_name: "Numbers",
+            enabled: true,
+            agent_relationship_assignable: false,
+            agent_relationship_reason_code: "tool_connector_only",
+            agent_relationship_reason_text:
+              "Standard Tool Actions are available only through connector workflow steps",
+          }]
+        : [],
+    );
+
+    renderPage(locale);
+
+    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
+    expect(screen.getByRole("checkbox", { name: /Numbers.*unavailable for assignment/i })).toBeDisabled();
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(screen.queryByText(/current project or tenant scope/i)).not.toBeInTheDocument();
+  });
+
+  it("lets an agent remove an existing unsupported projected tool", async () => {
+    const projectedToolId = "extension.install-1.catalog_tool";
+    mockedFetchRegistryDetail.mockResolvedValue({
+      agent_id: "sample_launch_copywriter",
+      display_name: "Launch Copywriter",
+      enabled: false,
+      config: {},
+      prompts: {},
+      skills: [],
+      tools: [
+        { tool_id: projectedToolId, display_name: "Catalog Tool" },
+        { tool_id: "stable_tool", display_name: "Stable Tool" },
+      ],
+    } as never);
+    mockedFetchRegistryList.mockImplementation(async (endpoint) =>
+      endpoint === "/api/tools"
+        ? [
+            {
+              tool_id: projectedToolId,
+              display_name: "Catalog Tool",
+              enabled: true,
+              agent_relationship_assignable: false,
+              agent_relationship_reason_text:
+                "This tool is unavailable for assignment in the current project or tenant scope.",
+            },
+            {
+              tool_id: "manual_tool",
+              display_name: "Manual Tool",
+              enabled: true,
+              agent_relationship_assignable: true,
+            },
+          ]
+        : [],
+    );
+
+    renderPage();
+
+    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
+    const projected = screen.getByRole("checkbox", {
+      name: /Catalog Tool.*unavailable for assignment/i,
+    });
+    expect(projected).toBeChecked();
+    expect(projected).toBeEnabled();
+    fireEvent.click(projected);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Manual Tool/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save tools" }));
+
+    await waitFor(() => {
+      expect(mockedReplaceAgentRelationships).toHaveBeenCalledWith(
+        "sample_launch_copywriter",
+        { skills: [], tools: [projectedToolId, "stable_tool"] },
+        { skills: [], tools: ["stable_tool", "manual_tool"] },
+      );
+    });
   });
 
   it("does not offer disabled skills or tools as new agent relationships", async () => {

@@ -1,3 +1,4 @@
+import { reportProtectedPaste } from "./canvas-clipboard-feedback";
 import { WorkflowCanvasGrid, CanvasAutoLayoutIcon, CanvasInterfaceCounts, CanvasMiniMap, CanvasToolbarHint, CanvasControls, type CanvasShellProps } from "./canvas-shell-support";
 import { CanvasRunBar } from "./canvas-run-bar";
 import { useCanvasRunFollow } from "./canvas-run-follow";
@@ -33,13 +34,11 @@ import {
   BadgeAlert,
   ChevronDown,
   Search,
-  ListChecks,
   Play,
   Plus,
   SquarePlus,
   Settings2,
   Workflow,
-  X,
 } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import "./canvas-builder.css";
@@ -71,8 +70,10 @@ import { outcomeHandleId } from "@/pages/workflows/builder/api";
 import type { CanvasCreationSelection } from "@/pages/workflows/builder/canvas-types";
 import { CanvasNoteNode } from "@/pages/workflows/builder/canvas-note-node";
 import { CanvasNoteToolbarButton } from "@/pages/workflows/builder/canvas-note-placement";
+import { findCanvasNoteDropPoint } from "@/pages/workflows/builder/canvas-note-placement-geometry";
 import { CanvasCardCommandsProvider, useCanvasMenus, type CanvasMenuHost } from "@/pages/workflows/builder/canvas-context-menus";
 import { CanvasLayoutControl } from "@/pages/workflows/builder/canvas-layout-menu";
+import { CanvasHeaderStatus } from "@/pages/workflows/builder/canvas-header-status";
 import { applyRefusalMessage, changeIssueMessage } from "@/pages/workflows/detail/detail-change-set";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
@@ -299,6 +300,15 @@ export function WorkflowCanvasShell({
   const [groupMenuOpen, setGroupMenuOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const [viewportInstance, setViewportInstance] = useState<ReactFlowInstance | null>(null);
+  const defaultNoteDropPoint = () => viewportInstance
+    ? findCanvasNoteDropPoint(
+      canvasMeasureRootRef.current,
+      inspectorWidth,
+      viewportInstance.getZoom(),
+      (point) => viewportInstance.screenToFlowPosition(point),
+      (point) => viewportInstance.flowToScreenPosition(point),
+    )
+    : undefined;
   const runFollow = useCanvasRunFollow({ instance: viewportInstance, nodes: nodesWithCanvasState,
     runKey: canvasRunBar?.selection.kind === "verified" ? canvasRunBar.selection.run.jobId : "", active: Boolean(canvasTestRunAction) });
   const initialViewportWorkflow = useRef("");
@@ -460,6 +470,7 @@ export function WorkflowCanvasShell({
       return true;
     };
     const clipboard = (command: "copy" | "cut" | "paste" | "duplicate", enabled: boolean) => {
+      if (reportProtectedPaste(command, structureLocked, t, setGraphEditNotice)) return true;
       if (!requestClipboardCommand || !enabled || clipboardBusy) return false;
       ignoreAsyncResult(requestClipboardCommand(command, command === "paste" ? pasteTarget() : undefined));
       return true;
@@ -523,7 +534,7 @@ export function WorkflowCanvasShell({
       duplicate: () => clipboard("duplicate", selectedNodeIds.size > 0 && clipboardAvailability.duplicate),
       undo: () => history(false),
       redo: () => history(true),
-      addNote: structureLocked || annotationsBusy ? undefined : () => { closeAll(); onAddNote(); },
+      addNote: structureLocked || annotationsBusy ? undefined : () => { closeAll(); onAddNote(defaultNoteDropPoint()); },
       groupSelection: structureLocked || !selectedNodeIds.size ? undefined : () => {
         const box = canvasMeasureRootRef.current?.getBoundingClientRect();
         openGroupSelection({ x: (box?.left ?? 0) + (box?.width ?? 0) / 2 - 120, y: (box?.top ?? 0) + 64 });
@@ -571,12 +582,6 @@ export function WorkflowCanvasShell({
       : t("react.workflows.manual_placements_info", "Drag a step to place it manually. Auto layout restores the graph layout."),
   ].join(" · ");
   const selectedEdgeData = selectedEdge?.data;
-  const errorCount = canvasGraph.validation_issues.filter((issue) => issue.severity === "error").length;
-  const warningCount = canvasGraph.validation_issues.filter((issue) => issue.severity === "warning").length;
-  const diagnosticsFacts = [errorCount ? t(errorCount === 1 ? "react.workflows.validation_error_one" : "react.workflows.validation_errors_count", errorCount === 1 ? "{count} error" : "{count} errors", { count: errorCount }) : "", warningCount ? t(warningCount === 1 ? "react.workflows.validation_warning_one" : "react.workflows.validation_warnings_count", warningCount === 1 ? "{count} warning" : "{count} warnings", { count: warningCount }) : ""].filter(Boolean).join(" · ");
-  const diagnosticsSummary = changeSet.hasChanges
-    ? diagnosticsFacts ? t("react.workflows.saved_validation_issues", "Saved workflow: {issues}", { issues: diagnosticsFacts }) : t("react.workflows.saved_workflow_valid", "Saved workflow valid")
-    : diagnosticsFacts;
   // The selection bar shows from two selected nodes (Components2 › Selection bar).
   const selectionBarShown = selectedNodeIds.size >= 2;
   const edgeBar = selectedEdge && selectedEdgeData && (!structureLocked || isHookMemberRef(selectedEdgeData.edge.source))
@@ -606,67 +611,18 @@ export function WorkflowCanvasShell({
         <div className="workflow-header-actions">
         <Button variant="secondary" size="md" onClick={() => { closeAllPopovers(); openWorkflowInterfaceFromCanvas(); }}><Settings2 aria-hidden="true" />{t("react.workflows.interface", "Interface")}<CanvasInterfaceCounts graph={canvasGraph} /></Button>
         <span className="workflow-header-divider" aria-hidden="true" />
-        {/* A protected canvas shows the change set only for edits inside a hook (B14). */}
-        {renderWhen(!structureLocked || changeSet.hasChanges, (
-          <>
-        <div
-          className={joinClasses(
-            "workflow-structure-status",
-            structureStatus.className,
-          )}
-          data-testid="structure-status"
-          role="status"
-          aria-live="polite"
-          title={t("react.workflows.structure_status_hint", "Structure changes stay local until you apply them.")}
-        >
-          {choose(applyingLoader, <DsLoader variant="orbit-inline" />, <ListChecks className="h-3.5 w-3.5" />)}
-          <span>{structureStatus.label}</span>
-        </div>
-        {renderWhen(changeSet.hasChanges, (
-          <Button
-            variant="secondary"
-            size="md"
-            disabled={changeSet.status === "applying"}
-            onClick={() => changeSet.discard()}
-            type="button"
-          >
-            <X aria-hidden="true" />
-            {t("react.workflows.discard_changes", "Discard changes")}
-          </Button>
-        ))}
-        <Button
-          variant="primary"
-          size="md"
-          disabled={applyDisabled}
-          onClick={() => ignoreAsyncResult(changeSet.apply())}
-          type="button"
-        >
-          {choose(
-            changeSet.status === "applying",
-            t("react.workflows.applying_changes", "Applying…"),
-            t("react.workflows.apply_changes", "Apply changes"),
-          )}
-        </Button>
-          </>
-        ))}
-        {renderWhen(structureLocked, (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--fs-status-attention-border)] bg-[var(--fs-status-attention-wash)] px-2.5 py-1 text-[11px] text-[var(--fs-status-attention-ink)]"
-            data-testid="structure-locked"
-            aria-describedby={`workflow-protection-${workflowId}`}
-            title={t("react.workflows.structure_locked_hint", "This workflow is protected by its extension. You can read it and connect your own workflows to its hooks.")}
-          >
-            {t("react.workflows.structure_locked", "Read-only")}
-          </span>
-        ))}
-        <span className="workflow-header-divider" aria-hidden="true" />
-        <Button variant="secondary" size="md" className="workflow-canvas-diagnostics" aria-label={`${t("react.workflows.diagnostics", "Diagnostics")}${diagnosticsSummary ? ` · ${diagnosticsSummary}` : ""}`} aria-expanded={showValidationPanel} onClick={() => { const next = !showValidationPanel; closeAllPopovers(); setShowValidationPanel(next); onCloseInspector(); }} title={t("react.workflows.open_canvas_validation_issues", "Open canvas validation issues")}>
-          <ListChecks aria-hidden="true" />
-          {!changeSet.hasChanges && errorCount ? <span className="workflow-diagnostics-error">{t(errorCount === 1 ? "react.workflows.validation_error_one" : "react.workflows.validation_errors_count", errorCount === 1 ? "{count} error" : "{count} errors", { count: errorCount })}</span> : null}
-          {!changeSet.hasChanges && errorCount && warningCount ? <span aria-hidden="true">·</span> : null}
-          {!changeSet.hasChanges && warningCount ? <span className="workflow-diagnostics-warning">{t(warningCount === 1 ? "react.workflows.validation_warning_one" : "react.workflows.validation_warnings_count", warningCount === 1 ? "{count} warning" : "{count} warnings", { count: warningCount })}</span> : null}
-          {changeSet.hasChanges ? diagnosticsSummary : !errorCount && !warningCount ? t("react.workflows.diagnostics", "Diagnostics") : null}
-        </Button>
+        <CanvasHeaderStatus
+          t={t}
+          structureStatus={structureStatus}
+          validationIssues={canvasGraph.validation_issues}
+          changeSet={changeSet}
+          structureLocked={structureLocked}
+          workflowId={workflowId}
+          applyingLoader={applyingLoader}
+          applyDisabled={applyDisabled}
+          showValidationPanel={showValidationPanel}
+          onToggleValidationPanel={() => { const next = !showValidationPanel; closeAllPopovers(); setShowValidationPanel(next); onCloseInspector(); }}
+        />
         <div className="relative">
           <DsPopover
             label={t("react.workflows.more", "More")}
@@ -930,7 +886,7 @@ export function WorkflowCanvasShell({
                 <button className="workflow-layout-option" role="menuitem" type="button" aria-label={t("react.workflows.group", "Group")} onClick={() => { closeAllPopovers(); openNewGroupFromCanvas({ containerKind: "group", bodyKind: "sequence" }); }}><span><span className="workflow-layout-option-name">{t("react.workflows.group", "Group")}</span><span className="workflow-layout-option-hint">{t("react.workflows.palette_desc_group", "Steps that belong together. Can become a child workflow.")}</span></span><span /></button>
                 <button className="workflow-layout-option" role="menuitem" type="button" aria-label={t("react.workflows.group_kind_parallel", "Parallel lanes")} onClick={() => { closeAllPopovers(); openNewGroupFromCanvas({ containerKind: "group", bodyKind: "lanes" }); }}><span><span className="workflow-layout-option-name">{t("react.workflows.group_kind_parallel", "Parallel lanes")}</span><span className="workflow-layout-option-hint">{t("react.workflows.palette_desc_parallel_lanes", "A group whose lanes run side by side.")}</span></span><span /></button>
               </div> : null}</div> : null}
-              {!structureLocked ? <CanvasNoteToolbarButton compact={compact} disabled={annotationsBusy} canvasRootRef={canvasMeasureRootRef} zoom={() => viewportInstance?.getZoom() ?? 1} onBeforePlace={closeAllPopovers} onPlace={onAddNote} /> : null}
+              {!structureLocked ? <CanvasNoteToolbarButton compact={compact} disabled={annotationsBusy} canvasRootRef={canvasMeasureRootRef} zoom={() => viewportInstance?.getZoom() ?? 1} inspectorWidth={inspectorWidth} screenToFlow={viewportInstance ? (point) => viewportInstance.screenToFlowPosition(point) : undefined} flowToScreen={viewportInstance ? (point) => viewportInstance.flowToScreenPosition(point) : undefined} onBeforePlace={closeAllPopovers} onPlace={onAddNote} /> : null}
               {!structureLocked ? <span className="workflow-toolbar-divider" aria-hidden="true" /> : null}
               <div className="relative"><IconButton className="workflow-toolbar-icon" icon={Search} label={t("react.workflows.search_canvas_shortcut", "Search canvas (⌘/Ctrl+F)")} aria-expanded={searchOpen} aria-keyshortcuts="Meta+F Control+F" onClick={() => { const next = !searchOpen; closeAllPopovers(); setSearchOpen(next); }} />
                 {searchOpen ? <div className="workflow-toolbar-popover"><label className="sr-only" htmlFor="workflow-builder-search">{t("react.workflows.search_workflow_canvas", "Search workflow canvas")}</label><input ref={searchRef} id="workflow-builder-search" className="fs-input w-full" value={searchQuery} autoComplete="off" placeholder={t("react.workflows.search_step_or_group", "Search step or group")} onChange={(event) => { setSearchQuery(event.target.value); setShowSearchResults(Boolean(event.target.value.trim())); }} onKeyDown={(event) => { if (event.key === "Escape") { setSearchOpen(false); }

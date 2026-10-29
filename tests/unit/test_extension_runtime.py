@@ -5487,6 +5487,52 @@ def test_extension_timeout_does_not_hang_host():
     assert "timed out" in result["detail"].lower() or "timeout" in result["detail"].lower()
 
 
+def test_extension_invocation_timeout_returns_safe_error_and_structured_log(monkeypatch, caplog):
+    import logging
+
+    from core.infrastructure.extension_runtime import extension_runtime_invocation
+    from core.infrastructure.extension_runtime.extension_runtime import run_extension_invocation
+
+    command = ["python3", "-c", "print('PRIVATE_COMMAND_MARKER')"]
+
+    def timeout(command, *, timeout, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd=command, timeout=timeout)
+
+    monkeypatch.setattr(extension_runtime_invocation, "_run_subprocess_capped", timeout)
+    with caplog.at_level(logging.WARNING):
+        result = run_extension_invocation(
+            {
+                "runtime": {"contract_version": "extension_host_v2"},
+                "extension_key": "fixture.timeout",
+                "bundle_root": str(Path.cwd()),
+                "entrypoint": {"command": command},
+            },
+            request_payload={"action": {"action_id": "preview_query"}},
+            runtime_context={"source": "registry_saved_queries"},
+            timeout_seconds=1,
+        )
+
+    assert result["status"] == "failed"
+    assert result["detail"] == "Saved query timed out after 1 second."
+    assert result["errors"] == [
+        {
+            "code": "extension_timeout",
+            "message": "Saved query timed out after 1 second.",
+        }
+    ]
+    assert result["response"] == {}
+    assert "PRIVATE_COMMAND_MARKER" not in result["detail"]
+    timeout_records = [
+        record for record in caplog.records if getattr(record, "extension_timeout", False)
+    ]
+    assert len(timeout_records) == 1
+    assert timeout_records[0].extension_key == "fixture.timeout"
+    assert timeout_records[0].extension_operation_id == "preview_query"
+    assert timeout_records[0].extension_timeout_seconds == 1
+    assert timeout_records[0].extension_exception_type == "TimeoutExpired"
+    assert "PRIVATE_COMMAND_MARKER" not in caplog.text
+
+
 def test_extension_env_is_filtered():
     """Extensions must not receive arbitrary host env vars (e.g. secrets)."""
     import os

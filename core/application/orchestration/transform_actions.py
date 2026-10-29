@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-import copy
 import json
-import math
-import re
 from decimal import Decimal
 from typing import Any
 
 from core.application.orchestration import standard_tool_tokens as _tokens
+from core.application.orchestration.date_actions import build_date_actions
 from core.application.orchestration.transform_action_contract import TransformAction
 from core.application.orchestration.transform_selectors import (
     MISSING as _MISSING,
-)
-from core.application.orchestration.transform_selectors import (
-    SelectorToken,
-    parse_transform_selector,
 )
 from core.application.orchestration.transform_selectors import (
     json_get as _json_get,
@@ -26,62 +20,21 @@ from core.application.orchestration.transform_values import (
     _money_decimal,
     _money_text,
 )
+from core.infrastructure import (
+    standard_array,
+    standard_json,
+    standard_money,
+    standard_numbers,
+    standard_text,
+)
 from core.infrastructure.html_text import html_to_text
-from core.infrastructure.rounding import SUPPORTED_ROUNDING_MODES, quantize_decimal
+from core.infrastructure.rounding import SUPPORTED_ROUNDING_MODES
 
 TRANSFORM_ACTION_CATALOG_VERSION = 1
 
 
-def _title_case(value: str) -> str:
-    def _replace(match: re.Match[str]) -> str:
-        token = match.group(0)
-        if not token or not token[0].isalpha():
-            return token
-        return token[0].upper() + token[1:].lower()
-
-    return re.sub(r"\S+", _replace, value)
-
-
-def _json_delete_path(value: dict[str, Any], path: str) -> None:
-    tokens = parse_transform_selector(path, allow_wildcard=False)
-    cursor: Any = value
-    for token in tokens[:-1]:
-        if token.kind == "key" and isinstance(cursor, dict):
-            cursor = cursor.get(str(token.value))
-        elif (
-            token.kind == "index"
-            and isinstance(cursor, list)
-            and int(token.value or 0) < len(cursor)
-        ):
-            cursor = cursor[int(token.value or 0)]
-        else:
-            return
-    _delete_json_leaf(cursor, tokens)
-
-
-def _set_json_path(value: Any, path: str, new_value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ValueError("json.set requires an object value")
-    tokens = parse_transform_selector(path, allow_wildcard=False)
-    if not tokens or tokens[-1].kind != "key":
-        raise ValueError("json.set path must end with an object key")
-    result = copy.deepcopy(value)
-    cursor: Any = result
-    for token in tokens[:-1]:
-        if token.kind != "key":
-            raise ValueError("json.set only supports object paths in v1")
-        key = str(token.value)
-        child = cursor.get(key) if isinstance(cursor, dict) else None
-        if not isinstance(child, dict):
-            child = {}
-            cursor[key] = child
-        cursor = child
-    cursor[str(tokens[-1].value)] = new_value
-    return result
-
-
 def _action_text_trim(value: Any, _params: dict[str, Any]) -> Any:
-    return str(value).strip()
+    return standard_text.trim(str(value))
 
 
 def _action_html_to_text(value: Any, _params: dict[str, Any]) -> str:
@@ -89,30 +42,32 @@ def _action_html_to_text(value: Any, _params: dict[str, Any]) -> str:
 
 
 def _action_text_upper(value: Any, _params: dict[str, Any]) -> Any:
-    return str(value).upper()
+    return standard_text.upper(str(value))
 
 
 def _action_text_lower(value: Any, _params: dict[str, Any]) -> Any:
-    return str(value).lower()
+    return standard_text.lower(str(value))
 
 
 def _action_text_title_case(value: Any, _params: dict[str, Any]) -> Any:
-    return _title_case(str(value))
+    return standard_text.title_case(str(value))
 
 
 def _action_text_replace(value: Any, params: dict[str, Any]) -> Any:
-    return str(value).replace(str(params.get("find") or ""), str(params.get("replace_with") or ""))
+    return standard_text.replace(
+        str(value), str(params.get("find") or ""), str(params.get("replace_with") or "")
+    )
 
 
 def _action_text_append(value: Any, params: dict[str, Any]) -> Any:
     append_value = params.get("append_value")
     if isinstance(append_value, (dict, list)):
         append_value = json.dumps(append_value, ensure_ascii=False)
-    return f"{value}{'' if append_value is None else append_value}"
+    return standard_text.append(f"{value}", f"{'' if append_value is None else append_value}")
 
 
 def _action_text_length(value: Any, _params: dict[str, Any]) -> Any:
-    return len(str(value))
+    return standard_text.length(str(value))
 
 
 def _action_text_pad(value: Any, params: dict[str, Any]) -> Any:
@@ -123,9 +78,7 @@ def _action_text_pad(value: Any, params: dict[str, Any]) -> Any:
     side = str(params.get("side", "left") or "left").strip().lower()
     if side not in {"left", "right"}:
         raise ValueError("side must be left or right")
-    text = str(value)
-    padding = max(0, width - len(text))
-    return f"{fill_char * padding}{text}" if side == "left" else f"{text}{fill_char * padding}"
+    return standard_text.pad(str(value), width, fill_char, side)
 
 
 def _number_param(params: dict[str, Any], key: str) -> float:
@@ -138,43 +91,41 @@ def _action_number_coerce(value: Any, _params: dict[str, Any]) -> Any:
 
 
 def _action_number_add(value: Any, params: dict[str, Any]) -> Any:
-    return _coerce_value(value, "number") + _number_param(params, "operand")
+    return standard_numbers.add(_coerce_value(value, "number"), _number_param(params, "operand"))
 
 
 def _action_number_subtract(value: Any, params: dict[str, Any]) -> Any:
-    return _coerce_value(value, "number") - _number_param(params, "operand")
+    return standard_numbers.subtract(
+        _coerce_value(value, "number"), _number_param(params, "operand")
+    )
 
 
 def _action_number_multiply(value: Any, params: dict[str, Any]) -> Any:
-    return _coerce_value(value, "number") * _number_param(params, "factor")
+    return standard_numbers.multiply(
+        _coerce_value(value, "number"), _number_param(params, "factor")
+    )
 
 
 def _action_number_divide(value: Any, params: dict[str, Any]) -> Any:
     divisor = _number_param(params, "divisor")
     if divisor == 0:
         raise ValueError("divisor must not be zero")
-    return _coerce_value(value, "number") / divisor
+    return standard_numbers.divide(_coerce_value(value, "number"), divisor)
 
 
 def _action_number_round(value: Any, params: dict[str, Any]) -> Any:
     decimals = int(_coerce_value(params.get("decimals", 0), "number"))
-    # Quantise in exact decimal arithmetic: Python's round() is half-to-even, so it
-    # did not even honour the declared default of half_up, and rounding a float
-    # reintroduces the binary drift the money rules exist to avoid.
-    rounded = quantize_decimal(
-        Decimal(str(_coerce_value(value, "number"))),
-        decimals=decimals,
-        mode=params.get("mode"),
+    return standard_numbers.round_number(
+        _coerce_value(value, "number"), decimals, params.get("mode")
     )
-    return float(rounded)
 
 
 def _action_number_floor(value: Any, _params: dict[str, Any]) -> Any:
-    return math.floor(float(_coerce_value(value, "number")))
+    return standard_numbers.floor(_coerce_value(value, "number"))
 
 
 def _action_number_ceil(value: Any, _params: dict[str, Any]) -> Any:
-    return math.ceil(float(_coerce_value(value, "number")))
+    return standard_numbers.ceil(_coerce_value(value, "number"))
 
 
 def _money_param(params: dict[str, Any], key: str) -> Decimal:
@@ -186,24 +137,22 @@ def _action_money_coerce(value: Any, _params: dict[str, Any]) -> Any:
 
 
 def _action_money_add(value: Any, params: dict[str, Any]) -> Any:
-    return _money_text(_money_decimal(value) + _money_param(params, "operand"))
+    return standard_money.add(_money_decimal(value), _money_param(params, "operand"))
 
 
 def _action_money_subtract(value: Any, params: dict[str, Any]) -> Any:
-    return _money_text(_money_decimal(value) - _money_param(params, "operand"))
+    return standard_money.subtract(_money_decimal(value), _money_param(params, "operand"))
 
 
 def _action_money_multiply(value: Any, params: dict[str, Any]) -> Any:
-    return _money_text(_money_decimal(value) * _money_param(params, "factor"))
+    return standard_money.multiply(_money_decimal(value), _money_param(params, "factor"))
 
 
 def _action_money_round(value: Any, params: dict[str, Any]) -> Any:
     decimals = int(_coerce_value(params.get("decimals", 2), "number"))
     if decimals < 0:
         raise ValueError("decimals must be non-negative")
-    return _money_text(
-        quantize_decimal(_money_decimal(value), decimals=decimals, mode=params.get("mode"))
-    )
+    return standard_money.round_money(_money_decimal(value), decimals, params.get("mode"))
 
 
 def _action_boolean_coerce(value: Any, _params: dict[str, Any]) -> Any:
@@ -211,35 +160,26 @@ def _action_boolean_coerce(value: Any, _params: dict[str, Any]) -> Any:
 
 
 def _action_array_length(value: Any, _params: dict[str, Any]) -> Any:
-    return len(_coerce_value(value, "array"))
+    return standard_array.length(_coerce_value(value, "array"))
 
 
 def _action_array_first(value: Any, params: dict[str, Any]) -> Any:
-    items = _coerce_value(value, "array")
-    if items:
-        return items[0]
-    return params.get("default") if "default" in params else None
+    return standard_array.first(_coerce_value(value, "array"), params.get("default"))
 
 
 def _action_array_at(value: Any, params: dict[str, Any]) -> Any:
     items = _coerce_value(value, "array")
     index = int(_coerce_value(params.get("index"), "number"))
-    if index < 0:
-        raise ValueError("index must be non-negative")
-    if index < len(items):
-        return items[index]
-    return params.get("default") if "default" in params else None
+    return standard_array.at(items, index, params.get("default"))
 
 
 def _action_array_compact(value: Any, _params: dict[str, Any]) -> Any:
-    return [item for item in _coerce_value(value, "array") if item is not None]
+    return standard_array.compact(_coerce_value(value, "array"))
 
 
 def _action_array_join_text(value: Any, params: dict[str, Any]) -> Any:
     separator = str(params.get("separator") or "")
-    return separator.join(
-        "" if item is None else str(item) for item in _coerce_value(value, "array")
-    )
+    return standard_array.join_text(_coerce_value(value, "array"), separator)
 
 
 def _action_json_pick(value: Any, params: dict[str, Any]) -> Any:
@@ -247,14 +187,9 @@ def _action_json_pick(value: Any, params: dict[str, Any]) -> Any:
 
 
 def _action_json_omit(value: Any, params: dict[str, Any]) -> Any:
-    if not isinstance(value, dict):
-        raise ValueError("json.omit requires an object value")
-    result = copy.deepcopy(value)
     raw_paths = params.get("paths")
     paths = raw_paths if isinstance(raw_paths, list) else [raw_paths]
-    for path in paths:
-        _json_delete_path(result, str(path or "").strip())
-    return result
+    return standard_json.omit(value, paths)
 
 
 def _action_json_get(value: Any, params: dict[str, Any]) -> Any:
@@ -263,19 +198,17 @@ def _action_json_get(value: Any, params: dict[str, Any]) -> Any:
 
 
 def _action_json_set(value: Any, params: dict[str, Any]) -> Any:
-    return _set_json_path(value, str(params.get("path") or "").strip(), params.get("new_value"))
+    return standard_json.set_value(
+        value, str(params.get("path") or "").strip(), params.get("new_value")
+    )
 
 
 def _action_json_keys(value: Any, _params: dict[str, Any]) -> Any:
-    if not isinstance(value, dict):
-        raise ValueError("json.keys requires an object value")
-    return list(value.keys())
+    return standard_json.keys(value)
 
 
 def _action_json_values(value: Any, _params: dict[str, Any]) -> Any:
-    if not isinstance(value, dict):
-        raise ValueError("json.values requires an object value")
-    return list(value.values())
+    return standard_json.values(value)
 
 
 def _action_json_stringify(value: Any, _params: dict[str, Any]) -> Any:
@@ -833,6 +766,7 @@ def _build_action_registry() -> dict[str, TransformAction]:
 
 
 _ACTIONS = _build_action_registry()
+_ACTIONS.update(build_date_actions())
 
 
 def list_transform_action_contracts() -> list[dict[str, Any]]:
@@ -844,15 +778,3 @@ def list_transform_action_contracts() -> list[dict[str, Any]]:
 def get_transform_action_contract(action_id: str) -> dict[str, Any] | None:
     action = _ACTIONS.get(str(action_id or "").strip())
     return action.contract() if action else None
-
-
-def _delete_json_leaf(cursor: Any, tokens: list[SelectorToken]) -> None:
-    last = tokens[-1] if tokens else None
-    if last is None:
-        return
-    if last.kind == "key" and isinstance(cursor, dict):
-        cursor.pop(str(last.value), None)
-    elif last.kind == "index" and isinstance(cursor, list):
-        index = int(last.value or 0)
-        if 0 <= index < len(cursor):
-            cursor.pop(index)

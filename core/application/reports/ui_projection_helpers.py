@@ -21,6 +21,7 @@ from core.application.jobs.workflow_wait_projection import (
 )
 from core.application.orchestration.active_step import ActiveStep, active_step
 from core.application.orchestration.helpers import resolve_step_agent
+from core.application.orchestration.state_paths import StatePathError, resolve_state_path
 from core.application.workflows.workflow_step_kinds import (
     CONTROL_FLOW_STEP_KINDS,
     STEP_KIND_COLLECT,
@@ -201,6 +202,61 @@ def _display_debug_value(value: Any, *, preserve_empty_items: bool = False) -> A
     return value
 
 
+def _display_step_outputs(outputs: dict[str, Any], artifacts: dict[str, Any]) -> dict[str, Any]:
+    """Keep an inline HTTP body literal even when its text resembles a file handle."""
+    display = _display_debug_value(outputs)
+    http_request = _normalize_dict(artifacts.get("http_request"))
+    response_mode = str(http_request.get("response_mode") or "inline").strip().lower()
+    if (
+        artifacts.get("step_kind") == "http_request"
+        and response_mode == "inline"
+        and "body" in outputs
+    ):
+        display["body"] = outputs["body"]
+    return display
+
+
+def _artifact_discovery_outputs(
+    outputs: dict[str, Any], artifacts: dict[str, Any]
+) -> dict[str, Any]:
+    """Do not interpret literal inline HTTP body text as an artifact handle."""
+    http_request = _normalize_dict(artifacts.get("http_request"))
+    response_mode = str(http_request.get("response_mode") or "inline").strip().lower()
+    if artifacts.get("step_kind") != "http_request" or response_mode != "inline":
+        return outputs
+    return {key: value for key, value in outputs.items() if key != "body"}
+
+
+def _http_saved_output(message: dict[str, Any], artifacts: dict[str, Any]) -> dict[str, Any]:
+    """Project the value an HTTP step wrote, separately from its diagnostic envelope."""
+    if artifacts.get("step_kind") != "http_request" or message.get("status") != "pass":
+        return {}
+    target = str(artifacts.get("response_target") or "").strip()
+    if not target.startswith("state.") or target == "state.":
+        return {}
+    state_patch = artifacts.get("_state_patch")
+    if not isinstance(state_patch, dict):
+        return {}
+    try:
+        value, found = resolve_state_path(state_patch, target)
+    except StatePathError:
+        return {}
+    if not found:
+        return {}
+
+    http_request = _normalize_dict(artifacts.get("http_request"))
+    response_mode = str(http_request.get("response_mode") or "inline").strip().lower()
+    is_file = response_mode == "artifact" and bool(_artifact_id_from_value(value))
+    return {
+        "target": _redacted_debug_preview(target),
+        # Keep artifact handles and inline text that happens to start with
+        # "artifact:" distinct; _display_debug_value intentionally filters
+        # file handles from the generic diagnostics view.
+        "value": _redacted_debug_preview(value),
+        "is_file": is_file,
+    }
+
+
 def _artifact_metadata(value: Any) -> dict[str, Any]:
     if hasattr(value, "model_dump"):
         dumped = value.model_dump(mode="json")
@@ -234,6 +290,9 @@ def _artifact_descriptors(
         ):
             continue
         available = artifact_metadata_is_downloadable(metadata)
+        from core.application.extensions.artifact_presentation import artifact_presentation_view
+
+        metadata = artifact_presentation_view(metadata, resolve_artifact=resolve_artifact)
         descriptors.append(
             {
                 "artifact_id": artifact_id,
@@ -389,13 +448,17 @@ def _message_step_debug_fields(
         resolve_artifact=resolve_artifact,
     )
     output_artifacts = _artifact_descriptors(
-        {"outputs": outputs, "tabular_feed": tabular_outputs},
+        {
+            "outputs": _artifact_discovery_outputs(outputs, artifacts),
+            "tabular_feed": tabular_outputs,
+        },
         role="output",
         project_id=project_id,
         job_id=job_id,
         resolve_artifact=resolve_artifact,
     )
     provider_processing_time = outputs.get("processing_time")
+    saved_output = _http_saved_output(message, artifacts)
     provider_processing_time_unit = outputs.get("processing_time_unit")
 
     errors = message.get("errors")
@@ -418,11 +481,14 @@ def _message_step_debug_fields(
             else {}
         ),
         "outputs": (
-            _redacted_debug_preview(_display_debug_value(outputs), max_items=_STEP_IO_MAX_ITEMS)
+            _redacted_debug_preview(
+                _display_step_outputs(outputs, artifacts), max_items=_STEP_IO_MAX_ITEMS
+            )
             if outputs
             else {}
         ),
         "artifacts": (_redacted_debug_preview(projected_artifacts) if projected_artifacts else {}),
+        **({"saved_output": saved_output} if saved_output else {}),
         "input_artifacts": input_artifacts,
         "output_artifacts": output_artifacts,
         "error": error,

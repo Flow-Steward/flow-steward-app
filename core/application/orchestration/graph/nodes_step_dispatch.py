@@ -481,14 +481,27 @@ def execute_step_node(
         connector_label = (
             step_display_name or str(connector_result.get("function_name") or "").strip()
         )
+        from core.application.extensions.external_effect_contracts import (
+            external_effect_guidance_errors,
+        )
+
+        guidance_errors = external_effect_guidance_errors(connector_result.get("external_effect"))
         if ok:
             summary = (
                 f"Connector step '{connector_label}' executed via {runtime_mode}"
                 if connector_label
                 else f"Connector step executed via {runtime_mode}"
             )
-        elif detail in {"extension_disabled", "extension_unavailable"}:
-            errors = connector_result.get("errors")
+        elif detail in {
+            "extension_disabled",
+            "extension_unavailable",
+            "external_effect_timeout_unknown",
+        }:
+            errors = (
+                guidance_errors
+                if detail == "external_effect_timeout_unknown"
+                else connector_result.get("errors")
+            )
             safe_message = ""
             if isinstance(errors, list) and errors and isinstance(errors[0], dict):
                 safe_message = str(errors[0].get("message") or "").strip()
@@ -571,7 +584,7 @@ def execute_step_node(
                 artifacts.setdefault(key, value)
         connector_errors = None
         if not ok:
-            connector_errors = connector_result.get("errors")
+            connector_errors = guidance_errors or connector_result.get("errors")
             if dataset_page:
                 connector_errors = (compact_connector_result or {}).get("errors")
         message_update = _append_step_message(

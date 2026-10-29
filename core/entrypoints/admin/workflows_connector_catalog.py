@@ -63,17 +63,16 @@ def _connector_operations(
     ]
     operations: list[dict[str, Any]] = []
     for op_id in allowlisted_tools:
-        operation = dict(
-            registry_operation_index.get(op_id)
-            or {
-                "operation_id": op_id,
-                "display_name": op_id,
-                "description": "",
-                "parameters": [],
-                "returns": {},
-            }
-        )
-        projected_tool_id = str(operation.get("tool_id") or op_id).strip()
+        projected_tool_id = op_id.removeprefix("connector.")
+        if projected_tool_id:
+            # Suppress duplicate registry rows even when this allowlisted tool is
+            # missing, disabled, unavailable, or outside the request account.
+            grouped_mcp_tool_ids.add(projected_tool_id)
+        indexed_operation = registry_operation_index.get(op_id)
+        if not isinstance(indexed_operation, dict):
+            continue
+        operation = dict(indexed_operation)
+        projected_tool_id = str(operation.get("tool_id") or projected_tool_id).strip()
         operation["runtime_connector_id"] = (
             f"connector.{projected_tool_id}" if projected_tool_id else ""
         )
@@ -172,8 +171,43 @@ def _enabled_registry_tools(db) -> list[dict[str, Any]]:
     ]
 
 
-def _registry_tool_operation_index(db) -> dict[str, dict[str, Any]]:
-    tools = _enabled_registry_tools(db)
+def _registry_tool_ids_ready_for_account(db, tool_ids: set[str], *, account_id: str) -> set[str]:
+    """Use workflow readiness to scope and filter MCP tool catalog metadata."""
+    normalized_account_id = str(account_id or "").strip()
+    requested_ids = {str(tool_id or "").strip().removeprefix("connector.") for tool_id in tool_ids}
+    requested_ids.discard("")
+    get_tool = getattr(db, "get_tool", None)
+    if not requested_ids or not normalized_account_id or not callable(get_tool):
+        return set()
+
+    from core.application.registry.active_workflow_dependencies import workflow_registry_tool_issues
+
+    workflow = {
+        "steps": [
+            {"step_kind": "connector", "connector_id": f"connector.{tool_id}"}
+            for tool_id in sorted(requested_ids)
+        ]
+    }
+    unavailable_ids = {
+        str(issue.get("tool_id") or "").strip()
+        for issue in workflow_registry_tool_issues(db, workflow, account_id=normalized_account_id)
+    }
+    return requested_ids - unavailable_ids
+
+
+def _registry_tool_operation_index(
+    db, *, account_id: str = "", tool_ids: set[str] | None = None
+) -> dict[str, dict[str, Any]]:
+    requested_ids = {
+        str(tool_id or "").strip().removeprefix("connector.") for tool_id in (tool_ids or set())
+    }
+    requested_ids.discard("")
+    ready_ids = _registry_tool_ids_ready_for_account(db, requested_ids, account_id=account_id)
+    tools = [
+        tool
+        for tool in _enabled_registry_tools(db)
+        if str(tool.get("tool_id") or "").strip() in ready_ids
+    ]
 
     index: dict[str, dict[str, Any]] = {}
     for tool in tools:
@@ -201,11 +235,28 @@ def _builtin_tool_text(
     return _localized_text(messages, presentation, field, fallback)
 
 
-def _registry_tool_connector_rows(db, *, locale: str = "") -> list[dict[str, Any]]:
+def _registry_tool_connector_rows(
+    db, *, locale: str = "", account_id: str = ""
+) -> list[dict[str, Any]]:
     """Enabled registry tools as catalog rows; built-in names follow ``locale``."""
     from core.application.settings.ui_i18n import ui_messages_for_locale
 
     tools = _enabled_registry_tools(db)
+    mcp_tool_ids = {
+        str(tool.get("tool_id") or "").strip()
+        for tool in tools
+        if str(tool.get("category") or "").strip() == "mcp_tool_action"
+        or str(_json_object(tool.get("implementation")).get("type") or "").strip() == "mcp"
+    }
+    ready_mcp_tool_ids = _registry_tool_ids_ready_for_account(
+        db, mcp_tool_ids, account_id=account_id
+    )
+    tools = [
+        tool
+        for tool in tools
+        if str(tool.get("tool_id") or "").strip() not in mcp_tool_ids
+        or str(tool.get("tool_id") or "").strip() in ready_mcp_tool_ids
+    ]
     messages = ui_messages_for_locale(locale) if tools else {}
 
     rows: list[dict[str, Any]] = []

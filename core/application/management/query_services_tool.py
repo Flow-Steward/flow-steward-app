@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.management.command_services_tool import (
+    _tool_row_in_scope as _command_tool_row_in_scope,
+)
 from core.application.registry.projected_artifact_rows import (
     projected_catalog_row_matches,
     projection_aware_catalog_row,
@@ -98,11 +101,21 @@ class ToolQueryService:
         db = self._get_db()
         normalized_search = str(search or "").strip()
         normalized_category = str(category or "").strip()
+        durable_rows = db.list_tools(enabled_only=enabled_only) or []
+        assignable_tool_ids = {
+            str(row.get("tool_id") or "").strip()
+            for row in durable_rows
+            if isinstance(row, dict)
+            and str(row.get("tool_id") or "").strip()
+            and not str(row.get("tool_id") or "").strip().startswith("std.")
+            and not row.get("deleted_at")
+            and _command_tool_row_in_scope(row, resolved)
+        }
         rows = projection_aware_catalog_rows(
             db,
             "tool",
             "tool_id",
-            db.list_tools(enabled_only=enabled_only) or [],
+            durable_rows,
             account_id=resolved.account_id,
             enabled_only=enabled_only,
         )
@@ -138,7 +151,26 @@ class ToolQueryService:
                     )
                 )
             ]
-        rows = [row for row in rows if _tool_row_in_scope(row, resolved)]
+        rows = [row for row in rows if _command_tool_row_in_scope(row, resolved)]
+        for row in rows:
+            tool_id = str(row.get("tool_id") or "").strip()
+            assignable = tool_id in assignable_tool_ids
+            connector_only = tool_id.startswith("std.")
+            row["agent_relationship_assignable"] = assignable
+            row["agent_relationship_reason_code"] = (
+                "none"
+                if assignable
+                else "tool_connector_only"
+                if connector_only
+                else "tool_not_assignable_in_current_scope"
+            )
+            row["agent_relationship_reason_text"] = (
+                ""
+                if assignable
+                else "Standard Tool Actions are available only through connector workflow steps"
+                if connector_only
+                else "This tool is unavailable for assignment in the current project or tenant scope."
+            )
         return ToolsListView(tools=[self._record(row) for row in rows])
 
     def get_tool(self, tool_id: str, *, scope: ScopeContext | None = None) -> ToolRecordView:

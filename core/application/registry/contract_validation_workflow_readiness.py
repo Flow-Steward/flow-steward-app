@@ -789,7 +789,9 @@ def validate_workflow_readiness(db, workflow_id: str) -> dict:
                     severity="error",
                 )
             )
-        agent_validation = validate_agent_readiness(db, agent_id)
+        agent_validation = validate_agent_readiness(
+            db, agent_id, account_id=str(wf.get("account_id") or "").strip()
+        )
         for issue in agent_validation.get("errors") or []:
             errors.append(
                 _issue(

@@ -340,6 +340,7 @@ export function WorkflowSettingsSmartSetup({
   } = ctx;
   const interfaceChannelsMissing = workflowInterfaceEnabledDraft && !workflowInterfaceTriggerChannelsDraft.length;
   const channelIssueId = `${workflowInterfaceControlIdPrefix}-workflow-interface-channels-issue`;
+  const interfaceHelpId = `${workflowInterfaceControlIdPrefix}-workflow-interface-help`;
 
   useEffect(() => {
     const request = workflowInterfaceNameFocusRequest as { workflowId: string; tab: string; id: string; serial: number } | null;
@@ -561,15 +562,21 @@ export function WorkflowSettingsSmartSetup({
                 </p> : null}
               </div>
               <div className="workflow-settings-group">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
                   <span className="fs-drawer-label">{t("react.workflows.workflow_interface", "Workflow interface")}</span>
-                  <DsSwitch
-                    checked={Boolean(workflowInterfaceEnabledDraft)}
-                    describedBy={interfaceChannelsMissing ? channelIssueId : undefined}
-                    label={t("react.workflows.enable_workflow_interface", "Enable workflow interface")}
-                    onCheckedChange={setWorkflowInterfaceEnabledDraft}
-                  />
+                  <div className="flex shrink-0 items-center gap-2 text-sm text-[var(--fs-text-primary)]">
+                    <span>{t("react.workflows.enable_workflow_interface", "Enable workflow interface")}</span>
+                    <DsSwitch
+                      checked={Boolean(workflowInterfaceEnabledDraft)}
+                      describedBy={[interfaceHelpId, interfaceChannelsMissing ? channelIssueId : undefined].filter(Boolean).join(" ")}
+                      label={t("react.workflows.enable_workflow_interface", "Enable workflow interface")}
+                      onCheckedChange={setWorkflowInterfaceEnabledDraft}
+                    />
+                  </div>
                 </div>
+                <p id={interfaceHelpId} className="fs-field-helper mt-1">
+                  {t("react.workflows.workflow_interface_enabled_help", "Publishes the declared workflow interface on the selected trigger channels. The Status above separately controls whether the workflow can run.")}
+                </p>
                 {renderInactiveWarning()}
                 {renderTriggerChannels()}
                 {renderModeSelects()}

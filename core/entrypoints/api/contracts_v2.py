@@ -251,7 +251,7 @@ def create_api_contracts_v2_router(
                 if approval_query_service is not None
                 else None,
                 user_role=resolve_user_role(request),
-                resolve_artifact=api_dependencies.resolve_artifact,
+                resolve_artifact=api_dependencies.get_artifact_resolver(),
                 execution_step_limit=step_limit if compact else None,
                 include_workflow_run=not compact,
             )
@@ -279,7 +279,7 @@ def create_api_contracts_v2_router(
                 job_query_service=job_query_service(),
                 limit=limit,
                 cursor=cursor,
-                resolve_artifact=api_dependencies.resolve_artifact,
+                resolve_artifact=api_dependencies.get_artifact_resolver(),
             )
         except ServiceError as exc:
             return _service_error(exc, kind="list", resource="job-execution-steps")

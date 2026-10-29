@@ -13,7 +13,7 @@ function renderPaletteAnchor(props: PopoverTriggerProps, clientPoint: { x: numbe
 }
 
 /** Step-type picker: no global command-menu state or query-first Escape. */
-export function CanvasAddStepPalette({ clientPoint, title, subtitle, sequenceForEach, allowGroup, allowForEach, allowHookDeclaration = false, inserting, connected = inserting, busy = false, error = "", dragging = false, onChoose, onDragStart, onDismiss }: Readonly<{
+export function CanvasAddStepPalette({ clientPoint, title, subtitle, sequenceForEach, allowGroup, allowForEach, allowHookDeclaration = false, laneId, inserting, connected = inserting, busy = false, error = "", dragging = false, onChoose, onDragStart, onDismiss }: Readonly<{
   clientPoint: { x: number; y: number };
   projectId?: string;
   /** What Add step was asked for, in words: "Add after Classify request · Next". */
@@ -23,6 +23,8 @@ export function CanvasAddStepPalette({ clientPoint, title, subtitle, sequenceFor
   allowGroup: boolean;
   allowForEach: boolean;
   allowHookDeclaration?: boolean;
+  /** The parent parallel lane, when adding a step into a lane. */
+  laneId?: string;
   inserting: boolean;
   /** Asked for after an outcome or on a connection: Canvas › Note has no place there. */
   connected?: boolean;
@@ -43,8 +45,8 @@ export function CanvasAddStepPalette({ clientPoint, title, subtitle, sequenceFor
   const id = useId();
   const familyLabel = (family: PaletteFamily) => paletteFamilyLabel(family, t);
   const entries = useMemo(
-    () => paletteEntries({ sequenceForEach, allowGroup, allowForEach, allowHookDeclaration, inserting, connected }, t),
-    [allowForEach, allowGroup, allowHookDeclaration, connected, inserting, sequenceForEach, t],
+    () => paletteEntries({ sequenceForEach, allowGroup, allowForEach, allowHookDeclaration, laneId, inserting, connected }, t),
+    [allowForEach, allowGroup, allowHookDeclaration, connected, inserting, laneId, sequenceForEach, t],
   );
   const results = filterPaletteEntries(entries, query, locale, familyLabel);
   const selectable = (index: number) => index >= 0 && index < results.length && !results[index].disabledReason;

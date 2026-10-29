@@ -330,8 +330,8 @@ it("refuses a ready Hook child when its matching selection ticket loses the bind
   { initialEntries: ["/registry/workflows/weekly_report/builder?project_id=project_alpha"] });
   const view = render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>);
   try {
-    await screen.findByRole("group", { name: "Open step Fix the customer name" }, { timeout: 5_000 });
-    await waitFor(() => expect(hookAuthorityControllers.scope!.isChildAuthorityCurrent()).toBe(true));
+    await waitFor(() => expect(hookAuthorityControllers.scope!.isChildAuthorityCurrent()).toBe(true), { timeout: 5_000 });
+    expect(screen.getByRole("group", { name: "Open step Fix the customer name" })).toBeInTheDocument();
     const scope = hookAuthorityControllers.scope!;
     const boundFrame = scope.framesByHook.get("before_finish")!;
     const readyOwner = await scope.acquireCreationOwner("before_finish", "client_fix");

@@ -314,6 +314,83 @@ describe("RegistryCatalogSurface", () => {
     expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(false);
   });
 
+  it("requires a registered type when cloning an agent with an unsupported role type", async () => {
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents") {
+        return [{ agent_id: "extension.install-1.analyst", display_name: "Analyst", role_type: "analyst" }];
+      }
+      if (endpoint === "/api/agent-types") {
+        return [{ key: "researcher", label: "Researcher", enabled: true }];
+      }
+      return [];
+    });
+    mockedFetchJson.mockResolvedValue({ agent_id: "analyst_copy" });
+    renderCatalogSurface({
+      createLabel: "Agent",
+      description: "Agent catalog",
+      endpoint: "/api/agents",
+      idKey: "agent_id",
+      listGridId: "agents-grid",
+      listQueryKey: ["registry", "agents"],
+      title: "Agents catalog",
+    });
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Actions for extension.install-1.analyst" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Clone" }));
+
+    expect(await screen.findByText("The source agent type is missing or isn't in the supported catalog. Choose a type for the copy.")).toBeVisible();
+    await user.type(screen.getByLabelText("New ID"), "analyst_copy");
+    await user.click(screen.getByRole("button", { name: "Clone" }));
+    expect(await screen.findByText("Select an agent type before cloning this source.")).toBeVisible();
+    expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(false);
+
+    await chooseOption("Agent type for copy", "Researcher");
+    await user.click(screen.getByRole("button", { name: "Clone" }));
+    await waitFor(() => {
+      expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(true);
+    });
+    const cloneCall = mockedFetchJson.mock.calls.find(([url]) => String(url).includes("/clone"));
+    expect(JSON.parse(String(cloneCall?.[1]?.body))).toEqual({
+      agent_id: "analyst_copy",
+      agent_type_id: "researcher",
+    });
+  });
+
+  it("preserves the source type without requiring a clone-time type change", async () => {
+    mockedFetchRegistryList.mockImplementation(async (endpoint) => {
+      if (endpoint === "/api/agents") {
+        return [{ agent_id: "writer", display_name: "Writer", agent_type_key: "researcher" }];
+      }
+      if (endpoint === "/api/agent-types") {
+        return [{ key: "researcher", label: "Researcher", enabled: true }];
+      }
+      return [];
+    });
+    mockedFetchJson.mockResolvedValue({ agent_id: "writer_copy" });
+    renderCatalogSurface({
+      createLabel: "Agent",
+      description: "Agent catalog",
+      endpoint: "/api/agents",
+      idKey: "agent_id",
+      listGridId: "agents-grid",
+      listQueryKey: ["registry", "agents"],
+      title: "Agents catalog",
+    });
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Actions for writer" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Clone" }));
+    await user.type(screen.getByLabelText("New ID"), "writer_copy");
+    await user.click(screen.getByRole("button", { name: "Clone" }));
+
+    await waitFor(() => {
+      expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(true);
+    });
+    const cloneCall = mockedFetchJson.mock.calls.find(([url]) => String(url).includes("/clone"));
+    expect(JSON.parse(String(cloneCall?.[1]?.body))).toEqual({ agent_id: "writer_copy" });
+  });
+
   it("returns focus to the clone action after cancelling the dialog", async () => {
     const user = userEvent.setup();
     renderCatalogSurface({
@@ -517,7 +594,7 @@ describe("RegistryCatalogSurface", () => {
     });
   });
 
-  it("shows unavailable tool reasons and does not invoke Enable", async () => {
+  it("hides unavailable tool reasons from the grid and does not invoke Enable", async () => {
     mockedFetchRegistryList.mockResolvedValue([
       {
         tool_id: "orphaned_tool",
@@ -539,9 +616,9 @@ describe("RegistryCatalogSurface", () => {
     });
 
     const user = userEvent.setup();
-    expect(
-      await screen.findByText("Source MCP connector mcp_removed was deleted."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Orphaned Tool")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Availability" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Source MCP connector mcp_removed was deleted.")).not.toBeInTheDocument();
     expect(screen.getByText("unavailable")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: /^Actions for / }));
     expect(await screen.findByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
@@ -785,6 +862,11 @@ describe("RegistryCatalogSurface", () => {
     });
     const user = userEvent.setup();
     await screen.findByText("32 of 32");
+    expect(screen.queryByRole("columnheader", { name: "Cost Tier" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Availability" })).not.toBeInTheDocument();
+    for (const name of ["Tool", "Category", "Implementation", "Status"]) {
+      expect(screen.getByRole("columnheader", { name })).toBeVisible();
+    }
     await addCatalogFilter(user, "Category", "integration");
     expect(await screen.findByText("4 of 32")).toBeInTheDocument();
     await addCatalogFilter(user, "Implementation", implementation);
