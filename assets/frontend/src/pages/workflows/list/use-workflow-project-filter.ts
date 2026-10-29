@@ -9,7 +9,6 @@ import {
   WORKSPACE_SELECTED_EVENT,
 } from "@/lib/utils/workspace-selection";
 import { fetchProjectsList, type ProjectListItem } from "@/pages/projects/list/api";
-import { fetchProjectWorkflowBindings } from "@/pages/projects/workflows/api";
 
 const EMPTY_PROJECTS: ProjectListItem[] = [];
 const EMPTY_WORKFLOW_IDS = new Set<string>();
@@ -29,7 +28,10 @@ async function fetchFilterProjects(workspaceId: string, failureMessage: string):
     for (const project of payload.projects) {
       if (typeof project.id !== "string" || !project.id.trim()) continue;
       const id = project.id.trim();
-      projects.set(id, { ...project, id, name: project.name || id });
+      const workflowIds = Array.isArray(project.workflow_ids)
+        ? project.workflow_ids.filter((workflowId): workflowId is string => typeof workflowId === "string" && Boolean(workflowId))
+        : [];
+      projects.set(id, { ...project, id, name: project.name || id, workflow_ids: workflowIds });
     }
   }
   return [...projects.values()];
@@ -61,44 +63,39 @@ export function useWorkflowProjectFilter(projectId: string, enabled: boolean) {
   const selectedProject = enabled && projectsQuery.isSuccess
     ? projects.find((project) => project.id === projectId)
     : undefined;
-  const membershipQuery = useQuery({
-    queryKey: ["workflows", "project-filter", "membership", accountId, workspaceId, projectId],
-    queryFn: async () => {
-      const payload = await fetchProjectWorkflowBindings(projectId, { presentation: "background" });
-      if (payload?.project_id !== projectId || !Array.isArray(payload.workflow_ids) || payload.workflow_ids.some((id) => typeof id !== "string" || !id.trim())) {
-        throw new Error(t("react.workflows.project_membership_invalid", "The selected project's workflows could not be verified. Choose a project or retry."));
-      }
-      // These are the saved selected associations. A globally disabled workflow
-      // can still be selected; an inactive association is not a selected ID.
-      return payload.workflow_ids;
-    },
-    enabled: Boolean(selectedProject),
-    retry: false,
-    refetchOnMount: "always",
-    refetchInterval: selectedProject ? 20_000 : false,
-  });
   const unavailable = Boolean(enabled && projectId && projectsQuery.isSuccess && !selectedProject);
   const error = useMemo(() => enabled
     ? projectsQuery.error || (unavailable
       ? new Error(t("react.workflows.project_filter_unavailable", "This project is not available in the current workspace. Choose a project or All projects."))
-      : projectId ? membershipQuery.error : null)
-    : null, [enabled, projectsQuery.error, unavailable, t, projectId, membershipQuery.error]);
+      : null)
+    : null, [enabled, projectsQuery.error, unavailable, t]);
   const workflowIds = useMemo(() => {
     if (!projectId) return null;
-    if (!selectedProject || error || !membershipQuery.isSuccess) return EMPTY_WORKFLOW_IDS;
-    return new Set(membershipQuery.data);
-  }, [projectId, selectedProject, error, membershipQuery.isSuccess, membershipQuery.data]);
+    if (!selectedProject || error) return EMPTY_WORKFLOW_IDS;
+    return new Set(selectedProject.workflow_ids ?? []);
+  }, [projectId, selectedProject, error]);
+  // A workflow can be listed by several projects; each one is named in its row.
+  const projectsByWorkflow = useMemo(() => {
+    const byWorkflow = new Map<string, ProjectListItem[]>();
+    for (const project of projects) {
+      for (const workflowId of project.workflow_ids ?? []) {
+        byWorkflow.set(workflowId, [...(byWorkflow.get(workflowId) ?? []), project]);
+      }
+    }
+    return byWorkflow;
+  }, [projects]);
 
   return {
     accountId,
     projects,
+    projectsByWorkflow,
     selectedProject,
     workflowIds,
     error,
     unavailable,
     projectsPending: enabled && projectsQuery.isPending,
-    pending: Boolean(enabled && projectId && !error && (projectsQuery.isPending || membershipQuery.isPending)),
-    fetching: Boolean(projectId && (projectsQuery.isFetching || membershipQuery.isFetching)),
-    retry: () => projectsQuery.isError || unavailable ? projectsQuery.refetch() : membershipQuery.refetch(),
+    pending: Boolean(enabled && projectId && !error && projectsQuery.isPending),
+    fetching: Boolean(projectId && projectsQuery.isFetching),
+    retry: () => projectsQuery.refetch(),
   };
 }

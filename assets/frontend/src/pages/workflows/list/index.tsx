@@ -24,12 +24,12 @@ import {
   DsAlert,
   DsDialog,
   DsPageHeader,
-  DsSelect,
   DsTable,
   DsTabs,
   PageContainer,
   RowActionMenu,
   Search,
+  type DsFilterField,
 } from "@/components/shared/design-system";
 import { fetchWorkflowCatalogAvailability } from "@/pages/workflows/catalog/api";
 import { WorkflowCatalogDialog } from "@/pages/workflows/catalog/catalog-dialog";
@@ -70,8 +70,17 @@ function workflowUnavailableReason(workflow: WorkflowListItem, t: I18nContextVal
    filtering the backend does not support. */
 const ENABLED_FILTER_VALUE = "enabled";
 
-function localizedWORKFLOW_FILTER_FIELDS(t: I18nContextValue["t"] = fallbackContext.t) {
+/** `projects` is null for a reader who cannot see the registry: no project field then. */
+function localizedWORKFLOW_FILTER_FIELDS(
+  projects: ReadonlyArray<{ id: string; name: string }> | null,
+  t: I18nContextValue["t"] = fallbackContext.t,
+): DsFilterField[] {
   return [
+  ...(projects ? [{
+    key: "project",
+    label: t("events.columns.project", "Project"),
+    options: projects.map((project) => ({ value: project.id, label: project.name })),
+  }] : []),
   {
     key: "status",
     label: t("extensions.runtime.status", "Status"),
@@ -163,6 +172,13 @@ function buildWorkflowsGridConfig(canAuthor: boolean, projectId: string, t: I18n
         link_href: appHref(`/registry/workflows/{workflow_id}${projectSuffix}`),
         truncate: true,
         truncate_width: "clamp(16rem, 32vw, 30rem)",
+      },
+      {
+        key: "projects_label",
+        label: t("events.columns.project", "Project"),
+        type: "text",
+        truncate: true,
+        truncate_width: "clamp(10rem, 16vw, 16rem)",
       },
       {
         key: "enabled_label",
@@ -351,6 +367,9 @@ export function WorkflowsListPage() {
           display_name: workflow.display_name || workflowId,
           description: unavailableReason || firstStringFromUnknownValue([workflow.description, t("react.workflows.display_no_description", "No description")]),
           enabled_label: statusLabel(workflow, unavailableReason),
+          projects_label: (projectFilter.projectsByWorkflow.get(workflowId) ?? [])
+            .map((project) => project.name)
+            .join(", ") || "—",
           source_label: workflowSourceLabel(protectedWorkflow, extensionOwned, t),
           source_detail: workflowSourceDetail(extensionOwned, workflowSourceExtension(portability).label, t),
           full_export_allowed: Boolean(portability.full_export_allowed),
@@ -359,7 +378,7 @@ export function WorkflowsListPage() {
           updated_display: formatUserDateTime(workflow.updated_at, userTimezone),
         };
       }),
-    [userTimezone, workflows, t],
+    [projectFilter.projectsByWorkflow, userTimezone, workflows, t],
   );
   const refetchWorkflows = workflowsQuery.refetch;
 
@@ -603,29 +622,14 @@ export function WorkflowsListPage() {
               `Add filter` trigger and `Clear all` only while something is applied —
               rather than a bare checkbox parked next to a heading. */}
           <div className="fs-table-toolbar">
-            {canReadRegistry ? (
-              <DsSelect
-                ariaLabel={t("events.columns.project", "Project")}
-                disabled={projectFilter.projectsPending}
-                invalid={projectFilter.unavailable}
-                onChange={(projectId) => updateParams({ projectId })}
-                options={[
-                  { value: "", label: t("react.workflows.all_projects", "All projects") },
-                  ...projectFilter.projects.map((project) => ({ value: project.id, label: project.name })),
-                ]}
-                placeholder={projectFilter.projectsPending
-                  ? t("react.workflows.loading_projects", "Loading projects...")
-                  : t("react.workflows.project_unavailable", "Project unavailable")}
-                searchable
-                value={pageProjectId}
-              />
-            ) : null}
             <AdvancedTableFilters
               disabled={workflowsQuery.isLoading}
-              fields={localizedWORKFLOW_FILTER_FIELDS(t)}
-              onChange={(_key, value) => updateParams({ enabledOnly: value === ENABLED_FILTER_VALUE })}
-              onClear={() => updateParams({ enabledOnly: false })}
-              values={{ status: enabledOnly ? ENABLED_FILTER_VALUE : "" }}
+              fields={localizedWORKFLOW_FILTER_FIELDS(canReadRegistry ? projectFilter.projects : null, t)}
+              onChange={(key, value) => updateParams(
+                key === "project" ? { projectId: value } : { enabledOnly: value === ENABLED_FILTER_VALUE },
+              )}
+              onClear={() => updateParams({ enabledOnly: false, projectId: "" })}
+              values={{ project: pageProjectId, status: enabledOnly ? ENABLED_FILTER_VALUE : "" }}
             />
             <label className="fs-search">
               <Search aria-hidden="true" />

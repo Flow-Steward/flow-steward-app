@@ -16,6 +16,7 @@ class ProjectGridRowView(ViewModel):
     updated_at: str = ""
     job_count: int = 0
     operator_default_workflow_id: str = ""
+    workflow_ids: list[str] = Field(default_factory=list)
 
 
 class ProjectsListView(ViewModel):
