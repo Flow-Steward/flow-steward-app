@@ -30,7 +30,6 @@ import {
   DsAlert,
   DsDialog,
   DsPageHeader,
-  DsSelect,
   DsTable,
   PageContainer,
   RowActionMenu,
