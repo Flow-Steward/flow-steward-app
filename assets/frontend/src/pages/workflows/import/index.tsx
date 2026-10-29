@@ -33,6 +33,9 @@ function renderWhen<T>(value: T | null | undefined | false, render: (value: T) =
   return render(value);
 }
 
+/** How long the page waits after a changed choice before checking it again. */
+const AUTO_PREFLIGHT_DELAY_MS = 600;
+
 function readImportError(error: unknown, t: I18nContextValue["t"] = fallbackContext.t) {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -241,6 +244,22 @@ export function WorkflowsImportPage() {
     }
   }
 
+  // After the first preflight, a changed choice is checked again on its own, so the
+  // Import button follows the operator's choices without another click. Each choice
+  // is checked once: a failed check waits for the operator instead of retrying.
+  const runPreflightRef = useRef(runPreflight);
+  runPreflightRef.current = runPreflight;
+  const autoCheckedIdentity = useRef<string | null>(null);
+  useEffect(() => {
+    if (!sourcePreflight || currentIsChecked || preflighting || applying || !requiredResolutionsReady) return;
+    if (autoCheckedIdentity.current === currentIdentity) return;
+    const timer = globalThis.setTimeout(() => {
+      autoCheckedIdentity.current = currentIdentity;
+      ignoreAsyncResult(runPreflightRef.current());
+    }, AUTO_PREFLIGHT_DELAY_MS);
+    return () => globalThis.clearTimeout(timer);
+  }, [sourcePreflight, currentIdentity, currentIsChecked, preflighting, applying, requiredResolutionsReady]);
+
   async function runApply() {
     const accepted = verifiedRef.current;
     if (
@@ -401,7 +420,7 @@ export function WorkflowsImportPage() {
             <h2 className="fs-card-title">{t("react.workflows.2_preflight_summary", "2. Preflight summary")}</h2>
           </header>
           <div className="fs-card-body">
-            {!currentIsChecked ? <p className="fs-muted">{t("react.workflows.original_preflight_snapshot", "Original preflight snapshot. Check the current choices for an updated result.")}</p> : null}
+            {!currentIsChecked ? <p className="fs-muted">{t("react.workflows.original_preflight_snapshot", "Original preflight snapshot. Your choices are checked again automatically; you can also press Run preflight.")}</p> : null}
             <div className="fs-metric-grid" data-columns="4">
               <DsMetricCard
                 density="compact"

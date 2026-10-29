@@ -54,9 +54,7 @@ def _workflow(workflow_id: str, *, calls: tuple[str, ...] = (), account: str = A
 
 def _export(*workflows: dict, root: str, include_children: bool = True) -> str:
     source = _PortabilityDB(workflows={row["workflow_id"]: row for row in workflows})
-    return WorkflowPortabilityService(source).export_yaml(
-        root, include_children=include_children, reference_only=True
-    )
+    return WorkflowPortabilityService(source).export_yaml(root, include_children=include_children)
 
 
 def _invoked(saved: dict) -> list[str]:

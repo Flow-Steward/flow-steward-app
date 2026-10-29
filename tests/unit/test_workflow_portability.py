@@ -378,6 +378,29 @@ def _resolved_db(*, workflows=None):
     )
 
 
+_DEFINITION_KINDS = (
+    ("agents", "agent", "agent_id"),
+    ("skills", "skill", "skill_id"),
+    ("data_contracts", "data_contract", "contract_id"),
+    ("guardrails", "guardrail", "id"),
+)
+
+
+def _reuse_definitions(bundle: str | dict) -> list[dict]:
+    """A `use_existing` resolution for every definition the bundle carries.
+
+    `_resolved_db()` already holds the agent and skill a default export carries, so
+    importing such a bundle there is a conflict until each one is reused.
+    """
+    parsed = yaml.safe_load(bundle) if isinstance(bundle, str) else bundle
+    definitions = parsed.get("definitions") or {}
+    return [
+        {"dependency_key": f"{kind}:{entry[id_field]}", "action": "use_existing"}
+        for section, kind, id_field in _DEFINITION_KINDS
+        for entry in definitions.get(section) or []
+    ]
+
+
 class TestWorkflowPortabilityService:
     @pytest.mark.parametrize(
         "flag",
@@ -492,7 +515,7 @@ class TestWorkflowPortabilityService:
         source_service = WorkflowPortabilityService(source_db)
 
         source_service.assert_clone_allowed("licensed_installed")
-        bundle = source_service.export_yaml("licensed_installed", reference_only=True)
+        bundle = source_service.export_yaml("licensed_installed")
         exported = yaml.safe_load(bundle)["workflows"][0]
         assert exported["steps"]
         assert exported.get("portability_kind") != "extension_workflow_ref"
@@ -503,11 +526,12 @@ class TestWorkflowPortabilityService:
             bundle,
             target_workflow_id="independent_copy",
             resolutions=[
+                *_reuse_definitions(bundle),
                 {
                     "dependency_key": "project_connection:crm-prod",
                     "action": "map_existing",
                     "target_connection_id": "crm-prod",
-                }
+                },
             ],
         )
         copied = copy_db.workflows["independent_copy"]
@@ -625,10 +649,13 @@ class TestWorkflowPortabilityService:
 
     def test_manual_export_yaml_has_required_shape_and_no_secret_values(self):
         db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle_text = WorkflowPortabilityService(db).export_yaml("manual_wf", reference_only=True)
+        bundle_text = WorkflowPortabilityService(db).export_yaml("manual_wf")
         bundle = yaml.safe_load(bundle_text)
 
-        assert list(bundle.keys()) == list(TOP_LEVEL_KEYS)
+        # The default export carries the agent and skill it uses, between the
+        # dependencies and the import hints.
+        assert list(bundle.keys()) == [*TOP_LEVEL_KEYS[:-1], "definitions", TOP_LEVEL_KEYS[-1]]
+        assert TOP_LEVEL_KEYS[-1] == "import_hints"
         assert bundle["schema_version"] == SCHEMA_VERSION
         assert bundle["kind"] == "workflow_bundle"
         workflow = bundle["workflows"][0]
@@ -720,7 +747,7 @@ class TestWorkflowPortabilityService:
         }
         exported = WorkflowPortabilityService(
             _resolved_db(workflows={"loop_source": workflow})
-        ).export_yaml("loop_source", reference_only=True)
+        ).export_yaml("loop_source")
         exported_workflow = yaml.safe_load(exported)["workflows"][0]
 
         assert exported_workflow["for_each"] == [
@@ -784,7 +811,7 @@ class TestWorkflowPortabilityService:
         }
         exported = WorkflowPortabilityService(
             _resolved_db(workflows={"disabled_source": workflow})
-        ).export_yaml("disabled_source", reference_only=True)
+        ).export_yaml("disabled_source")
         steps = {
             step["step_id"]: step for step in yaml.safe_load(exported)["workflows"][0]["steps"]
         }
@@ -816,7 +843,7 @@ class TestWorkflowPortabilityService:
                 }
             }
         )
-        bundle_text = WorkflowPortabilityService(db).export_yaml("wf_ext", reference_only=True)
+        bundle_text = WorkflowPortabilityService(db).export_yaml("wf_ext")
         bundle = yaml.safe_load(bundle_text)
         workflow = bundle["workflows"][0]
 
@@ -839,7 +866,7 @@ class TestWorkflowPortabilityService:
                     }
                 }
             )
-        ).export_yaml("wf_ext", reference_only=True)
+        ).export_yaml("wf_ext")
 
         preflight = WorkflowPortabilityService(_resolved_db()).preflight_import(bundle_text)
 
@@ -861,17 +888,16 @@ class TestWorkflowPortabilityService:
     @pytest.mark.parametrize("step_kind", ["agent", ""])
     def test_import_rejects_agent_invoke_wrapper_without_any_persistence(self, step_kind):
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         step = bundle["workflows"][0]["steps"][0]
         step["override"] = {"invoke_workflow": {"workflow_id": "child_wf"}}
         resolutions = [
+            *_reuse_definitions(bundle),
             {
                 "dependency_key": "project_connection:crm-prod",
                 "action": "map_existing",
                 "target_connection_id": "crm-prod",
-            }
+            },
         ]
         step["step_kind"] = "invoke_workflow"
         assert (
@@ -919,9 +945,7 @@ class TestWorkflowPortabilityService:
 
     def test_import_preflight_blocks_unknown_or_foreign_step_override_before_save(self):
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         step = bundle["workflows"][0]["steps"][0]
         step["override"]["totally_bogus_key"] = True
         step["override"]["http_request"] = {
@@ -1022,9 +1046,7 @@ class TestWorkflowPortabilityService:
         expected_path,
     ):
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         step = bundle["workflows"][0]["steps"][0]
         step["step_kind"] = step_kind
         step["override"] = override
@@ -1048,7 +1070,7 @@ class TestWorkflowPortabilityService:
 
     def test_conflict_preflight_blocks_without_target_resolution(self):
         db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle_text = WorkflowPortabilityService(db).export_yaml("manual_wf", reference_only=True)
+        bundle_text = WorkflowPortabilityService(db).export_yaml("manual_wf")
 
         preflight = WorkflowPortabilityService(db).preflight_import(bundle_text)
 
@@ -1063,7 +1085,7 @@ class TestWorkflowPortabilityService:
 
     def test_missing_workflow_id_preflight_blocks_with_specific_message(self):
         db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle_text = WorkflowPortabilityService(db).export_yaml("manual_wf", reference_only=True)
+        bundle_text = WorkflowPortabilityService(db).export_yaml("manual_wf")
         bundle = yaml.safe_load(bundle_text)
         bundle["workflows"][0].pop("workflow_id")
 
@@ -1098,6 +1120,7 @@ class TestWorkflowPortabilityService:
 
     def test_missing_dependency_preflight_requires_mapping(self):
         db = _PortabilityDB(workflows={})
+        # Subject: an agent/skill the file only names; a default export carries them.
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
         ).export_yaml("manual_wf", reference_only=True)
@@ -1123,7 +1146,7 @@ class TestWorkflowPortabilityService:
         workflow["steps"][0]["workflow_id"] = "None"
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": workflow})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
 
         preflight = WorkflowPortabilityService(_resolved_db()).preflight_import(
             bundle_text,
@@ -1150,7 +1173,7 @@ class TestWorkflowPortabilityService:
 
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": workflow})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         bundle = yaml.safe_load(bundle_text)
 
         exported_step = bundle["workflows"][0]["steps"][0]
@@ -1198,7 +1221,7 @@ class TestWorkflowPortabilityService:
         bundle = yaml.safe_load(
             WorkflowPortabilityService(
                 db, extension_install_store=_Store(), account_id="acc_alpha"
-            ).export_yaml("manual_wf", reference_only=True)
+            ).export_yaml("manual_wf")
         )
 
         assert bundle["metadata"]["triggers"] == [
@@ -1212,18 +1235,14 @@ class TestWorkflowPortabilityService:
 
     def test_an_export_without_the_trigger_store_records_no_triggers(self):
         db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(db).export_yaml("manual_wf"))
 
         assert bundle["metadata"]["triggers"] == []
 
     def test_a_bundle_with_trigger_metadata_still_imports(self):
         """Older and newer installs read the same file: `metadata` is informational."""
         db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(db).export_yaml("manual_wf"))
         bundle["metadata"]["triggers"] = [{"kind": "schedule"}]
         bundle["metadata"]["flow_steward_version"] = "1.0.0"
 
@@ -1314,9 +1333,7 @@ class TestWorkflowPortabilityService:
     def test_an_exported_extension_keeps_its_portable_id_through_preflight(self):
         """Import read `install_id` and dropped the `extension_id` exported beside it."""
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         [exported] = bundle["dependencies"]["extensions"]
         exported["extension_id"] = "acme.mailbox"
         exported["version"] = "0.1.0"
@@ -1358,7 +1375,7 @@ class TestWorkflowPortabilityService:
     def test_project_connection_resolution_uses_the_owning_store(self):
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         registry_db = _resolved_db()
         registry_db.get_project_connection = None
         integration_store = _resolved_db()
@@ -1423,7 +1440,7 @@ class TestWorkflowPortabilityService:
         db = _PortabilityDB(workflows={})
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
 
         preflight = WorkflowPortabilityService(db).preflight_import(
             bundle_text,
@@ -1449,7 +1466,7 @@ class TestWorkflowPortabilityService:
         db.connections.pop("crm-prod")
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
 
         missing_preflight = WorkflowPortabilityService(db).preflight_import(
             bundle_text,
@@ -1491,7 +1508,7 @@ class TestWorkflowPortabilityService:
     def test_import_apply_saves_disabled_draft_and_uses_registry_save_path(self):
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
         result = WorkflowPortabilityService(db).apply_import(
             bundle_text,
@@ -1501,11 +1518,12 @@ class TestWorkflowPortabilityService:
             # existing connection (security hardening); the operator must map them
             # explicitly. Map crm-prod to the existing connection in _resolved_db.
             resolutions=[
+                *_reuse_definitions(bundle_text),
                 {
                     "dependency_key": "project_connection:crm-prod",
                     "action": "map_existing",
                     "target_connection_id": "crm-prod",
-                }
+                },
             ],
         )
 
@@ -1525,7 +1543,7 @@ class TestWorkflowPortabilityService:
     def test_import_rolls_back_connection_placeholder_when_workflow_save_fails(self):
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
         db.connections.pop("crm-prod")
         db.fail_save_workflow_ids.add("manual_wf_imported")
@@ -1536,12 +1554,13 @@ class TestWorkflowPortabilityService:
                 bundle_text,
                 target_workflow_id="manual_wf_imported",
                 resolutions=[
+                    *_reuse_definitions(bundle_text),
                     {
                         "dependency_key": "project_connection:crm-prod",
                         "action": "create_connection_placeholder",
                         "project_id": "17",
                         "extension_id": "inst-crm",
-                    }
+                    },
                 ],
             )
 
@@ -1551,7 +1570,7 @@ class TestWorkflowPortabilityService:
     def test_import_fails_closed_without_atomic_transaction(self):
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
         db.workflow_import_transaction = None
 
@@ -1561,11 +1580,12 @@ class TestWorkflowPortabilityService:
                 bundle_text,
                 target_workflow_id="manual_wf_imported",
                 resolutions=[
+                    *_reuse_definitions(bundle_text),
                     {
                         "dependency_key": "project_connection:crm-prod",
                         "action": "map_existing",
                         "target_connection_id": "crm-prod",
-                    }
+                    },
                 ],
             )
 
@@ -1577,7 +1597,7 @@ class TestWorkflowPortabilityService:
         bundle = yaml.safe_load(
             WorkflowPortabilityService(
                 _resolved_db(workflows={"first": _manual_workflow("first")})
-            ).export_yaml("first", reference_only=True)
+            ).export_yaml("first")
         )
         second = deepcopy(bundle["workflows"][0])
         second["workflow_id"] = "second"
@@ -1591,11 +1611,12 @@ class TestWorkflowPortabilityService:
             _raises_callable_1087_1(
                 _raises_input_1087_2,
                 resolutions=[
+                    *_reuse_definitions(bundle),
                     {
                         "dependency_key": "project_connection:crm-prod",
                         "action": "map_existing",
                         "target_connection_id": "crm-prod",
-                    }
+                    },
                 ],
             )
 
@@ -1606,7 +1627,7 @@ class TestWorkflowPortabilityService:
         bundle = yaml.safe_load(
             WorkflowPortabilityService(
                 _resolved_db(workflows={"first": _manual_workflow("first")})
-            ).export_yaml("first", reference_only=True)
+            ).export_yaml("first")
         )
         second = deepcopy(bundle["workflows"][0])
         second["workflow_id"] = "second"
@@ -1622,12 +1643,13 @@ class TestWorkflowPortabilityService:
                 _raises_input_1115_2,
                 owner_project_id="17",
                 resolutions=[
+                    *_reuse_definitions(bundle),
                     {
                         "dependency_key": "project_connection:crm-prod",
                         "action": "create_connection_placeholder",
                         "project_id": "17",
                         "extension_id": "inst-crm",
-                    }
+                    },
                 ],
             )
 
@@ -1639,7 +1661,7 @@ class TestWorkflowPortabilityService:
     def test_import_commits_workflow_and_placeholder_together(self):
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
         db.connections.pop("crm-prod")
 
@@ -1648,12 +1670,13 @@ class TestWorkflowPortabilityService:
             target_workflow_id="manual_wf_imported",
             owner_project_id="17",
             resolutions=[
+                *_reuse_definitions(bundle_text),
                 {
                     "dependency_key": "project_connection:crm-prod",
                     "action": "create_connection_placeholder",
                     "project_id": "17",
                     "extension_id": "inst-crm",
-                }
+                },
             ],
         )
 
@@ -1668,6 +1691,7 @@ class TestWorkflowPortabilityService:
 
     def test_import_apply_blocks_unresolved_dependencies(self):
         db = _PortabilityDB(workflows={})
+        # Subject: an agent the file only names; a default export would carry it.
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
         ).export_yaml("manual_wf", reference_only=True)
@@ -1702,7 +1726,7 @@ class TestWorkflowPortabilityService:
         }
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": workflow})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
 
         try:
@@ -1710,6 +1734,7 @@ class TestWorkflowPortabilityService:
                 bundle_text,
                 target_workflow_id="manual_wf_imported",
                 author="tester",
+                resolutions=_reuse_definitions(bundle_text),
             )
         except WorkflowPortabilityError as exc:
             assert exc.code == "workflow_raw_mcp_connector_unsupported"
@@ -1719,13 +1744,14 @@ class TestWorkflowPortabilityService:
 
         assert db.save_calls == []
 
-    def _import_resolutions(self):
+    def _import_resolutions(self, bundle_text):
         return [
+            *_reuse_definitions(bundle_text),
             {
                 "dependency_key": "project_connection:crm-prod",
                 "action": "map_existing",
                 "target_connection_id": "crm-prod",
-            }
+            },
         ]
 
     def test_import_sanitizes_forbidden_trigger_keys_before_persist(self):
@@ -1741,14 +1767,14 @@ class TestWorkflowPortabilityService:
         }
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": workflow})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
 
         WorkflowPortabilityService(db).apply_import(
             bundle_text,
             target_workflow_id="manual_wf_imported",
             author="tester",
-            resolutions=self._import_resolutions(),
+            resolutions=self._import_resolutions(bundle_text),
         )
 
         assert len(db.save_calls) == 1
@@ -1764,14 +1790,14 @@ class TestWorkflowPortabilityService:
         workflow["trigger"] = {"confidence_threshold": 0.4, "mode": "manual"}
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": workflow})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
 
         WorkflowPortabilityService(db).apply_import(
             bundle_text,
             target_workflow_id="manual_wf_imported",
             author="tester",
-            resolutions=self._import_resolutions(),
+            resolutions=self._import_resolutions(bundle_text),
         )
 
         saved_trigger = db.save_calls[0]["data"]["trigger"]
@@ -1783,7 +1809,7 @@ class TestWorkflowPortabilityService:
         # scope_kind becomes "account" instead of defaulting to NULL/"system".
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
 
         WorkflowPortabilityService(db).apply_import(
@@ -1792,7 +1818,7 @@ class TestWorkflowPortabilityService:
             author="tester",
             owner_account_id="acct-caller",
             owner_project_id="proj-caller",
-            resolutions=self._import_resolutions(),
+            resolutions=self._import_resolutions(bundle_text),
         )
 
         saved = db.save_calls[0]["data"]
@@ -1806,14 +1832,14 @@ class TestWorkflowPortabilityService:
         # preserving the prior default behavior.
         bundle_text = WorkflowPortabilityService(
             _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        ).export_yaml("manual_wf", reference_only=True)
+        ).export_yaml("manual_wf")
         db = _resolved_db()
 
         WorkflowPortabilityService(db).apply_import(
             bundle_text,
             target_workflow_id="manual_wf_imported",
             author="tester",
-            resolutions=self._import_resolutions(),
+            resolutions=self._import_resolutions(bundle_text),
         )
 
         saved = db.save_calls[0]["data"]
@@ -2079,9 +2105,7 @@ class TestImportRunsTheSameContractValidatorAsSave:
     def _bundle_with_invalid_for_each() -> str:
         """A bundle of the removed format: a loop Group the final validator refuses."""
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         bundle["workflows"][0]["groups"] = [
             {
                 "group_id": "rows",
@@ -2114,9 +2138,7 @@ class TestImportRunsTheSameContractValidatorAsSave:
 
     def test_a_valid_definition_still_imports(self):
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle_text = WorkflowPortabilityService(source_db).export_yaml(
-            "manual_wf", reference_only=True
-        )
+        bundle_text = WorkflowPortabilityService(source_db).export_yaml("manual_wf")
 
         preflight = WorkflowPortabilityService(_resolved_db()).preflight_import(bundle_text)
 
@@ -2131,9 +2153,7 @@ class TestImportBoundaryContracts:
     @pytest.mark.parametrize("inputs", [["message"], [None], {}, "message"])
     def test_malformed_boundary_entry_blocks_import_before_writes(self, inputs):
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         bundle["workflows"][0]["steps"][0]["boundary_contract"] = {"entry": inputs}
         text = yaml.safe_dump(bundle, sort_keys=False)
         target = _resolved_db()
@@ -2169,9 +2189,7 @@ class TestImportPreflightTopology:
     @staticmethod
     def _bundle_with(steps: list[dict], edges: list[dict], entry: str = "plan") -> str:
         source_db = _resolved_db(workflows={"manual_wf": _manual_workflow()})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         workflow = bundle["workflows"][0]
         workflow["steps"] = steps
         workflow["execution_graph"] = {
@@ -2283,7 +2301,7 @@ class TestImportPreflightTopology:
         bundle = yaml.safe_load(
             WorkflowPortabilityService(
                 _resolved_db(workflows={"manual_wf": _manual_workflow()})
-            ).export_yaml("manual_wf", reference_only=True)
+            ).export_yaml("manual_wf")
         )
         bundle["schema_version"] = "platform.workflow_bundle.v1"
         db = _resolved_db()
@@ -2666,9 +2684,7 @@ class TestCatalogLogicalExtensionReference:
         """Export a real bundle that names its connector by logical id."""
         source_workflow = cls._catalog_source_workflow()
         source_db = _resolved_db(workflows={"manual_wf": source_workflow})
-        bundle = yaml.safe_load(
-            WorkflowPortabilityService(source_db).export_yaml("manual_wf", reference_only=True)
-        )
+        bundle = yaml.safe_load(WorkflowPortabilityService(source_db).export_yaml("manual_wf"))
         bundle["workflows"][0]["workflow_id"] = "catalog_wf"
         return yaml.safe_dump(bundle, sort_keys=False)
 
@@ -2704,7 +2720,12 @@ class TestCatalogLogicalExtensionReference:
         )
         service, target_db = self._service(store)
 
-        result = service.create("tpl", author="alice", owner_account_id="acc_7")
+        result = service.create(
+            "tpl",
+            author="alice",
+            owner_account_id="acc_7",
+            resolutions=_reuse_definitions(self._catalog_bundle_yaml()),
+        )
 
         assert result["workflow_id"] == "catalog_wf"
         saved = target_db.save_calls[-1]["data"]
@@ -2738,7 +2759,12 @@ class TestCatalogLogicalExtensionReference:
         exported_yaml = yaml.safe_dump(bundle, sort_keys=False)
         service._fetch_artifact = lambda *_args, **_kwargs: exported_yaml.encode("utf-8")
 
-        result = service.create("tpl", author="alice", owner_account_id="acc_7")
+        result = service.create(
+            "tpl",
+            author="alice",
+            owner_account_id="acc_7",
+            resolutions=_reuse_definitions(exported_yaml),
+        )
 
         saved = target_db.save_calls[-1]["data"]
         install_ids = {
@@ -2755,7 +2781,12 @@ class TestCatalogLogicalExtensionReference:
         service, target_db = self._service(store)
 
         with pytest.raises(WorkflowPortabilityError) as raised:
-            service.create("tpl", author="alice", owner_account_id="acc_7")
+            service.create(
+                "tpl",
+                author="alice",
+                owner_account_id="acc_7",
+                resolutions=_reuse_definitions(self._catalog_bundle_yaml()),
+            )
 
         assert raised.value.code == "workflow_import_preflight_blocked"
         assert target_db.save_calls == []
@@ -2770,7 +2801,12 @@ class TestCatalogLogicalExtensionReference:
         target_db.workflows["catalog_wf"] = dict(existing)
 
         with pytest.raises(WorkflowPortabilityError) as raised:
-            service.create("tpl", author="alice", owner_account_id="acc_7")
+            service.create(
+                "tpl",
+                author="alice",
+                owner_account_id="acc_7",
+                resolutions=_reuse_definitions(self._catalog_bundle_yaml()),
+            )
 
         assert raised.value.code in {
             "workflow_id_conflict",
@@ -2792,6 +2828,7 @@ class TestCatalogLogicalExtensionReference:
             target_workflow_id="catalog_wf_copy",
             author="alice",
             owner_account_id="acc_7",
+            resolutions=_reuse_definitions(self._catalog_bundle_yaml()),
         )
 
         assert result["workflow_id"] == "catalog_wf_copy"
@@ -2849,7 +2886,7 @@ class TestStepNamingItsExtensionWithoutInstall:
         )
         source_db = _resolved_db(workflows={"upload_wf": workflow})
         source_db.tools.update(tools or {})
-        return WorkflowPortabilityService(source_db).export_yaml("upload_wf", reference_only=True)
+        return WorkflowPortabilityService(source_db).export_yaml("upload_wf")
 
     @classmethod
     def _portability(cls, store, *, tools: dict | None = None):

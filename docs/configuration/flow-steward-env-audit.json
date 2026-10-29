@@ -4867,6 +4867,7 @@
       "tests/unit/test_registry.py",
       "tests/unit/test_registry_step_identity.py",
       "tests/unit/test_workflow_hook_portability.py",
+      "tests/unit/test_workflow_import_definitions_postgres.py",
       "tests/unit/test_workflow_reaction_scope_integrity_postgres.py",
       "tests/unit/test_xdist_isolation.py",
       "core/entrypoints/cli/scripts/lint.sh",

@@ -13941,7 +13941,7 @@ msgid "react.workflows.note_edit"
 msgstr "Edit"
 
 msgid "react.workflows.original_preflight_snapshot"
-msgstr "Original preflight snapshot. Check the current choices for an updated result."
+msgstr "Original preflight snapshot. Your choices are checked again automatically; you can also press Run preflight."
 
 msgid "react.workflows.overview_description"
 msgstr "Stats and recent activity for this workflow."

@@ -1012,6 +1012,38 @@ describe("WorkflowsImportPage", () => {
     expect(rename?.target_ref).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
+  it("checks changed choices again without another click", async () => {
+    const conflict = {
+      dependency_key: "agent:writer",
+      dependency_type: "agent",
+      ref: "writer",
+      status: "conflict" as const,
+      blocking: true,
+      resolution_actions: ["use_existing", "rename", "abort"],
+      metadata: { definition: true, action: "conflict", target_ref: "writer" },
+    };
+    mockedPreflightWorkflowImport.mockResolvedValueOnce({
+      ...readyPreflight(),
+      ok: false,
+      can_apply: false,
+      summary: { workflow_count: 1, reference_count: 0, dependency_count: 1, blocking_count: 1 },
+      dependencies: [conflict],
+    });
+    mockedPreflightWorkflowImport.mockResolvedValueOnce(readyPreflight());
+    renderPage("/registry/workflows/import?project_id=project-123");
+    fireEvent.change(screen.getByLabelText("Workflow bundle YAML"), { target: { value: "bundle" } });
+    fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
+
+    expect(await screen.findByLabelText("Resolution for writer")).toHaveValue("use_existing");
+    await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    expect(mockedPreflightWorkflowImport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        resolutions: [expect.objectContaining({ dependency_key: "agent:writer", action: "use_existing" })],
+      }),
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: /import workflow/i })).toBeEnabled());
+  });
+
   it("reports what the file created and which agents stayed disabled", async () => {
     mockedPreflightWorkflowImport.mockResolvedValueOnce(readyPreflight("wf_incoming"));
     mockedApplyWorkflowImport.mockResolvedValueOnce({

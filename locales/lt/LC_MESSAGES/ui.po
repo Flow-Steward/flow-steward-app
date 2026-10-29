@@ -14142,7 +14142,7 @@ msgid "react.workflows.note_edit"
 msgstr "Redaguoti"
 
 msgid "react.workflows.original_preflight_snapshot"
-msgstr "Pradinės išankstinės patikros duomenys. Patikrinkite dabartinius pasirinkimus, kad gautumėte atnaujintą rezultatą."
+msgstr "Pradinės išankstinės patikros duomenys. Jūsų pasirinkimai patikrinami iš naujo automatiškai; taip pat galite paspausti „Vykdyti išankstinę patikrą“."
 
 msgid "react.workflows.overview_description"
 msgstr "Šios darbo eigos statistika ir naujausia veikla."
