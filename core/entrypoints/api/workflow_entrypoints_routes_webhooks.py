@@ -56,6 +56,7 @@ def _register_workflow_webhook_routes(ctx: dict[str, Any]) -> None:
 
     router = ctx["router"]
     get_logger_only = ctx["get_logger_only"]
+    get_trigger_store = ctx.get("get_trigger_store", get_logger_only)
     scope_resolver = ctx["scope_resolver"]
     logger = ctx["logger"]
     err_database_not_configured = ctx["err_database_not_configured"]
@@ -103,7 +104,7 @@ def _register_workflow_webhook_routes(ctx: dict[str, Any]) -> None:
         _require_project_scope(bl, scope, resolved_project_id)
         return {
             "workflow_id": str(workflow_id or "").strip(),
-            "triggers": list_workflow_trigger_catalog(bl),
+            "triggers": list_workflow_trigger_catalog(get_trigger_store()),
         }
 
     @router.get(
@@ -139,7 +140,7 @@ def _register_workflow_webhook_routes(ctx: dict[str, Any]) -> None:
                     project_id=resolved_project_id,
                 )
             )
-            catalog = list_workflow_trigger_catalog(bl)
+            catalog = list_workflow_trigger_catalog(get_trigger_store())
             catalog_by_key = {
                 f"{str(item.get('provider_key') or '').strip().lower()}:{str(item.get('trigger_type_id') or '').strip()}": item
                 for item in catalog

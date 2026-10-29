@@ -842,7 +842,8 @@ def _register_job_and_webhook_routes(current_app: FastAPI) -> None:
 
     _register_workflow_entrypoint_routes(
         current_app,
-        get_logger_only=lambda: _workflow_trigger_store(current_app),
+        get_logger_only=lambda: _composed_service(current_app, "project_store"),
+        get_trigger_store=lambda: _workflow_trigger_store(current_app),
         request_scope=lambda request, **kwargs: _request_scope(request, **kwargs),
         enqueue_task=lambda **kwargs: _enqueue_task(**kwargs),
         redeliver_task=lambda **kwargs: _task_enqueue_runtime.redeliver_pre_execution_job(
