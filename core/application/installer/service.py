@@ -20,6 +20,10 @@ from core.application.installer.contracts import (
     InstallRunResult,
 )
 from core.application.installer.errors import InstallerFailure
+from core.application.installer.host_settings import (
+    applied_operator_settings,
+    checked_operator_settings,
+)
 from core.application.installer.ports import (
     BoundedInstallerReadiness,
     InstallerGateway,
@@ -143,7 +147,7 @@ class InstallerService:
         target_release: ReleaseIdentity | None,
     ) -> InstallRunResult:
         if "operator_settings" in explicit_fields:
-            _checked_operator_settings(requested_config.operator_settings)
+            checked_operator_settings(requested_config.operator_settings)
         evidence = self.gateway.inspect()
         classification = classify_installation(evidence)
         operation_id = uuid4().hex
@@ -258,14 +262,13 @@ class InstallerService:
                     self.last_config = config
                 settings_change = ""
                 if "operator_settings" in explicit_fields:
-                    before = dict(config.operator_settings)
-                    config = self.gateway.set_operator_settings(
-                        config,
-                        changes=requested_config.operator_settings,
-                        log=log,
-                    )
-                    self.last_config = config
-                    if config.operator_settings != before:
+                    applied = applied_operator_settings(config, requested_config.operator_settings)
+                    if applied is not None:
+                        candidate, environment = applied
+                        config = self.gateway.set_operator_settings(
+                            candidate, environment=environment, log=log
+                        )
+                        self.last_config = config
                         settings_change = "Host settings: " + ", ".join(
                             f"{name}={value or 'default'}"
                             for name, value in sorted(requested_config.operator_settings.items())
@@ -955,23 +958,3 @@ def _warning_text(finding: ReadinessFinding) -> str:
     title = title[:1].upper() + title[1:]
     text = " ".join(part.strip() for part in (finding.detail, finding.remediation) if part.strip())
     return f"{title}: {text}" if text else f"{title}."
-
-
-def _checked_operator_settings(changes: dict[str, str]) -> dict[str, str]:
-    """`./install.sh --setting` names only settings the manifest lets the operator set."""
-    from core.application.lifecycle.operator_settings import OperatorSettingError
-    from core.application.lifecycle.setting_names import check_operator_settings
-
-    try:
-        return check_operator_settings(changes)
-    except OperatorSettingError as exc:
-        raise InstallerFailure(
-            code="installer_setting_invalid",
-            cause=str(exc),
-            remediation=(
-                "./install.sh --setting changes host settings only; correct NAME=VALUE and "
-                "rerun ./install.sh."
-            ),
-            exit_code=3,
-            step="preflight",
-        ) from exc

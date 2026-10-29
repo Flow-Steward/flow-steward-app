@@ -13,6 +13,11 @@ from core.infrastructure.config.runtime_env import runtime_env
 from core.infrastructure.runtime.compact.runtime_secrets import self_minted_secret_names
 
 _HOST_ONLY_DOMAINS = frozenset({"config", "environment", "quality", "release", "stack", "testing"})
+#: An operator who types `config set NAME=VALUE` on Compact out of habit learns the path.
+_COMPACT_HOST_SETTINGS_PATH = (
+    "Host settings on Compact: ./install.sh --setting NAME=VALUE. "
+    "Settings: https://docs.flowsteward.org/docs/reference/host-settings"
+)
 _UNAVAILABLE_COMMANDS = {
     "extensions": frozenset({"install", "uninstall"}),
     "users": frozenset({"issue-bootstrap-token"}),
@@ -61,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
             "or installer tooling. Use the host ./flow-steward on a VPS.",
             file=sys.stderr,
         )
+        if top == "config":
+            print(_COMPACT_HOST_SETTINGS_PATH, file=sys.stderr)
         return 2
     if subcommand in _UNAVAILABLE_COMMANDS.get(top, ()):
         print(

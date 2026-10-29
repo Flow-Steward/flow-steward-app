@@ -82,11 +82,10 @@ class FakeGateway:
         self.calls.append(f"set_compact_worker_processes:{processes}")
         return config.model_copy(update={"worker_processes": processes})
 
-    def set_operator_settings(self, config, *, changes, log):
+    def set_operator_settings(self, config, *, environment, log):
         del log
-        self.calls.append(f"set_operator_settings:{sorted(changes.items())}")
-        merged = {**config.operator_settings, **{k: v for k, v in changes.items() if v}}
-        return config.model_copy(update={"operator_settings": merged})
+        self.calls.append(f"set_operator_settings:{sorted(environment.items())}")
+        return config
 
     def converge_compact_worker_processes(self, config, *, log, changed=False):
         del log

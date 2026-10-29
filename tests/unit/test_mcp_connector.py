@@ -6976,13 +6976,16 @@ def test_mcp_json_rpc_rechecks_dns_before_post(monkeypatch):
 
     monkeypatch.setattr("urllib.request.build_opener", lambda *_args: _UnexpectedOpener())
 
-    with pytest.raises(ServiceValidationError, match="resolves to a blocked address"):
+    with pytest.raises(ServiceValidationError, match="resolves to a blocked address") as refused:
         _json_rpc_post_with_latency(
             url="https://fs.example/mcp",
             headers={"Authorization": "Bearer secret"},
             payload={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
             timeout_seconds=1.0,
         )
+    # The same flag allows private MCP connector addresses: say how, and where.
+    assert "FS_ALLOW_PRIVATE_REMOTE_URLS=1" in str(refused.value)
+    assert "docs.flowsteward.org/docs/reference/host-settings" in str(refused.value)
 
 
 def test_mcp_connector_connection_rejects_rebound_private_peer(monkeypatch):

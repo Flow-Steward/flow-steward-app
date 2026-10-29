@@ -51,45 +51,26 @@ class ConfigurationOperations:
         self: DockerInstallerGateway,
         config: InstallConfig,
         *,
-        changes: Mapping[str, str],
+        environment: Mapping[str, str],
         log: InstallerLog,
     ) -> InstallConfig:
-        """Apply host settings from ./install.sh --setting and restart the runtime with them.
+        """Write host settings from ./install.sh --setting and restart the runtime with them.
 
-        A run on an unchanged revision renders no environment, so the keys are written
-        here, one by one: nothing else in the file is rewritten. A reset writes the
-        manifest default. stack.toml -- the applied configuration -- is written last,
-        so a run killed before it applies the settings again.
+        *config* already carries the merged settings and *environment* the keys to write
+        (a reset one with its default); the installer service decides both. A run on an
+        unchanged revision renders no environment, so the keys are written here, one by
+        one: nothing else in the file is rewritten. stack.toml -- the applied
+        configuration -- is written last, so a run killed before it applies them again.
         """
-        from core.application.lifecycle.operator_settings import (
-            merge_operator_settings,
-            operator_setting_specs,
-        )
-
-        merged = merge_operator_settings(config.operator_settings, changes)
-        if merged == config.operator_settings:
-            log.write("Host settings are already as requested.")
-            return config
-        candidate = InstallConfig.model_validate(
-            {**config.model_dump(mode="json"), "operator_settings": merged}
-        )
-        specs = operator_setting_specs()
-        environment = "local_development" if config.environment == "development" else "production"
-        self.state_store.update_env_values(
-            self._env_path(candidate),
-            {
-                name: value or specs[name].default_for_environment(environment)
-                for name, value in changes.items()
-            },
-        )
-        self._configuration.store.write_active(candidate)
+        self.state_store.update_env_values(self._env_path(config), environment)
+        self._configuration.store.write_active(config)
         log.write(
             "Recorded host settings: "
-            + ", ".join(f"{name}={value or 'default'}" for name, value in sorted(changes.items()))
+            + ", ".join(f"{name}={value}" for name, value in sorted(environment.items()))
             + "."
         )
-        self.start_runtime(candidate, log=log)
-        return candidate
+        self.start_runtime(config, log=log)
+        return config
 
     def ensure_configuration(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog

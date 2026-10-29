@@ -439,7 +439,11 @@ def test_credentials_reject_unsafe_remote_runtime_url(monkeypatch) -> None:
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "remote_base_url is not allowed"
+    # A private address is refused with the command that allows one and the page.
+    detail = response.json()["detail"]
+    assert detail.startswith("remote_base_url is not allowed. An administrator can allow")
+    assert "config set FS_ALLOW_PRIVATE_REMOTE_URLS=1" in detail
+    assert "docs.flowsteward.org/docs/reference/host-settings" in detail
 
 
 def test_concurrent_credential_rotations_keep_source_ref_resolvable(monkeypatch) -> None:

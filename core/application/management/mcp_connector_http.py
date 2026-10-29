@@ -235,11 +235,15 @@ def _connector_rpc_url(
             },
         )
     if not allow_private and contains_private:
+        from core.application.extensions.url_safety import private_addresses_hint
+
         if resolved_hostname:
             raise ServiceValidationError(
-                "MCP connector base_url resolves to a blocked address"
+                f"MCP connector base_url resolves to a blocked address. {private_addresses_hint()}"
             ) from None
-        raise ServiceValidationError("MCP connector base_url host is not allowed")
+        raise ServiceValidationError(
+            f"MCP connector base_url host is not allowed. {private_addresses_hint()}"
+        )
     return base_url
 
 

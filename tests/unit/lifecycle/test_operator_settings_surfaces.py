@@ -11,7 +11,12 @@ from pydantic import ValidationError
 from core.application.extensions import url_safety
 from core.application.installer import InstallConfig
 from core.application.installer.errors import InstallerFailure
-from core.application.installer.service import _checked_operator_settings
+from core.application.installer.host_settings import (
+    applied_operator_settings as _applied_operator_settings,
+)
+from core.application.installer.host_settings import (
+    checked_operator_settings as _checked_operator_settings,
+)
 from core.application.lifecycle.configuration_models import ConfigSetRequest
 from core.application.lifecycle.contracts import DeploymentConfig
 from core.application.lifecycle.operator_settings import (
@@ -207,8 +212,9 @@ def _compact(**fields) -> InstallConfig:
 def test_install_sh_setting_writes_the_key_records_it_and_restarts_the_runtime(installed) -> None:
     root, gateway, runtime = installed
     log = gateway.state_store.open_log(f"settings-{uuid4().hex}")
+    candidate, environment = _applied_operator_settings(_compact(), {PRIVATE: "1"})
 
-    applied = gateway.set_operator_settings(_compact(), changes={PRIVATE: "1"}, log=log)
+    applied = gateway.set_operator_settings(candidate, environment=environment, log=log)
 
     assert applied.operator_settings == {PRIVATE: "1"}
     env = (root / ".env.prod").read_text(encoding="utf-8")
@@ -216,21 +222,17 @@ def test_install_sh_setting_writes_the_key_records_it_and_restarts_the_runtime(i
     assert f'{PRIVATE} = "1"' in (root / ".flow-steward/stack.toml").read_text("utf-8")
     assert runtime.recreated()
 
-    reset = gateway.set_operator_settings(applied, changes={PRIVATE: ""}, log=log)
-    assert reset.operator_settings == {}
-    assert f"{PRIVATE}=0" in (root / ".env.prod").read_text(encoding="utf-8")
 
+def test_a_reset_writes_the_default_and_the_same_value_is_no_change() -> None:
+    reset = _applied_operator_settings(_compact(operator_settings={PRIVATE: "1"}), {PRIVATE: ""})
 
-def test_the_same_setting_again_is_no_change_and_no_restart(installed) -> None:
-    _root, gateway, runtime = installed
-    log = gateway.state_store.open_log(f"settings-{uuid4().hex}")
-
-    unchanged = gateway.set_operator_settings(
-        _compact(operator_settings={PRIVATE: "1"}), changes={PRIVATE: "1"}, log=log
+    assert reset is not None
+    assert reset[0].operator_settings == {}
+    assert reset[1] == {PRIVATE: "0"}
+    assert (
+        _applied_operator_settings(_compact(operator_settings={PRIVATE: "1"}), {PRIVATE: "1"})
+        is None
     )
-
-    assert unchanged.operator_settings == {PRIVATE: "1"}
-    assert not runtime.recreated()
 
 
 def test_install_sh_setting_option_fills_the_operator_settings_field() -> None:
