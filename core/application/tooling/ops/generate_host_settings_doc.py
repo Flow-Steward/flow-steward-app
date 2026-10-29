@@ -18,10 +18,8 @@ from typing import Any
 
 from core.application.installer.spec import INSTALLER_SPEC
 from core.application.lifecycle.contracts import DeploymentConfig
-from core.application.lifecycle.operator_settings import (
-    operator_setting_specs,
-    typed_setting_fields,
-)
+from core.application.lifecycle.operator_settings import operator_setting_specs
+from core.application.lifecycle.setting_names import typed_setting_fields
 
 HOST_SETTINGS_PATH = Path("docs/configuration/host-settings.md")
 #: The one setting an installed Compact changes through ./install.sh besides host

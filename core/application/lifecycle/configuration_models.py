@@ -62,6 +62,8 @@ class ConfigSetRequest(ConfigurationPatch):
             OperatorSettingError,
             operator_setting_specs,
             split_assignments,
+        )
+        from core.application.lifecycle.setting_names import (
             typed_setting_fields,
             unknown_setting_error,
         )
@@ -98,7 +100,7 @@ class ConfigSetRequest(ConfigurationPatch):
     @model_validator(mode="after")
     def check_operator_settings(self) -> ConfigSetRequest:
         if self.operator_settings is not None:
-            from core.application.lifecycle.operator_settings import check_operator_settings
+            from core.application.lifecycle.setting_names import check_operator_settings
 
             check_operator_settings(self.operator_settings)
         return self

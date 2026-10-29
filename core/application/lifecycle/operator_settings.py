@@ -1,5 +1,9 @@
 """The settings an operator changes, by one name used everywhere.
 
+This module is what error messages need: the page link, the command and the host
+settings. The full list of names, typed ones included, is in setting_names.py, which
+loads the config command specification; runtime roles do not need it.
+
 Whatever name `config show`, an error message or the Host settings page shows,
 `flow-steward config set NAME=VALUE` accepts verbatim. Two kinds share that syntax:
 
@@ -14,22 +18,17 @@ On Compact, where `config` is not available, a host setting is set with
 
 from __future__ import annotations
 
-import difflib
 import re
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.application.management.command_specs.contracts import FieldSpec
     from core.infrastructure.config.env_registry import EnvVarSpec
 
 #: The public page listing every setting; generated from the same source as below.
 HOST_SETTINGS_DOCS_URL = "https://docs.flowsteward.org/docs/reference/host-settings"
 
 _NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
-#: Patch fields `config set` does not take by name: the internal carrier of host
-#: settings, and the placement only `./install.sh --deployment-profile` writes.
-_NOT_TYPED_BY_NAME = frozenset({"operator_settings", "data_placement"})
 
 
 class OperatorSettingError(ValueError):
@@ -44,28 +43,11 @@ def operator_setting_specs() -> dict[str, EnvVarSpec]:
     return {spec.name: spec for spec in env_specs() if spec.operator_settable and not spec.secret}
 
 
-def typed_setting_fields() -> dict[str, FieldSpec]:
-    """The typed settings: the `config set` fields, by the name `config show` prints."""
-    from core.application.management.command_specs.config import CONFIG_COMMAND_SPECS
-
-    spec = next(item for item in CONFIG_COMMAND_SPECS if item.path == ("config", "set"))
-    return {
-        field.key: field
-        for field in spec.fields
-        if not field.positional and field.key not in _NOT_TYPED_BY_NAME
-    }
-
-
-def settable_names() -> tuple[str, ...]:
-    """Every name `config set NAME=VALUE` accepts, typed first."""
-    return (*typed_setting_fields(), *sorted(operator_setting_specs()))
-
-
 def parse_operator_settings(raw: object) -> dict[str, str]:
     """Host-setting ``NAME=VALUE`` pairs (comma-separated text, or a mapping) as a dict.
 
     An empty value resets the setting to its default. Only the shape is checked here;
-    :func:`check_operator_settings` checks names and values against the manifest.
+    ``setting_names.check_operator_settings`` checks names and values against the manifest.
     """
     if raw is None:
         return {}
@@ -97,30 +79,6 @@ def _pair(item: str) -> tuple[str, str]:
     return name.strip(), value.strip()
 
 
-def unknown_setting_error(name: str) -> OperatorSettingError:
-    """A name `config set` does not take: the nearest one it does, and where the list is."""
-    close = difflib.get_close_matches(name, settable_names(), n=1)
-    hint = f" Did you mean {close[0]}?" if close else ""
-    return OperatorSettingError(
-        f"{name} is not a setting you can change.{hint} Settings: {HOST_SETTINGS_DOCS_URL}"
-    )
-
-
-def check_operator_settings(settings: Mapping[str, str]) -> dict[str, str]:
-    """Refuse a host setting the manifest does not list, or a value it does not accept."""
-    specs = operator_setting_specs()
-    for name, value in settings.items():
-        spec = specs.get(name)
-        if spec is None:
-            raise unknown_setting_error(name)
-        if value and spec.allowed_values and value not in spec.allowed_values:
-            raise OperatorSettingError(
-                f"{name} accepts {', '.join(spec.allowed_values)}, not {value!r}. "
-                f"Settings: {HOST_SETTINGS_DOCS_URL}"
-            )
-    return dict(settings)
-
-
 def merge_operator_settings(
     active: Mapping[str, str], changes: Mapping[str, str]
 ) -> dict[str, str]:
@@ -147,13 +105,9 @@ def operator_setting_command(name: str, value: str, *, deployment_profile: str) 
 __all__ = [
     "HOST_SETTINGS_DOCS_URL",
     "OperatorSettingError",
-    "check_operator_settings",
     "merge_operator_settings",
     "operator_setting_command",
     "operator_setting_specs",
     "parse_operator_settings",
-    "settable_names",
     "split_assignments",
-    "typed_setting_fields",
-    "unknown_setting_error",
 ]

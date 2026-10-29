@@ -959,10 +959,8 @@ def _warning_text(finding: ReadinessFinding) -> str:
 
 def _checked_operator_settings(changes: dict[str, str]) -> dict[str, str]:
     """`./install.sh --setting` names only settings the manifest lets the operator set."""
-    from core.application.lifecycle.operator_settings import (
-        OperatorSettingError,
-        check_operator_settings,
-    )
+    from core.application.lifecycle.operator_settings import OperatorSettingError
+    from core.application.lifecycle.setting_names import check_operator_settings
 
     try:
         return check_operator_settings(changes)

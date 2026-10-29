@@ -681,10 +681,8 @@ def _config_show_lines(payload: dict[str, Any]) -> list[str]:
 
     --json keeps the machine shape.
     """
-    from core.application.lifecycle.operator_settings import (
-        HOST_SETTINGS_DOCS_URL,
-        typed_setting_fields,
-    )
+    from core.application.lifecycle.operator_settings import HOST_SETTINGS_DOCS_URL
+    from core.application.lifecycle.setting_names import typed_setting_fields
 
     active = dict(payload.get("active") or {})
     host_settings = dict(active.pop("operator_settings", None) or {})

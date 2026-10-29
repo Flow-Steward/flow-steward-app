@@ -17,9 +17,8 @@ from core.application.lifecycle.contracts import DeploymentConfig
 from core.application.lifecycle.operator_settings import (
     HOST_SETTINGS_DOCS_URL,
     operator_setting_specs,
-    settable_names,
-    typed_setting_fields,
 )
+from core.application.lifecycle.setting_names import settable_names, typed_setting_fields
 from core.application.tooling.ops.generate_host_settings_doc import (
     render_host_settings_markdown,
 )

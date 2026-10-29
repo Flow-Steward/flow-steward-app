@@ -12,12 +12,12 @@ from core.application.lifecycle.contracts import ConfigurationPatch, DeploymentC
 from core.application.lifecycle.operator_settings import (
     HOST_SETTINGS_DOCS_URL,
     OperatorSettingError,
-    check_operator_settings,
     merge_operator_settings,
     operator_setting_command,
     operator_setting_specs,
     parse_operator_settings,
 )
+from core.application.lifecycle.setting_names import check_operator_settings
 from core.infrastructure.lifecycle.configuration_store import LifecycleConfigurationStore
 from tests.unit.lifecycle.test_configuration_service import (
     _service,

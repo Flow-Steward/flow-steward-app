@@ -159,6 +159,7 @@
     "core/application/lifecycle/__init__.py",
     "core/application/lifecycle/contracts.py",
     "core/application/lifecycle/errors.py",
+    "core/application/lifecycle/operator_settings.py",
     "core/application/lifecycle/runtime_installation_context.py",
     "core/application/management/__init__.py",
     "core/application/management/command_models.py",
