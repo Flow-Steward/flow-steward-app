@@ -50,7 +50,7 @@ def _error_response(exc: WorkflowProviderTriggerError) -> JSONResponse:
 
 def _register_workflow_provider_trigger_routes(ctx: dict[str, Any]) -> None:
     router = ctx["router"]
-    get_logger_only = ctx["get_logger_only"]
+    get_trigger_store = ctx.get("get_trigger_store") or ctx["get_logger_only"]
     scope_resolver = ctx["scope_resolver"]
     err_database_not_configured = ctx["err_database_not_configured"]
 
@@ -61,7 +61,7 @@ def _register_workflow_provider_trigger_routes(ctx: dict[str, Any]) -> None:
     def create_provider_trigger(
         workflow_id: str, body: WorkflowProviderTriggerRequest, request: Request
     ):
-        bl = get_logger_only()
+        bl = get_trigger_store()
         if not bl:
             return JSONResponse({"error": err_database_not_configured}, status_code=503)
         scope = scope_resolver(request)
@@ -100,7 +100,7 @@ def _register_workflow_provider_trigger_routes(ctx: dict[str, Any]) -> None:
         body: WorkflowProviderTriggerRequest,
         request: Request,
     ):
-        bl = get_logger_only()
+        bl = get_trigger_store()
         if not bl:
             return JSONResponse({"error": err_database_not_configured}, status_code=503)
         scope = scope_resolver(request)
@@ -131,7 +131,7 @@ def _register_workflow_provider_trigger_routes(ctx: dict[str, Any]) -> None:
         responses={403: {"description": "Forbidden"}, 404: {"description": "Not found"}},
     )
     def delete_provider_trigger(workflow_id: str, trigger_id: str, request: Request):
-        bl = get_logger_only()
+        bl = get_trigger_store()
         if not bl:
             return JSONResponse({"error": err_database_not_configured}, status_code=503)
         scope = scope_resolver(request)

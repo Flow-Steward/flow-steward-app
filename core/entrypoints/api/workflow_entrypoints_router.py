@@ -12,6 +12,7 @@ from .workflow_entrypoints_routes_webhooks import _register_workflow_webhook_rou
 def create_workflow_entrypoints_router(
     *,
     get_logger_only,
+    get_trigger_store=None,
     request_scope=None,
     enqueue_task,
     redeliver_task=None,
@@ -24,6 +25,7 @@ def create_workflow_entrypoints_router(
     ctx = {
         "router": router,
         "get_logger_only": get_logger_only,
+        "get_trigger_store": get_trigger_store or get_logger_only,
         "scope_resolver": scope_resolver,
         "enqueue_task": enqueue_task,
         "redeliver_task": redeliver_task,

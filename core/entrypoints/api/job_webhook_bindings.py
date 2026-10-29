@@ -52,6 +52,7 @@ def register_workflow_entrypoint_routes(
     app: FastAPI,
     *,
     get_logger_only,
+    get_trigger_store=None,
     request_scope,
     enqueue_task,
     redeliver_task=None,
@@ -61,6 +62,7 @@ def register_workflow_entrypoint_routes(
 ):
     router = create_workflow_entrypoints_router(
         get_logger_only=get_logger_only,
+        get_trigger_store=get_trigger_store,
         request_scope=request_scope,
         enqueue_task=enqueue_task,
         redeliver_task=redeliver_task,
