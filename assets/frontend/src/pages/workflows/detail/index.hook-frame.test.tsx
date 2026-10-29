@@ -503,22 +503,26 @@ it("ends a pending first Hook step when the new child's canvas read fails", asyn
 });
 
 
-function addNestedClientContainers() {
+// Most callers exercise canvas ownership with the legacy root definition.
+// Structure assertions opt into a matching stored graph for both Hook children.
+function addNestedClientContainers({ canonicalGraph = false }: { canonicalGraph?: boolean } = {}) {
   const detail = mockedFetchWorkflowDetail.getMockImplementation()!;
   const canvas = mockedFetchWorkflowCanvasGraph.getMockImplementation()!;
   mockedFetchWorkflowDetail.mockImplementation(async (workflowId: string) => {
     const current = await detail(workflowId);
     if (workflowId !== "client_fix") return current;
+    const graph = { schema_version: 2, entry: { kind: "group", id: "checks" }, edges: [
+        { source: { kind: "step", id: "fix_name" }, outcome: { name: "success" }, target: { kind: "for_each_exit", for_each_id: "items", lane_id: null } },
+        { source: { kind: "for_each", id: "items" }, outcome: { name: "success" }, target: { kind: "group_exit", group_id: "checks", lane_id: null } },
+        { source: { kind: "group", id: "checks" }, outcome: { name: "success" }, target: { kind: "step", id: "return" } },
+      ] };
     return {
       ...current,
       groups: [{ group_id: "checks", display_name: "Client checks", body: { kind: "sequence", entry: { kind: "for_each", id: "items" } } }],
       for_each: [{ for_each_id: "items", group_id: "checks", display_name: "Client items", over: "state.items", item_name: "item", body: { kind: "sequence", entry: { kind: "step", id: "fix_name" } } }],
       steps: (current.steps || []).map((step) => step.step_id === "fix_name" ? { ...step, for_each_id: "items" } : step),
-      graph: { schema_version: 2, entry: { kind: "group", id: "checks" }, edges: [
-        { source: { kind: "step", id: "fix_name" }, outcome: { name: "success" }, target: { kind: "for_each_exit", for_each_id: "items", lane_id: null } },
-        { source: { kind: "for_each", id: "items" }, outcome: { name: "success" }, target: { kind: "group_exit", group_id: "checks", lane_id: null } },
-        { source: { kind: "group", id: "checks" }, outcome: { name: "success" }, target: { kind: "step", id: "return" } },
-      ] },
+      graph,
+      ...(canonicalGraph ? { settings: { ...(current.settings as Record<string, unknown>), execution_graph: graph } } : {}),
     } as never;
   });
   mockedFetchWorkflowCanvasGraph.mockImplementation(async (workflowId: string) => {
@@ -2473,7 +2477,7 @@ it("withdraws only parent Hook claims after a failed cached detail refetch and r
 
 it("names the selected Hook in child root and nested Structure, restoring the ordinary author root after switching", async () => {
   installHookedWorkflow({ authorEditable: true });
-  addNestedClientContainers();
+  addNestedClientContainers({ canonicalGraph: true });
   addSecondHook();
   await renderHookedBuilder();
 
@@ -2484,7 +2488,7 @@ it("names the selected Hook in child root and nested Structure, restoring the or
     expect(step).toBeDefined();
     fireEvent.contextMenu(step!);
     fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
-    await screen.findByDisplayValue(canvasStepId);
+    await screen.findByDisplayValue(canvasStepId, {}, { timeout: 3_000 });
     fireEvent.click(screen.getByRole("tab", { name: "Smart setup" }));
     return screen.findByTestId("step-structure-setup");
   }

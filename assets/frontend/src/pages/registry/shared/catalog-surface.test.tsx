@@ -317,14 +317,14 @@ describe("RegistryCatalogSurface", () => {
   it("requires a registered type when cloning an agent with an unsupported role type", async () => {
     mockedFetchRegistryList.mockImplementation(async (endpoint) => {
       if (endpoint === "/api/agents") {
-        return [{ agent_id: "extension.install-1.analyst", display_name: "Analyst", role_type: "analyst" }];
+        return [{ agent_id: "extension.install-1.source_specialist", display_name: "Source specialist", role_type: "source_specialist" }];
       }
       if (endpoint === "/api/agent-types") {
         return [{ key: "researcher", label: "Researcher", enabled: true }];
       }
       return [];
     });
-    mockedFetchJson.mockResolvedValue({ agent_id: "analyst_copy" });
+    mockedFetchJson.mockResolvedValue({ agent_id: "source_specialist_copy" });
     renderCatalogSurface({
       createLabel: "Agent",
       description: "Agent catalog",
@@ -336,11 +336,11 @@ describe("RegistryCatalogSurface", () => {
     });
 
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Actions for extension.install-1.analyst" }));
+    await user.click(await screen.findByRole("button", { name: "Actions for extension.install-1.source_specialist" }));
     await user.click(await screen.findByRole("menuitem", { name: "Clone" }));
 
     expect(await screen.findByText("The source agent type is missing or isn't in the supported catalog. Choose a type for the copy.")).toBeVisible();
-    await user.type(screen.getByLabelText("New ID"), "analyst_copy");
+    await user.type(screen.getByLabelText("New ID"), "source_specialist_copy");
     await user.click(screen.getByRole("button", { name: "Clone" }));
     expect(await screen.findByText("Select an agent type before cloning this source.")).toBeVisible();
     expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(false);
@@ -352,7 +352,7 @@ describe("RegistryCatalogSurface", () => {
     });
     const cloneCall = mockedFetchJson.mock.calls.find(([url]) => String(url).includes("/clone"));
     expect(JSON.parse(String(cloneCall?.[1]?.body))).toEqual({
-      agent_id: "analyst_copy",
+      agent_id: "source_specialist_copy",
       agent_type_id: "researcher",
     });
   });

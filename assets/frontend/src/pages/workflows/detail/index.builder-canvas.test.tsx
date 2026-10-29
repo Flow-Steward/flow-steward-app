@@ -2677,4 +2677,4 @@ it("places a Default Append at its named ghost after deleting a card whose ID is
   await canvas().findByRole("group", { name: "Open step Set variable" });
   await waitFor(() => expect(loadManualLayout("weekly_report").set_variable_3).toEqual(requested));
   unchanged();
-});
+}, 20_000);

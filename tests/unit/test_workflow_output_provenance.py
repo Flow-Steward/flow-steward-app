@@ -47,6 +47,9 @@ def test_valid_unrelated_message_cannot_satisfy_required_output():
 def test_untaken_optional_writer_does_not_return_unrelated_agent_diagnostic(monkeypatch):
     from types import SimpleNamespace
 
+    from tests._step_run_state import prime, step_run_state
+    from tests._workflow_definitions import edge, linear_workflow, node
+
     from core.application.auth.config import DEFAULT_ACCOUNT_ID
     from core.application.orchestration.agents.base import AgentOutput
     from core.application.orchestration.control_flow_step_node import control_flow_step_node
@@ -55,8 +58,6 @@ def test_untaken_optional_writer_does_not_return_unrelated_agent_diagnostic(monk
     from core.application.registry.contract_validation import validate_workflow_readiness
     from core.application.registry.registry_manager import RegistryManager
     from core.application.registry.skill_registry import SkillRegistry
-    from tests._step_run_state import prime, step_run_state
-    from tests._workflow_definitions import edge, linear_workflow, node
 
     workflow = linear_workflow(
         {
@@ -116,6 +117,7 @@ def test_untaken_optional_writer_does_not_return_unrelated_agent_diagnostic(monk
     }
     agent_row = {
         "agent_id": "unrelated",
+        "account_id": DEFAULT_ACCOUNT_ID,
         "display_name": "Unrelated",
         "enabled": True,
         "_skills": [{"skill_id": "diagnose"}],

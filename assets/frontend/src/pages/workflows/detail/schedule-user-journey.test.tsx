@@ -142,14 +142,28 @@ function LocationReceipt() {
   const location = useLocation();
   return <output aria-label="Current route">{location.pathname}{location.search}</output>;
 }
+const ownedJourneyRenders = new Set<() => void>();
+
 function renderJourney(path = builderPath, client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })) {
   // The schedule form starts on the signed-in user's timezone; pin it so the run does not follow the host's.
-  render(<AuthContext.Provider value={{ session: { authenticated: true, user: { roles: ["admin"], timezone: "UTC" } } } as unknown as AuthContextValue}><QueryClientProvider client={client}><RouterProvider router={createMemoryRouter([{ path: "*", element: <><LocationReceipt /><Routes>
+  const router = createMemoryRouter([{ path: "*", element: <><LocationReceipt /><Routes>
     <Route path="/registry/workflows/:workflowId/builder" element={<WorkflowsBuilderPage />} />
     <Route path="/registry/workflows/:workflowId/projects" element={<WorkflowsProjectsPage />} />
     <Route path="/registry/workflows/:workflowId" element={<WorkflowsOverviewPage />} />
     <Route path="/registry/workflows/:workflowId/settings" element={<WorkflowsDetailPage />} />
-  </Routes></> }], { initialEntries: [path] })} /></QueryClientProvider></AuthContext.Provider>);
+  </Routes></> }], { initialEntries: [path] });
+  const view = render(<AuthContext.Provider value={{ session: { authenticated: true, user: { roles: ["admin"], timezone: "UTC" } } } as unknown as AuthContextValue}><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></AuthContext.Provider>);
+  ownedJourneyRenders.add(() => {
+    try {
+      view.unmount();
+    } finally {
+      try {
+        router.dispose();
+      } finally {
+        client.clear();
+      }
+    }
+  });
   return client;
 }
 
@@ -180,36 +194,53 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.spyOn(SVGElement.prototype, "getBoundingClientRect").mockReturnValue({ x: 0, y: 0, width: 100, height: 20, top: 0, right: 100, bottom: 20, left: 0, toJSON: () => ({}) });
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  const disposers = [...ownedJourneyRenders].reverse();
+  ownedJourneyRenders.clear();
+  const errors: unknown[] = [];
+  for (const dispose of disposers) {
+    try {
+      dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  if (errors.length) throw new AggregateError(errors, "Failed to dispose schedule journey test renders");
+});
 
 it("authors object array items as JSON through normal Schedule POST and fresh reopen", async () => {
   const fields = [{ name: "source_rows", label: "Source feed rows", type: "array", required: true }];
   const state = fixture({ linked: ["project-a"], fields });
   const user = userEvent.setup();
-  const utils = renderJourney(`${builderPath}?project_id=project-a&drawer=schedules`);
+  renderJourney(`${builderPath}?project_id=project-a&drawer=schedules`);
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
-  await user.click(screen.getByRole("button", { name: "Add item" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Source feed rows item 1" }), {
+  const editor = within(screen.getByRole("form", { name: "Schedule editor" }));
+  await user.click(editor.getByRole("button", { name: "Add item" }));
+  fireEvent.change(editor.getByRole("textbox", { name: "Source feed rows item 1" }), {
     target: { value: '{"sku":"A","price":10,"title":"Alpha"}' },
   });
   await choose(user, "Source feed rows item 1 Type", "JSON");
-  await user.click(screen.getByRole("button", { name: "Add item" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Source feed rows item 2" }), {
+  await user.click(editor.getByRole("button", { name: "Add item" }));
+  fireEvent.change(editor.getByRole("textbox", { name: "Source feed rows item 2" }), {
     target: { value: '{"sku":"B","price":20,"title":"Beta"}' },
   });
   await choose(user, "Source feed rows item 2 Type", "JSON");
+  const scheduleReadsBeforePost = state.reads.filter((path) => path === "/api/projects/project-a/scheduled-jobs").length;
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toEqual([{ path: "/api/projects/project-a/scheduled-jobs", method: "POST", body: {
     workflow_id: workflowId, cron_expr: "0 9 * * *", schedule_timezone: "UTC", enabled: false,
     inputs: { source_rows: [{ sku: "A", price: 10, title: "Alpha" }, { sku: "B", price: 20, title: "Beta" }] },
   } }]);
-  await utils.invalidateQueries({ queryKey: ["projects", "scheduled-jobs", "project-a"] });
+  expect(state.reads.filter((path) => path === "/api/projects/project-a/scheduled-jobs").length).toBeGreaterThan(scheduleReadsBeforePost);
   await user.click(screen.getByRole("button", { name: /^Edit schedule: / }));
-  expect(screen.getByRole("textbox", { name: "Source feed rows item 1" })).toHaveValue('{"sku":"A","price":10,"title":"Alpha"}');
-  expect(screen.getByRole("textbox", { name: "Source feed rows item 2" })).toHaveValue('{"sku":"B","price":20,"title":"Beta"}');
-  expect(screen.getByRole("combobox", { name: "Source feed rows item 1 Type" })).toHaveTextContent("JSON");
-  expect(screen.getByRole("combobox", { name: "Source feed rows item 2 Type" })).toHaveTextContent("JSON");
+  const reopenedEditor = within(screen.getByRole("form", { name: "Schedule editor" }));
+  expect(reopenedEditor.getByRole("textbox", { name: "Source feed rows item 1" })).toHaveValue('{"sku":"A","price":10,"title":"Alpha"}');
+  expect(reopenedEditor.getByRole("textbox", { name: "Source feed rows item 2" })).toHaveValue('{"sku":"B","price":20,"title":"Beta"}');
+  expect(reopenedEditor.getByRole("combobox", { name: "Source feed rows item 1 Type" })).toHaveTextContent("JSON");
+  expect(reopenedEditor.getByRole("combobox", { name: "Source feed rows item 2 Type" })).toHaveTextContent("JSON");
   for (const scope of state.historyReads) expect(scope).toEqual({ page: "1", per_page: "8", project_id: expect.stringMatching(/^(?:project-[ab]|foreign-project)$/), workflow_id: workflowId, task_source: "workflow_test_run" });
   expect(state.unexpected).toEqual([]);
 });

@@ -184,6 +184,8 @@ class TestResizeObserver {
   }
 }
 
+const ownedPageRenders = new Set<() => void>();
+
 export function renderPage({
   embedded = true,
   surface = "detail",
@@ -206,10 +208,19 @@ export function renderPage({
     { path: "/registry/workflows/:workflowId/builder", element: <WorkflowsDetailPage embedded={embedded} surface={surface} /> },
     { path: "/previous", element: <h1>Previous page</h1> },
   ], { initialEntries: ["/previous", initialEntry] });
-  return {
-    ...render(<QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>),
-    router,
-  };
+  const view = render(<QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>);
+  ownedPageRenders.add(() => {
+    try {
+      view.unmount();
+    } finally {
+      try {
+        router.dispose();
+      } finally {
+        queryClient.clear();
+      }
+    }
+  });
+  return { ...view, router };
 }
 
 export const fetchSpy = vi.fn<typeof fetch>(
@@ -586,7 +597,18 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  const disposers = [...ownedPageRenders].reverse();
+  ownedPageRenders.clear();
+  const errors: unknown[] = [];
+  for (const dispose of disposers) {
+    try {
+      dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
   vi.unstubAllGlobals();
+  if (errors.length) throw new AggregateError(errors, "Failed to dispose workflow page test renders");
 });
 
 /** A workflow detail of the steps/groups model, with an explicit execution graph. */

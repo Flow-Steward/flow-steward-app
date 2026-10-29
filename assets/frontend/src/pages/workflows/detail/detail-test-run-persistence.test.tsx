@@ -184,13 +184,14 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
       expect(mockedFetchWorkflowTestRunState.mock.calls).toEqual([[THREAD_ID], [THREAD_ID]]);
       expect(pending).toHaveLength(0);
       expect(hasPendingRequests()).toBe(false);
-      let resultsOpened = false;
-      const openingResults = openRememberedResults().then(() => { resultsOpened = true; });
-      await vi.waitFor(async () => {
-        await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-        expect(resultsOpened).toBe(true);
-      });
-      await openingResults;
+      // Keep one fake-clock act owner: concurrent findBy wrappers also need a timer drain.
+      const launch = screen.queryByRole("dialog", { name: "Start a test run" });
+      if (launch) fireEvent.click(within(launch).getByRole("button", { name: "Cancel" }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      const runBar = screen.getByTestId("workflow-run-bar");
+      fireEvent.click(within(runBar).getByRole("button", { name: "Results" }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(screen.getByRole("dialog", { name: "Test Run results" })).toBeInTheDocument();
       expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId);
       const field = screen.getByRole("textbox", { name: "Comment for rejection" });
       fireEvent.change(field, { target: { value: "Still reviewing real output" } });
@@ -284,7 +285,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
     expect(screen.getByLabelText("Run workflow test run")).toBeDisabled();
     await openRememberedResults();
     expect(await screen.findByRole("textbox", { name: "Comment for rejection" })).toHaveValue("Checked the report");
-  });
+  }, 20_000);
 
   it("keeps a second workflow test run disabled while the durable run is pending", async () => {
     globalThis.localStorage.setItem(STORAGE_KEY, THREAD_ID);

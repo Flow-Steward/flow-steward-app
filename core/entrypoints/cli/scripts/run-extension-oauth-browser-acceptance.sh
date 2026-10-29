@@ -123,7 +123,20 @@ cleanup_on_exit() {
   fi
   return "${cleanup_status}"
 }
-trap cleanup_on_exit EXIT INT TERM
+finalize_exit() {
+  local original_status=$?
+  local cleanup_status=0
+  trap - EXIT
+  trap '' INT TERM
+  cleanup_on_exit || cleanup_status=$?
+  if [[ "${original_status}" -eq 0 && "${cleanup_status}" -ne 0 ]]; then
+    original_status="${cleanup_status}"
+  fi
+  exit "${original_status}"
+}
+trap finalize_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 rendered_compose="$(mktemp -t flow-steward-oauth-compose.XXXXXX)"
 "${compose[@]}" config --format json >"${rendered_compose}"
@@ -175,8 +188,6 @@ fi
 rm -f "${rendered_compose}"
 rendered_compose=""
 
-cleanup
-docker image rm "${candidate_images[@]}" >/dev/null 2>&1 || true
 docker build --pull=false --target app-runtime \
   --build-arg "BUILD_SHA=${candidate_fingerprint}" \
   --tag "${FS_OAUTH_ACCEPTANCE_APP_IMAGE}" \
@@ -218,7 +229,3 @@ if ! "${SCRIPT_DIR}/check-oauth-browser-exit.sh" \
   echo "OAuth browser service failed (wait=${browser_wait_status}, exit=${browser_exit_code:-missing})." >&2
   exit 1
 fi
-cleanup
-verify_cleanup
-cleanup_on_exit
-trap - EXIT INT TERM

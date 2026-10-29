@@ -397,7 +397,9 @@ describe("RegistryAgentsDetailPage", () => {
   it.each([
     ["en", "Standard Tool Actions are available only through connector workflow steps"],
     ["lt", "Standartiniai įrankių veiksmai pasiekiami tik per jungčių darbo eigos žingsnius"],
-  ])("shows the localized connector-only assignment reason in %s", async (locale, reason) => {
+  ].flatMap(([locale, reason]) =>
+    [false, true, undefined].map((assignable) => ({ locale, reason, assignable })),
+  ))("shows the localized connector-only assignment reason in $locale ($assignable)", async ({ locale, reason, assignable }) => {
     mockedFetchRegistryDetail.mockResolvedValue({
       agent_id: "sample_launch_copywriter",
       display_name: "Launch Copywriter",
@@ -413,10 +415,16 @@ describe("RegistryAgentsDetailPage", () => {
             tool_id: "std.numbers",
             display_name: "Numbers",
             enabled: true,
-            agent_relationship_assignable: false,
-            agent_relationship_reason_code: "tool_connector_only",
-            agent_relationship_reason_text:
-              "Standard Tool Actions are available only through connector workflow steps",
+            agent_relationship_assignable: assignable,
+            agent_relationship_reason_code: assignable === false ? "tool_connector_only" : undefined,
+            agent_relationship_reason_text: assignable === false
+              ? "Standard Tool Actions are available only through connector workflow steps"
+              : undefined,
+          }, {
+            tool_id: "manual_tool",
+            display_name: "Manual Tool",
+            enabled: true,
+            agent_relationship_assignable: true,
           }]
         : [],
     );
@@ -425,9 +433,21 @@ describe("RegistryAgentsDetailPage", () => {
 
     expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
-    expect(screen.getByRole("checkbox", { name: /Numbers.*unavailable for assignment/i })).toBeDisabled();
+    const connectorOnly = await screen.findByRole("checkbox", { name: /Numbers.*unavailable for assignment/i });
+    expect(connectorOnly).toBeDisabled();
     expect(screen.getByText(reason)).toBeInTheDocument();
     expect(screen.queryByText(/current project or tenant scope/i)).not.toBeInTheDocument();
+    fireEvent.click(connectorOnly);
+    expect(connectorOnly).not.toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Manual Tool/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save tools" }));
+    await waitFor(() => {
+      expect(mockedReplaceAgentRelationships).toHaveBeenCalledExactlyOnceWith(
+        "sample_launch_copywriter",
+        { skills: [], tools: [] },
+        { skills: [], tools: ["manual_tool"] },
+      );
+    });
   });
 
   it("lets an agent remove an existing unsupported projected tool", async () => {
@@ -482,7 +502,7 @@ describe("RegistryAgentsDetailPage", () => {
       expect(mockedReplaceAgentRelationships).toHaveBeenCalledWith(
         "sample_launch_copywriter",
         { skills: [], tools: [projectedToolId, "stable_tool"] },
-        { skills: [], tools: ["stable_tool", "manual_tool"] },
+        { skills: [], tools: ["manual_tool", "stable_tool"] },
       );
     });
   });

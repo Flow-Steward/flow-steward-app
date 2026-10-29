@@ -123,11 +123,8 @@ export function useAgentDetailState() {
     ? toolsCatalogQuery.data
     : tools;
   const enabledSkillOptions = skillOptions.filter((row) => row.enabled !== false);
-  const assignableToolOptions = toolOptions.filter((row, index) => {
-    const toolId = registryOptionId(row, ["tool_id", "id", "name"]) || `tool-${index + 1}`;
-    return row.enabled !== false && !isStandardToolAction(row, toolId);
-  });
-  const filteredToolOptions = assignableToolOptions.filter((row, index) => {
+  const enabledToolOptions = toolOptions.filter((row) => row.enabled !== false);
+  const filteredToolOptions = enabledToolOptions.filter((row, index) => {
     const toolId = registryOptionId(row, ["tool_id", "id", "name"]) || `tool-${index + 1}`;
     const label = registryOptionLabel(row, toolId);
     const needle = toolSearch.trim().toLowerCase();

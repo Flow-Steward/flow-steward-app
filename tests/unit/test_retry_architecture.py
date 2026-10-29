@@ -255,11 +255,18 @@ def _scan_file(path: Path, *, relative_path: str) -> Counter[str]:
     return found
 
 
-def _production_python_files() -> list[Path]:
+def _production_python_files(source_root: Path = SOURCE_ROOT) -> list[Path]:
     files: list[Path] = []
     for root_name in ("core", "extensions"):
-        for path in (SOURCE_ROOT / root_name).rglob("*.py"):
-            if any(part in {"tests", "test", "dev-wheels", "__pycache__"} for part in path.parts):
+        for path in (source_root / root_name).rglob("*.py"):
+            relative_parts = path.relative_to(source_root).parts
+            if any(
+                part in {"tests", "test", "dev-wheels", "__pycache__"} for part in relative_parts
+            ):
+                continue
+            # Only the extension manager's canonical backing store is local
+            # installation state; authored folders with this name still count.
+            if relative_parts[:2] == ("extensions", ".releases"):
                 continue
             files.append(path)
     return sorted(files)
@@ -278,6 +285,39 @@ def test_every_production_outbound_http_caller_has_one_retry_owner() -> None:
     registered = Counter({key: int(value["count"]) for key, value in inventory["callers"].items()})
     assert all(value["owner"] in ALLOWED_OWNERS for value in inventory["callers"].values())
     assert _scan_production_callers() == registered
+
+
+def test_production_inventory_scans_authored_sources_without_installed_release_copies(
+    tmp_path: Path,
+) -> None:
+    authored = tmp_path / "extensions/example/handler.py"
+    retained = tmp_path / "extensions/.releases/example/1.0-fingerprint/handler.py"
+    core = tmp_path / "core/application/handler.py"
+    nested_extension = tmp_path / "extensions/example/.releases/handler.py"
+    nested_core = tmp_path / "core/.releases/handler.py"
+    for path in (authored, retained, core, nested_extension, nested_core):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "from urllib.request import urlopen\n"
+            "def call():\n"
+            "    return urlopen('https://example.test')\n",
+            encoding="utf-8",
+        )
+
+    paths = _production_python_files(tmp_path)
+
+    assert set(paths) == {authored, core, nested_extension, nested_core}
+    found = Counter()
+    for path in paths:
+        found.update(_scan_file(path, relative_path=path.relative_to(tmp_path).as_posix()))
+    assert found == Counter(
+        {
+            "extensions/example/handler.py|call|urlopen": 1,
+            "core/application/handler.py|call|urlopen": 1,
+            "extensions/example/.releases/handler.py|call|urlopen": 1,
+            "core/.releases/handler.py|call|urlopen": 1,
+        }
+    )
 
 
 def test_inventory_scanner_rejects_an_unregistered_new_caller(tmp_path: Path) -> None:

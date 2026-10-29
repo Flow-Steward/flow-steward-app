@@ -369,6 +369,9 @@ it("handles Copy and Duplicate keys only from canvas focus, preserving native te
     canvas.focus();
     fireEvent.keyDown(canvas, { key: "c", code: "KeyC", ctrlKey: true });
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    // `writeText` is invoked before the asynchronous copy command acknowledges
+    // and clears its busy guard. Duplicate must wait for that acknowledgement.
+    expect(await screen.findByText("Plan work copied.")).toBeVisible();
     canvas.focus();
     fireEvent.keyDown(canvas, { key: "d", code: "KeyD", ctrlKey: true });
     expect(await screen.findByRole("group", { name: "Open step Plan work copy" })).toBeVisible();

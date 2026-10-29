@@ -17,8 +17,9 @@ import re
 import subprocess
 from pathlib import Path
 
-from core.infrastructure.db.schema_state import read_canonical_schema_sql
 from tests.support.source_index import whole_words_in
+
+from core.infrastructure.db.schema_state import read_canonical_schema_sql
 
 ROOT = Path(__file__).parent.parent.parent
 REGISTRY_SEED = ROOT / "db" / "seeds" / "registry_seed.json"
@@ -3670,17 +3671,59 @@ _REMOVED_DELIVERY_ARTIFACT_KEYS = (
 
 
 def _removed_delivery_vocabulary_hits(files: list[Path]) -> list[str]:
-    literal_tokens = "|".join(re.escape(token) for token in _REMOVED_AGENT_ID_LITERALS)
+    # The retired two-letter role also names a clock meridiem. Only identifier
+    # fields and agent lookups distinguish that role from valid AM/PM data.
+    literal_tokens = "|".join(
+        re.escape(token) for token in _REMOVED_AGENT_ID_LITERALS if token != "pm"
+    )
+    agent_reference = r"(?:[A-Za-z_]*agent[A-Za-z_]*|[A-Za-z_]*role(?:_id|_type)?)"
+    retired_role = re.compile(
+        rf"""\b{agent_reference}["']?\s*[:=]\s*["']pm["']"""
+        rf"""|\b{agent_reference}\(\s*["']pm["']"""
+        rf"""|\b{agent_reference}\[\s*["']pm["']"""
+        rf"""|\b{agent_reference}["']?\s*[:=]\s*\[[^\]]*["']pm["']""",
+        re.IGNORECASE,
+    )
     key_tokens = "|".join(re.escape(token) for token in _REMOVED_DELIVERY_ARTIFACT_KEYS)
     literal = re.compile(rf"""["'](?:{literal_tokens})["']""")
     keys = re.compile(rf"\b(?:{key_tokens})\b")
     hits: list[str] = []
     for path in files:
         text = path.read_text(encoding="utf-8", errors="ignore")
-        found = sorted(set(literal.findall(text)) | set(keys.findall(text)))
+        found = sorted(
+            set(literal.findall(text)) | set(keys.findall(text)) | set(retired_role.findall(text))
+        )
         if found:
-            hits.append(f"{path.relative_to(ROOT).as_posix()}: {found}")
+            relative_path = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
+            hits.append(f"{relative_path.as_posix()}: {found}")
     return hits
+
+
+def test_removed_agent_guard_distinguishes_clock_meridiem_from_role_identifiers(
+    tmp_path: Path,
+) -> None:
+    clock = tmp_path / "clock.py"
+    clock.write_text(
+        "\n".join(('meridiems = ("am", "pm")', 'suffix = "pm"', 'expected = ("5pm", "pm")')),
+        encoding="utf-8",
+    )
+    assert _removed_delivery_vocabulary_hits([clock]) == []
+
+    for identifier in (
+        '{"agent_id": "pm"}',
+        '{"role_type": "pm"}',
+        'agent_type_id="pm"',
+        'get_agent("pm")',
+        'registry.delete_agent("pm")',
+        'registry.get_agent_skills("pm")',
+        'agents["pm"]',
+        '{"agent": "pm"}',
+        'target_agent_id = "pm"',
+        'AGENT_IDS = ["writer", "pm"]',
+        '{"agent_id": "analyst"}',
+    ):
+        clock.write_text('meridiems = ("am", "pm")\n' + identifier, encoding="utf-8")
+        assert len(_removed_delivery_vocabulary_hits([clock])) == 1
 
 
 def test_shipped_sources_drop_removed_delivery_agents_and_artifacts() -> None:

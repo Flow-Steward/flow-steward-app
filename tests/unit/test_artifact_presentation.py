@@ -56,7 +56,7 @@ def _prepared(tmp_path, monkeypatch, *, opted=True):
         content_type="application/octet-stream",
     )
     claim = {key: receipt[key] for key in ("artifact_id", "binding_key", "size_bytes", "sha256")}
-    claim.update(filename="qa-orders.csv", content_type="text/csv")
+    claim.update(filename="orders.csv", content_type="text/csv")
     invocation = {
         "status": "succeeded",
         "response": {"ok": True, "result": {"attachment_presentation": claim}},
@@ -71,7 +71,7 @@ def test_actual_sdk_upload_terminal_claim_changes_display_and_download_only(tmp_
         plane, prepared, invocation=invocation
     )
     assert finalized.errors == []
-    assert finalized.produced_artifacts[0]["filename"] == "qa-orders.csv"
+    assert finalized.produced_artifacts[0]["filename"] == "orders.csv"
     assert finalized.produced_artifacts[0]["content_type"] == "text/csv"
     canonical = plane.get_artifact(receipt["artifact_id"])
     assert canonical["filename"] == "imap-attachment.bin"
@@ -86,7 +86,7 @@ def test_actual_sdk_upload_terminal_claim_changes_display_and_download_only(tmp_
         resolve_artifact=ArtifactPresentationResolver(fresh),
     )
     assert (download.filename, download.content_type, download.size_bytes) == (
-        "qa-orders.csv",
+        "orders.csv",
         "text/csv",
         len(BODY),
     )
@@ -115,14 +115,14 @@ def test_early_finalization_and_installed_policy_snapshot_cannot_erase_claim(tmp
         plane, prepared, already_finalized=early, invocation=invocation
     )
     assert finalized.errors == []
-    assert finalized.produced_artifacts[0]["filename"] == "qa-orders.csv"
+    assert finalized.produced_artifacts[0]["filename"] == "orders.csv"
     plane.finalize_artifact_upload(receipt["artifact_id"])
     assert (
         artifact_presentation_view(
             plane.get_artifact(receipt["artifact_id"]),
             resolve_artifact=ArtifactPresentationResolver(plane),
         )["filename"]
-        == "qa-orders.csv"
+        == "orders.csv"
     )
     assert plane.get_artifact(receipt["artifact_id"])["content_type"] == "application/octet-stream"
 
@@ -217,7 +217,7 @@ def test_external_effect_presentation_can_be_finalized_without_publishing_claim(
         confirmed_success=True,
     )
     assert errors == []
-    assert produced_artifacts[0]["filename"] == "qa-orders.csv"
+    assert produced_artifacts[0]["filename"] == "orders.csv"
     assert storage.get(f"artifacts/{receipt['artifact_id']}/_presentation.json") is not None
 
 
@@ -252,7 +252,7 @@ def test_identical_replay_is_idempotent_and_conflicting_replay_refused(tmp_path,
             plane.get_artifact(receipt["artifact_id"]),
             resolve_artifact=ArtifactPresentationResolver(plane),
         )["filename"]
-        == "qa-orders.csv"
+        == "orders.csv"
     )
 
 
@@ -339,7 +339,7 @@ def test_s3_atomic_presentation_replay_and_browser_mime_override():
     claim = {
         "artifact_id": handle.artifact_id,
         "binding_key": BINDING,
-        "filename": "qa-orders.csv",
+        "filename": "orders.csv",
         "content_type": "text/csv",
         "size_bytes": len(BODY),
         "sha256": hashlib.sha256(BODY).hexdigest(),
@@ -356,13 +356,13 @@ def test_s3_atomic_presentation_replay_and_browser_mime_override():
             fresh.get_artifact(handle.artifact_id),
             resolve_artifact=ArtifactPresentationResolver(fresh),
         )["filename"]
-        == "qa-orders.csv"
+        == "orders.csv"
     )
     assert fresh.artifact_public_download_url(handle.artifact_id, filename="imap-attachment.bin")
     assert client.signed["Params"]["ResponseContentType"] == "text/csv"
     assert (
         client.signed["Params"]["ResponseContentDisposition"]
-        == "attachment; filename*=UTF-8''qa-orders.csv"
+        == "attachment; filename*=UTF-8''orders.csv"
     )
     assert (
         json.loads(client.objects[f"artifacts/_metadata/{handle.artifact_id}.json"])["content_type"]
@@ -563,7 +563,7 @@ def test_unauthorized_production_readers_never_read_presentation_sidecar(tmp_pat
         artifact_id=receipt["artifact_id"],
         resolve_artifact=resolver,
     )
-    assert download.filename == "qa-orders.csv"
+    assert download.filename == "orders.csv"
     assert reads == [key]
 
 

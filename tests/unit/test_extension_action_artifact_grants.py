@@ -262,7 +262,7 @@ def test_direct_action_sdk_receipt_commits_opted_in_download_presentation(monkey
         claim = {
             key: receipt[key] for key in ("artifact_id", "binding_key", "size_bytes", "sha256")
         }
-        claim.update(filename="qa-orders.csv", content_type="text/csv")
+        claim.update(filename="orders.csv", content_type="text/csv")
         return {
             "status": "succeeded",
             "response": {"ok": True, "result": {"attachment_presentation": claim}},
@@ -272,7 +272,7 @@ def test_direct_action_sdk_receipt_commits_opted_in_download_presentation(monkey
     result = _service(lambda: plane, extension=extension).execute_action(
         "fixture.files", "fetch_file", _fetch_request(), scope=_scope()
     )
-    assert result.action["produced_artifacts"][0]["filename"] == "qa-orders.csv"
+    assert result.action["produced_artifacts"][0]["filename"] == "orders.csv"
     assert result.action["produced_artifacts"][0]["content_type"] == "text/csv"
     row = plane.get_artifact(seen["artifact_id"])
     assert row["filename"] == "download.bin"
@@ -335,7 +335,7 @@ def test_direct_action_defers_presentation_until_external_effect_confirmation(
         content_type="application/octet-stream",
     )
     claim = {key: receipt[key] for key in ("artifact_id", "binding_key", "size_bytes", "sha256")}
-    claim.update(filename="qa-orders.csv", content_type="text/csv")
+    claim.update(filename="orders.csv", content_type="text/csv")
     invocation = {
         "status": "succeeded",
         "response": {
@@ -403,7 +403,7 @@ def test_direct_action_defers_presentation_until_external_effect_confirmation(
     if confirmation == "success":
         assert plane._storage.get(key) is not None
         assert finalize_invocation["status"] == "succeeded"
-        assert finalize_invocation["produced_artifacts"][0]["filename"] == "qa-orders.csv"
+        assert finalize_invocation["produced_artifacts"][0]["filename"] == "orders.csv"
     else:
         assert plane._storage.get(key) is None
         assert finalize_invocation["status"] == "failed"
@@ -462,7 +462,7 @@ def test_direct_action_suppresses_success_when_confirmed_presentation_commit_fai
         content_type="application/octet-stream",
     )
     claim = {key: receipt[key] for key in ("artifact_id", "binding_key", "size_bytes", "sha256")}
-    claim.update(filename="qa-orders.csv", content_type="text/csv")
+    claim.update(filename="orders.csv", content_type="text/csv")
     invocation = {
         "status": "succeeded",
         "response": {"ok": True, "result": {"attachment_presentation": claim}},

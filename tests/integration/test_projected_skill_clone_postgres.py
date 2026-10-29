@@ -243,7 +243,7 @@ def test_clone_materializes_virtual_installed_skill_reference_and_contract(
 
 
 @pytest.mark.integration
-def test_clone_requires_registered_type_for_projected_analyst_and_accepts_override(
+def test_clone_requires_registered_type_for_projected_source_specialist_and_accepts_override(
     disposable_db, disposable_db_conn
 ):
     from core.application.management.command_services_agent import AgentCommandService
@@ -254,7 +254,7 @@ def test_clone_requires_registered_type_for_projected_analyst_and_accepts_overri
     )
     source_id = projection_bridge_id(install.install_id, agent_local_id)
     skill_id = projection_bridge_id(install.install_id, skill_local_id)
-    target_id = f"clone_analyst_override_{suffix}"
+    target_id = f"clone_source_specialist_override_{suffix}"
     try:
         agent_projection = next(
             row
@@ -264,7 +264,7 @@ def test_clone_requires_registered_type_for_projected_analyst_and_accepts_overri
         unsupported_projection = dict(agent_projection.projection)
         unsupported_projection.pop("agent_type_key", None)
         unsupported_projection.pop("agent_type_id", None)
-        unsupported_projection["role_type"] = "analyst"
+        unsupported_projection["role_type"] = "source_specialist"
         runtime.upsert_projection(
             agent_projection.model_copy(update={"projection": unsupported_projection})
         )
@@ -284,7 +284,7 @@ def test_clone_requires_registered_type_for_projected_analyst_and_accepts_overri
             clone_service.clone_agent(
                 source_id,
                 target_agent_id=target_id,
-                agent_type_id="analyst",
+                agent_type_id="source_specialist",
                 scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test"),
             )
         assert invalid_type.value.payload["code"] == "agent_clone_type_invalid"

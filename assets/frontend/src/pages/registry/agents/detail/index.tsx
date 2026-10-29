@@ -22,6 +22,7 @@ import { RegistryEntityChangelogPanel } from "@/pages/registry/shared/entity-cha
 
 import { SaveErrorAlert, SaveStatusBadge } from "@/pages/registry/shared/save-feedback";
 import {
+  isStandardToolAction,
   lineList,
   registryOptionId,
   registryOptionLabel,
@@ -427,10 +428,12 @@ export function RegistryAgentsDetailPage() {
                             registryOptionId(row, ["tool_id", "id", "name"]) ||
                             `tool-${index + 1}`;
                           const selected = lineList(draft.tools).includes(toolId);
-                          const relationshipUnavailable =
-                            row.agent_relationship_assignable === false;
+                          const connectorOnly = isStandardToolAction(row, toolId)
+                            || row.agent_relationship_reason_code === "tool_connector_only";
+                          const relationshipUnavailable = connectorOnly
+                            || row.agent_relationship_assignable === false;
                           const relationshipReason =
-                            row.agent_relationship_reason_code === "tool_connector_only"
+                            connectorOnly
                               ? t(
                                   "react.registry.standard_tool_actions_connector_only",
                                   "Standard Tool Actions are available only through connector workflow steps",
@@ -441,14 +444,15 @@ export function RegistryAgentsDetailPage() {
                           return (
                             <DsCheckbox
                               checked={selected}
-                              disabled={relationshipUnavailable && !selected}
+                              disabled={connectorOnly || (relationshipUnavailable && !selected)}
                               key={toolId}
-                              onChange={() =>
+                              onChange={() => {
+                                if (connectorOnly) return;
                                 setDraft((current) => ({
                                   ...current,
                                   tools: toggleLineValue(current.tools, toolId),
-                                }))
-                              }
+                                }));
+                              }}
                             >
                               <span className="fs-field">
                                 <span>

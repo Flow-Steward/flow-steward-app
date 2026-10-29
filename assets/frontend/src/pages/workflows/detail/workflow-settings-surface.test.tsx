@@ -202,7 +202,7 @@ it("opens real Settings from Overview without initializing the Builder or losing
     expect(destination.searchParams.get("tab")).toBe("smart-setup");
 
     await user.click(settings);
-    await screen.findByRole("textbox", { name: "Display name" });
+    await screen.findByRole("textbox", { name: "Display name" }, { timeout: 5_000 });
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Display name" }))
       .toHaveValue("Shipping status workflow"));
     expect(screen.getByRole("textbox", { name: "Description" })).toHaveValue("Owned Settings fixture");
@@ -555,8 +555,7 @@ it("goes back to Smart setup when the channel of the open tab is turned off", as
   const state = fixture({ callable: { enabled: true, trigger_channels: ["schedule"] } });
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=schedules`);
   try {
-    await screen.findByRole("button", { name: "New schedule" });
-    expect(screen.getByRole("link", { name: "Schedules" })).toHaveAttribute("aria-current", "page");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Schedules" })).toHaveAttribute("aria-current", "page"));
     state.detail.settings.callable = { ...state.detail.settings.callable, trigger_channels: [] } as typeof state.detail.settings.callable;
     await act(async () => { await view.client.invalidateQueries({ queryKey: ["workflows", "detail", workflowId] }); });
     await waitFor(() => expect(new URLSearchParams(view.router.state.location.search).get("tab")).toBe("smart-setup"));

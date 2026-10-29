@@ -518,6 +518,7 @@ def test_normal_action_blocks_reflected_runtime_secret_before_processing_and_aud
         *,
         confirm_external_effect=True,
         protected_values=frozenset(),
+        finalized_grants=None,
     ):
         cleanup_confirmation.append(confirm_external_effect)
         return original_cleanup(
@@ -525,6 +526,7 @@ def test_normal_action_blocks_reflected_runtime_secret_before_processing_and_aud
             invocation,
             confirm_external_effect=confirm_external_effect,
             protected_values=protected_values,
+            finalized_grants=finalized_grants,
         )
 
     monkeypatch.setattr(service, "_cleanup_action_resources", capture_cleanup)
@@ -630,6 +632,7 @@ def test_normal_action_blocks_short_secret_embedded_only_in_nested_result(
         *,
         confirm_external_effect=True,
         protected_values=frozenset(),
+        finalized_grants=None,
     ):
         cleanup_confirmation.append(confirm_external_effect)
         return original_cleanup(
@@ -637,6 +640,7 @@ def test_normal_action_blocks_short_secret_embedded_only_in_nested_result(
             invocation,
             confirm_external_effect=confirm_external_effect,
             protected_values=protected_values,
+            finalized_grants=finalized_grants,
         )
 
     monkeypatch.setattr(service, "_cleanup_action_resources", capture_cleanup)

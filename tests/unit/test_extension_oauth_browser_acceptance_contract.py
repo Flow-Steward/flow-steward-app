@@ -10,12 +10,12 @@ from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
+from tests.fixtures import preprovision_extension_oauth_browser, seed_extension_oauth_browser
 
 from core.application.auth.config import AUTH_BOOTSTRAP_TOKEN_HEADER
 from core.application.tooling.quality.check_registry import load_check_registry
 from core.application.tooling.quality.fingerprint import FingerprintContext, fingerprint_check
 from core.infrastructure.extension_runtime.extension_runtime import scan_extensions
-from tests.fixtures import preprovision_extension_oauth_browser, seed_extension_oauth_browser
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_ROOT = Path(os.environ.get("PYTEST_SOURCE_REPO_ROOT", ROOT)).resolve()
@@ -444,7 +444,12 @@ def test_runner_builds_exact_local_candidates_and_verifies_cleanup() -> None:
     assert "com.docker.compose.project=${PROJECT_NAME}" in source
     assert "remove_candidate_images || cleanup_status=$?" in source
     assert "docker image inspect" in source
-    assert source.rsplit("trap - EXIT INT TERM", 1)[0].rstrip().endswith("cleanup_on_exit")
+    assert "trap finalize_exit EXIT" in source
+    assert "trap 'exit 130' INT" in source
+    assert "trap 'exit 143' TERM" in source
+    assert "local original_status=$?" in source
+    assert "trap - EXIT" in source
+    assert "cleanup_on_exit || cleanup_status=$?" in source
     assert '"oauth-browser"' in source
     # The isolation check walks the rendered dependency graph instead of a
     # hand-written service list. The list could not notice a service the base

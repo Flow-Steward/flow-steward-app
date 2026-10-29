@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib
 from contextlib import contextmanager
 from pathlib import Path
@@ -1696,7 +1697,7 @@ def test_success_confirmation_returns_the_same_safe_projection_as_replay(
 def test_all_external_effect_consumers_enforce_post_confirmation_status() -> None:
     root = Path(__file__).resolve().parents[2]
     consumers = (
-        "core/application/extensions/operation_service.py",
+        "core/application/extensions/operation_service_resources.py",
         "core/application/management/command_services_dispatch.py",
         "core/application/orchestration/connector_extension_runtime.py",
         "core/application/notifications/delivery.py",
@@ -1706,6 +1707,25 @@ def test_all_external_effect_consumers_enforce_post_confirmation_status() -> Non
         source = (root / relative_path).read_text()
         assert "apply_external_effect_confirmation" in source, relative_path
         assert "public_confirmed_external_effect" in source, relative_path
+
+    service = ast.parse((root / "core/application/extensions/operation_service.py").read_text())
+    cleanup = next(
+        node
+        for node in ast.walk(service)
+        if isinstance(node, ast.FunctionDef) and node.name == "_cleanup_action_resources"
+    )
+    assert any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "operation_service_resources"
+        and any(alias.name == "cleanup_action_resources" for alias in node.names)
+        for node in ast.walk(cleanup)
+    )
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "cleanup_action_resources"
+        for node in ast.walk(cleanup)
+    )
 
 
 def test_schema_persists_typed_replay_tombstone_without_public_ciphertext_projection() -> None:
@@ -2149,7 +2169,6 @@ def test_direct_action_idempotency_key_distinguishes_intent_and_replays_retry(
         }
     )
     monkeypatch.setattr(service, "_invoke_action_with_grants", provider)
-    monkeypatch.setattr(service, "_finalize_action_grants", lambda _context, value: value)
     monkeypatch.setattr(service, "_process_action_response", lambda _context, value: value)
     monkeypatch.setattr(service, "_cleanup_action_resources", lambda *_a, **_k: None)
     monkeypatch.setattr(operation_runtime, "_log_action_invocation", lambda *_a, **_k: None)

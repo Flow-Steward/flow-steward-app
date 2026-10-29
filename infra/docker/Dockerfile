@@ -233,6 +233,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/registry/db_store_dataset_catalog_mixin.py \
     core/application/registry/db_store_datasets_mixin.py \
     core/application/registry/db_store_guardrails_mixin.py \
+    core/application/registry/db_store_projected_skills_mixin.py \
     core/application/registry/db_store_revisions_mixin.py \
     core/application/registry/db_store_tools_mixin.py \
     core/application/registry/db_store_skills_mixin.py \

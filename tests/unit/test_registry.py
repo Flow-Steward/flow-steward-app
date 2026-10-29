@@ -23,7 +23,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from tests._db_env import dsn_unreachable_reason, resolve_test_db_dsn
 from tests._workflow_definitions import edge, linear_graph, linear_workflow, node
 
@@ -1549,6 +1548,7 @@ class TestRegistryDatasetColumnCompatibility:
         ] == [("documentId", "inputs.documentId", "consume_document", None)]
 
     def test_validate_workflow_readiness_allows_final_delivery_to_return_prior_output(self):
+        from core.application.auth.config import DEFAULT_ACCOUNT_ID
         from core.application.registry.contract_validation import validate_workflow_readiness
 
         db = MagicMock()
@@ -1583,6 +1583,7 @@ class TestRegistryDatasetColumnCompatibility:
                 "output_mapping_jsonb": {"launch_copy": "state.launch_copy"},
             },
             workflow_id="wf_demo",
+            account_id=DEFAULT_ACCOUNT_ID,
             settings={
                 "callable": {
                     "enabled": True,
@@ -1596,12 +1597,14 @@ class TestRegistryDatasetColumnCompatibility:
         db.get_skill_outputs.return_value = [{"name": "launch_copy", "type": "text"}]
         db.get_agent.return_value = {
             "agent_id": "sample_launch_copywriter",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "_skills": [{"skill_id": "sample_write_launch_copy"}],
             "_tools": [],
         }
         db.get_skill.return_value = {
             "skill_id": "sample_write_launch_copy",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "expected_inputs": [{"name": "campaign_brief", "type": "text"}],
             "expected_outputs": [{"name": "launch_copy", "type": "text"}],

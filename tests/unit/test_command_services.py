@@ -17967,7 +17967,7 @@ class TestAgentCommandServiceClone:
             "agent_id": "extension.install-1.role_typed_agent",
             "account_id": DEFAULT_ACCOUNT_ID,
             "source_install_id": "install-1",
-            "role_type": "analyst",
+            "role_type": "source_specialist",
             "skills": [],
             "tools": [],
         }
@@ -18006,7 +18006,7 @@ class TestAgentCommandServiceClone:
             "agent_id": "extension.install-1.role_typed_agent",
             "account_id": DEFAULT_ACCOUNT_ID,
             "source_install_id": "install-1",
-            "role_type": "analyst",
+            "role_type": "source_specialist",
             "skills": [],
             "tools": [],
         }
@@ -18086,7 +18086,7 @@ class TestAgentCommandServiceClone:
             "agent_id": "extension.install-1.role_typed_agent",
             "account_id": DEFAULT_ACCOUNT_ID,
             "source_install_id": "install-1",
-            "role_type": "analyst",
+            "role_type": "source_specialist",
             "skills": [],
             "tools": [],
         }
@@ -18120,7 +18120,7 @@ class TestAgentCommandServiceClone:
                 service.clone_agent(
                     source["agent_id"],
                     target_agent_id="unknown_type_copy",
-                    agent_type_id="analyst",
+                    agent_type_id="source_specialist",
                     scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
                 )
             assert unknown.value.payload["code"] == "agent_clone_type_invalid"

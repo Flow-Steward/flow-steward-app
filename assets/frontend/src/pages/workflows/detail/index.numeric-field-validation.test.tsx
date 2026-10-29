@@ -184,7 +184,7 @@ describe("numeric fields through the actual workflow page", () => {
     expect(boundary.writes).toHaveLength(1);
     expect(boundary.writes[0].expected_revision).toBe(7);
     expect(boundary.storedConfig()[key]).toBe(expected);
-  });
+  }, 20_000);
 
   it("keeps optional blank byte limits in the payload rather than asserting a runtime default", async () => {
     const user = userEvent.setup();

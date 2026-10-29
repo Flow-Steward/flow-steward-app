@@ -16,8 +16,10 @@ changelog attributes a cross-account restore to whoever actually performed it.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -125,9 +127,16 @@ class TestAuditAuthorsResolveToTheActor:
         assert 'author=f"{get_scope(request).actor_name}_restore"' in source
 
     def test_every_agent_history_route_asserts_account_scope(self):
-        """CLAUDE-P1-01: all five handlers, not just the ones that mutate."""
+        """Each handler scopes inline or forwards caller scope to the clone service."""
         source = (ADMIN_ROUTES / "agents_history_routes.py").read_text(encoding="utf-8")
-        handlers = re.findall(r"\n    def (\w+)\(", source)
+        registration = next(
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == "register_agent_history_routes"
+        )
+        handlers = {
+            node.name: node for node in registration.body if isinstance(node, ast.FunctionDef)
+        }
 
         assert set(handlers) == {
             "clone_agent",
@@ -136,4 +145,62 @@ class TestAuditAuthorsResolveToTheActor:
             "get_agent_diff",
             "restore_agent_revision",
         }
-        assert source.count("assert_in_scope(source, get_scope(request)") == len(handlers)
+        for name, handler in handlers.items():
+            body = ast.get_source_segment(source, handler)
+            assert body is not None
+            if name == "clone_agent":
+                assert "scope = get_scope(request)" in body
+                calls = [
+                    node
+                    for node in ast.walk(handler)
+                    if isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == "clone_agent_command"
+                ]
+                assert len(calls) == 1
+                assert any(
+                    keyword.arg == "scope"
+                    and isinstance(keyword.value, ast.Name)
+                    and keyword.value.id == "scope"
+                    for keyword in calls[0].keywords
+                )
+            else:
+                assert "assert_in_scope(source, get_scope(request)" in body, name
+
+    def test_clone_route_delegated_scope_refuses_cross_account_before_persistence(self):
+        from fastapi import APIRouter, FastAPI
+        from fastapi.testclient import TestClient
+
+        from core.application.management.command_services_agent import AgentCommandService
+        from core.entrypoints.admin.agents_history_routes import register_agent_history_routes
+
+        db = MagicMock()
+        db.get_agent.return_value = {
+            "agent_id": "source",
+            "account_id": ACCOUNT_B,
+            "display_name": "Private source agent",
+        }
+        reload_registry = MagicMock()
+        service = AgentCommandService(get_db=lambda: db, reload_registry=reload_registry)
+        clone_command = MagicMock(wraps=service.clone_agent)
+        router = APIRouter(prefix="/agents")
+        register_agent_history_routes(
+            router,
+            get_db=lambda: db,
+            get_registry=MagicMock(),
+            get_agent_validation=MagicMock(),
+            get_scope=lambda _request: scope_for(ACCOUNT_A),
+            assert_in_scope=MagicMock(),
+            clone_agent_command=clone_command,
+        )
+        app = FastAPI()
+        app.include_router(router)
+
+        with TestClient(app) as client:
+            response = client.post("/agents/source/clone", json={"agent_id": "source_copy"})
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Agent 'source' not found"}
+        assert clone_command.call_args.kwargs["scope"].account_id == ACCOUNT_A
+        db.save_agent.assert_not_called()
+        reload_registry.assert_not_called()

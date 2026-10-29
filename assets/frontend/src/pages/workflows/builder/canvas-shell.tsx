@@ -528,10 +528,13 @@ export function WorkflowCanvasShell({
         handleNodesChange(changes);
         return true;
       },
-      copy: () => clipboard("copy", selectedNodeIds.size > 0 && clipboardAvailability.copy),
+      // Keyboard commands validate the live authority in requestClipboardCommand.
+      // This cached availability is updated from a layout effect; gating here
+      // can drop the first key immediately after the user selects a node.
+      copy: () => clipboard("copy", selectedNodeIds.size > 0),
       cut: () => clipboard("cut", selectedNodeIds.size > 0 && clipboardAvailability.copy && selectedCanDelete),
       paste: () => clipboard("paste", !structureLocked),
-      duplicate: () => clipboard("duplicate", selectedNodeIds.size > 0 && clipboardAvailability.duplicate),
+      duplicate: () => clipboard("duplicate", selectedNodeIds.size > 0),
       undo: () => history(false),
       redo: () => history(true),
       addNote: structureLocked || annotationsBusy ? undefined : () => { closeAll(); onAddNote(defaultNoteDropPoint()); },

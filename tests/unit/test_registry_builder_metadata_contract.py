@@ -61,6 +61,8 @@ def test_registry_saves_ignore_alternate_serialized_metadata(
     db._sync_workflow_runtime_dependencies = MagicMock()
     db._trigger_public_contract_projection_sync = MagicMock()
     db._log_change_cur = MagicMock()
+    # This is a new manual skill, so the readonly-anchor preflight reads no row.
+    db.get_skill = MagicMock(return_value=None)
     # A workflow save records the row it stored, read back in its transaction.
     db.get_workflow = MagicMock(return_value={"workflow_id": "current", "steps": []})
     writes = []
@@ -86,8 +88,23 @@ def test_registry_saves_ignore_alternate_serialized_metadata(
 
     getattr(db, f"save_{entity_type}")(payload)
 
+    if entity_type == "skill":
+        db.get_skill.assert_called_once_with("current")
     assert len(writes) == 1
     assert json.loads(writes[0]["builder_metadata_jsonb"])["purpose"] == expected_purpose
+
+
+def test_skill_metadata_save_keeps_projected_anchor_read_only():
+    db = RegistryDBStore("postgres://unused")
+    skill_id = "extension.install.current"
+    db.get_skill = MagicMock(return_value={"skill_id": skill_id, "source_install_id": "install"})
+    db._transaction = MagicMock()
+
+    with pytest.raises(ValueError, match="Install-owned projected skills are read-only"):
+        db.save_skill({"skill_id": skill_id, "builder_metadata_jsonb": {"purpose": "Changed"}})
+
+    db.get_skill.assert_called_once_with(skill_id)
+    db._transaction.assert_not_called()
 
 
 @pytest.mark.parametrize(

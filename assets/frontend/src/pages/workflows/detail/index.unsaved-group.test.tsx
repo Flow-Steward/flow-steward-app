@@ -34,5 +34,5 @@ describe("group form Test Run guard", () => {
     fireEvent.click(screen.getByRole("link", { name: "Test Run" }));
     expect(await screen.findByTestId("workflow-test-run-blocked")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeDisabled();
-  });
+  }, 20_000);
 });

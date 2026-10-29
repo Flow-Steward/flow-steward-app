@@ -519,7 +519,7 @@ def test_v2_lazy_execution_steps_preserves_post_authorization_presentation_reade
     claim = {
         "artifact_id": "art-fixture",
         "binding_key": "download",
-        "filename": "qa-orders.csv",
+        "filename": "orders.csv",
         "content_type": "text/csv",
         "size_bytes": 21,
         "sha256": "a" * 64,
@@ -565,7 +565,7 @@ def test_v2_lazy_execution_steps_preserves_post_authorization_presentation_reade
             {
                 "artifact_id": "art-fixture",
                 "role": "output",
-                "filename": "qa-orders.csv",
+                "filename": "orders.csv",
                 "content_type": "text/csv",
                 "size_bytes": 21,
                 "available": True,
