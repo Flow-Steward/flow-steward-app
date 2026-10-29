@@ -77,6 +77,7 @@ _SENSITIVE_KEY_MARKERS = (
     "credential",
     "credentials",
     "api_key",
+    "apikey",
     "access_key",
     "private_key",
     "client_secret",

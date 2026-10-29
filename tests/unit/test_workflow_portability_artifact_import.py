@@ -192,7 +192,9 @@ def _bundle(definitions: dict | None = None) -> str:
 
 
 def _service(store: _Store, *, ready: bool = True) -> WorkflowPortabilityService:
-    return WorkflowPortabilityService(store, project_store=_Projects(ready), account_id=ACCOUNT)
+    return WorkflowPortabilityService(
+        store, get_project_store=lambda: _Projects(ready), account_id=ACCOUNT
+    )
 
 
 def _rows(preflight: dict) -> dict[str, dict]:
@@ -681,7 +683,9 @@ def test_an_unreadable_project_model_is_not_reported_as_missing() -> None:
             raise RuntimeError("database is down")
 
     store = _Store()
-    service = WorkflowPortabilityService(store, project_store=_Broken(), account_id=ACCOUNT)
+    service = WorkflowPortabilityService(
+        store, get_project_store=lambda: _Broken(), account_id=ACCOUNT
+    )
     result = service.apply_import(
         _bundle(_definitions()),
         resolutions=[],

@@ -841,7 +841,7 @@ def test_operator_import_reads_the_project_model_from_the_project_store() -> Non
         get_integration_store=lambda: SimpleNamespace(),
     )
 
-    assert service._portability().project_store is project_store
+    assert service._portability().get_project_store() is project_store
 
 
 def test_a_failed_reload_after_import_is_reported_not_swallowed() -> None:

@@ -711,10 +711,13 @@ class WorkflowPortabilityArtifactImportMixin:
             "The project's model could not be checked; check the project's settings, "
             "then enable the agent."
         )
-        loader = getattr(getattr(self, "project_store", None), "get_project_run_config", None)
-        if not callable(loader):
-            return unchecked
+        get_store = getattr(self, "get_project_store", None)
         try:
+            loader = getattr(
+                get_store() if callable(get_store) else None, "get_project_run_config", None
+            )
+            if not callable(loader):
+                return unchecked
             config = loader(project_id) or {}
         except Exception:
             logger.warning(

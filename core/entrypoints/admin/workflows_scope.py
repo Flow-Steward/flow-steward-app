@@ -320,7 +320,7 @@ def _get_workflow_portability_service(
         # lookup that resolved_db (RegistryDBStore) does not have. Callers that resolve
         # extension dependencies pass the request's account; the rest keep the old behaviour.
         extension_install_store=connection_store,
-        project_store=_project_store_for_admin_import(resolved_db),
+        get_project_store=partial(_project_store_for_admin_import, resolved_db),
         account_id=account_id,
         import_transaction_factory=(
             partial(workflow_import_transaction, resolved_db, connection_store)

@@ -95,6 +95,7 @@ def test_export_keeps_non_secret_token_settings(key: str) -> None:
         "SMTPPassword",
         "clientsecret",
         "api_keys",
+        "apikey",
         "max_tokens_secret",
     ],
 )
@@ -119,3 +120,14 @@ def test_cli_export_scrubs_assigned_and_quoted_credentials_but_not_counts() -> N
     assert "abc123" not in result
     assert "max_tokens: 4000" in result
     assert "    password:\n      type: string\n" in result
+
+
+def test_cli_export_keeps_a_flow_mapping_valid_when_it_scrubs_a_value() -> None:
+    bundle = "headers: {dbpassword: hunter2}\n"  # pragma: allowlist secret
+
+    result = _public_result_payload(
+        _export(bundle), context=RedactionContext(), secret_fields=frozenset()
+    )["bundle_yaml"]
+
+    assert "hunter2" not in result
+    assert result.rstrip().endswith("}")

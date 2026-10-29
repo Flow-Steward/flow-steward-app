@@ -112,6 +112,8 @@ def test_admin_portability_service_reads_the_project_model_from_the_project_stor
     The integration store passed as project_connection_store has no
     get_project_run_config, so reading the model through it left every imported
     agent disabled with "no configured model" even when the project had one.
+    The store is built only when an import asks for it: routes that construct the
+    service for other checks must not open it.
     """
     project_store = object()
     with (
@@ -121,9 +123,10 @@ def test_admin_portability_service_reads_the_project_model_from_the_project_stor
         ) as factory,
     ):
         service = workflows_scope._get_workflow_portability_service(_AdminDbHandle())
+        factory.assert_not_called()
+        assert service.get_project_store() is project_store
 
     factory.assert_called_once_with(_AdminDbHandle.dsn)
-    assert service.project_store is project_store
 
 
 def test_integration_store_cannot_answer_the_project_model() -> None:

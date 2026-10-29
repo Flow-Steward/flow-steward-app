@@ -31,10 +31,11 @@ _ASSIGNED_CREDENTIAL = re.compile(
     r"(?i)(?P<label>\b[a-z0-9_-]*(?:password|passphrase|api(?:[\s_-]?key)|bearer|cookie|credential|"
     r"session|token|secret|private(?:[\s_-]?key))[a-z0-9_-]*\s*[:=]\s*)(?P<value>[^\s,;]+)"
 )
-#: `_ASSIGNED_CREDENTIAL` whose value is on the same line as its key.
+#: `_ASSIGNED_CREDENTIAL` whose value is on the same line as its key and stops
+#: before a closing bracket, so a flow mapping such as `{dbpassword: x}` stays valid.
 _DOCUMENT_ASSIGNED_CREDENTIAL = re.compile(
     r"(?i)(?P<label>\b[a-z0-9_-]*(?:password|passphrase|api(?:[\s_-]?key)|bearer|cookie|credential|"
-    r"session|token|secret|private(?:[\s_-]?key))[a-z0-9_-]*[ \t]*[:=][ \t]*)(?P<value>[^\s,;]+)"
+    r"session|token|secret|private(?:[\s_-]?key))[a-z0-9_-]*[ \t]*[:=][ \t]*)(?P<value>[^\s,;}\]]+)"
 )
 _QUOTED_MAPPING_ENTRY = re.compile(
     r"(?P<prefix>(?P<key_quote>['\"])(?P<key>(?:\\.|(?!(?P=key_quote))[^\\\r\n]){1,128})"
