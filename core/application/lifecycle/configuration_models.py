@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
@@ -48,6 +48,44 @@ class ConfigValidateRequest(_ClosedModel):
 class ConfigSetRequest(ConfigurationPatch):
     """Closed declarative patch accepted by the public config command."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def expand_assignments(cls, value: Any) -> Any:
+        """``config set NAME=VALUE ...``: each name as `config show` or an error shows it.
+
+        A typed setting goes to its field, a host setting to ``operator_settings``.
+        The typed options stay synonyms; the same name given both ways must agree.
+        """
+        if not isinstance(value, dict) or "assignments" not in value:
+            return value
+        from core.application.lifecycle.operator_settings import (
+            OperatorSettingError,
+            operator_setting_specs,
+            split_assignments,
+            typed_setting_fields,
+            unknown_setting_error,
+        )
+
+        expanded = {key: item for key, item in value.items() if key != "assignments"}
+        typed = typed_setting_fields()
+        host = operator_setting_specs()
+        host_changes = dict(expanded.get("operator_settings") or {})
+        for name, setting in split_assignments(value["assignments"]):
+            if name in typed:
+                given = expanded.get(name)
+                if given is not None and str(given) != setting:
+                    raise OperatorSettingError(
+                        f"{name} is given twice, as {given!r} and {setting!r}; give it once."
+                    )
+                expanded[name] = setting
+            elif name in host:
+                host_changes[name] = setting
+            else:
+                raise unknown_setting_error(name)
+        if host_changes:
+            expanded["operator_settings"] = host_changes
+        return expanded
+
     @model_validator(mode="after")
     def refuse_data_placement(self) -> ConfigSetRequest:
         if self.data_placement is not None:
@@ -55,6 +93,14 @@ class ConfigSetRequest(ConfigurationPatch):
                 "data_placement is chosen by ./install.sh --deployment-profile, which switches "
                 "the profile and keeps the data where it is; it is not set by hand."
             )
+        return self
+
+    @model_validator(mode="after")
+    def check_operator_settings(self) -> ConfigSetRequest:
+        if self.operator_settings is not None:
+            from core.application.lifecycle.operator_settings import check_operator_settings
+
+            check_operator_settings(self.operator_settings)
         return self
 
 

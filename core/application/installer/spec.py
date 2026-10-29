@@ -206,6 +206,22 @@ INSTALLER_SPEC = CommandSpec(
             ),
         ),
         FieldSpec(
+            key="operator_settings",
+            label="Host settings",
+            type=FieldType.TEXT,
+            option_name="--setting",
+            advanced=True,
+            # A command-line option, not a question: the plain questionnaire never asks it.
+            deferred_until_plan=True,
+            examples=("FS_ALLOW_PRIVATE_REMOTE_URLS=1",),
+            description=(
+                "NAME=VALUE for a host setting an error message names, such as "
+                "FS_ALLOW_PRIVATE_REMOTE_URLS=1; separate several with commas, and leave "
+                "VALUE empty to reset one to its default. On an existing installation it "
+                "changes only those settings and restarts the runtime."
+            ),
+        ),
+        FieldSpec(
             key="reverse_proxy_backend_host",
             label="Reverse-proxy backend host",
             type=FieldType.TEXT,

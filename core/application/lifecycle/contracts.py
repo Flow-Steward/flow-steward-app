@@ -17,6 +17,7 @@ from pydantic import (
     Field,
     JsonValue,
     SerializerFunctionWrapHandler,
+    field_validator,
     model_serializer,
     model_validator,
 )
@@ -89,6 +90,19 @@ class DeploymentConfig(_ClosedModel):
     s3_region: str = "us-east-1"
     s3_credentials_path: str = ""
     allow_insecure_s3_http: bool = False
+    # Host settings the operator set by name (operator_settings.py); written to the
+    # managed block of the runtime environment. Only the shape is checked here, so an
+    # installation keeps loading if the manifest later stops listing a setting.
+    operator_settings: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("operator_settings", mode="before")
+    @classmethod
+    def parse_operator_settings_text(cls, value: Any) -> dict[str, str]:
+        from core.application.lifecycle.operator_settings import parse_operator_settings
+
+        return {
+            name: setting for name, setting in parse_operator_settings(value).items() if setting
+        }
 
     @model_validator(mode="before")
     @classmethod
@@ -147,13 +161,15 @@ class DeploymentConfig(_ClosedModel):
         shapes; a key they do not know makes the installation unreadable to them, and
         a rollback with it. Where the trees are the profile's own -- every installation
         until one is switched -- the key is not written, so the files, and any digest
-        of them, stay what they were.
+        of them, stay what they were. Host settings follow the same rule: none set, no key.
         """
         data = handler(self)
         if isinstance(data, dict) and data.get("data_placement") == _own_data_placement(
             self.deployment_profile
         ):
             data.pop("data_placement")
+        if isinstance(data, dict) and not data.get("operator_settings"):
+            data.pop("operator_settings", None)
         return data
 
     @model_validator(mode="after")
@@ -281,6 +297,15 @@ class ConfigurationPatch(_ClosedModel):
     extension_installer_origin: str | None = None
     certificate_path: str | None = None
     private_key_path: str | None = None
+    # Host settings to change, merged into the active ones; an empty value resets one.
+    operator_settings: dict[str, str] | None = None
+
+    @field_validator("operator_settings", mode="before")
+    @classmethod
+    def parse_operator_settings_text(cls, value: Any) -> dict[str, str] | None:
+        from core.application.lifecycle.operator_settings import parse_operator_settings
+
+        return None if value is None else parse_operator_settings(value)
 
     @model_validator(mode="before")
     @classmethod

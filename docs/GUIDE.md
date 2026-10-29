@@ -2468,6 +2468,40 @@ or invalid address from DNS resolution failure or a disallowed destination.
 `config validate` checks configuration and Compose rendering, not the DNS or
 environment observed by the currently running application.
 
+### Host settings
+
+Every setting an operator changes has one name: `config show`, the error
+messages and the [Host settings page](https://docs.flowsteward.org/docs/reference/host-settings)
+print it the same way, and `config set NAME=VALUE` accepts it as printed. That
+page, generated from what `config set` accepts (`docs/configuration/host-settings.md`
+here), lists every setting with its default, accepted values and the command for
+each profile.
+
+Besides the typed settings (`public_host=flow.example.test`), a few host settings
+are set by name because an error message names them. The first is
+`FS_ALLOW_PRIVATE_REMOTE_URLS`: by default Flow Steward refuses private and
+loopback addresses for extension connections, MCP connectors and LLM providers,
+so a Docling service on an internal address such as `http://docling-serve:5001`
+is refused until an administrator allows them. The refusal gives the command for
+this installation. On **Scalable**:
+
+```bash
+./flow-steward config set FS_ALLOW_PRIVATE_REMOTE_URLS=1
+./flow-steward config apply
+```
+
+On **Compact**, where `config` is not available, rerun the installer from the
+installation folder with the setting:
+
+```bash
+./install.sh --setting FS_ALLOW_PRIVATE_REMOTE_URLS=1
+```
+
+It keeps the installation, records the setting and restarts the runtime.
+Separate several settings with spaces (`config set`) or commas (`--setting`);
+an empty value (`FS_ALLOW_PRIVATE_REMOTE_URLS=`) resets one to its default.
+Secrets and values the installer manages are never set this way.
+
 ### Optional overlays
 
 - `.env.example.test` keeps test-only knobs out of the main app env. Use it for Playwright, Nightfire, and live E2E runs.

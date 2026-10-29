@@ -5179,6 +5179,7 @@
     "canonical_name": "FS_DEPLOYMENT_PROFILE",
     "code_read_locations": [
       "core/application/extensions/archive_lifecycle_capability.py",
+      "core/application/extensions/url_safety.py",
       "core/entrypoints/cli/compact_container_cli.py",
       "core/entrypoints/cli/doctor.py",
       "core/infrastructure/monitoring/docker_containers.py",

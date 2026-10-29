@@ -47,6 +47,50 @@ if TYPE_CHECKING:
 
 
 class ConfigurationOperations:
+    def set_operator_settings(
+        self: DockerInstallerGateway,
+        config: InstallConfig,
+        *,
+        changes: Mapping[str, str],
+        log: InstallerLog,
+    ) -> InstallConfig:
+        """Apply host settings from ./install.sh --setting and restart the runtime with them.
+
+        A run on an unchanged revision renders no environment, so the keys are written
+        here, one by one: nothing else in the file is rewritten. A reset writes the
+        manifest default. stack.toml -- the applied configuration -- is written last,
+        so a run killed before it applies the settings again.
+        """
+        from core.application.lifecycle.operator_settings import (
+            merge_operator_settings,
+            operator_setting_specs,
+        )
+
+        merged = merge_operator_settings(config.operator_settings, changes)
+        if merged == config.operator_settings:
+            log.write("Host settings are already as requested.")
+            return config
+        candidate = InstallConfig.model_validate(
+            {**config.model_dump(mode="json"), "operator_settings": merged}
+        )
+        specs = operator_setting_specs()
+        environment = "local_development" if config.environment == "development" else "production"
+        self.state_store.update_env_values(
+            self._env_path(candidate),
+            {
+                name: value or specs[name].default_for_environment(environment)
+                for name, value in changes.items()
+            },
+        )
+        self._configuration.store.write_active(candidate)
+        log.write(
+            "Recorded host settings: "
+            + ", ".join(f"{name}={value or 'default'}" for name, value in sorted(changes.items()))
+            + "."
+        )
+        self.start_runtime(candidate, log=log)
+        return candidate
+
     def ensure_configuration(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> None:

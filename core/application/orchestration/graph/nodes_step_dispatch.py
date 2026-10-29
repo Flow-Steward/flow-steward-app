@@ -512,6 +512,9 @@ def execute_step_node(
                 else f"Connector step failed via {runtime_mode}: {safe_message or detail}"
             )
         elif detail:
+            from core.application.extensions.url_safety import with_private_address_hint
+
+            detail = with_private_address_hint(detail, connector_result.get("errors"))
             summary = (
                 f"Connector step '{connector_label}' failed via {runtime_mode}: {detail}"
                 if connector_label

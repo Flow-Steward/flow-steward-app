@@ -51,6 +51,8 @@ def test_check_reports_both_stale_artifacts_without_rewriting_them(tmp_path: Pat
     expected_paths = {
         "flow-steward-env-audit.json",
         "flow-steward-env-catalog.md",
+        # The Host settings page, rendered from the manifest and the config set fields.
+        "host-settings.md",
     }
     assert actual_paths == expected_paths
     assert (repo / "docs/configuration/flow-steward-env-audit.json").read_text() == "[]\n"
@@ -81,7 +83,7 @@ def test_sync_replaces_both_artifacts_from_one_fresh_snapshot(
     rows = json.loads(audit_path.read_text(encoding="utf-8"))
     stack_row = next(row for row in rows if row["variable_name"] == "FS_STACK_ENVIRONMENT")
     assert calls == 1
-    assert changed == (audit_path, catalog_path)
+    assert changed == (audit_path, catalog_path, repo / "docs/configuration/host-settings.md")
     assert "core/example.py" in stack_row["code_read_locations"]
     assert "Raw env-like names discovered by audit:" in catalog_path.read_text(encoding="utf-8")
     assert "FS_STACK_ENVIRONMENT" in catalog_path.read_text(encoding="utf-8")

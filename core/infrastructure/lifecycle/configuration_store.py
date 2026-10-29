@@ -43,7 +43,9 @@ _HOST_IDENTITY_KEYS = frozenset({"FS_HOST_UID", "FS_HOST_GID"})
 # command failed. Anything else missing is still a truncated file, and an unknown key
 # is still refused. A field added from now on must be listed here, with a default --
 # tests/unit/lifecycle/test_previous_release_configuration.py fails until it is.
-_FIELDS_ADDED_SINCE_PREVIOUS_SHAPE = frozenset({"worker_replicas", "data_placement"})
+_FIELDS_ADDED_SINCE_PREVIOUS_SHAPE = frozenset(
+    {"worker_replicas", "data_placement", "operator_settings"}
+)
 _PRESERVED_ENVIRONMENT_KEYS = frozenset(
     {
         *_HOST_IDENTITY_KEYS,
@@ -640,6 +642,13 @@ def _toml_value(value: object) -> str:
         return str(value)
     if isinstance(value, (list, tuple)):
         return "[" + ", ".join(json.dumps(str(item)) for item in value) + "]"
+    if isinstance(value, dict):
+        # An inline table: host settings, NAME = "value".
+        return (
+            "{ "
+            + ", ".join(f"{name} = {json.dumps(str(item))}" for name, item in sorted(value.items()))
+            + " }"
+        )
     return json.dumps(str(value))
 
 

@@ -357,6 +357,9 @@ class ConfigurationRenderingMixin:
                 "FS_EXTENSION_INSTALLER_ORIGIN": config.extension_installer_origin,
             }
         )
+        # Host settings the operator set by name; a reset one is no longer managed, so
+        # its default applies again.
+        managed.update({name: value for name, value in config.operator_settings.items() if value})
         # AC17-R167: never the source profile's, which `existing` holds on a switch.
         managed.update(profile_owned_environment(config.deployment_profile))
         managed["FS_MONITORING_EXPECTATIONS"] = deployment_monitoring_expectations(config)

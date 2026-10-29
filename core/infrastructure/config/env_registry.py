@@ -180,6 +180,10 @@ class EnvVarSpec:
     local_development_default: str
     owner: str
     notes: str
+    # A host setting the operator may set by name (`config set --setting`,
+    # `./install.sh --setting`); never a secret. Its accepted values, when listed.
+    operator_settable: bool = False
+    allowed_values: tuple[str, ...] = ()
 
     @property
     def clone_source_owned(self) -> bool:
@@ -253,6 +257,8 @@ def env_specs() -> tuple[EnvVarSpec, ...]:
                 local_development_default=str(row.get("local_development_default") or ""),
                 owner=str(row.get("owner") or ""),
                 notes=str(row.get("notes") or ""),
+                operator_settable=bool(row.get("operator_settable", False)),
+                allowed_values=tuple(str(value) for value in row.get("allowed_values") or ()),
             )
         )
     return tuple(specs)

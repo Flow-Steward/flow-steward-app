@@ -100,7 +100,15 @@ def _field_params(
                     )
                 )
         elif field.positional:
-            params.append(click.Argument([field.key], required=False, type=_click_type(field)))
+            # A positional multi-select takes every remaining word: `config set A=1 B=2`.
+            params.append(
+                click.Argument(
+                    [field.key],
+                    required=False,
+                    nargs=-1 if field.type is FieldType.MULTI_SELECT else 1,
+                    type=_click_type(field),
+                )
+            )
         else:
             params.append(_option_for_field(field))
     return params

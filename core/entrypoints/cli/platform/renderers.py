@@ -171,6 +171,9 @@ class PlainRenderer:
             _render_extensions_create_plain(_data(result))
         elif spec.command_id == "stack.logs":
             _render_stack_logs_plain(_data(result))
+        elif spec.command_id in _CONFIG_TEXT_RENDERERS:
+            for line in _CONFIG_TEXT_RENDERERS[spec.command_id](_data(result)):
+                click.echo(line)
         elif spec.command_id == _REPORTS_DIAGNOSTICS:
             # The report is the deliverable: one JSON document an operator saves and sends.
             report = _data(result).get("report") or {}
@@ -510,6 +513,9 @@ class RichRenderer(PlainRenderer):
                 _render_readiness_rich(console, payload)
             elif spec.command_id == _TOKEN_USERS_LIST:
                 _render_users_list_rich(console, payload)
+            elif spec.command_id in _CONFIG_TEXT_RENDERERS:
+                for line in _CONFIG_TEXT_RENDERERS[spec.command_id](payload):
+                    console.print(escape(line), highlight=False, soft_wrap=True)
             else:
                 _render_rich_payload(console, payload, escape=escape)
             for warning in result.warnings:
@@ -651,6 +657,82 @@ class RichRenderer(PlainRenderer):
             stop_heartbeat.set()
             thread.join(timeout=1)
             progress.stop()
+
+
+def _config_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, dict):
+        return ", ".join(f"{name}={item}" for name, item in sorted(value.items())) or "none"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value) or "none"
+    if value is None or value == "":
+        return "none"
+    return str(value)
+
+
+def _aligned(rows: list[tuple[str, str]], indent: str = "  ") -> list[str]:
+    width = max((len(name) for name, _ in rows), default=0)
+    return [f"{indent}{name.ljust(width)}  {value}" for name, value in rows]
+
+
+def _config_show_lines(payload: dict[str, Any]) -> list[str]:
+    """`config show` as sections; every changeable name is the one `config set` takes.
+
+    --json keeps the machine shape.
+    """
+    from core.application.lifecycle.operator_settings import (
+        HOST_SETTINGS_DOCS_URL,
+        typed_setting_fields,
+    )
+
+    active = dict(payload.get("active") or {})
+    host_settings = dict(active.pop("operator_settings", None) or {})
+    typed = typed_setting_fields()
+    changeable = [(name, _config_value(active[name])) for name in typed if name in active]
+    fixed = [(name, _config_value(value)) for name, value in active.items() if name not in typed]
+    lines = ["Settings"]
+    lines.extend(_aligned(changeable))
+    lines.extend(("", "Host settings set by the operator"))
+    lines.extend(_aligned(sorted(host_settings.items())) if host_settings else ["  none"])
+    lines.extend(("", "Pending changes"))
+    diff = dict(payload.get("pending_diff") or {})
+    pending_host = dict((diff.pop("operator_settings", None) or {}).get("pending") or {})
+    rows = [
+        (
+            name,
+            f"{_config_value(change.get('active'))} -> {_config_value(change.get('pending'))}",
+        )
+        for name, change in sorted(diff.items())
+    ]
+    rows.extend((name, value or "reset to default") for name, value in sorted(pending_host.items()))
+    if rows:
+        lines.extend(_aligned(rows))
+        lines.append("  Apply them with: flow-steward config apply")
+    else:
+        lines.append("  none")
+    lines.extend(("", "Fixed at installation"))
+    lines.extend(_aligned(fixed) if fixed else ["  none"])
+    lines.extend(("", "Protected values"))
+    states = [
+        (str(item.get("name") or ""), str(item.get("state") or ""))
+        for item in payload.get("protected_setting_states") or ()
+        if isinstance(item, dict)
+    ]
+    lines.extend(_aligned(states) if states else ["  none"])
+    lines.extend(
+        (
+            "",
+            "Change a setting: flow-steward config set NAME=VALUE, then flow-steward config apply",
+            f"All settings: {HOST_SETTINGS_DOCS_URL}",
+        )
+    )
+    return lines
+
+
+_CONFIG_TEXT_RENDERERS: dict[str, Callable[[dict[str, Any]], list[str]]] = {
+    "config.show": _config_show_lines,
+}
 
 
 RENDERERS: dict[str, Renderer] = {

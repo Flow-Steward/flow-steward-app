@@ -122,9 +122,9 @@ def assert_safe_remote_http_url(url: str, *, purpose: str) -> str:
         raise ValueError(f"{purpose} must include host")
     if not _allow_private_remote_urls():
         if host in {"localhost", "localhost.localdomain"} or host.endswith(".localhost"):
-            raise ValueError(f"{purpose} host '{host}' is not allowed")
+            raise ValueError(f"{purpose} host '{host}' is not allowed. {private_addresses_hint()}")
         if host.endswith(".local"):
-            raise ValueError(f"{purpose} host '{host}' is not allowed")
+            raise ValueError(f"{purpose} host '{host}' is not allowed. {private_addresses_hint()}")
         try:
             ipaddress.ip_address(host.split("%", 1)[0])
             host_is_ip_address = True
@@ -132,7 +132,9 @@ def assert_safe_remote_http_url(url: str, *, purpose: str) -> str:
             host_is_ip_address = False
         if host_is_ip_address:
             if _is_blocked_ip(host):
-                raise ValueError(f"{purpose} host '{host}' is not allowed")
+                raise ValueError(
+                    f"{purpose} host '{host}' is not allowed. {private_addresses_hint()}"
+                )
         else:
             port = int(parsed.port or (443 if scheme == "https" else 80))
             try:
@@ -146,7 +148,8 @@ def assert_safe_remote_http_url(url: str, *, purpose: str) -> str:
             for ip in resolved:
                 if _is_blocked_ip(ip):
                     raise ValueError(
-                        f"{purpose} host '{host}' resolves to disallowed address '{ip}'"
+                        f"{purpose} host '{host}' resolves to disallowed address '{ip}'. "
+                        f"{private_addresses_hint()}"
                     )
     return normalized
 
@@ -160,6 +163,33 @@ def assert_safe_remote_https_url(url: str, *, purpose: str) -> str:
 
 
 PRIVATE_URLS_SETTING = "FS_ALLOW_PRIVATE_REMOTE_URLS"
+#: The code an extension reports when it refuses a private address itself; Core
+#: adds the same hint to it as to its own refusals.
+NETWORK_BLOCKED_CODE = "network_blocked"
+
+
+def private_addresses_hint() -> str:
+    """How an administrator allows private addresses on this installation, as one sentence."""
+    from core.application.lifecycle.operator_settings import (
+        HOST_SETTINGS_DOCS_URL,
+        operator_setting_command,
+    )
+    from core.infrastructure.config.runtime_env import runtime_env
+
+    profile = str(runtime_env.get("FS_DEPLOYMENT_PROFILE") or "").strip().lower()
+    return (
+        "An administrator can allow private addresses: "
+        f"{operator_setting_command(PRIVATE_URLS_SETTING, '1', deployment_profile=profile)}. "
+        f"Settings: {HOST_SETTINGS_DOCS_URL}"
+    )
+
+
+def with_private_address_hint(detail: str, errors: Any) -> str:
+    """An extension refused a private address itself: say how to allow one here."""
+    blocked = isinstance(errors, list) and any(
+        isinstance(error, dict) and error.get("code") == NETWORK_BLOCKED_CODE for error in errors
+    )
+    return f"{detail}. {private_addresses_hint()}" if blocked else detail
 
 
 def allow_private_provider_addresses() -> bool:
@@ -177,10 +207,7 @@ def _url_host_ips(host: str, *, port: int) -> list[str]:
 
 
 def _private_addresses_refused(purpose: str) -> ValueError:
-    return ValueError(
-        f"{purpose} points to a private network address. An administrator can allow "
-        f"private addresses with {PRIVATE_URLS_SETTING}=1."
-    )
+    return ValueError(f"{purpose} points to a private network address. {private_addresses_hint()}")
 
 
 def assert_safe_provider_url(url: str, *, purpose: str, allow_private_addresses: bool) -> str:

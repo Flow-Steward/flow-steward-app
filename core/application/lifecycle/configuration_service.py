@@ -832,5 +832,12 @@ class ConfigurationService(ConfigurationRenderingMixin):
             # names the placement, which only ./install.sh --deployment-profile writes
             # (item 5, step 4): it keeps the trees where they are.
             values.pop("data_placement", None)
+        if "operator_settings" in changes:
+            # Merged, not replaced: setting one host setting keeps the others.
+            from core.application.lifecycle.operator_settings import merge_operator_settings
+
+            changes["operator_settings"] = merge_operator_settings(
+                values.get("operator_settings") or {}, changes["operator_settings"]
+            )
         values.update(changes)
         return DeploymentConfig.model_validate(values)

@@ -778,7 +778,12 @@
       "preserve_existing": true,
       "default": "0",
       "owner": "extensions",
-      "notes": "Optional override to permit private remote extension URLs, private MCP connector base URLs and private or loopback LLM provider base URLs (link-local and metadata addresses stay refused for LLM providers)."
+      "notes": "Optional override to permit private remote extension URLs, private MCP connector base URLs and private or loopback LLM provider base URLs (link-local and metadata addresses stay refused for LLM providers).",
+      "operator_settable": true,
+      "allowed_values": [
+        "0",
+        "1"
+      ]
     },
     {
       "name": "FS_ALLOW_UNIT_TEST_SKIPS",

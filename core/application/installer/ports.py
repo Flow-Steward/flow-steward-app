@@ -98,6 +98,10 @@ class InstallerGateway(Protocol):
         self, config: InstallConfig, *, processes: int, log: InstallerLog
     ) -> InstallConfig: ...
 
+    def set_operator_settings(
+        self, config: InstallConfig, *, changes: Mapping[str, str], log: InstallerLog
+    ) -> InstallConfig: ...
+
     def converge_compact_worker_processes(
         self, config: InstallConfig, *, log: InstallerLog, changed: bool = False
     ) -> str: ...

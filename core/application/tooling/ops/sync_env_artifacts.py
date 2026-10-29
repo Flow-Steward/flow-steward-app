@@ -10,6 +10,10 @@ import tempfile
 from pathlib import Path
 
 from core.application.tooling.ops.generate_env_catalog import render_env_catalog_markdown
+from core.application.tooling.ops.generate_host_settings_doc import (
+    HOST_SETTINGS_PATH,
+    render_host_settings_markdown,
+)
 from core.infrastructure.config.env_audit import build_env_audit
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -33,6 +37,8 @@ def _expected_outputs(repo_root: Path) -> dict[Path, str]:
             repo_root,
             audit_rows=snapshot,
         ),
+        # The public Host settings page, from what `config set` accepts.
+        repo_root / HOST_SETTINGS_PATH: render_host_settings_markdown(),
     }
 
 

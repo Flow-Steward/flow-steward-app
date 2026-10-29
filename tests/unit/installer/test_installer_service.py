@@ -82,6 +82,12 @@ class FakeGateway:
         self.calls.append(f"set_compact_worker_processes:{processes}")
         return config.model_copy(update={"worker_processes": processes})
 
+    def set_operator_settings(self, config, *, changes, log):
+        del log
+        self.calls.append(f"set_operator_settings:{sorted(changes.items())}")
+        merged = {**config.operator_settings, **{k: v for k, v in changes.items() if v}}
+        return config.model_copy(update={"operator_settings": merged})
+
     def converge_compact_worker_processes(self, config, *, log, changed=False):
         del log
         self.calls.append(f"converge_compact_worker_processes:{config.worker_processes}")
@@ -1545,6 +1551,49 @@ def test_an_installed_compact_applies_a_new_worker_process_count(tmp_path: Path)
         "converge_compact_worker_processes:1"
     )
     assert "Compact worker processes: 2 -> 1." in result.changes  # said on screen
+
+
+@pytest.mark.parametrize("profile", ("compact", "scalable"))
+def test_an_installed_run_applies_a_host_setting_on_either_profile(
+    tmp_path: Path, profile: str
+) -> None:
+    """`./install.sh --setting NAME=VALUE` is the one path that sets a host setting on
+    Compact, and works on Scalable too; it is applied, not refused as unapplied."""
+    gateway = _installed_gateway(ImageCurrency(source_revision=_NEW, running_revision=_NEW))
+    installed = InstallConfig(environment="production", deployment_profile=profile)
+    gateway.active_config = installed
+    service = _installed_service(tmp_path, gateway)
+
+    result = service.install(
+        InstallConfig(
+            environment="production",
+            deployment_profile=profile,
+            operator_settings="FS_ALLOW_PRIVATE_REMOTE_URLS=1",
+        ),
+        explicit_fields=frozenset({"operator_settings"}),
+    )
+
+    assert result.status == "already_installed"
+    assert "set_operator_settings:[('FS_ALLOW_PRIVATE_REMOTE_URLS', '1')]" in gateway.calls
+    assert "Host settings: FS_ALLOW_PRIVATE_REMOTE_URLS=1" in result.changes
+    assert service.last_config.operator_settings == {"FS_ALLOW_PRIVATE_REMOTE_URLS": "1"}
+
+
+def test_an_install_refuses_a_setting_it_cannot_set_before_touching_anything(
+    tmp_path: Path,
+) -> None:
+    gateway = _installed_gateway(ImageCurrency(source_revision=_NEW, running_revision=_NEW))
+    gateway.active_config = _compact()
+    service = _installed_service(tmp_path, gateway)
+
+    with pytest.raises(InstallerFailure) as raised:
+        service.install(
+            _compact(operator_settings="FS_SECRET_KEY=x"),
+            explicit_fields=frozenset({"operator_settings"}),
+        )
+
+    assert raised.value.code == "installer_setting_invalid"
+    assert not any(call.startswith("set_operator_settings") for call in gateway.calls)
 
 
 def test_an_installed_run_refuses_a_setting_it_would_not_apply(tmp_path: Path) -> None:

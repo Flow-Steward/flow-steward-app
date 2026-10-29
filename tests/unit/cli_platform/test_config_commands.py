@@ -157,6 +157,8 @@ def test_config_specs_register_exact_four_leaves_and_closed_fields() -> None:
         "extension_installer_origin",
         "certificate_path",
         "private_key_path",
+        # NAME=VALUE pairs, each by the name `config show` or an error prints.
+        "assignments",
     )
     assert specs["config.apply"].fields == ()
     assert specs["config.apply"].lifecycle_interrupts is True

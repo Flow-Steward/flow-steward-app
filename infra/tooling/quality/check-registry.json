@@ -247,7 +247,8 @@
         "infra/**/*.yaml",
         "infra/**/*.yml",
         "docs/configuration/flow-steward-env-audit.json",
-        "docs/configuration/flow-steward-env-catalog.md"
+        "docs/configuration/flow-steward-env-catalog.md",
+        "docs/configuration/host-settings.md"
       ]
     },
     {

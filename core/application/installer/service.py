@@ -142,6 +142,8 @@ class InstallerService:
         explicit_fields: frozenset[str],
         target_release: ReleaseIdentity | None,
     ) -> InstallRunResult:
+        if "operator_settings" in explicit_fields:
+            _checked_operator_settings(requested_config.operator_settings)
         evidence = self.gateway.inspect()
         classification = classify_installation(evidence)
         operation_id = uuid4().hex
@@ -227,8 +229,11 @@ class InstallerService:
                     self.last_config = config
                 compact = config.deployment_profile == "compact"
                 # AC17-R157, the owner's decision: the one setting ./install.sh applies to
-                # an installed Compact. Everything else stays a refusal by name.
-                applied_here = frozenset({"worker_processes"}) if compact else frozenset()
+                # an installed Compact. Host settings (--setting) apply on either profile.
+                # Everything else stays a refusal by name.
+                applied_here = frozenset(
+                    {"operator_settings", *(("worker_processes",) if compact else ())}
+                )
                 recorded_change = ""
                 self._refuse_unapplied_settings(
                     requested_config,
@@ -251,6 +256,20 @@ class InstallerService:
                         config, processes=requested_config.worker_processes, log=log
                     )
                     self.last_config = config
+                settings_change = ""
+                if "operator_settings" in explicit_fields:
+                    before = dict(config.operator_settings)
+                    config = self.gateway.set_operator_settings(
+                        config,
+                        changes=requested_config.operator_settings,
+                        log=log,
+                    )
+                    self.last_config = config
+                    if config.operator_settings != before:
+                        settings_change = "Host settings: " + ", ".join(
+                            f"{name}={value or 'default'}"
+                            for name, value in sorted(requested_config.operator_settings.items())
+                        )
                 currency = self.gateway.image_currency(config, log=log)
                 # A source build and an official release can share a commit but not
                 # artifact identity. An explicit new release must materialize its
@@ -309,6 +328,7 @@ class InstallerService:
                         *switch_changes,
                         started,
                         recorded_change,
+                        settings_change,
                         converged,
                         pruned,
                         *self.gateway.take_notices(),
@@ -935,3 +955,25 @@ def _warning_text(finding: ReadinessFinding) -> str:
     title = title[:1].upper() + title[1:]
     text = " ".join(part.strip() for part in (finding.detail, finding.remediation) if part.strip())
     return f"{title}: {text}" if text else f"{title}."
+
+
+def _checked_operator_settings(changes: dict[str, str]) -> dict[str, str]:
+    """`./install.sh --setting` names only settings the manifest lets the operator set."""
+    from core.application.lifecycle.operator_settings import (
+        OperatorSettingError,
+        check_operator_settings,
+    )
+
+    try:
+        return check_operator_settings(changes)
+    except OperatorSettingError as exc:
+        raise InstallerFailure(
+            code="installer_setting_invalid",
+            cause=str(exc),
+            remediation=(
+                "./install.sh --setting changes host settings only; correct NAME=VALUE and "
+                "rerun ./install.sh."
+            ),
+            exit_code=3,
+            step="preflight",
+        ) from exc

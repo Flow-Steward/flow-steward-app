@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from core.application.lifecycle.contracts import DeploymentConfig, validate_s3_endpoint
 
@@ -60,6 +60,14 @@ class InstallationClassification(_ClosedModel):
 
 class InstallConfig(DeploymentConfig):
     """Installer-specific name and validation over the shared deployment shape."""
+
+    @field_validator("operator_settings", mode="before")
+    @classmethod
+    def parse_operator_settings_text(cls, value: Any) -> dict[str, str]:
+        """Keep an empty value: on ./install.sh --setting NAME= it resets NAME."""
+        from core.application.lifecycle.operator_settings import parse_operator_settings
+
+        return parse_operator_settings(value)
 
     @model_validator(mode="after")
     def require_external_s3_inputs(self) -> Self:

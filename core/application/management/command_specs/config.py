@@ -350,6 +350,21 @@ CONFIG_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 description="Path to the operator-provided TLS certificate private key.",
                 examples=(".ssl/key.pem",),
             ),
+            FieldSpec(
+                key="assignments",
+                label="NAME=VALUE",
+                type=FieldType.MULTI_SELECT,
+                positional=True,
+                advanced=True,
+                examples=("public_host=flow.example.com", "FS_ALLOW_PRIVATE_REMOTE_URLS=1"),
+                description=(
+                    "Settings to change, each NAME=VALUE with the name exactly as `config show` "
+                    "or an error message shows it; several are separated by spaces, and an "
+                    "empty VALUE resets a host setting to its default. The options above are "
+                    "synonyms for the typed ones. The full list: "
+                    "https://docs.flowsteward.org/docs/reference/host-settings"
+                ),
+            ),
         ),
         input_model=ConfigSetRequest,
         result_model=ConfigSetResult,
