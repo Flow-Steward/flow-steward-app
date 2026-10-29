@@ -7,7 +7,7 @@ import re
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from core.application.registry.agent_manifest import refuse_agent_phases
-from core.application.registry.catalog_categories import catalog_category
+from core.application.registry.catalog_categories import CatalogCategory
 from core.application.registry.prompt_contracts import validate_skill_prompt
 
 _ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -23,7 +23,7 @@ class AgentSave(BaseModel):
     agent_id: str
     version: str = "1.0.0"
     display_name: str
-    category: str = ""
+    category: CatalogCategory = ""
     base_skill: str = ""
     secondary_skills: list[str] = []
     local_instructions: list[str] = []
@@ -34,11 +34,6 @@ class AgentSave(BaseModel):
         if not _ID_PATTERN.match(v):
             raise ValueError("agent_id must match [a-z][a-z0-9_]* (lowercase, no spaces)")
         return v
-
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, v: str) -> str:
-        return catalog_category(v)
 
     description: str = ""
     enabled: bool = False
@@ -89,7 +84,7 @@ class AgentPatch(BaseModel):
     secondary_skills: list[str] | None = None
     local_instructions: list[str] | None = None
     display_name: str | None = None
-    category: str | None = None
+    category: CatalogCategory | None = None
     description: str | None = None
     enabled: bool | None = None
     prompts: dict | None = None
@@ -100,11 +95,6 @@ class AgentPatch(BaseModel):
     builder_metadata_jsonb: dict | None = None
     depends_on: dict | None = None
     tags: list[str] | None = None
-
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, v: str | None) -> str | None:
-        return None if v is None else catalog_category(v)
 
 
 class SkillAdd(BaseModel):

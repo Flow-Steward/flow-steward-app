@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import BaseModel, Field, StringConstraints
 
 from core.application.management.command_models import SkillMutationResultView
 from core.application.management.query_models import (
@@ -21,7 +21,7 @@ from core.application.management.query_models import (
 from core.application.registry.active_workflow_dependencies import (
     enabled_workflow_dependencies,
 )
-from core.application.registry.catalog_categories import catalog_category
+from core.application.registry.catalog_categories import CatalogCategory
 from core.application.registry.contract_validation import (
     format_validation_error_detail,
     validate_contract_items,
@@ -162,7 +162,7 @@ class SkillSave(BaseModel):
     display_name: str
     description: str = ""
     enabled: bool = False
-    category: str = ""
+    category: CatalogCategory = ""
     skill_type: str = "secondary"
     instructions: list[str] = []
     prompt_template: str = ""
@@ -174,11 +174,6 @@ class SkillSave(BaseModel):
     builder_metadata_jsonb: dict = {}
     tags: list[str] = []
 
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, v: str) -> str:
-        return catalog_category(v)
-
 
 class SkillCreate(SkillSave):
     skill_id: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = Field(...)
@@ -188,7 +183,7 @@ class SkillPatch(BaseModel):
     display_name: str | None = None
     description: str | None = None
     enabled: bool | None = None
-    category: str | None = None
+    category: CatalogCategory | None = None
     skill_type: str | None = None
     instructions: list[str] | None = None
     prompt_template: str | None = None
@@ -197,11 +192,6 @@ class SkillPatch(BaseModel):
     examples: list[dict] | None = None
     builder_metadata_jsonb: dict | None = None
     tags: list[str] | None = None
-
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, v: str | None) -> str | None:
-        return None if v is None else catalog_category(v)
 
 
 class InputItem(BaseModel):

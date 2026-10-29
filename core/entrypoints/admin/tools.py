@@ -9,7 +9,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 from core.application.management import ServiceError, ToolCommandService, ToolQueryService
 from core.application.management.command_models import (
@@ -32,7 +32,7 @@ from core.application.management.query_models import (
     ToolValidationView,
 )
 from core.application.management.scope import ScopeContext, scope_from_principal
-from core.application.registry.catalog_categories import catalog_category
+from core.application.registry.catalog_categories import CatalogCategory
 from core.application.registry.contract_validation import (
     format_validation_error_detail,
     validate_tool_readiness,
@@ -187,7 +187,7 @@ class ToolSave(BaseModel):
     display_name: str
     description: str = ""
     enabled: bool = False
-    category: str = ""
+    category: CatalogCategory = ""
     prompt: str = ""
     interface: ToolInterfaceInput = {}
     implementation: dict = {}
@@ -195,28 +195,18 @@ class ToolSave(BaseModel):
     builder_metadata_jsonb: dict = {}
     tags: list[str] = []
 
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, v: str) -> str:
-        return catalog_category(v)
-
 
 class ToolPatch(BaseModel):
     display_name: str | None = None
     description: str | None = None
     enabled: bool | None = None
-    category: str | None = None
+    category: CatalogCategory | None = None
     prompt: str | None = None
     interface: ToolInterfaceInput | None = None
     implementation: dict | None = None
     config: dict | None = None
     builder_metadata_jsonb: dict | None = None
     tags: list[str] | None = None
-
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, v: str | None) -> str | None:
-        return None if v is None else catalog_category(v)
 
 
 class RestoreRevisionRequest(BaseModel):
