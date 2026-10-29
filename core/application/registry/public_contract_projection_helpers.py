@@ -95,9 +95,23 @@ def _normalize_public_contract_items(
                 "type": _normalize_value_type(item.get("type")),
                 "required": bool(item.get("required", default_required)),
                 "description": str(item.get("description") or "").strip(),
+                "contract_id": str(item.get("contract_id") or "").strip(),
             }
         )
     return rows
+
+
+def _merge_field_contract(current: Any, candidate: str) -> str:
+    """Return the contract one shared field keeps when another source declares it.
+
+    A field is shared by every skill and workflow that uses its key. A source
+    with no contract of its own gets the generated ``auto.<key>.v1`` shape, which
+    must not replace a contract another source linked explicitly.
+    """
+    existing = str(current or "").strip()
+    if existing and not existing.startswith("auto.") and candidate.startswith("auto."):
+        return existing
+    return candidate
 
 
 def _extract_workflow_callable_contract(
@@ -240,7 +254,9 @@ def _register_public_field_source(
             contract_backrefs.append(
                 {**skill_backref, "field_key": normalized_key, "contract_id": contract_id}
             )
-        bucket["data_contract_id"] = contract_id
+        bucket["data_contract_id"] = _merge_field_contract(
+            bucket.get("data_contract_id"), contract_id
+        )
         existing_contract = current_contracts.get(contract_id) or {}
         desired_contracts.setdefault(
             contract_id,

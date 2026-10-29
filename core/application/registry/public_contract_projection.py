@@ -14,6 +14,7 @@ from core.application.registry.public_contract_projection_helpers import (
     _extract_workflow_callable_interface,
     _humanize_field_key,
     _list_workflows_safe,
+    _merge_field_contract,
     _normalize_value_type,
     _register_public_field_source,
     _stable_hash,
@@ -236,7 +237,9 @@ def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
                             "contract_id": contract_id,
                         }
                     )
-                    bucket["data_contract_id"] = contract_id
+                    bucket["data_contract_id"] = _merge_field_contract(
+                        bucket.get("data_contract_id"), contract_id
+                    )
 
                     existing_contract = current_contracts.get(contract_id) or {}
                     desired_contracts.setdefault(
@@ -304,6 +307,7 @@ def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
                 required=bool(row.get("required", False)),
                 derived_from_kind="workflow_input",
                 derived_from_ref=source_ref,
+                contract_id_hint=str(row.get("contract_id") or ""),
                 source_entry={
                     "workflow_id": workflow_id,
                     "workflow_display_name": workflow_display_name,
@@ -343,6 +347,7 @@ def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
                 required=bool(row.get("required", True)),
                 derived_from_kind="workflow_output",
                 derived_from_ref=source_ref,
+                contract_id_hint=str(row.get("contract_id") or ""),
                 source_entry={
                     "workflow_id": workflow_id,
                     "workflow_display_name": workflow_display_name,

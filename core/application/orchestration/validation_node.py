@@ -261,7 +261,7 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
             for item in output_validation.errors[:5]
             if isinstance(item, dict)
         ]
-        summary = "Workflow output contract failed"
+        summary = "The workflow reached its success stop, but its output contract failed"
         if any(messages):
             summary = f"{summary}: {'; '.join(item for item in messages if item)}"
         return _build_result(

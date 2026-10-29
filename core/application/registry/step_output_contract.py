@@ -53,12 +53,12 @@ class StepOutputContract:
         for row in self.rows:
             name = row["name"]
             value = artifacts.get(name)
-            if row["required"] and (
-                name not in artifacts
-                or value is None
-                or (isinstance(value, str) and not value.strip())
-            ):
+            if row["required"] and (name not in artifacts or value is None):
                 errors.append(f"Missing required output '{name}'")
+            elif row["required"] and isinstance(value, str) and not value.strip():
+                # A required text output must say something; an empty list or
+                # object is a legitimate value and is validated by its schema.
+                errors.append(f"Required output '{name}' is empty")
             elif name in artifacts and value is not None:
                 validator = Draft202012Validator(row["contract_schema"])
                 try:
@@ -246,8 +246,48 @@ def _skill_field_schema(
     return None if legacy_metadata else prop
 
 
-def _add_block_fields(fields: dict[str, dict], block: dict, db: Any, account_id: str) -> None:
+def _derived_skill_output_contracts(
+    db: Any, block: dict, skill_id: str, skill_manifest: Any
+) -> dict[str, str]:
+    """Return the selected skill's own output contracts when the block mirrors it.
+
+    A derived agent+skill block reads each output's shape from the shared field
+    row, and one field key carries one contract for every skill and workflow that
+    uses it. The skill's own output row is the authority for its block.
+    """
+    source_ref = str(block.get("source_ref") or "").strip()
+    if (
+        not skill_id
+        or block.get("derived_from_kind") != "agent_skill_pair"
+        or not source_ref.endswith(f"::{skill_id}")
+    ):
+        return {}
+    rows = (
+        getattr(skill_manifest, "expected_outputs", None)
+        if skill_manifest is not None
+        else _read(db, "get_skill_outputs", skill_id, None)
+    )
+    if rows is None:
+        skill = _read(db, "get_skill", skill_id, {})
+        rows = (skill or {}).get("_outputs", []) if isinstance(skill, dict) else []
+    return {
+        str(row.get("name") or "").strip(): str(row.get("contract_id") or "").strip()
+        for row in rows or []
+        if isinstance(row, dict) and str(row.get("contract_id") or "").strip()
+    }
+
+
+def _add_block_fields(
+    fields: dict[str, dict],
+    block: dict,
+    db: Any,
+    account_id: str,
+    skill_contracts: dict[str, str] | None = None,
+) -> None:
     for row in block.get("outputs", block.get("_outputs", [])) or []:
+        own_contract = (skill_contracts or {}).get(str(row.get("field_key") or "").strip())
+        if own_contract:
+            row = {**row, "data_contract_id": own_contract}
         if row.get("exposed_by_default", True):
             _add_declaration(
                 fields,
@@ -368,7 +408,13 @@ def _resolve(
     fields: dict[str, dict] = {}
     block = _resolve_block(db, agent_id, skill_id, account_id, block_key)
     if block is not None:
-        _add_block_fields(fields, block, db, account_id)
+        _add_block_fields(
+            fields,
+            block,
+            db,
+            account_id,
+            _derived_skill_output_contracts(db, block, skill_id, skill_manifest),
+        )
     else:
         _add_skill_fields(fields, db, skill_id, skill_manifest, account_id)
         _add_agent_fields(fields, db, agent_id, agent_manifest)

@@ -200,6 +200,31 @@ def _draft_response_satisfies_phase_result_schema(draft_response: Any, schema: A
             continue
         if all(
             _artifact_value_is_publishable(artifacts.get(field)) for field in required_artifacts
-        ):
+        ) and _artifacts_match_field_schemas(artifacts, required_artifacts, schema):
             return True
     return False
+
+
+def _artifacts_match_field_schemas(artifacts: dict, fields: list[str], schema: Any) -> bool:
+    """Check each required draft artifact against its own field schema.
+
+    A draft written from prompt guidance alone can carry a list of strings where
+    the contract asks for objects. Only the structured call is bound to the
+    schema, so a draft that does not match it must not replace that call.
+    """
+    from jsonschema import Draft202012Validator, SchemaError
+
+    artifacts_schema = (schema.get("properties") or {}).get("artifacts") or {}
+    properties = artifacts_schema.get("properties") if isinstance(artifacts_schema, dict) else {}
+    if not isinstance(properties, dict):
+        return True
+    for field in fields:
+        field_schema = properties.get(field)
+        if not isinstance(field_schema, dict) or not field_schema:
+            continue
+        try:
+            if not Draft202012Validator(field_schema).is_valid(artifacts.get(field)):
+                return False
+        except (SchemaError, TypeError, ValueError):  # an unusable schema keeps the structured call
+            return False
+    return True

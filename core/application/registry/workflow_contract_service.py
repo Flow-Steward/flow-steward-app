@@ -391,10 +391,13 @@ class WorkflowInterfaceService:
                 if row.name not in outputs or _is_missing_contract_value(
                     outputs.get(row.name), row
                 ):
+                    present = row.name in outputs and outputs.get(row.name) is not None
                     errors.append(
                         _error(
                             "workflow.output.required",
-                            f"Workflow output '{row.name}' is required",
+                            f"Workflow output '{row.name}' is required but empty"
+                            if present
+                            else f"Workflow output '{row.name}' is required",
                             path=f"outputs.{row.name}",
                         )
                     )

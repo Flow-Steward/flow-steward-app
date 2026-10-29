@@ -22,9 +22,11 @@ def response_field_json_schema(
         schema = {"type": "number"}
     elif normalized == "boolean":
         schema = {"type": "boolean"}
-    elif normalized == "json":
+    elif normalized in {"json", "object"}:
         schema = {"type": "object", "additionalProperties": True}
-    elif normalized == "list":
+    elif normalized in {"list", "array"}:
+        # An array with no linked contract has no item shape; text items are the
+        # only one every provider's strict mode accepts. A contract shapes items.
         schema = {"type": "array", "items": {"type": "string"}}
     else:
         schema = {"type": "string"}

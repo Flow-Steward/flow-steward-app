@@ -771,7 +771,7 @@ def _validate_skill_output_contract(skill: str, artifacts: Any) -> list[str]:
 
     payload = artifacts if isinstance(artifacts, dict) else {}
     properties = schema.get("properties") if isinstance(schema, dict) else {}
-    missing: list[str] = []
+    errors: list[str] = []
     for field in required:
         value = _resolve_dotted(payload, field)
         if value is None and "." not in field:
@@ -779,17 +779,17 @@ def _validate_skill_output_contract(skill: str, artifacts: Any) -> list[str]:
         field_schema = properties.get(field, {}) if isinstance(properties, dict) else {}
         field_type = str(field_schema.get("type") or "").strip().lower()
         if value is None:
-            missing.append(field)
+            errors.append(f"Missing required output '{field}'")
             continue
         if isinstance(value, str) and not value.strip():
-            missing.append(field)
+            errors.append(f"Required output '{field}' is empty")
             continue
-        # Required json/list outputs may legitimately be empty (`{}` / `[]`).
-        if field_type in {"json", "list"}:
+        # Required collection outputs may legitimately be empty (`{}` / `[]`).
+        if field_type in {"json", "list", "object", "array"}:
             continue
         if isinstance(value, (list, tuple, set, dict)) and len(value) == 0:
-            missing.append(field)
-    return [f"Missing required output '{field}'" for field in missing]
+            errors.append(f"Required output '{field}' is empty")
+    return errors
 
 
 def _normalize_message_status(status: str) -> str:
