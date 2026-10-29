@@ -420,6 +420,8 @@ def _direct_action_connection_target(
             raise ServiceValidationError(
                 f"connection_secret_resolution_failed:{connection_id}:{exc}"
             ) from exc
+    for name, value in provider_secrets_for_connection(bl, connection, secret_refs).items():
+        secrets.setdefault(name, value)
     if callable(getattr(bl, "cursor", None)):
         try:
             from core.application.auth.oauth_client import (
@@ -447,6 +449,37 @@ def _direct_action_connection_target(
     }
 
 
+def provider_secrets_for_connection(
+    bl: Any, connection: dict[str, Any], secret_refs: dict[str, Any]
+) -> dict[str, str]:
+    """Return the secrets a connection keeps in ``provider_secrets``.
+
+    The extension's secrets form saves a token there, and the connection only
+    records which keys it owns (``secret_refs.provider_secrets``). Without this
+    read an operation never received the token, although inbound polling did.
+    """
+    declared = secret_refs.get("provider_secrets")
+    reader = getattr(bl, "get_provider_secret", None)
+    if not isinstance(declared, dict) or not callable(reader):
+        return {}
+    provider_key = str(declared.get("provider_key") or "").strip()
+    keys = declared.get("keys")
+    project_id = str(connection.get("project_id") or "").strip()
+    if not provider_key or not project_id or not isinstance(keys, dict):
+        return {}
+    found: dict[str, str] = {}
+    for name, secret_key in keys.items():
+        value = reader(
+            provider_key=provider_key,
+            secret_key=str(secret_key or "").strip(),
+            project_id=project_id,
+            include_global=False,
+        )
+        if value:
+            found[str(name).strip()] = value
+    return found
+
+
 __all__ = [
     "_direct_action_connection_target",
     "_direct_action_project_id",
@@ -454,4 +487,5 @@ __all__ = [
     "_require_direct_action_project_access",
     "_target_connection_id",
     "_target_connection_id_for_external_effect",
+    "provider_secrets_for_connection",
 ]

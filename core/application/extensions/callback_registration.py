@@ -269,7 +269,7 @@ class ExtensionCallbackRegistrationService:
         raw_secret = ""
         auth = _callback_auth(declaration)
         auth_config: dict[str, Any] = {}
-        if auth.get("type") in {"shared_secret_header", "hmac_sha256"}:
+        if auth.get("type") in {"shared_secret_header", "hmac_sha256", "hub_signature"}:
             if not hasattr(self.bl, "save_project_secret"):
                 raise RuntimeError(_MESSAGE_PROJECT_SECRET_STORAGE_IS_UNAVAILABLE)
             raw_secret = generate_callback_secret()

@@ -583,7 +583,7 @@ CREATE TABLE public.extension_callback_registrations (
     last_error text DEFAULT ''::text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT extension_callback_registrations_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'shared_secret_header'::text, 'hmac_sha256'::text]))),
+    CONSTRAINT extension_callback_registrations_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'shared_secret_header'::text, 'hmac_sha256'::text, 'hub_signature'::text]))),
     CONSTRAINT extension_callback_registrations_pkey PRIMARY KEY (id),
     CONSTRAINT extension_callback_registrations_token_hash_key UNIQUE (callback_token_hash)
 );

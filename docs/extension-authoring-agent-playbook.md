@@ -274,7 +274,7 @@ exempt kind/feature validation and cannot be enabled. See the canonical
 
 If callbacks are declared, each callback needs a stable `callback_id`, purpose,
 methods, `action_id`, and supported auth. Current callback auth supports only
-`none`, `shared_secret_header`, and `hmac_sha256`; follow the manifest reference
+`none`, `shared_secret_header`, `hmac_sha256`, and `hub_signature` (Meta webhooks); follow the manifest reference
 for their required fields and OAuth-authorization callback exceptions.
 
 Declare event selectors in authored `event_subscriptions`. Compilation derives

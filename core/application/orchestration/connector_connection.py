@@ -154,6 +154,14 @@ def _build_runtime_connection_target(
                 account_id=str(connection.get("account_id") or "").strip(),
                 secret_refs=connection.get("secret_refs"),
             )
+            from core.application.extensions.operation_targets import (
+                provider_secrets_for_connection,
+            )
+
+            for name, value in provider_secrets_for_connection(
+                bl, connection, dict(connection.get("secret_refs") or {})
+            ).items():
+                secrets.setdefault(name, value)
         except Exception as exc:
             raise ConnectionResolutionError(
                 f"connection_secret_resolution_failed:{connection_id}:{exc}"

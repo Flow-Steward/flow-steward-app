@@ -2,6 +2,10 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from core.application.workflows.provider_event_trigger_dispatch import (
+    start_provider_event_workflows,
+)
+
 from .command_services_common import *  # NOSONAR
 
 
@@ -553,6 +557,23 @@ class EventCommandServiceIngestMixin:
                         correlation_id=correlation_id,
                     )
                     or []
+                )
+                start_provider_event_workflows(
+                    bl,
+                    enqueue_task_fn=getattr(self, "_enqueue_task", None),
+                    provider_key=provider_key,
+                    project_id=str(project_id),
+                    event_type=event_type,
+                    payload=payload,
+                    # Only an id the provider gave the event may serve as the
+                    # replay key; the generated fallback correlation id repeats.
+                    source_id=str(
+                        event_payload.get("source_id")
+                        or payload.get("source_id")
+                        or event_payload.get("correlation_id")
+                        or payload.get("correlation_id")
+                        or ""
+                    ),
                 )
 
         return ProviderEventIngestResultView(

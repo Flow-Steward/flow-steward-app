@@ -10,7 +10,7 @@ from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Request, concurrency
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from core.application.extensions.callbacks import (
@@ -18,6 +18,7 @@ from core.application.extensions.callbacks import (
     ExtensionCallbackDispatchService,
     ExtensionCallbackRegistrationService,
     _base_url_from_request,
+    _callback_auth,
     callback_base_url_for_provider_setup,
     callback_url,
     find_callback_declaration,
@@ -290,6 +291,28 @@ def _is_async_callable(value: Any) -> bool:
     return inspect.iscoroutinefunction(value)
 
 
+class _StoreUnion:
+    """Two stores seen as one: what the first has, else what the second has.
+
+    An extension callback needs the registration and the install (identity store)
+    and the project's connection (project store) in the same call, for example to
+    build the runtime configuration of the connection a delivery belongs to. Each
+    store alone lacks half of it, and a missing method is answered with an empty
+    result, not an error.
+    """
+
+    def __init__(self, first: Any, second: Any) -> None:
+        self._first = first
+        self._second = second
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("__"):
+            raise AttributeError(name)
+        if hasattr(self._first, name):
+            return getattr(self._first, name)
+        return getattr(self._second, name)
+
+
 def create_extension_callbacks_router(
     *,
     get_callback_store: Callable[[], Any],
@@ -559,9 +582,11 @@ def create_extension_callbacks_router(
         bl = get_callback_store()
         if not bl:
             return _error(err_database_not_configured, 503)
+        project_repository = get_project_repository()
         service = ExtensionCallbackDispatchService(
-            bl,
+            _StoreUnion(bl, project_repository),
             event_command_service_factory=event_command_service_factory,
+            connection_store=project_repository,
         )
         registration = service.resolve_registration(callback_token)
         if not registration:
@@ -637,6 +662,14 @@ def create_extension_callbacks_router(
                     extension_id=extension_id,
                     project_id=str(registration.get("project_id") or ""),
                 )
+        if (
+            _callback_auth(declaration).get("type") == "hub_signature"
+            and request.method.upper() == "GET"
+        ):
+            challenge = service.hub_challenge(request, registration)
+            if challenge is None:
+                return _error("Invalid webhook verification request", 403)
+            return PlainTextResponse(challenge)
         try:
             authentication = await service.authenticate(
                 request=request,

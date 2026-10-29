@@ -1969,3 +1969,132 @@ def test_invalid_reject_comment_context_is_acknowledged_without_retry(
     assert body["errors"][0]["message"] == "Reply to the current chat rejection prompt."
     event_command_service.ingest_provider_events.assert_not_called()
     assert fake.registrations[created["id"]]["last_error"] == ""
+
+
+APP_SECRET_NAME = "app_secret"  # pragma: allowlist secret
+
+
+def _hub_signature_setup(monkeypatch, *, app_secret_value: str = "meta-app-value"):
+    fake = FakeCallbackLogger()
+    callback = fake.extension["compiled_manifest"]["callbacks"][0]
+    callback["methods"] = ["GET", "POST"]
+    callback["auth"] = {
+        "type": "hub_signature",
+        "signature_header": "X-Hub-Signature-256",
+        "secret_name": APP_SECRET_NAME,
+    }
+    fake.connections["conn-callback-primary"]["secret_refs"] = {
+        "provider_secrets": {
+            "provider_key": "fixture.callback-provider",
+            "keys": {APP_SECRET_NAME: APP_SECRET_NAME},
+        }
+    }
+
+    def get_provider_secret(**kwargs: Any) -> str:
+        return app_secret_value if kwargs.get("secret_key") == APP_SECRET_NAME else ""
+
+    fake.get_provider_secret = get_provider_secret
+    monkeypatch.setattr(
+        "core.infrastructure.extension_runtime.extension_runtime.run_extension_action",
+        lambda *_args, **_kwargs: {
+            "status": "succeeded",
+            "response": {"ok": True, "result": {"accepted": True}, "errors": []},
+        },
+    )
+    client = _client(fake)
+    created = client.post(
+        "/api/extensions/fixture.callback-provider/callbacks/updates",
+        json={"project_id": fake.project_id, "connection_id": "conn-callback-primary"},
+    ).json()
+    path = f"/webhook/extensions/fixture.callback-provider/updates/{created['callback_token']}"
+    return client, created, path, app_secret_value
+
+
+def test_hub_signature_callback_answers_the_subscription_handshake(monkeypatch):
+    client, created, path, _ = _hub_signature_setup(monkeypatch)
+    verify_token = created["callback_secret"]
+
+    accepted = client.get(
+        path,
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": verify_token,
+            "hub.challenge": "1158201444",
+        },
+    )
+    wrong_token = client.get(
+        path,
+        params={"hub.mode": "subscribe", "hub.verify_token": "wrong", "hub.challenge": "1"},
+    )
+    wrong_mode = client.get(
+        path,
+        params={"hub.mode": "unsubscribe", "hub.verify_token": verify_token, "hub.challenge": "1"},
+    )
+    no_challenge = client.get(
+        path, params={"hub.mode": "subscribe", "hub.verify_token": verify_token}
+    )
+
+    assert accepted.status_code == 200
+    assert accepted.text == "1158201444"
+    assert accepted.headers["content-type"].startswith("text/plain")
+    assert wrong_token.status_code == 403
+    assert wrong_mode.status_code == 403
+    assert no_challenge.status_code == 403
+
+
+def test_hub_signature_callback_checks_the_raw_body_against_the_app_secret(monkeypatch):
+    client, created, path, app_secret_value = _hub_signature_setup(monkeypatch)
+    body = b'{"object":"whatsapp_business_account","entry":[]}'
+
+    def sign(secret: str, payload: bytes = body) -> dict[str, str]:
+        digest = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+        return {"Content-Type": "application/json", "X-Hub-Signature-256": f"sha256={digest}"}
+
+    accepted = client.post(path, content=body, headers=sign(app_secret_value))
+    wrong_key = client.post(path, content=body, headers=sign("not-the-app-secret"))
+    # The registration's own secret must not be accepted as the signing key.
+    registration_key = client.post(path, content=body, headers=sign(created["callback_secret"]))
+    tampered = client.post(path, content=body + b" ", headers=sign(app_secret_value))
+    unsigned = client.post(path, content=body, headers={"Content-Type": "application/json"})
+
+    assert accepted.status_code == 200
+    assert wrong_key.status_code == 401
+    assert registration_key.status_code == 401
+    assert tampered.status_code == 401
+    assert unsigned.status_code == 401
+
+
+def test_hub_signature_callback_without_a_stored_app_secret_rejects_every_post(monkeypatch):
+    client, _created, path, _ = _hub_signature_setup(monkeypatch, app_secret_value="")
+    body = b"{}"
+    digest = hmac.new(b"", body, hashlib.sha256).hexdigest()
+
+    response = client.post(
+        path,
+        content=body,
+        headers={"Content-Type": "application/json", "X-Hub-Signature-256": f"sha256={digest}"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_every_callback_auth_type_is_allowed_by_the_registrations_table():
+    """The table's CHECK must list each auth type the runtime accepts.
+
+    ``hub_signature`` once passed validation and then failed on insert, because the
+    constraint in ``db/schema`` still named the three older types.
+    """
+    from pathlib import Path
+
+    from core.infrastructure.extension_runtime.extension_runtime_common import (
+        ALLOWED_CALLBACK_AUTH_TYPES,
+    )
+
+    schema = Path(__file__).resolve().parents[2] / "db" / "schema" / "001_schema_part_01.sql"
+    constraint = next(
+        line
+        for line in schema.read_text().splitlines()
+        if "extension_callback_registrations_auth_type_check" in line
+    )
+    for auth_type in ALLOWED_CALLBACK_AUTH_TYPES:
+        assert f"'{auth_type}'::text" in constraint

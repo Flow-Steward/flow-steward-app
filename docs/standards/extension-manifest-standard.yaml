@@ -11,6 +11,8 @@
 # - none
 # - shared_secret_header
 # - hmac_sha256 (timestamped, replay-protected delivery)
+# - hub_signature (Meta webhooks: GET hub.challenge handshake against the registration's
+#   verify token; POST body signed with a connection secret, auth.secret_name)
 #
 # OAuth callback handshakes are separate from generic callback authentication.
 # OAuth2 for
@@ -790,6 +792,7 @@ x-validator-contract:
     - none
     - shared_secret_header
     - hmac_sha256
+    - hub_signature
   connection_auth_types:
     - none
     - api_key

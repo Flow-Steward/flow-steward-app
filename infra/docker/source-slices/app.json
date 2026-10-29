@@ -914,6 +914,7 @@
     "core/application/workflows/platform_test_run_common.py",
     "core/application/workflows/platform_test_run_runtime.py",
     "core/application/workflows/project_credential_versions.py",
+    "core/application/workflows/provider_event_trigger_dispatch.py",
     "core/application/workflows/reaction_runtime.py",
     "core/application/workflows/reaction_scopes.py",
     "core/application/workflows/reaction_service_runtime.py",
