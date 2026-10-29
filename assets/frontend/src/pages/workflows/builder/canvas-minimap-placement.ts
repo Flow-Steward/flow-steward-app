@@ -25,5 +25,5 @@ export function chooseCanvasMinimapRect(
     return sum + width * height;
   }, 0);
   return candidates.find((candidate) => overlapArea(candidate) === 0)
-    ?? candidates.reduce((best, candidate) => overlapArea(candidate) < overlapArea(best) ? candidate : best);
+    ?? candidates.reduce((best, candidate) => overlapArea(candidate) < overlapArea(best) ? candidate : best, candidates[0]);
 }

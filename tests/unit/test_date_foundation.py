@@ -1,6 +1,9 @@
 """Contracts for deterministic date parsing, formatting and DST resolution."""
 
+import subprocess
+import sys
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
 
@@ -302,3 +305,79 @@ def test_unix_format_overflow_is_a_named_error(english, date_format):
     with pytest.raises(DateValueError) as caught:
         format_date(value, date_format, lexicon=english)
     assert caught.value.code == "invalid_date"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_groups"),
+    [
+        ("5pm", ("5", None, None, None, "pm", None)),
+        ("5 \t PM  Z", ("5", None, None, None, "PM", "Z")),
+        ("17:00 \n +01:30", ("17", "00", None, None, None, "+01:30")),
+        ("05:03:04.123 AM -0130", ("05", "03", "04", "123", "AM", "-0130")),
+        ("17:00 UTC+1", ("17", "00", None, None, None, "UTC+1")),
+        ("17:00   ", ("17", "00", None, None, None, None)),
+    ],
+)
+def test_clock_capture_contract_preserves_ampm_and_offset_positions(text, expected_groups):
+    from core.infrastructure.date_parsing import _CLOCK
+
+    match = _CLOCK.fullmatch(text)
+    assert match is not None
+    assert match.groups() == expected_groups
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("5pm", "17:00:00"),
+        ("5 \t PM  Z", "17:00:00+00:00"),
+        ("17:00 \n +01:30", "17:00:00+01:30"),
+        ("05:03:04.123 AM -0130", "05:03:04.123000-01:30"),
+        ("17:00 UTC+1", "17:00:00+01:00"),
+        ("12am", "00:00:00"),
+        ("12pm", "12:00:00"),
+    ],
+)
+def test_automatic_date_and_time_share_whitespace_ampm_offset_semantics(english, text, expected):
+    parsed_time = parse_time(text, lexicon=english)
+    assert parsed_time.isoformat() == expected
+    assert parse_date("2026-10-29 " + text, lexicon=english) == datetime.combine(
+        date(2026, 10, 29), parsed_time
+    )
+
+
+@pytest.mark.parametrize(
+    ("length", "code"),
+    [(256, "invalid_date"), (257, "input_too_long")],
+)
+def test_adversarial_clock_keeps_input_limit_and_named_rejection(english, length, code):
+    # The length limit applies before whitespace normalization.
+    text = "17:00" + " " * (length - 6) + "!"
+    with pytest.raises(DateValueError) as error:
+        parse_time(text, lexicon=english)
+    assert error.value.code == code
+
+
+def test_raw_clock_rejects_long_whitespace_suffix_in_bounded_time():
+    from core.infrastructure import date_parsing
+
+    # Public parsers already cap/normalize input. Exercise the production matcher
+    # itself so an overlapping repeat cannot reappear behind those protections.
+    # A subprocess timeout bounds failure even if the old quadratic regex returns.
+    script = """
+from core.infrastructure.date_parsing import _CLOCK
+for text in (
+    '17:00' + ' ' * 200_000 + '!',
+    '5' + ' ' * 200_000 + 'pm' + ' ' * 200_000 + '!',
+    '17:00' + ' ' * 200_000 + '+01:x',
+):
+    assert _CLOCK.fullmatch(text) is None
+"""
+    subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(date_parsing.__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=5,
+    )
