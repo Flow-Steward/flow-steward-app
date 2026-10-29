@@ -59,10 +59,27 @@ class WorkflowPortabilityResolutionMixin:
             indexed[(dependency_type, ref)] = {**resolution, "action": action}
         return indexed
 
-    def _bundled_child_dependency(self, row: dict[str, Any]) -> dict[str, Any]:
-        """A child workflow the bundle itself carries: created with it, never missing."""
+    def _bundled_child_dependency(
+        self,
+        row: dict[str, Any],
+        resolution_index: dict[tuple[str, str], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """A child workflow the bundle itself carries: created with it, never missing.
+
+        Its reuse is decided on its `workflow:` row. A mapping on this row would make
+        the rewrite point the caller at an id nothing checked, so it is a conflict.
+        """
         dependency_type = _text(row.get("dependency_type"))
         ref = _text(row.get("ref"))
+        resolution = resolution_index.get((dependency_type, ref))
+        if resolution and _text(resolution.get("action")) != "abort":
+            return {
+                **self._classify_dependency(row, {}),
+                "status": "conflict",
+                "blocking": True,
+                "resolution_actions": ["abort"],
+                "message": "This workflow comes with the file; choose what to do on its own row.",
+            }
         return {
             "dependency_key": _dependency_key(dependency_type, ref),
             "dependency_type": dependency_type,

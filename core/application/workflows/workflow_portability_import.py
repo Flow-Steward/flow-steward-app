@@ -397,7 +397,7 @@ class WorkflowPortabilityImportMixin:
                 )
 
         preflight_dependencies = [
-            self._bundled_child_dependency(item)
+            self._bundled_child_dependency(item, resolution_index)
             if _text(item.get("dependency_type")) == "child_workflow"
             and _text(item.get("ref")) in carried_ids
             else self._classify_dependency(item, resolution_index)

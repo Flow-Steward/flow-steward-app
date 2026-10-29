@@ -303,3 +303,30 @@ def test_a_catalog_template_is_refused_when_it_carries_an_unrelated_workflow() -
 
     assert raised.value.code == "workflow_template_multiple_workflows"
     assert "stray_wf" in str(raised.value)
+
+
+def test_a_reused_child_cannot_be_renamed_to_an_unchecked_id() -> None:
+    """The review's probe: reuse the carried child, then rename its call to a missing id."""
+    target = _PortabilityDB(workflows={"child_a": _workflow("child_a")})
+    service = WorkflowPortabilityService(target)
+    resolutions = [
+        {"dependency_type": "workflow", "ref": "child_a", "action": "use_existing"},
+        {
+            "dependency_key": "child_workflow:child_a",
+            "action": "rename",
+            "target_ref": "no_such_workflow_xyz",
+        },
+    ]
+
+    preflight = service.preflight_import(_bundle(), resolutions=resolutions)
+    row = next(
+        row
+        for row in preflight["dependencies"]
+        if row["dependency_key"] == "child_workflow:child_a"
+    )
+
+    assert row["status"] == "conflict" and row["blocking"] is True
+    assert preflight["can_apply"] is False
+    with pytest.raises(WorkflowPortabilityError):
+        service.apply_import(_bundle(), resolutions=resolutions)
+    assert "parent_wf" not in target.workflows
