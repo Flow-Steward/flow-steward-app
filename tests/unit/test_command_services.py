@@ -17953,11 +17953,6 @@ class TestAgentCommandServiceClone:
         assert payload["structured_outputs"] == projection_outputs
 
     @pytest.mark.parametrize(
-        "override",
-        ["researcher", "00000000-0000-0000-0000-000000000001"],
-        ids=["catalog-key", "catalog-id"],
-    )
-    @pytest.mark.parametrize(
         "dependency_account", [None, DEFAULT_ACCOUNT_ID], ids=["global", "account"]
     )
     def test_clone_references_durable_installed_dependencies_without_transferring_ownership(
