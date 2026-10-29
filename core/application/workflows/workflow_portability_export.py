@@ -204,7 +204,14 @@ class WorkflowPortabilityExportMixin:
             account_id=str(getattr(self, "account_id", "") or ""),
         )
 
-    def discover_dependencies(self, workflow: dict[str, Any]) -> list[dict[str, Any]]:
+    def discover_dependencies(
+        self, workflow: dict[str, Any], *, include_stored: bool = True
+    ) -> list[dict[str, Any]]:
+        """Dependencies of one workflow; ``include_stored`` adds its stored runtime rows.
+
+        An import passes False: the file is judged by its own contents, and the rows
+        stored here under the same workflow id belong to a different record.
+        """
         dependencies: dict[tuple[str, str], dict[str, Any]] = {}
         workflow_id = _text(workflow.get("workflow_id"))
         settings = _workflow_settings(workflow)
@@ -331,7 +338,7 @@ class WorkflowPortabilityExportMixin:
                 )
 
         runtime_deps = _as_list(settings.get("workflow_runtime_dependencies"))
-        if workflow_id:
+        if workflow_id and include_stored:
             runtime_deps.extend(_list_runtime_dependencies(self.db, workflow_id))
         for dep in runtime_deps:
             if not isinstance(dep, dict):

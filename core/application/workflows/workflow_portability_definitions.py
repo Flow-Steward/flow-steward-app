@@ -249,7 +249,7 @@ class WorkflowPortabilityDefinitionsMixin:
                 isinstance(workflow, dict)
                 and _text(workflow.get("portability_kind")) != "extension_workflow_ref"
             ):
-                rows.extend(self.discover_dependencies(workflow))
+                rows.extend(self.discover_dependencies(workflow, include_stored=False))
 
         raw_dependencies = bundle.get("dependencies")
         if isinstance(raw_dependencies, list):

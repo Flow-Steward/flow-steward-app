@@ -467,3 +467,46 @@ def test_an_id_taken_during_apply_aborts_without_overwriting() -> None:
     assert excinfo.value.code == "workflow_import_definition_conflict"
     assert excinfo.value.status_code == 409
     assert store.saves == [] and not store.rows["skill"]
+
+
+class _StoreWithRuntimeRows(_Store):
+    """A target that already holds a workflow under the bundle's id, wired to its own records."""
+
+    def list_workflow_runtime_dependencies(self, workflow_id):
+        if workflow_id != "brief_flow":
+            return []
+        return [
+            {"dependency_kind": "project_connection", "dependency_ref": "conn_stored_here"},
+            {"dependency_kind": "extension_install", "install_id": "install-stored-here"},
+        ]
+
+
+def test_import_judges_the_file_without_the_stored_workflow_of_the_same_id() -> None:
+    """Re-importing a template must not demand mappings for the earlier copy's connections."""
+    store = _StoreWithRuntimeRows()
+    preflight = _service(store).preflight_import(
+        _bundle(_definitions()),
+        target_workflow_id="brief_flow_copy",
+        target_project_id=PROJECT,
+    )
+
+    keys = set(_rows(preflight))
+    assert "project_connection:conn_stored_here" not in keys
+    assert "extension:install-stored-here" not in keys
+    assert preflight["can_apply"] is True
+
+
+def test_export_still_reads_the_stored_runtime_rows() -> None:
+    service = _service(_StoreWithRuntimeRows())
+    workflow = yaml.safe_load(_bundle())["workflows"][0]
+
+    exported = {
+        row["dependency_type"] + ":" + row["ref"] for row in service.discover_dependencies(workflow)
+    }
+    imported = {
+        row["dependency_type"] + ":" + row["ref"]
+        for row in service.discover_dependencies(workflow, include_stored=False)
+    }
+
+    assert {"project_connection:conn_stored_here", "extension:install-stored-here"} <= exported
+    assert not imported & {"project_connection:conn_stored_here", "extension:install-stored-here"}
