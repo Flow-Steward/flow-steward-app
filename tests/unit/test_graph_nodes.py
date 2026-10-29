@@ -1436,7 +1436,7 @@ def test_validate_skill_output_contract_still_rejects_empty_required_text():
             {"review_verdict": ""},
         )
 
-    assert errors == ["Missing required output 'review_verdict'"]
+    assert errors == ["Required output 'review_verdict' is empty"]
 
 
 def test_load_skill_schema_falls_back_to_output_rows_when_registry_row_load_fails():
