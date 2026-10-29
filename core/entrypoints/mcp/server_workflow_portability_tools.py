@@ -13,11 +13,17 @@ from core.entrypoints.mcp.server_runtime import mcp
 
 
 @mcp.tool()
-def workflow_export(project_name: str, workflow_id: str, include_children: bool = False) -> str:
+def workflow_export(
+    project_name: str,
+    workflow_id: str,
+    include_children: bool = False,
+    reference_only: bool = False,
+) -> str:
     """Export a workflow linked to the project as a YAML bundle (returned as bundle_yaml text).
 
-    include_children also exports the workflows it invokes. The bundle is what
-    workflow_import takes.
+    include_children also exports the workflows it invokes. The bundle carries the
+    definitions of its agents, skills, data contracts and guardrails unless
+    reference_only names them only. The bundle is what workflow_import takes.
     """
     return api_tool_response("workflow_export", locals())
 

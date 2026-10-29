@@ -2,6 +2,7 @@ import { fetchJson } from "@/lib/http/client";
 
 export type WorkflowDependencyStatus =
   | "resolved"
+  | "create_from_bundle"
   | "missing"
   | "conflict"
   | "requires_mapping"
@@ -80,6 +81,12 @@ export type WorkflowImportResult = {
   preflight: WorkflowImportPreflight;
   /** The project the import was associated with, echoed back by the server. */
   project_id?: string;
+  /** The agents, skills, data contracts and guardrails the file carried. */
+  definitions?: {
+    created: Array<{ kind: string; source_id: string; id: string }>;
+    reused: Array<{ kind: string; source_id: string; id: string }>;
+    agents_left_disabled: Array<{ agent_id: string; reason: string }>;
+  };
 };
 
 export type WorkflowImportDependencyOption = {
@@ -113,10 +120,13 @@ export async function preflightWorkflowImport({
   bundleYaml,
   targetWorkflowId,
   resolutions = [],
+  projectId,
 }: {
   bundleYaml: string;
   targetWorkflowId?: string;
   resolutions?: WorkflowImportResolution[];
+  /** The project a file's project guardrails would attach to. */
+  projectId?: string;
 }) {
   return fetchJson<WorkflowImportPreflight>("/api/workflows/import/preflight", {
     method: "POST",
@@ -124,6 +134,7 @@ export async function preflightWorkflowImport({
       bundle_yaml: bundleYaml,
       target_workflow_id: targetWorkflowId || "",
       resolutions,
+      ...(projectId ? { project_id: projectId } : {}),
     }),
   });
 }

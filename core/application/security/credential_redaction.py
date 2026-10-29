@@ -93,8 +93,13 @@ def redact_output(
     context: RedactionContext | None = None,
     secret_fields: frozenset[str] | None = None,
     public_usage_counter_paths: frozenset[tuple[str, ...]] = frozenset(),
+    server_redacted_document_paths: frozenset[tuple[str, ...]] = frozenset(),
 ) -> object:
-    """Redact output, preserving only schema-declared integer usage counters."""
+    """Redact output, preserving only schema-declared integer usage counters.
+
+    A schema-declared server-redacted document (an export the server already
+    masked by key) is scrubbed with `redact_document_text`, not word heuristics.
+    """
     context = context or RedactionContext()
     explicit_secret_fields = frozenset(secret_fields or frozenset()) | context.secret_fields
     output_context = RedactionContext(
@@ -103,7 +108,13 @@ def redact_output(
     )
     if isinstance(value, Mapping):
         return {
-            key: _redact_output_member(str(key), item, output_context, public_usage_counter_paths)
+            key: _redact_output_member(
+                str(key),
+                item,
+                output_context,
+                public_usage_counter_paths,
+                server_redacted_document_paths,
+            )
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -131,13 +142,24 @@ def _redact_output_member(
     value: object,
     context: RedactionContext,
     paths: frozenset[tuple[str, ...]],
+    document_paths: frozenset[tuple[str, ...]] = frozenset(),
 ) -> object:
     if _is_public_usage_counter(key, value, context, paths):
         return value
     if _is_secret_key(key, context):
         return _REDACTED
+    if (key,) in document_paths and isinstance(value, str):
+        return redact_document_text(value, context=context)
     child_paths = frozenset(path[1:] for path in paths if path and path[0] == key)
-    return redact_output(value, context=context, public_usage_counter_paths=child_paths)
+    child_document_paths = frozenset(
+        path[1:] for path in document_paths if len(path) > 1 and path[0] == key
+    )
+    return redact_output(
+        value,
+        context=context,
+        public_usage_counter_paths=child_paths,
+        server_redacted_document_paths=child_document_paths,
+    )
 
 
 def _is_public_usage_counter(
@@ -153,6 +175,25 @@ def _is_public_usage_counter(
         and value >= 0
         and str(value) not in context.known_secrets
     )
+
+
+def redact_document_text(text: str, *, context: RedactionContext | None = None) -> str:
+    """Scrub a document whose secret-keyed values the server already masked.
+
+    Known command secrets, URL credentials, opaque provider tokens and
+    authorization headers are still removed. The word heuristics of
+    `redact_text` are not applied: in prose and templates "token" and
+    "password" are ordinary words, and replacing what follows them corrupts
+    the document (`for token in words` would lose its `in`).
+    """
+    context = context or RedactionContext()
+    sanitized = _URL_CREDENTIALS.sub(r"\g<prefix>" + _REDACTED + r"\g<suffix>", str(text))
+    for secret in sorted(set(context.known_secrets), key=len, reverse=True):
+        if secret:
+            sanitized = sanitized.replace(secret, _REDACTED)
+    sanitized = _OPAQUE_SECRET_TOKEN.sub(_REDACTED, sanitized)
+    sanitized = _AUTHORIZATION_HEADER.sub(_replace_credential_value, sanitized)
+    return _AUTHORIZATION_BEARER.sub(_replace_credential_value, sanitized)
 
 
 def redact_text(text: str, *, context: RedactionContext | None = None) -> str:

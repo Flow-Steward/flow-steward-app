@@ -234,8 +234,22 @@ def _public_result_payload(
         context=context,
         secret_fields=secret_fields,
         public_usage_counter_paths=_result_public_usage_counter_paths(type(value)),
+        server_redacted_document_paths=_result_server_redacted_document_paths(type(value)),
     )
     return redacted if isinstance(redacted, dict) else {}
+
+
+def _result_server_redacted_document_paths(model: type[BaseModel]) -> frozenset[tuple[str, ...]]:
+    """Top-level text fields the result model declares as server-redacted documents."""
+    return frozenset(
+        (name,)
+        for name, field in model.model_fields.items()
+        if field.annotation is str
+        and isinstance(field.json_schema_extra, dict)
+        and field.json_schema_extra.get("server_redacted_document") is True
+        and not field.json_schema_extra.get("secret")
+        and not field.json_schema_extra.get("sensitive")
+    )
 
 
 def _result_public_usage_counter_paths(

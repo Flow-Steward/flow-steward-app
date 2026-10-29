@@ -77,11 +77,18 @@ def get_workflow_export_policy(workflow_id: str, request: Request):
         503: {"description": "Service unavailable"},
     },
 )
-def export_workflow_yaml(workflow_id: str, request: Request, include_children: bool = False):
+def export_workflow_yaml(
+    workflow_id: str,
+    request: Request,
+    include_children: bool = False,
+    reference_only: bool = False,
+):
     """Export a workflow YAML bundle or protected extension reference.
 
     ``include_children`` adds every workflow it invokes, so the file is a complete
     template; that is how the workflow catalog takes a parent and its children.
+    ``reference_only`` leaves out the agent, skill, data contract and guardrail
+    definitions and names them only.
     """
     _request_scope(request)
     db = _get_db()
@@ -95,7 +102,7 @@ def export_workflow_yaml(workflow_id: str, request: Request, include_children: b
     account_id = str(workflow.get("account_id") or scope.account_id or "").strip()
     try:
         body = _get_workflow_portability_service(db, account_id=account_id).export_yaml(
-            workflow_id, include_children=include_children
+            workflow_id, include_children=include_children, reference_only=reference_only
         )
     except WorkflowPortabilityError as exc:
         _raise_portability_http_error(exc)

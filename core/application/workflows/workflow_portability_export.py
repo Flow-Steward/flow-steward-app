@@ -14,6 +14,10 @@ from core.application.workflows.extension_connection_validation import (
     named_extension_without_install,
 )
 from core.application.workflows.workflow_catalog_identity import parse_projected_identity
+from core.application.workflows.workflow_portability_artifacts import (
+    DEFINITIONS_KEY,
+    definitions_have_entries,
+)
 from core.application.workflows.workflow_portability_bundle_children import workflow_child_refs
 from core.application.workflows.workflow_portability_common import (
     BUNDLE_KIND,
@@ -49,7 +53,12 @@ from core.infrastructure.config.version import get_app_version
 
 class WorkflowPortabilityExportMixin:
     def export_yaml(
-        self, workflow_id: str, *, include_children: bool = False, project_id: str = ""
+        self,
+        workflow_id: str,
+        *,
+        include_children: bool = False,
+        project_id: str = "",
+        reference_only: bool = False,
     ) -> str:
         """The workflow (and, with *include_children*, what it calls) as one bundle.
 
@@ -58,6 +67,10 @@ class WorkflowPortabilityExportMixin:
         bound child like an invoked one. Without a project — the admin YAML route,
         which has none — the bundle carries no binding: there is no project whose
         configuration it could honestly describe.
+
+        The bundle also carries the definitions of the agents, skills, manual data
+        contracts and guardrails its workflows use, unless *reference_only* asks
+        for the earlier file that names them only.
         """
         workflow = _call_db_get(self.db, "get_workflow", workflow_id)
         if workflow is None:
@@ -69,6 +82,7 @@ class WorkflowPortabilityExportMixin:
         bindings = self._hook_binding_collector(project_id)
         bound = bindings.targets if bindings is not None else None
         workflows, dependencies = self._export_entry(workflow_id, workflow)
+        full_sources = [workflow] if self._full_export(workflow_id) else []
         if bound is not None:
             bound(workflow)
         child_ids: list[str] = []
@@ -80,6 +94,15 @@ class WorkflowPortabilityExportMixin:
                 workflows.extend(child_entries)
                 dependencies = _merge_dependency_sections(dependencies, child_dependencies)
                 child_ids.append(child_id)
+                if self._full_export(child_id):
+                    full_sources.append(child)
+        definitions = (
+            None
+            if reference_only
+            else self._export_definitions(
+                full_sources, account_id=_text(workflow.get("account_id"))
+            )
+        )
         binding_entries = bindings.entries if bindings is not None else []
         if binding_entries:
             dependencies = _merge_dependency_sections(
@@ -104,6 +127,11 @@ class WorkflowPortabilityExportMixin:
             "workflows": workflows,
             "dependencies": dependencies,
             **({HOOK_BINDINGS_KEY: binding_entries} if binding_entries else {}),
+            **(
+                {DEFINITIONS_KEY: definitions}
+                if definitions is not None and definitions_have_entries(definitions)
+                else {}
+            ),
             "import_hints": {
                 "default_enabled": False,
                 "import_state": "draft",
@@ -116,12 +144,15 @@ class WorkflowPortabilityExportMixin:
             allow_unicode=True,
         )
 
+    def _full_export(self, workflow_id: str) -> bool:
+        policy = self.export_policy(workflow_id)
+        return not (policy.get("protected") and not policy.get("full_export_allowed"))
+
     def _export_entry(
         self, workflow_id: str, workflow: dict[str, Any]
     ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
         """One workflow's bundle entry and dependency section, honouring export policy."""
-        policy = self.export_policy(workflow_id)
-        if policy.get("protected") and not policy.get("full_export_allowed"):
+        if not self._full_export(workflow_id):
             return [self._extension_workflow_ref(workflow)], self._reference_dependencies(workflow)
         return [self._workflow_definition(workflow)], self.export_dependency_section(workflow)
 

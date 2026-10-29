@@ -892,4 +892,113 @@ describe("WorkflowsImportPage", () => {
     });
     expect(mockedFetchProjectsList).not.toHaveBeenCalled();
   });
+
+  it("lets a taken agent from the file be reused or created under a new id", async () => {
+    const conflict = {
+      dependency_key: "agent:writer",
+      dependency_type: "agent",
+      ref: "writer",
+      status: "conflict" as const,
+      blocking: true,
+      resolution_actions: ["use_existing", "rename", "abort"],
+      metadata: { definition: true, action: "conflict", target_ref: "writer" },
+    };
+    const created = {
+      dependency_key: "skill:draft",
+      dependency_type: "skill",
+      ref: "draft",
+      status: "create_from_bundle" as const,
+      blocking: false,
+      resolution_actions: ["rename", "abort"],
+      metadata: { definition: true, action: "create", target_ref: "draft" },
+    };
+    const blocked = {
+      ...readyPreflight(),
+      ok: false,
+      can_apply: false,
+      summary: { workflow_count: 1, reference_count: 0, dependency_count: 2, blocking_count: 1 },
+      dependencies: [conflict, created],
+    };
+    mockedPreflightWorkflowImport.mockResolvedValueOnce(blocked);
+    mockedPreflightWorkflowImport.mockResolvedValueOnce(readyPreflight());
+    renderPage("/registry/workflows/import?project_id=project-123");
+    fireEvent.change(screen.getByLabelText("Workflow bundle YAML"), { target: { value: "bundle" } });
+    fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
+
+    const action = await screen.findByLabelText("Resolution for writer");
+    expect(action).toHaveValue("use_existing");
+    expect(screen.getByText("created from file")).toBeInTheDocument();
+    expect(screen.getByText(/Uses the one already here, unchanged/)).toBeInTheDocument();
+    fireEvent.change(action, { target: { value: "rename" } });
+    fireEvent.change(screen.getByLabelText("New id for writer"), { target: { value: "writer_2" } });
+    fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
+
+    await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenCalledTimes(2));
+    expect(mockedPreflightWorkflowImport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projectId: "project-123",
+        resolutions: [
+          expect.objectContaining({ dependency_key: "agent:writer", action: "rename", target_ref: "writer_2" }),
+        ],
+      }),
+    );
+  });
+
+  it("asks for the project when the file has project guardrails", async () => {
+    mockedFetchProjectsList.mockResolvedValue({ projects: [], page: 1, per_page: 200, total: 0, total_pages: 1 });
+    mockedPreflightWorkflowImport.mockResolvedValueOnce({
+      ...readyPreflight(),
+      ok: false,
+      can_apply: false,
+      dependencies: [
+        {
+          dependency_key: "guardrail_project:project",
+          dependency_type: "guardrail_project",
+          ref: "project",
+          status: "blocked",
+          blocking: true,
+          resolution_actions: ["abort"],
+          message: "This file has guardrails for a project. Choose the project to attach them to.",
+        },
+      ],
+    });
+    renderPage();
+    fireEvent.change(screen.getByLabelText("Workflow bundle YAML"), { target: { value: "bundle" } });
+    fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
+
+    expect(
+      (await screen.findAllByText("This file has guardrails for a project. Choose the project to attach them to.")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /import workflow/i })).toBeDisabled();
+  });
+
+  it("reports what the file created and which agents stayed disabled", async () => {
+    mockedPreflightWorkflowImport.mockResolvedValueOnce(readyPreflight("wf_incoming"));
+    mockedApplyWorkflowImport.mockResolvedValueOnce({
+      status: "imported",
+      workflow_id: "wf_incoming",
+      imported_workflows: [
+        { workflow_id: "wf_incoming", source_workflow_id: "wf_incoming", enabled: false, import_state: "draft" },
+      ],
+      preflight: {} as never,
+      definitions: {
+        created: [
+          { kind: "agent", source_id: "writer", id: "writer" },
+          { kind: "skill", source_id: "draft", id: "draft" },
+        ],
+        reused: [],
+        agents_left_disabled: [{ agent_id: "writer", reason: "The project has no configured model." }],
+      },
+    });
+    renderPage("/registry/workflows/import?project_id=project-123");
+    fireEvent.change(screen.getByLabelText("Workflow bundle YAML"), { target: { value: "bundle" } });
+    fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /import workflow/i }));
+
+    expect(
+      await screen.findByText("Created from the file: 2 agents, skills, data contracts and guardrails."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Some agents were left disabled")).toBeInTheDocument();
+    expect(screen.getByText("writer: The project has no configured model.")).toBeInTheDocument();
+  });
 });

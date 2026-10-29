@@ -13817,6 +13817,12 @@ msgstr "Your unsaved changes to this step were restored. Parameters that held cr
 msgid "react.workflows.edit_session_step_restored"
 msgstr "Your unsaved changes to this step were restored."
 
+msgid "react.workflows.enter_a_new_id"
+msgstr "Enter a new id"
+
+msgid "react.workflows.guardrails_need_a_project"
+msgstr "This file has guardrails for a project. Choose the project to attach them to."
+
 msgid "react.workflows.history_restore_blocked_by_changes"
 msgstr "Apply or discard the unapplied canvas changes before restoring a revision."
 
@@ -13835,6 +13841,27 @@ msgstr "This hook has no steps to clear."
 msgid "react.workflows.hook_root_only"
 msgstr "Hooks belong in the workflow root, before or after a Group or For each."
 
+msgid "react.workflows.import_agents_left_disabled"
+msgstr "Some agents were left disabled"
+
+msgid "react.workflows.import_created_definitions"
+msgstr "Created from the file: {count} agents, skills, data contracts and guardrails."
+
+msgid "react.workflows.import_data_contract"
+msgstr "data contract"
+
+msgid "react.workflows.import_guardrail"
+msgstr "guardrail"
+
+msgid "react.workflows.import_guardrail_project"
+msgstr "project for guardrails"
+
+msgid "react.workflows.import_rename_definition"
+msgstr "Create under a new id"
+
+msgid "react.workflows.import_status_from_file"
+msgstr "created from file"
+
 msgid "react.workflows.leave_builder_stay"
 msgstr "Stay"
 
@@ -13852,6 +13879,9 @@ msgstr "A group runs its steps one after another."
 
 msgid "react.workflows.legend_inside_groups"
 msgstr "Inside groups"
+
+msgid "react.workflows.new_id_for_value0"
+msgstr "New id for {value0}"
 
 msgid "react.workflows.note"
 msgstr "Note"
@@ -13969,6 +13999,9 @@ msgstr "Structure blockers"
 
 msgid "react.workflows.transform_input_source_required"
 msgstr "transform requires input.source"
+
+msgid "react.workflows.uses_the_one_already_here_unchanged"
+msgstr "Uses the one already here, unchanged:"
 
 msgid "react.workflows.validation_error_one"
 msgstr "{count} error"

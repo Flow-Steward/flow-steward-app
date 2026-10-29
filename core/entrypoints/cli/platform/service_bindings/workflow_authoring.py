@@ -135,6 +135,7 @@ async def workflows_export(runtime: RuntimeServices, value: object, **_kwargs: o
             project_id=command.project_id,
             workflow_id=command.workflow_id,
             include_children=command.include_children,
+            reference_only=command.reference_only,
             scope=_target_scope(command),
         )
     )

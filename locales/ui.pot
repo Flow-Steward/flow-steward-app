@@ -16259,6 +16259,39 @@ msgstr ""
 msgid "react.workflows.enable_workflow_interface"
 msgstr ""
 
+msgid "react.workflows.enter_a_new_id"
+msgstr ""
+
+msgid "react.workflows.guardrails_need_a_project"
+msgstr ""
+
+msgid "react.workflows.import_agents_left_disabled"
+msgstr ""
+
+msgid "react.workflows.import_created_definitions"
+msgstr ""
+
+msgid "react.workflows.import_data_contract"
+msgstr ""
+
+msgid "react.workflows.import_guardrail"
+msgstr ""
+
+msgid "react.workflows.import_guardrail_project"
+msgstr ""
+
+msgid "react.workflows.import_rename_definition"
+msgstr ""
+
+msgid "react.workflows.import_status_from_file"
+msgstr ""
+
+msgid "react.workflows.new_id_for_value0"
+msgstr ""
+
+msgid "react.workflows.uses_the_one_already_here_unchanged"
+msgstr ""
+
 msgid "react.workflows.workflow_interface_enabled_help"
 msgstr ""
 

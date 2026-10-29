@@ -117,10 +117,22 @@ def register_workflow_portability_routes(
         include_children: Annotated[
             bool, Query(description="Also export the child workflows it invokes.")
         ] = False,
+        reference_only: Annotated[
+            bool,
+            Query(
+                description=(
+                    "Name the agents, skills, data contracts and guardrails without "
+                    "their definitions."
+                )
+            ),
+        ] = False,
     ):
         try:
             command = WorkflowExportCommandInput(
-                project_id=project_id, workflow_id=workflow_id, include_children=include_children
+                project_id=project_id,
+                workflow_id=workflow_id,
+                include_children=include_children,
+                reference_only=reference_only,
             )
         except ValidationError as exc:
             return _invalid(exc)
@@ -130,6 +142,7 @@ def register_workflow_portability_routes(
             "export_workflow",
             workflow_id=command.workflow_id,
             include_children=command.include_children,
+            reference_only=command.reference_only,
         )
 
     @router.get(

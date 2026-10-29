@@ -91,6 +91,7 @@ class WorkflowApplyChangesCommandInput(WorkflowTargetCommandInput):
 
 class WorkflowExportCommandInput(WorkflowTargetCommandInput):
     include_children: bool = False
+    reference_only: bool = False
 
 
 class WorkflowImportCommandInput(BaseModel):
@@ -155,7 +156,9 @@ class WorkflowApplyChangesResult(_OpenResult):
 class WorkflowExportResult(_OpenResult):
     workflow_id: str
     filename: str
-    bundle_yaml: str
+    # The export service masks secret-keyed values itself; the CLI must not run
+    # its word heuristics over the prompts and templates inside the file.
+    bundle_yaml: str = Field(json_schema_extra={"server_redacted_document": True})
 
 
 class WorkflowImportResult(_OpenResult):
@@ -346,6 +349,18 @@ WORKFLOW_AUTHORING_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 description="Add every workflow it invokes so the bundle is a complete template.",
                 examples=("true",),
                 option_name="--include-children",
+            ),
+            FieldSpec(
+                key="reference_only",
+                label="Reference only",
+                type=FieldType.BOOLEAN,
+                default=False,
+                description=(
+                    "Name the agents, skills, data contracts and guardrails without "
+                    "carrying their definitions."
+                ),
+                examples=("true",),
+                option_name="--reference-only",
             ),
         ),
         input_model=WorkflowExportCommandInput,

@@ -26,6 +26,7 @@ from core.application.workflows.workflow_definition_validation import (
 from core.application.workflows.workflow_hook_authoring_policy import (
     hook_declaration_authoring_issues,
 )
+from core.application.workflows.workflow_portability_artifacts import parse_definitions
 from core.application.workflows.workflow_portability_bundle_children import (
     bundled_child_ids,
     bundled_workflow_ids,
@@ -35,6 +36,7 @@ from core.application.workflows.workflow_portability_bundle_children import (
 from core.application.workflows.workflow_portability_common import (
     BUNDLE_KIND,
     BUNDLE_WORKFLOWS_VALUE,
+    DEFINITIONS_BUNDLE_KEY,
     HOOK_BINDINGS_KEY,
     OPTIONAL_TOP_LEVEL_KEYS,
     RESOLUTION_ACTIONS,
@@ -193,6 +195,8 @@ class WorkflowPortabilityImportMixin:
                 "Bundle hook_bindings must be a list.",
                 code="bundle_schema_invalid",
             )
+        if DEFINITIONS_BUNDLE_KEY in parsed:
+            parsed[DEFINITIONS_BUNDLE_KEY] = parse_definitions(parsed[DEFINITIONS_BUNDLE_KEY])
         return parsed
 
     #: Definition issues an incomplete draft may still have. Everything else the
@@ -273,10 +277,25 @@ class WorkflowPortabilityImportMixin:
         *,
         target_workflow_id: str = "",
         resolutions: list[dict[str, Any]] | None = None,
+        target_project_id: str = "",
     ) -> dict[str, Any]:
         bundle = self.parse_bundle(bundle_yaml)
         resolution_index = self._resolution_index(resolutions or [])
-        dependencies = self._bundle_dependencies(bundle)
+        definition_plan = self._definition_plan(
+            bundle, resolution_index, target_project_id=target_project_id
+        )
+        # A reference the file also defines is answered by its definition row.
+        dependencies = [
+            row
+            for row in self._bundle_dependencies(bundle)
+            if (_text(row.get("dependency_type")), _text(row.get("ref")))
+            not in definition_plan["keys"]
+        ]
+        dependencies.extend(
+            row
+            for row in definition_plan["external_rows"]
+            if _text(row.get("dependency_type")) != "data_contract"
+        )
         workflow_entries = [
             item for item in _as_list(bundle.get("workflows")) if isinstance(item, dict)
         ]
@@ -384,6 +403,17 @@ class WorkflowPortabilityImportMixin:
             else self._classify_dependency(item, resolution_index)
             for item in self._dedupe_dependency_rows(dependencies)
         ]
+        preflight_dependencies.extend(definition_plan["rows"])
+        preflight_dependencies.extend(
+            self._classify_external_contract(row)
+            for row in self._dedupe_dependency_rows(
+                [
+                    row
+                    for row in definition_plan["external_rows"]
+                    if _text(row.get("dependency_type")) == "data_contract"
+                ]
+            )
+        )
         hook_bindings = self._hook_binding_plan(
             bundle,
             workflow_entries=workflow_entries,
@@ -448,6 +478,7 @@ class WorkflowPortabilityImportMixin:
             bundle_yaml,
             target_workflow_id=target_workflow_id,
             resolutions=resolutions or [],
+            target_project_id=owner_project_id,
         )
         topology_issues = [
             item
@@ -492,6 +523,9 @@ class WorkflowPortabilityImportMixin:
 
         bundle = self.parse_bundle(bundle_yaml)
         resolution_index = self._resolution_index(resolutions or [])
+        definition_plan = self._definition_plan(
+            bundle, resolution_index, target_project_id=owner_project_id
+        )
         workflows = [
             item
             for item in _as_list(bundle.get("workflows"))
@@ -535,6 +569,14 @@ class WorkflowPortabilityImportMixin:
                     errors=authoring_issues,
                 )
             resolution_index = self._ensure_resolution_side_effects(resolution_index)
+            # The agents and skills the workflows call exist before the workflows.
+            definitions = self._apply_definitions(
+                definition_plan,
+                resolution_index,
+                owner_account_id=owner_account_id,
+                owner_project_id=owner_project_id,
+                author=author,
+            )
             # Children first, so a workflow is saved after the ones it calls.
             for workflow in creation_order(workflows):
                 source_workflow_id = _text(workflow.get("workflow_id"))
@@ -625,5 +667,6 @@ class WorkflowPortabilityImportMixin:
             "reused_workflows": reused,
             "hook_bindings": restored_bindings,
             "project_id": owner_project_id,
+            "definitions": definitions,
             "preflight": preflight,
         }

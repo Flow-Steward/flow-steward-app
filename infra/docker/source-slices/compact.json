@@ -997,6 +997,8 @@
     "core/application/workflows/workflow_lifecycle_event_sink.py",
     "core/application/workflows/workflow_override_runtime.py",
     "core/application/workflows/workflow_portability.py",
+    "core/application/workflows/workflow_portability_artifact_import.py",
+    "core/application/workflows/workflow_portability_artifacts.py",
     "core/application/workflows/workflow_portability_bundle_children.py",
     "core/application/workflows/workflow_portability_common.py",
     "core/application/workflows/workflow_portability_definitions.py",

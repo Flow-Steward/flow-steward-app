@@ -194,6 +194,7 @@ class WorkflowOperatorAuthoringMixin:
         project_id: str,
         workflow_id: str,
         include_children: bool = False,
+        reference_only: bool = False,
         scope: Any,
     ) -> dict[str, Any]:
         """The YAML bundle ``GET /api/workflows/{workflow_id}/export.yaml`` returns.
@@ -207,7 +208,10 @@ class WorkflowOperatorAuthoringMixin:
         account_id = _text(row.get("account_id")) or _text(getattr(scope, "account_id", ""))
         try:
             bundle_yaml = self._portability(account_id=account_id).export_yaml(
-                workflow_id, include_children=include_children, project_id=_text(project_id)
+                workflow_id,
+                include_children=include_children,
+                project_id=_text(project_id),
+                reference_only=reference_only,
             )
         except WorkflowPortabilityError as exc:
             raise _portability_error(exc) from exc
@@ -409,6 +413,7 @@ class WorkflowOperatorAuthoringMixin:
                     resolutions=chosen,
                     account_id=account_id or "acc_default",
                     get_install_store=lambda: install_store,
+                    target_project_id=project_id,
                 )
             result = service.apply_import(
                 bundle_yaml,
@@ -420,7 +425,9 @@ class WorkflowOperatorAuthoringMixin:
             )
         except WorkflowPortabilityError as exc:
             raise _portability_error(exc) from exc
-        self._refresh_workflow_cache()
+        self._refresh_workflow_cache(
+            reload_all=bool((result.get("definitions") or {}).get("created"))
+        )
         return result
 
     def _check_import_resolutions(self, project_id: str, resolutions: list[dict[str, Any]]) -> None:

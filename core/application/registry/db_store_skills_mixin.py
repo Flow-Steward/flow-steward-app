@@ -15,6 +15,7 @@ from core.application.registry.db_store_common import (
     SQL_AND,
     SQL_DELETED_AT_IS_NULL,
     SQL_ENABLED_TRUE,
+    RegistryCreateConflictError,
     _nullable_scope_sql,
     _system_registry_account_id,
     json,
@@ -360,7 +361,8 @@ class RegistryDBStoreSkillsMixin:
                 )
             return [dict(r) for r in cur.fetchall()]
 
-    def save_skill(self, data: dict, author: str = "admin") -> None:
+    def save_skill(self, data: dict, author: str = "admin", *, create_only: bool = False) -> None:
+        """Upsert a skill; *create_only* inserts it or raises, never touching an existing row."""
         skill_id = data["skill_id"]
         self._assert_skill_anchor_mutable(self.get_skill(skill_id), author=author)
         is_new = not self._exists("registry_skills", "skill_id", skill_id)
@@ -384,6 +386,16 @@ class RegistryDBStoreSkillsMixin:
             clear_deleted_assignments += psycopg_runtime.sql.SQL(", deleted_by = NULL")
 
         with self._transaction() as cur:
+            if create_only:
+                # Claim the id before the full write: a taken id, even one in Trash,
+                # fails here instead of being updated (or restored) by the upsert.
+                cur.execute(
+                    """INSERT INTO registry_skills (skill_id, display_name)
+                       VALUES (%s, %s) ON CONFLICT (skill_id) DO NOTHING RETURNING skill_id""",
+                    (skill_id, data.get("display_name", skill_id)),
+                )
+                if cur.fetchone() is None:
+                    raise RegistryCreateConflictError("skill", skill_id)
             payload = {
                 "skill_id": skill_id,
                 "version": data.get("version", "1.0.0"),

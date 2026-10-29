@@ -292,7 +292,9 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
         author: str = "admin",
         *,
         sync_relationships: bool = True,
+        create_only: bool = False,
     ) -> None:
+        """Upsert an agent; *create_only* inserts it or raises, never touching an existing row."""
         agent_id = data["agent_id"]
         refuse_agent_phases(data)
         is_new = not self._exists("registry_agents", "agent_id", agent_id)
@@ -377,13 +379,19 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 columns.append(column_name)
                 updates.append(f"{column_name} = EXCLUDED.{column_name}")
                 payload[column_name] = column_value
+            conflict_sql = (
+                "DO NOTHING RETURNING agent_id"
+                if create_only
+                else f"DO UPDATE SET {', '.join(updates)}"  # nosec B608 - fixed column names
+            )
             cur.execute(
                 f"""INSERT INTO registry_agents ({", ".join(columns)})
                     VALUES ({", ".join(f"%({column})s" for column in columns)})
-                    ON CONFLICT (agent_id) DO UPDATE SET
-                        {", ".join(updates)}""",
+                    ON CONFLICT (agent_id) {conflict_sql}""",
                 payload,
             )
+            if create_only and cur.fetchone() is None:
+                raise RegistryCreateConflictError("agent", agent_id)
             if sync_relationships:
                 agent = self._lock_agent_relationship_parent(cur, agent_id)
                 relationship_account_id = str(agent.get("account_id") or "")

@@ -126,6 +126,10 @@ export function WorkflowsImportPage() {
     !applying,
   );
   const visiblePreflight = preflight ?? sourcePreflight;
+  // A file's project guardrails attach to the chosen project, so the choice is required.
+  const needsGuardrailProject = Boolean(
+    (visiblePreflight?.dependencies || []).some((dependency) => dependency.dependency_type === "guardrail_project"),
+  );
   const topologyIssues = visiblePreflight?.topology_issues ?? [];
   const blockingTopologyIssues = topologyIssues.filter((issue) => issue.blocking);
   const status = preflighting
@@ -184,6 +188,7 @@ export function WorkflowsImportPage() {
           bundleYaml: plan.bundleYaml,
           targetWorkflowId: plan.targetWorkflowId,
           resolutions: plan.resolutions,
+          ...(plan.projectId ? { projectId: plan.projectId } : {}),
         }),
         fetchWorkflowImportOptions({ projectId: plan.projectId }),
       ]);
@@ -287,6 +292,9 @@ export function WorkflowsImportPage() {
           <div className="fs-card-body">
             <p className="fs-muted">
               {t("react.workflows.choose_the_project_this_workflow_belongs_to_its_connections_are_what_project_dependencies_resolve_against", "Choose the project this workflow belongs to. Its connections are what project dependencies resolve against.")}</p>
+            {renderWhen(needsGuardrailProject, () => (
+              <DsAlert title={t("react.workflows.guardrails_need_a_project", "This file has guardrails for a project. Choose the project to attach them to.")} tone="warning" />
+            ))}
             <select
               aria-label={t("trash.type.project", "Project")}
               className="fs-input"
@@ -513,6 +521,16 @@ export function WorkflowsImportPage() {
             <p>
               {t("react.workflows.imported", "Imported")}{" "}{visibleResult.imported_workflows.length} {" "}{t("react.workflows.workflow_variant_da7f739f", "workflow")}{visibleResult.imported_workflows.length === 1 ? "" : "s"}.
             </p>
+            {renderWhen(visibleResult.definitions?.created.length, (count) => (
+              <p>{t("react.workflows.import_created_definitions", "Created from the file: {count} agents, skills, data contracts and guardrails.", { count })}</p>
+            ))}
+            {renderWhen(visibleResult.definitions?.agents_left_disabled.length ? visibleResult.definitions.agents_left_disabled : null, (agents) => (
+              <DsAlert title={t("react.workflows.import_agents_left_disabled", "Some agents were left disabled")} tone="warning">
+                <ul>
+                  {agents.map((agent) => <li key={agent.agent_id}>{agent.agent_id}: {agent.reason}</li>)}
+                </ul>
+              </DsAlert>
+            ))}
             <div>
               <Link
                 className="fs-button"

@@ -407,8 +407,13 @@ class RegistryDBStoreGuardrailsMixin:
         account_id: str,
         actor_id: str,
         actor_type: str,
+        create_only: bool = False,
     ) -> str:
-        """Create or update a guardrail rule. Returns the guardrail id."""
+        """Create or update a guardrail rule. Returns the guardrail id.
+
+        *create_only* creates the rule under its given id or raises; an existing
+        rule with that id, in any account or in Trash, is never updated.
+        """
         self._require_guardrail_ownership_schema()
         data = dict(data or {})
         normalized_account_id = str(account_id or "").strip()
@@ -445,7 +450,43 @@ class RegistryDBStoreGuardrailsMixin:
                     "guardrail agents are not available in the owning account: "
                     + ", ".join(missing_agent_ids)
                 )
-            if is_new:
+            if create_only:
+                if is_new:
+                    raise ValueError("a create-only guardrail needs its id")
+                cur.execute(
+                    """
+                    INSERT INTO registry_guardrails
+                    (id, display_name, description, enabled, mode, rule_type,
+                     severity, config, prompt_text, agent_prompt, project_id, sort_order,
+                     account_id, created_by, updated_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO NOTHING
+                    RETURNING id
+                """,
+                    (
+                        gid,
+                        data.get("display_name", UNNAMED_RULE_VALUE),
+                        data.get("description", ""),
+                        data.get("enabled", True),
+                        data["mode"],
+                        data["rule_type"],
+                        data.get("severity", "error"),
+                        json.dumps(data.get("config", {})),
+                        data.get("prompt_text", ""),
+                        data.get("agent_prompt", ""),
+                        data.get("project_id"),
+                        data.get("sort_order", 0),
+                        normalized_account_id,
+                        normalized_actor_id,
+                        normalized_actor_id,
+                    ),
+                )
+                created_row = cur.fetchone()
+                if created_row is None:
+                    raise RegistryCreateConflictError("guardrail", gid)
+                gid = created_row["id"]
+                created = True
+            elif is_new:
                 cur.execute(
                     """
                     INSERT INTO registry_guardrails

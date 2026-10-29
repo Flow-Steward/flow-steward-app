@@ -11,6 +11,7 @@ import {
   defaultActionForDependency,
   dependencyNeedsResolution,
   dependencyRequiresTarget,
+  isBundledDefinition,
   type ResolutionDraft,
   resolutionComplete,
   type UpdateResolution,
@@ -61,12 +62,15 @@ function dependencyLabel(dependency: WorkflowImportDependency, t: I18nContextVal
     extension: t("react.workflows.import_extension_install", "extension install"),
     project_connection: t("react.workflows.import_project_connection", "project connection"),
     hook_binding: t("react.workflows.import_hook_binding", "hook connection"),
+    data_contract: t("react.workflows.import_data_contract", "data contract"),
+    guardrail: t("react.workflows.import_guardrail", "guardrail"),
+    guardrail_project: t("react.workflows.import_guardrail_project", "project for guardrails"),
   };
   return labels[dependency.dependency_type] || dependency.dependency_type.replaceAll("_", " ");
 }
 
 function optionBucketForDependency(dependency: WorkflowImportDependency, action: string) {
-  if (action === "rename_workflow" || action === "create_connection_placeholder") {
+  if (action === "rename_workflow" || action === "rename" || action === "create_connection_placeholder") {
     return "";
   }
   if (dependency.dependency_type === "extension_workflow_ref") {
@@ -85,6 +89,7 @@ function actionLabel(action: string, t: I18nContextValue["t"] = fallbackContext.
     install_extension_required: t("react.workflows.import_use_extension", "Use installed extension"),
     map_existing: t("react.workflows.import_map_existing", "Map to existing"),
     rename_workflow: t("react.workflows.import_rename", "Rename workflow"),
+    rename: t("react.workflows.import_rename_definition", "Create under a new id"),
     skip_optional: t("react.workflows.import_skip", "Skip optional"),
     use_existing: t("react.workflows.import_use_existing", "Use existing"),
   };
@@ -94,6 +99,7 @@ function actionLabel(action: string, t: I18nContextValue["t"] = fallbackContext.
 function dependencyStatusLabel(status: string, t: I18nContextValue["t"] = fallbackContext.t) {
   const labels: Record<string, string> = {
     resolved: t("react.workflows.import_status_resolved", "resolved"),
+    create_from_bundle: t("react.workflows.import_status_from_file", "created from file"),
     missing: t("react.workflows.import_status_missing", "missing"),
     conflict: t("react.workflows.import_status_conflict", "conflict"),
     requires_mapping: t("react.workflows.import_status_mapping", "requires_mapping"),
@@ -116,6 +122,9 @@ function visibleResolutionActions(dependency: WorkflowImportDependency) {
 function targetControlLabel(dependency: WorkflowImportDependency, action: string, t: I18nContextValue["t"] = fallbackContext.t) {
   if (action === "rename_workflow") {
     return t("react.workflows.new_workflow_id_for_value0", "New workflow id for {value0}", { value0: dependency.ref });
+  }
+  if (action === "rename") {
+    return t("react.workflows.new_id_for_value0", "New id for {value0}", { value0: dependency.ref });
   }
   return t("react.workflows.import_existing_target", "Existing {type} for {ref}", { type: dependencyLabel(dependency, t), ref: dependency.ref });
 }
@@ -318,7 +327,10 @@ function ResolutionTargetControl({
     );
   }
   if (needsTarget) {
-    return <input aria-invalid={error ? true : undefined} aria-label={targetControlLabel(dependency, selectedAction, t)} className="fs-input" onChange={(event) => updateResolution(dependency, { target: event.target.value })} placeholder={t("react.workflows.enter_a_new_workflow_id", "Enter a new workflow id")} value={draft?.target || ""} />;
+    return <input aria-invalid={error ? true : undefined} aria-label={targetControlLabel(dependency, selectedAction, t)} className="fs-input" onChange={(event) => updateResolution(dependency, { target: event.target.value })} placeholder={selectedAction === "rename" ? t("react.workflows.enter_a_new_id", "Enter a new id") : t("react.workflows.enter_a_new_workflow_id", "Enter a new workflow id")} value={draft?.target || ""} />;
+  }
+  if (selectedAction === "use_existing" && isBundledDefinition(dependency)) {
+    return <span className="fs-field-helper">{t("react.workflows.uses_the_one_already_here_unchanged", "Uses the one already here, unchanged:")}{" "}{dependency.ref}.</span>;
   }
   if (selectedAction === "use_existing") {
     return <span className="fs-field-helper">{t("react.workflows.uses_the_workflow_already_here_as", "Uses the workflow already here as")}{" "}{dependency.ref}.</span>;

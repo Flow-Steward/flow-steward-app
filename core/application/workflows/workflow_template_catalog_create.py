@@ -346,6 +346,7 @@ def resolve_portable_extensions(
     account_id: str,
     get_install_store: Callable[[], Any],
     check_discovery: Callable[[dict[str, Any]], None] | None = None,
+    target_project_id: str = "",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Turn unresolved extension refs into install-id resolutions.
 
@@ -360,6 +361,7 @@ def resolve_portable_extensions(
         bundle_yaml,
         target_workflow_id=target_workflow_id,
         resolutions=list(resolutions),
+        target_project_id=target_project_id,
     )
     if check_discovery is not None:
         check_discovery(discovery)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime
 from typing import Any
 
@@ -25,9 +26,13 @@ TOP_LEVEL_KEYS = (
 #: The project's hook bindings of the workflows a bundle carries. Only a
 #: project-scoped export writes it, so a bundle without it is complete.
 HOOK_BINDINGS_KEY = "hook_bindings"
-OPTIONAL_TOP_LEVEL_KEYS = (HOOK_BINDINGS_KEY,)
+#: The agents, skills, data contracts and guardrails the workflows use; an import
+#: creates them. A file without it names them only, as before.
+DEFINITIONS_BUNDLE_KEY = "definitions"
+OPTIONAL_TOP_LEVEL_KEYS = (HOOK_BINDINGS_KEY, DEFINITIONS_BUNDLE_KEY)
 DEPENDENCY_STATUSES = {
     "resolved",
+    "create_from_bundle",
     "missing",
     "conflict",
     "requires_mapping",
@@ -48,16 +53,22 @@ BLOCKING_STATUSES = {
 RESOLUTION_ACTIONS = {
     "use_existing",
     "map_existing",
+    "rename",
     "rename_workflow",
     "install_extension_required",
     "create_connection_placeholder",
     "skip_optional",
     "abort",
 }
+#: Matched against whole words of a key (snake, kebab or camel case), never as
+#: substrings: `access_token` is a credential, `max_tokens` is a number.
 _SENSITIVE_KEY_MARKERS = (
     "password",
+    "passwords",
     "secret",
+    "secrets",
     "token",
+    "tokens",
     "bearer",
     "credential",
     "credentials",
@@ -65,6 +76,23 @@ _SENSITIVE_KEY_MARKERS = (
     "access_key",
     "private_key",
     "client_secret",
+)
+_KEY_WORD_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")
+#: Words that make `tokens` a count of model tokens rather than credentials.
+_TOKEN_COUNT_WORDS = frozenset(
+    {
+        "max",
+        "min",
+        "total",
+        "prompt",
+        "completion",
+        "input",
+        "output",
+        "count",
+        "limit",
+        "budget",
+        "used",
+    }
 )
 _WORKFLOW_SAVE_FIELDS = (
     "workflow_id",
@@ -204,8 +232,11 @@ def _as_list(value: Any) -> list[Any]:
 
 
 def _sensitive_key(key: Any) -> bool:
-    normalized = _lower(key)
-    return any(marker in normalized for marker in _SENSITIVE_KEY_MARKERS)
+    words = [word.lower() for word in _KEY_WORD_BOUNDARY.split(str(key or "")) if word]
+    if "tokens" in words and _TOKEN_COUNT_WORDS.intersection(words):
+        words = [word for word in words if word != "tokens"]
+    joined = f"_{'_'.join(words)}_"
+    return any(f"_{marker}_" in joined for marker in _SENSITIVE_KEY_MARKERS)
 
 
 #: Keys that are dropped rather than masked. A pointer to a credential is not a

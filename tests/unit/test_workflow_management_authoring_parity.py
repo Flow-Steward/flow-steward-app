@@ -648,7 +648,7 @@ def test_definition_export_import_and_stats_call_the_routes_services(monkeypatch
     monkeypatch.setattr(
         WorkflowPortabilityService,
         "export_yaml",
-        lambda self, workflow_id, *, include_children=False, project_id="": (
+        lambda self, workflow_id, *, include_children=False, project_id="", reference_only=False: (
             calls.append(("export_yaml", (workflow_id, include_children, project_id)))
             or "kind: bundle\n"
         ),

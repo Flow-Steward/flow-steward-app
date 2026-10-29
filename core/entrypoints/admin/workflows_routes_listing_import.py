@@ -118,6 +118,10 @@ def preflight_workflow_import(body: WorkflowImportRequest, request: Request):
         _enforce_workflow_scope(scope, body.target_workflow_id)
     _enforce_import_resolution_scope(_get_db(), scope, body.resolutions)
     bundle_yaml = body.bundle_yaml or body.yaml or ""
+    # The project the file's project guardrails would attach to, checked like apply.
+    target_project_id = (
+        _enforce_project_scope(_get_db(), scope, body.project_id) if body.project_id else ""
+    )
     service = _get_workflow_portability_service(account_id=scope.account_id)
     try:
         merged, outcomes, discovery = _map_portable_extensions(
@@ -126,6 +130,7 @@ def preflight_workflow_import(body: WorkflowImportRequest, request: Request):
             target_workflow_id=body.target_workflow_id or "",
             resolutions=list(body.resolutions or []),
             account_id=scope.account_id,
+            target_project_id=target_project_id or "",
         )
         preflight = (
             discovery
@@ -134,6 +139,7 @@ def preflight_workflow_import(body: WorkflowImportRequest, request: Request):
                 bundle_yaml,
                 target_workflow_id=body.target_workflow_id or "",
                 resolutions=merged,
+                target_project_id=target_project_id or "",
             )
         )
     except WorkflowPortabilityError as exc:
@@ -148,6 +154,7 @@ def _map_portable_extensions(
     target_workflow_id: str,
     resolutions: list,
     account_id: str,
+    target_project_id: str = "",
 ) -> tuple[list, list, dict]:
     """Map extensions by their portable id, exactly as "From catalog" does.
 
@@ -161,7 +168,10 @@ def _map_portable_extensions(
         install_store = get_default_extension_install_store(get_logger=lambda: integration_store)
     except ServiceUnavailableError:
         discovery = service.preflight_import(
-            bundle_yaml, target_workflow_id=target_workflow_id, resolutions=resolutions
+            bundle_yaml,
+            target_workflow_id=target_workflow_id,
+            resolutions=resolutions,
+            target_project_id=target_project_id,
         )
         return resolutions, [], discovery
     return resolve_portable_extensions(
@@ -171,6 +181,7 @@ def _map_portable_extensions(
         resolutions=resolutions,
         account_id=str(account_id or "").strip() or "acc_default",
         get_install_store=lambda: install_store,
+        target_project_id=target_project_id,
     )
 
 
@@ -262,6 +273,7 @@ def apply_workflow_import(body: WorkflowImportRequest, request: Request):
             target_workflow_id=body.target_workflow_id or "",
             resolutions=list(body.resolutions or []),
             account_id=owner_account_id,
+            target_project_id=owner_project_id,
         )
         result = service.apply_import(
             bundle_yaml,
@@ -273,7 +285,9 @@ def apply_workflow_import(body: WorkflowImportRequest, request: Request):
         )
     except WorkflowPortabilityError as exc:
         _raise_portability_http_error(exc)
-    _refresh_workflow_cache_after_commit()
+    _refresh_workflow_cache_after_commit(
+        reload_all=bool((result.get("definitions") or {}).get("created"))
+    )
     return result
 
 

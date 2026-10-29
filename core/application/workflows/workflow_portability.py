@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from core.application.workflows.workflow_portability_artifact_import import (
+    WorkflowPortabilityArtifactImportMixin,
+)
+from core.application.workflows.workflow_portability_artifacts import (
+    WorkflowPortabilityArtifactsMixin,
+)
 from core.application.workflows.workflow_portability_common import (
     _SENSITIVE_KEY_MARKERS,
     _WORKFLOW_SAVE_FIELDS,
@@ -73,6 +79,8 @@ class WorkflowPortabilityService(
     WorkflowPortabilityExportMixin,
     WorkflowPortabilityImportMixin,
     WorkflowPortabilityDefinitionsMixin,
+    WorkflowPortabilityArtifactsMixin,
+    WorkflowPortabilityArtifactImportMixin,
     WorkflowPortabilityResolutionMixin,
     WorkflowPortabilityRewriteMixin,
     WorkflowPortabilityHookBindingsMixin,

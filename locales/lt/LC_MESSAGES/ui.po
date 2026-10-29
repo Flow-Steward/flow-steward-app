@@ -14018,6 +14018,12 @@ msgstr "Neišsaugoti šio žingsnio pakeitimai atkurti. Parametrai su prisijungi
 msgid "react.workflows.edit_session_step_restored"
 msgstr "Neišsaugoti šio žingsnio pakeitimai atkurti."
 
+msgid "react.workflows.enter_a_new_id"
+msgstr "Įveskite naują ID"
+
+msgid "react.workflows.guardrails_need_a_project"
+msgstr "Šiame faile yra projekto apsaugos taisyklių. Pasirinkite projektą, kuriam jos bus priskirtos."
+
 msgid "react.workflows.history_restore_blocked_by_changes"
 msgstr "Prieš atkurdami versiją pritaikykite arba atmeskite nepritaikytus drobės pakeitimus."
 
@@ -14036,6 +14042,27 @@ msgstr "Šiame kablyje nėra žingsnių, kuriuos būtų galima išvalyti."
 msgid "react.workflows.hook_root_only"
 msgstr "Kabliukai turi būti darbo eigos šakniniame lygyje, prieš grupę arba „Kiekvienam“ ciklą arba po jų."
 
+msgid "react.workflows.import_agents_left_disabled"
+msgstr "Kai kurie agentai palikti išjungti"
+
+msgid "react.workflows.import_created_definitions"
+msgstr "Iš failo sukurta agentų, įgūdžių, duomenų sutarčių ir apsaugos taisyklių: {count}."
+
+msgid "react.workflows.import_data_contract"
+msgstr "duomenų sutartis"
+
+msgid "react.workflows.import_guardrail"
+msgstr "apsaugos taisyklė"
+
+msgid "react.workflows.import_guardrail_project"
+msgstr "projektas apsaugos taisyklėms"
+
+msgid "react.workflows.import_rename_definition"
+msgstr "Sukurti nauju ID"
+
+msgid "react.workflows.import_status_from_file"
+msgstr "sukuriama iš failo"
+
 msgid "react.workflows.leave_builder_stay"
 msgstr "Likti"
 
@@ -14053,6 +14080,9 @@ msgstr "Grupė vykdo savo žingsnius vieną po kito."
 
 msgid "react.workflows.legend_inside_groups"
 msgstr "Grupių viduje"
+
+msgid "react.workflows.new_id_for_value0"
+msgstr "Naujas ID objektui {value0}"
 
 msgid "react.workflows.note"
 msgstr "Pastaba"
@@ -14170,6 +14200,9 @@ msgstr "Struktūros kliūtys"
 
 msgid "react.workflows.transform_input_source_required"
 msgstr "Transformavimui būtinas įvesties šaltinis (input.source)."
+
+msgid "react.workflows.uses_the_one_already_here_unchanged"
+msgstr "Naudojamas jau esantis, nekeičiant:"
 
 msgid "react.workflows.validation_error_one"
 msgstr "Klaidų: {count}"

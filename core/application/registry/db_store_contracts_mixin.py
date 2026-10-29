@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from .db_store_common import *  # NOSONAR
 
+#: Registry kinds whose ids an import may claim, and the column that holds the id.
+_RESERVABLE_REGISTRY_IDS = {
+    "agent": ("registry_agents", "agent_id"),
+    "skill": ("registry_skills", "skill_id"),
+    "data_contract": ("registry_data_contracts", "contract_id"),
+    "guardrail": ("registry_guardrails", "id"),
+}
+
 
 class RegistryDBStoreContractsMixin:
     @staticmethod
@@ -106,6 +114,16 @@ class RegistryDBStoreContractsMixin:
             "required": required,
         }
 
+    def registry_entity_reserved(self, kind: str, entity_id: str) -> bool:
+        """Whether any row holds *entity_id*, in any account and including Trash."""
+        table, column = _RESERVABLE_REGISTRY_IDS[kind]
+        with self._cursor() as cur:
+            cur.execute(
+                f"SELECT 1 FROM {table} WHERE {column}::text = %s LIMIT 1",  # nosec B608 - fixed names
+                (str(entity_id or "").strip(),),
+            )
+            return cur.fetchone() is not None
+
     def get_data_contract(self, contract_id: str, include_trashed: bool = False) -> dict | None:
         clauses = ["contract_id = %s"]
         params: list[Any] = [contract_id]
@@ -139,7 +157,10 @@ class RegistryDBStoreContractsMixin:
             cur.execute(f"SELECT * FROM registry_data_contracts {where_sql} ORDER BY contract_id")
             return [dict(r) for r in cur.fetchall()]
 
-    def save_data_contract(self, data: dict, author: str = "admin") -> None:
+    def save_data_contract(
+        self, data: dict, author: str = "admin", *, create_only: bool = False
+    ) -> None:
+        """Upsert a contract; *create_only* inserts it or raises, never touching an existing row."""
         contract_id = str(data.get("contract_id") or "").strip()
         if not contract_id:
             raise ValueError("contract_id is required")
@@ -198,6 +219,18 @@ class RegistryDBStoreContractsMixin:
         if snapshot["projection_mode"] == "derived" and snapshot["last_synced_at"] is None:
             snapshot["last_synced_at"] = datetime.now(UTC)
         with self._transaction() as cur:
+            if create_only:
+                # Claim the id first: a taken id, even one in Trash, fails here
+                # instead of being overwritten by the upsert below.
+                cur.execute(
+                    """INSERT INTO registry_data_contracts (contract_id, display_name)
+                       VALUES (%s, %s)
+                       ON CONFLICT (contract_id) DO NOTHING RETURNING contract_id""",
+                    (contract_id, snapshot["display_name"]),
+                )
+                if cur.fetchone() is None:
+                    raise RegistryCreateConflictError("data_contract", contract_id)
+                is_new = True
             cur.execute(
                 """INSERT INTO registry_data_contracts
                    (contract_id, version, display_name, description, kind, schema_json, enabled, tags,

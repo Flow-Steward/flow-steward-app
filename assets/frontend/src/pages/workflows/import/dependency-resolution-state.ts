@@ -33,14 +33,19 @@ const BLOCKING_STATUSES = new Set([
   "blocked",
 ]);
 
+/** A definition the file carries: created from it, renamed, or reused under its own id. */
+export function isBundledDefinition(dependency: WorkflowImportDependency) {
+  return dependency.metadata?.definition === true;
+}
+
 export function dependencyRequiresTarget(dependency: WorkflowImportDependency, action: string) {
-  if (action === "rename_workflow" || action === "map_existing") {
+  if (action === "rename_workflow" || action === "rename" || action === "map_existing") {
     return true;
   }
   if (action === "use_existing") {
-    // A carried child whose id is taken reuses the workflow under that same id,
-    // so there is nothing to pick; the server takes the ref as the target.
-    if (dependency.dependency_type === "workflow") {
+    // A carried child or definition whose id is taken reuses the record under that
+    // same id, so there is nothing to pick; the server takes the ref as the target.
+    if (dependency.dependency_type === "workflow" || isBundledDefinition(dependency)) {
       return false;
     }
     return dependency.status !== "resolved";
@@ -55,6 +60,9 @@ export function defaultActionForDependency(dependency: WorkflowImportDependency)
   const actions = dependency.resolution_actions || [];
   if (dependency.status === "conflict" && actions.includes("rename_workflow")) {
     return "rename_workflow";
+  }
+  if (dependency.status === "conflict" && isBundledDefinition(dependency)) {
+    return actions.includes("use_existing") ? "use_existing" : "rename";
   }
   if (dependency.status === "requires_extension_install") {
     return "install_extension_required";

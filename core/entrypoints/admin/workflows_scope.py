@@ -397,10 +397,15 @@ def _reload_registry_after_workflow_mutation(*, workflow_id: str, action: str) -
     return []
 
 
-def _refresh_workflow_cache_after_commit() -> None:
-    """Best-effort narrow cache refresh that cannot change a committed response."""
+def _refresh_workflow_cache_after_commit(*, reload_all: bool = False) -> None:
+    """Best-effort cache refresh that cannot change a committed response.
+
+    *reload_all* also reloads agents and skills, after an import created some.
+    """
     try:
-        refresh = getattr(_get_registry(), "refresh_workflow_cache", None)
+        refresh = getattr(
+            _get_registry(), "reload_all" if reload_all else "refresh_workflow_cache", None
+        )
         if callable(refresh):
             refresh()
     except Exception:

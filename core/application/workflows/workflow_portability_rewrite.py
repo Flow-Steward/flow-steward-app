@@ -91,6 +91,12 @@ class WorkflowPortabilityRewriteMixin:
             _as_list(payload.get("participants")),
             resolution_index,
         )
+        # The stored copy is the one in settings; a mapped or renamed agent must
+        # reach it too, or the participant keeps naming the source agent.
+        if isinstance(payload["settings"].get("participants"), list):
+            payload["settings"]["participants"] = self._rewrite_participants(
+                payload["settings"]["participants"], resolution_index
+            )
         payload["steps"] = [
             self._rewrite_step(step, resolution_index)
             for step in _as_list(payload.get("steps"))
@@ -261,6 +267,7 @@ class WorkflowPortabilityRewriteMixin:
         if action not in {
             "use_existing",
             "map_existing",
+            "rename",
             "create_connection_placeholder",
             "install_extension_required",
         }:

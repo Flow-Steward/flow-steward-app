@@ -111,6 +111,15 @@ def _system_registry_account_id(
     return None
 
 
+class RegistryCreateConflictError(ValueError):
+    """A create-only save found its id already taken, active or in Trash."""
+
+    def __init__(self, kind: str, entity_id: str) -> None:
+        super().__init__(f"{kind} '{entity_id}' already exists")
+        self.kind = kind
+        self.entity_id = entity_id
+
+
 class RestoreValidationError(ValueError):
     """Raised when a restore callback reports an invalid restored snapshot."""
 
@@ -197,6 +206,7 @@ __all__ = [
     "DISPLAY_NAME_EXCLUDED_DISPLAY_NAME_SQL",
     "ENABLED_EXCLUDED_ENABLED_SQL",
     "PooledConnectionProxy",
+    "RegistryCreateConflictError",
     "RestoreValidationError",
     "SQL_AGENT_ENABLED_TRUE",
     "LIFECYCLE_CHANGELOG_ACTIONS",
