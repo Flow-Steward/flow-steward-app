@@ -44,6 +44,7 @@ class WorkflowPortabilityPolicyMixin:
         *,
         project_connection_store: Any | None = None,
         extension_install_store: Any | None = None,
+        project_store: Any | None = None,
         account_id: str = "",
         import_transaction_factory: Callable[[], AbstractContextManager[Any]] | None = None,
     ) -> None:
@@ -58,6 +59,9 @@ class WorkflowPortabilityPolicyMixin:
         # skips its account filter when asked with None, which would let a preflight confirm
         # an install belonging to someone else.
         self.extension_install_store = extension_install_store
+        # The integration store above has no get_project_run_config, so an import that
+        # checks the project's model needs the project store itself.
+        self.project_store = project_store
         self.account_id = str(account_id or "").strip()
         self.import_transaction_factory = import_transaction_factory
 

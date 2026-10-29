@@ -830,3 +830,15 @@ def test_route_and_cli_share_hook_creation_mode_policy(monkeypatch, mode):
         assert response.json()["revision"] == result["revision"] == 2
         assert _topology(cli_store) == _topology(http_store)
         assert len(cli_store.saves) == len(http_store.saves) == 1
+
+
+def test_operator_import_reads_the_project_model_from_the_project_store() -> None:
+    """CLI, API and MCP imports check the model where the admin import does."""
+    project_store = SimpleNamespace()
+    service = _operator(
+        _Store(_workflow()),
+        get_project_store=lambda: project_store,
+        get_integration_store=lambda: SimpleNamespace(),
+    )
+
+    assert service._portability().project_store is project_store

@@ -45,6 +45,7 @@ from core.infrastructure.runtime.entrypoint_db_adapters import (
     DATABASE_OPERATION_ERRORS,
     create_integration_store,
     create_job_store,
+    create_project_store,
     workflow_import_transaction,
 )
 from core.infrastructure.runtime.workflow_db_adapters import (
@@ -152,6 +153,17 @@ def _platform_logger_for_admin_catalog(db) -> Any | None:
         return None
 
 
+def _project_store_for_admin_import(db) -> Any | None:
+    """Project store the import reads the project's model from; None without a DSN."""
+    dsn = str(getattr(db, "dsn", "") or "").strip()
+    if not dsn:
+        return None
+    try:
+        return create_project_store(dsn)
+    except DATABASE_OPERATION_ERRORS:
+        return None
+
+
 def _platform_job_store_for_workflow_stats(db) -> Any | None:
     """Return the job-owned store used by workflow run statistics."""
     dsn = str(getattr(db, "dsn", "") or "").strip()
@@ -221,6 +233,7 @@ __all__ = [
     "_json_object",
     "_normalize_optional_entity_id",
     "_platform_logger_for_admin_catalog",
+    "_project_store_for_admin_import",
     "_platform_job_store_for_workflow_stats",
     "_workflow_secret_default_service",
     "_workflow_sample_file_service",

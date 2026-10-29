@@ -192,9 +192,7 @@ def _bundle(definitions: dict | None = None) -> str:
 
 
 def _service(store: _Store, *, ready: bool = True) -> WorkflowPortabilityService:
-    return WorkflowPortabilityService(
-        store, project_connection_store=_Projects(ready), account_id=ACCOUNT
-    )
+    return WorkflowPortabilityService(store, project_store=_Projects(ready), account_id=ACCOUNT)
 
 
 def _rows(preflight: dict) -> dict[str, dict]:

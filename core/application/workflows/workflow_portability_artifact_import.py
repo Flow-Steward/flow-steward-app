@@ -615,7 +615,7 @@ class WorkflowPortabilityArtifactImportMixin:
         """Whether an agent without its own model resolves one in the project, without calling it."""
         if not _text(project_id):
             return False
-        store = getattr(self, "project_connection_store", None)
+        store = getattr(self, "project_store", None)
         loader = getattr(store, "get_project_run_config", None)
         if not callable(loader):
             return False

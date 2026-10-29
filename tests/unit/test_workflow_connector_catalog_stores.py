@@ -30,6 +30,7 @@ from core.infrastructure.db.platform_stores import (
     PlatformIdentityStore,
     PlatformIntegrationStore,
     PlatformJobStore,
+    PlatformProjectStore,
 )
 from core.infrastructure.runtime import entrypoint_db_adapters
 
@@ -103,6 +104,31 @@ def test_admin_portability_service_wires_atomic_import_transaction() -> None:
 
     assert service.project_connection_store is connection_store
     factory.assert_called_once_with(registry_store, connection_store)
+
+
+def test_admin_portability_service_reads_the_project_model_from_the_project_store() -> None:
+    """The import checks the project's model through a store that owns the lookup.
+
+    The integration store passed as project_connection_store has no
+    get_project_run_config, so reading the model through it left every imported
+    agent disabled with "no configured model" even when the project had one.
+    """
+    project_store = object()
+    with (
+        patch.object(workflows_scope, "_platform_logger_for_admin_catalog", return_value=None),
+        patch.object(
+            workflows_common, "create_project_store", return_value=project_store
+        ) as factory,
+    ):
+        service = workflows_scope._get_workflow_portability_service(_AdminDbHandle())
+
+    factory.assert_called_once_with(_AdminDbHandle.dsn)
+    assert service.project_store is project_store
+
+
+def test_integration_store_cannot_answer_the_project_model() -> None:
+    assert not hasattr(PlatformIntegrationStore, "get_project_run_config")
+    assert hasattr(PlatformProjectStore, "get_project_run_config")
 
 
 def test_catalog_fallback_store_can_list_project_connections() -> None:

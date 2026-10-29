@@ -130,6 +130,7 @@ class WorkflowOperatorAuthoringMixin:
             db,
             project_connection_store=connection_store,
             extension_install_store=connection_store,
+            project_store=self._get_project_store() if self._get_project_store else None,
             account_id=account_id,
             import_transaction_factory=(
                 partial(workflow_import_transaction, db, connection_store)
