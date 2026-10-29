@@ -60,14 +60,6 @@ import { SettingsSection, TriggerChoice } from "@/pages/workflows/detail/detail-
 
 import "./detail-triggers.css";
 
-/* Provider triggers (an extension registering its own webhook with its
-   service, so an event there starts the workflow) are hidden from this
-   surface until the feature is picked up again (decision 2026-10-21). The
-   backend and its API stay as they are; only the UI does not offer them, so
-   neither their section nor their editor, nor the editor's notices, can show.
-   Typed `boolean` so the hidden branches still type-check. */
-const PROVIDER_TRIGGERS_SHOWN: boolean = false;
-
 export function WorkflowTriggersSurface({
   ctx,
 }: Readonly<{
@@ -176,6 +168,9 @@ export function WorkflowTriggersSurface({
   const webhooks = (workflowTriggersQuery.data?.incoming_webhooks as WorkflowWebhookTrigger[]) || [];
   const providerRows = (providerTriggers || []) as ProviderTriggerRow[];
   const catalog = (providerTriggerCatalog || []) as ProviderTriggerCatalogEntry[];
+  // An event in a connected app starts the workflow: offered only when an
+  // installed extension declares such events or one is already bound here.
+  const showProviderTriggers = catalog.length > 0 || providerRows.length > 0;
   const editingWebhook = Boolean(webhookEditorMode === "edit" && selectedWebhook);
   const editingProvider = Boolean(providerTriggerEditorMode === "edit" && selectedProviderTrigger);
   const pending = Boolean(triggerSavePending);
@@ -257,7 +252,7 @@ export function WorkflowTriggersSurface({
         <div className="workflow-triggers-group">
           <span className="workflow-triggers-micro">{t("react.workflows.triggers_variant_e62f2148", "Triggers")}</span>
           <p className="workflow-triggers-help">
-            {PROVIDER_TRIGGERS_SHOWN
+            {showProviderTriggers
               ? t("react.workflows.triggers_intro", "Start this workflow from outside: a URL that services call, or an event in a connected app.")
               : t("react.workflows.triggers_intro_webhooks", "Start this workflow from outside: a URL that another service or your own code calls.")}</p>
           <section aria-label={t("react.workflows.incoming_webhooks", "Incoming webhooks")} className="workflow-triggers-group">
@@ -296,7 +291,7 @@ export function WorkflowTriggersSurface({
               </Button>
             </div>
           </section>
-          {PROVIDER_TRIGGERS_SHOWN ? (
+          {showProviderTriggers ? (
           <section aria-label={t("react.workflows.provider_triggers_title", "Provider triggers")} className="workflow-triggers-group" id="workflow-provider-trigger-list">
             <div className="workflow-triggers-block-head">
               <span className="workflow-triggers-block-title">{t("react.workflows.provider_triggers_title", "Provider triggers")}</span>
@@ -350,7 +345,7 @@ export function WorkflowTriggersSurface({
     );
   }
 
-  if (PROVIDER_TRIGGERS_SHOWN && view === "provider") {
+  if (showProviderTriggers && view === "provider") {
     const groups = new Map<string, ProviderTriggerCatalogEntry[]>();
     catalog.forEach((entry) => {
       const app = humanizeKey(firstStringFromUnknownValue([entry.provider_key, entry.catalog_id.split(":")[0], ""]));

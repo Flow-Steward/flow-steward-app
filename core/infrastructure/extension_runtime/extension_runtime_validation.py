@@ -446,7 +446,10 @@ def _validate_callback_definitions(
                     message=f"Unsupported callback auth.type '{auth_type}'",
                     file_path=manifest_path,
                     field_path=f"{field_path}.auth.type",
-                    hint="Supported callback auth types are none, shared_secret_header, and hmac_sha256.",
+                    hint=(
+                        "Supported callback auth types are none, shared_secret_header, "
+                        "hmac_sha256, and hub_signature."
+                    ),
                 )
             )
 
@@ -465,6 +468,21 @@ def _validate_callback_definitions(
                 )
             else:
                 normalized_auth["header"] = header
+        elif auth_type == "hub_signature":
+            for key in ("signature_header", "secret_name"):
+                value = str(auth.get(key) or "").strip()
+                if not value:
+                    issues.append(
+                        _issue(
+                            severity="error",
+                            code="missing_callback_auth_header",
+                            message=f"hub_signature callback auth requires auth.{key}",
+                            file_path=manifest_path,
+                            field_path=f"{field_path}.auth.{key}",
+                        )
+                    )
+                else:
+                    normalized_auth[key] = value
         elif auth_type == "hmac_sha256":
             for key in ("signature_header", "timestamp_header", "delivery_id_header"):
                 header = str(auth.get(key) or "").strip()

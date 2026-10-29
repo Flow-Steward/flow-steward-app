@@ -419,7 +419,7 @@ GRID_ACTION_SCOPES = {"row", "bulk", "page"}
 ALLOWED_OPERATION_HANDLER_MODES = {"extension", "platform"}
 ALLOWED_SUBSCRIPTION_SEVERITIES = {"any", "debug", "info", "warning", "error", "critical"}
 ALLOWED_CALLBACK_METHODS = {"GET", "POST"}
-ALLOWED_CALLBACK_AUTH_TYPES = {"none", "shared_secret_header", "hmac_sha256"}
+ALLOWED_CALLBACK_AUTH_TYPES = {"none", "shared_secret_header", "hmac_sha256", "hub_signature"}
 CALLBACK_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 AUTHORING_MANIFEST_ALLOWED_FIELDS: set[str] = {
     "account_scope",

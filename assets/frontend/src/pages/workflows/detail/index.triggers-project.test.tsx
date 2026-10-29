@@ -726,10 +726,10 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     );
   });
 
-  it("shows only incoming webhooks: configured provider triggers stay hidden and are never requested", async () => {
-    // Provider triggers are hidden from the UI (decision 2026-10-21); the API
-    // still answers them, so the payload below carries a catalog entry and a
-    // configured trigger, and the tab must offer neither.
+  it("lists a configured provider trigger and offers a new one when an app declares events", async () => {
+    // The catalog below carries an app's event and a configured trigger, so the
+    // tab shows the Provider triggers section next to the incoming webhooks. An
+    // empty catalog with no trigger leaves the section out (see the core tests).
     fetchSpy.mockImplementation(async (input) => {
       const url = stringFromUnknownValue(input);
       if (url.includes("/api/workflows/weekly_report/triggers")) {
@@ -804,18 +804,16 @@ it("scopes trigger list requests with the resolved linked project id", async () 
 
     expect(await screen.findByText("Incoming webhooks")).toBeInTheDocument();
     expect(await screen.findByText("No incoming webhooks yet.")).toBeInTheDocument();
-    expect(screen.queryByText("Provider triggers")).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Provider triggers" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Sample Tasks task created/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "New provider trigger" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Provider triggers" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Sample Tasks task created/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "New provider trigger" })).toBeInTheDocument();
     expect(screen.queryByText("Pick a provider trigger from the catalog.")).not.toBeInTheDocument();
-    expect(screen.queryByText(/connected app/i)).not.toBeInTheDocument();
     const requested = fetchSpy.mock.calls.map(([input]) => stringFromUnknownValue(input));
     expect(requested.some((url) => url.includes("/api/workflows/weekly_report/triggers"))).toBe(true);
     expect(requested.filter((url) => url.includes("/triggers/providers"))).toEqual([]);
   });
 
-  it("offers no provider trigger action while linked project context is still resolving", async () => {
+  it("waits for the linked project before enabling a new provider trigger", async () => {
     mockedFindWorkflowLinkedProjectId.mockImplementationOnce(
       () => new Promise<string>(() => {}),
     );
@@ -878,9 +876,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
 
     expect(await screen.findByText("Incoming webhooks")).toBeInTheDocument();
     expect(await screen.findByText("No incoming webhooks yet.")).toBeInTheDocument();
-    // Hidden provider triggers leave no section, so no pending-context line
-    // and no New provider trigger button wait on the project either.
-    expect(screen.queryByText(/Resolving project context for provider triggers/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "New provider trigger" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Resolving project context for provider triggers/i)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "New provider trigger" })).toBeDisabled();
   });
 });

@@ -1,5 +1,7 @@
 # ruff: noqa: F405, RUF100
 # mypy: ignore-errors
+from typing import Any
+
 from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
 from core.application.management.command_models import ApprovalDecisionInput
 from core.application.management.errors import ServiceConflictError
@@ -63,6 +65,34 @@ def _composed_service(current_app: FastAPI, name: str):
         # composition never enters this branch and always resolves a narrow store.
         return legacy_db_factory()
     return service_factories[name]()
+
+
+class _ProjectStoreWithExtensionList:
+    """The project store, plus the installed-extension list that lives on the identity store.
+
+    A workflow's provider triggers belong to the project store, while the trigger
+    types an extension declares are read from the extension list. Without the
+    list the catalog holds only the built-in webhook and every provider trigger
+    is "not found".
+    """
+
+    def __init__(self, project_store: Any, identity_store: Any) -> None:
+        self._project_store = project_store
+        self._identity_store = identity_store
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "list_extensions":
+            return self._identity_store.list_extensions
+        return getattr(self._project_store, name)
+
+
+def _workflow_trigger_store(current_app: FastAPI) -> Any:
+    project_store = _composed_service(current_app, "project_store")
+    if hasattr(project_store, "list_extensions"):
+        return project_store
+    return _ProjectStoreWithExtensionList(
+        project_store, _composed_service(current_app, "identity_store")
+    )
 
 
 def _trash_lifecycle_service():
@@ -812,7 +842,7 @@ def _register_job_and_webhook_routes(current_app: FastAPI) -> None:
 
     _register_workflow_entrypoint_routes(
         current_app,
-        get_logger_only=lambda: _composed_service(current_app, "project_store"),
+        get_logger_only=lambda: _workflow_trigger_store(current_app),
         request_scope=lambda request, **kwargs: _request_scope(request, **kwargs),
         enqueue_task=lambda **kwargs: _enqueue_task(**kwargs),
         redeliver_task=lambda **kwargs: _task_enqueue_runtime.redeliver_pre_execution_job(
