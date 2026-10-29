@@ -13844,14 +13844,44 @@ msgstr "Hooks belong in the workflow root, before or after a Group or For each."
 msgid "react.workflows.import_agents_left_disabled"
 msgstr "Some agents were left disabled"
 
-msgid "react.workflows.import_created_definitions"
-msgstr "Created from the file: {count} agents, skills, data contracts and guardrails."
+msgid "react.workflows.import_choose_project_above"
+msgstr "Choose the project above."
+
+msgid "react.workflows.import_count_agent"
+msgstr "{count} agent"
+
+msgid "react.workflows.import_count_agents"
+msgstr "{count} agents"
+
+msgid "react.workflows.import_count_data_contract"
+msgstr "{count} data contract"
+
+msgid "react.workflows.import_count_data_contracts"
+msgstr "{count} data contracts"
+
+msgid "react.workflows.import_count_guardrail"
+msgstr "{count} guardrail"
+
+msgid "react.workflows.import_count_guardrails"
+msgstr "{count} guardrails"
+
+msgid "react.workflows.import_count_skill"
+msgstr "{count} skill"
+
+msgid "react.workflows.import_count_skills"
+msgstr "{count} skills"
+
+msgid "react.workflows.import_created_from_file"
+msgstr "Created from the file: {items}."
 
 msgid "react.workflows.import_data_contract"
 msgstr "data contract"
 
 msgid "react.workflows.import_guardrail"
 msgstr "guardrail"
+
+msgid "react.workflows.import_guardrail_new_id"
+msgstr "Created as a new guardrail; its id is assigned automatically."
 
 msgid "react.workflows.import_guardrail_project"
 msgstr "project for guardrails"

@@ -11,6 +11,7 @@ from core.application.registry.projected_artifact_rows import (
     projected_catalog_row_matches,
     projection_aware_catalog_rows,
 )
+from core.application.workflows.workflow_portability_common import IMPORT_CACHE_REFRESH_WARNING
 from core.application.workflows.workflow_template_catalog_create import (
     resolve_portable_extensions,
 )
@@ -285,9 +286,10 @@ def apply_workflow_import(body: WorkflowImportRequest, request: Request):
         )
     except WorkflowPortabilityError as exc:
         _raise_portability_http_error(exc)
-    _refresh_workflow_cache_after_commit(
+    if not _refresh_workflow_cache_after_commit(
         reload_all=bool((result.get("definitions") or {}).get("created"))
-    )
+    ):
+        result.setdefault("warnings", []).append(IMPORT_CACHE_REFRESH_WARNING)
     return result
 
 

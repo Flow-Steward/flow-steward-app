@@ -239,6 +239,7 @@ class WorkflowTemplateCatalogCreateService:
         target_workflow_id: str = "",
         resolutions: list[dict[str, Any]] | None = None,
         scope: ScopeContext | None = None,
+        project_id: str = "",
     ) -> dict[str, Any]:
         item = self.require_item(item_id)
         bundle_yaml = self.load_item_yaml(item)
@@ -248,6 +249,7 @@ class WorkflowTemplateCatalogCreateService:
             target_workflow_id=target_workflow_id,
             resolutions=resolutions or [],
             scope=scope,
+            project_id=project_id,
         )
         # The discovery pass is a full preflight already. Re-running it is only
         # worth it when this adapter actually added a resolution.
@@ -258,6 +260,7 @@ class WorkflowTemplateCatalogCreateService:
                 bundle_yaml,
                 target_workflow_id=target_workflow_id,
                 resolutions=merged,
+                target_project_id=project_id,
             )
         )
         return self._annotate(preflight, item=item, outcomes=outcomes)
@@ -281,6 +284,7 @@ class WorkflowTemplateCatalogCreateService:
             target_workflow_id=target_workflow_id,
             resolutions=resolutions or [],
             scope=scope,
+            project_id=owner_project_id,
         )
         # apply_import re-runs preflight itself and refuses on a blocking
         # dependency or an existing workflow id, so the catalog path cannot
@@ -307,6 +311,7 @@ class WorkflowTemplateCatalogCreateService:
         target_workflow_id: str,
         resolutions: list[dict[str, Any]],
         scope: ScopeContext | None,
+        project_id: str = "",
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
         """Map the template's extensions to this account's installs (shared with import)."""
         return resolve_portable_extensions(
@@ -317,6 +322,7 @@ class WorkflowTemplateCatalogCreateService:
             account_id=normalize_scope(scope).account_id or "acc_default",
             get_install_store=self._get_install_store,
             check_discovery=lambda discovery: _assert_one_template(discovery, item_id=item_id),
+            target_project_id=project_id,
         )
 
     def _annotate(

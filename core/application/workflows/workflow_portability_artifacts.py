@@ -379,6 +379,38 @@ class WorkflowPortabilityArtifactsMixin:
             portable.append(rule)
         return portable
 
+    def _extension_guardrail_dependencies(
+        self, agent_ids: set[str], *, account_id: str
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Extensions whose guardrails cover the exported agents.
+
+        Those rules come with the extension, so the file does not carry them; it names
+        the extension instead, and an import without it says the extension is missing.
+        """
+        if not agent_ids or not account_id:
+            return {}
+        snapshots: list[dict[str, Any]] = []
+        for row in _call_db_list(self.db, "list_guardrails", account_id=account_id):
+            if not isinstance(row, dict):
+                continue
+            install_id = _durable_projection_install_id(row)
+            if not install_id or not agent_ids.intersection(
+                map(_text, _as_list(row.get("_agents")))
+            ):
+                continue
+            snapshots.append(
+                self._dependency_snapshot(
+                    {
+                        "dependency_type": "extension",
+                        "ref": install_id,
+                        "label": install_id,
+                        "required": True,
+                        "sources": [f"guardrail.{_text(row.get('id'))}"],
+                    }
+                )
+            )
+        return {"extensions": snapshots} if snapshots else {}
+
     def _project_name(self, project_id: str) -> str:
         for store in (getattr(self, "project_connection_store", None), self.db):
             project = _call_db_get(store, "get_project", project_id)

@@ -10,6 +10,7 @@ concurrent save leaves no partial import behind.
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from typing import Any
@@ -28,8 +29,11 @@ from core.application.workflows.workflow_portability_common import (
     _as_list,
     _call_db_get,
     _dependency_key,
+    _resolution_target_ref,
     _text,
 )
+
+logger = logging.getLogger(__name__)
 
 #: The dependency type of the one row that asks for the guardrails' project.
 GUARDRAIL_PROJECT_DEPENDENCY = "guardrail_project"
@@ -37,6 +41,13 @@ GUARDRAIL_PROJECT_MESSAGE = (
     "This file has guardrails for a project. Choose the project to attach them to."
 )
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$")
+#: Ids the platform derives itself: contracts generated from step I/O and records an
+#: extension projects. A file must not create them as manual records.
+_RESERVED_ID_PREFIXES = {
+    "agent": ("extension.",),
+    "skill": ("extension.",),
+    "data_contract": ("auto.", "extension."),
+}
 _TABLES = {
     "agent": ("registry_agents", "agent_id"),
     "skill": ("registry_skills", "skill_id"),
@@ -49,14 +60,6 @@ _LABELS = {
     "data_contract": "Data contract",
     "guardrail": "Guardrail",
 }
-
-
-def _resolution_target(resolution: dict[str, Any] | None) -> str:
-    if not resolution:
-        return ""
-    return _text(
-        resolution.get("target_ref") or resolution.get("target_id") or resolution.get("target")
-    )
 
 
 def _rewrite_contract_refs(value: Any, targets: dict[str, str]) -> Any:
@@ -72,6 +75,45 @@ def _rewrite_contract_refs(value: Any, targets: dict[str, str]) -> Any:
     if isinstance(value, list):
         return [_rewrite_contract_refs(item, targets) for item in value]
     return value
+
+
+_DEPENDS_ON_KINDS = ("soft", "hard")
+
+
+def _depends_on_payload(value: Any, target: Any) -> dict[str, Any]:
+    """An agent's `depends_on` with each agent id pointed where the import put it."""
+    depends_on = dict(_as_dict(value))
+    for strength in _DEPENDS_ON_KINDS:
+        depends_on[strength] = [
+            target("agent", _text(agent))
+            for agent in _as_list(depends_on.get(strength))
+            if _text(agent)
+        ]
+    return depends_on
+
+
+def _definition_id_problem(kind: str, ref: str) -> str:
+    if not _ID_PATTERN.match(ref):
+        return f"'{ref}' is not a valid id."
+    if ref.startswith(_RESERVED_ID_PREFIXES.get(kind, ())):
+        return f"'{ref}' is reserved for ids the platform creates; use another id."
+    return ""
+
+
+def _contract_content_problem(item: dict[str, Any]) -> str:
+    """The checks a manual contract save applies, so a file cannot skip them."""
+    if not _text(item.get("display_name")):
+        return "A data contract needs a display_name."
+    kind = (_text(item.get("kind")) or "json").lower()
+    if kind not in {"json", "list"}:
+        return "A data contract kind must be json or list."
+    schema = item.get("schema") or {}
+    if not isinstance(schema, dict):
+        return "A data contract schema must be an object."
+    schema_type = _text(schema.get("type")).lower()
+    if schema_type and schema_type != {"json": "object", "list": "array"}[kind]:
+        return f"A {kind} data contract must use schema.type={'object' if kind == 'json' else 'array'}."
+    return ""
 
 
 class WorkflowPortabilityArtifactImportMixin:
@@ -162,16 +204,25 @@ class WorkflowPortabilityArtifactImportMixin:
                 else f"{_LABELS[kind]} id '{ref}' is taken by a record you cannot reuse "
                 "(another account's, or in Trash). Create this one under a new id."
             )
-        if action == "rename":
-            target = _resolution_target(resolution)
+        if action and action not in actions_offered:
+            status, plan_action = "conflict", "conflict"
+            message = f"That choice is not available for this {_LABELS[kind].lower()}."
+        elif action == "rename":
+            target = _resolution_target_ref(resolution)
             problem = self._rename_problem(kind, target, claimed)
             if problem:
                 status, plan_action, message = "conflict", "conflict", problem
             else:
                 status, plan_action, message = "resolved", "create", ""
                 claimed.add(target)
-        elif action == "use_existing" and reserved:
+        elif action == "use_existing":
+            # Reuse keeps the id; the rewrite would otherwise point the workflow at an
+            # unchecked target. Another id is a rename.
             problem = "" if existing else f"{_LABELS[kind]} '{ref}' cannot be reused from here."
+            if not problem and _resolution_target_ref(resolution) not in ("", ref):
+                problem = (
+                    f"Reusing keeps the id '{ref}'. To use another id, create it under a new id."
+                )
             if not problem and kind == "guardrail":
                 problem = self._guardrail_reuse_problem(
                     existing, item, target_project_id, resolution_index
@@ -183,6 +234,11 @@ class WorkflowPortabilityArtifactImportMixin:
         elif plan_action == "create":
             claimed.add(ref)
         issue = self._definition_content_problem(kind, item)
+        if not issue and kind == "guardrail":
+            issue = self._guardrail_agents_problem(item, resolution_index)
+        if not issue and kind != "guardrail" and action != "rename":
+            # Created under its own id: the id a rename picks is checked by _rename_problem.
+            issue = _definition_id_problem(kind, ref)
         if issue and plan_action == "create":
             status, message = "blocked", issue
             actions_offered = ["abort"]
@@ -219,14 +275,18 @@ class WorkflowPortabilityArtifactImportMixin:
                 uuid.UUID(target)
             except ValueError:
                 return "A guardrail id must be a UUID."
-        elif not _ID_PATTERN.match(target):
-            return f"'{target}' is not a valid id."
+        else:
+            problem = _definition_id_problem(kind, target)
+            if problem:
+                return problem
         if target in claimed or self._definition_reserved(kind, target):
             return f"{_LABELS[kind]} id '{target}' is taken too; choose another."
         return ""
 
     def _definition_content_problem(self, kind: str, item: dict[str, Any]) -> str:
         """What a save would refuse, said before anything is written."""
+        if kind == "data_contract":
+            return _contract_content_problem(item)
         if kind in {"agent", "skill"}:
             category = _text(item.get("category"))
             if category and not known_catalog_category(category):
@@ -259,12 +319,29 @@ class WorkflowPortabilityArtifactImportMixin:
             )
         return ""
 
+    def _guardrail_agents_problem(
+        self, item: dict[str, Any], resolution_index: dict[tuple[str, str], dict[str, Any]]
+    ) -> str:
+        """A guardrail can only target this account's agents; the save refuses the rest."""
+        account_id = _text(getattr(self, "account_id", ""))
+        if not account_id:
+            return ""
+        for agent in _as_list(item.get("agents")):
+            agent_id = self._definition_target_from_index("agent", _text(agent), resolution_index)
+            row = _call_db_get(self.db, "get_agent", agent_id)
+            if row and _text(row.get("account_id")) != account_id:
+                return (
+                    f"This guardrail targets agent '{agent_id}', which is not one of this "
+                    "account's agents. Create the agent under a new id instead."
+                )
+        return ""
+
     def _definition_target_from_index(
         self, kind: str, ref: str, resolution_index: dict[tuple[str, str], dict[str, Any]]
     ) -> str:
         resolution = resolution_index.get((kind, ref))
         if resolution and _text(resolution.get("action")) == "rename":
-            return _resolution_target(resolution) or ref
+            return _resolution_target_ref(resolution) or ref
         return ref
 
     def _definition_external_rows(self, definitions: dict[str, Any]) -> list[dict[str, Any]]:
@@ -296,6 +373,14 @@ class WorkflowPortabilityArtifactImportMixin:
                     add("skill", skill_id, f"{DEFINITIONS_KEY}.agents.{agent_id}.skills")
             for tool_id in _as_list(agent.get("tools")):
                 add("tool", _text(tool_id), f"{DEFINITIONS_KEY}.agents.{agent_id}.tools")
+            for strength in _DEPENDS_ON_KINDS:
+                for other in _as_list(_as_dict(agent.get("depends_on")).get(strength)):
+                    if _text(other) not in carried["agent"]:
+                        add(
+                            "agent",
+                            _text(other),
+                            f"{DEFINITIONS_KEY}.agents.{agent_id}.depends_on.{strength}",
+                        )
         for skill in _as_list(definitions.get("skills")):
             skill_id = _text(skill.get("skill_id"))
             for key in ("expected_inputs", "expected_outputs"):
@@ -459,23 +544,15 @@ class WorkflowPortabilityArtifactImportMixin:
                     author=author,
                     create_only=True,
                 )
-            ready = self._project_model_ready(owner_project_id)
+            model_problem = self._project_model_problem(owner_project_id)
             for item in _as_list(definitions.get("agents")):
                 ref = _text(item.get("agent_id"))
                 if not record("agent", ref):
                     continue
                 agent_id = target("agent", ref)
-                enabled = bool(item.get("enabled", False)) and ready
-                if bool(item.get("enabled", False)) and not ready:
-                    disabled.append(
-                        {
-                            "agent_id": agent_id,
-                            "reason": (
-                                "The project has no configured model for this agent; "
-                                "choose one in the project's settings, then enable it."
-                            ),
-                        }
-                    )
+                enabled = bool(item.get("enabled", False)) and not model_problem
+                if bool(item.get("enabled", False)) and model_problem:
+                    disabled.append({"agent_id": agent_id, "reason": model_problem})
                 self.db.save_agent(
                     self._agent_payload(item, agent_id, target, owner_account_id, enabled),
                     author=author,
@@ -518,6 +595,15 @@ class WorkflowPortabilityArtifactImportMixin:
                 code="workflow_import_definition_conflict",
                 status_code=409,
                 errors=[{"dependency_type": exc.kind, "ref": exc.entity_id, "status": "conflict"}],
+            ) from exc
+        except ValueError as exc:
+            # A record the preflight accepted changed before the import was applied (a
+            # reused skill moved to Trash, say); the transaction rolls everything back.
+            raise WorkflowPortabilityError(
+                f"The file's records could not be saved: {exc}. Nothing was imported; "
+                "run the import again.",
+                code="workflow_import_definition_invalid",
+                status_code=409,
             ) from exc
         return {"created": created, "reused": reused, "agents_left_disabled": disabled}
 
@@ -599,7 +685,7 @@ class WorkflowPortabilityArtifactImportMixin:
             "config": _as_dict(item.get("config")),
             "quality": _as_dict(item.get("quality")),
             "tags": [_text(tag) for tag in _as_list(item.get("tags")) if _text(tag)],
-            "depends_on": _as_dict(item.get("depends_on")) or {"soft": [], "hard": []},
+            "depends_on": _depends_on_payload(item.get("depends_on"), target),
             "builder_metadata_jsonb": _as_dict(item.get("builder_metadata_jsonb")),
             "inputs": _as_dict(item.get("inputs")) or {"required": [], "optional": []},
             "outputs": [_text(name) for name in _as_list(item.get("outputs")) if _text(name)],
@@ -611,18 +697,30 @@ class WorkflowPortabilityArtifactImportMixin:
             "scope_kind": "account" if owner_account_id else "system",
         }
 
-    def _project_model_ready(self, project_id: str) -> bool:
-        """Whether an agent without its own model resolves one in the project, without calling it."""
+    def _project_model_problem(self, project_id: str) -> str:
+        """Why an agent without its own model cannot run in the project; empty when it can.
+
+        Resolves the model route without calling the model.
+        """
         if not _text(project_id):
-            return False
-        store = getattr(self, "project_store", None)
-        loader = getattr(store, "get_project_run_config", None)
+            return (
+                "No project was chosen for the import, so no model is set for this agent; "
+                "link the workflow to a project with a model, then enable the agent."
+            )
+        unchecked = (
+            "The project's model could not be checked; check the project's settings, "
+            "then enable the agent."
+        )
+        loader = getattr(getattr(self, "project_store", None), "get_project_run_config", None)
         if not callable(loader):
-            return False
+            return unchecked
         try:
             config = loader(project_id) or {}
         except Exception:
-            return False
+            logger.warning(
+                "Import could not read the model of project %s", project_id, exc_info=True
+            )
+            return unchecked
         from core.application.orchestration.model_provider import (
             ModelUnavailableError,
             _resolve_model_route,
@@ -631,8 +729,11 @@ class WorkflowPortabilityArtifactImportMixin:
         try:
             _resolve_model_route(dict(config), None, registry_cfg={})
         except ModelUnavailableError:
-            return False
-        return True
+            return (
+                "The project has no configured model for this agent; "
+                "choose one in the project's settings, then enable it."
+            )
+        return ""
 
 
 __all__ = [

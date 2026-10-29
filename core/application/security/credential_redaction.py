@@ -31,10 +31,33 @@ _ASSIGNED_CREDENTIAL = re.compile(
     r"(?i)(?P<label>\b[a-z0-9_-]*(?:password|passphrase|api(?:[\s_-]?key)|bearer|cookie|credential|"
     r"session|token|secret|private(?:[\s_-]?key))[a-z0-9_-]*\s*[:=]\s*)(?P<value>[^\s,;]+)"
 )
+#: `_ASSIGNED_CREDENTIAL` whose value is on the same line as its key.
+_DOCUMENT_ASSIGNED_CREDENTIAL = re.compile(
+    r"(?i)(?P<label>\b[a-z0-9_-]*(?:password|passphrase|api(?:[\s_-]?key)|bearer|cookie|credential|"
+    r"session|token|secret|private(?:[\s_-]?key))[a-z0-9_-]*[ \t]*[:=][ \t]*)(?P<value>[^\s,;]+)"
+)
 _QUOTED_MAPPING_ENTRY = re.compile(
     r"(?P<prefix>(?P<key_quote>['\"])(?P<key>(?:\\.|(?!(?P=key_quote))[^\\\r\n]){1,128})"
     r"(?P=key_quote)\s*:\s*)"
     r"(?P<value_quote>['\"])(?P<value>(?:\\.|[^\\\r\n])*?)(?P=value_quote)"
+)
+_KEY_WORD_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")
+#: Words that make `token`/`tokens` a count of model tokens (`max_tokens`) rather
+#: than a credential.
+_TOKEN_COUNT_WORDS = frozenset(
+    {
+        "max",
+        "min",
+        "total",
+        "prompt",
+        "completion",
+        "input",
+        "output",
+        "count",
+        "limit",
+        "budget",
+        "used",
+    }
 )
 _OPAQUE_SECRET_TOKEN = re.compile(
     r"(?<![A-Za-z0-9_])("
@@ -177,14 +200,42 @@ def _is_public_usage_counter(
     )
 
 
+def token_count_key(key: str) -> str:
+    """The key without its `token`/`tokens` words when they count model tokens.
+
+    `max_tokens` becomes `max`; `access_token` stays as it is. Credential checks
+    run on the result, so a count is not masked while `max_tokens_secret` still is.
+    """
+    words = [word.lower() for word in _KEY_WORD_BOUNDARY.split(str(key or "")) if word]
+    if _TOKEN_COUNT_WORDS.intersection(words):
+        words = [word for word in words if word not in {"token", "tokens"}]
+    return "_".join(words)
+
+
+def _document_secret_key(key: str, context: RedactionContext) -> bool:
+    return _is_secret_key(token_count_key(key) or key, context)
+
+
+def _replace_document_credential(match: re.Match[str], *, context: RedactionContext) -> str:
+    key = match.group("label").rstrip().rstrip(":=").strip()
+    if not _document_secret_key(key, context):
+        return match.group(0)
+    return _replace_credential_value(match)
+
+
+def _replace_document_mapping_value(match: re.Match[str], *, context: RedactionContext) -> str:
+    key = _decode_quoted_mapping_key(match.group("key"), quote=match.group("key_quote"))
+    if key is not None and not _document_secret_key(key, context):
+        return match.group(0)
+    return _replace_quoted_mapping_value(match, context=context)
+
+
 def redact_document_text(text: str, *, context: RedactionContext | None = None) -> str:
     """Scrub a document whose secret-keyed values the server already masked.
 
-    Known command secrets, URL credentials, opaque provider tokens and
-    authorization headers are still removed. The word heuristics of
-    `redact_text` are not applied: in prose and templates "token" and
-    "password" are ordinary words, and replacing what follows them corrupts
-    the document (`for token in words` would lose its `in`).
+    Everything `redact_text` removes is removed here too, except two things that
+    corrupt a document: the bare `token`/`bearer` word heuristic (`for token in
+    words` would lose its `in`) and the masking of token counts (`max_tokens: 4000`).
     """
     context = context or RedactionContext()
     sanitized = _URL_CREDENTIALS.sub(r"\g<prefix>" + _REDACTED + r"\g<suffix>", str(text))
@@ -192,8 +243,15 @@ def redact_document_text(text: str, *, context: RedactionContext | None = None) 
         if secret:
             sanitized = sanitized.replace(secret, _REDACTED)
     sanitized = _OPAQUE_SECRET_TOKEN.sub(_REDACTED, sanitized)
+    sanitized = _QUOTED_MAPPING_ENTRY.sub(
+        lambda match: _replace_document_mapping_value(match, context=context),
+        sanitized,
+    )
     sanitized = _AUTHORIZATION_HEADER.sub(_replace_credential_value, sanitized)
-    return _AUTHORIZATION_BEARER.sub(_replace_credential_value, sanitized)
+    sanitized = _AUTHORIZATION_BEARER.sub(_replace_credential_value, sanitized)
+    return _DOCUMENT_ASSIGNED_CREDENTIAL.sub(
+        lambda match: _replace_document_credential(match, context=context), sanitized
+    )
 
 
 def redact_text(text: str, *, context: RedactionContext | None = None) -> str:

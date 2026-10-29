@@ -14,6 +14,7 @@ import {
   isBundledDefinition,
   type ResolutionDraft,
   resolutionComplete,
+  systemAssignsTarget,
   type UpdateResolution,
 } from "@/pages/workflows/import/dependency-resolution-state";
 import { isTruthy } from "@/lib/utils/unknown-values";
@@ -326,6 +327,9 @@ function ResolutionTargetControl({
       </div>
     );
   }
+  if (systemAssignsTarget(dependency, selectedAction)) {
+    return <span className="fs-field-helper">{t("react.workflows.import_guardrail_new_id", "Created as a new guardrail; its id is assigned automatically.")}</span>;
+  }
   if (needsTarget) {
     return <input aria-invalid={error ? true : undefined} aria-label={targetControlLabel(dependency, selectedAction, t)} className="fs-input" onChange={(event) => updateResolution(dependency, { target: event.target.value })} placeholder={selectedAction === "rename" ? t("react.workflows.enter_a_new_id", "Enter a new id") : t("react.workflows.enter_a_new_workflow_id", "Enter a new workflow id")} value={draft?.target || ""} />;
   }
@@ -377,6 +381,8 @@ function DependencyResolutionRow({ dependency, dependencyOptions, effectiveDepen
   // Keep controls and serialization tied to the original dependency identity.
   // The effective server row supplies only its checked status and message.
   const status = effectiveDependency?.status ?? (accepted && needsResolution ? "resolved" : dependency.status);
+  // Answered by the project picker at the top of the page, not by a control in this row.
+  const choosesProject = dependency.dependency_type === "guardrail_project";
   const message = effectiveDependency?.message ?? (status === "resolved" ? "" : dependency.message);
   return (
     <div className="fs-surface-radius fs-surface-inset border border-subtle grid gap-3 p-3 md:grid-cols-12">
@@ -392,10 +398,14 @@ function DependencyResolutionRow({ dependency, dependencyOptions, effectiveDepen
       </div>
       <div className="fs-field md:col-span-12">
         <span className="fs-field-label">{t("settings.notifications.columns.target", "Target")}</span>
-        <ResolutionTargetControl dependency={dependency} draft={draft} error={error} needsResolution={needsResolution} needsTarget={needsTarget} optionBucket={optionBucket} selectedAction={selectedAction} targetOptions={targetOptions} updateResolution={updateResolution} />
+        {choosesProject ? (
+          <span className="fs-field-helper">{status === "resolved" ? t("react.workflows.resolved", "Resolved") : t("react.workflows.import_choose_project_above", "Choose the project above.")}</span>
+        ) : (
+          <ResolutionTargetControl dependency={dependency} draft={draft} error={error} needsResolution={needsResolution} needsTarget={needsTarget} optionBucket={optionBucket} selectedAction={selectedAction} targetOptions={targetOptions} updateResolution={updateResolution} />
+        )}
         <ConnectionPlaceholderFields dependency={dependency} draft={draft} updateResolution={updateResolution} />
         {error ? <span className="fs-field-helper error">{error}</span> : null}
-        {!complete && !error && status !== "resolved" ? <span className="fs-field-helper error">{unresolvedHint(dependency, selectedAction, needsTarget, t)}</span> : null}
+        {!choosesProject && !complete && !error && status !== "resolved" ? <span className="fs-field-helper error">{unresolvedHint(dependency, selectedAction, needsTarget, t)}</span> : null}
       </div>
     </div>
   );

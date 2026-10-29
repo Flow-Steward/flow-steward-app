@@ -37,6 +37,7 @@ from core.application.workflows.workflow_portability_common import (
     _json_safe,
     _list_runtime_dependencies,
     _normalize_participants,
+    _redact_definitions,
     _redact_sensitive,
     _sorted_options,
     _step_child_workflow_ref,
@@ -103,6 +104,14 @@ class WorkflowPortabilityExportMixin:
                 full_sources, account_id=_text(workflow.get("account_id"))
             )
         )
+        if definitions is not None:
+            dependencies = _merge_dependency_sections(
+                dependencies,
+                self._extension_guardrail_dependencies(
+                    {_text(agent.get("agent_id")) for agent in definitions["agents"]},
+                    account_id=_text(workflow.get("account_id")),
+                ),
+            )
         binding_entries = bindings.entries if bindings is not None else []
         if binding_entries:
             dependencies = _merge_dependency_sections(
@@ -138,8 +147,16 @@ class WorkflowPortabilityExportMixin:
                 "conflict_policy": "rename_workflow",
             },
         }
+        redacted = {
+            key: (
+                _redact_definitions(value)
+                if key == DEFINITIONS_KEY
+                else _redact_sensitive(value, key=key)
+            )
+            for key, value in bundle.items()
+        }
         return yaml.safe_dump(
-            _json_safe(_redact_sensitive(bundle)),
+            _json_safe(redacted),
             sort_keys=False,
             allow_unicode=True,
         )

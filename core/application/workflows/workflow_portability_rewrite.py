@@ -14,6 +14,7 @@ from core.application.workflows.workflow_portability_common import (
     _json_safe,
     _raise_if_raw_mcp_connector_bindings,
     _redact_sensitive,
+    _resolution_target_ref,
     _sanitize_imported_trigger,
     _text,
 )
@@ -272,11 +273,4 @@ class WorkflowPortabilityRewriteMixin:
             "install_extension_required",
         }:
             return ""
-        return (
-            _text(
-                resolution.get("target_ref")
-                or resolution.get("target_id")
-                or resolution.get("target_workflow_id")
-            )
-            or normalized_ref
-        )
+        return _resolution_target_ref(resolution) or normalized_ref

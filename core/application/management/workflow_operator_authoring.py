@@ -10,6 +10,7 @@ admin-only HTTP routes do.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from functools import partial
 from typing import Any
@@ -44,6 +45,9 @@ def _persistence_error(exc: Exception) -> ServiceError:
     if "block_key_fkey" in message:
         return ServiceNotFoundError("Published block not found")
     return ServiceValidationError("Referenced workflow dependency not found")
+
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowOperatorAuthoringMixin:
@@ -93,15 +97,20 @@ class WorkflowOperatorAuthoringMixin:
             raise ServiceUnavailableError(f"{name} is unavailable")
         return store
 
-    def _refresh_workflow_cache(self, *, reload_all: bool = False) -> None:
-        """Best effort: a committed change is never reported as failed by a cache."""
+    def _refresh_workflow_cache(self, *, reload_all: bool = False) -> bool:
+        """Best effort: a committed change is never reported as failed by a cache.
+
+        Returns False when the refresh failed, so a caller can say so.
+        """
         registry = self._registry_manager_provider()
         refresh = getattr(registry, "reload_all" if reload_all else "refresh_workflow_cache", None)
         if callable(refresh):
             try:
                 refresh()
             except Exception:
-                return
+                logger.warning("Workflow cache refresh failed after committed mutation")
+                return False
+        return True
 
     def _authoring_service(self) -> Any:
         """The same facade ``/api/.../workflow-authoring`` builds, with CLI authority."""
@@ -426,9 +435,14 @@ class WorkflowOperatorAuthoringMixin:
             )
         except WorkflowPortabilityError as exc:
             raise _portability_error(exc) from exc
-        self._refresh_workflow_cache(
+        if not self._refresh_workflow_cache(
             reload_all=bool((result.get("definitions") or {}).get("created"))
-        )
+        ):
+            from core.application.workflows.workflow_portability_common import (
+                IMPORT_CACHE_REFRESH_WARNING,
+            )
+
+            result.setdefault("warnings", []).append(IMPORT_CACHE_REFRESH_WARNING)
         return result
 
     def _check_import_resolutions(self, project_id: str, resolutions: list[dict[str, Any]]) -> None:

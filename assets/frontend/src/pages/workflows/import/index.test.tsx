@@ -970,6 +970,46 @@ describe("WorkflowsImportPage", () => {
       (await screen.findAllByText("This file has guardrails for a project. Choose the project to attach them to.")).length,
     ).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /import workflow/i })).toBeDisabled();
+    expect(screen.getByText("Choose the project above.")).toBeInTheDocument();
+    expect(screen.queryByText("Cannot be resolved in this wizard.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fix the source YAML before import.")).not.toBeInTheDocument();
+  });
+
+  it("assigns a guardrail's new id itself", async () => {
+    mockedPreflightWorkflowImport.mockResolvedValueOnce({
+      ...readyPreflight(),
+      ok: false,
+      can_apply: false,
+      dependencies: [
+        {
+          dependency_key: "guardrail:11111111-1111-4111-8111-111111111111",
+          dependency_type: "guardrail",
+          ref: "11111111-1111-4111-8111-111111111111",
+          label: "No PII",
+          status: "conflict",
+          blocking: true,
+          resolution_actions: ["rename", "abort"],
+          message: "Guardrail id is taken.",
+          metadata: { definition: true, action: "conflict" },
+        },
+      ],
+    });
+    renderPage("/registry/workflows/import?project_id=project-123");
+    fireEvent.change(screen.getByLabelText("Workflow bundle YAML"), { target: { value: "bundle" } });
+    fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
+
+    expect(
+      await screen.findByText("Created as a new guardrail; its id is assigned automatically."),
+    ).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Enter a new id")).not.toBeInTheDocument();
+    mockedPreflightWorkflowImport.mockResolvedValueOnce(readyPreflight());
+    fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
+
+    await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenCalledTimes(2));
+    const [sent] = mockedPreflightWorkflowImport.mock.calls[1] as unknown as [{ resolutions: Array<Record<string, string>> }];
+    const rename = sent.resolutions.find((item) => item.dependency_type === "guardrail");
+    expect(rename?.action).toBe("rename");
+    expect(rename?.target_ref).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 
   it("reports what the file created and which agents stayed disabled", async () => {
@@ -996,7 +1036,7 @@ describe("WorkflowsImportPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /import workflow/i }));
 
     expect(
-      await screen.findByText("Created from the file: 2 agents, skills, data contracts and guardrails."),
+      await screen.findByText("Created from the file: 1 agent, 1 skill."),
     ).toBeInTheDocument();
     expect(screen.getByText("Some agents were left disabled")).toBeInTheDocument();
     expect(screen.getByText("writer: The project has no configured model.")).toBeInTheDocument();

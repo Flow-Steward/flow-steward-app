@@ -65,7 +65,7 @@ def test_document_exemption_is_declared_by_the_result_model_not_by_field_name() 
 
 @pytest.mark.parametrize(
     "key",
-    ["max_tokens", "maxTokens", "prompt_tokens", "tokens_total", "tokenizer", "temperature"],
+    ["max_tokens", "maxTokens", "prompt_tokens", "tokens_total", "token_limit", "temperature"],
 )
 def test_export_keeps_non_secret_token_settings(key: str) -> None:
     assert _sensitive_key(key) is False
@@ -88,8 +88,34 @@ def test_export_keeps_non_secret_token_settings(key: str) -> None:
         "client_secret",
         "credentials",
         "bearer",
+        # Run-together and all-caps keys: matched as substrings, never as whole words.
+        "accesstoken",
+        "authtoken",
+        "dbpassword",
+        "SMTPPassword",
+        "clientsecret",
+        "api_keys",
+        "max_tokens_secret",
     ],
 )
 def test_export_still_masks_secret_keys(key: str) -> None:
     assert _sensitive_key(key) is True
     assert _redact_sensitive({key: "value"}) == {key: "[redacted]"}
+
+
+def test_cli_export_scrubs_assigned_and_quoted_credentials_but_not_counts() -> None:
+    bundle = (
+        "prompt: connect with password=hunter2 please\n"  # pragma: allowlist secret
+        'payload: \'{"api_key": "abc123"}\'\n'  # pragma: allowlist secret
+        "config:\n  max_tokens: 4000\n"
+        "schema:\n  properties:\n    password:\n      type: string\n"
+    )
+
+    result = _public_result_payload(
+        _export(bundle), context=RedactionContext(), secret_fields=frozenset()
+    )["bundle_yaml"]
+
+    assert "hunter2" not in result
+    assert "abc123" not in result
+    assert "max_tokens: 4000" in result
+    assert "    password:\n      type: string\n" in result

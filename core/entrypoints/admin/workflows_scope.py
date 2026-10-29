@@ -398,10 +398,11 @@ def _reload_registry_after_workflow_mutation(*, workflow_id: str, action: str) -
     return []
 
 
-def _refresh_workflow_cache_after_commit(*, reload_all: bool = False) -> None:
+def _refresh_workflow_cache_after_commit(*, reload_all: bool = False) -> bool:
     """Best-effort cache refresh that cannot change a committed response.
 
     *reload_all* also reloads agents and skills, after an import created some.
+    Returns False when the refresh failed, so a caller can say so.
     """
     try:
         refresh = getattr(
@@ -411,6 +412,8 @@ def _refresh_workflow_cache_after_commit(*, reload_all: bool = False) -> None:
             refresh()
     except Exception:
         logger.warning("Workflow cache refresh failed after committed mutation")
+        return False
+    return True
 
 
 __all__ = [

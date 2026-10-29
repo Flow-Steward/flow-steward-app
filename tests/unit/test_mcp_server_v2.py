@@ -152,7 +152,7 @@ def test_portability_tools_are_in_official_registry_with_exact_public_signatures
     from core.entrypoints.mcp.server import mcp
 
     expected = {
-        "workflow_export": ["project_name", "workflow_id", "include_children"],
+        "workflow_export": ["project_name", "workflow_id", "include_children", "reference_only"],
         "workflow_import": ["project_name", "bundle_yaml", "target_workflow_id", "resolutions"],
         "workflow_stats": ["project_name", "workflow_id"],
     }

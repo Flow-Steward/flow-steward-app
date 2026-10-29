@@ -58,6 +58,24 @@ function planIdentity(plan: ImportPlan) {
   ]);
 }
 
+/** "1 agent, 2 skills" for the definitions an import created, in a fixed kind order. */
+function createdDefinitionCounts(created: Array<{ kind: string }>, t: I18nContextValue["t"]) {
+  const labels: Record<string, [string, string, string, string]> = {
+    agent: ["react.workflows.import_count_agent", "{count} agent", "react.workflows.import_count_agents", "{count} agents"],
+    skill: ["react.workflows.import_count_skill", "{count} skill", "react.workflows.import_count_skills", "{count} skills"],
+    data_contract: ["react.workflows.import_count_data_contract", "{count} data contract", "react.workflows.import_count_data_contracts", "{count} data contracts"],
+    guardrail: ["react.workflows.import_count_guardrail", "{count} guardrail", "react.workflows.import_count_guardrails", "{count} guardrails"],
+  };
+  return Object.entries(labels)
+    .map(([kind, [oneKey, one, manyKey, many]]) => {
+      const count = created.filter((item) => item.kind === kind).length;
+      if (!count) return "";
+      return count === 1 ? t(oneKey, one, { count }) : t(manyKey, many, { count });
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function WorkflowsImportPage() {
   const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -521,8 +539,8 @@ export function WorkflowsImportPage() {
             <p>
               {t("react.workflows.imported", "Imported")}{" "}{visibleResult.imported_workflows.length} {" "}{t("react.workflows.workflow_variant_da7f739f", "workflow")}{visibleResult.imported_workflows.length === 1 ? "" : "s"}.
             </p>
-            {renderWhen(visibleResult.definitions?.created.length, (count) => (
-              <p>{t("react.workflows.import_created_definitions", "Created from the file: {count} agents, skills, data contracts and guardrails.", { count })}</p>
+            {renderWhen(visibleResult.definitions?.created.length ? visibleResult.definitions.created : null, (created) => (
+              <p>{t("react.workflows.import_created_from_file", "Created from the file: {items}.", { items: createdDefinitionCounts(created, t) })}</p>
             ))}
             {renderWhen(visibleResult.definitions?.agents_left_disabled.length ? visibleResult.definitions.agents_left_disabled : null, (agents) => (
               <DsAlert title={t("react.workflows.import_agents_left_disabled", "Some agents were left disabled")} tone="warning">

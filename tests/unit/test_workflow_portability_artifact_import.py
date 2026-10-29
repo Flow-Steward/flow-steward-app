@@ -510,3 +510,209 @@ def test_export_still_reads_the_stored_runtime_rows() -> None:
 
     assert {"project_connection:conn_stored_here", "extension:install-stored-here"} <= exported
     assert not imported & {"project_connection:conn_stored_here", "extension:install-stored-here"}
+
+
+def test_rename_on_an_ordinary_dependency_is_refused() -> None:
+    """Only a definition can be renamed; elsewhere the rewrite would follow an unchecked id."""
+    store = _Store()
+    store.rows["workflow"]["child"] = {"workflow_id": "child"}
+    service = _service(store)
+    row = {"dependency_type": "child_workflow", "ref": "child", "required": True}
+    index = service._resolution_index(
+        [{"dependency_key": "child_workflow:child", "action": "rename", "target_ref": "nowhere"}]
+    )
+
+    classified = service._classify_dependency(row, index)
+
+    assert classified["status"] == "conflict" and classified["blocking"] is True
+    mapped = service._classify_dependency(
+        row,
+        service._resolution_index(
+            [
+                {
+                    "dependency_key": "child_workflow:child",
+                    "action": "map_existing",
+                    "target_ref": "child",
+                }
+            ]
+        ),
+    )
+    assert mapped["status"] == "resolved"
+
+
+def test_reusing_a_definition_cannot_point_at_another_id() -> None:
+    store = _Store()
+    store.rows["agent"]["writer"] = {"agent_id": "writer", "account_id": ACCOUNT}
+    store.rows["agent"]["someone_else"] = {"agent_id": "someone_else", "account_id": ACCOUNT}
+    definitions = _definitions()
+    definitions["guardrails"] = []
+    rows = _rows(
+        _service(store).preflight_import(
+            _bundle(definitions),
+            resolutions=[
+                {
+                    "dependency_key": "agent:writer",
+                    "action": "use_existing",
+                    "target_ref": "someone_else",
+                }
+            ],
+            target_project_id=PROJECT,
+        )
+    )
+
+    assert rows["agent:writer"]["status"] == "conflict"
+
+
+@pytest.mark.parametrize("action", ["map_existing", "create_connection_placeholder"])
+def test_a_definition_refuses_actions_it_does_not_offer(action: str) -> None:
+    rows = _rows(
+        _service(_Store()).preflight_import(
+            _bundle(_definitions()),
+            resolutions=[
+                {"dependency_key": "agent:writer", "action": action, "target_ref": "elsewhere"}
+            ],
+            target_project_id=PROJECT,
+        )
+    )
+
+    assert rows["agent:writer"]["status"] == "conflict"
+
+
+def test_preflight_and_rewrite_read_the_same_target_key() -> None:
+    """A rename naming its target as target_workflow_id is checked under that id."""
+    store = _Store()
+    store.rows["agent"]["writer"] = {"agent_id": "writer", "account_id": ACCOUNT}
+    store.rows["agent"]["taken"] = {"agent_id": "taken", "account_id": ACCOUNT}
+    definitions = _definitions()
+    definitions["guardrails"] = []
+    rows = _rows(
+        _service(store).preflight_import(
+            _bundle(definitions),
+            resolutions=[
+                {
+                    "dependency_key": "agent:writer",
+                    "action": "rename",
+                    "target_workflow_id": "taken",
+                }
+            ],
+            target_project_id=PROJECT,
+        )
+    )
+
+    assert rows["agent:writer"]["status"] == "conflict"
+
+
+@pytest.mark.parametrize(
+    ("section", "id_field", "ref"),
+    [
+        ("data_contracts", "contract_id", "auto.brief.v1"),
+        ("agents", "agent_id", "extension.writer"),
+        ("skills", "skill_id", "extension.draft"),
+    ],
+)
+def test_a_file_cannot_create_ids_the_platform_derives(
+    section: str, id_field: str, ref: str
+) -> None:
+    definitions = _definitions()
+    definitions[section][0] = {**definitions[section][0], id_field: ref}
+    preflight = _service(_Store()).preflight_import(_bundle(definitions), target_project_id=PROJECT)
+    kind = {"data_contracts": "data_contract", "agents": "agent", "skills": "skill"}[section]
+
+    row = _rows(preflight)[f"{kind}:{ref}"]
+    assert row["status"] == "blocked" and "reserved" in row["message"]
+    assert preflight["can_apply"] is False
+
+
+def test_a_contract_gets_the_checks_of_a_manual_save() -> None:
+    definitions = _definitions()
+    definitions["data_contracts"][0] = {
+        "contract_id": "brief.v1",
+        "display_name": "Brief",
+        "kind": "list",
+        "schema": {"type": "object"},
+    }
+    row = _rows(
+        _service(_Store()).preflight_import(_bundle(definitions), target_project_id=PROJECT)
+    )["data_contract:brief.v1"]
+
+    assert row["status"] == "blocked" and "schema.type=array" in row["message"]
+
+
+def test_a_guardrail_on_an_agent_this_account_does_not_own_is_refused() -> None:
+    store = _Store()
+    store.rows["agent"]["writer"] = {"agent_id": "writer", "account_id": None}
+    rows = _rows(
+        _service(store).preflight_import(
+            _bundle(_definitions()),
+            resolutions=[{"dependency_key": "agent:writer", "action": "use_existing"}],
+            target_project_id=PROJECT,
+        )
+    )
+
+    assert rows[f"guardrail:{GLOBAL_RULE}"]["status"] == "blocked"
+    assert "not one of this account's agents" in rows[f"guardrail:{GLOBAL_RULE}"]["message"]
+
+
+def test_a_save_refused_after_preflight_is_a_portability_error() -> None:
+    store = _Store()
+
+    def refuse(*args, **kwargs):
+        raise ValueError("guardrail agents are not available in the owning account: writer")
+
+    store.save_guardrail = refuse
+    with pytest.raises(WorkflowPortabilityError) as caught:
+        _apply(store)
+
+    assert caught.value.code == "workflow_import_definition_invalid"
+    assert store.rows["agent"] == {} and store.rows["workflow"] == {}
+
+
+def test_an_import_without_a_project_says_so() -> None:
+    store = _Store()
+    result = _apply(store, project="")
+
+    reason = result["definitions"]["agents_left_disabled"][0]["reason"]
+    assert reason.startswith("No project was chosen")
+
+
+def test_an_unreadable_project_model_is_not_reported_as_missing() -> None:
+    class _Broken:
+        def get_project_run_config(self, project_id):
+            raise RuntimeError("database is down")
+
+    store = _Store()
+    service = WorkflowPortabilityService(store, project_store=_Broken(), account_id=ACCOUNT)
+    result = service.apply_import(
+        _bundle(_definitions()),
+        resolutions=[],
+        author="tester",
+        owner_account_id=ACCOUNT,
+        owner_project_id=PROJECT,
+    )
+
+    assert "could not be checked" in result["definitions"]["agents_left_disabled"][0]["reason"]
+
+
+def test_agent_depends_on_follows_renames_and_names_what_the_file_lacks() -> None:
+    definitions = _definitions()
+    definitions["agents"][0]["depends_on"] = {"soft": ["writer"], "hard": ["reviewer"]}
+    store = _Store()
+    preflight = _service(store).preflight_import(_bundle(definitions), target_project_id=PROJECT)
+
+    assert _rows(preflight)["agent:reviewer"]["status"] == "requires_mapping"
+
+    store.rows["agent"]["reviewer"] = {"agent_id": "reviewer", "account_id": ACCOUNT}
+    store.rows["agent"]["writer"] = {"agent_id": "writer", "account_id": ACCOUNT}
+    definitions["guardrails"] = []
+    _apply(
+        store,
+        definitions,
+        resolutions=[
+            {"dependency_key": "agent:writer", "action": "rename", "target_ref": "writer_2"}
+        ],
+    )
+
+    assert store.rows["agent"]["writer_2"]["depends_on"] == {
+        "soft": ["writer_2"],
+        "hard": ["reviewer"],
+    }

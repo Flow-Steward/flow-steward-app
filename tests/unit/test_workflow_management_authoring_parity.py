@@ -842,3 +842,14 @@ def test_operator_import_reads_the_project_model_from_the_project_store() -> Non
     )
 
     assert service._portability().project_store is project_store
+
+
+def test_a_failed_reload_after_import_is_reported_not_swallowed() -> None:
+    class _Registry:
+        def reload_all(self):
+            raise RuntimeError("cache backend unavailable")
+
+    service = _operator(_Store(_workflow()), get_project_store=lambda: SimpleNamespace())
+    service._registry_manager_provider = lambda: _Registry()
+
+    assert service._refresh_workflow_cache(reload_all=True) is False

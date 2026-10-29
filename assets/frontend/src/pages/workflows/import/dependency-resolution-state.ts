@@ -38,7 +38,21 @@ export function isBundledDefinition(dependency: WorkflowImportDependency) {
   return dependency.metadata?.definition === true;
 }
 
+/** A guardrail id is a UUID the system assigns; the operator never types one. */
+export function systemAssignsTarget(dependency: WorkflowImportDependency, action: string) {
+  return action === "rename" && dependency.dependency_type === "guardrail";
+}
+
+function draftTarget(dependency: WorkflowImportDependency, action: string, target: string) {
+  if (dependency.dependency_type !== "guardrail" || !isBundledDefinition(dependency)) return target;
+  if (!systemAssignsTarget(dependency, action)) return "";
+  return target || globalThis.crypto.randomUUID();
+}
+
 export function dependencyRequiresTarget(dependency: WorkflowImportDependency, action: string) {
+  if (systemAssignsTarget(dependency, action)) {
+    return false;
+  }
   if (action === "rename_workflow" || action === "rename" || action === "map_existing") {
     return true;
   }
@@ -120,9 +134,11 @@ export function resolutionPayload(
         ref: dependency.ref,
         action: draft.action,
       };
+      // Reusing a definition keeps its own id, so a target left over from a rename is dropped.
+      const reusesDefinition = draft.action === "use_existing" && isBundledDefinition(dependency);
       if (draft.action === "rename_workflow") {
         payload.target_workflow_id = draft.target.trim();
-      } else if (draft.target.trim()) {
+      } else if (draft.target.trim() && !reusesDefinition) {
         payload.target_ref = draft.target.trim();
       }
       if (dependency.dependency_type === "project_connection" && draft.projectId.trim()) {
@@ -176,9 +192,10 @@ function initialResolutionDrafts(
     if (!dependencyNeedsResolution(dependency)) {
       return;
     }
+    const action = defaultActionForDependency(dependency);
     drafts[dependency.dependency_key] = {
-      action: defaultActionForDependency(dependency),
-      target: "",
+      action,
+      target: draftTarget(dependency, action, ""),
       projectId: dependency.dependency_type === "project_connection" ? projectId : "",
       extensionId: "",
       extensionInstallId: "",
@@ -229,20 +246,22 @@ export function useDependencyResolution(
   );
 
   const updateResolution = useCallback<UpdateResolution>((dependency, patch) => {
-    setResolutions((current) => ({
+    setResolutions((current) => {
+      const action =
+        patch.action ?? current[dependency.dependency_key]?.action ?? defaultActionForDependency(dependency);
+      const target = patch.target ?? current[dependency.dependency_key]?.target ?? "";
+      return {
       ...current,
       [dependency.dependency_key]: {
-        action:
-          patch.action ??
-          current[dependency.dependency_key]?.action ??
-          defaultActionForDependency(dependency),
-        target: patch.target ?? current[dependency.dependency_key]?.target ?? "",
+        action,
+        target: draftTarget(dependency, action, target),
         projectId: patch.projectId ?? current[dependency.dependency_key]?.projectId ?? "",
         extensionId: patch.extensionId ?? current[dependency.dependency_key]?.extensionId ?? "",
         extensionInstallId:
           patch.extensionInstallId ?? current[dependency.dependency_key]?.extensionInstallId ?? "",
       },
-    }));
+      };
+    });
   }, []);
 
   return {

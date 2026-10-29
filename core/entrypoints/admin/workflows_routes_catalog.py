@@ -112,12 +112,17 @@ def preflight_workflow_template_catalog_item(
     if body.target_workflow_id:
         _enforce_workflow_scope(scope, body.target_workflow_id)
     _enforce_import_resolution_scope(_get_db(), scope, body.resolutions)
+    # The project decides a template's project guardrails, as on the manual import.
+    project_id = (
+        _enforce_project_scope(_get_db(), scope, body.project_id) if body.project_id else ""
+    )
     try:
         return _catalog_create_service(scope).preflight(
             item_id,
             target_workflow_id=body.target_workflow_id or "",
             resolutions=body.resolutions,
             scope=scope,
+            project_id=project_id,
         )
     except WorkflowTemplateCatalogError as exc:
         _raise_catalog_http_error(exc)

@@ -1066,3 +1066,19 @@ def test_malformed_includes_reject_the_whole_index() -> None:
     payload["items"][0]["includes"] = [{"name": "no id"}]
     with pytest.raises(ValueError, match="includes"):
         parse_workflow_template_catalog_index(payload)
+
+
+def test_catalog_preflight_checks_against_the_chosen_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A template's project guardrails are decided by the project, as on the manual import."""
+    portability = _Portability(dependencies=[_extension_dependency("synthetic_gmail")])
+    store = _InstallStore(_Install("synthetic_gmail", "1.2.0", "inst_local"))
+    service, _fetched = _service(monkeypatch, portability=portability, store=store)
+
+    service.preflight("synthetic_template_0000", project_id="proj-chosen")
+
+    assert portability.preflight_calls
+    assert {call.get("target_project_id") for call in portability.preflight_calls} == {
+        "proj-chosen"
+    }

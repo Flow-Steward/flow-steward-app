@@ -26,6 +26,16 @@ from core.application.workflows.workflow_portability_common import (
     _text,
 )
 
+_REUSE_ACTIONS = frozenset({"use_existing", "map_existing"})
+
+
+def _accepted_actions(offered: list[str]) -> set[str]:
+    """The actions a row accepts: those it offers, with the two reuse spellings as one."""
+    accepted = set(offered)
+    if accepted & _REUSE_ACTIONS or "install_extension_required" in accepted:
+        accepted |= _REUSE_ACTIONS
+    return accepted
+
 
 class WorkflowPortabilityResolutionMixin:
     def _resolution_index(
@@ -226,6 +236,13 @@ class WorkflowPortabilityResolutionMixin:
             resolution_actions = ["abort"]
             message = "Unknown dependency type."
 
+        action = _text(resolution.get("action")) if resolution else ""
+        if action and action != "abort" and action not in _accepted_actions(resolution_actions):
+            # The rewrite applies any mapping action it is given, so one this row does not
+            # offer (rename on a child workflow, say) would point the workflow at an id
+            # nothing here checked.
+            status = "conflict"
+            message = "That choice is not available for this dependency."
         if status not in DEPENDENCY_STATUSES:
             status = "blocked"
         blocking = status in BLOCKING_STATUSES

@@ -431,3 +431,46 @@ def test_parser_refuses_malformed_definitions_with_their_path(raw: dict, path: s
 
     assert excinfo.value.code == "bundle_definitions_invalid"
     assert excinfo.value.errors[0]["path"] == path
+
+
+def test_a_contract_schema_keeps_credential_named_fields(store: _Store) -> None:
+    """A field called password is part of the schema; only a literal value under it is masked."""
+    store.contracts["brief.v1"]["schema_json"]["properties"]["password"] = {
+        "type": "string",
+        "minLength": 8,
+        "default": "hunter2",  # pragma: allowlist secret
+    }
+    bundle, text = _export(store)
+    brief = next(
+        item
+        for item in bundle["definitions"]["data_contracts"]
+        if item["contract_id"] == "brief.v1"
+    )
+
+    assert brief["schema"]["properties"]["password"] == {
+        "type": "string",
+        "minLength": 8,
+        "default": "[redacted]",
+    }
+    assert "hunter2" not in text
+
+
+def test_extension_guardrails_are_named_as_the_extension_they_come_with(store: _Store) -> None:
+    store.guardrails.append(
+        {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "display_name": "From an extension",
+            "project_id": None,
+            "account_id": ACCOUNT,
+            "source_install_id": "install-guard",
+            "_agents": ["writer"],
+        }
+    )
+    bundle, _ = _export(store)
+
+    assert "66666666-6666-4666-8666-666666666666" not in {
+        rule["id"] for rule in bundle["definitions"]["guardrails"]
+    }
+    assert "install-guard" in {
+        item["install_id"] for item in bundle["dependencies"].get("extensions", [])
+    }

@@ -16268,13 +16268,43 @@ msgstr ""
 msgid "react.workflows.import_agents_left_disabled"
 msgstr ""
 
-msgid "react.workflows.import_created_definitions"
+msgid "react.workflows.import_choose_project_above"
+msgstr ""
+
+msgid "react.workflows.import_count_agent"
+msgstr ""
+
+msgid "react.workflows.import_count_agents"
+msgstr ""
+
+msgid "react.workflows.import_count_data_contract"
+msgstr ""
+
+msgid "react.workflows.import_count_data_contracts"
+msgstr ""
+
+msgid "react.workflows.import_count_guardrail"
+msgstr ""
+
+msgid "react.workflows.import_count_guardrails"
+msgstr ""
+
+msgid "react.workflows.import_count_skill"
+msgstr ""
+
+msgid "react.workflows.import_count_skills"
+msgstr ""
+
+msgid "react.workflows.import_created_from_file"
 msgstr ""
 
 msgid "react.workflows.import_data_contract"
 msgstr ""
 
 msgid "react.workflows.import_guardrail"
+msgstr ""
+
+msgid "react.workflows.import_guardrail_new_id"
 msgstr ""
 
 msgid "react.workflows.import_guardrail_project"

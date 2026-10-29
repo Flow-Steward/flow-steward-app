@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from datetime import datetime
 from typing import Any
+
+from core.application.security.credential_redaction import token_count_key
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,12 @@ BLOCKING_STATUSES = {
     "protected_reference",
     "blocked",
 }
+#: Added to an import result when the import committed but the running registry was
+#: not reloaded, so the new records are not yet visible to runs and lists.
+IMPORT_CACHE_REFRESH_WARNING = (
+    "The import was saved, but the running registry could not be reloaded; the new "
+    "workflow, agents and skills appear after the next reload or restart."
+)
 RESOLUTION_ACTIONS = {
     "use_existing",
     "map_existing",
@@ -60,15 +67,12 @@ RESOLUTION_ACTIONS = {
     "skip_optional",
     "abort",
 }
-#: Matched against whole words of a key (snake, kebab or camel case), never as
-#: substrings: `access_token` is a credential, `max_tokens` is a number.
+#: Matched as substrings of the lower-cased key, so run-together keys such as
+#: `accesstoken`, `dbpassword` or `api_keys` are masked too.
 _SENSITIVE_KEY_MARKERS = (
     "password",
-    "passwords",
     "secret",
-    "secrets",
     "token",
-    "tokens",
     "bearer",
     "credential",
     "credentials",
@@ -76,23 +80,6 @@ _SENSITIVE_KEY_MARKERS = (
     "access_key",
     "private_key",
     "client_secret",
-)
-_KEY_WORD_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")
-#: Words that make `tokens` a count of model tokens rather than credentials.
-_TOKEN_COUNT_WORDS = frozenset(
-    {
-        "max",
-        "min",
-        "total",
-        "prompt",
-        "completion",
-        "input",
-        "output",
-        "count",
-        "limit",
-        "budget",
-        "used",
-    }
 )
 _WORKFLOW_SAVE_FIELDS = (
     "workflow_id",
@@ -232,11 +219,8 @@ def _as_list(value: Any) -> list[Any]:
 
 
 def _sensitive_key(key: Any) -> bool:
-    words = [word.lower() for word in _KEY_WORD_BOUNDARY.split(str(key or "")) if word]
-    if "tokens" in words and _TOKEN_COUNT_WORDS.intersection(words):
-        words = [word for word in words if word != "tokens"]
-    joined = f"_{'_'.join(words)}_"
-    return any(f"_{marker}_" in joined for marker in _SENSITIVE_KEY_MARKERS)
+    normalized = token_count_key(str(key or ""))
+    return any(marker in normalized for marker in _SENSITIVE_KEY_MARKERS)
 
 
 #: Keys that are dropped rather than masked. A pointer to a credential is not a
@@ -260,6 +244,49 @@ def _redact_sensitive(value: Any, *, key: str = "") -> Any:
     if isinstance(value, list):
         return [_redact_sensitive(item) for item in value]
     return value
+
+
+#: Literal values a JSON Schema property can carry; masked under a property whose
+#: name looks like a credential, while the property itself is kept.
+_SCHEMA_LITERAL_KEYS = frozenset({"default", "example", "examples", "const", "enum"})
+
+
+def _redact_definitions(value: Any, *, key: str = "") -> Any:
+    """`_redact_sensitive` for `definitions`, which must keep their schemas exact.
+
+    The keys of a schema's `properties` are field names: a data contract may declare
+    a `password` field, and masking it by name would replace the field's schema with
+    a string. Only the literal values under such a field are masked.
+    """
+    if _sensitive_key(key):
+        return "[redacted]"
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for item_key, item_value in value.items():
+            name = str(item_key)
+            if name in _DROPPED_SENSITIVE_KEYS:
+                continue
+            if name == "properties" and isinstance(item_value, dict):
+                redacted[name] = {
+                    str(field): _redact_schema_field(str(field), field_schema)
+                    for field, field_schema in item_value.items()
+                }
+            else:
+                redacted[name] = _redact_definitions(item_value, key=name)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_definitions(item) for item in value]
+    return value
+
+
+def _redact_schema_field(name: str, schema: Any) -> Any:
+    redacted = _redact_definitions(schema)
+    if _sensitive_key(name) and isinstance(redacted, dict):
+        return {
+            key: "[redacted]" if key in _SCHEMA_LITERAL_KEYS else item
+            for key, item in redacted.items()
+        }
+    return redacted
 
 
 def _json_safe(value: Any) -> Any:
@@ -375,6 +402,17 @@ def _raise_if_raw_mcp_connector_bindings(workflow: dict[str, Any]) -> None:
         code="workflow_raw_mcp_connector_unsupported",
         status_code=400,
         errors=issues,
+    )
+
+
+def _resolution_target_ref(resolution: dict[str, Any] | None) -> str:
+    """The id a resolution points a dependency at; preflight and rewrite read the same keys."""
+    if not resolution:
+        return ""
+    return _text(
+        resolution.get("target_ref")
+        or resolution.get("target_id")
+        or resolution.get("target_workflow_id")
     )
 
 

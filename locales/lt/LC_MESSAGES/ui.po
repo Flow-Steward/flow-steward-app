@@ -14045,14 +14045,44 @@ msgstr "Kabliukai turi būti darbo eigos šakniniame lygyje, prieš grupę arba 
 msgid "react.workflows.import_agents_left_disabled"
 msgstr "Kai kurie agentai palikti išjungti"
 
-msgid "react.workflows.import_created_definitions"
-msgstr "Iš failo sukurta agentų, įgūdžių, duomenų sutarčių ir apsaugos taisyklių: {count}."
+msgid "react.workflows.import_choose_project_above"
+msgstr "Pasirinkite projektą viršuje."
+
+msgid "react.workflows.import_count_agent"
+msgstr "{count} agentas"
+
+msgid "react.workflows.import_count_agents"
+msgstr "agentų: {count}"
+
+msgid "react.workflows.import_count_data_contract"
+msgstr "{count} duomenų sutartis"
+
+msgid "react.workflows.import_count_data_contracts"
+msgstr "duomenų sutarčių: {count}"
+
+msgid "react.workflows.import_count_guardrail"
+msgstr "{count} apsaugos taisyklė"
+
+msgid "react.workflows.import_count_guardrails"
+msgstr "apsaugos taisyklių: {count}"
+
+msgid "react.workflows.import_count_skill"
+msgstr "{count} įgūdis"
+
+msgid "react.workflows.import_count_skills"
+msgstr "įgūdžių: {count}"
+
+msgid "react.workflows.import_created_from_file"
+msgstr "Iš failo sukurta: {items}."
 
 msgid "react.workflows.import_data_contract"
 msgstr "duomenų sutartis"
 
 msgid "react.workflows.import_guardrail"
 msgstr "apsaugos taisyklė"
+
+msgid "react.workflows.import_guardrail_new_id"
+msgstr "Sukuriama kaip nauja apsaugos taisyklė; jos ID priskiriamas automatiškai."
 
 msgid "react.workflows.import_guardrail_project"
 msgstr "projektas apsaugos taisyklėms"
