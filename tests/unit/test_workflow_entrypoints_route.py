@@ -973,16 +973,15 @@ def test_cancelled_owner_lookup_closes_signed_body_and_releases_capacity(monkeyp
     monkeypatch.setattr(execute_routes, "_stage_request_body_with_cap", spool)
     monkeypatch.setattr(execute_routes, "run_in_threadpool", threadpool)
     monkeypatch.setattr(execute_routes, "workflow_entrypoint_submission_admission", controller)
+    admission = execute_routes._admit_transport_request(
+        preparation,
+        request=request,
+        bl=SimpleNamespace(get_project_secret=lambda **_kwargs: "token-123"),
+        entry_key="cancel",
+        request_service=SimpleNamespace(check_workflow_admission=check_owner),
+    )
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(
-            execute_routes._admit_transport_request(
-                preparation,
-                request=request,
-                bl=SimpleNamespace(get_project_secret=lambda **_kwargs: "token-123"),
-                entry_key="cancel",
-                request_service=SimpleNamespace(check_workflow_admission=check_owner),
-            )
-        )
+        asyncio.run(admission)
     assert len(spools) == 1
     assert spools[0].closed
     lease = controller.try_acquire(account_id="next-account", principal_id="next-request")

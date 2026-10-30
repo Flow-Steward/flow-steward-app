@@ -66,10 +66,9 @@ def api(candidate, ui_auth_session) -> requests.Session:
 
 @pytest.fixture(scope="module")
 def chromium() -> Iterator[Any]:
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        pytest.fail("Playwright is required for this acceptance; it is not installed")
+    # Playwright is required: a missing install fails the fixture with ImportError.
+    from playwright.sync_api import sync_playwright
+
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True, args=["--no-sandbox"])
         yield browser

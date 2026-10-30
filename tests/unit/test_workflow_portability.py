@@ -1573,17 +1573,19 @@ class TestWorkflowPortabilityService:
         assert connection_row(mapped("conn_mail"))["metadata"]["extension_id"] == "acme.mailer"
         wrong = connection_row(mapped("conn_docs"))
         assert wrong["status"] == "requires_project_connection"
-        assert "acme.docs" in wrong["message"] and "acme.mailer" in wrong["message"]
+        assert "acme.docs" in wrong["message"]
+        assert "acme.mailer" in wrong["message"]
         assert connection_row(mapped("conn_mail"))["status"] == "resolved"
         assert connection_row(placeholder("acme.docs"))["status"] == "requires_project_connection"
         assert connection_row(placeholder("acme.mailer"))["status"] == "resolved"
 
+        resolutions = [*_reuse_definitions(bundle_text), mapped("conn_docs")]
         with pytest.raises(WorkflowPortabilityError) as refused:
             service.apply_import(
                 bundle_text,
                 target_workflow_id="mailer_imported",
                 author="tester",
-                resolutions=[*_reuse_definitions(bundle_text), mapped("conn_docs")],
+                resolutions=resolutions,
             )
         assert refused.value.code == "workflow_import_preflight_blocked"
         assert db.save_calls == []
@@ -1640,19 +1642,20 @@ class TestWorkflowPortabilityService:
         db.fail_save_workflow_ids.add("manual_wf_imported")
 
         _raises_callable_1034_1 = WorkflowPortabilityService(db).apply_import
+        resolutions = [
+            *_reuse_definitions(bundle_text),
+            {
+                "dependency_key": "project_connection:crm-prod",
+                "action": "create_connection_placeholder",
+                "project_id": "17",
+                "extension_id": "inst-crm",
+            },
+        ]
         with pytest.raises(RuntimeError, match="save failed for manual_wf_imported"):
             _raises_callable_1034_1(
                 bundle_text,
                 target_workflow_id="manual_wf_imported",
-                resolutions=[
-                    *_reuse_definitions(bundle_text),
-                    {
-                        "dependency_key": "project_connection:crm-prod",
-                        "action": "create_connection_placeholder",
-                        "project_id": "17",
-                        "extension_id": "inst-crm",
-                    },
-                ],
+                resolutions=resolutions,
             )
 
         assert "manual_wf_imported" not in db.workflows
@@ -1666,18 +1669,19 @@ class TestWorkflowPortabilityService:
         db.workflow_import_transaction = None
 
         _raises_callable_1058_1 = WorkflowPortabilityService(db).apply_import
+        resolutions = [
+            *_reuse_definitions(bundle_text),
+            {
+                "dependency_key": "project_connection:crm-prod",
+                "action": "map_existing",
+                "target_connection_id": "crm-prod",
+            },
+        ]
         with pytest.raises(WorkflowPortabilityError) as exc_info:
             _raises_callable_1058_1(
                 bundle_text,
                 target_workflow_id="manual_wf_imported",
-                resolutions=[
-                    *_reuse_definitions(bundle_text),
-                    {
-                        "dependency_key": "project_connection:crm-prod",
-                        "action": "map_existing",
-                        "target_connection_id": "crm-prod",
-                    },
-                ],
+                resolutions=resolutions,
             )
 
         assert exc_info.value.code == "workflow_import_transaction_unavailable"
@@ -1698,18 +1702,16 @@ class TestWorkflowPortabilityService:
 
         _raises_callable_1087_1 = WorkflowPortabilityService(db).apply_import
         _raises_input_1087_2 = yaml.safe_dump(bundle, sort_keys=False)
+        resolutions = [
+            *_reuse_definitions(bundle),
+            {
+                "dependency_key": "project_connection:crm-prod",
+                "action": "map_existing",
+                "target_connection_id": "crm-prod",
+            },
+        ]
         with pytest.raises(RuntimeError, match="save failed for second"):
-            _raises_callable_1087_1(
-                _raises_input_1087_2,
-                resolutions=[
-                    *_reuse_definitions(bundle),
-                    {
-                        "dependency_key": "project_connection:crm-prod",
-                        "action": "map_existing",
-                        "target_connection_id": "crm-prod",
-                    },
-                ],
-            )
+            _raises_callable_1087_1(_raises_input_1087_2, resolutions=resolutions)
 
         assert "first" not in db.workflows
         assert "second" not in db.workflows
@@ -1729,19 +1731,20 @@ class TestWorkflowPortabilityService:
 
         _raises_callable_1115_1 = WorkflowPortabilityService(db).apply_import
         _raises_input_1115_2 = yaml.safe_dump(bundle, sort_keys=False)
+        resolutions = [
+            *_reuse_definitions(bundle),
+            {
+                "dependency_key": "project_connection:crm-prod",
+                "action": "create_connection_placeholder",
+                "project_id": "17",
+                "extension_id": "inst-crm",
+            },
+        ]
         with pytest.raises(RuntimeError, match="binding failed for second"):
             _raises_callable_1115_1(
                 _raises_input_1115_2,
                 owner_project_id="17",
-                resolutions=[
-                    *_reuse_definitions(bundle),
-                    {
-                        "dependency_key": "project_connection:crm-prod",
-                        "action": "create_connection_placeholder",
-                        "project_id": "17",
-                        "extension_id": "inst-crm",
-                    },
-                ],
+                resolutions=resolutions,
             )
 
         assert "first" not in db.workflows
@@ -2871,12 +2874,13 @@ class TestCatalogLogicalExtensionReference:
         store = self._InstallStore()
         service, target_db = self._service(store)
 
+        resolutions = _reuse_definitions(self._catalog_bundle_yaml())
         with pytest.raises(WorkflowPortabilityError) as raised:
             service.create(
                 "tpl",
                 author="alice",
                 owner_account_id="acc_7",
-                resolutions=_reuse_definitions(self._catalog_bundle_yaml()),
+                resolutions=resolutions,
             )
 
         assert raised.value.code == "workflow_import_preflight_blocked"
@@ -2891,12 +2895,13 @@ class TestCatalogLogicalExtensionReference:
         existing = {"workflow_id": "catalog_wf", "display_name": "Mine", "enabled": True}
         target_db.workflows["catalog_wf"] = dict(existing)
 
+        resolutions = _reuse_definitions(self._catalog_bundle_yaml())
         with pytest.raises(WorkflowPortabilityError) as raised:
             service.create(
                 "tpl",
                 author="alice",
                 owner_account_id="acc_7",
-                resolutions=_reuse_definitions(self._catalog_bundle_yaml()),
+                resolutions=resolutions,
             )
 
         assert raised.value.code in {

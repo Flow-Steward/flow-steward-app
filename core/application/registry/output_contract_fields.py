@@ -85,9 +85,12 @@ def _declaration_views(row: dict, schema: dict | None) -> tuple[str, dict, dict]
     authored = schema if schema is not None else row.get("contract_schema")
     if authored is not None and not isinstance(authored, dict):
         raise OutputContractResolutionError("Invalid output declaration schema")
-    declaration = (
-        authored if authored is not None else {} if raw_type == "json" else {"type": normalized}
-    )
+    if authored is not None:
+        declaration = authored
+    elif raw_type == "json":
+        declaration = {}
+    else:
+        declaration = {"type": normalized}
     description = str(row.get("description") or "").strip()
     if authored == {}:
         # An explicitly unshaped authored schema stays unshaped; only the

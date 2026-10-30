@@ -136,8 +136,9 @@ def test_money_round_reuses_existing_rounding(mode, expected):
 def test_rounding_rejects_unsupported_mode():
     with pytest.raises(UnsupportedRoundingModeError):
         standard_numbers.round_number(2, 0, "unknown")
+    amount = Decimal("2")
     with pytest.raises(UnsupportedRoundingModeError):
-        standard_money.round_money(Decimal("2"), 2, "unknown")
+        standard_money.round_money(amount, 2, "unknown")
 
 
 @pytest.mark.parametrize(
@@ -188,8 +189,9 @@ def test_boolean_rejects_other_truthy_objects(value):
     ],
 )
 def test_adapter_validation_order_is_preserved(action, value, params, message):
+    adapter = getattr(transform_actions, f"_action_{action}")
     with pytest.raises(ValueError, match=message):
-        getattr(transform_actions, f"_action_{action}")(value, params)
+        adapter(value, params)
 
 
 @pytest.mark.parametrize(
@@ -212,8 +214,9 @@ def test_adapter_defaults_and_parameter_coercions(action, value, params, expecte
 
 @pytest.mark.parametrize("category", ["number", "money"])
 def test_explicit_null_rounding_precision_does_not_use_omission_default(category):
+    adapter = getattr(transform_actions, f"_action_{category}_round")
     with pytest.raises(ValueError, match="NoneType is not a number"):
-        getattr(transform_actions, f"_action_{category}_round")("1.25", {"decimals": None})
+        adapter("1.25", {"decimals": None})
 
 
 @pytest.mark.parametrize(

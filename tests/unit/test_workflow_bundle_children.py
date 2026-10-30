@@ -323,8 +323,10 @@ def test_a_reused_child_cannot_be_renamed_to_an_unchecked_id() -> None:
         if row["dependency_key"] == "child_workflow:child_a"
     )
 
-    assert row["status"] == "conflict" and row["blocking"] is True
+    assert row["status"] == "conflict"
+    assert row["blocking"] is True
     assert preflight["can_apply"] is False
+    bundle = _bundle()
     with pytest.raises(WorkflowPortabilityError):
-        service.apply_import(_bundle(), resolutions=resolutions)
+        service.apply_import(bundle, resolutions=resolutions)
     assert "parent_wf" not in target.workflows

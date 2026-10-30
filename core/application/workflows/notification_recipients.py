@@ -108,7 +108,12 @@ def validate_notification_reaction_actions(
         if recipient_format != "email":
             continue
         raw = action.get("recipients")
-        values = raw if isinstance(raw, list) else raw.split(",") if isinstance(raw, str) else []
+        if isinstance(raw, list):
+            values = raw
+        elif isinstance(raw, str):
+            values = raw.split(",")
+        else:
+            values = []
         if not any(isinstance(value, str) and value.strip() for value in values):
             raise ValueError(_EMAIL_RECIPIENT_ERROR)
         for value in values:

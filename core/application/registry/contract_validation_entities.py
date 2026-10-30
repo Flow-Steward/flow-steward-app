@@ -9,6 +9,8 @@ from .contract_validation_invoke import *  # noqa: F403,F401  # NOSONAR
 
 from .contract_item_validation import validate_contract_items
 
+_AGENT_NOT_FOUND = "agent.not_found"
+
 
 def validate_skill_readiness(db, skill_id: str, *, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
     from .workflow_lookup import get_registry_artifact_row
@@ -415,7 +417,7 @@ def validate_agent_skill_compatibility(
     if not isinstance(agent, dict):
         errors.append(
             _issue(
-                code="agent.not_found",
+                code=_AGENT_NOT_FOUND,
                 message=f"Agent '{agent_id}' not found",
                 path="agent",
             )
@@ -424,7 +426,7 @@ def validate_agent_skill_compatibility(
     if account_id and str(agent.get("account_id") or "").strip() != str(account_id).strip():
         errors.append(
             _issue(
-                code="agent.not_found",
+                code=_AGENT_NOT_FOUND,
                 message=f"Agent '{agent_id}' not found",
                 path="agent",
             )
@@ -574,13 +576,13 @@ def validate_agent_readiness(db, agent_id: str, *, account_id: str | None = None
     if not agent:
         return {
             "valid": False,
-            "errors": [_issue(code="agent.not_found", message=f"Agent '{agent_id}' not found")],
+            "errors": [_issue(code=_AGENT_NOT_FOUND, message=f"Agent '{agent_id}' not found")],
             "warnings": [],
         }
     if account_id and str(agent.get("account_id") or "").strip() != str(account_id).strip():
         return {
             "valid": False,
-            "errors": [_issue(code="agent.not_found", message=f"Agent '{agent_id}' not found")],
+            "errors": [_issue(code=_AGENT_NOT_FOUND, message=f"Agent '{agent_id}' not found")],
             "warnings": [],
         }
 

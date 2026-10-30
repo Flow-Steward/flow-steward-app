@@ -7,6 +7,8 @@ from core.application.extensions.runtime_store_db import DBExtensionRuntimeStore
 from core.entrypoints.admin.workflows_common import *  # NOSONAR
 from core.entrypoints.admin.workflows_scope import *  # NOSONAR
 
+_CONNECTOR_PREFIX = "connector."
+
 
 def _list_connector_catalog_rows(db, *, scope: Any) -> list[dict]:
     bl = _platform_logger_for_admin_catalog(db)
@@ -63,7 +65,7 @@ def _connector_operations(
     ]
     operations: list[dict[str, Any]] = []
     for op_id in allowlisted_tools:
-        projected_tool_id = op_id.removeprefix("connector.")
+        projected_tool_id = op_id.removeprefix(_CONNECTOR_PREFIX)
         if projected_tool_id:
             # Suppress duplicate registry rows even when this allowlisted tool is
             # missing, disabled, unavailable, or outside the request account.
@@ -171,7 +173,9 @@ def _enabled_registry_tools(db) -> list[dict[str, Any]]:
 def _registry_tool_ids_ready_for_account(db, tool_ids: set[str], *, account_id: str) -> set[str]:
     """Use workflow readiness to scope and filter MCP tool catalog metadata."""
     normalized_account_id = str(account_id or "").strip()
-    requested_ids = {str(tool_id or "").strip().removeprefix("connector.") for tool_id in tool_ids}
+    requested_ids = {
+        str(tool_id or "").strip().removeprefix(_CONNECTOR_PREFIX) for tool_id in tool_ids
+    }
     requested_ids.discard("")
     get_tool = getattr(db, "get_tool", None)
     if not requested_ids or not normalized_account_id or not callable(get_tool):
@@ -196,7 +200,8 @@ def _registry_tool_operation_index(
     db, *, account_id: str = "", tool_ids: set[str] | None = None
 ) -> dict[str, dict[str, Any]]:
     requested_ids = {
-        str(tool_id or "").strip().removeprefix("connector.") for tool_id in (tool_ids or set())
+        str(tool_id or "").strip().removeprefix(_CONNECTOR_PREFIX)
+        for tool_id in (tool_ids or set())
     }
     requested_ids.discard("")
     ready_ids = _registry_tool_ids_ready_for_account(db, requested_ids, account_id=account_id)

@@ -230,10 +230,9 @@ def test_release_tag_without_installable_images_fails_without_source_fallback(
     monkeypatch.setattr(_Checkout, "answer", _coordinates())
     _official_sources(monkeypatch, published=published, resolved=resolved)
 
+    config = InstallConfig(environment="production", deployment_profile="compact")
     with pytest.raises(LifecycleError) as raised:
-        installer._prepare_official_release(
-            InstallConfig(environment="production", deployment_profile="compact"), discover=True
-        )
+        installer._prepare_official_release(config, discover=True)
 
     failure = raised.value
     assert failure.code == "release_images_unavailable"
@@ -253,10 +252,9 @@ def test_network_failure_names_its_underlying_cause(
     unreachable.__cause__ = URLError("[Errno -3] Temporary failure in name resolution")
     _official_sources(monkeypatch, published=unreachable)
 
+    config = InstallConfig(environment="production", deployment_profile="scalable")
     with pytest.raises(LifecycleError) as raised:
-        installer._prepare_official_release(
-            InstallConfig(environment="production", deployment_profile="scalable"), discover=True
-        )
+        installer._prepare_official_release(config, discover=True)
 
     assert "Temporary failure in name resolution" in raised.value.cause
 

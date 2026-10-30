@@ -199,7 +199,8 @@ def test_parent_hook_reads_current_project_binding_without_granting_target_scope
         "hook_contract_version": 1,
         "hook_semantic_digest": saved.hook_semantic_digest,
     }
-    assert "steps" not in got and "execution_graph" not in got
+    assert "steps" not in got
+    assert "execution_graph" not in got
 
     # The second project's parent can be read, but its Hook has no binding.
     other = operator.hook_get(

@@ -518,8 +518,9 @@ def _builder_request(**overrides):
 )
 def test_builder_rejects_unacknowledged_or_spoofed_requests(builder_workflow_service, overrides):
     service, _, queued, _ = builder_workflow_service
+    request = _builder_request(**overrides)
     with pytest.raises(ValidationError):
-        service.start_builder_workflow_run("stock-import", _builder_request(**overrides))
+        service.start_builder_workflow_run("stock-import", request)
     assert queued == []
 
 
@@ -535,8 +536,9 @@ def test_builder_rejects_unacknowledged_or_spoofed_requests(builder_workflow_ser
 def test_builder_requires_enabled_project_link_even_for_empty_set(builder_workflow_service, links):
     service, _, queued, _ = builder_workflow_service
     service._get_logger().get_project_run_config.return_value["project_workflows"] = links
+    request = _builder_request()
     with pytest.raises(ServiceValidationError, match="enabled project workflow link"):
-        service.start_builder_workflow_run("stock-import", _builder_request())
+        service.start_builder_workflow_run("stock-import", request)
     assert queued == []
 
 
@@ -587,10 +589,11 @@ def test_builder_denies_unavailable_or_out_of_scope_launches(builder_workflow_se
         service._workflow_availability_assert = refuse
     if change == "not_ready":
         service._validate_explicit_workflow_override = refuse
+    request = _builder_request()
     with pytest.raises(
         (ServiceValidationError, ServiceForbiddenError, WorkflowRevisionChangedError)
     ):
-        service.start_builder_workflow_run("stock-import", _builder_request(), scope=scope)
+        service.start_builder_workflow_run("stock-import", request, scope=scope)
     assert queued == []
 
 
@@ -598,8 +601,9 @@ def test_builder_denies_unavailable_or_out_of_scope_launches(builder_workflow_se
 def test_builder_summary_does_not_fill_required_inputs(builder_workflow_service, name):
     service, fields, queued, _ = builder_workflow_service
     fields.append({"name": name, "type": "string", "required": True})
+    request = _builder_request()
     with pytest.raises(ServiceValidationError, match="required"):
-        service.start_builder_workflow_run("stock-import", _builder_request())
+        service.start_builder_workflow_run("stock-import", request)
     assert queued == []
 
 
@@ -614,10 +618,9 @@ def test_builder_requires_actual_upload_even_with_a_test_sample(builder_workflow
             "sample_file": {"artifact_id": "sample", "filename": "test.csv"},
         }
     )
+    request = _builder_request(inputs={} if value is None else {"source": value})
     with pytest.raises(ServiceValidationError, match="files"):
-        service.start_builder_workflow_run(
-            "stock-import", _builder_request(inputs={} if value is None else {"source": value})
-        )
+        service.start_builder_workflow_run("stock-import", request)
     assert queued == []
 
 
@@ -668,8 +671,9 @@ def test_builder_preserves_editor_catalog_and_workflow_owner_project_scope(
         scope = ScopeContext(
             account_id=DEFAULT_ACCOUNT_ID, allowed_project_ids=frozenset({PROJECT_ID})
         )
+    request = _builder_request()
     with pytest.raises(ServiceForbiddenError):
-        service.start_builder_workflow_run("stock-import", _builder_request(), scope=scope)
+        service.start_builder_workflow_run("stock-import", request, scope=scope)
     assert queued == []
 
 
@@ -700,8 +704,9 @@ def test_builder_rejects_bad_actual_uploads_before_admission(builder_workflow_se
         ]
     if kind == "too_many":
         files = [{**upload, "input_name": f"source_{i}"} for i in range(11)]
+    request = _builder_request(files=files)
     with pytest.raises((ValidationError, ServiceValidationError)):
-        service.start_builder_workflow_run("stock-import", _builder_request(files=files))
+        service.start_builder_workflow_run("stock-import", request)
     assert queued == []
     create_artifact.assert_not_called()
 

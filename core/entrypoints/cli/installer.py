@@ -42,7 +42,7 @@ from core.application.management.command_specs.contracts import (
 )
 from core.application.readiness import CoreReadinessService
 from core.application.readiness.contracts import ReadinessReport
-from core.application.release.catalog import GitHubReleaseDiscovery
+from core.application.release.catalog import DEFAULT_RELEASE_REPOSITORY, GitHubReleaseDiscovery
 from core.application.release.checkout_release import published_release_for_checkout
 from core.application.release.environment import release_runtime_environment
 from core.application.release.service import (
@@ -203,9 +203,7 @@ def _callback(**values: Any) -> None:
                         repo_root=_ROOT,
                         state=release_state,
                         source_repository=str(
-                            _runtime_env.get(
-                                "FS_RELEASE_REPOSITORY", "Flow-Steward/flow-steward-app"
-                            )
+                            _runtime_env.get("FS_RELEASE_REPOSITORY", DEFAULT_RELEASE_REPOSITORY)
                         ),
                         source_registries=str(_runtime_env.get("FS_RELEASE_REGISTRIES") or ""),
                     ).install_exact(
@@ -604,7 +602,7 @@ def _prepare_official_release(
             _runtime_env["FS_RELEASE_REPOSITORY"] = journal.release_repository
         if journal.release_registries:
             _runtime_env["FS_RELEASE_REGISTRIES"] = journal.release_registries
-    repository = str(_runtime_env.get("FS_RELEASE_REPOSITORY", "Flow-Steward/flow-steward-app"))
+    repository = str(_runtime_env.get("FS_RELEASE_REPOSITORY", DEFAULT_RELEASE_REPOSITORY))
     resolver = OfficialReleaseResolver()
     platform = release_platform_for_machine(host_platform.machine())
     if discover:
@@ -668,7 +666,7 @@ def _prepare_fresh_install(
     config: InstallConfig, *, state: InstallerStateStore, discover: bool
 ) -> ReleaseIdentity | None:
     """Fresh install: a published release tag pulls its images, anything else builds."""
-    repository = str(_runtime_env.get("FS_RELEASE_REPOSITORY", "Flow-Steward/flow-steward-app"))
+    repository = str(_runtime_env.get("FS_RELEASE_REPOSITORY", DEFAULT_RELEASE_REPOSITORY))
     # A resumed source installation (no fresh review) keeps building its sources.
     checkout = (
         LocalCheckoutReleaseSource(repo_root=_ROOT, repository=repository).probe()

@@ -138,8 +138,9 @@ def test_iso_precision_and_unix_roundtrip(english):
         == value
     )
     assert canonical_iso(datetime(2026, 10, 29, tzinfo=UTC)) == "2026-10-29T00:00:00Z"
+    naive = datetime(2026, 10, 29, microsecond=1)
     with pytest.raises(DateValueError):
-        canonical_iso(datetime(2026, 10, 29, microsecond=1))
+        canonical_iso(naive)
 
 
 def test_localized_forms_and_same_index_aliases():

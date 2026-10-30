@@ -144,17 +144,15 @@ def build_phase_result_json_schema(outputs: list[dict] | None = None) -> dict:
         name = str(row.get("name") or "").strip()
         if not name:
             continue
-        field_schema = (
-            dict(row["response_schema"])
-            if isinstance(row.get("response_schema"), dict)
-            else _contract_field_json_schema(
+        if isinstance(row.get("response_schema"), dict):
+            field_schema = dict(row["response_schema"])
+        else:
+            contract_schema = row.get("contract_schema")
+            field_schema = _contract_field_json_schema(
                 str(row.get("type") or "text"),
                 str(row.get("description") or ""),
-                row.get("contract_schema")
-                if isinstance(row.get("contract_schema"), dict)
-                else None,
+                contract_schema if isinstance(contract_schema, dict) else None,
             )
-        )
         if not bool(row.get("required", True)):
             field_schema = {"anyOf": [field_schema, {"type": "null"}]}
         artifact_properties[name] = field_schema

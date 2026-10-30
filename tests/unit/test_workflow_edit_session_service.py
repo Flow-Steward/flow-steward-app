@@ -40,6 +40,11 @@ def _content(store, workflow_id: str) -> dict:
     return json.loads(json.dumps(authoring_content(store.get_workflow(workflow_id)), default=str))
 
 
+def _stored_state(store, conn, workflow_id: str) -> tuple:
+    """The stored workflow and its history length, to prove nothing was written."""
+    return store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)
+
+
 def _paths(comparison: dict) -> set[str]:
     return {change["path"] for change in comparison["changes"]}
 
@@ -71,7 +76,7 @@ def test_compare_is_three_way_and_read_only(audit_db) -> None:
     _save_settings_only(store, workflow_id, description="theirs")
     # My local copy renames step a.
     local = _renamed(base, "a", "Mine")
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     result = compare_workflow_session(store, workflow_id, base_content=base, local_content=local)
 
@@ -86,7 +91,7 @@ def test_compare_is_three_way_and_read_only(audit_db) -> None:
         "removed": 0,
         "changed": 1,
     }
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 def test_save_mine_uses_reviewed_revision(audit_db) -> None:
@@ -121,12 +126,13 @@ def test_new_server_revision_invalidates_overwrite(audit_db) -> None:
         store, workflow_id, base_content=base, local_content=_renamed(base, "a", "Mine")
     )
     _save_settings_only(store, workflow_id, description="14")
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
+    mine = _renamed(base, "a", "Mine")
     with pytest.raises(WorkflowRevisionConflictError):
-        _apply(store, workflow_id, _renamed(base, "a", "Mine"), reviewed["current_revision"])
+        _apply(store, workflow_id, mine, reviewed["current_revision"])
 
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
     assert store.get_workflow(workflow_id)["revision"] == 3
 
 
@@ -138,8 +144,9 @@ def test_conflicting_session_keeps_the_server_revision(audit_db) -> None:
     first = _apply(store, workflow_id, _renamed(base, "a", "First"), 1, author="author-a")
     assert first.revision == 2
 
+    second = _renamed(base, "a", "Second")
     with pytest.raises(WorkflowRevisionConflictError):
-        _apply(store, workflow_id, _renamed(base, "a", "Second"), 1)
+        _apply(store, workflow_id, second, 1)
 
     stored = store.get_workflow(workflow_id)
     assert stored["revision"] == 2
@@ -150,7 +157,7 @@ def test_conflicting_session_keeps_the_server_revision(audit_db) -> None:
 def test_dry_run_judges_without_writing(audit_db) -> None:
     store, conn, workflow_id, _project_id = audit_db
     _save(store, workflow_id, ("a",))
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     result = _apply(
         store, workflow_id, _renamed(_content(store, workflow_id), "a", "Mine"), 1, dry_run=True
@@ -158,7 +165,7 @@ def test_dry_run_judges_without_writing(audit_db) -> None:
 
     assert result.applied is False
     assert result.revision == 1
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 def _unrouted(content: dict) -> dict:
@@ -170,12 +177,13 @@ def _unrouted(content: dict) -> dict:
 def test_enabled_workflow_refuses_an_incomplete_copy(audit_db) -> None:
     store, conn, workflow_id, _project_id = audit_db
     _save(store, workflow_id, ("a",), enabled=True)
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
+    unrouted = _unrouted(_content(store, workflow_id))
     with pytest.raises(WorkflowDefinitionChangeError):
-        _apply(store, workflow_id, _unrouted(_content(store, workflow_id)), 1)
+        _apply(store, workflow_id, unrouted, 1)
 
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 def test_disabled_workflow_keeps_an_incomplete_copy_and_reports_it(audit_db) -> None:
@@ -231,13 +239,13 @@ def test_content_outside_the_authoring_contract_is_refused_without_any_write(
     _save(store, workflow_id, ("a",))
     content = _content(store, workflow_id)
     change(content)
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     with pytest.raises(WorkflowDefinitionChangeError) as raised:
         _apply(store, workflow_id, content, 1)
 
     assert code in {issue["code"] for issue in raised.value.issues}
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 @pytest.mark.parametrize(
@@ -360,8 +368,9 @@ def test_a_projection_anchor_is_never_replaced(audit_db) -> None:
         }
     )
 
+    content = _content(store, workflow_id)
     with pytest.raises(WorkflowDefinitionChangeError) as raised:
-        _apply(store, workflow_id, _content(store, workflow_id), 1)
+        _apply(store, workflow_id, content, 1)
 
     assert raised.value.issues[0]["code"] == "workflow.history.projection_reference"
     assert store.get_workflow(workflow_id)["revision"] == 1

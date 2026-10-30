@@ -58,6 +58,7 @@ class _ReadinessLog:
     path: Path = Path("/dev/null")
 
     def close(self) -> None:
+        # The null log owns no file handle, so there is nothing to release.
         pass
 
     def write(self, message: str) -> None:
@@ -233,7 +234,7 @@ class BootstrapRecoveryGateway:
                     "FS_DOCKER_HOST_PROJECT_ROOT": str(self.installer.repo_root),
                 },
             )
-        except (OSError, TimeoutError):
+        except OSError:  # TimeoutError is an OSError subclass.
             raise self._failure(
                 "A required Docker operation was unavailable or timed out."
             ) from None

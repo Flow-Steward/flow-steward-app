@@ -49,6 +49,11 @@ def _content(store, workflow_id: str) -> dict:
     return json.loads(json.dumps(authoring_content(store.get_workflow(workflow_id)), default=str))
 
 
+def _stored_state(store, conn, workflow_id: str) -> tuple:
+    """The stored workflow and its history length, to prove nothing was written."""
+    return store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)
+
+
 def _with_password(content: dict, value: str) -> dict:
     changed = copy.deepcopy(content)
     for step in changed["steps"]:
@@ -72,7 +77,7 @@ def test_compare_route_returns_three_redacted_comparisons_and_writes_nothing(
         expected_revision=1,
     )
     local = _with_password(base, PASSWORD_BEFORE)
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     response = client.post(
         _url(workflow_id, "compare"), json={"base_content": base, "local_content": local}
@@ -91,7 +96,7 @@ def test_compare_route_returns_three_redacted_comparisons_and_writes_nothing(
             for change in changes
             if "password" in change["path"]
         )
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 def test_compare_route_never_returns_secret_authority(edit_session_client) -> None:
@@ -147,7 +152,7 @@ def test_apply_route_answers_a_newer_revision_with_a_conflict_and_no_write(
     base = _content(store, workflow_id)
     _save_settings_only(store, workflow_id, description="13")
     _save_settings_only(store, workflow_id, description="14")
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     response = client.post(
         _url(workflow_id, "apply"), json={"content": base, "expected_revision": 2}
@@ -155,7 +160,7 @@ def test_apply_route_answers_a_newer_revision_with_a_conflict_and_no_write(
 
     assert response.status_code == 409, response.text
     assert response.json()["detail"]["code"] == "workflow_revision_conflict"
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 @pytest.mark.parametrize(
@@ -169,14 +174,14 @@ def test_apply_route_answers_a_newer_revision_with_a_conflict_and_no_write(
 def test_apply_route_takes_no_force_author_or_invalid_revision(edit_session_client, body) -> None:
     client, store, conn, workflow_id = edit_session_client
     _save(store, workflow_id, ("a",))
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     response = client.post(
         _url(workflow_id, "apply"), json={"content": _content(store, workflow_id), **body}
     )
 
     assert response.status_code == 422, response.text
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 def test_apply_route_refuses_service_owned_fields_with_their_paths(edit_session_client) -> None:
@@ -184,7 +189,7 @@ def test_apply_route_refuses_service_owned_fields_with_their_paths(edit_session_
     _save(store, workflow_id, ("a",))
     content = _content(store, workflow_id)
     content["enabled"] = True
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     response = client.post(
         _url(workflow_id, "apply"), json={"content": content, "expected_revision": 1}
@@ -192,7 +197,7 @@ def test_apply_route_refuses_service_owned_fields_with_their_paths(edit_session_
 
     assert response.status_code == 400, response.text
     assert "workflow.edit_session.field_unknown" in response.text
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 def test_apply_route_dry_run_writes_nothing(edit_session_client) -> None:
@@ -200,7 +205,7 @@ def test_apply_route_dry_run_writes_nothing(edit_session_client) -> None:
     _save(store, workflow_id, ("a",))
     content = _content(store, workflow_id)
     content["description"] = "checked only"
-    before = (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id))
+    before = _stored_state(store, conn, workflow_id)
 
     response = client.post(
         _url(workflow_id, "apply"),
@@ -209,7 +214,7 @@ def test_apply_route_dry_run_writes_nothing(edit_session_client) -> None:
 
     assert response.status_code == 200, response.text
     assert response.json()["applied"] is False
-    assert (store.get_workflow(workflow_id), _changelog_count(conn, workflow_id)) == before
+    assert _stored_state(store, conn, workflow_id) == before
 
 
 @pytest.mark.parametrize("action", ["compare", "apply"])

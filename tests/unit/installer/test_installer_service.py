@@ -1585,11 +1585,10 @@ def test_an_install_refuses_a_setting_it_cannot_set_before_touching_anything(
     gateway.active_config = _compact()
     service = _installed_service(tmp_path, gateway)
 
+    config = _compact(operator_settings="FS_SECRET_KEY=x")
+    explicit_fields = frozenset({"operator_settings"})
     with pytest.raises(InstallerFailure) as raised:
-        service.install(
-            _compact(operator_settings="FS_SECRET_KEY=x"),
-            explicit_fields=frozenset({"operator_settings"}),
-        )
+        service.install(config, explicit_fields=explicit_fields)
 
     assert raised.value.code == "installer_setting_invalid"
     assert not any(call.startswith("set_operator_settings") for call in gateway.calls)

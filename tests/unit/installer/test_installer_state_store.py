@@ -181,7 +181,8 @@ def _extract_v030_reader_fixture(source_repo: Path, target_checkout: Path) -> No
 
     for record in manifest["files"]:
         extracted = target_checkout / record["path"]
-        assert extracted.is_file() and not extracted.is_symlink()
+        assert extracted.is_file()
+        assert not extracted.is_symlink()
         payload = extracted.read_bytes()
         assert len(payload) == record["bytes"]
         assert hashlib.sha256(payload).hexdigest() == record["sha256"]

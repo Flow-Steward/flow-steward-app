@@ -127,7 +127,8 @@ def test_actual_resume_publishes_next_gate_and_fences_old_decisions(
     def fenced_runner(**kwargs):
         running = fresh()
         intent = running["meta"]["workflow_resume"]
-        assert running["status"] == "in_progress" and intent["state"] == "running"
+        assert running["status"] == "in_progress"
+        assert intent["state"] == "running"
         # Exercise each SQL predicate independently while the other predicates
         # (including running status and a live lease) really match.
         for revision, token in (
@@ -185,7 +186,8 @@ def test_actual_resume_publishes_next_gate_and_fences_old_decisions(
         paused = fresh()
         # RED on the original runtime: checkpoint is correct, durable row is running.
         assert paused["status"] == "awaiting_approval"
-        assert paused["finished_at"] is None and paused["duration_ms"] is None
+        assert paused["finished_at"] is None
+        assert paused["duration_ms"] is None
         assert paused["heartbeat_at"] > before["heartbeat_at"]
         meta = paused["meta"]
         assert meta["state_approval_id"] == second["approval_id"]
@@ -201,7 +203,8 @@ def test_actual_resume_publishes_next_gate_and_fences_old_decisions(
         polling = WorkflowTestRunQueryService(
             PostgresWorkflowTestRunJobRepository(lambda: store)
         ).get_public_state(run.thread_id)
-        assert polling["status"] == "awaiting_approval" and polling["needs_user_approval"]
+        assert polling["status"] == "awaiting_approval"
+        assert polling["needs_user_approval"]
         assert polling["approval_id"] == second["approval_id"]
         assert polling["approval_context"] == second["message"]
         public = PublicWorkflowSnapshotQuery(
@@ -244,7 +247,8 @@ def test_actual_resume_publishes_next_gate_and_fences_old_decisions(
         }
         final = fresh()
         assert final["status"] == "failed"
-        assert final["finished_at"] is not None and final["duration_ms"] is not None
+        assert final["finished_at"] is not None
+        assert final["duration_ms"] is not None
         assert final["meta"]["workflow_resume"]["state"] == "completed"
         assert run.snapshot().values["workflow_terminal"]["step_id"] == "rejected"
         history = queries.list_history(job_id, scope=scope).dump()["approvals"]

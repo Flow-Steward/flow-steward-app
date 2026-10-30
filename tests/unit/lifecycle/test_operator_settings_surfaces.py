@@ -83,7 +83,8 @@ def test_an_extension_that_blocks_a_private_address_gets_the_same_hint(
         detail, {"invocation": {"response": {"error_code": "invalid_connection"}}}
     )
 
-    assert blocked.startswith(detail) and COMPACT_COMMAND in blocked
+    assert blocked.startswith(detail)
+    assert COMPACT_COMMAND in blocked
     assert HOST_SETTINGS_DOCS_URL in blocked
     assert COMPACT_COMMAND in top_level
     assert other == detail
@@ -148,7 +149,8 @@ def test_one_name_everywhere(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FS_DEPLOYMENT_PROFILE", "scalable")
     error = url_safety.private_addresses_hint().split("config set ", 1)[1].split("=", 1)[0]
 
-    assert PRIVATE in shown and "public_host" in shown
+    assert PRIVATE in shown
+    assert "public_host" in shown
     assert page == set(settable_names())
     for name in {*shown, *page, error}:
         assert _accepted(name, _valid_value(name)), name
@@ -218,7 +220,8 @@ def test_install_sh_setting_writes_the_key_records_it_and_restarts_the_runtime(i
 
     assert applied.operator_settings == {PRIVATE: "1"}
     env = (root / ".env.prod").read_text(encoding="utf-8")
-    assert f"{PRIVATE}=1" in env and "POSTGRES_PASSWORD=kept-secret" in env
+    assert f"{PRIVATE}=1" in env
+    assert "POSTGRES_PASSWORD=kept-secret" in env
     assert f'{PRIVATE} = "1"' in (root / ".flow-steward/stack.toml").read_text("utf-8")
     assert runtime.recreated()
 

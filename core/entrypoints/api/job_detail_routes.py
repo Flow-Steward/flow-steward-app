@@ -57,13 +57,14 @@ def _artifact_download_headers(download: Any, size_bytes: int) -> dict[str, str]
 _INLINE_PREVIEW_TYPES = frozenset(
     {"image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"}
 )
+_JSON_MEDIA_TYPE = "application/json"
 # Text a run view reads as plain characters. Served as text/plain whatever the
 # declared type, so neither Markdown nor JSON is ever interpreted by the browser.
-_TEXT_PREVIEW_TYPES = frozenset({"text/plain", "text/markdown", "application/json"})
+_TEXT_PREVIEW_TYPES = frozenset({"text/plain", "text/markdown", _JSON_MEDIA_TYPE})
 _TEXT_PREVIEW_EXTENSIONS = {
     ".txt": "text/plain",
     ".md": "text/markdown",
-    ".json": "application/json",
+    ".json": _JSON_MEDIA_TYPE,
 }
 _PREVIEW_TOO_LARGE = "The file is too large to preview"
 
@@ -173,7 +174,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
             )
             return Response(
                 _job_report_json(payload),
-                media_type="application/json",
+                media_type=_JSON_MEDIA_TYPE,
                 headers={"Content-Disposition": f'attachment; filename="{filename}"'},
             )
         except ServiceError as e:

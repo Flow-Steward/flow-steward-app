@@ -11,6 +11,8 @@ from pathlib import Path
 
 from core.infrastructure.installer.state_store import _atomic_write_bytes, _atomic_write_text
 
+_MANIFEST_NAME = "manifest.json"
+
 
 def require_safe_path(path: Path, *, allow_leaf_symlink: bool = False) -> None:
     for parent in (path, *path.parents):
@@ -35,7 +37,7 @@ class BootstrapSnapshot:
     def capture(self, metadata: dict[str, object]) -> None:
         if self.path.exists() or self.path.is_symlink():
             raise ValueError("Bootstrap recovery material already exists")
-        require_safe_path(self.path / "manifest.json")
+        require_safe_path(self.path / _MANIFEST_NAME)
         directories: dict[str, int | None] = {}
         rows = []
         for path in self.paths:
@@ -63,7 +65,7 @@ class BootstrapSnapshot:
                     self.path / f"{index}.bin", self.paths[index].read_bytes(), mode=0o600
                 )
         _atomic_write_text(
-            self.path / "manifest.json",
+            self.path / _MANIFEST_NAME,
             json.dumps(
                 {
                     "schema_version": 1,
@@ -79,7 +81,7 @@ class BootstrapSnapshot:
         self._sync(parent=True)
 
     def restore(self) -> dict[str, object]:
-        manifest = json.loads((self.path / "manifest.json").read_text())
+        manifest = json.loads((self.path / _MANIFEST_NAME).read_text())
         rows = manifest["files"]
         if [row["path"] for row in rows] != [str(path) for path in self.paths]:
             raise ValueError("Bootstrap recovery destinations changed")

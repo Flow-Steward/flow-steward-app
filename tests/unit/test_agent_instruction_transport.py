@@ -222,12 +222,11 @@ def test_hidden_assigned_skill_retains_instructions(authored_runtime):
     assert result.status == "pass"
     human = next(message for message in runtime.model.calls[0] if message.type == "human")
     assert BASE_TEXT in human.content
+    catalog = ScopedCapabilityCatalog(runtime.store)
+    project_id = str(runtime.state["project_id"])
+    capability = ScopedCapabilityRef("skill", runtime.skill_id)
     with pytest.raises(ValueError, match="not visible"):
-        ScopedCapabilityCatalog(runtime.store).assert_capability_visible(
-            runtime.state,
-            str(runtime.state["project_id"]),
-            ScopedCapabilityRef("skill", runtime.skill_id),
-        )
+        catalog.assert_capability_visible(runtime.state, project_id, capability)
 
 
 def test_normal_refresh_delivers_updated_skill_instructions(authored_runtime):

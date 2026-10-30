@@ -62,8 +62,9 @@ def test_private_management_rejects_other_user_commands():
     from core.application.management.errors import ServicePreconditionError
     from core.entrypoints.cli.bootstrap_recovery import BootstrapRecoveryRegistry
 
+    registry = BootstrapRecoveryRegistry(SimpleNamespace())
     with pytest.raises(ServicePreconditionError, match="only"):
-        BootstrapRecoveryRegistry(SimpleNamespace()).service("users.list")
+        registry.service("users.list")
 
 
 def test_private_management_help_and_confirmation_are_lazy():

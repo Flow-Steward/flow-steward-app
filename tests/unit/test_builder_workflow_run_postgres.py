@@ -143,10 +143,9 @@ def test_builder_normal_job_pins_and_prepares_actual_file_before_publication(
         ],
     }
     if revision_race:
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
         with pytest.raises(ServiceConflictError) as conflict:
-            service.start_builder_workflow_run(
-                workflow_id, command, scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
-            )
+            service.start_builder_workflow_run(workflow_id, command, scope=scope)
         assert conflict.value.payload["code"] == "workflow_revision_conflict"
         assert publications == []
         assert not list(tmp_path.rglob("actual.csv"))

@@ -530,8 +530,9 @@ def test_ordinary_mutation_refuses_persisted_install_bridge_before_writes(method
         if "query_template" in method
         else store.dataset["dataset_id"]
     )
+    mutate = getattr(RegistryDBStoreDatasetCatalogMixin, method)
     with pytest.raises(ValueError, match="Install-owned projected dataset/query is immutable"):
-        getattr(RegistryDBStoreDatasetCatalogMixin, method)(store, identifier)
+        mutate(store, identifier)
     assert store.write_contexts == 0
     assert store.cursor.statements == []
 

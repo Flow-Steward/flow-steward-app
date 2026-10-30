@@ -102,8 +102,9 @@ def test_new_operations_survive_registry_schema_and_are_visible_to_builder():
     ],
 )
 def test_new_connector_validation_is_not_silently_relaxed(tool_id, operation, arguments, message):
+    tool = _tool(tool_id, operation)
     with pytest.raises(ValueError, match=message):
-        _tool(tool_id, operation).invoke(arguments)
+        tool.invoke(arguments)
 
 
 def test_json_and_array_operations_do_not_mutate_the_input():

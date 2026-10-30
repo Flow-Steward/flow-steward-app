@@ -320,7 +320,7 @@ class ConfigurationOperations:
             )
             if outcome.returncode != 0:
                 raise OSError("Application activation failed")
-        except (OSError, TimeoutError):
+        except OSError:  # TimeoutError is an OSError subclass.
             raise InstallerFailure(
                 code="bootstrap_token_activation_failed",
                 cause="The selected application could not activate the bootstrap configuration.",
@@ -376,7 +376,7 @@ class ConfigurationOperations:
                     # A successful Compose exit alone cannot certify compensation.
                     raise ValueError("Runtime compensation requires reconciliation")
                 snapshot.finish()
-            except BaseException:
+            except BaseException:  # NOSONAR - interrupted cleanup still reports kept recovery data
                 raise InstallerFailure(
                     code="bootstrap_recovery_needed",
                     cause="Token activation failed and runtime compensation could not be verified; preserve the owner-only recovery material.",

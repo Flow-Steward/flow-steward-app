@@ -31,6 +31,10 @@ def create_builder_workflow_run_router(
         "/api/workflows/{workflow_id}/run",
         response_model=WorkflowRunAcceptedView,
         operation_id="startBuilderWorkflowRun",
+        responses={
+            403: {"description": "An administrator browser session is required"},
+            409: {"description": "The workflow revision changed or the workflow is not runnable"},
+        },
     )
     async def run_workflow(request: Request, workflow_id: str, command: BuilderWorkflowRunInput):
         # Middleware retains editor admin authorization and session CSRF. Tokens

@@ -17,6 +17,7 @@ _IANA_LEGACY_ALIASES = {
     "US/Hawaii": "Pacific/Honolulu",
     "US/Arizona": "America/Phoenix",
 }
+_CALENDAR_RANGE_MESSAGE = "Timezone conversion exceeds the supported calendar range."
 
 
 def validate_timezone(name: str | None, *, strict: bool = True) -> str:
@@ -50,9 +51,7 @@ def local_candidates(naive: datetime, zone: str) -> tuple[datetime, ...]:
             utc = aware.astimezone(UTC)
             roundtrip = utc.astimezone(tz).replace(tzinfo=None)
         except (OverflowError, ValueError) as exc:
-            raise DateValueError(
-                "invalid_date", "Timezone conversion exceeds the supported calendar range."
-            ) from exc
+            raise DateValueError("invalid_date", _CALENDAR_RANGE_MESSAGE) from exc
         if roundtrip == naive:
             candidates[utc] = aware
     return tuple(candidates[key] for key in sorted(candidates))
@@ -74,9 +73,7 @@ def resolve_datetime(
         try:
             return value.astimezone(ZoneInfo(zone)) if zone else value
         except (OverflowError, ValueError) as exc:
-            raise DateValueError(
-                "invalid_date", "Timezone conversion exceeds the supported calendar range."
-            ) from exc
+            raise DateValueError("invalid_date", _CALENDAR_RANGE_MESSAGE) from exc
     if zone is None:
         if require_aware:
             raise DateValueError(
@@ -101,9 +98,7 @@ def resolve_datetime(
             naive.replace(tzinfo=ZoneInfo(zone), fold=0).astimezone(UTC).astimezone(ZoneInfo(zone))
         )
     except (OverflowError, ValueError) as exc:
-        raise DateValueError(
-            "invalid_date", "Timezone conversion exceeds the supported calendar range."
-        ) from exc
+        raise DateValueError("invalid_date", _CALENDAR_RANGE_MESSAGE) from exc
 
 
 def legacy_to_utc(value: datetime, zone: str) -> datetime:

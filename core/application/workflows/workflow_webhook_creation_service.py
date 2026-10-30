@@ -27,6 +27,7 @@ from core.application.workflows.workflow_trigger_guards import (
 _MESSAGE_SECRET_STORAGE_IS_UNAVAILABLE = (  # pragma: allowlist secret - user-facing error text
     "Secret storage is unavailable"
 )
+_MESSAGE_WORKFLOW_ENTRYPOINT_NOT_FOUND = "Workflow entrypoint not found"
 
 _AUTH_MODES = frozenset(
     {
@@ -67,7 +68,7 @@ def _webhook_transaction(
         ) from exc
     except ServiceNotFoundError as exc:
         raise WorkflowWebhookCreationError(
-            "workflow_entrypoint_not_found", "Workflow entrypoint not found", status_code=404
+            "workflow_entrypoint_not_found", _MESSAGE_WORKFLOW_ENTRYPOINT_NOT_FOUND, status_code=404
         ) from exc
 
 
@@ -708,14 +709,16 @@ class WorkflowWebhookMutationService:
         owner_id = str(existing.get("workflow_id") or "")
         if workflow_id is not None and workflow_id != owner_id:
             raise WorkflowWebhookCreationError(
-                "workflow_entrypoint_not_found", "Workflow entrypoint not found", status_code=404
+                "workflow_entrypoint_not_found",
+                _MESSAGE_WORKFLOW_ENTRYPOINT_NOT_FOUND,
+                status_code=404,
             )
         with _webhook_transaction(bl, owner_id, include_trashed=True) as cursor:
             current = lock_entrypoint(cursor, entry_key=entry_key, workflow_id=owner_id)
             if project_id is not None and project_id != str(current.get("project_id") or ""):
                 raise WorkflowWebhookCreationError(
                     "workflow_entrypoint_not_found",
-                    "Workflow entrypoint not found",
+                    _MESSAGE_WORKFLOW_ENTRYPOINT_NOT_FOUND,
                     status_code=404,
                 )
             retire_entrypoint_credentials(cursor, [current])

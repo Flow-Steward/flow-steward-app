@@ -54,7 +54,8 @@ def assert_second_gate(run: ApprovalGraphRun, *, loop: bool) -> None:
     assert run.approval() == second
     # Both real checkpoints above are correct on the broken implementation.
     assert outcome.status == "awaiting_approval", outcome
-    assert not outcome.terminal and not outcome.retryable
+    assert not outcome.terminal
+    assert not outcome.retryable
     assert outcome.result["approval"] == second
     assert outcome.result["workflow_wait"]["approval_id"] == second["approval_id"]
     recovered = run.resume(first["approval_id"])
@@ -83,11 +84,13 @@ def test_ordinary_interrupt_second_gate_keeps_execution_identity(loop: bool) -> 
     assert second["step_id"] == ("a1" if loop else "a2")
     assert second["approval_id"] != first["approval_id"]
     assert second["step_execution_id"] != first["step_execution_id"]
-    assert outcome.status == "awaiting_approval" and not outcome.retryable
+    assert outcome.status == "awaiting_approval"
+    assert not outcome.retryable
     assert outcome.result["approval"] == second
     assert run.approval() == second
     terminal = run.resume(second["approval_id"], approved=False)
-    assert terminal.status == "failed" and terminal.terminal
+    assert terminal.status == "failed"
+    assert terminal.terminal
     assert run.snapshot().values["workflow_terminal"]["step_id"] == "rejected"
 
 
@@ -154,8 +157,10 @@ def test_pinned_nonapproval_cursor_with_stale_pause_flags_normalizes(monkeypatch
     outcome = run.resume(first["approval_id"])
     assert run.snapshot().values["needs_user_approval"] is True
     assert run.snapshot().values["status"] == "awaiting_approval"
-    assert outcome.status == "in_progress" and not outcome.retryable
-    assert "approval" not in outcome.result and "workflow_wait" not in outcome.result
+    assert outcome.status == "in_progress"
+    assert not outcome.retryable
+    assert "approval" not in outcome.result
+    assert "workflow_wait" not in outcome.result
 
 
 def test_advanced_recovery_gate_has_stable_identity_without_authored_wait(monkeypatch) -> None:
@@ -176,7 +181,8 @@ def test_advanced_recovery_gate_has_stable_identity_without_authored_wait(monkey
         },
     )
     outcome = run.resume(first["approval_id"])
-    assert outcome.status == "awaiting_approval" and not outcome.retryable
+    assert outcome.status == "awaiting_approval"
+    assert not outcome.retryable
     assert outcome.result["approval"]["approval_id"] == "recovery:next-recovery"
     assert "workflow_wait" not in outcome.result
     recovered = run.resume(first["approval_id"])
@@ -191,6 +197,7 @@ def test_terminal_checkpoint_precedes_new_gate_classification(monkeypatch, statu
     # The stream still yields awaiting, while the committed checkpoint is terminal.
     alter_saved_second_gate(monkeypatch, lambda _: {"status": status})
     outcome = run.resume(first["approval_id"])
-    assert outcome.status == status and outcome.terminal
+    assert outcome.status == status
+    assert outcome.terminal
     assert not outcome.retryable
     assert "approval" not in outcome.result

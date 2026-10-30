@@ -91,7 +91,8 @@ def test_batch_last_chunk_indices_and_length_are_real_values():
                 },
                 state,
             )
-            assert result["ok"] and result["text"] == str(index * 2), result
+            assert result["ok"], result
+            assert result["text"] == str(index * 2), result
         result = execute_template_step(
             {
                 "text": "{{ b | length }}",
@@ -117,7 +118,8 @@ def test_unknown_http_body_member_remains_runtime_defined_or_missing(body, expec
         },
         {"user": body},
     )
-    assert result["ok"] and result["text"] == expected, result
+    assert result["ok"], result
+    assert result["text"] == expected, result
 
 
 @pytest.mark.usefixtures("_application_submission_repositories")
@@ -182,7 +184,8 @@ def test_real_loop_mapping_and_child_contract_before_enqueue(monkeypatch, case):
     final_projection = contracts.validate_outputs(
         contracts.interface_from_definition(child), child_state
     )
-    assert final_projection.ok and final_projection.outputs == {"summary": "Shipment assembled"}
+    assert final_projection.ok
+    assert final_projection.outputs == {"summary": "Shipment assembled"}
     runtime = _install_runtime_stubs(monkeypatch, workflows={"selector_child": child})
     messages = _capture_append_messages(monkeypatch, node)
     logger = _FakeLogger(
@@ -221,7 +224,8 @@ def test_real_loop_mapping_and_child_contract_before_enqueue(monkeypatch, case):
         }
     text = as_bundle(wf)
     checked = service(db).validate(scope=SCOPE, project_id="project", bundle_yaml=text)
-    assert checked["can_save"] and checked["readiness"]["valid"], checked
+    assert checked["can_save"], checked
+    assert checked["readiness"]["valid"], checked
     saved = service(db).save(scope=SCOPE, project_id="project", bundle_yaml=text)
     wf = db.get_workflow(saved["workflow_id"])
     step = wf["steps"][1]
@@ -309,7 +313,8 @@ def test_real_loop_mapping_and_child_contract_before_enqueue(monkeypatch, case):
         "index_wrong_type",
     }
     assert payloads == (expected[:1] if refused else expected), (payloads, messages)
-    assert payloads[0]["active"] is False and payloads[0]["count"] == 0
+    assert payloads[0]["active"] is False
+    assert payloads[0]["count"] == 0
     assert len([m for m in messages if m["status"] == "pass"]) == (1 if refused else 2)
 
 

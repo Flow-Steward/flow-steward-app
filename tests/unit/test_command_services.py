@@ -15975,6 +15975,8 @@ class TestToolCommandService:
             format_validation_error_detail=lambda **kwargs: kwargs,
         )
 
+        clone_input = ToolCloneInput(tool_id="catalog_tool_copy")
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a")
         with (
             patch.object(
                 tool_commands, "projection_aware_catalog_row", create=True, return_value=source
@@ -15983,8 +15985,8 @@ class TestToolCommandService:
         ):
             service.clone_tool(
                 "extension.install-1.catalog_tool",
-                ToolCloneInput(tool_id="catalog_tool_copy"),
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a"),
+                clone_input,
+                scope=scope,
             )
 
         assert exc.value.payload["code"] == "tool_clone_runtime_dependency_unavailable"
@@ -18010,7 +18012,8 @@ class TestAgentCommandServiceClone:
         assert payload["account_id"] == DEFAULT_ACCOUNT_ID
         assert payload["enabled"] is False
         assert "source_install_id" not in payload
-        assert [source, skill, tool, agents] == original
+        unchanged = [source, skill, tool, agents]
+        assert unchanged == original
         db.save_skill.assert_not_called()
         db.save_tool.assert_not_called()
         db.save_agent.assert_called_once()
@@ -18034,6 +18037,7 @@ class TestAgentCommandServiceClone:
             get_db=lambda: db, reload_registry=reload_registry
         )
 
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
         with (
             patch.object(
                 agent_commands,
@@ -18045,7 +18049,7 @@ class TestAgentCommandServiceClone:
             service.clone_agent(
                 source["agent_id"],
                 target_agent_id="catalog_agent_copy",
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+                scope=scope,
             )
 
         assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
@@ -18064,6 +18068,7 @@ class TestAgentCommandServiceClone:
         db.get_agent.return_value = None
         service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
 
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
         with (
             patch.object(
                 agent_commands,
@@ -18075,7 +18080,7 @@ class TestAgentCommandServiceClone:
             service.clone_agent(
                 source["agent_id"],
                 target_agent_id="foreign_copy",
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+                scope=scope,
             )
 
         db.save_agent.assert_not_called()
@@ -18095,6 +18100,7 @@ class TestAgentCommandServiceClone:
             get_db=lambda: db, reload_registry=reload_registry
         )
 
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
         with (
             patch.object(
                 agent_commands,
@@ -18106,7 +18112,7 @@ class TestAgentCommandServiceClone:
             service.clone_agent(
                 source["agent_id"],
                 target_agent_id="catalog_agent_copy",
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
+                scope=scope,
             )
 
         reload_registry.assert_not_called()
@@ -18125,6 +18131,10 @@ class TestAgentCommandServiceClone:
         db.get_agent.return_value = None
         service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
 
+        scope = ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID,
+            allowed_project_ids=frozenset({"project-a"}),
+        )
         with (
             patch.object(
                 agent_commands,
@@ -18135,10 +18145,7 @@ class TestAgentCommandServiceClone:
         ):
             service.clone_agent(
                 "project_source",
-                scope=ScopeContext(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    allowed_project_ids=frozenset({"project-a"}),
-                ),
+                scope=scope,
             )
 
         db.save_agent.assert_not_called()
@@ -18156,6 +18163,11 @@ class TestAgentCommandServiceClone:
         db.get_agent.return_value = None
         service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
 
+        scope = ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID,
+            project_id="project-a",
+            allowed_project_ids=frozenset({"project-a"}),
+        )
         with (
             patch.object(
                 agent_commands,
@@ -18166,11 +18178,7 @@ class TestAgentCommandServiceClone:
         ):
             service.clone_agent(
                 "project_source",
-                scope=ScopeContext(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    project_id="project-a",
-                    allowed_project_ids=frozenset({"project-a"}),
-                ),
+                scope=scope,
             )
 
         assert exc.value.payload["code"] == "agent_clone_project_scope_unsupported"
@@ -18203,6 +18211,10 @@ class TestAgentCommandServiceClone:
         db.get_tool.return_value = project_tool
         service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
 
+        scope = ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID,
+            allowed_project_ids=frozenset({allowed_project}),
+        )
         with (
             patch.object(
                 agent_commands,
@@ -18213,10 +18225,7 @@ class TestAgentCommandServiceClone:
         ):
             service.clone_agent(
                 "account_source",
-                scope=ScopeContext(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    allowed_project_ids=frozenset({allowed_project}),
-                ),
+                scope=scope,
             )
 
         assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
@@ -18243,6 +18252,7 @@ class TestAgentCommandServiceClone:
         db.get_tool.return_value = foreign_tool
         service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
 
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a")
         with (
             patch.object(
                 agent_commands,
@@ -18253,7 +18263,7 @@ class TestAgentCommandServiceClone:
         ):
             service.clone_agent(
                 "account_source",
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, tenant_id="tenant-a"),
+                scope=scope,
             )
 
         assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
@@ -18271,6 +18281,7 @@ class TestAgentCommandServiceClone:
         db.get_agent.return_value = None
         db.get_tool.return_value = {"tool_id": "std.numbers", "account_id": None, "enabled": True}
         service = agent_commands.AgentCommandService(get_db=lambda: db, reload_registry=MagicMock())
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
         with (
             patch.object(
                 agent_commands,
@@ -18279,7 +18290,7 @@ class TestAgentCommandServiceClone:
             ),
             pytest.raises(ServiceConflictError) as exc,
         ):
-            service.clone_agent("source", scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID))
+            service.clone_agent("source", scope=scope)
         assert exc.value.payload["code"] == "agent_clone_dependencies_unavailable"
         assert exc.value.payload["tool_ids"] == ["std.numbers"]
         db.save_agent.assert_not_called()

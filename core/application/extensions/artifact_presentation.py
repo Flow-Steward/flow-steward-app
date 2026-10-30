@@ -31,7 +31,7 @@ _MIME_TYPES = frozenset(
 _CLAIM_KEYS = frozenset(
     {"artifact_id", "binding_key", "filename", "content_type", "size_bytes", "sha256"}
 )
-_OUTPUT_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+_OUTPUT_KEY = re.compile(r"[A-Za-z_]\w*\Z", re.ASCII)
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 

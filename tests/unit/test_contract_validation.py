@@ -2569,7 +2569,8 @@ def test_a_step_cannot_write_the_graph_conversation_channels(channel):
         for issue in refused["errors"]
         if issue["code"] == "workflow.step_output_mapping_target_reserved"
     )
-    assert f"state.{channel}" in message and "another state key" in message
+    assert f"state.{channel}" in message
+    assert "another state key" in message
 
     allowed = validation_for(f"state.{channel}_summary")
     assert "workflow.step_output_mapping_target_reserved" not in _error_codes(allowed)

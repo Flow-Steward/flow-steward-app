@@ -35,6 +35,7 @@ from core.application.workflows.workflow_step_kinds import (
 AUTHORING_ERROR_CODE = "workflow.state_selector_invalid"
 IMPOSSIBLE_SELECTOR_CODE = "workflow.state_selector_impossible"
 RUNTIME_ERROR_CODE = "invalid_input_selector"
+_STATE_PREFIX = "state."
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,7 @@ def _object(value: Any) -> dict[str, Any]:
 
 def _normalized_state_selector(value: Any, *, allow_bare: bool = False) -> str:
     text = _text(value)
-    if text == "state" or text.startswith("state."):
+    if text == "state" or text.startswith(_STATE_PREFIX):
         return text
     if allow_bare and text:
         return f"state.{text}"
@@ -410,11 +411,11 @@ def _closed_target_shapes(workflow: Mapping[str, Any]) -> dict[str, tuple[str, t
         written_paths = {
             _text(config.get(field))
             for field in target_fields
-            if _text(config.get(field)).startswith("state.")
+            if _text(config.get(field)).startswith(_STATE_PREFIX)
         }
         if isinstance(assignments, Mapping):
             written_paths.update(
-                _text(path) for path in assignments if _text(path).startswith("state.")
+                _text(path) for path in assignments if _text(path).startswith(_STATE_PREFIX)
             )
         invalidated = {
             path
@@ -434,7 +435,7 @@ def _closed_target_shapes(workflow: Mapping[str, Any]) -> dict[str, tuple[str, t
                         for other in assignment_paths
                     )
                     if (
-                        candidate.startswith("state.")
+                        candidate.startswith(_STATE_PREFIX)
                         and isinstance(value, list)
                         and not overlaps_other_write
                     ):
@@ -442,20 +443,20 @@ def _closed_target_shapes(workflow: Mapping[str, Any]) -> dict[str, tuple[str, t
                         array_path_producer[candidate] = step_id
             else:
                 target = _text(config.get("target"))
-                if target.startswith("state.") and isinstance(config.get("value"), list):
+                if target.startswith(_STATE_PREFIX) and isinstance(config.get("value"), list):
                     known_array_paths.add(target)
                     array_path_producer[target] = step_id
             continue
         if kind == STEP_KIND_BATCH:
             target = _text(config.get("result_target"))
             source = _text(config.get("source_path"))
-            source = source if source.startswith("state.") else f"state.{source}"
+            source = source if source.startswith(_STATE_PREFIX) else f"state.{source}"
             if source not in known_array_paths or array_path_producer.get(
                 source
             ) != predecessors.get(step_id):
                 continue
             shape = ("array", 2)
-            if target.startswith("state."):
+            if target.startswith(_STATE_PREFIX):
                 known_array_paths.add(target)
                 array_path_producer[target] = step_id
         elif kind == STEP_KIND_HTTP_REQUEST:
@@ -465,7 +466,7 @@ def _closed_target_shapes(workflow: Mapping[str, Any]) -> dict[str, tuple[str, t
             shape = ("scalar", 0)
         else:
             continue
-        if target.startswith("state.") and target != "state":
+        if target.startswith(_STATE_PREFIX) and target != "state":
             shapes[step_id] = (target, shape)
     return shapes
 

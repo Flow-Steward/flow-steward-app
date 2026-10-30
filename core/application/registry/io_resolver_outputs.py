@@ -733,13 +733,16 @@ class IOResolverOutputMixin:
             except StatePathError:
                 continue
         # Publication replaces earlier state bindings, including callable aliases.
-        for name in list(type_map):
+        replaced = []
+        for name in type_map:
             try:
                 path = tuple(parse_state_path(name))
             except StatePathError:
                 continue
             if any(root and path[: len(root)] == root for root in published_paths):
-                del type_map[name]
+                replaced.append(name)
+        for name in replaced:
+            del type_map[name]
         # Upstream step outputs override loose global keys with the same name.
         # Also expose strict message selectors for explicit step-artifact bindings.
         for o in self.get_available_outputs_for_step(workflow_id, step_id):

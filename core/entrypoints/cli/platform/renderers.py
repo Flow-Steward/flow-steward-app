@@ -46,6 +46,7 @@ _REPORTS_DIAGNOSTICS = "reports.diagnostics"
 _TOKEN_USERS_LIST = "users.list"
 _TOKEN_EXTENSIONS_CREATE = "extensions.create"
 _TOKEN_MATCH = "match:"
+_NONE_LINE = "  none"
 
 
 class Renderer(Protocol):
@@ -692,7 +693,7 @@ def _config_show_lines(payload: dict[str, Any]) -> list[str]:
     lines = ["Settings"]
     lines.extend(_aligned(changeable))
     lines.extend(("", "Host settings set by the operator"))
-    lines.extend(_aligned(sorted(host_settings.items())) if host_settings else ["  none"])
+    lines.extend(_aligned(sorted(host_settings.items())) if host_settings else [_NONE_LINE])
     lines.extend(("", "Pending changes"))
     diff = dict(payload.get("pending_diff") or {})
     pending_host = dict((diff.pop("operator_settings", None) or {}).get("pending") or {})
@@ -708,16 +709,16 @@ def _config_show_lines(payload: dict[str, Any]) -> list[str]:
         lines.extend(_aligned(rows))
         lines.append("  Apply them with: flow-steward config apply")
     else:
-        lines.append("  none")
+        lines.append(_NONE_LINE)
     lines.extend(("", "Fixed at installation"))
-    lines.extend(_aligned(fixed) if fixed else ["  none"])
+    lines.extend(_aligned(fixed) if fixed else [_NONE_LINE])
     lines.extend(("", "Protected values"))
     states = [
         (str(item.get("name") or ""), str(item.get("state") or ""))
         for item in payload.get("protected_setting_states") or ()
         if isinstance(item, dict)
     ]
-    lines.extend(_aligned(states) if states else ["  none"])
+    lines.extend(_aligned(states) if states else [_NONE_LINE])
     lines.extend(
         (
             "",

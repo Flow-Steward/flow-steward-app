@@ -403,7 +403,7 @@ def _validate_action_param(
         return
     if action.category == "date":
         try:
-            validate_date_action_params(action.action_id, {key: value})
+            validate_date_action_params({key: value})
         except DateValueError as exc:
             errors.append(_issue(code=exc.code, message=str(exc), path=f"{path}.{key}"))
 

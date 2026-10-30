@@ -462,9 +462,11 @@ def test_impossible_batch_source_blocks_same_definition_draft_and_save():
     checked = service(db).validate(scope=SCOPE, project_id="project", bundle_yaml=text)
     assert not checked["can_save"], checked
     assert any(e["code"] == "workflow.state_selector_shape_invalid" for e in checked["issues"])
+    portability = service(db)
     with pytest.raises(WorkflowPortabilityError):
-        service(db).save(scope=SCOPE, project_id="project", bundle_yaml=text)
-    assert db.workflows == {} and db.history == []
+        portability.save(scope=SCOPE, project_id="project", bundle_yaml=text)
+    assert db.workflows == {}
+    assert db.history == []
 
 
 def test_child_declared_array_to_parent_loop_keeps_members_unknown():
@@ -497,8 +499,10 @@ def test_child_declared_array_to_parent_loop_keeps_members_unknown():
     ]
     assert len(warnings) == 2
     types = IOResolver(db).get_available_type_map_for_step(wf["workflow_id"], "consume")
-    assert types["state.orders"] == "array" and types["state.o"] == "json"
-    assert "state.o.id" not in types and "state.o.items" not in types
+    assert types["state.orders"] == "array"
+    assert types["state.o"] == "json"
+    assert "state.o.id" not in types
+    assert "state.o.items" not in types
 
 
 def whole_chunk_invoke():

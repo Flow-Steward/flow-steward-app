@@ -49,7 +49,8 @@ def test_direct_prompt_agent_without_workflow_capture_keeps_selected_skill_contr
     assert output.status == "pass", output
     assert output.artifacts["summary"] == "direct result"
     rendered = "\n".join(message.content for message in runtime.model.calls[0])
-    assert SYSTEM_TEXT in rendered and BASE_TEXT in rendered
+    assert SYSTEM_TEXT in rendered
+    assert BASE_TEXT in rendered
     assert '"summary"' in rendered
     assert "output_contract" not in output.metadata
 
@@ -128,7 +129,8 @@ def test_actual_prompt_schema_and_both_validators_use_captured_contract(
     assert "summary" in json.dumps(schemas[0])
     assert '"changed"' not in json.dumps(schemas[0])
     rendered = "\n".join(m.content for m in runtime.model.calls[0])
-    assert SYSTEM_TEXT in rendered and BASE_TEXT in rendered
+    assert SYSTEM_TEXT in rendered
+    assert BASE_TEXT in rendered
     assert "## Input Handling" in rendered
     assert '"summary"' in rendered
     assert '"changed"' not in rendered

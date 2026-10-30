@@ -1040,10 +1040,10 @@ def test_parent_cancel_stops_before_next_graph_action(between_advances):
             actions.append("action")
             yield {"status": "completed"}
 
+    graph = Graph()
+    lineage = _lineage_store(rows)
     with pytest.raises(helpers.JobCancelledException, match="parent"):
-        helpers.run_graph_with_cancel_check(
-            Graph(), {}, {}, bl=_lineage_store(rows), job_id="child"
-        )
+        helpers.run_graph_with_cancel_check(graph, {}, {}, bl=lineage, job_id="child")
     assert actions == (["stream"] if between_advances else [])
 
 
@@ -1108,10 +1108,10 @@ def test_ancestor_cancel_does_not_cross_completed_intermediate(finished, direct_
             yield {"status": "completed"}
 
     if not finished or direct_request:
+        graph = Graph()
+        lineage = _lineage_store(rows)
         with pytest.raises(helpers.JobCancelledException):
-            helpers.run_graph_with_cancel_check(
-                Graph(), {}, {}, bl=_lineage_store(rows), job_id="child"
-            )
+            helpers.run_graph_with_cancel_check(graph, {}, {}, bl=lineage, job_id="child")
         assert not actions
     else:
         helpers.run_graph_with_cancel_check(
@@ -1150,10 +1150,10 @@ def test_unreadable_ancestry_stops_without_claiming_user_cancellation(case, betw
             actions.append("action")
             yield {"status": "completed"}
 
+    graph = Graph()
+    lineage = SimpleNamespace(get_job=get_job)
     with pytest.raises(InvokeCancellationFenceUnavailable) as error:
-        helpers.run_graph_with_cancel_check(
-            Graph(), {}, {}, bl=SimpleNamespace(get_job=get_job), job_id="child"
-        )
+        helpers.run_graph_with_cancel_check(graph, {}, {}, bl=lineage, job_id="child")
     assert not isinstance(error.value, helpers.JobCancelledException)
     assert actions == (["stream"] if between_advances else [])
 
@@ -1167,7 +1167,9 @@ def test_resume_lease_loss_takes_precedence_over_parent_cancel():
     def lost():
         raise ResumeLeaseLost("lost")
 
+    graph = SimpleNamespace()
+    lineage = _lineage_store(rows)
     with pytest.raises(ResumeLeaseLost):
         helpers.run_graph_with_cancel_check(
-            SimpleNamespace(), {}, {}, bl=_lineage_store(rows), job_id="child", continue_check=lost
+            graph, {}, {}, bl=lineage, job_id="child", continue_check=lost
         )

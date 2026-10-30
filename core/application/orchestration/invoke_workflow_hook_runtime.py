@@ -23,7 +23,7 @@ from __future__ import annotations
 import copy
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 from core.application.workflows.workflow_hook_contract import (
@@ -276,8 +276,13 @@ def plan_hook_for_state(
     )
     target = plan.binding.target_workflow_id if plan.binding is not None else None
     if target and callable(getter) and holds_no_steps(getter(target)):
-        empty_plan: HookPlan = replace(plan, holds_no_steps=True)
-        return empty_plan
+        return HookPlan(
+            hook=plan.hook,
+            inputs=plan.inputs,
+            binding=plan.binding,
+            step_execution_id=plan.step_execution_id,
+            holds_no_steps=True,
+        )
     return plan
 
 

@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 _STANDARD_TOOLS_MODULE = "core.application.orchestration.tools.standard_tools"
 _STANDARD_TOOL_CATEGORY = "data"
 _CONNECTOR_ONLY_CONFIG = {"agent_exposure": "connector_only"}
+_NUMBERS_TOOL_ID = "std.numbers"
+_TEXT_TOOL_ID = "std.text"
+_JSON_TOOL_ID = "std.json"
 
 
 def _result_return(return_type: str) -> dict[str, Any]:
@@ -54,7 +57,7 @@ def _standard_manifest(
 
 def _numbers_manifest() -> dict[str, Any]:
     return _standard_manifest(
-        tool_id="std.numbers",
+        tool_id=_NUMBERS_TOOL_ID,
         display_name="Numbers",
         description="Deterministic numeric Standard Tool Actions.",
         label_key="registry.tools.standard.numbers.label",
@@ -101,7 +104,7 @@ def _numbers_manifest() -> dict[str, Any]:
 
 def _text_manifest() -> dict[str, Any]:
     return _standard_manifest(
-        tool_id="std.text",
+        tool_id=_TEXT_TOOL_ID,
         display_name="Text",
         description="Deterministic text Standard Tool Actions.",
         label_key="registry.tools.standard.text.label",
@@ -164,7 +167,7 @@ def _text_manifest() -> dict[str, Any]:
 
 def _json_manifest() -> dict[str, Any]:
     return _standard_manifest(
-        tool_id="std.json",
+        tool_id=_JSON_TOOL_ID,
         display_name="JSON",
         description="Deterministic JSON Standard Tool Actions.",
         label_key="registry.tools.standard.json.label",
@@ -215,7 +218,7 @@ def _json_manifest() -> dict[str, Any]:
 def _additional_stage_one_functions() -> dict[str, list[dict[str, Any]]]:
     """New standard operations; existing seven connector contracts stay intact."""
     return {
-        "std.text": [
+        _TEXT_TOOL_ID: [
             {
                 "name": "trim",
                 "display_name": "Trim",
@@ -280,7 +283,7 @@ def _additional_stage_one_functions() -> dict[str, list[dict[str, Any]]]:
                 "returns": {"name": "result", "type": "string", "required": True},
             },
         ],
-        "std.numbers": [
+        _NUMBERS_TOOL_ID: [
             {
                 "name": "coerce",
                 "display_name": "Coerce Number",
@@ -490,7 +493,7 @@ def _additional_stage_one_functions() -> dict[str, list[dict[str, Any]]]:
                 "returns": {"name": "result", "type": "string", "required": True},
             },
         ],
-        "std.json": [
+        _JSON_TOOL_ID: [
             {
                 "name": "omit",
                 "display_name": "Omit Paths",
@@ -603,9 +606,9 @@ def _date_manifest() -> dict[str, Any]:
 
 def builtin_standard_tool_manifests() -> dict[str, dict[str, Any]]:
     manifests = {
-        "std.numbers": _numbers_manifest(),
-        "std.text": _text_manifest(),
-        "std.json": _json_manifest(),
+        _NUMBERS_TOOL_ID: _numbers_manifest(),
+        _TEXT_TOOL_ID: _text_manifest(),
+        _JSON_TOOL_ID: _json_manifest(),
         "std.date": _date_manifest(),
     }
     for tool_id, functions in _additional_stage_one_functions().items():

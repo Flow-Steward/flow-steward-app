@@ -324,19 +324,17 @@ def test_projected_agent_clone_rolls_back_agent_relationships_and_changelog(
         service = agent_clone_module.AgentCommandService(
             get_db=lambda: failing_store, reload_registry=lambda: None
         )
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
+        catalog_row_patch = patch.object(
+            agent_clone_module,
+            "projection_aware_catalog_row",
+            side_effect=lambda *_args, **_kwargs: store.get_agent(source_id),
+        )
         with (
-            patch.object(
-                agent_clone_module,
-                "projection_aware_catalog_row",
-                side_effect=lambda *_args, **_kwargs: store.get_agent(source_id),
-            ),
+            catalog_row_patch,
             pytest.raises(ServiceError, match="Failed to clone agent"),
         ):
-            service.clone_agent(
-                source_id,
-                target_agent_id=target_id,
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
-            )
+            service.clone_agent(source_id, target_agent_id=target_id, scope=scope)
 
         with disposable_db_conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM registry_agents WHERE agent_id = %s", (target_id,))

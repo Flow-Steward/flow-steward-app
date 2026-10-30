@@ -23,9 +23,11 @@ def test_make_normalizes_absolute_operands_and_requires_positive_length():
     result = intervals.interval_make(dt("2026-10-29T10:00+01:00"), dt("2026-10-29T11:30Z"))
     assert result == window("2026-10-29T09:00:00Z", "2026-10-29T11:30:00Z")
     assert intervals.interval_duration(result) == 150
+    start = dt("2026-10-29T09:00Z")
     for end in ("2026-10-29T09:00Z", "2026-10-29T08:00Z"):
+        end_value = dt(end)
         with pytest.raises(DateValueError) as error:
-            intervals.interval_make(dt("2026-10-29T09:00Z"), dt(end))
+            intervals.interval_make(start, end_value)
         assert error.value.code == "invalid_interval"
 
 
@@ -177,8 +179,7 @@ def test_make_does_not_convert_aware_boundaries_to_the_supplied_zone(zone):
     "zone,code", [("CET", "abbreviated_timezone"), ("Invalid/Zone", "unknown_timezone")]
 )
 def test_make_still_validates_supplied_zone_for_aware_boundaries(zone, code):
+    start, end = dt("2026-10-29T09:00:00Z"), dt("2026-10-29T10:00:00Z")
     with pytest.raises(DateValueError) as error:
-        intervals.interval_make(
-            dt("2026-10-29T09:00:00Z"), dt("2026-10-29T10:00:00Z"), timezone=zone
-        )
+        intervals.interval_make(start, end, timezone=zone)
     assert error.value.code == code

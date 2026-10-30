@@ -666,7 +666,8 @@ def test_licensed_installed_projection_refuses_browser_source_edit_without_mutat
         after = _installed_source_state(conn, workflow_id, install_id)
         assert after["anchor"][0] == before["anchor"][0] + 1
         assert after["anchor"][1:5] == before["anchor"][1:5]
-        assert before["anchor"][5] is True and after["anchor"][5] is False
+        assert before["anchor"][5] is True
+        assert after["anchor"][5] is False
         assert after["anchor"][6:] == before["anchor"][6:]
         assert {key: value for key, value in after.items() if key != "anchor"} == {
             key: value for key, value in before.items() if key != "anchor"

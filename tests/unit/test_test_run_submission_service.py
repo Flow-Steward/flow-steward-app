@@ -359,6 +359,7 @@ def test_supplied_step_value_cannot_override_configured_workflow_default():
             )
         ],
     )
+    required_issue = _required_step_issue()
     with pytest.raises(TestRunInputRejected) as refused:
         _submit(
             kind="step",
@@ -370,7 +371,7 @@ def test_supplied_step_value_cannot_override_configured_workflow_default():
                     {"name": "request", "type": "text", "required": True, "source": ""}
                 ]
             },
-            step_validation={"valid": False, "errors": [_required_step_issue()]},
+            step_validation={"valid": False, "errors": [required_issue]},
         )
     assert "workflow.input.override_forbidden" in [row["code"] for row in refused.value.errors]
 
@@ -427,6 +428,7 @@ def test_supplied_step_fields_keep_canonical_type_coercion(field_type, value, ex
 def test_supplied_step_value_discharges_only_its_matching_structured_issue(issue):
     from core.application.workflows.test_run_submission_service import TestRunReadinessRejected
 
+    required_issue = _required_step_issue()
     with pytest.raises(TestRunReadinessRejected) as refused:
         _submit(
             kind="step",
@@ -439,7 +441,7 @@ def test_supplied_step_value_discharges_only_its_matching_structured_issue(issue
             },
             step_validation={
                 "valid": False,
-                "errors": [_required_step_issue(), issue],
+                "errors": [required_issue, issue],
                 "warnings": [],
             },
         )

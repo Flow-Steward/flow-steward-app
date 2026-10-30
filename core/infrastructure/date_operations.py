@@ -35,7 +35,7 @@ def _lexicon(lexicons: Mapping[str, DateLexicon], locale: str) -> DateLexicon:
     return lexicons[locale]
 
 
-def validate_date_operation_params(action_id: str, params: Mapping[str, object]) -> None:
+def validate_date_operation_params(params: Mapping[str, object]) -> None:
     """Validate date format syntax, including at configuration boundaries."""
     for name in ("input_format", "output_format", "date_format", "time_format"):
         value = params.get(name)
@@ -60,7 +60,7 @@ def execute_date_operation(
     lexicons: Mapping[str, DateLexicon],
 ) -> object:
     """Run a date action without filesystem, clock, locale or environment reads."""
-    validate_date_operation_params(action_id, params)
+    validate_date_operation_params(params)
     operation = action_id.removeprefix("date.")
     options: dict[str, Any] = dict(params)
     # Casts at this raw JSON boundary preserve values, including missing None;

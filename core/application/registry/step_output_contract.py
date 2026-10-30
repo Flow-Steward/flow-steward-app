@@ -308,13 +308,12 @@ def _add_skill_fields(
 ) -> None:
     skill = _read(db, "get_skill", skill_id, {}) if skill_id else {}
     skill = skill if isinstance(skill, dict) else {}
-    rows = (
-        getattr(skill_manifest, "expected_outputs", None)
-        if skill_manifest is not None
-        else _read(db, "get_skill_outputs", skill_id, None)
-        if skill_id
-        else []
-    )
+    if skill_manifest is not None:
+        rows = getattr(skill_manifest, "expected_outputs", None)
+    elif skill_id:
+        rows = _read(db, "get_skill_outputs", skill_id, None)
+    else:
+        rows = []
     if rows is None:
         rows = skill.get("_outputs", skill.get("expected_outputs", []))
     schema = (
@@ -369,13 +368,12 @@ def _add_skill_fields(
 
 def _add_agent_fields(fields: dict[str, dict], db: Any, agent_id: str, agent_manifest: Any) -> None:
     own_getter = getattr(db, "get_agent_own_outputs", None)
-    own = (
-        own_getter(agent_id)
-        if agent_id and callable(own_getter)
-        else _read(db, "get_agent_outputs", agent_id, [])
-        if agent_id
-        else []
-    )
+    if agent_id and callable(own_getter):
+        own = own_getter(agent_id)
+    elif agent_id:
+        own = _read(db, "get_agent_outputs", agent_id, [])
+    else:
+        own = []
     for row in own or []:
         if row.get("source") in (None, "", "own"):
             _add_declaration(fields, row, "agent", agent_id)

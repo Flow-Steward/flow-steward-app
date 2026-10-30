@@ -16,6 +16,8 @@ from core.infrastructure.date_operations import (
 )
 from core.infrastructure.date_types import DateLexicon
 
+_INPUT_KIND_BY_TYPE = {"array": "array", "object": "json"}
+
 
 def execute_date_action(
     action_id: str,
@@ -31,9 +33,9 @@ def execute_date_action(
     return execute_date_operation(action_id, value, params, lexicons=lexicons)
 
 
-def validate_date_action_params(action_id: str, params: Mapping[str, object]) -> None:
+def validate_date_action_params(params: Mapping[str, object]) -> None:
     """Validate literal format syntax during transform configuration validation."""
-    validate_date_operation_params(action_id, params)
+    validate_date_operation_params(params)
 
 
 def _string(**extra: Any) -> dict[str, Any]:
@@ -160,7 +162,7 @@ def build_date_actions() -> dict[str, TransformAction]:
             action_id,
             "date",
             name.replace("_", " ").title(),
-            "array" if input_type == "array" else "json" if input_type == "object" else "scalar",
+            _INPUT_KIND_BY_TYPE.get(input_type, "scalar"),
             input_type,
             output_type,
             {"type": "object", "properties": properties, "additionalProperties": False},

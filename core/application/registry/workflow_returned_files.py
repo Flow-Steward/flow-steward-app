@@ -38,6 +38,7 @@ RETURNED_FILES_FIELD = "returned_files"
 ORIGIN_STEP = "step"
 ORIGIN_LEGACY = "legacy"
 STATE_TARGET_PREFIX = "state."
+_DECLARATION_INVALID_CODE = "workflow.interface.returned_file_declaration_invalid"
 
 #: The result id of the one file a step kind produces.
 FILE_FROM_BASE64_RESULT = "file"
@@ -182,7 +183,7 @@ def _returned_file_settings_issues(step: Mapping[str, Any]) -> list[dict[str, An
     if not isinstance(raw, list):
         return [
             _issue(
-                "workflow.interface.returned_file_declaration_invalid",
+                _DECLARATION_INVALID_CODE,
                 "Returned files must be a list of result declarations",
                 base_path,
             )
@@ -194,7 +195,7 @@ def _returned_file_settings_issues(step: Mapping[str, Any]) -> list[dict[str, An
         if not isinstance(item, Mapping):
             issues.append(
                 _issue(
-                    "workflow.interface.returned_file_declaration_invalid",
+                    _DECLARATION_INVALID_CODE,
                     "Returned file declaration must be an object",
                     path,
                 )
@@ -204,7 +205,7 @@ def _returned_file_settings_issues(step: Mapping[str, Any]) -> list[dict[str, An
         if not isinstance(result, str) or not result.strip():
             issues.append(
                 _issue(
-                    "workflow.interface.returned_file_declaration_invalid",
+                    _DECLARATION_INVALID_CODE,
                     "Returned file declaration must name a non-empty result",
                     f"{path}.result",
                 )
@@ -212,7 +213,7 @@ def _returned_file_settings_issues(step: Mapping[str, Any]) -> list[dict[str, An
         if "key" in item and not isinstance(item["key"], str):
             issues.append(
                 _issue(
-                    "workflow.interface.returned_file_declaration_invalid",
+                    _DECLARATION_INVALID_CODE,
                     "Returned file key must be a string when provided",
                     f"{path}.key",
                 )
@@ -220,7 +221,7 @@ def _returned_file_settings_issues(step: Mapping[str, Any]) -> list[dict[str, An
     return issues
 
 
-_KEY_CHARS = re.compile(r"[^A-Za-z0-9_]+")
+_KEY_CHARS = re.compile(r"\W+", re.ASCII)
 
 
 def default_returned_file_key(result: StepFileResult) -> str:

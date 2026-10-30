@@ -364,7 +364,8 @@ def test_new_artifacts_are_removed_after_failed_first_issue(tmp_path):
     before_env = store.env_path(config).read_bytes()
     with pytest.raises(InstallerFailure):
         service.issue()
-    assert not secret.exists() and not secret.parent.exists()
+    assert not secret.exists()
+    assert not secret.parent.exists()
     assert not state.exists()
     assert store.env_path(config).read_bytes() == before_env
 

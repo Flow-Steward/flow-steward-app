@@ -64,7 +64,7 @@ class BootstrapRecoveryService:
                     self.gateway.activate()
                     self.gateway.verify(restored=True)
                 self.gateway.finish()
-            except BaseException:
+            except BaseException:  # NOSONAR - interrupted cleanup still reports kept recovery data
                 raise InstallerFailure(
                     code="bootstrap_recovery_needed",
                     cause="Bootstrap recovery could not verify compensation. Recovery material was retained.",

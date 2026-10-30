@@ -5093,7 +5093,8 @@ def test_bootstrap_recovery_forwards_selected_descriptor(fake_repo):
     log = _log(fake_repo)
     assert f"ARG=FS_ENV_FILE={selected_env}" in log
     assert f"ARG=FS_COMPOSE_PROJECT_NAME={project_name}" in log
-    assert "ARG=FS_COMPOSE_FILES=" in log and str(repo / "custom.yaml") in log
+    assert "ARG=FS_COMPOSE_FILES=" in log
+    assert str(repo / "custom.yaml") in log
     assert "core.entrypoints.cli.bootstrap_recovery" in log
 
 

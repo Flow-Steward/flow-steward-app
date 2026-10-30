@@ -69,7 +69,8 @@ class _Store:
         self._create("skill", data["skill_id"], data)
 
     def save_agent(self, data, author="admin", *, sync_relationships=True, create_only=False):
-        assert create_only and sync_relationships
+        assert create_only
+        assert sync_relationships
         self._create("agent", data["agent_id"], data)
 
     def save_guardrail(
@@ -239,13 +240,16 @@ def test_clean_import_creates_every_definition_before_the_workflow() -> None:
     assert agent["structured_inputs"] == [
         {"name": "topic", "type": "text", "description": "", "required": True}
     ]
-    assert agent["account_id"] == ACCOUNT and agent["enabled"] is True
-    assert "provider" not in agent["config"] and agent["config"]["max_tokens"] == 4000
+    assert agent["account_id"] == ACCOUNT
+    assert agent["enabled"] is True
+    assert "provider" not in agent["config"]
+    assert agent["config"]["max_tokens"] == 4000
     draft = store.rows["skill"]["draft"]
     assert [field["name"] for field in draft["expected_inputs"]] == ["topic", "brief"]
     assert draft["expected_inputs"][1]["contract_id"] == "brief.v1"
     rule = store.rows["guardrail"][GLOBAL_RULE]
-    assert rule["project_id"] is None and rule["agents"] == ["writer"]
+    assert rule["project_id"] is None
+    assert rule["agents"] == ["writer"]
     assert store.rows["workflow"]["brief_flow"]["enabled"] is False
     assert {item["id"] for item in result["definitions"]["created"]} == {
         "brief.v1",
@@ -468,7 +472,8 @@ def test_an_id_taken_during_apply_aborts_without_overwriting() -> None:
 
     assert excinfo.value.code == "workflow_import_definition_conflict"
     assert excinfo.value.status_code == 409
-    assert store.saves == [] and not store.rows["skill"]
+    assert store.saves == []
+    assert not store.rows["skill"]
 
 
 class _StoreWithRuntimeRows(_Store):
@@ -526,7 +531,8 @@ def test_rename_on_an_ordinary_dependency_is_refused() -> None:
 
     classified = service._classify_dependency(row, index)
 
-    assert classified["status"] == "conflict" and classified["blocking"] is True
+    assert classified["status"] == "conflict"
+    assert classified["blocking"] is True
     mapped = service._classify_dependency(
         row,
         service._resolution_index(
@@ -621,7 +627,8 @@ def test_a_file_cannot_create_ids_the_platform_derives(
     kind = {"data_contracts": "data_contract", "agents": "agent", "skills": "skill"}[section]
 
     row = _rows(preflight)[f"{kind}:{ref}"]
-    assert row["status"] == "blocked" and "reserved" in row["message"]
+    assert row["status"] == "blocked"
+    assert "reserved" in row["message"]
     assert preflight["can_apply"] is False
 
 
@@ -637,7 +644,8 @@ def test_a_contract_gets_the_checks_of_a_manual_save() -> None:
         _service(_Store()).preflight_import(_bundle(definitions), target_project_id=PROJECT)
     )["data_contract:brief.v1"]
 
-    assert row["status"] == "blocked" and "schema.type=array" in row["message"]
+    assert row["status"] == "blocked"
+    assert "schema.type=array" in row["message"]
 
 
 def test_a_guardrail_on_an_agent_this_account_does_not_own_is_refused() -> None:
@@ -666,7 +674,8 @@ def test_a_save_refused_after_preflight_is_a_portability_error() -> None:
         _apply(store)
 
     assert caught.value.code == "workflow_import_definition_invalid"
-    assert store.rows["agent"] == {} and store.rows["workflow"] == {}
+    assert store.rows["agent"] == {}
+    assert store.rows["workflow"] == {}
 
 
 def test_an_import_without_a_project_says_so() -> None:

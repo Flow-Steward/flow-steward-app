@@ -440,12 +440,10 @@ def test_virtual_skill_anchor_collision_and_clone_failure_roll_back(
             {"skill_id": skill_id, "display_name": "User-owned collision", "enabled": False},
             author="projected_skill_collision_test",
         )
+        service = AgentCommandService(get_db=lambda: store, reload_registry=lambda: None)
+        scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test")
         with pytest.raises(ServiceError):
-            AgentCommandService(get_db=lambda: store, reload_registry=lambda: None).clone_agent(
-                source_id,
-                target_agent_id=target_id,
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test"),
-            )
+            service.clone_agent(source_id, target_agent_id=target_id, scope=scope)
         assert store.get_skill(skill_id)["display_name"] == "User-owned collision"
         assert store.get_agent(target_id) is None
     finally:
@@ -471,18 +469,14 @@ def test_virtual_skill_anchor_and_agent_creation_roll_back_together(
         original_materializer(agent_id)
         raise RuntimeError("injected clone failure after contract materialization")
 
+    service = AgentCommandService(get_db=lambda: store, reload_registry=lambda: None)
+    scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test")
+    materializer_patch = patch.object(
+        store, "materialize_agent_contract", side_effect=fail_after_materialization
+    )
     try:
-        with (
-            patch.object(
-                store, "materialize_agent_contract", side_effect=fail_after_materialization
-            ),
-            pytest.raises(ServiceError),
-        ):
-            AgentCommandService(get_db=lambda: store, reload_registry=lambda: None).clone_agent(
-                source_id,
-                target_agent_id=target_id,
-                scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="projected-skill-test"),
-            )
+        with materializer_patch, pytest.raises(ServiceError):
+            service.clone_agent(source_id, target_agent_id=target_id, scope=scope)
         assert store.get_agent(target_id) is None
         assert store.get_skill(skill_id) is None
     finally:

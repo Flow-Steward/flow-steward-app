@@ -22,6 +22,7 @@ from core.infrastructure.extension_runtime.object_storage import (
 )
 
 _MESSAGE_INVALID_CLEANUP_JOURNAL = "invalid cleanup journal"
+_ARTIFACT_METADATA_PREFIX = "artifacts/_metadata/"
 
 
 def _valid_dataset_object_key(dataset_id: str, object_key: str) -> bool:
@@ -140,7 +141,7 @@ def _purge_authority_batch(storage: Any, keys: list[str]) -> dict[str, int]:
     sidecars = [
         key
         for key in unique
-        if key.startswith("artifacts/_metadata/")
+        if key.startswith(_ARTIFACT_METADATA_PREFIX)
         or (key.startswith("datasets/") and key.endswith("/meta.json"))
     ]
     objects = [key for key in unique if key not in manifests and key not in sidecars]
@@ -148,8 +149,8 @@ def _purge_authority_batch(storage: Any, keys: list[str]) -> dict[str, int]:
     # legacy no-job path must also remove an existing display sidecar before
     # deleting the metadata that identifies its original object.
     for key in sidecars:
-        if key.startswith("artifacts/_metadata/"):
-            artifact_id = key.removeprefix("artifacts/_metadata/").removesuffix(".json")
+        if key.startswith(_ARTIFACT_METADATA_PREFIX):
+            artifact_id = key.removeprefix(_ARTIFACT_METADATA_PREFIX).removesuffix(".json")
             if artifact_id and "/" not in artifact_id and "\\" not in artifact_id:
                 presentation_key = f"artifacts/{artifact_id}/_presentation.json"
                 try:

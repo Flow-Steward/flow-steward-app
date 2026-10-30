@@ -17,6 +17,8 @@ from core.entrypoints.api.provider_webhook_callbacks import (
     TriggerWebhookCallbacks,
 )
 
+_MESSAGE_NO_PROVIDER_TRIGGER_MATCHED = "No workflow provider trigger matched this webhook"
+
 
 def handle_workflow_trigger_webhook(
     *,
@@ -105,13 +107,13 @@ def handle_workflow_trigger_webhook(
             workflow_id=None,
             request=request,
             reason="provider_trigger_not_matched",
-            detail="No workflow provider trigger matched this webhook",
+            detail=_MESSAGE_NO_PROVIDER_TRIGGER_MATCHED,
             status_code=404,
             event_name=event_name,
             payload_summary=payload_summary,
         )
         return JSONResponse(
-            {"error": "No workflow provider trigger matched this webhook"},
+            {"error": _MESSAGE_NO_PROVIDER_TRIGGER_MATCHED},
             status_code=404,
         )
     if len(matches) > 1:
@@ -142,9 +144,7 @@ def handle_workflow_trigger_webhook(
     selected_trigger = matches[0]
     with provider_trigger_admission(bl, selected_trigger) as active:
         if not active:
-            return JSONResponse(
-                {"error": "No workflow provider trigger matched this webhook"}, status_code=404
-            )
+            return JSONResponse({"error": _MESSAGE_NO_PROVIDER_TRIGGER_MATCHED}, status_code=404)
         selected_workflow_id = str(selected_trigger.get("workflow_id") or "").strip()
         project_id = str(selected_trigger.get("project_id") or scoped_project_id or "").strip()
         run_cfg = dict(scoped_run_cfg or {})

@@ -363,7 +363,8 @@ class TestCatalogCategories:
         resp = get("/api/catalog-categories")
         assert resp.status_code == 200, f"catalog-categories returned {resp.status_code}"
         ids = [row["id"] for row in resp.json()]
-        assert "other" in ids and "marketing" in ids
+        assert "other" in ids
+        assert "marketing" in ids
 
 
 # ── History/Diff for All Entity Types ─────────────────────────────────────────

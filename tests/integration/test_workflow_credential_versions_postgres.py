@@ -2,22 +2,27 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 import psycopg
 import pytest
 
 from core.infrastructure.db.db_pool import transaction_connection
+from tests.integration import test_workflow_trigger_lifecycle_postgres as _trigger_lifecycle
 from tests.integration.test_workflow_trigger_lifecycle_postgres import (
     _create_job,
     _delete,
     _state,
-    trigger_owner,  # noqa: F401 - shared disposable fixture
 )
+
+# Shared disposable fixture; bound by assignment so test parameters can use its name.
+trigger_owner = _trigger_lifecycle.trigger_owner
 
 pytestmark = pytest.mark.integration
 
 
-def test_actual_project_secret_versions_preserve_values_metadata_and_inactive_state(request):
-    owner = request.getfixturevalue("trigger_owner")
+def test_actual_project_secret_versions_preserve_values_metadata_and_inactive_state(trigger_owner):
+    owner = trigger_owner
     for index, active in enumerate((True, True, False)):
         with transaction_connection(owner.store.conn):
             assert owner.store.save_project_secret(
@@ -43,14 +48,14 @@ def test_actual_project_secret_versions_preserve_values_metadata_and_inactive_st
         assert [row[2] for row in rows] == [{"fixture_version": index} for index in range(3)]
 
 
-def test_restore_explicit_rotation_and_enable_restore_only_one_trigger(request):
+def test_restore_explicit_rotation_and_enable_restore_only_one_trigger(trigger_owner):
     from core.application.workflows.workflow_entrypoint_repository import load_workflow_entrypoint
     from core.application.workflows.workflow_webhook_creation_service import (
         WorkflowWebhookUpdateCommand,
         create_workflow_webhook_update_service,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     service = create_workflow_webhook_update_service(
         resolve_project_binding=lambda *_: (owner.project, {})
     )
@@ -95,12 +100,12 @@ def test_restore_explicit_rotation_and_enable_restore_only_one_trigger(request):
 
 
 @pytest.mark.parametrize("path", ["registry", "trash"])
-def test_version_lock_conflict_rolls_back_complete_lifecycle(request, path):
+def test_version_lock_conflict_rolls_back_complete_lifecycle(trigger_owner, path):
     from core.application.workflows.project_credential_versions import (
         WorkflowCredentialVersionConflict,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     before = _state(owner)
     with psycopg.connect(owner.dsn) as holder:
         holder.execute(
@@ -113,7 +118,7 @@ def test_version_lock_conflict_rolls_back_complete_lifecycle(request, path):
 
 @pytest.mark.parametrize("oauth", [False, True])
 def test_actual_callback_version_writer_foreign_metadata_and_no_resurrection(
-    request, monkeypatch, oauth
+    trigger_owner, monkeypatch, oauth
 ):
     from core.application.extensions.callback_registration import (
         ExtensionCallbackRegistrationService,
@@ -121,7 +126,7 @@ def test_actual_callback_version_writer_foreign_metadata_and_no_resurrection(
     )
     from core.infrastructure.db.platform_stores import PlatformIntegrationStore
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     store = PlatformIntegrationStore(owner.dsn)
     service = ExtensionCallbackRegistrationService(store, project_repository=owner.store)
     declaration = {
@@ -172,7 +177,7 @@ def test_actual_callback_version_writer_foreign_metadata_and_no_resurrection(
 
 @pytest.mark.parametrize("oauth", [False, True])
 def test_callback_guard_conflict_escapes_actual_owner_without_registration(
-    request, monkeypatch, oauth
+    trigger_owner, monkeypatch, oauth
 ):
     from secrets import token_urlsafe
     from uuid import UUID, uuid4
@@ -187,7 +192,7 @@ def test_callback_guard_conflict_escapes_actual_owner_without_registration(
     )
     from core.infrastructure.db.platform_stores import PlatformIntegrationStore
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     registration_id = uuid4()
     ref = (callback_capability_ref if oauth else callback_secret_ref)(str(registration_id))
     store = PlatformIntegrationStore(owner.dsn)
@@ -208,6 +213,21 @@ def test_callback_guard_conflict_escapes_actual_owner_without_registration(
         "project_id": owner.project,
         "base_url": "https://fixture.invalid",
     }
+
+    def register() -> None:
+        if oauth:
+            with (
+                transaction_connection(store.conn) as physical,
+                physical.cursor() as cursor,
+            ):
+                cursor.execute(
+                    "UPDATE projects SET name='must roll back' WHERE id=%s",
+                    (owner.project,),
+                )
+                service.ensure_oauth_registration(**kwargs)
+        else:
+            service.create_registration(**kwargs)
+
     try:
         with transaction_connection(store.conn):
             assert store.save_project_secret(
@@ -222,18 +242,7 @@ def test_callback_guard_conflict_escapes_actual_owner_without_registration(
                 (owner.project, ref),
             )
             with pytest.raises(WorkflowCredentialVersionConflict):
-                if oauth:
-                    with (
-                        transaction_connection(store.conn) as physical,
-                        physical.cursor() as cursor,
-                    ):
-                        cursor.execute(
-                            "UPDATE projects SET name='must roll back' WHERE id=%s",
-                            (owner.project,),
-                        )
-                        service.ensure_oauth_registration(**kwargs)
-                else:
-                    service.create_registration(**kwargs)
+                register()
         with psycopg.connect(owner.dsn) as conn:
             assert conn.execute(
                 "SELECT name FROM projects WHERE id=%s", (owner.project,)
@@ -250,7 +259,7 @@ def test_callback_guard_conflict_escapes_actual_owner_without_registration(
         store.conn.close()
 
 
-def test_stale_route_preloaded_webhook_command_cannot_change_or_resurrect_owner(request):
+def test_stale_route_preloaded_webhook_command_cannot_change_or_resurrect_owner(trigger_owner):
     from core.application.workflows.workflow_entrypoint_repository import load_workflow_entrypoint
     from core.application.workflows.workflow_webhook_creation_service import (
         WorkflowWebhookCreationError,
@@ -258,7 +267,7 @@ def test_stale_route_preloaded_webhook_command_cannot_change_or_resurrect_owner(
         create_workflow_webhook_update_service,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     service = create_workflow_webhook_update_service(
         resolve_project_binding=lambda *_: (owner.project, {})
     )
@@ -317,12 +326,14 @@ def _cleanup_client(owner, monkeypatch, scope):
     "boundary",
     ["authorized", "workflow", "account", "project-scope", "workflow-scope", "wrong-project"],
 )
-def test_trashed_webhook_cleanup_keeps_exact_ownership_boundary(request, monkeypatch, boundary):
+def test_trashed_webhook_cleanup_keeps_exact_ownership_boundary(
+    trigger_owner, monkeypatch, boundary
+):
     from uuid import uuid4
 
     from core.application.auth.config import DEFAULT_ACCOUNT_ID
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     other = str(uuid4())
     scope = owner.scope
     if boundary == "account":
@@ -364,7 +375,7 @@ def test_trashed_webhook_cleanup_keeps_exact_ownership_boundary(request, monkeyp
 
 
 def test_reference_committed_after_single_inventory_may_be_ordered_after_retirement(
-    request, monkeypatch
+    trigger_owner, monkeypatch
 ):
     from uuid import uuid4
 
@@ -373,7 +384,7 @@ def test_reference_committed_after_single_inventory_may_be_ordered_after_retirem
     from core.application.auth.config import DEFAULT_ACCOUNT_ID
     from core.application.workflows import workflow_trigger_lifecycle as lifecycle
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     other = "overlapping-reference-" + uuid4().hex
     with psycopg.connect(owner.dsn) as conn:
         conn.execute(
@@ -435,10 +446,12 @@ def test_reference_committed_after_single_inventory_may_be_ordered_after_retirem
 @pytest.mark.parametrize(
     "boundary", ["authorized", "workflow", "account", "project-scope", "workflow-scope"]
 )
-def test_trashed_provider_cleanup_keeps_exact_ownership_boundary(request, monkeypatch, boundary):
+def test_trashed_provider_cleanup_keeps_exact_ownership_boundary(
+    trigger_owner, monkeypatch, boundary
+):
     from uuid import uuid4
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     scope = owner.scope
     if boundary == "account":
         scope = scope.model_copy(update={"account_id": str(uuid4())})
@@ -468,7 +481,7 @@ def test_trashed_provider_cleanup_keeps_exact_ownership_boundary(request, monkey
 
 
 def test_authenticated_public_request_reaching_submission_after_delete_has_no_durable_job(
-    request, monkeypatch
+    trigger_owner, monkeypatch
 ):
     from psycopg.types.json import Jsonb
 
@@ -479,7 +492,7 @@ def test_authenticated_public_request_reaching_submission_after_delete_has_no_du
         _workflow_entrypoint_test_surface,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     with transaction_connection(owner.store.conn):
         assert owner.store.save_project_secret(
             project_id=owner.project, secret_key=owner.key, secret_value="token-123"
@@ -525,7 +538,7 @@ def test_authenticated_public_request_reaching_submission_after_delete_has_no_du
 @pytest.mark.parametrize("path", ["registry", "trash"])
 @pytest.mark.parametrize("winner", ["rotation", "deletion"])
 def test_actual_rotation_and_retirement_serialize_without_late_active_version(
-    request, monkeypatch, path, winner
+    trigger_owner, monkeypatch, path, winner
 ):
     import threading
     from concurrent.futures import ThreadPoolExecutor
@@ -540,7 +553,7 @@ def test_actual_rotation_and_retirement_serialize_without_late_active_version(
     from core.infrastructure.db.platform_stores import PlatformProjectStore
     from tests.integration.test_workflow_trigger_lifecycle_postgres import _wait_for_lock
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     writer = PlatformProjectStore(owner.dsn)
     with psycopg.connect(owner.dsn) as setup:
         setup.execute(
@@ -630,7 +643,7 @@ def test_actual_rotation_and_retirement_serialize_without_late_active_version(
 
 
 @pytest.mark.parametrize("operation", ["create", "enable", "regenerate"])
-def test_deleted_owner_refuses_trigger_mutations_without_changes(request, operation):
+def test_deleted_owner_refuses_trigger_mutations_without_changes(trigger_owner, operation):
     from core.application.workflows.workflow_entrypoint_repository import load_workflow_entrypoint
     from core.application.workflows.workflow_webhook_creation_service import (
         WorkflowWebhookCreateCommand,
@@ -641,7 +654,7 @@ def test_deleted_owner_refuses_trigger_mutations_without_changes(request, operat
         create_workflow_webhook_update_service,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     current = load_workflow_entrypoint(owner.store, owner.key)
 
     def resolve(*_):
@@ -649,45 +662,48 @@ def test_deleted_owner_refuses_trigger_mutations_without_changes(request, operat
 
     _delete(owner, "registry")
     before = _state(owner)
+    if operation == "create":
+        create_command = WorkflowWebhookCreateCommand.from_request(
+            workflow_id=owner.workflow,
+            project_id=owner.project,
+            entry_key=owner.key + "new",
+            request={},
+            expected_input_names=set(),
+        )
+        creation = create_workflow_webhook_creation_service(resolve_project_binding=resolve)
+        mutate = partial(creation.create, bl=owner.store, command=create_command)
+    elif operation == "enable":
+        update_command = WorkflowWebhookUpdateCommand.from_request(
+            workflow_id=owner.workflow,
+            entry_key=owner.key,
+            existing=current,
+            request={"enabled": True},
+            expected_input_names=set(),
+        )
+        update = create_workflow_webhook_update_service(resolve_project_binding=resolve)
+        mutate = partial(update.update, bl=owner.store, command=update_command)
+    else:
+        mutation = create_workflow_webhook_mutation_service()
+        mutate = partial(
+            mutation.regenerate,
+            bl=owner.store,
+            entry_key=owner.key,
+            next_entry_key=owner.key + "new",
+        )
     with pytest.raises(WorkflowWebhookCreationError) as exc:
-        if operation == "create":
-            command = WorkflowWebhookCreateCommand.from_request(
-                workflow_id=owner.workflow,
-                project_id=owner.project,
-                entry_key=owner.key + "new",
-                request={},
-                expected_input_names=set(),
-            )
-            create_workflow_webhook_creation_service(resolve_project_binding=resolve).create(
-                bl=owner.store, command=command
-            )
-        elif operation == "enable":
-            command = WorkflowWebhookUpdateCommand.from_request(
-                workflow_id=owner.workflow,
-                entry_key=owner.key,
-                existing=current,
-                request={"enabled": True},
-                expected_input_names=set(),
-            )
-            create_workflow_webhook_update_service(resolve_project_binding=resolve).update(
-                bl=owner.store, command=command
-            )
-        else:
-            create_workflow_webhook_mutation_service().regenerate(
-                bl=owner.store, entry_key=owner.key, next_entry_key=owner.key + "new"
-            )
+        mutate()
     assert exc.value.status_code == 404
     assert _state(owner) == before
 
 
-def test_inactive_projection_consumer_retains_exact_current_authority(request):
+def test_inactive_projection_consumer_retains_exact_current_authority(trigger_owner):
     from uuid import uuid4
 
     from psycopg.types.json import Jsonb
 
     from core.application.auth.config import DEFAULT_ACCOUNT_ID
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     suffix = uuid4().hex
     extension, release, install = "fixture." + suffix, "release_" + suffix, "install_" + suffix
     try:
@@ -736,10 +752,10 @@ def test_inactive_projection_consumer_retains_exact_current_authority(request):
             connection.execute("DELETE FROM extension_releases WHERE release_id=%s", (release,))
 
 
-def test_same_literal_key_in_foreign_account_remains_byte_exact(request):
+def test_same_literal_key_in_foreign_account_remains_byte_exact(trigger_owner):
     from uuid import uuid4
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     account, project = str(uuid4()), str(uuid4())
     try:
         with psycopg.connect(owner.dsn) as connection:
@@ -772,16 +788,17 @@ def test_same_literal_key_in_foreign_account_remains_byte_exact(request):
             connection.execute("DELETE FROM accounts WHERE id=%s", (account,))
 
 
-def test_legacy_top_level_only_rotation_leaves_unreferenced_old_key_retained(request):
+def test_legacy_top_level_only_rotation_leaves_unreferenced_old_key_retained(trigger_owner):
     from core.application.workflows.workflow_entrypoint_repository import load_workflow_entrypoint
     from core.application.workflows.workflow_webhook_creation_service import (
         WorkflowWebhookUpdateCommand,
         create_workflow_webhook_update_service,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     current = load_workflow_entrypoint(owner.store, owner.key)
-    assert current["secret_ref"] == owner.key and current["auth_config_jsonb"] == {}
+    assert current["secret_ref"] == owner.key
+    assert current["auth_config_jsonb"] == {}
     command = WorkflowWebhookUpdateCommand.for_rotation(
         workflow_id=owner.workflow,
         entry_key=owner.key,
@@ -811,14 +828,14 @@ def test_legacy_top_level_only_rotation_leaves_unreferenced_old_key_retained(req
         ).fetchone() == (False,)
 
 
-def test_guard_refresh_is_reentrant_and_includes_new_backdated_retained_version(request):
+def test_guard_refresh_is_reentrant_and_includes_new_backdated_retained_version(trigger_owner):
     from uuid import uuid4
 
     from core.application.workflows.project_credential_versions import (
         guard_project_credential_versions,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     new_id = str(uuid4())
     observed = []
     with psycopg.connect(owner.dsn) as connection, connection.cursor() as cursor:
@@ -842,7 +859,9 @@ def test_guard_refresh_is_reentrant_and_includes_new_backdated_retained_version(
         guard_project_credential_versions(
             BetweenPasses(), project_id=owner.project, secret_key=owner.key
         )
-        assert len(observed) == 2 and new_id not in observed[0] and new_id in observed[1]
+        assert len(observed) == 2
+        assert new_id not in observed[0]
+        assert new_id in observed[1]
         guard_project_credential_versions(cursor, project_id=owner.project, secret_key=owner.key)
     _delete(owner, "registry")
     with psycopg.connect(owner.dsn) as connection:
@@ -853,7 +872,7 @@ def test_guard_refresh_is_reentrant_and_includes_new_backdated_retained_version(
 
 
 def test_different_workflow_actual_rotation_conflict_rolls_back_without_partial_version(
-    request, monkeypatch
+    trigger_owner, monkeypatch
 ):
     import threading
     from concurrent.futures import ThreadPoolExecutor
@@ -868,7 +887,7 @@ def test_different_workflow_actual_rotation_conflict_rolls_back_without_partial_
     )
     from core.infrastructure.db.platform_stores import PlatformProjectStore
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     other, entry = "shared-" + uuid4().hex, uuid4().hex
     writer = PlatformProjectStore(owner.dsn)
     reached, release = threading.Event(), threading.Event()
@@ -918,10 +937,8 @@ def test_different_workflow_actual_rotation_conflict_rolls_back_without_partial_
                 assert reached.wait(10)
                 with pytest.raises(WorkflowWebhookCreationError) as exc:
                     service.update(bl=owner.store, command=commands[1])
-                assert (
-                    exc.value.status_code == 409
-                    and exc.value.code == "workflow_credential_version_conflict"
-                )
+                assert exc.value.status_code == 409
+                assert exc.value.code == "workflow_credential_version_conflict"
             finally:
                 release.set()
             first.result(timeout=10)
@@ -945,7 +962,7 @@ def test_different_workflow_actual_rotation_conflict_rolls_back_without_partial_
 
 
 def test_old_snapshot_version_inversion_conflicts_and_rolls_back_actual_delete(
-    request, monkeypatch
+    trigger_owner, monkeypatch
 ):
     """Named cursors expose SQL snapshot/row acquisition, not service scheduling hooks."""
     import threading
@@ -962,7 +979,7 @@ def test_old_snapshot_version_inversion_conflicts_and_rolls_back_actual_delete(
     from core.application.workflows.workflow_entrypoint_repository import load_workflow_entrypoint
     from core.infrastructure.db.platform_stores import PlatformProjectStore
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     x = "ffffffff-ffff-ffff-ffff-ffffffffffff"
     writers = [PlatformProjectStore(owner.dsn), PlatformProjectStore(owner.dsn)]
     workflows = ["inversion-" + uuid4().hex for _ in writers]
@@ -1055,7 +1072,8 @@ def test_old_snapshot_version_inversion_conflicts_and_rolls_back_actual_delete(
                     assert a_refresh.wait(10)
                 else:
                     first = named.fetchone()
-                    assert first is not None and str(first[0]) != x
+                    assert first is not None
+                    assert str(first[0]) != x
                     observed["y"] = str(first[0])
                     assert observed["y"] < x
                     c_locked_y.set()
@@ -1146,7 +1164,8 @@ def test_old_snapshot_version_inversion_conflicts_and_rolls_back_actual_delete(
                 "SELECT id,active,secret_value_ciphertext FROM project_secrets WHERE project_id=%s AND secret_key=%s",
                 (owner.project, owner.key),
             ).fetchall()
-        assert len(rows) == 3 and sum(bool(row[1]) for row in rows) == 1
+        assert len(rows) == 3
+        assert sum(bool(row[1]) for row in rows) == 1
         assert all(not row[1] for row in rows if str(row[0]) in {x, observed["y"]})
         assert all(row[2] != final_token for row in rows)
     finally:

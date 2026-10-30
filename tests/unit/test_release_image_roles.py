@@ -100,8 +100,9 @@ def test_identity_resolved_by_an_older_updater_without_postgres_stays_valid(
 
 @pytest.mark.parametrize("profile", ("compact", "scalable"))
 def test_identity_of_a_release_that_predates_the_role_cannot_name_it(profile: str) -> None:
+    roles = (*_product(profile), "postgres")
     with pytest.raises(ValueError, match="complete"):
-        _identity(profile, "0.9.1", (*_product(profile), "postgres"))
+        _identity(profile, "0.9.1", roles)
 
 
 def test_identity_still_requires_every_product_role() -> None:

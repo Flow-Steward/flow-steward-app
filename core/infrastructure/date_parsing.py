@@ -19,10 +19,14 @@ from core.infrastructure.date_types import (
 MAX_INPUT_LENGTH = 256
 _NUMERIC_DATE = re.compile(r"^(\d{1,4})([-/.])(\d{1,2})\2(\d{2,4})(?=$|[ T])")
 _ISO_COMPACT_DATE = re.compile(r"^(\d{4})(\d{2})(\d{2})(?=$|[ T])")
-_CLOCK = re.compile(
-    r"^(\d{1,2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?\s*(?:(am|pm)\s*)?(Z|[+-](?:\d{2}:\d{2}(?::\d{2})?|\d{4}(?:\d{2})?)|UTC[+-]\d{1,2})?$",
-    re.IGNORECASE,
-)
+_TWO_DIGITS = r"\d{2}"
+_ONE_OR_TWO_DIGITS = r"\d{1,2}"
+# The clock grammar is composed from its parts: hours[:minutes[:seconds[.fraction]]],
+# an optional AM/PM marker, then an optional Z, numeric or UTC+N offset.
+_CLOCK_TIME = r"(\d{1,2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?"
+_CLOCK_MERIDIEM = r"(?:(am|pm)\s*)?"
+_CLOCK_OFFSET = r"Z|[+-](?:\d{2}:\d{2}(?::\d{2})?|\d{4}(?:\d{2})?)|UTC[+-]\d{1,2}"
+_CLOCK = re.compile(rf"^{_CLOCK_TIME}\s*{_CLOCK_MERIDIEM}({_CLOCK_OFFSET})?$", re.IGNORECASE)
 
 
 def _text(value: str) -> str:
@@ -99,17 +103,17 @@ def _name_pattern(aliases: dict[str, int]) -> str:
 def _format_pattern(input_format: str, lexicon: DateLexicon) -> tuple[str, list[tuple[str, str]]]:
     patterns = {
         "YYYY": r"\d{4}",
-        "YY": r"\d{2}",
-        "MM": r"\d{2}",
-        "M": r"\d{1,2}",
-        "DD": r"\d{2}",
-        "D": r"\d{1,2}",
-        "HH": r"\d{2}",
-        "H": r"\d{1,2}",
-        "hh": r"\d{2}",
-        "h": r"\d{1,2}",
-        "mm": r"\d{2}",
-        "ss": r"\d{2}",
+        "YY": _TWO_DIGITS,
+        "MM": _TWO_DIGITS,
+        "M": _ONE_OR_TWO_DIGITS,
+        "DD": _TWO_DIGITS,
+        "D": _ONE_OR_TWO_DIGITS,
+        "HH": _TWO_DIGITS,
+        "H": _ONE_OR_TWO_DIGITS,
+        "hh": _TWO_DIGITS,
+        "h": _ONE_OR_TWO_DIGITS,
+        "mm": _TWO_DIGITS,
+        "ss": _TWO_DIGITS,
         "A": r"am|pm",
         "a": r"am|pm",
         "Z": r"Z|[+-]\d{2}:\d{2}(?::\d{2})?",

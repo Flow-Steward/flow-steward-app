@@ -9,6 +9,8 @@ from typing import Any
 from core.application.management.errors import ServiceNotFoundError
 from core.application.workflows.workflow_trigger_guards import workflow_trigger_transaction
 
+_TRIGGER_NOT_FOUND_MESSAGE = "Provider trigger not found"
+
 
 class WorkflowProviderTriggerError(RuntimeError):
     def __init__(self, code: str, message: str, *, status_code: int) -> None:
@@ -195,7 +197,7 @@ class WorkflowProviderTriggerService:
         existing = self._get_trigger(bl, trigger_id=command.trigger_id)
         if not existing or str(existing.get("workflow_id") or "").strip() != command.workflow_id:
             raise WorkflowProviderTriggerError(
-                "provider_trigger_not_found", "Provider trigger not found", status_code=404
+                "provider_trigger_not_found", _TRIGGER_NOT_FOUND_MESSAGE, status_code=404
             )
         authorize_project(str(existing.get("project_id") or "").strip())
         project_id, _ = self._resolve_project_binding(
@@ -279,13 +281,13 @@ class WorkflowProviderTriggerService:
                 existing = self._get_trigger(bl, trigger_id=trigger_id)
                 if not existing or str(existing.get("workflow_id") or "").strip() != workflow_id:
                     raise WorkflowProviderTriggerError(
-                        "provider_trigger_not_found", "Provider trigger not found", status_code=404
+                        "provider_trigger_not_found", _TRIGGER_NOT_FOUND_MESSAGE, status_code=404
                     )
                 authorize_project(str(existing.get("project_id") or "").strip())
                 return bool(self._delete_trigger(bl, trigger_id=trigger_id))
         except ServiceNotFoundError as exc:
             raise WorkflowProviderTriggerError(
-                "provider_trigger_not_found", "Provider trigger not found", status_code=404
+                "provider_trigger_not_found", _TRIGGER_NOT_FOUND_MESSAGE, status_code=404
             ) from exc
 
 

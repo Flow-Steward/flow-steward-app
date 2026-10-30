@@ -13,10 +13,11 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from tests.integration.test_workflow_trigger_lifecycle_postgres import (
-    _delete,
-    trigger_owner,  # noqa: F401 - shared disposable fixture
-)
+from tests.integration import test_workflow_trigger_lifecycle_postgres as _trigger_lifecycle
+from tests.integration.test_workflow_trigger_lifecycle_postgres import _delete
+
+# Shared disposable fixture; bound by assignment so test parameters can use its name.
+trigger_owner = _trigger_lifecycle.trigger_owner
 
 pytestmark = pytest.mark.integration
 
@@ -140,8 +141,8 @@ def _provider_client(owner, monkeypatch, *, enqueue=None, deferred=None):
     return TestClient(app), calls, body, headers
 
 
-def test_deleted_retained_provider_never_falls_back_to_generic_effects(request, monkeypatch):
-    owner = request.getfixturevalue("trigger_owner")
+def test_deleted_retained_provider_never_falls_back_to_generic_effects(trigger_owner, monkeypatch):
+    owner = trigger_owner
     _delete(owner, "registry")
     client, calls, body, headers = _provider_client(owner, monkeypatch)
     response = client.post("/webhook/providers/" + owner.provider, content=body, headers=headers)
@@ -153,13 +154,13 @@ def test_deleted_retained_provider_never_falls_back_to_generic_effects(request, 
     "configuration", ["disabled", "unmatched", "generic", "removed", "other-project"]
 )
 def test_provider_routing_uses_only_retained_configuration_for_resolved_project(
-    request, monkeypatch, configuration
+    trigger_owner, monkeypatch, configuration
 ):
     from uuid import uuid4
 
     from core.application.auth.config import DEFAULT_ACCOUNT_ID
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     foreign_project = str(uuid4())
     with psycopg.connect(owner.dsn) as conn:
         if configuration == "disabled":
@@ -208,14 +209,14 @@ def test_provider_routing_uses_only_retained_configuration_for_resolved_project(
                 conn.execute("DELETE FROM projects WHERE id=%s", (foreign_project,))
 
 
-def test_stale_selected_provider_after_delete_has_no_deferred_effects(request, monkeypatch):
+def test_stale_selected_provider_after_delete_has_no_deferred_effects(trigger_owner, monkeypatch):
     import threading
     from concurrent.futures import ThreadPoolExecutor
 
     from core.application.workflows import workflow_provider_trigger_repository as repository
     from tests.integration.test_workflow_trigger_lifecycle_postgres import _counts
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     selected, release = threading.Event(), threading.Event()
     original = repository.list_enabled_provider_triggers_for_provider
 
@@ -242,7 +243,7 @@ def test_stale_selected_provider_after_delete_has_no_deferred_effects(request, m
     assert _counts(owner) == (0, 0, 0)
 
 
-def test_provider_guard_spans_deferred_effect_and_canonical_pin(request, monkeypatch):
+def test_provider_guard_spans_deferred_effect_and_canonical_pin(trigger_owner, monkeypatch):
     import threading
     from concurrent.futures import ThreadPoolExecutor
 
@@ -253,7 +254,7 @@ def test_provider_guard_spans_deferred_effect_and_canonical_pin(request, monkeyp
         _wait_for_lock,
     )
 
-    owner = request.getfixturevalue("trigger_owner")
+    owner = trigger_owner
     effect, release, deleting = threading.Event(), threading.Event(), threading.Event()
     pids = []
 

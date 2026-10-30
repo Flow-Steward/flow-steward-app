@@ -370,19 +370,20 @@ def test_all_retained_versions_nowait_conflict_unwinds_prior_write(trigger_owner
             "INSERT INTO project_secrets(id,project_id,secret_key,active) VALUES (%s,%s,%s,false)",
             (inactive, o.project, o.key),
         )
-    with psycopg.connect(o.dsn) as holder:
-        holder.execute("SELECT id FROM project_secrets WHERE id=%s FOR UPDATE", (inactive,))
-        with (
-            psycopg.connect(o.dsn) as contender,
-            pytest.raises(WorkflowCredentialVersionConflict),
-            contender.transaction(),
-        ):
+
+    def write_then_guard() -> None:
+        with psycopg.connect(o.dsn) as contender, contender.transaction():
             contender.execute(
                 "UPDATE registry_workflows SET display_name='must roll back' WHERE workflow_id=%s",
                 (o.workflow,),
             )
             with contender.cursor() as cursor:
                 guard_project_credential_versions(cursor, project_id=o.project, secret_key=o.key)
+
+    with psycopg.connect(o.dsn) as holder:
+        holder.execute("SELECT id FROM project_secrets WHERE id=%s FOR UPDATE", (inactive,))
+        with pytest.raises(WorkflowCredentialVersionConflict):
+            write_then_guard()
         with psycopg.connect(o.dsn) as observer:
             assert observer.execute(
                 "SELECT display_name FROM registry_workflows WHERE workflow_id=%s", (o.workflow,)
@@ -784,7 +785,8 @@ def test_delete_history_captures_editor_commit_before_workflow_lock(
 
     owner = trigger_owner
     old = owner.registry.get_workflow(owner.workflow)
-    assert old["revision"] == 1 and old["steps"] == []
+    assert old["revision"] == 1
+    assert old["steps"] == []
     original_lock = lifecycle.lock_workflow_owner
     ordering = []
 
@@ -843,7 +845,8 @@ def test_claimed_schedule_resumed_after_retirement_keeps_paused_slot(
         expected_next_run_at=owner.due,
         next_run_at=owner.due + timedelta(minutes=5),
     )
-    assert isinstance(claimed, dict) and claimed["enabled"] is True
+    assert isinstance(claimed, dict)
+    assert claimed["enabled"] is True
     assert claimed["admission_workflow_revision"] == claimed["current_workflow_revision"] == 1
     if admission == "stale":
         claimed["admission_workflow_revision"] = 0
@@ -928,21 +931,20 @@ def test_concurrent_registry_delete_loser_preserves_actual_admin_404(trigger_own
         return original_lock(cursor, workflow_id, **kwargs)
 
     monkeypatch.setattr(lifecycle, "lock_workflow_owner", winner_then_lock)
+    delete_request = Request(
+        {
+            "type": "http",
+            "method": "DELETE",
+            "path": "/api/workflows/" + owner.workflow,
+            "headers": [],
+        }
+    )
     try:
         with pytest.raises(HTTPException) as exc:
-            routes.delete_workflow(
-                owner.workflow,
-                Request(
-                    {
-                        "type": "http",
-                        "method": "DELETE",
-                        "path": "/api/workflows/" + owner.workflow,
-                        "headers": [],
-                    }
-                ),
-            )
+            routes.delete_workflow(owner.workflow, delete_request)
         assert exc.value.status_code == 404
-        assert reloads == [] and ordering == ["winner committed"]
+        assert reloads == []
+        assert ordering == ["winner committed"]
         with psycopg.connect(owner.dsn) as connection:
             assert connection.execute(
                 "SELECT revision FROM registry_workflows WHERE workflow_id=%s", (owner.workflow,)

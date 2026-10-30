@@ -9,6 +9,7 @@ from core.infrastructure.date_types import DateLexicon
 from core.infrastructure.tabular_feed.common import _as_dict, _pl, _text
 from core.infrastructure.tabular_feed.conditions import _when_expr
 
+_DATE_PART = "date.part"
 DATE_ACTION_IDS = frozenset(
     {
         "date.parse",
@@ -16,7 +17,7 @@ DATE_ACTION_IDS = frozenset(
         "date.to_timezone",
         "date.format",
         "date.add",
-        "date.part",
+        _DATE_PART,
         "date.start_of",
         "date.end_of",
     }
@@ -77,7 +78,7 @@ def _has_nonmatching_nonnull_value(frame: Any, target: str, condition: Any) -> b
 
 def _return_dtype(action_id: str):
     pl = _pl()
-    return pl.Int64 if action_id == "date.part" else pl.String
+    return pl.Int64 if action_id == _DATE_PART else pl.String
 
 
 def _mapped_expression(
@@ -112,7 +113,7 @@ def _apply_date_rule_expression(
     target = _text(rule.get("target"))
     action_id, params = _operation(rule)
     values = _collect_values(frame, target, condition)
-    if action_id == "date.part" and condition not in (None, "", {}):
+    if action_id == _DATE_PART and condition not in (None, "", {}):
         if not values:
             return pl.col(target).alias(target)
         if _has_nonmatching_nonnull_value(frame, target, condition):
@@ -122,7 +123,7 @@ def _apply_date_rule_expression(
             )
     result = _mapped_expression(target, values, action_id, params, lexicons)
     if condition not in (None, "", {}):
-        otherwise = pl.lit(None, dtype=pl.Int64) if action_id == "date.part" else pl.col(target)
+        otherwise = pl.lit(None, dtype=pl.Int64) if action_id == _DATE_PART else pl.col(target)
         result = pl.when(_when_expr(condition)).then(result).otherwise(otherwise)
     return result.alias(target)
 

@@ -89,13 +89,17 @@ def test_own_fields_save_beside_a_shared_skill_without_touching_it(shared_skill)
     )
 
     assert (input_issues, output_issues) == ([], [])
-    assert _names(inputs) == ["tone"] and inputs[0]["required"] is True
-    assert _names(outputs) == ["confidence"] and outputs[0]["type"] == "number"
-    assert (store.get_skill_inputs(skill_id), store.get_skill_outputs(skill_id)) == skill_before
-    assert (
+    assert _names(inputs) == ["tone"]
+    assert inputs[0]["required"] is True
+    assert _names(outputs) == ["confidence"]
+    assert outputs[0]["type"] == "number"
+    skill_after = (store.get_skill_inputs(skill_id), store.get_skill_outputs(skill_id))
+    assert skill_after == skill_before
+    peer_after = (
         _materialized(store, peer_id, "inputs"),
         _materialized(store, peer_id, "outputs"),
-    ) == peer_before
+    )
+    assert peer_after == peer_before
     assert _materialized(store, agent_id, "inputs") == {
         "request": f"skill:{skill_id}",
         "tone": "own",
@@ -178,8 +182,8 @@ def test_a_name_the_contract_rebuild_would_drop_is_refused(shared_skill, kind, i
     assert saved == []
     assert code in {issue["code"] for issue in issues}
     assert _names(get_agent_own_io(store, agent_id, kind)) == ["kept"]
-    expected_skill = store.get_skill_inputs if kind == "inputs" else store.get_skill_outputs
-    assert len(expected_skill(skill_id)) == 1
+    skill_fields = store.get_skill_inputs if kind == "inputs" else store.get_skill_outputs
+    assert len(skill_fields(skill_id)) == 1
 
 
 def test_clearing_own_fields_leaves_the_inherited_ones(shared_skill) -> None:

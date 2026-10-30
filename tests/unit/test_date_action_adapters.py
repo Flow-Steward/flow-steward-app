@@ -257,11 +257,12 @@ def test_pure_date_dispatch_rejects_float_century_before_calendar_construction()
     from core.infrastructure.date_operations import execute_date_operation
     from core.infrastructure.date_types import DateValueError
 
+    lexicons = get_date_lexicons(("en",))
     with pytest.raises(DateValueError) as error:
         execute_date_operation(
             "date.parse",
             "29/10/26",
             {"input_format": "DD/MM/YY", "century": 2000.0},
-            lexicons=get_date_lexicons(("en",)),
+            lexicons=lexicons,
         )
     assert error.value.code == "invalid_date"

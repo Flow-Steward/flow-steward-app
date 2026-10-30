@@ -231,11 +231,12 @@ def _sensitive_key(key: Any) -> bool:
 #: target environment holds no such secret, so absent is the truthful answer.
 #: A test-run file is dropped for the same reason: its artifact stays here.
 _DROPPED_SENSITIVE_KEYS = frozenset({"default_secret_ref", "sample_file"})
+_REDACTED = "[redacted]"
 
 
 def _redact_sensitive(value: Any, *, key: str = "") -> Any:
     if _sensitive_key(key):
-        return "[redacted]"
+        return _REDACTED
     if isinstance(value, dict):
         return {
             str(item_key): _redact_sensitive(item_value, key=str(item_key))
@@ -260,7 +261,7 @@ def _redact_definitions(value: Any, *, key: str = "") -> Any:
     a string. Only the literal values under such a field are masked.
     """
     if _sensitive_key(key):
-        return "[redacted]"
+        return _REDACTED
     if isinstance(value, dict):
         redacted: dict[str, Any] = {}
         for item_key, item_value in value.items():
@@ -284,7 +285,7 @@ def _redact_schema_field(name: str, schema: Any) -> Any:
     redacted = _redact_definitions(schema)
     if _sensitive_key(name) and isinstance(redacted, dict):
         return {
-            key: "[redacted]" if key in _SCHEMA_LITERAL_KEYS else item
+            key: _REDACTED if key in _SCHEMA_LITERAL_KEYS else item
             for key, item in redacted.items()
         }
     return redacted

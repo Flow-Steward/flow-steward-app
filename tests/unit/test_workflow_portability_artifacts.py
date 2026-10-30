@@ -266,7 +266,8 @@ def test_export_carries_agent_definition_without_model_route_or_secrets(store: _
     for leaked in ("account_id", "created_at", "scope_kind", "_skills", "_tools"):
         assert leaked not in writer
     assert SECRET not in text
-    assert "gpt-5" not in text and "prov-1" not in text
+    assert "gpt-5" not in text
+    assert "prov-1" not in text
 
 
 def test_shared_agent_skill_contract_and_rule_travel_once(store: _Store) -> None:
@@ -323,7 +324,8 @@ def test_guardrails_keep_scope_without_project_ids(store: _Store) -> None:
     assert rules[PROJECT_RULE]["scope"] == "project"
     assert rules[PROJECT_RULE]["source_project_name"] == "Shop"
     assert rules[OTHER_PROJECT_RULE]["source_project_name"] == "Blog"
-    assert "proj-shop" not in text and "proj-blog" not in text
+    assert "proj-shop" not in text
+    assert "proj-blog" not in text
     assert ACCOUNT not in text
 
 

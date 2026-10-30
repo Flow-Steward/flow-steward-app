@@ -40,8 +40,9 @@ def test_auth_count_uses_all_rows_without_bootstrap_or_active_filters():
 
 @pytest.mark.parametrize("count", [False, -1, "0", None])
 def test_auth_count_fails_closed_on_invalid_database_response(count):
+    connection = SimpleNamespace(cursor=lambda: Cursor(count))
     with pytest.raises(ValueError):
-        count_bootstrap_users(SimpleNamespace(cursor=lambda: Cursor(count)))
+        count_bootstrap_users(connection)
 
 
 def test_status_reads_only_supplied_running_environment(tmp_path):

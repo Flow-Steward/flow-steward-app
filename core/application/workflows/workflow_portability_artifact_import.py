@@ -43,10 +43,11 @@ GUARDRAIL_PROJECT_MESSAGE = (
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$")
 #: Ids the platform derives itself: contracts generated from step I/O and records an
 #: extension projects. A file must not create them as manual records.
+_EXTENSION_ID_PREFIX = "extension."
 _RESERVED_ID_PREFIXES = {
-    "agent": ("extension.",),
-    "skill": ("extension.",),
-    "data_contract": ("auto.", "extension."),
+    "agent": (_EXTENSION_ID_PREFIX,),
+    "skill": (_EXTENSION_ID_PREFIX,),
+    "data_contract": ("auto.", _EXTENSION_ID_PREFIX),
 }
 _TABLES = {
     "agent": ("registry_agents", "agent_id"),

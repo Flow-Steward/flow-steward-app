@@ -454,6 +454,12 @@ class WorkerTerminalEffectsAdapter:
             fence_unavailable = isinstance(
                 graph_outcome.error if graph_outcome else None, InvokeCancellationFenceUnavailable
             )
+            if fence_unavailable:
+                failure_category = "transient"
+            elif final_status == "cancelled":
+                failure_category = "cancellation"
+            else:
+                failure_category = "execution"
             terminal_result = _terminal_persistence_service(self._bl).complete_failure(
                 job_id=request.job_id,
                 status=final_status,
@@ -466,13 +472,7 @@ class WorkerTerminalEffectsAdapter:
                     result.get("error_code") or error_context.get("error_code") or ""
                 ).strip()
                 or None,
-                category=(
-                    "transient"
-                    if fence_unavailable
-                    else "cancellation"
-                    if final_status == "cancelled"
-                    else "execution"
-                ),
+                category=failure_category,
                 retryable=fence_unavailable or final_status == "retryable_interrupted_step",
                 final_report=result.get("final_report"),
                 root_run_id=(graph_outcome.root_run_id if graph_outcome else None),

@@ -40,8 +40,9 @@ def test_add_distinguishes_wall_days_from_elapsed_hours(amount, unit, expected):
 
 @pytest.mark.parametrize("amount", [True, 1.5, "1", None])
 def test_add_requires_integer_amount(amount):
+    start = date(2026, 1, 1)
     with pytest.raises(DateValueError) as error:
-        dates.add(date(2026, 1, 1), amount, "days")
+        dates.add(start, amount, "days")
     assert error.value.code == "invalid_amount"
 
 
@@ -106,8 +107,9 @@ def test_parts_and_absolute_comparison():
     assert dates.part(date(2026, 10, 29), "iso_week") == 44
     assert dates.compare(dt("2026-10-29T09:00Z"), dt("2026-10-29T10:00+01:00")) == 0
     assert dates.compare(dt("2026-10-29T09:01Z"), dt("2026-10-29T09:00Z")) == 1
+    first, second = date(2026, 1, 1), date(2026, 1, 2)
     with pytest.raises(DateValueError) as error:
-        dates.compare(date(2026, 1, 1), date(2026, 1, 2))
+        dates.compare(first, second)
     assert error.value.code == "timezone_required"
 
 
@@ -139,8 +141,9 @@ def test_unsupported_units_have_named_code(operation, args):
 
 @pytest.mark.parametrize("operation", [dates.compare, lambda a, b: dates.diff(a, b, "hours")])
 def test_absolute_arithmetic_maps_utc_overflow_to_named_error(operation):
+    first, second = dt("9999-12-31T23:00:00-12:00"), dt("9999-12-31T23:00:00Z")
     with pytest.raises(DateValueError) as error:
-        operation(dt("9999-12-31T23:00:00-12:00"), dt("9999-12-31T23:00:00Z"))
+        operation(first, second)
     assert error.value.code == "invalid_date"
 
 

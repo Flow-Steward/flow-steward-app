@@ -180,8 +180,9 @@ def test_readiness_lookup_failure_is_not_swallowed_by_preview_fallback():
         raise RuntimeError("unavailable")
 
     store.list_published_block_contracts = lookup
+    resolver = IOResolver(store)
     with pytest.raises(OutputContractResolutionError, match="Could not resolve"):
-        IOResolver(store).get_step_declared_outputs(
+        resolver.get_step_declared_outputs(
             {
                 "step_id": "write",
                 "step_kind": "agent",
@@ -530,7 +531,8 @@ def test_authored_descriptions_keep_their_source_and_are_detached(source):
         workflow_account_id="account-a",
     )[0]
     assert public["description"] == authored
-    assert "description_key" not in public and "description_params" not in public
+    assert "description_key" not in public
+    assert "description_params" not in public
     request_field = build_phase_result_json_schema(captured.rows)["properties"]["artifacts"][
         "properties"
     ]["result"]

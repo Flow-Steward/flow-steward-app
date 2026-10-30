@@ -157,20 +157,18 @@ class ToolQueryService:
             assignable = tool_id in assignable_tool_ids
             connector_only = tool_id.startswith("std.")
             row["agent_relationship_assignable"] = assignable
-            row["agent_relationship_reason_code"] = (
-                "none"
-                if assignable
-                else "tool_connector_only"
-                if connector_only
-                else "tool_not_assignable_in_current_scope"
-            )
-            row["agent_relationship_reason_text"] = (
-                ""
-                if assignable
-                else "Standard Tool Actions are available only through connector workflow steps"
-                if connector_only
-                else "This tool is unavailable for assignment in the current project or tenant scope."
-            )
+            if assignable:
+                reason_code, reason_text = "none", ""
+            elif connector_only:
+                reason_code = "tool_connector_only"
+                reason_text = (
+                    "Standard Tool Actions are available only through connector workflow steps"
+                )
+            else:
+                reason_code = "tool_not_assignable_in_current_scope"
+                reason_text = "This tool is unavailable for assignment in the current project or tenant scope."
+            row["agent_relationship_reason_code"] = reason_code
+            row["agent_relationship_reason_text"] = reason_text
         return ToolsListView(tools=[self._record(row) for row in rows])
 
     def get_tool(self, tool_id: str, *, scope: ScopeContext | None = None) -> ToolRecordView:

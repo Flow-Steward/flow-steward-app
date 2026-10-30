@@ -97,7 +97,8 @@ def test_callback_dispatch_finds_the_connection_on_the_project_store(monkeypatch
     extension = service.extension_for_registration(_registration())
     assert extension is not None
     assert extension["extension_install_id"] == "inst-1"
-    assert calls and calls[0]["connection_id"] == "conn-1"
+    assert calls
+    assert calls[0]["connection_id"] == "conn-1"
 
 
 def test_callback_dispatch_without_a_connection_store_still_uses_its_own_store(monkeypatch):
