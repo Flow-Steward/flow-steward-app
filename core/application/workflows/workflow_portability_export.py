@@ -12,6 +12,7 @@ import yaml
 
 from core.application.workflows.extension_connection_validation import (
     named_extension_without_install,
+    step_extension_id,
 )
 from core.application.workflows.workflow_catalog_identity import parse_projected_identity
 from core.application.workflows.workflow_portability_artifacts import (
@@ -346,12 +347,18 @@ class WorkflowPortabilityExportMixin:
                 or override.get("connection_binding")
                 or {}
             )
+            # The extension the step calls is the one the connection must belong to:
+            # import offers and accepts only that extension's connections.
+            connection_extension = step_extension_id(step)
             for connection_ref in _connection_refs(connection_binding):
                 _add_dependency(
                     dependencies,
                     "project_connection",
                     connection_ref,
                     source=f"{source}.connection_binding",
+                    metadata=(
+                        {"extension_id": connection_extension} if connection_extension else None
+                    ),
                 )
 
         runtime_deps = _as_list(settings.get("workflow_runtime_dependencies"))

@@ -37,6 +37,22 @@ def _accepted_actions(offered: list[str]) -> set[str]:
     return accepted
 
 
+def _other_extension(source: dict[str, Any] | None, expected_extension: str) -> str:
+    """The extension a chosen connection belongs to when it is not the step's one; else ''.
+
+    Unknown on either side is no mismatch: a bundle from before steps named their
+    extension, or a placeholder given only an install id, is judged as before.
+    """
+    if not source or not expected_extension:
+        return ""
+    actual = _text(
+        source.get("extension_id")
+        or source.get("connector_id")
+        or source.get("target_extension_id")
+    )
+    return actual if actual and actual != expected_extension else ""
+
+
 class WorkflowPortabilityResolutionMixin:
     def _resolution_index(
         self,
@@ -224,6 +240,8 @@ class WorkflowPortabilityResolutionMixin:
         elif dependency_type == "project_connection":
             status = "requires_project_connection"
             resolution_actions = ["map_existing", "create_connection_placeholder", "abort"]
+            expected_extension = _text(metadata.get("extension_id"))
+            other_extension = ""
             if resolution:
                 action = _text(resolution.get("action"))
                 if action in {"map_existing", "use_existing"}:
@@ -232,18 +250,27 @@ class WorkflowPortabilityResolutionMixin:
                         or resolution.get("target_id")
                         or resolution.get("target_connection_id")
                     )
+                    connection = self._project_connection_row(target) if target else None
+                    other_extension = _other_extension(connection, expected_extension)
                     status = (
                         "resolved"
-                        if target and self._project_connection_exists(target)
+                        if connection is not None and not other_extension
                         else "requires_project_connection"
                     )
                 elif action == "create_connection_placeholder":
+                    other_extension = _other_extension(resolution, expected_extension)
                     status = (
                         "resolved"
-                        if self._can_create_connection_placeholder(resolution)
+                        if not other_extension
+                        and self._can_create_connection_placeholder(resolution)
                         else "requires_project_connection"
                     )
-            if status == "requires_project_connection":
+            if other_extension:
+                message = (
+                    f"The step calls {expected_extension}, but that connection belongs to "
+                    f"{other_extension}. Choose a {expected_extension} connection."
+                )
+            elif status == "requires_project_connection":
                 message = (
                     "Project connection must be mapped to an existing connection or "
                     "resolved with enough project/extension metadata to create a placeholder."
@@ -393,6 +420,9 @@ class WorkflowPortabilityResolutionMixin:
         return row.get("enabled") is not False and (not state or state == "active")
 
     def _project_connection_exists(self, connection_ref: str) -> bool:
+        return self._project_connection_row(connection_ref) is not None
+
+    def _project_connection_row(self, connection_ref: str) -> dict[str, Any] | None:
         method = getattr(self.project_connection_store, "get_project_connection", None)
         if callable(method):
             for kwargs in ({"connection_id": connection_ref}, {}):
@@ -401,8 +431,8 @@ class WorkflowPortabilityResolutionMixin:
                 except Exception:
                     row = None
                 if isinstance(row, dict) and row:
-                    return True
-        return False
+                    return row
+        return None
 
     def _can_create_connection_placeholder(self, resolution: dict[str, Any]) -> bool:
         if not _text(resolution.get("project_id")):

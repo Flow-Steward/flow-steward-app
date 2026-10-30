@@ -882,6 +882,51 @@ test("a connection mapped after the project is chosen resolves in that project",
   );
 });
 
+/* A step's connection belongs to the extension the step calls. The picker offered
+   every connection of the project, so an email step could be pointed at Docling. */
+test("a connection slot offers only connections of its step's extension", async () => {
+  mockedImportOptions.mockResolvedValue({
+    kind: "workflow_import_dependency_options",
+    options: {
+      project_connection: [
+        { value: "conn_docs", label: "Local Docling", metadata: { extension_id: "flowsteward.docling" } },
+        { value: "conn_mail", label: "Mailpit", metadata: { extension_id: "flowsteward.outgoing-email" } },
+      ],
+    },
+  });
+  mockedPreflight.mockResolvedValue(
+    preflight({
+      can_apply: false,
+      dependencies: [
+        {
+          dependency_key: "project_connection:conn_template",
+          dependency_type: "project_connection",
+          ref: "conn_template",
+          status: "requires_project_connection",
+          blocking: true,
+          required: true,
+          resolution_actions: ["map_existing", "create_connection_placeholder", "abort"],
+          metadata: { extension_id: "flowsteward.outgoing-email" },
+        },
+      ],
+    }),
+  );
+  openDialog({ projectId: "proj_1" });
+
+  await openTemplate(/Synthetic template 0000/);
+  fireEvent.click(screen.getByRole("button", { name: "Use template" }));
+  const picker = await screen.findByLabelText("Existing project connection for conn_template");
+  fireEvent.focus(picker);
+  expect(await screen.findByRole("option", { name: /Mailpit/ })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: /Local Docling/ })).not.toBeInTheDocument();
+
+  // A placeholder is created for the same extension without typing it.
+  fireEvent.change(screen.getByLabelText("Resolution for conn_template"), {
+    target: { value: "create_connection_placeholder" },
+  });
+  expect(screen.getByLabelText("Extension id for conn_template")).toHaveValue("flowsteward.outgoing-email");
+});
+
 test("a template that cannot be created here says so plainly", async () => {
   mockedPreflight.mockResolvedValue(
     preflight({

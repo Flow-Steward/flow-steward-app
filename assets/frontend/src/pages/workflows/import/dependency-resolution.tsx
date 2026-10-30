@@ -12,6 +12,7 @@ import {
   dependencyNeedsResolution,
   dependencyRequiresTarget,
   isBundledDefinition,
+  optionsForDependency,
   type ResolutionDraft,
   resolutionComplete,
   systemAssignsTarget,
@@ -377,7 +378,7 @@ function DependencyResolutionRow({ dependency, dependencyOptions, effectiveDepen
   const selectedAction = draft?.action || defaultActionForDependency(dependency);
   const needsTarget = dependencyRequiresTarget(dependency, selectedAction);
   const optionBucket = optionBucketForDependency(dependency, selectedAction);
-  const targetOptions = optionBucket ? dependencyOptions[optionBucket] || [] : [];
+  const targetOptions = optionsForDependency(dependency, optionBucket ? dependencyOptions[optionBucket] || [] : []);
   const complete = resolutionComplete(dependency, draft, selectedProjectId);
   const needsResolution = dependencyNeedsResolution(dependency);
   // Keep controls and serialization tied to the original dependency identity.

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import type {
   WorkflowImportDependency,
+  WorkflowImportDependencyOption,
   WorkflowImportPreflight,
   WorkflowImportResolution,
 } from "@/pages/workflows/import/api";
@@ -36,6 +37,24 @@ const BLOCKING_STATUSES = new Set([
 /** A definition the file carries: created from it, renamed, or reused under its own id. */
 export function isBundledDefinition(dependency: WorkflowImportDependency) {
   return dependency.metadata?.definition === true;
+}
+
+/** The extension a project connection must belong to: the one its step calls; '' when unnamed. */
+export function dependencyExtensionId(dependency: WorkflowImportDependency) {
+  const extensionId = dependency.metadata?.extension_id;
+  return dependency.dependency_type === "project_connection" && typeof extensionId === "string"
+    ? extensionId.trim()
+    : "";
+}
+
+/** The replacements a row can offer: a connection of another extension is not one. */
+export function optionsForDependency(
+  dependency: WorkflowImportDependency,
+  options: WorkflowImportDependencyOption[],
+) {
+  const extensionId = dependencyExtensionId(dependency);
+  if (!extensionId) return options;
+  return options.filter((option) => option.metadata?.extension_id === extensionId);
 }
 
 /** A guardrail id is a UUID the system assigns; the operator never types one. */
@@ -218,7 +237,7 @@ function initialResolutionDrafts(
       action,
       target: draftTarget(dependency, action, ""),
       projectId: "",
-      extensionId: "",
+      extensionId: dependencyExtensionId(dependency),
       extensionInstallId: "",
     };
   });

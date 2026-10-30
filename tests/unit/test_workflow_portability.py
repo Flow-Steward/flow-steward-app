@@ -353,6 +353,30 @@ def _manual_workflow(workflow_id="manual_wf"):
     )
 
 
+def _mailer_workflow(workflow_id="mailer_wf"):
+    binding = {"connection_id": "conn_author"}
+    return linear_workflow(
+        {
+            "step_id": "send",
+            "step_kind": "connector",
+            "connector_id": "extension.acme.mailer",
+            "connector_install_id": "inst-crm",
+            "connection_binding_jsonb": dict(binding),
+            "override": {
+                "connector": {
+                    "extension_id": "acme.mailer",
+                    "operation_id": "send_email",
+                    "connection_binding": dict(binding),
+                }
+            },
+        },
+        workflow_id=workflow_id,
+        version="1.0.0",
+        display_name="Mailer Workflow",
+        projection_mode="manual",
+    )
+
+
 def _resolved_db(*, workflows=None):
     workflow_rows = {"child_wf": {"workflow_id": "child_wf", "display_name": "Child"}}
     workflow_rows.update(workflows or {})
@@ -1504,6 +1528,73 @@ class TestWorkflowPortabilityService:
             if item["dependency_type"] == "project_connection" and item["ref"] == "crm-prod"
         )
         assert resolved_connection["status"] == "resolved"
+
+    def test_a_connection_resolves_only_to_one_of_the_extension_its_step_calls(self):
+        """A mailer step's connection could be mapped to a Docling connection.
+
+        The dependency did not say which extension it belongs to, so every connection
+        of the project was offered and accepted; the run then failed on the wrong one.
+        """
+        bundle_text = WorkflowPortabilityService(
+            _resolved_db(workflows={"mailer_wf": _mailer_workflow()})
+        ).export_yaml("mailer_wf")
+        db = _resolved_db()
+        db.connections = {
+            "conn_mail": {"connection_id": "conn_mail", "extension_id": "acme.mailer"},
+            "conn_docs": {"connection_id": "conn_docs", "extension_id": "acme.docs"},
+        }
+        service = WorkflowPortabilityService(db)
+
+        def connection_row(resolution):
+            preflight = service.preflight_import(
+                bundle_text, target_workflow_id="mailer_imported", resolutions=[resolution]
+            )
+            return next(
+                item
+                for item in preflight["dependencies"]
+                if item["dependency_key"] == "project_connection:conn_author"
+            )
+
+        def mapped(target):
+            return {
+                "dependency_key": "project_connection:conn_author",
+                "action": "map_existing",
+                "target_connection_id": target,
+            }
+
+        def placeholder(extension_id):
+            return {
+                "dependency_key": "project_connection:conn_author",
+                "action": "create_connection_placeholder",
+                "project_id": "17",
+                "extension_id": extension_id,
+            }
+
+        assert connection_row(mapped("conn_mail"))["metadata"]["extension_id"] == "acme.mailer"
+        wrong = connection_row(mapped("conn_docs"))
+        assert wrong["status"] == "requires_project_connection"
+        assert "acme.docs" in wrong["message"] and "acme.mailer" in wrong["message"]
+        assert connection_row(mapped("conn_mail"))["status"] == "resolved"
+        assert connection_row(placeholder("acme.docs"))["status"] == "requires_project_connection"
+        assert connection_row(placeholder("acme.mailer"))["status"] == "resolved"
+
+        with pytest.raises(WorkflowPortabilityError) as refused:
+            service.apply_import(
+                bundle_text,
+                target_workflow_id="mailer_imported",
+                author="tester",
+                resolutions=[*_reuse_definitions(bundle_text), mapped("conn_docs")],
+            )
+        assert refused.value.code == "workflow_import_preflight_blocked"
+        assert db.save_calls == []
+        # The same import with the mailer's own connection goes through.
+        service.apply_import(
+            bundle_text,
+            target_workflow_id="mailer_imported",
+            author="tester",
+            resolutions=[*_reuse_definitions(bundle_text), mapped("conn_mail")],
+        )
+        assert len(db.save_calls) == 1
 
     def test_import_apply_saves_disabled_draft_and_uses_registry_save_path(self):
         bundle_text = WorkflowPortabilityService(
