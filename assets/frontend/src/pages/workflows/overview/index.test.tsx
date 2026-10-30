@@ -38,15 +38,11 @@ const mockedFetchWorkflowExportPolicy = vi.mocked(fetchWorkflowExportPolicy);
 const mockedFetchWorkflowStats = vi.mocked(fetchWorkflowStats);
 const mockedFetchWorkflowValidation = vi.mocked(fetchWorkflowValidation);
 
-function renderPage(initialEntry = "/registry/workflows/wf_missing", locale: "en" | "lt" = "en") {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  });
-
+function renderPage(
+  initialEntry = "/registry/workflows/wf_missing",
+  locale: "en" | "lt" = "en",
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   const messages: Record<string, string> = locale === "lt" ? {
     "react.workflows.overview_description": "Šios darbo eigos statistika ir naujausia veikla.",
     "react.workflows.completed_failed_counts": "Baigta: {completed} / nepavyko: {failed}",
@@ -71,7 +67,7 @@ function renderPage(initialEntry = "/registry/workflows/wf_missing", locale: "en
 }
 
 describe("WorkflowsOverviewPage", () => {
-  it("refreshes actual overview statistics after30s without taking focus or replacing the loaded page", async () => {
+  it("does not poll statistics, and a refresh keeps focus and the loaded page", async () => {
     const actual = await vi.importActual<typeof WorkflowApi>("@/pages/workflows/shared/api");
     mockedFetchWorkflowStats.mockImplementation(actual.fetchWorkflowStats);
     mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "wf_missing", display_name: "Fixture workflow", enabled: true } as never);
@@ -85,14 +81,21 @@ describe("WorkflowsOverviewPage", () => {
       return new Response(JSON.stringify(stats), { headers: { "content-type": "application/json" } });
     });
     vi.useFakeTimers();
-    const view = renderPage();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = renderPage(undefined, undefined, queryClient);
     const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
     try {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       const link = screen.getByRole("link", { name: "Linked projects" });
       link.focus();
       expect(screen.getByText("1 completed / 0 failed")).toBeInTheDocument();
-      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      // Statistics change only when a run finishes; idle time sends nothing.
+      await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        void queryClient.invalidateQueries();
+        await vi.advanceTimersByTimeAsync(0);
+      });
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(pending).toBeDefined();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
