@@ -485,6 +485,7 @@ def test_authenticated_public_request_reaching_submission_after_delete_has_no_du
 ):
     from psycopg.types.json import Jsonb
 
+    from core.application.workflows import workflow_entrypoint_repository
     from core.application.workflows.workflow_entrypoint_repository import load_workflow_entrypoint
     from tests.integration.test_workflow_trigger_lifecycle_postgres import _counts
     from tests.unit.test_workflow_entrypoints_route import (
@@ -517,6 +518,14 @@ def test_authenticated_public_request_reaching_submission_after_delete_has_no_du
         surface,
         "_load_workflow_entrypoint",
         lambda _bl, key: load_workflow_entrypoint(owner.store, key),
+    )
+    # The unit client's stand-in connection only knows its own workflow; admission
+    # must read this owner's real state.
+    admission_state = workflow_entrypoint_repository.load_workflow_admission_state
+    monkeypatch.setattr(
+        workflow_entrypoint_repository,
+        "load_workflow_admission_state",
+        lambda _bl, workflow_id: admission_state(owner.store, workflow_id),
     )
     authenticate = surface._validate_workflow_entrypoint_auth
     monkeypatch.setattr(
