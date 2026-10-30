@@ -6577,6 +6577,7 @@
     "canonical_name": "FS_INSTALLER_STATE_DIR",
     "code_read_locations": [
       "core/entrypoints/cli/bootstrap_recovery.py",
+      "core/infrastructure/lifecycle/docker_gateway.py",
       "core/entrypoints/cli/scripts/docker_compose_env.sh",
       "core/entrypoints/cli/scripts/flow_steward_launcher.sh",
       "infra/docker/compact/storage-bundled.yaml",

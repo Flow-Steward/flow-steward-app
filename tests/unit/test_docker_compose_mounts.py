@@ -114,6 +114,22 @@ def test_compact_cli_uses_the_canonical_host_identity_and_docker_group() -> None
     assert cli["environment"]["FS_LOAD_REPO_DOTENV"] == "0"
 
 
+def test_production_bytecode_caches_stay_inside_each_container() -> None:
+    """Release images date every source 1970-01-01, so a cache kept on the host logs
+    mount outlived the build and served another release's modules after an upgrade."""
+    source = (ROOT / "infra" / "docker" / "docker-compose.prod.yaml").read_text(encoding="utf-8")
+    services = (yaml.safe_load(source) or {})["services"]
+    prefixes = {
+        name: service["environment"]["PYTHONPYCACHEPREFIX"]
+        for name, service in services.items()
+        if isinstance(service.get("environment"), dict)
+        and "PYTHONPYCACHEPREFIX" in service["environment"]
+    }
+
+    assert {"fs-app", "fs-worker", "control-plane"} <= set(prefixes)
+    assert {name for name, prefix in prefixes.items() if not prefix.startswith("/tmp/")} == set()
+
+
 CORE_RUNTIME_SERVICES = {
     "docker-compose.yaml": {
         "control-plane",

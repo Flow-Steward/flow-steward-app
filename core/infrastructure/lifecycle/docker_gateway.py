@@ -19,7 +19,12 @@ from core.application.lifecycle.stack_service import (
     StackRuntimeState,
     StackVolumeState,
 )
-from core.infrastructure.installer.process import SubprocessExecutor
+from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+from core.infrastructure.installer.process import (
+    DockerHostStateExecutor,
+    SubprocessExecutor,
+    docker_host_state_dir,
+)
 from core.infrastructure.lifecycle import docker_runtime_support
 from core.infrastructure.lifecycle.docker_runtime_support import (
     _IMAGE_PREPARATION_TIMEOUT_SECONDS,
@@ -75,8 +80,16 @@ class DockerLifecycleGateway:
     ) -> None:
         self._project_root = Path(project_root).resolve()
         self._docker_host_project_root = Path(docker_host_project_root or project_root).resolve()
-        self._process = process or SubprocessExecutor()
+        self._process = DockerHostStateExecutor(
+            process or SubprocessExecutor(), self._docker_host_state_dir
+        )
         self._port_available = port_available or docker_runtime_support.port_is_available
+
+    def _docker_host_state_dir(self) -> str | None:
+        state_root = str(_runtime_env.get("FS_INSTALLER_STATE_DIR") or "").strip()
+        if not state_root:
+            return None
+        return docker_host_state_dir(Path(state_root), self._docker_host_project_root / ".env.prod")
 
     def services(self, target: ComposeTarget) -> tuple[str, ...]:
         outcome = self._run_compose(

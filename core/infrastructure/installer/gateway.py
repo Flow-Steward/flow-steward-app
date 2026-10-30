@@ -102,7 +102,12 @@ from core.infrastructure.installer.gateway_support import (
     _RoutedHTTPSConnection as _RoutedHTTPSConnection,
 )
 from core.infrastructure.installer.gateway_worker_scale import WorkerScaleOperations
-from core.infrastructure.installer.process import ProcessOutcome, SubprocessExecutor
+from core.infrastructure.installer.process import (
+    DockerHostStateExecutor,
+    ProcessOutcome,
+    SubprocessExecutor,
+    docker_host_state_dir,
+)
 from core.infrastructure.installer.registry_image_resolver import (
     LocalImageContentIdentity as LocalImageContentIdentity,
 )
@@ -162,7 +167,9 @@ class DockerInstallerGateway(
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.state_store = state_store
-        self.process = process or SubprocessExecutor()
+        self.process = DockerHostStateExecutor(
+            process or SubprocessExecutor(), self._docker_host_state_dir
+        )
         self._disk_free_bytes = disk_free_bytes or (lambda path: shutil.disk_usage(path).free)
         self._port_available = port_available
         self._architecture = architecture or platform.machine
@@ -671,6 +678,9 @@ class DockerInstallerGateway(
         for profile in target.compose_profiles:
             prefix.extend(["--profile", profile])
         return prefix
+
+    def _docker_host_state_dir(self) -> str | None:
+        return docker_host_state_dir(self.state_store.root, self.repo_root / _PATH_ENV_PROD)
 
     def _env_path(self, config: DeploymentConfig) -> Path:
         return self.repo_root / (".env" if config.environment == "development" else _PATH_ENV_PROD)

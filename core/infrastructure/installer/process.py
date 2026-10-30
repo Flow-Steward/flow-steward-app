@@ -10,7 +10,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, cast
+from typing import IO, Any, cast
 
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
@@ -25,6 +25,56 @@ class ProcessOutcome:
     returncode: int
     stdout: str = ""
     stderr: str = ""
+
+
+def docker_host_state_dir(state_root: Path, env_file: Path) -> str | None:
+    """The state directory's Docker-host path, when this process sees it elsewhere.
+
+    Production records the host path as FS_CANDIDATE_STATE_DIR. Inside a CLI
+    container the same directory is mounted at another path, and only the host one
+    means anything to a Compose bind source.
+    """
+    try:
+        configured = ""
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            name, separator, value = line.strip().partition("=")
+            if separator and name.strip() == "FS_CANDIDATE_STATE_DIR":
+                configured = value.strip().strip('"').strip("'")
+        host_dir = Path(configured)
+        if not host_dir.is_absolute() or host_dir == state_root:
+            return None
+        return str(host_dir) if os.path.samefile(host_dir, state_root) else None
+    except OSError:
+        return None
+
+
+class DockerHostStateExecutor:
+    """Run every command with the installer state directory as the Docker host sees it.
+
+    The release handoff and lifecycle commands run in a CLI container, where the
+    state directory is mounted at another path. Compose interpolates bind sources
+    from FS_INSTALLER_STATE_DIR and the daemon resolves them on the host, so the
+    container path made Docker create empty directories there instead (the bundled
+    storage config and every service's runtime state).
+    """
+
+    def __init__(self, inner: Any, host_state_dir: Callable[[], str | None]) -> None:
+        self._inner = inner
+        self._host_state_dir = host_state_dir
+
+    def run(self, command: Sequence[str], **kwargs: Any) -> ProcessOutcome:
+        host_state_dir = self._host_state_dir()
+        if host_state_dir is not None:
+            environment = kwargs.get("environment")
+            selected = dict(
+                _runtime_env if environment is None else cast(Mapping[str, str], environment)
+            )
+            selected["FS_INSTALLER_STATE_DIR"] = host_state_dir
+            kwargs["environment"] = selected
+        return self._inner.run(command, **kwargs)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._inner, name)
 
 
 class SubprocessExecutor:

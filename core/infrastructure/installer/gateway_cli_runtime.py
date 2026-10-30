@@ -319,7 +319,9 @@ class CliRuntimeOperations:
             host_uid=host_uid,
             host_gid=host_gid,
             docker_gid=docker_gid,
-            state_runtime_root=(self.state_store.root / "runtime").resolve(),
+            state_runtime_root=(
+                Path(self._docker_host_state_dir() or self.state_store.root) / "runtime"
+            ).resolve(),
             candidate_state_dir=candidate_state_dir,
             candidate_prod_env=candidate_prod_env,
             host_directory_mounts=host_directory_mounts,

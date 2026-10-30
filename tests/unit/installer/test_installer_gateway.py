@@ -1439,6 +1439,58 @@ def test_start_core_does_not_start_development_tools_in_production(tmp_path: Pat
     assert "sonarqube" not in command
 
 
+def test_compose_bind_sources_use_the_host_state_dir_inside_the_cli_container(
+    tmp_path: Path,
+) -> None:
+    """The release handoff sees the state directory at a container mount; Compose
+    interpolates bind sources from it and the Docker host must find them."""
+    process = FakeProcessExecutor()
+    root = _repo(tmp_path)
+    host_state = root / ".flow-steward"
+    host_state.mkdir(exist_ok=True)
+    mounted_state = tmp_path / "run-flow-steward-candidate-state"
+    mounted_state.symlink_to(host_state, target_is_directory=True)
+    (root / ".env.prod").write_text(f"FS_CANDIDATE_STATE_DIR={host_state}\n", encoding="utf-8")
+    gateway = DockerInstallerGateway(
+        repo_root=root,
+        state_store=InstallerStateStore(mounted_state),
+        process=process,
+        disk_free_bytes=lambda _path: 10 * 1024**3,
+        port_available=lambda _host, _port: True,
+        architecture=lambda: "arm64",
+        docker_cli_available=lambda: True,
+        environment={},
+        sleep=lambda _seconds: None,
+    )
+    log = gateway.state_store.open_log("handoff-runtime")
+
+    gateway.start_runtime(InstallConfig(environment="production"), log=log)
+    log.close()
+
+    _command, kwargs = process.invocations[-1]
+    environment = kwargs["environment"]
+    assert isinstance(environment, dict)
+    assert environment["FS_INSTALLER_STATE_DIR"] == str(host_state)
+
+
+def test_compose_environment_is_untouched_when_the_state_dir_is_the_host_path(
+    tmp_path: Path,
+) -> None:
+    process = FakeProcessExecutor()
+    gateway = _gateway(tmp_path, process)
+    state_root = gateway.state_store.root
+    (gateway.repo_root / ".env.prod").write_text(
+        f"FS_CANDIDATE_STATE_DIR={state_root}\n", encoding="utf-8"
+    )
+    log = gateway.state_store.open_log("host-runtime")
+
+    gateway.start_runtime(InstallConfig(environment="production"), log=log)
+    log.close()
+
+    _command, kwargs = process.invocations[-1]
+    assert kwargs.get("environment") is None
+
+
 def test_production_prepare_persists_exact_image_provenance_before_compose(
     tmp_path: Path,
 ) -> None:

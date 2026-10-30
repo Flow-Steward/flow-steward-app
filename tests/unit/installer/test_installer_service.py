@@ -1339,9 +1339,9 @@ def test_verified_update_publishes_target_identity_after_shared_readiness(
     assert result.status == "installed"
     assert store.load_installed_release() == target
     assert store.load_pending_release() is None
-    assert "ensure_cli_runtime" not in gateway.calls
-    log_text = next(store.logs_dir.glob("*.log")).read_text(encoding="utf-8")
-    assert "Deferred reusable CLI replacement" in log_text
+    # The upgrade runs in a one-off fs-cli container, so it replaces the retained
+    # fs-cli itself instead of leaving it on the previous release's image.
+    assert gateway.calls.index("ensure_cli_runtime") > gateway.calls.index("verify_health")
 
 
 @pytest.mark.parametrize("previous_official", (False, True))
@@ -1369,7 +1369,7 @@ def test_changed_release_identity_prepares_images_even_when_source_revision_is_c
         < calls.index("start_runtime")
     )
     assert "activate_worker_identity" not in calls
-    assert "ensure_cli_runtime" not in calls
+    assert calls.index("start_runtime") < calls.index("ensure_cli_runtime")
     assert service.state.load_installed_release() == target
     assert service.state.load_pending_release() is None
     assert any("Applied official release 1.3.0" in warning for warning in result.warnings)

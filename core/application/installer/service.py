@@ -630,16 +630,6 @@ class InstallerService:
         log.write(currency.reason)
         for step_id in _UPDATE_STEPS:
             label, method_name = _STEP_LABELS[step_id]
-            if step_id == "cli_runtime" and target_release is not None:
-                # The official upgrade child is itself running inside Scalable's
-                # retained fs-cli. Recreating that container here would kill the
-                # only process that can publish installed-release.json and complete
-                # the handoff journal. The host launcher verifies/recreates fs-cli
-                # before the next command, after this process has committed success.
-                self._emit(step_id, "running", label)
-                log.write("Deferred reusable CLI replacement until the next launcher invocation.")
-                self._emit(step_id, "succeeded", label)
-                continue
             method_name = _UPDATE_METHODS.get(step_id, method_name)
             self._emit(step_id, "running", label)
             method: Callable[..., object] = getattr(self.gateway, method_name)

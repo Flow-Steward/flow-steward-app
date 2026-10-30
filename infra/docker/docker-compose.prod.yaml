@@ -35,7 +35,9 @@ x-role-common-environment: &role-common-environment
   FS_LOG_LEVEL: ${FS_LOG_LEVEL:-INFO}
   FS_OBSERVABILITY_DSN: ${FS_OBSERVABILITY_DSN:-}
   LANGGRAPH_POSTGRES_URI: ${LANGGRAPH_POSTGRES_URI}
-  PYTHONPYCACHEPREFIX: /app/logs/tool-cache/python/pycache
+  # Container-local: release images date every source 1970-01-01, so a bytecode
+  # cache kept on the host logs mount served another build's modules after an upgrade.
+  PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
   RABBITMQ_URL: ${RABBITMQ_URL}
   FS_RABBITMQ_TRANSPORT_MODE: compose-local
   SECURITY_PII_SALT: "${SECURITY_PII_SALT:?SECURITY_PII_SALT is required in production; the installer provisions it as a durable secret}"

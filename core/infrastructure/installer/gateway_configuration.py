@@ -206,7 +206,8 @@ class ConfigurationOperations:
         if config.environment == "production":
             managed.update(
                 {
-                    "FS_CANDIDATE_STATE_DIR": str(self.state_store.root.resolve()),
+                    "FS_CANDIDATE_STATE_DIR": self._docker_host_state_dir()
+                    or str(self.state_store.root.resolve()),
                     "FS_CANDIDATE_PROD_ENV": str(env_path.resolve()),
                 }
             )
