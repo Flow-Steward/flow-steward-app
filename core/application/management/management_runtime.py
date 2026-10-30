@@ -3,29 +3,26 @@
 from __future__ import annotations
 
 import logging
-import re
-from functools import lru_cache
 from typing import Any
 
-from core.application.extensions.artifact_dataset_plane_v2 import ArtifactDatasetPlane
-from core.application.extensions.artifact_storage import create_storage_adapter
+from core.application.jobs.enqueue_task_handler import (
+    create_enqueue_task_handler,
+    job_invocation_artifact_plane,
+)
 from core.application.jobs.job_invocation_artifacts import load_replay_snapshot
 from core.application.jobs.job_runtime_payload import build_persisted_diagnostic_payload
 from core.application.jobs.job_trace_runtime import build_resolve_job_project_name
-from core.application.jobs.task_enqueue_runtime import build_enqueue_task_handler
 from core.application.management import query_service_runtime as _query_service_runtime
 from core.application.management.command_services import JobCommandService, ProjectCommandService
 from core.application.management.project_grid_rows import serialize_projects_grid_row
 from core.application.management.query_services import JobQueryService, ProjectQueryService
 from core.application.management.snapshot_serializers import (
-    build_project_config_snapshot,
     serialize_agent_message_row,
     serialize_job_error_row,
     serialize_log_row,
 )
 from core.application.management.workflow_operator_service import WorkflowOperatorService
 from core.application.orchestration.agents.common import sanitize_external_input
-from core.application.workflows.domain_event_runtime import project_account_id
 from core.application.workflows.serve_workflow_helpers import (
     build_rerun_workflow_selection,
     build_resolve_workflow_selection,
@@ -37,8 +34,6 @@ from core.application.workflows.workflow_override_runtime import (
     build_explicit_workflow_override_validator,
 )
 from core.infrastructure.config import runtime_config as core_config
-from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
-from core.infrastructure.runtime.artifact_storage_factory import build_artifact_storage
 from core.infrastructure.runtime.serve_interrupt_helpers import approval_fallback_payload
 from core.infrastructure.runtime.serve_request_runtime import (
     build_runtime_payload_for_api as _build_runtime_payload_for_api,
@@ -47,19 +42,6 @@ from core.infrastructure.runtime.serve_request_runtime import to_json_obj
 from core.infrastructure.runtime.test_mode import parse_test_mode
 
 _LOGGER = logging.getLogger("platform.manage.runtime")
-_SENSITIVE_KEY_RE = re.compile(
-    r"(api[_-]?key|token|secret|password|passphrase|private[_-]?key|dsn)",
-    re.IGNORECASE,
-)
-
-
-@lru_cache(maxsize=1)
-def _job_invocation_artifact_plane() -> ArtifactDatasetPlane:
-    return build_artifact_storage(
-        environ=dict(_runtime_env),
-        create_storage_adapter=create_storage_adapter,
-        artifact_plane_factory=ArtifactDatasetPlane,
-    )
 
 
 def create_project_query_service(*, get_logger, get_job_store=None) -> ProjectQueryService:
@@ -107,15 +89,8 @@ def create_project_command_service(
         build_task_envelope_for_preview=build_task_envelope_for_preview,
     )
     availability_service = WorkflowAvailabilityService(get_logger=get_logger)
-    enqueue_task = build_enqueue_task_handler(
-        get_config=lambda: core_config.CONFIG,
-        create_logger_fn=lambda _dsn: get_logger(),
-        enqueue_task_fn=lambda **kwargs: _publish_task(**kwargs),
-        build_project_config_snapshot=_project_config_snapshot,
-        project_account_id_fn=lambda bl, project_id: project_account_id(bl, project_id),
-        logger=_LOGGER,
-        log_prefix="platform.manage.enqueue",
-        artifact_plane=_job_invocation_artifact_plane,
+    enqueue_task = create_enqueue_task_handler(
+        get_logger=get_logger, log_prefix="platform.manage.enqueue"
     )
 
     def dispatch_project_notification_event(_project_store, **kwargs):
@@ -233,15 +208,8 @@ def create_job_query_service(*, get_logger) -> JobQueryService:
 
 
 def create_job_command_service(*, get_logger, get_project_run_config=None) -> JobCommandService:
-    enqueue_task = build_enqueue_task_handler(
-        get_config=lambda: core_config.CONFIG,
-        create_logger_fn=lambda _dsn: get_logger(),
-        enqueue_task_fn=lambda **kwargs: _publish_task(**kwargs),
-        build_project_config_snapshot=_project_config_snapshot,
-        project_account_id_fn=lambda bl, project_id: project_account_id(bl, project_id),
-        logger=_LOGGER,
-        log_prefix="platform.manage.jobs.enqueue",
-        artifact_plane=_job_invocation_artifact_plane,
+    enqueue_task = create_enqueue_task_handler(
+        get_logger=get_logger, log_prefix="platform.manage.jobs.enqueue"
     )
     return JobCommandService(
         get_logger=get_logger,
@@ -254,7 +222,7 @@ def create_job_command_service(*, get_logger, get_project_run_config=None) -> Jo
             )
         ),
         load_replay_snapshot=lambda **kwargs: load_replay_snapshot(
-            artifact_plane=_job_invocation_artifact_plane(),
+            artifact_plane=job_invocation_artifact_plane(),
             **kwargs,
         ),
         enqueue_task=enqueue_task,
@@ -307,32 +275,3 @@ def resolve_project_reference(
             f"Project name '{normalized_name}' is ambiguous, use project_id ({ids})"
         )
     return exact[0]
-
-
-def _project_config_snapshot(project_config: dict | None) -> dict[str, Any]:
-    return build_project_config_snapshot(project_config, secret_key_re=_SENSITIVE_KEY_RE)
-
-
-def create_enqueue_task_handler(*, get_logger):
-    """Job-creating ``enqueue_task(task_id=..., test_mode=...)`` for a process without the HTTP runtime.
-
-    The worker hands the event service this handler, not the raw queue publisher, so an
-    event that starts a workflow (a provider trigger, a reaction) creates the job row
-    first and publishes it second, the same as the API process does.
-    """
-    return build_enqueue_task_handler(
-        get_config=lambda: core_config.CONFIG,
-        create_logger_fn=lambda _dsn: get_logger(),
-        enqueue_task_fn=lambda **kwargs: _publish_task(**kwargs),
-        build_project_config_snapshot=_project_config_snapshot,
-        project_account_id_fn=lambda bl, project_id: project_account_id(bl, project_id),
-        logger=_LOGGER,
-        log_prefix="platform.worker.enqueue",
-        artifact_plane=_job_invocation_artifact_plane,
-    )
-
-
-def _publish_task(**kwargs) -> None:
-    from core.infrastructure.runtime.worker.queue_publisher import enqueue_task
-
-    enqueue_task(**kwargs)

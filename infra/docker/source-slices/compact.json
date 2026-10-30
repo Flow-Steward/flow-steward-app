@@ -305,6 +305,7 @@
     "core/application/jobs/artifact_cleanup_runtime.py",
     "core/application/jobs/child_invocation_projection.py",
     "core/application/jobs/dispatch_outbox_repository.py",
+    "core/application/jobs/enqueue_task_handler.py",
     "core/application/jobs/execution_contracts.py",
     "core/application/jobs/failure_summary.py",
     "core/application/jobs/invoke_child_cancellation.py",

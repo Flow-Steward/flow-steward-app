@@ -6,8 +6,8 @@ from collections.abc import Callable
 from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.jobs.enqueue_task_handler import create_enqueue_task_handler
 from core.application.management.command_service_runtime import create_event_command_service
-from core.application.management.management_runtime import create_enqueue_task_handler
 from core.application.orchestration.agents.common import sanitize_external_input
 from core.application.workflows import domain_event_runtime, reaction_runtime
 from core.application.workflows.reaction_service_runtime import (

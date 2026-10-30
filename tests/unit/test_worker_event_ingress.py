@@ -252,3 +252,19 @@ def test_worker_event_service_creates_jobs_through_the_job_level_enqueue(monkeyp
     )
 
     assert factory()._enqueue_task is handler
+
+
+def test_the_worker_slice_takes_the_enqueue_handler_without_the_management_stack() -> None:
+    """The handler lives in its own module so the worker image stays small.
+
+    Importing it from management_runtime pulled portability, authoring and the template
+    catalog (31 modules) into the worker's source slice.
+    """
+    import json
+    from pathlib import Path
+
+    slice_path = Path(__file__).resolve().parents[2] / "infra/docker/source-slices/worker.json"
+    files = json.dumps(json.loads(slice_path.read_text(encoding="utf-8")))
+
+    assert "core/application/jobs/enqueue_task_handler.py" in files
+    assert "core/application/management/management_runtime.py" not in files
