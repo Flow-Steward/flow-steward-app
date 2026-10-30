@@ -27340,3 +27340,48 @@ msgstr ""
 
 msgid "registry.tools.standard.text.trim.label"
 msgstr ""
+
+msgid "react.jobs.file_preview_failed"
+msgstr ""
+
+msgid "react.jobs.file_preview_hide"
+msgstr ""
+
+msgid "react.jobs.file_preview_loading"
+msgstr ""
+
+msgid "react.jobs.file_preview_not_utf8"
+msgstr ""
+
+msgid "react.jobs.file_preview_too_large"
+msgstr ""
+
+msgid "react.jobs.file_preview_unsupported"
+msgstr ""
+
+msgid "react.jobs.file_preview_view"
+msgstr ""
+
+msgid "react.registry.agent_inherited_inputs"
+msgstr ""
+
+msgid "react.registry.agent_inherited_outputs"
+msgstr ""
+
+msgid "react.registry.agent_no_inherited_inputs"
+msgstr ""
+
+msgid "react.registry.agent_no_inherited_outputs"
+msgstr ""
+
+msgid "react.registry.agent_no_own_inputs"
+msgstr ""
+
+msgid "react.registry.agent_no_own_outputs"
+msgstr ""
+
+msgid "react.registry.agent_own_inputs"
+msgstr ""
+
+msgid "react.registry.agent_own_outputs"
+msgstr ""

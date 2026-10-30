@@ -3,7 +3,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useEffect, useRef, useState } from "react";
 
 import { DsCheckbox, DsSelect } from "@/components/shared/design-system";
-import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { firstStringFromUnknownValue, isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 export type ContractDraftItem = {
   contract_id: string;
@@ -61,6 +61,45 @@ export function emptyContractDraftItem(required: boolean): ContractDraftItem {
 
 export function isStructuredContractValueType(valueType: string): boolean {
   return STRUCTURED_CONTRACT_VALUE_TYPES.has(firstStringFromUnknownValue([valueType, ""]).trim().toLowerCase());
+}
+
+function normalizeContractDraftItem(
+  row: Record<string, unknown>,
+  requiredByDefault: boolean,
+): ContractDraftItem {
+  return {
+    contract_id: firstStringFromUnknownValue([row.contract_id, row.data_contract_id, ""]).trim(),
+    description: firstStringFromUnknownValue([row.description, row.notes, ""]).trim(),
+    name: firstStringFromUnknownValue([row.name, row.output, row.field, ""]).trim(),
+    required:
+      typeof row.required === "boolean" ? row.required : requiredByDefault,
+    type: firstStringFromUnknownValue([row.type, row.kind, row.value_type, "text"]).trim() || "text",
+  };
+}
+
+export function normalizeContractDraftItems(
+  rows: Array<Record<string, unknown>>,
+  requiredByDefault: boolean,
+): ContractDraftItem[] {
+  return rows.map((row) => normalizeContractDraftItem(row, requiredByDefault));
+}
+
+export function normalizeCatalogFieldOptions(rows: Array<Record<string, unknown>>): CatalogFieldOption[] {
+  return rows
+    .map((row) => {
+      const fieldKey = firstStringFromUnknownValue([row.field_key, row.name, row.id, ""]).trim();
+      if (!fieldKey) {
+        return null;
+      }
+      return {
+        contractId: firstStringFromUnknownValue([row.data_contract_id, ""]).trim(),
+        description: firstStringFromUnknownValue([row.description, ""]).trim(),
+        fieldKey,
+        label: firstStringFromUnknownValue([row.display_name, fieldKey]).trim() || fieldKey,
+        valueType: firstStringFromUnknownValue([row.value_type, row.type, "text"]).trim() || "text",
+      };
+    })
+    .filter(isTruthy);
 }
 
 /**
@@ -255,6 +294,7 @@ export function ContractEditorCard({
   saveLabel,
   saveStatus,
   saving,
+  showDataContract = true,
   title,
 }: Readonly<{
   addLabel: string;
@@ -270,6 +310,8 @@ export function ContractEditorCard({
   saveLabel: string;
   saveStatus: string;
   saving: boolean;
+  /** False where the fields store no data contract (an agent's own fields). */
+  showDataContract?: boolean;
   title: string;
 }>) {
   const { t } = useI18n();
@@ -330,7 +372,7 @@ export function ContractEditorCard({
                     value={catalogFieldValue}
                   />
                 </div>
-                <div className="fs-field md:col-span-4">
+                <div className={showDataContract ? "fs-field md:col-span-4" : "fs-field md:col-span-7"}>
                   <label className="fs-field-label" htmlFor={`${title}-name-${index}`}>
                     {t("settings.mcp.fields.name", "Name")}</label>
                   <input
@@ -361,6 +403,7 @@ export function ContractEditorCard({
                     value={item.type}
                   />
                 </div>
+                {showDataContract ? (
                 <div className="fs-field md:col-span-3">
                   <span className="fs-field-label">{t("trash.type.registry_data_contract", "Data Contract")}</span>
                   <SearchablePicker
@@ -378,6 +421,7 @@ export function ContractEditorCard({
                     value={structuredType ? item.contract_id : ""}
                   />
                 </div>
+                ) : null}
                 <div
                   className="fs-field md:col-span-9"
                   data-testid="skill-contract-description-field"

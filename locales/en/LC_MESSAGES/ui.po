@@ -28335,3 +28335,48 @@ msgstr "Run: trim."
 
 msgid "registry.tools.standard.text.trim.label"
 msgstr "Trim"
+
+msgid "react.jobs.file_preview_failed"
+msgstr "The preview could not be loaded. Download the file instead."
+
+msgid "react.jobs.file_preview_hide"
+msgstr "Hide"
+
+msgid "react.jobs.file_preview_loading"
+msgstr "Loading preview..."
+
+msgid "react.jobs.file_preview_not_utf8"
+msgstr "This file is not UTF-8 text, so it cannot be shown here. Download it instead."
+
+msgid "react.jobs.file_preview_too_large"
+msgstr "This file is larger than the preview limit. Download the original to read it."
+
+msgid "react.jobs.file_preview_unsupported"
+msgstr "This file type has no preview. Download it instead."
+
+msgid "react.jobs.file_preview_view"
+msgstr "View"
+
+msgid "react.registry.agent_inherited_inputs"
+msgstr "Inherited Inputs"
+
+msgid "react.registry.agent_inherited_outputs"
+msgstr "Inherited Outputs"
+
+msgid "react.registry.agent_no_inherited_inputs"
+msgstr "No inputs come from skills or tools."
+
+msgid "react.registry.agent_no_inherited_outputs"
+msgstr "No outputs come from skills or tools."
+
+msgid "react.registry.agent_no_own_inputs"
+msgstr "This agent has no own inputs."
+
+msgid "react.registry.agent_no_own_outputs"
+msgstr "This agent has no own outputs."
+
+msgid "react.registry.agent_own_inputs"
+msgstr "Own Inputs"
+
+msgid "react.registry.agent_own_outputs"
+msgstr "Own Outputs"

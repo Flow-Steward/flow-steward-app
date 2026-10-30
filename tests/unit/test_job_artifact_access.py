@@ -39,6 +39,22 @@ def test_job_artifact_access_returns_owned_available_descriptor() -> None:
     assert download.size_bytes == 42
 
 
+def test_a_row_without_a_type_leaves_the_preview_type_empty() -> None:
+    """The preview falls back to the extension only when the row declares no type."""
+    metadata = _artifact()
+    metadata.pop("content_type")
+    metadata["filename"] = "notes.txt"
+
+    download = resolve_job_artifact_download(
+        job={"id": "job-a", "project_id": "project-a"},
+        artifact_id="art-1",
+        resolve_artifact=lambda _artifact_id: metadata,
+    )
+
+    assert download.preview_content_type == ""
+    assert download.content_type == "application/octet-stream"
+
+
 def test_job_artifact_access_accepts_recorded_child_producer_after_parent_adoption() -> None:
     metadata = _artifact(project_id="project-a", job_id="parent-a")
     metadata["producer_job_id"] = "child-a"
@@ -165,11 +181,17 @@ def test_job_artifact_route_redirects_to_signed_storage_without_reading_body(
     )
 
 
-def _preview_endpoint(content_type: str, *, size_bytes: int = 8, preview_content_type=None):
+def _preview_endpoint(
+    content_type: str,
+    *,
+    size_bytes: int = 8,
+    preview_content_type=None,
+    filename: str = "cover image.png",
+):
     query_service = SimpleNamespace(
         get_job_artifact_download=lambda *_args, **_kwargs: SimpleNamespace(
             artifact_id="art-1",
-            filename="cover image.png",
+            filename=filename,
             content_type=content_type,
             preview_content_type=preview_content_type,
             size_bytes=size_bytes,
@@ -295,3 +317,86 @@ def test_presentation_mime_cannot_activate_an_inline_preview(monkeypatch):
     endpoint = _preview_endpoint("application/pdf", preview_content_type="application/octet-stream")
     response = asyncio.run(endpoint(SimpleNamespace(), "job-a", "art-1"))
     assert response.status_code == 415
+
+
+@pytest.mark.parametrize(
+    ("content_type", "filename"),
+    [
+        ("text/plain", "notes.txt"),
+        ("text/plain; charset=utf-8", "notes"),
+        ("text/markdown", "README.md"),
+        ("application/json; charset=UTF-8", "result.json"),
+        ("", "notes.txt"),
+        ("", "README.MD"),
+        ("", "result.json"),
+    ],
+)
+def test_job_artifact_preview_serves_text_as_plain_characters(
+    monkeypatch: pytest.MonkeyPatch, content_type: str, filename: str
+) -> None:
+    """TXT, Markdown and JSON open in the run view as text, never as a page."""
+    body = '# Título\n<script>alert(1)</script>\n{"a": 1}\n'.encode()
+    monkeypatch.setattr(
+        dependencies, "_artifact_read_bytes", lambda _artifact_id, *, max_size_bytes: body
+    )
+
+    response = asyncio.run(
+        _preview_endpoint(content_type, filename=filename, size_bytes=len(body))(
+            SimpleNamespace(), "job-a", "art-1"
+        )
+    )
+
+    assert response.status_code == 200
+    assert response.body == body
+    assert response.media_type == "text/plain; charset=utf-8"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["content-security-policy"].startswith("sandbox;")
+    assert response.headers["content-disposition"].startswith("inline;")
+
+
+def test_a_declared_type_is_not_overridden_by_a_text_extension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dependencies,
+        "_artifact_read_bytes",
+        lambda *_args, **_kwargs: pytest.fail("a declared non-text type is not previewed"),
+    )
+
+    for declared in ("application/octet-stream", "application/zip", "text/html"):
+        response = asyncio.run(
+            _preview_endpoint(declared, filename="notes.txt")(SimpleNamespace(), "job-a", "art-1")
+        )
+        assert response.status_code == 415, declared
+
+
+def test_text_that_is_not_utf8_is_refused_with_a_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        dependencies, "_artifact_read_bytes", lambda *_args, **_kwargs: "café".encode("latin-1")
+    )
+
+    response = asyncio.run(
+        _preview_endpoint("text/plain", filename="notes.txt")(SimpleNamespace(), "job-a", "art-1")
+    )
+
+    assert response.status_code == 422
+    assert "UTF-8" in response.body.decode()
+
+
+def test_text_over_the_preview_limit_is_refused_without_reading_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FS_FILE_PREVIEW_MAX_BYTES", "4096")
+    monkeypatch.setattr(
+        dependencies,
+        "_artifact_read_bytes",
+        lambda *_args, **_kwargs: pytest.fail("an oversized file must not be read"),
+    )
+
+    response = asyncio.run(
+        _preview_endpoint("application/json", filename="big.json", size_bytes=4097)(
+            SimpleNamespace(), "job-a", "art-1"
+        )
+    )
+
+    assert response.status_code == 413

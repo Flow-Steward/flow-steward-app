@@ -107,3 +107,27 @@ export async function fetchJson<T>(
     finishRequest?.();
   }
 }
+
+/** A text body as it is, with the same credentials and errors as `fetchJson`. */
+export async function fetchText(input: RequestInfo | URL, init: RequestInit = {}): Promise<string> {
+  const headers = buildHttpHeaders({ ...init, headers: { Accept: "text/plain", ...init.headers } });
+  const finishRequest = beginRequest();
+  try {
+    const response = await fetch(input, {
+      ...init,
+      credentials: init.credentials || "same-origin",
+      headers,
+    });
+    if (!response.ok) {
+      throw new HttpError({
+        headers: response.headers,
+        status: response.status,
+        url: response.url || stringFromUnknownValue(input),
+        payload: await parseResponseBody(response),
+      });
+    }
+    return await response.text();
+  } finally {
+    finishRequest();
+  }
+}

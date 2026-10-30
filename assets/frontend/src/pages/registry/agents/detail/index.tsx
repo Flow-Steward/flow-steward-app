@@ -29,7 +29,7 @@ import {
   toggleLineValue,
 } from "./agent-detail-helpers";
 
-import { ContractPanel } from "./contract-panel";
+import { AgentOwnIoPanel } from "./agent-own-io";
 
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
 
@@ -614,15 +614,11 @@ export function RegistryAgentsDetailPage() {
 
             {renderWhen(activeTab === "io", (
               <>
-                <ContractPanel
-                  emptyMessage={t("react.registry.no_expected_inputs_defined", "No expected inputs defined.")}
-                  rows={expectedInputs}
-                  title={t("registry.workflow_detail.inputs.expected", "Expected Inputs")}
-                />
-                <ContractPanel
-                  emptyMessage={t("react.registry.no_expected_outputs_defined", "No expected outputs defined.")}
-                  rows={expectedOutputs}
-                  title={t("registry.skill_detail.io.expected_outputs", "Expected Outputs")}
+                <AgentOwnIoPanel
+                  agentId={resolvedEntityId}
+                  materializedInputs={expectedInputs}
+                  materializedOutputs={expectedOutputs}
+                  onSaved={() => Promise.all([detailQuery.refetch(), historyQuery.refetch()])}
                 />
               </>
             ))}

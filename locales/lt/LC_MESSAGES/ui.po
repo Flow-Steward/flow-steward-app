@@ -28757,3 +28757,48 @@ msgstr "Atlikti: pašalinti tarpus."
 
 msgid "registry.tools.standard.text.trim.label"
 msgstr "Pašalinti tarpus"
+
+msgid "react.jobs.file_preview_failed"
+msgstr "Nepavyko įkelti peržiūros. Atsisiųskite failą."
+
+msgid "react.jobs.file_preview_hide"
+msgstr "Slėpti"
+
+msgid "react.jobs.file_preview_loading"
+msgstr "Įkeliama peržiūra..."
+
+msgid "react.jobs.file_preview_not_utf8"
+msgstr "Šis failas nėra UTF-8 tekstas, todėl jo negalima parodyti čia. Atsisiųskite jį."
+
+msgid "react.jobs.file_preview_too_large"
+msgstr "Šis failas viršija peržiūros ribą. Atsisiųskite originalą, kad jį perskaitytumėte."
+
+msgid "react.jobs.file_preview_unsupported"
+msgstr "Šio tipo failo peržiūra negalima. Atsisiųskite jį."
+
+msgid "react.jobs.file_preview_view"
+msgstr "Peržiūrėti"
+
+msgid "react.registry.agent_inherited_inputs"
+msgstr "Paveldėtos įvestys"
+
+msgid "react.registry.agent_inherited_outputs"
+msgstr "Paveldėtos išvestys"
+
+msgid "react.registry.agent_no_inherited_inputs"
+msgstr "Iš įgūdžių ar įrankių įvesčių nėra."
+
+msgid "react.registry.agent_no_inherited_outputs"
+msgstr "Iš įgūdžių ar įrankių išvesčių nėra."
+
+msgid "react.registry.agent_no_own_inputs"
+msgstr "Šis agentas neturi nuosavų įvesčių."
+
+msgid "react.registry.agent_no_own_outputs"
+msgstr "Šis agentas neturi nuosavų išvesčių."
+
+msgid "react.registry.agent_own_inputs"
+msgstr "Nuosavos įvestys"
+
+msgid "react.registry.agent_own_outputs"
+msgstr "Nuosavos išvestys"

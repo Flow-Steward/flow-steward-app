@@ -6,6 +6,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Annotated, Any
 from urllib.parse import quote
 
@@ -56,6 +57,47 @@ def _artifact_download_headers(download: Any, size_bytes: int) -> dict[str, str]
 _INLINE_PREVIEW_TYPES = frozenset(
     {"image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"}
 )
+# Text a run view reads as plain characters. Served as text/plain whatever the
+# declared type, so neither Markdown nor JSON is ever interpreted by the browser.
+_TEXT_PREVIEW_TYPES = frozenset({"text/plain", "text/markdown", "application/json"})
+_TEXT_PREVIEW_EXTENSIONS = {
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".json": "application/json",
+}
+_PREVIEW_TOO_LARGE = "The file is too large to preview"
+
+
+def _preview_media_type(declared: str, filename: str) -> str:
+    """The type a preview is chosen by: the declared one, or the extension when none is.
+
+    A declared type always wins, so a file recorded as, say, application/zip is not
+    previewed as text because its name ends in .txt. Only text types are inferred.
+    """
+    media_type = declared.split(";", 1)[0].strip().lower()
+    if media_type:
+        return media_type
+    return _TEXT_PREVIEW_EXTENSIONS.get(PurePosixPath(filename).suffix.lower(), "")
+
+
+def _text_preview_response(body: bytes, filename: str) -> Response:
+    try:
+        text = body.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return JSONResponse(
+            {"error": "The file is not UTF-8 text and cannot be previewed; download it instead"},
+            status_code=422,
+        )
+    return Response(
+        content=text.encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename, safe='')}",
+            "Cache-Control": "private, max-age=300",
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @dataclass(frozen=True)
@@ -387,13 +429,14 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
 
     @router.get("/api/jobs/{job_id}/artifacts/{artifact_id}/preview")
     async def api_job_artifact_preview(request: Request, job_id: str, artifact_id: str):
-        """Serve a generated image or PDF inline, so the run view can show it.
+        """Serve a generated image, PDF or text file inline, so the run view can show it.
 
         Same authorization as a download. Only types a browser renders without
         running anything are served inline (no SVG, no HTML), within a size
         bound (``FS_FILE_PREVIEW_MAX_BYTES``), and from any storage backend: the body is read here rather than
         redirected, because a storage URL is another origin the page's image
-        policy does not allow.
+        policy does not allow. TXT, Markdown and JSON come back as UTF-8
+        ``text/plain`` for the page to show as characters.
         """
         try:
             download = job_query_service().get_job_artifact_download(
@@ -402,17 +445,15 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
                 scope=request_scope(request),
             )
             preview_type = getattr(download, "preview_content_type", None)
-            content_type = (
-                str(download.content_type if preview_type is None else preview_type)
-                .split(";", 1)[0]
-                .strip()
-                .lower()
+            content_type = _preview_media_type(
+                str(download.content_type if preview_type is None else preview_type),
+                download.filename,
             )
-            if content_type not in _INLINE_PREVIEW_TYPES:
+            if content_type not in _INLINE_PREVIEW_TYPES | _TEXT_PREVIEW_TYPES:
                 return JSONResponse({"error": "This file type has no preview"}, status_code=415)
             preview_limit = file_preview_max_bytes()
             if download.size_bytes > preview_limit:
-                return JSONResponse({"error": "The file is too large to preview"}, status_code=413)
+                return JSONResponse({"error": _PREVIEW_TOO_LARGE}, status_code=413)
             body = await asyncio.to_thread(
                 api_dependencies.artifact_read_bytes,
                 download.artifact_id,
@@ -421,11 +462,13 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
             if body is None:
                 raise ServiceUnavailableError("Artifact preview is not available")
         except ValueError:
-            return JSONResponse({"error": "The file is too large to preview"}, status_code=413)
+            return JSONResponse({"error": _PREVIEW_TOO_LARGE}, status_code=413)
         except ServiceError as e:
             return service_error_response(e)
         except Exception as e:
             return api_error_response(e)
+        if content_type in _TEXT_PREVIEW_TYPES:
+            return _text_preview_response(body, download.filename)
         encoded_filename = quote(download.filename, safe="")
         headers = {
             "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",

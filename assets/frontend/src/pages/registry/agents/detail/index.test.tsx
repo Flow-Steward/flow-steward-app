@@ -741,6 +741,76 @@ describe("RegistryAgentsDetailPage", () => {
     );
   });
 
+  it("edits the agent's own fields and keeps the skill's read-only", async () => {
+    mockedFetchRegistryDetail.mockResolvedValue({
+      agent_id: "sample_launch_copywriter",
+      display_name: "Writer",
+      enabled: true,
+      prompts: { system: "Write." },
+      builder_metadata_jsonb: {},
+      _skills: [{ skill_id: "shared_summary" }],
+      _tools: [],
+      _inputs: [
+        { name: "request", type: "text", source: "skill:shared_summary" },
+        { name: "tone", type: "text", source: "own" },
+      ],
+      _outputs: [{ name: "summary", type: "text", source: "skill:shared_summary" }],
+    } as never);
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    mockedFetchJson.mockImplementation(async (url, init) => {
+      calls.push({ url: String(url), init });
+      if (url === "/api/agents/sample_launch_copywriter/own-inputs") {
+        return [{ name: "tone", type: "text", description: "Voice", required: true }];
+      }
+      if (url === "/api/agents/sample_launch_copywriter/own-outputs") {
+        return init?.method === "PUT" ? JSON.parse(String(init.body)) : [];
+      }
+      return {};
+    });
+
+    renderPage();
+    expect(await screen.findByText("Writer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
+
+    // Inherited fields are shown with their source and cannot be edited here.
+    expect(await screen.findByText("request")).toHaveClass("fs-signature-name");
+    expect(screen.getByText("summary")).toHaveClass("fs-signature-name");
+    expect(screen.getAllByText("From skill").length).toBe(2);
+    expect(screen.queryByDisplayValue("request")).not.toBeInTheDocument();
+    // The own input is edited in place.
+    expect(await screen.findByDisplayValue("tone")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Output" }));
+    const names = screen.getAllByPlaceholderText("Name");
+    fireEvent.change(names[names.length - 1], { target: { value: "confidence" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Outputs" }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.url === "/api/agents/sample_launch_copywriter/own-outputs" &&
+            call.init?.method === "PUT",
+        ),
+      ).toBe(true),
+    );
+    const saved = calls.find(
+      (call) => call.url.endsWith("/own-outputs") && call.init?.method === "PUT",
+    );
+    expect(JSON.parse(String(saved?.init?.body))).toEqual([
+      { description: "", name: "confidence", required: true, type: "text" },
+    ]);
+    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    // Neither the shared skill nor the older skill-writing endpoints are called.
+    expect(
+      calls.filter(
+        (call) =>
+          call.init?.method === "PUT" &&
+          (call.url.startsWith("/api/skills/") || /\/(inputs|outputs)$/.test(call.url)),
+      ),
+    ).toEqual([]);
+  });
+
   it("saves per-agent provider and model config from the config tab", async () => {
     mockedFetchRegistryDetail.mockResolvedValue({
       agent_id: "sample_launch_copywriter",

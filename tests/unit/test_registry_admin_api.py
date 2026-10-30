@@ -3285,9 +3285,11 @@ class TestAgentDetailModelSelection:
         contract_text = _page_contract_text(
             resp,
             "assets/frontend/src/pages/registry/agents/detail/index.tsx",
+            "assets/frontend/src/pages/registry/agents/detail/agent-own-io.tsx",
         )
-        assert "Expected Inputs" in contract_text
-        assert "Expected Outputs" in contract_text
+        # The I/O tab lists inherited fields read-only and edits the agent's own.
+        for label in ("Inherited Inputs", "Own Inputs", "Inherited Outputs", "Own Outputs"):
+            assert label in contract_text
         assert "Prompt Preview" in contract_text
 
 

@@ -16,6 +16,7 @@ from core.application.management.query_models import (
     AgentTemplateVariableView,
     RegistryContractItemView,
 )
+from core.application.registry.agent_own_io import get_agent_own_io, save_agent_own_io
 from core.application.registry.contract_validation import (
     format_validation_error_detail,
     validate_contract_items,
@@ -260,6 +261,81 @@ def register_agent_io_routes(
         db.set_agent_outputs(agent_id, payload)
         db.materialize_agent_contract(agent_id)
         return db.get_agent_own_outputs(agent_id)
+
+    # The agent's own fields, whatever skill it has. /inputs and /outputs above keep
+    # their behaviour: with a primary skill they read and write that skill.
+    def _scoped_agent(agent_id: str, request: Request) -> Any:
+        db = get_db()
+        agent = db.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+        assert_row_in_account_scope(
+            agent, request_scope(request), detail=f"Agent '{agent_id}' not found"
+        )
+        return db
+
+    def _save_own(agent_id: str, request: Request, kind: Any, items: list[Any]):
+        db = _scoped_agent(agent_id, request)
+        saved, issues = save_agent_own_io(db, agent_id, kind, [i.model_dump() for i in items])
+        if issues:
+            raise HTTPException(
+                status_code=400,
+                detail=format_validation_error_detail(
+                    entity_type="agent",
+                    entity_id=agent_id,
+                    action=f"save_own_{kind}",
+                    validation={"valid": False, "errors": issues, "warnings": []},
+                ),
+            )
+        return saved
+
+    _OWN_IO_RESPONSES: dict[int | str, dict[str, Any]] = {
+        400: {"description": "Bad request"},
+        403: {"description": "Forbidden"},
+        404: {"description": "Not found"},
+        500: {"description": "Internal server error"},
+        503: {"description": "Service unavailable"},
+    }
+
+    @router.get(
+        "/{agent_id}/own-inputs",
+        response_model=list[RegistryContractItemView],
+        response_model_exclude_none=True,
+        responses=_OWN_IO_RESPONSES,
+    )
+    def get_agent_own_inputs(agent_id: str, request: Request):
+        """The agent's own inputs, apart from those its skills and tools provide."""
+        return get_agent_own_io(_scoped_agent(agent_id, request), agent_id, "inputs")
+
+    @router.put(
+        "/{agent_id}/own-inputs",
+        response_model=list[RegistryContractItemView],
+        response_model_exclude_none=True,
+        responses=_OWN_IO_RESPONSES,
+    )
+    def set_agent_own_inputs(agent_id: str, request: Request, items: list[AgentInputItem]):
+        """Replace the agent's own inputs; skills, tools and other agents are not touched."""
+        return _save_own(agent_id, request, "inputs", items)
+
+    @router.get(
+        "/{agent_id}/own-outputs",
+        response_model=list[RegistryContractItemView],
+        response_model_exclude_none=True,
+        responses=_OWN_IO_RESPONSES,
+    )
+    def get_agent_own_outputs(agent_id: str, request: Request):
+        """The agent's own outputs, apart from those its skills and tools provide."""
+        return get_agent_own_io(_scoped_agent(agent_id, request), agent_id, "outputs")
+
+    @router.put(
+        "/{agent_id}/own-outputs",
+        response_model=list[RegistryContractItemView],
+        response_model_exclude_none=True,
+        responses=_OWN_IO_RESPONSES,
+    )
+    def set_agent_own_outputs(agent_id: str, request: Request, items: list[AgentOutputItem]):
+        """Replace the agent's own outputs; skills, tools and other agents are not touched."""
+        return _save_own(agent_id, request, "outputs", items)
 
     @router.get(
         "/{agent_id}/effective-io",

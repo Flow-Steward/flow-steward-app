@@ -117,7 +117,8 @@ def resolve_job_artifact_download(
     from core.application.extensions.artifact_presentation import artifact_presentation_view
 
     # Ownership and availability above are checked against the original row.
-    preview_content_type = str(metadata.get("content_type") or "application/octet-stream").strip()
+    # Empty when the row declares no type: the preview then falls back to the file's extension.
+    preview_content_type = str(metadata.get("content_type") or "").strip()
     metadata = artifact_presentation_view(metadata, resolve_artifact=resolve_artifact)
     return JobArtifactDownload(
         artifact_id=normalized_artifact_id,

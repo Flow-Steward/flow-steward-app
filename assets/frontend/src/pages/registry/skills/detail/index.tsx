@@ -32,11 +32,12 @@ import {
 import { SaveErrorAlert, SaveStatusBadge } from "@/pages/registry/shared/save-feedback";
 import {
   ContractEditorCard,
-  type CatalogFieldOption,
   type ContractDraftItem,
   type DataContractOption,
   emptyContractDraftItem,
   isStructuredContractValueType,
+  normalizeCatalogFieldOptions,
+  normalizeContractDraftItems,
 } from "./contract-editor";
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -70,45 +71,6 @@ type SkillDraft = {
   safeForAutoUse: boolean;
   useCases: string;
 };
-
-function normalizeContractDraftItem(
-  row: Record<string, unknown>,
-  requiredByDefault: boolean,
-): ContractDraftItem {
-  return {
-    contract_id: firstStringFromUnknownValue([row.contract_id, row.data_contract_id, ""]).trim(),
-    description: firstStringFromUnknownValue([row.description, row.notes, ""]).trim(),
-    name: firstStringFromUnknownValue([row.name, row.output, row.field, ""]).trim(),
-    required:
-      typeof row.required === "boolean" ? row.required : requiredByDefault,
-    type: firstStringFromUnknownValue([row.type, row.kind, row.value_type, "text"]).trim() || "text",
-  };
-}
-
-function normalizeContractDraftItems(
-  rows: Array<Record<string, unknown>>,
-  requiredByDefault: boolean,
-): ContractDraftItem[] {
-  return rows.map((row) => normalizeContractDraftItem(row, requiredByDefault));
-}
-
-function normalizeCatalogFieldOptions(rows: Array<Record<string, unknown>>): CatalogFieldOption[] {
-  return rows
-    .map((row) => {
-      const fieldKey = firstStringFromUnknownValue([row.field_key, row.name, row.id, ""]).trim();
-      if (!fieldKey) {
-        return null;
-      }
-      return {
-        contractId: firstStringFromUnknownValue([row.data_contract_id, ""]).trim(),
-        description: firstStringFromUnknownValue([row.description, ""]).trim(),
-        fieldKey,
-        label: firstStringFromUnknownValue([row.display_name, fieldKey]).trim() || fieldKey,
-        valueType: firstStringFromUnknownValue([row.value_type, row.type, "text"]).trim() || "text",
-      };
-    })
-    .filter(isTruthy);
-}
 
 function normalizeDataContractOptions(rows: Array<Record<string, unknown>>): DataContractOption[] {
   return rows
