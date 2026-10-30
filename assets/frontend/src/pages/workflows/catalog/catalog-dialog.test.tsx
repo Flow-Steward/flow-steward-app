@@ -885,8 +885,8 @@ test("a connection slot offers only connections of its step's extension", async 
     kind: "workflow_import_dependency_options",
     options: {
       project_connection: [
-        { value: "conn_docs", label: "Local Docling", metadata: { extension_id: "flowsteward.docling" } },
-        { value: "conn_mail", label: "Mailpit", metadata: { extension_id: "flowsteward.outgoing-email" } },
+        { value: "conn_docs", label: "Local Docling", metadata: { extension_id: "acme.docling" } },
+        { value: "conn_mail", label: "Mailpit", metadata: { extension_id: "acme.outgoing-email" } },
       ],
     },
   });
@@ -902,7 +902,7 @@ test("a connection slot offers only connections of its step's extension", async 
           blocking: true,
           required: true,
           resolution_actions: ["map_existing", "create_connection_placeholder", "abort"],
-          metadata: { extension_id: "flowsteward.outgoing-email" },
+          metadata: { extension_id: "acme.outgoing-email" },
         },
       ],
     }),
@@ -920,7 +920,7 @@ test("a connection slot offers only connections of its step's extension", async 
   fireEvent.change(screen.getByLabelText("Resolution for conn_template"), {
     target: { value: "create_connection_placeholder" },
   });
-  expect(screen.getByLabelText("Extension id for conn_template")).toHaveValue("flowsteward.outgoing-email");
+  expect(screen.getByLabelText("Extension id for conn_template")).toHaveValue("acme.outgoing-email");
 });
 
 test("a template that cannot be created here says so plainly", async () => {

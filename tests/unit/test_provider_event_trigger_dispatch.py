@@ -10,7 +10,7 @@ import pytest
 
 from core.application.workflows import provider_event_trigger_dispatch as dispatch
 
-PROVIDER = "flowsteward.telegram"
+PROVIDER = "acme.telegram"
 EVENT = "telegram.message.received"
 
 

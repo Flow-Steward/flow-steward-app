@@ -10,13 +10,13 @@ from core.application.workflows.workflow_trigger_catalog import list_workflow_tr
 from core.entrypoints.api.route_registration import _ProjectStoreWithExtensionList
 
 TELEGRAM_ROW = {
-    "extension_key": "flowsteward.telegram",
+    "extension_key": "acme.telegram",
     "kind": "notification_provider",
     "compiled_manifest": {
         "workflow_triggers": [
             {
                 "trigger_type_id": "message_received",
-                "provider_key": "flowsteward.telegram",
+                "provider_key": "acme.telegram",
                 "display_name": "New Telegram message",
                 "event_name": "telegram.message.received",
             }
@@ -48,7 +48,7 @@ def test_catalog_of_the_project_store_alone_holds_only_the_builtin_webhook():
 def test_project_store_with_extension_list_offers_the_trigger_an_extension_declares():
     store = _ProjectStoreWithExtensionList(_ProjectStore(), _IdentityStore())
     catalog = list_workflow_trigger_catalog(store)
-    assert "flowsteward.telegram:message_received" in [item["catalog_id"] for item in catalog]
+    assert "acme.telegram:message_received" in [item["catalog_id"] for item in catalog]
     assert store.conn is not None
 
 
@@ -65,7 +65,7 @@ class _RegistrationService:
 
 def _registration() -> dict[str, Any]:
     return {
-        "extension_id": "flowsteward.telegram",
+        "extension_id": "acme.telegram",
         "connection_id": "conn-1",
         "project_id": "proj-1",
     }
@@ -81,14 +81,14 @@ def test_callback_dispatch_finds_the_connection_on_the_project_store(monkeypatch
             "connection_id": "conn-1",
             "project_id": "proj-1",
             "account_id": "acc-1",
-            "extension_id": "flowsteward.telegram",
+            "extension_id": "acme.telegram",
             "extension_install_id": "inst-1",
         }
 
     identity = SimpleNamespace(
         get_extension_by_install_id=lambda install_id, account_id=None: {
             "install_id": install_id,
-            "extension_key": "flowsteward.telegram",
+            "extension_key": "acme.telegram",
             "enabled": True,
         }
     )
@@ -122,7 +122,7 @@ def test_callback_dispatch_derives_the_account_of_a_registration_from_the_projec
         get_extension=lambda extension_id, account_id=None: {"extension_key": extension_id},
         get_extension_by_install_id=lambda install_id, account_id=None: {
             "install_id": install_id,
-            "extension_key": "flowsteward.telegram",
+            "extension_key": "acme.telegram",
             "enabled": True,
         },
     )
@@ -132,7 +132,7 @@ def test_callback_dispatch_derives_the_account_of_a_registration_from_the_projec
             "connection_id": "conn-1",
             "project_id": "proj-1",
             "account_id": "acc-1",
-            "extension_id": "flowsteward.telegram",
+            "extension_id": "acme.telegram",
             "extension_install_id": "inst-1",
         },
     )
@@ -183,7 +183,7 @@ def test_operation_receives_the_token_the_extension_secrets_form_saved():
     refs = {
         "refs": {},
         "provider_secrets": {
-            "provider_key": "flowsteward.telegram",
+            "provider_key": "acme.telegram",
             "keys": {"bot_token": "bot_token", "unused": "other"},
         },
     }
@@ -191,7 +191,7 @@ def test_operation_receives_the_token_the_extension_secrets_form_saved():
 
     assert secrets == {"bot_token": "saved-value"}
     assert store.calls[0] == {
-        "provider_key": "flowsteward.telegram",
+        "provider_key": "acme.telegram",
         "secret_key": TOKEN_KEY,
         "project_id": "proj-1",
         "include_global": False,

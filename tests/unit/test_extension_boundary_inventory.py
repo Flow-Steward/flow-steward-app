@@ -114,6 +114,8 @@ def _offending_identities(text: str) -> set[str]:
         for identity in candidates
         # The SDK distribution is not an extension.
         if not identity.startswith("flowsteward_extension_sdk")
+        # Nor is the product's own domain (docs.flowsteward.org).
+        and identity != "flowsteward.org"
     }
 
 
