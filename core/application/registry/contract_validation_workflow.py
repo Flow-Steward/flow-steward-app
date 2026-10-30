@@ -20,6 +20,7 @@ from core.application.orchestration.dataset_cursor_runtime import MAX_DATASET_PA
 from core.application.orchestration.state_path_guards import (
     canonical_state_write_parts,
     is_reserved_state_target,
+    state_path_root,
 )
 
 from .contract_validation_common import *  # noqa: F403,F401  # NOSONAR
@@ -440,7 +441,7 @@ def _validate_step_state_write_targets(step: dict, step_path: str) -> list[dict]
             errors.append(
                 _issue(
                     code="workflow.step_output_mapping_target_reserved",
-                    message="output mapping cannot write security-sensitive runtime state",
+                    message=_reserved_target_message("output mapping", target_text),
                     path=f"{mapping_path}.{str(output_name or '').strip()}",
                 )
             )
@@ -463,11 +464,18 @@ def _validate_step_state_write_targets(step: dict, step_path: str) -> list[dict]
             errors.append(
                 _issue(
                     code="workflow.step_state_target_reserved",
-                    message=f"{step_kind} cannot write security-sensitive runtime state",
+                    message=_reserved_target_message(step_kind, target),
                     path=f"{step_path}.override.{step_kind}.{field}",
                 )
             )
     return errors
+
+
+def _reserved_target_message(writer: str, target: Any) -> str:
+    root = state_path_root(target)
+    if not root:
+        return f"{writer} target is not a valid state path"
+    return f"{writer} cannot write state.{root}: the runtime keeps it; write to another state key"
 
 
 def _resolve_step_agent_for_workflow(

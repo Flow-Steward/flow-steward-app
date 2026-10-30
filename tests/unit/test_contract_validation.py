@@ -2536,6 +2536,45 @@ def test_validate_workflow_readiness_rejects_reserved_output_mapping_target():
     assert "workflow.step_output_mapping_target_reserved" in _error_codes(validation)
 
 
+@pytest.mark.parametrize("channel", ["messages", "agent_messages"])
+def test_a_step_cannot_write_the_graph_conversation_channels(channel):
+    """state.messages runs through the LangGraph chat reducer.
+
+    An IMAP template mapped its message summaries there; validation passed, and every
+    run on a non-empty mailbox failed with "Message dict must contain 'role' and
+    'content' keys". The name is refused when the workflow is checked instead.
+    """
+
+    def validation_for(target):
+        workflow = linear_workflow(
+            {
+                "step_id": "read_mailbox",
+                "step_kind": "agent",
+                "agent_id": "writer",
+                "output_mapping_jsonb": {"result": target},
+            },
+            workflow_id="wf_conversation_channel",
+            settings={"callable": dict(_INLINE_LOOP_SETTINGS["callable"])},
+        )
+        return validate_workflow_readiness(
+            _WorkflowValidationDB(workflow, agent_outputs={"writer": [{"name": "result"}]}),
+            "wf_conversation_channel",
+        )
+
+    refused = validation_for(f"state.{channel}")
+    assert refused.get("valid") is False
+    assert "workflow.step_output_mapping_target_reserved" in _error_codes(refused)
+    message = next(
+        issue["message"]
+        for issue in refused["errors"]
+        if issue["code"] == "workflow.step_output_mapping_target_reserved"
+    )
+    assert f"state.{channel}" in message and "another state key" in message
+
+    allowed = validation_for(f"state.{channel}_summary")
+    assert "workflow.step_output_mapping_target_reserved" not in _error_codes(allowed)
+
+
 def test_validate_workflow_readiness_rejects_reserved_http_response_target():
     workflow = linear_workflow(
         {

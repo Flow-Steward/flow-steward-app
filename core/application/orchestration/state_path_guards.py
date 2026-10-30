@@ -23,6 +23,11 @@ RESERVED_STATE_ROOTS: frozenset[str] = frozenset(
         # Returned files (state.artifacts.<key>) are captured from the step
         # result ticked "Return from workflow"; no author step writes them.
         "artifacts",
+        # The graph's conversation channels. state.messages goes through the
+        # LangGraph chat reducer, so a step that writes plain records there (an
+        # IMAP search did) fails the run on its first non-empty value.
+        "agent_messages",
+        "messages",
         # Hook outputs (state.hooks.<hook_id>) are published by the Invoke
         # runtime only; no author step writes them.
         "hooks",
