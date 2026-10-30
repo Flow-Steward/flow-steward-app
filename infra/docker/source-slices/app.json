@@ -670,6 +670,7 @@
     "core/application/registry/__init__.py",
     "core/application/registry/active_workflow_dependencies.py",
     "core/application/registry/agent_manifest.py",
+    "core/application/registry/agent_own_io.py",
     "core/application/registry/agent_registry.py",
     "core/application/registry/boundary_contracts.py",
     "core/application/registry/builder_metadata.py",
