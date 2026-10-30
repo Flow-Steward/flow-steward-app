@@ -47,7 +47,6 @@ class RegistryManager:
         self.db_dsn = db_dsn
 
         self._db_store = RegistryDBStore(self.db_dsn)
-        self._db_store.ensure_builder_registry_schema()
         if sync_builtins:
             with self._db_store.suppress_projection_sync():
                 changed_step_kinds = sync_builtin_step_kind_profiles(self._db_store)
@@ -161,7 +160,6 @@ class RegistryManager:
         with _lock:
             logger.info("Reloading all registries")
             try:
-                self._db_store.ensure_builder_registry_schema()
                 with self._db_store.suppress_projection_sync():
                     changed_step_kinds = sync_builtin_step_kind_profiles(self._db_store)
                     changed_tools = sync_builtin_mcp_tools(self._db_store)

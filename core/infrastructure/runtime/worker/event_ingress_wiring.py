@@ -11,7 +11,6 @@ from typing import Any
 class WorkerEventIngressPorts:
     dispatch_project_notification_event: Callable[..., Any]
     fetch_provider_attachments: Callable[..., Any]
-    enqueue_task: Callable[..., Any]
 
 
 __all__ = ["WorkerEventIngressPorts"]

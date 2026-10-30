@@ -62,7 +62,6 @@ class RegistryDBStoreGuardrailsMixin:
             return [dict(row) for row in cur.fetchall()]
 
     def upsert_step_kind_profile(self, data: dict, author: str = "admin") -> None:
-        self.ensure_builder_registry_schema()
         step_kind_key = str(data.get("step_kind_key") or "").strip()
         if not step_kind_key:
             raise ValueError("step_kind_key is required")

@@ -107,7 +107,6 @@ def _run_worker_poll(
         worker_event_ingress,
         "worker_event_ingress_ports",
         lambda: SimpleNamespace(
-            enqueue_task=MagicMock(),
             fetch_provider_attachments=MagicMock(return_value=[]),
             dispatch_project_notification_event=dispatch,
         ),
@@ -227,3 +226,29 @@ def test_worker_polling_dispatches_terminal_non_applied_outcome(
     assert resolution["payload"]["applied"] is False
     assert resolution["payload"]["outcome_code"] == outcome_code
     store.mark_job_reaction_event_processed.assert_called_once_with("101", processed=True)
+
+
+def test_worker_event_service_creates_jobs_through_the_job_level_enqueue(monkeypatch) -> None:
+    """A trigger started from a polled event needs the job-creating enqueue.
+
+    The raw queue publisher takes no ``test_mode`` and creates no job row, so every
+    provider trigger fired by background polling failed with an unexpected keyword.
+    """
+    handler = MagicMock(name="job_level_enqueue")
+    monkeypatch.setattr(
+        worker_event_ingress,
+        "worker_event_ingress_ports",
+        lambda: SimpleNamespace(
+            fetch_provider_attachments=MagicMock(return_value=[]),
+            dispatch_project_notification_event=MagicMock(),
+        ),
+    )
+    monkeypatch.setattr(
+        worker_event_ingress, "create_enqueue_task_handler", lambda **_kwargs: handler
+    )
+    factory = worker_event_ingress._event_command_service_factory(
+        bl=_worker_store(),
+        approval_command_service_factory=lambda: MagicMock(),
+    )
+
+    assert factory()._enqueue_task is handler

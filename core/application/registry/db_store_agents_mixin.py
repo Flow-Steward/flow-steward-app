@@ -884,7 +884,6 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
         aid = str(agent_id or "").strip()
         if not aid:
             return
-        self.ensure_builder_registry_schema()
         from core.application.registry.io_resolver import IOResolver
 
         effective = IOResolver(self).compute_effective_io(aid, own_only=True)
@@ -958,7 +957,6 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
         every later startup. Best-effort: never block registry init on failure.
         """
         try:
-            self.ensure_builder_registry_schema()
             with self._cursor() as cur:
                 cur.execute("SELECT 1 FROM registry_agent_outputs LIMIT 1")
                 if cur.fetchone():

@@ -7,6 +7,7 @@ from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.command_service_runtime import create_event_command_service
+from core.application.management.management_runtime import create_enqueue_task_handler
 from core.application.orchestration.agents.common import sanitize_external_input
 from core.application.workflows import domain_event_runtime, reaction_runtime
 from core.application.workflows.reaction_service_runtime import (
@@ -24,12 +25,10 @@ def worker_event_ingress_ports() -> WorkerEventIngressPorts:
     """Compose application services and queue adapters at the worker entrypoint."""
     from core.application.extensions.provider_attachments import fetch_provider_attachments
     from core.application.notifications.dispatch import dispatch_project_notification_event
-    from core.infrastructure.runtime.worker.queue_publisher import enqueue_task
 
     return WorkerEventIngressPorts(
         dispatch_project_notification_event=dispatch_project_notification_event,
         fetch_provider_attachments=fetch_provider_attachments,
-        enqueue_task=enqueue_task,
     )
 
 
@@ -72,7 +71,7 @@ def _event_command_service_factory(
             to_json_obj=_to_json_obj,
             serialize_domain_event_datetime=domain_event_runtime.serialize_domain_event_datetime,
             sanitize_external_input=sanitize_external_input,
-            enqueue_task=ports.enqueue_task,
+            enqueue_task=create_enqueue_task_handler(get_logger=lambda: bl),
             workflow_exists=workflow_exists,
             evaluate_workflow_reactions=evaluate_reactions,
             reaction_action_result_executed=reaction_runtime.reaction_action_result_executed,

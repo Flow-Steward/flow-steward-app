@@ -14,7 +14,6 @@ class RegistryDBStoreConnectionMixin:
         self._public_projection_sync_in_progress = False
         self._column_exists_cache: dict[tuple[str, str, str], bool] = {}
         self._backend_initialized = False
-        self._builder_registry_schema_ready = False
 
     def _ensure_backend(self) -> None:
         if self._conn is not None:
@@ -371,57 +370,6 @@ class RegistryDBStoreConnectionMixin:
                 (schema, str(table or "").strip()),
             )
             return cur.fetchone() is not None
-
-    def ensure_builder_registry_schema(self) -> None:
-        if self._builder_registry_schema_ready:
-            return
-        self._ensure_backend()
-        statements = [
-            """
-            ALTER TABLE public.registry_agents
-            ADD COLUMN IF NOT EXISTS builder_metadata_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL
-            """,
-            """
-            ALTER TABLE public.registry_skills
-            ADD COLUMN IF NOT EXISTS builder_metadata_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL
-            """,
-            """
-            ALTER TABLE public.registry_tools
-            ADD COLUMN IF NOT EXISTS builder_metadata_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL
-            """,
-            """
-            ALTER TABLE public.registry_workflows
-            ADD COLUMN IF NOT EXISTS builder_metadata_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL
-            """,
-            # Provenance for the materialized agent contract: 'own' for fields
-            # authored directly on the agent, 'skill:<id>' / 'tool:<id>' for fields
-            # inherited from a bound skill or tool (see materialize_agent_contract).
-            """
-            ALTER TABLE public.registry_agent_inputs
-            ADD COLUMN IF NOT EXISTS source text DEFAULT 'own' NOT NULL
-            """,
-            """
-            ALTER TABLE public.registry_agent_outputs
-            ADD COLUMN IF NOT EXISTS source text DEFAULT 'own' NOT NULL
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS public.registry_step_kind_profiles (
-                step_kind_key text PRIMARY KEY,
-                display_name text NOT NULL,
-                description text DEFAULT ''::text NOT NULL,
-                enabled boolean DEFAULT true NOT NULL,
-                builder_metadata_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
-                config_schema_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
-                created_at timestamp with time zone DEFAULT now() NOT NULL,
-                updated_at timestamp with time zone DEFAULT now() NOT NULL
-            )
-            """,
-        ]
-        with self._cursor() as cur:
-            for statement in statements:
-                cur.execute(statement)
-        self._column_exists_cache.clear()
-        self._builder_registry_schema_ready = True
 
     @staticmethod
     def _extract_connection_dependency_refs(raw_binding: Any) -> list[str]:

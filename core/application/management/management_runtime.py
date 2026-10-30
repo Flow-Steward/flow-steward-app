@@ -313,6 +313,25 @@ def _project_config_snapshot(project_config: dict | None) -> dict[str, Any]:
     return build_project_config_snapshot(project_config, secret_key_re=_SENSITIVE_KEY_RE)
 
 
+def create_enqueue_task_handler(*, get_logger):
+    """Job-creating ``enqueue_task(task_id=..., test_mode=...)`` for a process without the HTTP runtime.
+
+    The worker hands the event service this handler, not the raw queue publisher, so an
+    event that starts a workflow (a provider trigger, a reaction) creates the job row
+    first and publishes it second, the same as the API process does.
+    """
+    return build_enqueue_task_handler(
+        get_config=lambda: core_config.CONFIG,
+        create_logger_fn=lambda _dsn: get_logger(),
+        enqueue_task_fn=lambda **kwargs: _publish_task(**kwargs),
+        build_project_config_snapshot=_project_config_snapshot,
+        project_account_id_fn=lambda bl, project_id: project_account_id(bl, project_id),
+        logger=_LOGGER,
+        log_prefix="platform.worker.enqueue",
+        artifact_plane=_job_invocation_artifact_plane,
+    )
+
+
 def _publish_task(**kwargs) -> None:
     from core.infrastructure.runtime.worker.queue_publisher import enqueue_task
 
