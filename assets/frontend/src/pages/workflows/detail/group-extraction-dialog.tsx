@@ -5,6 +5,7 @@ import { useConfirmDialog } from "@/components/shared/use-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { HttpError } from "@/lib/http/errors";
+import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import {
   convertWorkflowGroup,
   workflowChangeErrorIssues,
@@ -58,8 +59,8 @@ function groupExtractionIssueText(issue: WorkflowChangeIssue, t: Translate, wher
       break;
     case "whole_state_input":
       // Owner feedback: "read only the values" read as "read-only"; say which step, which field, what to put there.
-      if (String(issue.subject || "") === "state.inputs") return t("react.workflows.convert_issue_all_inputs", "The step “{step}” takes all of the workflow’s inputs at once in its “{field}” field (state.inputs). A child workflow receives single named values, so this cannot move into it. Open the step and put one input there instead, for example state.inputs.<input name>, then preview again.", { step: where.step || t("react.workflows.convert_issue_a_step", "in the group"), field: where.field || "Source" });
-      return t("react.workflows.convert_issue_all_state", "The step “{step}” takes the workflow’s whole data at once in its “{field}” field ({value}). A child workflow receives single named values, so this cannot move into it. Open the step and put one value there instead, for example state.<variable name>, then preview again.", { step: where.step || t("react.workflows.convert_issue_a_step", "in the group"), field: where.field || "Source", value: String(issue.subject || "state") });
+      if (issue.subject === "state.inputs") return t("react.workflows.convert_issue_all_inputs", "The step “{step}” takes all of the workflow’s inputs at once in its “{field}” field (state.inputs). A child workflow receives single named values, so this cannot move into it. Open the step and put one input there instead, for example state.inputs.<input name>, then preview again.", { step: where.step || t("react.workflows.convert_issue_a_step", "in the group"), field: where.field || "Source" });
+      return t("react.workflows.convert_issue_all_state", "The step “{step}” takes the workflow’s whole data at once in its “{field}” field ({value}). A child workflow receives single named values, so this cannot move into it. Open the step and put one value there instead, for example state.<variable name>, then preview again.", { step: where.step || t("react.workflows.convert_issue_a_step", "in the group"), field: where.field || "Source", value: stringFromUnknownValue(issue.subject) || "state" });
     case "runtime_context_boundary":
       return t("react.workflows.convert_issue_run_context", "A step in the group reads information about the current run, which a child workflow cannot receive. Remove that read or keep this step outside the group.");
     case "child_id_unavailable":
@@ -85,7 +86,7 @@ function groupExtractionIssueText(issue: WorkflowChangeIssue, t: Translate, wher
 
 /** The field a refusal path ends in, as a label: "…transform.input.source" → "Source". */
 function issueField(path: unknown): string {
-  const last = (typeof path === "string" ? path : "").split(".").filter(Boolean).pop() || "";
+  const last = (typeof path === "string" ? path : "").split(".").findLast(Boolean) || "";
   return last ? last.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()) : "";
 }
 

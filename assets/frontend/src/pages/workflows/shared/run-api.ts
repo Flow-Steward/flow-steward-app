@@ -1,4 +1,5 @@
 import { fetchJson } from "@/lib/http/client";
+import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 export type WorkflowRunFile = { input_name: string; filename: string; mime_type: string; content_base64: string };
 export type BuilderWorkflowRunRequest = {
@@ -11,12 +12,13 @@ export function runBuilderWorkflow(workflowId: string, request: BuilderWorkflowR
   });
 }
 
-export function readWorkflowRunFile(inputName: string, file: File): Promise<WorkflowRunFile> {
+/** Reads a run file; `failureMessage` is the (translated) message a read failure rejects with. */
+export function readWorkflowRunFile(inputName: string, file: File, failureMessage: string): Promise<WorkflowRunFile> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error());
+    reader.onerror = () => reject(new Error(failureMessage, { cause: reader.error }));
     reader.onload = () => resolve({ input_name: inputName, filename: file.name,
-      mime_type: file.type || "application/octet-stream", content_base64: String(reader.result).split(",")[1] || "" });
+      mime_type: file.type || "application/octet-stream", content_base64: stringFromUnknownValue(reader.result).split(",")[1] || "" });
     reader.readAsDataURL(file);
   });
 }

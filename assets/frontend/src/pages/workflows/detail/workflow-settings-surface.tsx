@@ -45,11 +45,14 @@ function TriggersTab({ ctx }: Readonly<{ ctx: Parameters<typeof useWorkflowTrigg
  * and History, over one settings form whose drafts and unsaved-changes guard
  * outlive a change of tab. Graph and step authoring stay in Builder.
  */
+function ignoreSaveNotice() {
+  // Intentionally empty: the shared settings controller reports save notices this surface does not show.
+}
+
 export default function WorkflowSettingsSurface({ workflowId, projectId, tab, onSelectTab, onSaved, onChannelDraft }: Readonly<Props>) {
   const { t } = useI18n();
   const canAuthor = useIsAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [, setSaveNotice] = useState("");
   const [saveError, setSaveError] = useState("");
   const [savingWorkflowSurface, setSavingWorkflowSurface] = useState("");
   const [triggersWasOpened, setTriggersWasOpened] = useState(tab === "webhook");
@@ -73,7 +76,7 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
     onSelectTab(next === "triggers" ? "webhook" : next);
   }
   const settings = useWorkflowSettingsController({
-    workflowId, workflowRecord, workflowInterfaceControlIdPrefix, setDrawerTab: changeDrawerTab, setSaveNotice, setSaveError, drawerMode: "workflow-settings",
+    workflowId, workflowRecord, workflowInterfaceControlIdPrefix, setDrawerTab: changeDrawerTab, setSaveNotice: ignoreSaveNotice, setSaveError, drawerMode: "workflow-settings",
     setSavingWorkflowSurface: (value: string) => {
       if (value === "workflow") {
         setSaveError("");

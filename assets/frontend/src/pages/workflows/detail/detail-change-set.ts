@@ -323,7 +323,7 @@ export function useWorkflowChangeSet({
   useLayoutEffect(() => {
     const previous = lastServerRef.current;
     lastServerRef.current = { owner: workflowId, revision: serverRevision, definition: serverDefinition };
-    if (!previous || previous.owner !== workflowId || !previous.revision || !serverRevision) return;
+    if (previous?.owner !== workflowId || !previous.revision || !serverRevision) return;
     if (previous.revision === serverRevision || ownRevisionsRef.current.has(serverRevision)) return;
     if (expectOwnRevisionRef.current) {
       expectOwnRevisionRef.current = false;
@@ -673,7 +673,7 @@ export function useWorkflowChangeSet({
       if (ownerIdRef.current !== workflowId) return;
       // The page showed this own save's revision before reporting it: it was
       // held as someone else's change, and is released as this author's.
-      const ownHeld = Boolean(heldCheckpoint && heldCheckpoint.seenRevision === revision &&
+      const ownHeld = Boolean(heldCheckpoint?.seenRevision === revision &&
         heldCheckpoint.revision === expectedPreviousRevision);
       if (ownHeld) {
         setHeld(null);

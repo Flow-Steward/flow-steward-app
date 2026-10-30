@@ -168,7 +168,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
   const [workflowDisplayNameDraft, setWorkflowDisplayNameDraft] = useState("");
   const [workflowDescriptionDraft, setWorkflowDescriptionDraft] = useState("");
   const [workflowEnabledDraft, setWorkflowEnabledDraft] = useState(true);
-  const [workflowExpectedFailureDraft, setWorkflowExpectedFailureValue] = useState(false);
+  const [workflowExpectedFailureValue, setWorkflowExpectedFailureValue] = useState(false);
   const [workflowExpectedFailureEdited, setWorkflowExpectedFailureEdited] = useState(false);
   const setWorkflowExpectedFailureDraft = (value: boolean) => {
     setWorkflowFormDirty(true);
@@ -314,7 +314,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
             settings: {
               ...existingSettings,
               ...(workflowExpectedFailureEdited ? { traits: { ...existingTraits,
-                expected_failure: workflowExpectedFailureDraft } } : {}),
+                expected_failure: workflowExpectedFailureValue } } : {}),
               callable: callableContract,
             },
           }),
@@ -418,7 +418,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     workflowDescriptionDraft,
     workflowDisplayNameDraft,
     workflowEnabledDraft,
-    workflowExpectedFailureDraft,
+    workflowExpectedFailureDraft: workflowExpectedFailureValue,
     workflowExpectedFailureTag,
     workflowInterfaceEnabledDraft,
     workflowInterfaceInputModeDraft,

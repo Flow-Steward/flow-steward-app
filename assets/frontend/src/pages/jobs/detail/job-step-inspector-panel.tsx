@@ -158,7 +158,7 @@ export function StepInspectorPanel({
   const isHttpRequest = selectedStep.step_type_label_key === "react.workflows.http_request";
   const savedOutput = isHttpRequest ? objectOrEmpty(selectedStep.saved_output) : {};
   const savedTarget = firstReadableText(savedOutput.target);
-  const hasSavedValue = Boolean(savedTarget) && Object.prototype.hasOwnProperty.call(savedOutput, "value");
+  const hasSavedValue = Boolean(savedTarget) && Object.hasOwn(savedOutput, "value");
   const savedValueIsFile = savedOutput.is_file === true;
 
   return (

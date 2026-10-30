@@ -396,7 +396,7 @@ export function useCanvasSearchNavigation({ autoArrange = false, currentNodesByI
     const samePosition = (left: CanvasPosition | null, right: CanvasPosition | null) => left?.x === right?.x && left?.y === right?.y;
     if (creation) {
       const owner = placementOwnerFor([focusNodeId]);
-      if (!owner || owner.workflowId !== creation.ownerWorkflowId || owner.placementViewKey !== creation.viewKey ||
+      if (owner?.workflowId !== creation.ownerWorkflowId || owner.placementViewKey !== creation.viewKey ||
         owner.placementViewEpoch !== creation.viewEpoch || !owner.hasGraphIntent(creation.token)) return;
       if (creation.intent && !edges.some((edge) => edge.target === focusNodeId && edge.source === nodeIdForRef(creation.intent!.source) &&
         edge.sourceHandle === outcomeHandleId(creation.intent!.outcome))) return;

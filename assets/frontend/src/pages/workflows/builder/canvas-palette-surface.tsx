@@ -59,7 +59,7 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [creationSelection, setCreationSelection] = useState<CanvasCreationSelection | null>(null);
-  const [creationIntentRetireNonce, retireCreationIntent] = useState(0);
+  const [creationIntentRetireNonce, setCreationIntentRetireNonce] = useState(0);
   const [placementCommand, setPlacementCommand] = useState<CanvasPlacementCommand | null>(null);
   const placementSerial = useRef(0);
   const creationSerial = useRef(0);
@@ -74,7 +74,7 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
   const dismiss = useCallback(() => {
     pending.current?.abort(); pending.current = null; activeRequest.current = "";
     setBusy(false); setRequest(null); setError("");
-    retireCreationIntent((current) => current + 1);
+    setCreationIntentRetireNonce((current) => current + 1);
     request?.returnFocus?.focus();
   }, [request]);
   const open = useCallback((context: PaletteRequest["context"] = {}, intent?: CanvasCreationIntent, expectedEdge?: WorkflowGraphEdge, at?: CanvasPlacementPoint) => {
@@ -133,7 +133,7 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
         if (choice.nodeKind === "for_each" && choice.presentation === "inline" && "nodeId" in result) setInlineLoop(workflowId, result.nodeId, true);
         setCreationSelection({ nodeId, nonce: ++creationSerial.current, selectionGeneration: selection.intent?.selectionGeneration });
         setRequest(null);
-        retireCreationIntent((current) => current + 1);
+        setCreationIntentRetireNonce((current) => current + 1);
       }
       else if (result.status === "cancelled") dismiss();
       else setError(result.message || t("react.workflows.palette_creation_refused", "The step could not be added. Resolve the current edit and try again."));

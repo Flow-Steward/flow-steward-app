@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { DsSelect, RequiredLabel } from "@/components/shared/design-system";
 import { useI18n } from "@/lib/i18n/useI18n";
+import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { agentParticipants, applyAgentBlockIntent, effectiveAgentBlockKey, parseAgentMap } from "./detail-agent-step-fields";
 import type { WorkflowStepContractPreview } from "@/pages/workflows/shared/api";
 import type { AgentStepDrafts } from "./detail-agent-step-drafts";
@@ -56,13 +57,22 @@ function AgentContractMappingFields({ ctx }: Readonly<{ ctx: AgentStepEditorCont
       try { values = parseAgentMap(map.text); } catch { valid = false; }
       const rows = direction === "input" ? inputs : contract.outputs || [];
       return rows.map((row) => {
-        const name = String(row.name || ""); if (!name) return null;
+        const name = stringFromUnknownValue(row.name); if (!name) return null;
+        const description = stringFromUnknownValue(row.description);
         const value = values[name]; const structured = value !== undefined && typeof value !== "string";
         const label = direction === "input" ? t("react.workflows.agent_input_source", "Input source: {name}", { name }) : t("react.workflows.agent_output_target", "Output target: {name}", { name });
         return <label className="block" key={`${direction}:${name}`}><span className="fs-field-label">{label}{row.required ? ` (${t("react.workflows.required", "Required")})` : ""}</span>
-          <input className="fs-input" aria-label={label} disabled={!valid || structured} value={typeof value === "string" ? value : value === undefined ? "" : JSON.stringify(value)} placeholder={direction === "input" ? String(row.source || "state.inputs." + name) : "state.outputs." + name}
-            onChange={(event) => { const next = { ...values }; if (event.target.value === "") delete next[name]; else next[name] = event.target.value; ctx.agentDrafts.editMap(direction, JSON.stringify(next, null, 2)); }} />
-          {row.description ? <span className="fs-field-helper">{String(row.description)}</span> : null}
+          <input className="fs-input" aria-label={label} disabled={!valid || structured} value={typeof value === "string" ? value : value === undefined ? "" : JSON.stringify(value)} placeholder={direction === "input" ? stringFromUnknownValue(row.source) || "state.inputs." + name : "state.outputs." + name}
+            onChange={(event) => {
+              const next = { ...values };
+              if (event.target.value === "") {
+                delete next[name];
+              } else {
+                next[name] = event.target.value;
+              }
+              ctx.agentDrafts.editMap(direction, JSON.stringify(next, null, 2));
+            }} />
+          {description ? <span className="fs-field-helper">{description}</span> : null}
           {!valid || structured ? <span className="fs-field-helper">{t("react.workflows.agent_mapping_advanced_value", "This mapping is retained. Use the Advanced JSON editor to change its JSON value.")}</span> : null}
         </label>;
       });

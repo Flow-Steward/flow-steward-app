@@ -200,7 +200,7 @@ function ChangelogDiffContent({
               : null}</span>
               <span className="fs-changelog__change-kind">{normalizeText(change.change || change.type || "updated", t)}</span>
             </span>
-            <span className="fs-changelog__change-values">{t("project_edit.diff.from", "from:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "from") ? change.from : change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "to") ? change.to : change.after, t)}</span>
+            <span className="fs-changelog__change-values">{t("project_edit.diff.from", "from:")}{" "}{normalizeText(Object.hasOwn(change, "from") ? change.from : change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(Object.hasOwn(change, "to") ? change.to : change.after, t)}</span>
           </div>
         ))}
       </div>

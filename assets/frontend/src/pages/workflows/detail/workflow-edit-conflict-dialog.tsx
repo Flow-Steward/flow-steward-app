@@ -152,10 +152,10 @@ export function WorkflowEditConflictDialog({
       const compared = await compareWorkflowEditSession(captured.workflowId, { base_content: base, local_content: local });
       if (request !== requestRef.current) return;
       setResult(compared);
-    } catch (caught) {
+    } catch (error_) {
       if (request !== requestRef.current) return;
-      setError(caught instanceof Error && caught.message
-        ? t("react.workflows.edit_session_compare_failed", "The versions could not be compared: {reason} Your copy is kept; nothing was written.", { reason: caught.message })
+      setError(error_ instanceof Error && error_.message
+        ? t("react.workflows.edit_session_compare_failed", "The versions could not be compared: {reason} Your copy is kept; nothing was written.", { reason: error_.message })
         : t("react.workflows.edit_session_compare_unavailable", "The versions cannot be compared now. Your copy is kept; nothing was written."));
     } finally {
       if (request === requestRef.current) setLoading(false);
@@ -199,15 +199,15 @@ export function WorkflowEditConflictDialog({
       changeSetRef.current.keepOwnVersionApplied(saved.revision);
       await refetchWorkflowSurfaces();
       onClose();
-    } catch (caught) {
+    } catch (error_) {
       if (request !== requestRef.current) return;
-      if (isWorkflowRevisionConflict(caught)) {
+      if (isWorkflowRevisionConflict(error_)) {
         // Someone saved again: nothing was written; the author reviews the newer version.
         setBusy(false);
         await compare(t("react.workflows.edit_session_newer_revision", "Another newer version was saved meanwhile. Nothing was written. Review the new comparison, then choose again."));
         return;
       }
-      const issues = workflowChangeErrorIssues(caught).map((issue) => changeIssueMessage(issue, t)).filter(Boolean);
+      const issues = workflowChangeErrorIssues(error_).map((issue) => changeIssueMessage(issue, t)).filter(Boolean);
       setStage("review");
       setError(issues.length
         ? t("react.workflows.edit_session_mine_refused", "Your version was not saved: {reason}", { reason: issues.join(" ") })

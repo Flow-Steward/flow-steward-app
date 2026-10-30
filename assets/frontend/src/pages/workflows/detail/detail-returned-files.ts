@@ -75,7 +75,7 @@ const RESERVED_KEYS = new Set([
 export function newReturnedFileKey(result: StepFileResult, takenKeys: Iterable<string>): string {
   const taken = new Set(takenKeys);
   const segments = result.target.slice("state.".length).split(".");
-  let base = (segments.at(-1) || result.result).replaceAll(/[^A-Za-z0-9_]+/g, "_");
+  let base = (segments.at(-1) || result.result).replaceAll(/\W+/g, "_");
   let start = 0;
   while (base[start] === "_") start += 1;
   let end = base.length;
@@ -83,7 +83,11 @@ export function newReturnedFileKey(result: StepFileResult, takenKeys: Iterable<s
   base = base.slice(start, end);
   if (!base || RESERVED_KEYS.has(base)) base = `${base || "file"}_file`;
   let key = base;
-  for (let index = 2; taken.has(key); index += 1) key = `${base}_${index}`;
+  let index = 2;
+  while (taken.has(key)) {
+    key = `${base}_${index}`;
+    index += 1;
+  }
   return key;
 }
 
@@ -102,8 +106,7 @@ export function toggledReturnedFiles(
 ): ReturnedFileEntry[] {
   const others = current.filter((entry) => entry.result !== result.result);
   if (!checked) return others;
-  const existing = current.find((entry) => entry.result === result.result);
-  if (existing) return current;
+  if (current.some((entry) => entry.result === result.result)) return current;
   return [...others, { result: result.result, key: newReturnedFileKey(result, takenKeys) }];
 }
 

@@ -3,6 +3,7 @@ import type { SelectOption } from "@/pages/workflows/detail/detail-interface";
 import { textOrEmpty } from "@/pages/workflows/detail/detail-test-run";
 import { stringList } from "@/pages/workflows/detail/detail-workflow-validation";
 import { trimRepeatedEdges } from "@/lib/utils/string-normalization";
+import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import {
   commaList,
   objectOrEmpty,
@@ -835,7 +836,7 @@ export function reactionDraftProblems(
           : t("react.workflows.automation_generic_recipients_required", "Enter at least one recipient.");
       } else if (emailFormat) {
         const raw = draft.actionExtra.recipients;
-        const values = Array.isArray(raw) ? raw : String(raw ?? "").split(",");
+        const values = Array.isArray(raw) ? raw : stringFromUnknownValue(raw).split(",");
         if (!values.every(validLiteralEmailRecipient)) {
           problems.recipients = t("react.workflows.automation_email_addresses_invalid", "Enter valid email addresses, separated by commas.");
         }

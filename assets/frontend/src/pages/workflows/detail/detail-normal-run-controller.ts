@@ -50,7 +50,7 @@ export function useWorkflowNormalRunController(options: RunOptions) {
     draft.launchLock.current = token;
     setBusy(true); setMessage("");
     try {
-      const uploads = await Promise.all(Object.entries(current.files).map(([name, file]) => readWorkflowRunFile(name, file)));
+      const uploads = await Promise.all(Object.entries(current.files).map(([name, file]) => readWorkflowRunFile(name, file, t("react.workflows.normal_run_failed", "Workflow could not start."))));
       if (!isCurrent() || live.current.blocked) return;
       const interfaceFields = objectOrEmpty(objectOrEmpty(draft.contract).interface).expected_inputs;
       const rows = (Array.isArray(interfaceFields) ? interfaceFields : []).map(objectOrEmpty)
@@ -70,7 +70,13 @@ export function useWorkflowNormalRunController(options: RunOptions) {
   }
   return { acknowledged, setAcknowledged, busy, message, jobId, blocked, start, fileFields, files, fileOwner: owner,
     setFile: (name: string, file: File | undefined) => setFiles((previous) => {
-      const next = { ...previous }; if (file) next[name] = file; else delete next[name]; return next;
+      const next = { ...previous };
+      if (file) {
+        next[name] = file;
+      } else {
+        delete next[name];
+      }
+      return next;
     }) };
 }
 export type WorkflowNormalRunController = ReturnType<typeof useWorkflowNormalRunController>;

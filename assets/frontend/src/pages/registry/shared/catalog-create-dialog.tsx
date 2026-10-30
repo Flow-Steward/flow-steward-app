@@ -284,19 +284,17 @@ export function RegistryCreateDialog({
                 ))}
 
                 {renderWhen(endpoint === "/api/skills", (
-                  <>
-                    <div className="fs-field">
-                      <label className="fs-field-label" htmlFor="create-skill-instructions">
-                        {t("registry.skills.field.instructions_short", "Instructions")}</label>
-                      <textarea
-                        className="fs-textarea"
-                        id="create-skill-instructions"
-                        name="instructions"
-                        onChange={(event) => setSkillInstructions(event.target.value)}
-                        value={skillInstructions}
-                      />
-                    </div>
-                  </>
+                  <div className="fs-field">
+                    <label className="fs-field-label" htmlFor="create-skill-instructions">
+                      {t("registry.skills.field.instructions_short", "Instructions")}</label>
+                    <textarea
+                      className="fs-textarea"
+                      id="create-skill-instructions"
+                      name="instructions"
+                      onChange={(event) => setSkillInstructions(event.target.value)}
+                      value={skillInstructions}
+                    />
+                  </div>
                 ))}
 
                 {renderWhen(endpoint === "/api/guardrails", (

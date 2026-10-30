@@ -265,7 +265,7 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
     const stage = region.closest<HTMLElement>(".workflow-canvas-stage");
     stage?.querySelectorAll<HTMLElement>(".workflow-container-lane-add").forEach((element) => observer.observe(element));
     const viewportElement = stage?.querySelector<HTMLElement>(".react-flow__viewport");
-    const viewportObserver = viewportElement && typeof globalThis.MutationObserver !== "undefined"
+    const viewportObserver = viewportElement && globalThis.MutationObserver !== undefined
       ? new MutationObserver(() => {
         if (placementFrame !== null || typeof globalThis.requestAnimationFrame !== "function") return;
         placementFrame = requestAnimationFrame(() => {

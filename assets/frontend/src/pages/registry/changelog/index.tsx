@@ -839,7 +839,7 @@ export function RegistryChangelogPage() {
                           <span className="text-xs text-slate-400">{normalizeText(change.change || change.type || "updated", t)}</span>
                         </div>
                         <div className="mt-1 text-xs text-slate-400">
-                          {t("project_edit.diff.from", "from:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "from") ? change.from : change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(Object.prototype.hasOwnProperty.call(change, "to") ? change.to : change.after, t)}
+                          {t("project_edit.diff.from", "from:")}{" "}{normalizeText(Object.hasOwn(change, "from") ? change.from : change.before, t)} {" "}{t("react.registry.to", "• to:")}{" "}{normalizeText(Object.hasOwn(change, "to") ? change.to : change.after, t)}
                         </div>
                       </div>
                     ))}

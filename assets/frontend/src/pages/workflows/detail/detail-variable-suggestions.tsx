@@ -519,7 +519,7 @@ export function createWorkflowVariableSuggestionRenderers(
       role: hasSuggestions ? "combobox" : undefined,
       value: destination
         ? isActive && value.startsWith("state.") ? value.slice(6)
-          : knownOption?.label || (/^state\.[A-Za-z_][\w]*$/.test(value)
+          : knownOption?.label || (/^state\.[A-Za-z_]\w*$/.test(value)
             ? value.slice(6).replaceAll(/[_-]+/g, " ").replaceAll(/\b\w/g, (letter) => letter.toUpperCase()) : value)
         : !isActive && knownOption?.label ? knownOption.label : value,
     };

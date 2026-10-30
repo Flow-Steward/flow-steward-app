@@ -15,7 +15,15 @@ export function install(patch: Record<string, unknown> = {}) {
   const reads: unknown[] = [];
   let readStarted = 0;
   const detail = () => { const base: WorkflowDetail = workflowDetailFixture(); return { ...base, enabled: false, revision, settings: { ...base.settings, participants }, steps: [structuredClone(row)] }; };
-  mockedFetchWorkflowDetail.mockImplementation(async () => { readStarted += 1; if (gate) await gate; const value = detail(); reads.push(value); return value; });
+  mockedFetchWorkflowDetail.mockImplementation(async () => {
+    readStarted += 1;
+    if (gate) {
+      await gate;
+    }
+    const value = detail();
+    reads.push(value);
+    return value;
+  });
   mockedFetchWorkflowCanvasGraph.mockImplementation(async () => canvasGraphFixture({ enabled: false, entry: { kind: "step", id: "agent_a" }, steps: [{ id: "agent_a", step_id: "agent_a", kind: "agent", display_name: row.display_name, ports: [{ outcome: { name: "success" }, label: "Next" }] }] }));
   const ordinary = fetchSpy.getMockImplementation();
   fetchSpy.mockImplementation(async (url, init) => {

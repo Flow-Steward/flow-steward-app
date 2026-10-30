@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { WorkflowChangeSetController } from "@/pages/workflows/detail/detail-change-set";
+import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import {
   authoringContentOf,
   buildEditSession,
@@ -48,8 +49,8 @@ type ActiveSession = {
 };
 
 const NO_DRAFTS: Record<string, StoredFormDraft> = {};
-type LockManagerLike = Parameters<typeof claimSessionOwnership>[1];
-type TabStorage = Parameters<typeof readSessionReference>[1];
+type LockManagerLike = Exclude<Parameters<typeof claimSessionOwnership>[1], undefined>;
+type TabStorage = Exclude<Parameters<typeof readSessionReference>[1], undefined>;
 
 function identityKey(identity: WorkflowEditSessionIdentity | null): string {
   return identity ? JSON.stringify([identity.accountId, identity.userId, identity.workflowId]) : "";
@@ -95,7 +96,7 @@ export function useWorkflowEditSession({
     { key: "", status: "off", problem: null, sessionId: "" },
   );
   const [persistence, setPersistence] = useState<WorkflowEditSessionPersistence>("idle");
-  const [formDrafts, setFormDraftsState] = useState<{ key: string; drafts: Record<string, StoredFormDraft> }>({ key: "", drafts: {} });
+  const [formDrafts, setFormDrafts] = useState<{ key: string; drafts: Record<string, StoredFormDraft> }>({ key: "", drafts: {} });
   const sessionRef = useRef<ActiveSession | null>(null);
   const generationRef = useRef(0);
   const changeSetRef = useRef(changeSet);
@@ -108,7 +109,7 @@ export function useWorkflowEditSession({
     workflowRef.current = workflow;
   });
   const workflowId = identity?.workflowId ?? "";
-  const workflowReady = Boolean(workflow && String(workflow.workflow_id ?? "") === workflowId && serverRevision && serverRevision > 0);
+  const workflowReady = Boolean(workflow && stringFromUnknownValue(workflow.workflow_id) === workflowId && serverRevision && serverRevision > 0);
   const status = state.key === key ? state.status : (key ? "loading" : "off");
   const drafts = formDrafts.key === key ? formDrafts.drafts : NO_DRAFTS;
 
@@ -162,7 +163,7 @@ export function useWorkflowEditSession({
           checkpointRevision: recovered.serverCheckpoint.revision,
           checkpointDefinition: definitionOfContent(recovered.serverCheckpoint.content),
         });
-        setFormDraftsState({ key, drafts: recovered.formDrafts });
+        setFormDrafts({ key, drafts: recovered.formDrafts });
       } else {
         // Nothing to recover: the current server version is the new base.
         sessionRef.current = { key, identity, sessionId, origin: fresh, checkpoint: fresh, editSequence: 0, ownership, writes: Promise.resolve(), generation, lastJournal: undefined, lastDrafts: undefined, writeSequence: 0 };
@@ -181,7 +182,7 @@ export function useWorkflowEditSession({
   // Write the session after every completed action, Undo, Redo, checkpoint or draft change.
   useEffect(() => {
     const session = sessionRef.current;
-    if (!session || session.key !== key || status !== "active") return;
+    if (session?.key !== key || status !== "active") return;
     const current = changeSetRef.current;
     if (!current.checkpoint.held && current.checkpoint.revision) {
       session.checkpoint = {
@@ -279,7 +280,7 @@ export function useWorkflowEditSession({
 
   /** Keep or clear one form's unsaved values; credential fields are kept only as "enter again". */
   const setFormDraft = useCallback((draftKey: string, value: unknown, sensitiveFields: readonly string[] = []) => {
-    setFormDraftsState((current) => {
+    setFormDrafts((current) => {
       const base = current.key === key ? current.drafts : {};
       if (value === null || value === undefined) {
         if (!(draftKey in base)) return current.key === key ? current : { key, drafts: base };

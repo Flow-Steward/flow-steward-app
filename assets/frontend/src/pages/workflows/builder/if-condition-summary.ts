@@ -42,7 +42,7 @@ export function ifConditionSummary(config: Record<string, unknown>, t: I18nConte
     if (operator === "exists" || operator === "truthy") {
       return keys.length === 2 && keys.includes("selector") && keys.includes("operator") ? `${selector} ${operator}` : fallback();
     }
-    const token = Object.prototype.hasOwnProperty.call(operators, operator) ? operators[operator] : undefined;
+    const token = Object.hasOwn(operators, operator) ? operators[operator] : undefined;
     if (!token || keys.length !== 3 || !keys.includes("selector") || !keys.includes("operator") || !keys.includes("value")) return fallback();
     const value = literal(expression.value);
     return value === null ? fallback() : `${selector} ${token} ${value}`;
@@ -54,7 +54,7 @@ export function ifConditionSummary(config: Record<string, unknown>, t: I18nConte
   if (operator === "exists" || operator === "truthy") {
     return typeof operand === "string" && operand.trim() ? `${operand.trim()} ${operator}` : fallback();
   }
-  const token = Object.prototype.hasOwnProperty.call(operators, operator) ? operators[operator] : undefined;
+  const token = Object.hasOwn(operators, operator) ? operators[operator] : undefined;
   if (!token || !operand || typeof operand !== "object" || Array.isArray(operand)) return fallback();
   const comparison = operand as Record<string, unknown>;
   if (Object.keys(comparison).length !== 2 || !("left" in comparison) || !("right" in comparison)) return fallback();

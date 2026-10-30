@@ -25,6 +25,7 @@ import { useConfirmDialog } from "@/components/shared/use-confirm-dialog";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
+import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 // Drawer access stays deferred to the original event callbacks; the caller creates it later.
 export function useWorkflowDetailAuthoringState(
@@ -249,7 +250,7 @@ export function useWorkflowDetailAuthoringState(
   const allowHookDeclaration = developmentMode && isAdmin && !authorStructureLocked;
   const hookProjectHint = searchParams.has("project_id")
     ? (searchParams.get("project_id") || "").trim()
-    : String(workflowRecord.project_id || objectOrEmpty(workflowRecord.project).id || "").trim();
+    : firstStringFromUnknownValue([workflowRecord.project_id, objectOrEmpty(workflowRecord.project).id]);
   const hookProjectContext = useWorkflowHookProjectContext({
     workflowId, projectHint: hookProjectHint,
     enabled: surface === "builder" && isAdmin && detailQuery.isSuccess,

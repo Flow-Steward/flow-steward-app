@@ -613,14 +613,12 @@ export function RegistryAgentsDetailPage() {
             ))}
 
             {renderWhen(activeTab === "io", (
-              <>
-                <AgentOwnIoPanel
-                  agentId={resolvedEntityId}
-                  materializedInputs={expectedInputs}
-                  materializedOutputs={expectedOutputs}
-                  onSaved={() => Promise.all([detailQuery.refetch(), historyQuery.refetch()])}
-                />
-              </>
+              <AgentOwnIoPanel
+                agentId={resolvedEntityId}
+                materializedInputs={expectedInputs}
+                materializedOutputs={expectedOutputs}
+                onSaved={() => Promise.all([detailQuery.refetch(), historyQuery.refetch()])}
+              />
             ))}
 
             {renderWhen(activeTab === "preview", (

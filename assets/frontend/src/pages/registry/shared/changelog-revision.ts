@@ -28,7 +28,7 @@ export function changelogActionLabel(
     delete: t("react.registry.action_deleted", "Deleted"),
     restore: t("react.registry.action_restored", "Restored"),
   };
-  return Object.prototype.hasOwnProperty.call(labels, action)
+  return Object.hasOwn(labels, action)
     ? labels[action]
     : typeof value === "string" ? value : "";
 }

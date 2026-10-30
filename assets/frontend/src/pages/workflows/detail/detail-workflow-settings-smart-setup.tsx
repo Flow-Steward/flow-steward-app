@@ -137,11 +137,11 @@ function inspectStructuredInputs(draft: string): StructuredEditorModel {
 function structuredRowIssue(rows: StructuredInputRow[], t: I18nContextValue["t"]): string {
   const inputNames = new Set<string>();
   for (const row of rows) {
-    if (!row.name || row.name !== row.name.trim() || inputNames.has(row.name)) return t("react.workflows.structured_input_name_issue", "Give each structured input a unique name.");
+    if (row.name === "" || row.name !== row.name.trim() || inputNames.has(row.name)) return t("react.workflows.structured_input_name_issue", "Give each structured input a unique name.");
     inputNames.add(row.name);
     const memberNames = new Set<string>();
     for (const member of row.members) {
-      if (!member.name || member.name !== member.name.trim() || memberNames.has(member.name)) return t("react.workflows.structured_member_name_issue", "Give each member a unique name.");
+      if (member.name === "" || member.name !== member.name.trim() || memberNames.has(member.name)) return t("react.workflows.structured_member_name_issue", "Give each member a unique name.");
       memberNames.add(member.name);
     }
   }
