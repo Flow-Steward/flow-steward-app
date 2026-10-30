@@ -392,7 +392,7 @@ it("shows a busy status during a held clipboard write and retires it after ackno
     renderPage({ surface: "builder" });
     clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
     pressCanvasKey("KeyC");
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1), { timeout: 5_000 });
     // The busy status is a delayed loader: a write under 400ms paints nothing.
     expect(screen.queryByText("Copying selection…")).not.toBeInTheDocument();
     expect(await screen.findByText("Copying selection…", undefined, { timeout: 2_000 })).toBeVisible();

@@ -90,7 +90,7 @@ vi.mock("./detail-test-run-controller", async (importOriginal) => {
   } };
 });
 
-vi.setConfig({ testTimeout: 20_000 });
+vi.setConfig({ testTimeout: 30_000 });
 
 const NEXT = [{ outcome: { name: "success" as const }, label: "Next" }];
 const PROTECTED = {
@@ -1260,7 +1260,7 @@ it("keeps the requested hook child selection while its detail is deferred and sa
     // Right-click › Open is the step's editor, for a hook member as for any step.
     fireEvent.contextMenu(frame);
     await user.click(screen.getByRole("menuitem", { name: "Open" }));
-    await screen.findByDisplayValue(`hook:${hookId}:fix_name`);
+    await screen.findByDisplayValue(`hook:${hookId}:fix_name`, undefined, { timeout: 5_000 });
   }
 
   const otherCard = await screen.findByText((_, element) => element?.getAttribute("data-workflow-step-measure-id") === "hook:after_finish:fix_name");

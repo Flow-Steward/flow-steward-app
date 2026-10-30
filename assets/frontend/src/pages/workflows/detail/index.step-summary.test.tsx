@@ -6,8 +6,6 @@ import { mockedFetchWorkflowDetail, renderPage, workflowDetailFixture } from "./
 // Install the shared helper's API mocks before importing the preview consumer.
 import { fetchWorkflowStepContractPreview, type WorkflowStepContractPreview } from "@/pages/workflows/shared/api";
 
-vi.setConfig({ testTimeout: 10_000 });
-
 function savedSteps(...items: Array<{ id: string; name: string }>) {
   mockedFetchWorkflowDetail.mockResolvedValue(workflowDetailFixture({
     steps: items.map(({ id, name }, index) => ({

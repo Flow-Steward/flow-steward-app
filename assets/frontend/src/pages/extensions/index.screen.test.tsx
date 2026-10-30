@@ -57,10 +57,6 @@ import {
 import catalogBrowseStyles from "@/components/shared/catalog-browse.css?raw";
 import extensionStyles from "@/pages/extensions/extensions.css?raw";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 vi.mock("@/pages/extensions/api", () => ({
   checkExtensionHealth: vi.fn(),
   confirmExtensionUninstall: vi.fn(),

@@ -59,6 +59,9 @@ export default defineConfig({
     // itself. Four jsdom workers stay well inside its memory and cut the run
     // roughly in three; a fixed count keeps the gate the same on any host.
     maxWorkers: 4,
+    // Heavy page suites share the gate host with other stands; a 5 s default
+    // fails them on load alone.
+    testTimeout: 15_000,
     environment: "jsdom",
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/.git/**", "tests/e2e/**"],

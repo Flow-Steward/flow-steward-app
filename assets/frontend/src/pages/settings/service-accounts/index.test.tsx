@@ -26,10 +26,6 @@ import {
 } from "@/pages/settings/shared/api";
 import { fetchWorkflows } from "@/pages/workflows/shared/api";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 vi.mock("@/pages/projects/list/api", () => ({
   fetchProjectsList: vi.fn(),
 }));

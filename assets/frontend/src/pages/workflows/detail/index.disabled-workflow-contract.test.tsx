@@ -19,10 +19,6 @@ import {
 } from "./index.test-helpers";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 function disabledWorkflow() {
   return {
     workflow_id: "draft_workflow",

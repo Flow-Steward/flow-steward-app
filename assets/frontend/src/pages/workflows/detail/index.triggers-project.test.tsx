@@ -11,10 +11,6 @@ import {
 } from "./index.test-helpers";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 describe("WorkflowsDetailPage trigger project context", () => {
 // The Webhook tab shows only while Incoming Webhook is on (R3-4), so these journeys start with it on.
 beforeEach(() => {

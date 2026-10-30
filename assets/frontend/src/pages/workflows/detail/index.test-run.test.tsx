@@ -16,10 +16,6 @@ import {
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { fetchWorkflowStepContractPreview } from "@/pages/workflows/shared/api";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 function expectTestRunEffectWarning() {
   const warnings = screen.getAllByRole("note", { name: "Test Run effects" });
   for (const warning of warnings) {

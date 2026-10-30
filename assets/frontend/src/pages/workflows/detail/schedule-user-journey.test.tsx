@@ -9,10 +9,6 @@ import { WorkflowsOverviewPage } from "@/pages/workflows/overview";
 import { WorkflowsProjectsPage } from "@/pages/workflows/projects";
 import type { WorkflowContractField } from "@/pages/projects/detail/api";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 // Authentication and transport are boundaries; pages, context discovery,
 // bindings selectors, schedule editor and navigation remain real.
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";

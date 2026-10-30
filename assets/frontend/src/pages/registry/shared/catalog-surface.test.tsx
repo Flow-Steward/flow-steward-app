@@ -16,10 +16,6 @@ import {
 } from "@/pages/registry/shared/api";
 import { useHasCapability } from "@/lib/auth/capabilities";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
 
 vi.mock("@/pages/registry/shared/api", () => ({

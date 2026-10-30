@@ -1,10 +1,6 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { fetchSpy, mockedFindWorkflowLinkedProjectId, renderPage } from "./index.test-helpers";
 
-// These page journeys take about 6 s when the quality gate shares the machine,
-// over vitest's 5 s default. Per-test timeouts set below still take precedence.
-vi.setConfig({ testTimeout: 10_000 });
-
 describe("workflow form Test Run guard", () => {
   it.each(["dirty", "saving", "error"])("blocks a workflow test while workflow settings are %s", async (state) => {
     mockedFindWorkflowLinkedProjectId.mockResolvedValue("project_alpha");
