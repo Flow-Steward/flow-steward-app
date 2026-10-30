@@ -345,29 +345,31 @@ function ResolutionTargetControl({
   return null;
 }
 
-function ConnectionPlaceholderFields({ dependency, draft, updateResolution }: Readonly<{
+function ConnectionPlaceholderFields({ dependency, draft, selectedProjectId, updateResolution }: Readonly<{
   dependency: WorkflowImportDependency;
   draft?: ResolutionDraft;
+  selectedProjectId: string;
   updateResolution: UpdateResolution;
 }>) {
   const { t } = useI18n();
   if (draft?.action !== "create_connection_placeholder") return null;
   return (
     <div className="mt-2 grid gap-2 sm:grid-cols-3">
-      <input aria-label={t("react.workflows.project_id_for_value0", "Project id for {value0}", { value0: dependency.ref })} className="fs-input" onChange={(event) => updateResolution(dependency, { projectId: event.target.value })} placeholder={t("react.workflows.project_id", "Project id")} value={draft.projectId} />
+      <input aria-label={t("react.workflows.project_id_for_value0", "Project id for {value0}", { value0: dependency.ref })} className="fs-input" onChange={(event) => updateResolution(dependency, { projectId: event.target.value })} placeholder={selectedProjectId || t("react.workflows.project_id", "Project id")} value={draft.projectId} />
       <input aria-label={t("react.workflows.extension_id_for_value0", "Extension id for {value0}", { value0: dependency.ref })} className="fs-input" onChange={(event) => updateResolution(dependency, { extensionId: event.target.value })} placeholder={t("react.workflows.extension_id", "Extension id")} value={draft.extensionId} />
       <input aria-label={t("react.workflows.extension_install_id_for_value0", "Extension install id for {value0}", { value0: dependency.ref })} className="fs-input" onChange={(event) => updateResolution(dependency, { extensionInstallId: event.target.value })} placeholder={t("react.workflows.extension_install_id", "Extension install id")} value={draft.extensionInstallId} />
     </div>
   );
 }
 
-function DependencyResolutionRow({ dependency, dependencyOptions, effectiveDependency, accepted, draft, error, updateResolution }: Readonly<{
+function DependencyResolutionRow({ dependency, dependencyOptions, effectiveDependency, accepted, draft, error, selectedProjectId, updateResolution }: Readonly<{
   dependency: WorkflowImportDependency;
   dependencyOptions: Record<string, WorkflowImportDependencyOption[]>;
   effectiveDependency?: WorkflowImportDependency;
   accepted: boolean;
   draft?: ResolutionDraft;
   error?: string;
+  selectedProjectId: string;
   updateResolution: UpdateResolution;
 }>) {
   const { t } = useI18n();
@@ -376,7 +378,7 @@ function DependencyResolutionRow({ dependency, dependencyOptions, effectiveDepen
   const needsTarget = dependencyRequiresTarget(dependency, selectedAction);
   const optionBucket = optionBucketForDependency(dependency, selectedAction);
   const targetOptions = optionBucket ? dependencyOptions[optionBucket] || [] : [];
-  const complete = resolutionComplete(dependency, draft);
+  const complete = resolutionComplete(dependency, draft, selectedProjectId);
   const needsResolution = dependencyNeedsResolution(dependency);
   // Keep controls and serialization tied to the original dependency identity.
   // The effective server row supplies only its checked status and message.
@@ -403,7 +405,7 @@ function DependencyResolutionRow({ dependency, dependencyOptions, effectiveDepen
         ) : (
           <ResolutionTargetControl dependency={dependency} draft={draft} error={error} needsResolution={needsResolution} needsTarget={needsTarget} optionBucket={optionBucket} selectedAction={selectedAction} targetOptions={targetOptions} updateResolution={updateResolution} />
         )}
-        <ConnectionPlaceholderFields dependency={dependency} draft={draft} updateResolution={updateResolution} />
+        <ConnectionPlaceholderFields dependency={dependency} draft={draft} selectedProjectId={selectedProjectId} updateResolution={updateResolution} />
         {error ? <span className="fs-field-helper error">{error}</span> : null}
         {!choosesProject && !complete && !error && status !== "resolved" ? <span className="fs-field-helper error">{unresolvedHint(dependency, selectedAction, needsTarget, t)}</span> : null}
       </div>
@@ -418,6 +420,7 @@ export function DependencyResolutionList({
   effectiveDependencies,
   accepted = false,
   resolutions,
+  selectedProjectId = "",
   updateResolution,
   targetErrors,
 }: Readonly<{
@@ -426,6 +429,8 @@ export function DependencyResolutionList({
   effectiveDependencies?: WorkflowImportDependency[];
   accepted?: boolean;
   resolutions: Record<string, ResolutionDraft>;
+  /** The project chosen for the import; a project connection resolves in it unless another is typed. */
+  selectedProjectId?: string;
   updateResolution: UpdateResolution;
   /** A caller's own verdict on a chosen target, by dependency key (a taken id). */
   targetErrors?: Record<string, string>;
@@ -441,6 +446,7 @@ export function DependencyResolutionList({
           draft={resolutions[dependency.dependency_key]}
           error={targetErrors?.[dependency.dependency_key]}
           key={dependency.dependency_key}
+          selectedProjectId={selectedProjectId}
           updateResolution={updateResolution}
         />
       ))}

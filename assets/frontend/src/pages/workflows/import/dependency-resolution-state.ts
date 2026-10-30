@@ -94,9 +94,24 @@ export function dependencyNeedsResolution(dependency: WorkflowImportDependency) 
   return Boolean(dependency.blocking || BLOCKING_STATUSES.has(dependency.status));
 }
 
+/**
+ * A project connection resolves in the project selected for the import unless the
+ * operator typed another. Drafts never copy the selection: it can change after the
+ * first check, and a copied id would keep the earlier project (or none).
+ */
+function draftProjectId(
+  dependency: WorkflowImportDependency,
+  draft: ResolutionDraft,
+  selectedProjectId: string,
+) {
+  if (dependency.dependency_type !== "project_connection") return draft.projectId.trim();
+  return draft.projectId.trim() || selectedProjectId.trim();
+}
+
 export function resolutionComplete(
   dependency: WorkflowImportDependency,
   draft: ResolutionDraft | undefined,
+  selectedProjectId = "",
 ) {
   if (!dependencyNeedsResolution(dependency)) {
     return true;
@@ -112,7 +127,8 @@ export function resolutionComplete(
   }
   if (draft.action === "create_connection_placeholder") {
     return Boolean(
-      draft.projectId.trim() && (draft.extensionId.trim() || draft.extensionInstallId.trim()),
+      draftProjectId(dependency, draft, selectedProjectId) &&
+        (draft.extensionId.trim() || draft.extensionInstallId.trim()),
     );
   }
   return true;
@@ -121,13 +137,19 @@ export function resolutionComplete(
 export function resolutionPayload(
   dependencies: WorkflowImportDependency[],
   drafts: Record<string, ResolutionDraft>,
+  selectedProjectId = "",
 ) {
   return dependencies
     .map((dependency): WorkflowImportResolution | null => {
       const draft = drafts[dependency.dependency_key];
-      if (!draft?.action || draft.action === "abort" || !resolutionComplete(dependency, draft)) {
+      if (
+        !draft?.action ||
+        draft.action === "abort" ||
+        !resolutionComplete(dependency, draft, selectedProjectId)
+      ) {
         return null;
       }
+      const projectId = draftProjectId(dependency, draft, selectedProjectId);
       const payload: WorkflowImportResolution = {
         dependency_key: dependency.dependency_key,
         dependency_type: dependency.dependency_type,
@@ -141,11 +163,11 @@ export function resolutionPayload(
       } else if (draft.target.trim() && !reusesDefinition) {
         payload.target_ref = draft.target.trim();
       }
-      if (dependency.dependency_type === "project_connection" && draft.projectId.trim()) {
-        payload.project_id = draft.projectId.trim();
+      if (projectId) {
+        payload.project_id = projectId;
       }
       if (draft.action === "create_connection_placeholder") {
-        payload.project_id = draft.projectId.trim();
+        payload.project_id = projectId;
         if (draft.extensionId.trim()) {
           payload.extension_id = draft.extensionId.trim();
         }
@@ -185,7 +207,6 @@ export type UpdateResolution = (
 
 function initialResolutionDrafts(
   dependencies: WorkflowImportDependency[],
-  projectId: string,
 ): Record<string, ResolutionDraft> {
   const drafts: Record<string, ResolutionDraft> = {};
   dependencies.forEach((dependency) => {
@@ -196,7 +217,7 @@ function initialResolutionDrafts(
     drafts[dependency.dependency_key] = {
       action,
       target: draftTarget(dependency, action, ""),
-      projectId: dependency.dependency_type === "project_connection" ? projectId : "",
+      projectId: "",
       extensionId: "",
       extensionInstallId: "",
     };
@@ -217,11 +238,11 @@ export function useDependencyResolution(
     [dependencies],
   );
   const requiredResolutionsReady = blockingDependencies.every((dependency) =>
-    resolutionComplete(dependency, resolutions[dependency.dependency_key]),
+    resolutionComplete(dependency, resolutions[dependency.dependency_key], projectId),
   );
   const resolutionList = useMemo(
-    () => resolutionPayload(dependencies, resolutions),
-    [dependencies, resolutions],
+    () => resolutionPayload(dependencies, resolutions, projectId),
+    [dependencies, resolutions, projectId],
   );
   // Topology findings are independent of the editable dependency choices.
   // The caller combines local completeness with its verified server plan.
@@ -232,17 +253,17 @@ export function useDependencyResolution(
   );
   const resetResolutions = useCallback(
     (next: WorkflowImportPreflight | null) => {
-      setResolutions(next ? initialResolutionDrafts(next.dependencies, projectId) : {});
+      setResolutions(next ? initialResolutionDrafts(next.dependencies) : {});
     },
-    [projectId],
+    [],
   );
 
   const addResolutionDependencies = useCallback(
     (nextDependencies: WorkflowImportDependency[]) => {
-      const defaults = initialResolutionDrafts(nextDependencies, projectId);
+      const defaults = initialResolutionDrafts(nextDependencies);
       setResolutions((current) => ({ ...defaults, ...current }));
     },
-    [projectId],
+    [],
   );
 
   const updateResolution = useCallback<UpdateResolution>((dependency, patch) => {

@@ -810,6 +810,78 @@ test("a missing child workflow is mapped here exactly as in the manual import", 
   );
 });
 
+/* The set-up opens with No project, so the project is chosen after the first check.
+   A connection mapped afterwards resolves in that project: on 0.9.4 the mapping
+   went without project_id and the server refused the re-check. */
+test("a connection mapped after the project is chosen resolves in that project", async () => {
+  const user = userEvent.setup();
+  vi.mocked(fetchProjectsList).mockResolvedValue({
+    projects: [{ id: "project-platform", name: "Platform" }],
+    page: 1, per_page: 200, total: 1, total_pages: 1,
+  });
+  mockedImportOptions.mockResolvedValue({
+    kind: "workflow_import_dependency_options",
+    options: { project_connection: [{ value: "conn_local", label: "Local Docling" }] },
+  });
+  const needsConnection = preflight({
+    can_apply: false,
+    dependencies: [
+      {
+        dependency_key: "project_connection:conn_template",
+        dependency_type: "project_connection",
+        ref: "conn_template",
+        status: "requires_project_connection",
+        blocking: true,
+        required: true,
+        resolution_actions: ["map_existing", "create_connection_placeholder", "abort"],
+      },
+    ],
+  });
+  mockedPreflight
+    .mockResolvedValueOnce(needsConnection)
+    .mockResolvedValueOnce(needsConnection)
+    .mockResolvedValue(preflight());
+  openDialog();
+
+  await openTemplate(/Synthetic template 0000/);
+  await user.click(screen.getByRole("button", { name: "Use template" }));
+  const project = await screen.findByRole("combobox", { name: "Project (optional)" });
+  await user.click(project);
+  await user.click(await screen.findByRole("option", { name: "Platform" }));
+  await waitFor(() => expect(mockedPreflight).toHaveBeenCalledTimes(2));
+
+  const picker = await screen.findByLabelText("Existing project connection for conn_template");
+  fireEvent.focus(picker);
+  fireEvent.click(await screen.findByRole("option", { name: /Local Docling/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+
+  const mapping = {
+    action: "map_existing",
+    dependency_key: "project_connection:conn_template",
+    dependency_type: "project_connection",
+    ref: "conn_template",
+    target_ref: "conn_local",
+    project_id: "project-platform",
+  };
+  await waitFor(() =>
+    expect(mockedPreflight).toHaveBeenLastCalledWith("synthetic_template_0000", {
+      projectId: "project-platform",
+      targetWorkflowId: "synthetic_template_0000",
+      resolutions: [mapping],
+    }),
+  );
+  const create = screen.getByRole("button", { name: "Create draft" });
+  await waitFor(() => expect(create).toBeEnabled());
+  fireEvent.click(create);
+  await waitFor(() =>
+    expect(mockedCreate).toHaveBeenCalledWith("synthetic_template_0000", {
+      projectId: "project-platform",
+      targetWorkflowId: "synthetic_template_0000",
+      resolutions: [mapping],
+    }),
+  );
+});
+
 test("a template that cannot be created here says so plainly", async () => {
   mockedPreflight.mockResolvedValue(
     preflight({

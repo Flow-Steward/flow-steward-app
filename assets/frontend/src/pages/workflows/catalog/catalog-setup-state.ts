@@ -195,9 +195,14 @@ export function useCatalogSetup(item: WorkflowCatalogItem | null, initialProject
             previousPreflight.dependencies.filter(
               (dependency) =>
                 !isRootConflict(dependency, previousRoot) &&
-                resolutionComplete(dependency, resolutionsRef.current[dependency.dependency_key]),
+                resolutionComplete(
+                  dependency,
+                  resolutionsRef.current[dependency.dependency_key],
+                  next.projectId,
+                ),
             ),
             resolutionsRef.current,
+            next.projectId,
           )
         : [];
       try {
@@ -351,9 +356,10 @@ export function useCatalogSetup(item: WorkflowCatalogItem | null, initialProject
         basis.dependencies.filter(
           (dependency) =>
             !isRootConflict(dependency, basisRoot) &&
-            resolutionComplete(dependency, resolutions[dependency.dependency_key]),
+            resolutionComplete(dependency, resolutions[dependency.dependency_key], projectId),
         ),
         resolutions,
+        projectId,
       )
     : [];
   const currentIdentity = item

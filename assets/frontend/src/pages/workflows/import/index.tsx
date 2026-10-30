@@ -513,6 +513,7 @@ export function WorkflowsImportPage() {
               effectiveDependencies={currentIsChecked ? visiblePreflight?.dependencies : undefined}
               accepted={currentIsChecked && Boolean(visiblePreflight?.can_apply)}
               resolutions={resolutions}
+              selectedProjectId={projectId}
               updateResolution={onUpdateResolution}
             />
           </div>

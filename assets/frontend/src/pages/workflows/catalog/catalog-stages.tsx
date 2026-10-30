@@ -336,6 +336,7 @@ export function CatalogSetupStage({
                 effectiveDependencies={setup.checkedCurrent ? setup.preflight?.dependencies : undefined}
                 accepted={setup.checkedCurrent}
                 resolutions={resolution.resolutions}
+                selectedProjectId={setup.projectId}
                 targetErrors={setup.targetErrors}
                 updateResolution={resolution.updateResolution}
               />
