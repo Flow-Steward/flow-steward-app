@@ -34,7 +34,7 @@ export function useFocusedValidationIssue(source: ValidationSource) {
     if (!source.isSuccess || source.isFetching || graph?.workflow.id !== source.workflowId ||
       source.revision === null || graph.workflow.revision !== source.revision) return;
     setSelection((current) => {
-      if (!current || current.owner !== owner || committedOwner.current !== owner) return current;
+      if (current?.owner !== owner || committedOwner.current !== owner) return current;
       const fresh = graph.validation_issues.find((issue) => issueKey(issue) === issueKey(current.issue));
       return fresh ? fresh === current.issue ? current : { owner, issue: fresh } : null;
     });

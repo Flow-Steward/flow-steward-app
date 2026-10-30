@@ -263,8 +263,7 @@ export function WorkflowsImportPage() {
   async function runApply() {
     const accepted = verifiedRef.current;
     if (
-      !accepted ||
-      accepted.generation !== generation.current ||
+      accepted?.generation !== generation.current ||
       accepted.identity !== currentIdentityRef.current ||
       !preflight?.can_apply ||
       preflighting ||

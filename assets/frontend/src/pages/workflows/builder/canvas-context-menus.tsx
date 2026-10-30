@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import type { Node } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
+import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { I18nContextValue } from "@/lib/i18n/context";
 import type { WorkflowCanvasGraph, WorkflowNodeRef } from "@/pages/workflows/shared/api";
 import type { WorkflowChangeSetController } from "@/pages/workflows/detail/detail-change-set";
@@ -216,7 +217,7 @@ export function stepMenuLevel(host: CanvasMenuHost, nodeId: string): CanvasMenuL
     // Open is the step itself, even for Stop · success, whose card opens Workflow interface › Outputs.
     { key: "open", label: t("react.workflows.open", "Open"), shortcut: "Enter", onSelect: () => data.onEditStep(id) },
   ];
-  if (data.onOpenStepTestRun) items.push({ key: "test", label: t("react.workflows.test_step", "Test step"), onSelect: () => { void data.onOpenStepTestRun?.(id); } });
+  if (data.onOpenStepTestRun) items.push({ key: "test", label: t("react.workflows.test_step", "Test step"), onSelect: () => { ignoreAsyncResult(data.onOpenStepTestRun?.(id)); } });
   if (host.clipboard) items.push({ key: "copy", label: t("react.workflows.copy", "Copy"), shortcut: "⌘C", onSelect: () => runOnSelection(host, targets, () => host.clipboard?.("copy")) });
   if (host.clipboard && editable) items.push({ key: "duplicate", label: t("react.workflows.duplicate", "Duplicate"), shortcut: "⌘D", onSelect: () => runOnSelection(host, targets, () => host.clipboard?.("duplicate")) });
   if (editable && !hook) {

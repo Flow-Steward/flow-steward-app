@@ -28,7 +28,7 @@ export function useCanvasRunFollow({ instance, nodes, runKey, active }: Options)
   // Where the run is: the step that runs, or the one that waits (an Approval, a Wait).
   const runningId = useMemo(() => {
     const state = (node: Node) => runtimeMarkState((node.data as { runtimeMark?: HookExecutionMark } | undefined)?.runtimeMark);
-    return (nodes.find((node) => state(node) === "running") || nodes.find((node) => state(node) === "waiting"))?.id || "";
+    return (nodes.find((node) => state(node) === "running") ?? nodes.find((node) => state(node) === "waiting"))?.id ?? "";
   }, [nodes]);
   const centred = useRef("");
   const centre = useCallback((nodeId: string) => {

@@ -638,7 +638,7 @@ export function useWorkflowHookScope(ctx: Record<string, any>) {
       if (waiter.materialization && !materializationCurrent(waiter.materialization)) { waiter.settle(null); continue; }
       const owner = waiter.hookId ? registry.child : registry.author;
       if (owner?.hookId === waiter.hookId && owner.workflowId === waiter.workflowId) waiter.settle(owner);
-      else if (!waiter.hookId || (!childAuthorized && !waiter.materialization) || (registry.childId === waiter.workflowId && registry.childBlocked) || (registry.child && registry.child.hookId === waiter.hookId && registry.child.workflowId !== waiter.workflowId)) waiter.settle(null);
+      else if (!waiter.hookId || (!childAuthorized && !waiter.materialization) || (registry.childId === waiter.workflowId && registry.childBlocked) || (registry.child?.hookId === waiter.hookId && registry.child.workflowId !== waiter.workflowId)) waiter.settle(null);
     }
   }, [activeServerFrame, authorChangeSet, authorProjectId, childAuthorized, childChangeSet, childDetailQuery.isError, childCanvasQuery.isError, childLoaded, childRevision, childWorkflow, childWorkflowId, effectiveHookId, enabled, focusCanvasNode, framesByHook, materializationCurrent, projectId, projectOwner, structureLocked, workflow, workflowId]);
   useLayoutEffect(() => () => {

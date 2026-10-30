@@ -264,7 +264,7 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     stepFormStatus === "dirty" || stepFormStatus === "saving" || stepFormStatus === "error";
   const groupFormDirty = Boolean(
     groupCreateMode ||
-    (selectedGroup && groupDraft.groupId === selectedGroup.groupId &&
+    (selectedGroup?.groupId === groupDraft.groupId &&
       stableJson(groupDraft) !== stableJson(groupDraftFromRow(selectedGroup))),
   );
   const confirmDiscardInvalidInput = useCallback(async (deferHttpReset = false) => {

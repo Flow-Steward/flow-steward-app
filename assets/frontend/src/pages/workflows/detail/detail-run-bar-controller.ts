@@ -171,7 +171,7 @@ export function useWorkflowRunBarController(options: Options): CanvasRunBarProps
     const isCurrent = () => {
       const latest = committed.current;
       const next = latest && failedStepTarget(latest.selectedRun);
-      return Boolean(latest?.selectedRun.isCurrent(proof) && next && next.stepExecutionId === target.stepExecutionId &&
+      return Boolean(latest?.selectedRun.isCurrent(proof) && next?.stepExecutionId === target.stepExecutionId &&
         next.stepId === target.stepId && next.definitionWorkflowId === target.definitionWorkflowId && next.definitionRevision === target.definitionRevision);
     };
     return current.navigate(() => isCurrent() ? current.requestOpenFailedStep!(proof, target, isCurrent) : Promise.resolve(false));

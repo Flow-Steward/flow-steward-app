@@ -288,8 +288,8 @@ export function JobsDetailPage({
     expectedProjectId || executionOwner || onRuntimeLocationChange || onExecutionSnapshotChange,
   );
   const embeddedOwnerVerified = Boolean(
-    ownedEmbedded && expectedWorkflowId && expectedProjectId && jobId && executionOwner &&
-    executionOwner.jobId === jobId && executionOwner.workflowId === expectedWorkflowId &&
+    ownedEmbedded && expectedWorkflowId && expectedProjectId && jobId &&
+    executionOwner?.jobId === jobId && executionOwner.workflowId === expectedWorkflowId &&
     executionOwner.projectId === expectedProjectId && Number.isSafeInteger(executionOwner.generation) &&
     executionOwner.generation > 0 && executionOwner.isCurrent() &&
     verifiesJobDetailOwner(detail, jobId, { workflowId: expectedWorkflowId, projectId: expectedProjectId }),

@@ -267,11 +267,11 @@ export function WorkflowCanvasBuilderSurface({
       // A paste needs no selection: it lands in the workflow root, at the pointer or one grid step on.
       const target = pasteTargetRef.current;
       return target ? clipboardOwnerReaderRef.current?.({ ids: [], worldPositions: new Map(), duplicateOrigin: target.origin,
-        pasteOrigin: target.origin, pasteMode: target.mode, generation: selection.generation }, command) || null : null;
+        pasteOrigin: target.origin, pasteMode: target.mode, generation: selection.generation }, command) ?? null : null;
     }
-    if (!snapshot || snapshot.ids.length !== selection.ids.length ||
+    if (snapshot?.ids.length !== selection.ids.length ||
       snapshot.ids.some((id, index) => id !== selection.ids[index])) return null;
-    return clipboardOwnerReaderRef.current?.({ ...snapshot, generation: selection.generation }, command) || null;
+    return clipboardOwnerReaderRef.current?.({ ...snapshot, generation: selection.generation }, command) ?? null;
   }, []);
   const refreshClipboardAvailability = useCallback(() => {
     const copy = Boolean(readClipboardCurrent("copy"));
@@ -733,7 +733,7 @@ export function WorkflowCanvasBuilderSurface({
       // Consume even a stale or unavailable view: never replay an old token on return.
       handledPlacementReplayRef.current.set(replay.ownerWorkflowId, replay.serial);
       const resolved = placementOwnerFor(replay.subjectIds);
-      if (!resolved || resolved.workflowId !== replay.ownerWorkflowId ||
+      if (resolved?.workflowId !== replay.ownerWorkflowId ||
         replay.viewKey !== resolved.placementViewKey) continue;
       setManualPositions((current) => replayPlacementValues(current, replay.values));
     }

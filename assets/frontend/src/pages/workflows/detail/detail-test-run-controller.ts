@@ -300,7 +300,7 @@ export function useWorkflowTestRunController(ctx: Record<string, any> & {
     if (!mounted.current) return;
     const current = liveOwner.current;
     const candidate = current.controlled ? current.bridge?.captureSubmissionOwner() ?? null : null;
-    const proof = candidate && candidate.workflowId === current.workflowId && candidate.projectId === current.projectId &&
+    const proof = candidate?.workflowId === current.workflowId && candidate.projectId === current.projectId &&
       candidate.editorRevision === current.revision && Number.isSafeInteger(candidate.ownerEpoch) && candidate.ownerEpoch > 0 &&
       current.bridge?.isCurrent(candidate) ? { ...candidate } : null;
     if (submissionStamp(registration.current) === submissionStamp(proof)) return;
@@ -347,8 +347,8 @@ export function useWorkflowTestRunController(ctx: Record<string, any> & {
   const restoreGeneration = useRef(0);
   const [submissionSettlement, setSubmissionSettlement] = useState(0);
   const currentRun = useRef<RunProof | null>(null);
-  const submissionCurrent = useCallback((context: SubmissionContext | undefined) => Boolean(context &&
-    latestSubmission.current === context.token && ownerCurrent(context.owner)), [ownerCurrent]);
+  const submissionCurrent = useCallback((context: SubmissionContext | undefined) => Boolean(
+    context?.token === latestSubmission.current && ownerCurrent(context.owner)), [ownerCurrent]);
   const runCurrent = useCallback((run: RunProof | null | undefined) => Boolean(run && currentRun.current === run &&
     ownerCurrent(run.owner)), [ownerCurrent]);
 
@@ -563,9 +563,9 @@ export function useWorkflowTestRunController(ctx: Record<string, any> & {
     if (!authority) return;
     setStepDraft((previous) => {
       if (!stepAuthorityCurrent(authority)) return previous;
-      const own = previous && previous.authority === authority && previous.stepId === currentStepTestRunKey ? previous : null;
+      const own = previous?.authority === authority && previous.stepId === currentStepTestRunKey ? previous : null;
       const inputs = Object.fromEntries(stepTestRunInputRows.map((row) => {
-        const value = own && own.types[row.name] === row.type ? own.inputs[row.name] || "" : "";
+        const value = own?.types[row.name] === row.type ? own.inputs[row.name] || "" : "";
         return [row.name, value === EXPLICIT_EMPTY_TEST_VALUE && !inputIsText(row.type) ? "" : value];
       }));
       return { authority, stepId: currentStepTestRunKey, summary: own?.summary ?? initialStepSummary, inputs,
@@ -579,7 +579,7 @@ export function useWorkflowTestRunController(ctx: Record<string, any> & {
   const updateStepDraft = (update: (current: IsolatedStepDraft) => IsolatedStepDraft) => {
     const authority = stepAuthority;
     if (!stepAuthorityCurrent(authority)) return;
-    setStepDraft((current) => current && current.authority === authority && current.stepId === currentStepTestRunKey &&
+    setStepDraft((current) => current?.authority === authority && current.stepId === currentStepTestRunKey &&
       committedStepSelection.current === currentStepTestRunKey && stepAuthorityCurrent(authority) ? update(current) : current);
   };
   const setStepTestRunSummary = (value: SetStateAction<string>) => updateStepDraft((current) => ({ ...current,
@@ -788,8 +788,8 @@ export function useWorkflowTestRunController(ctx: Record<string, any> & {
       return "needs-inputs";
     } finally { if (againAdmission.current === admission) againAdmission.current = null; }
   }, [ownerCurrent, t, workflowTestRunMutation, workflowTestRunPayload]);
-  const approvalCurrent = useCallback((context: ApprovalContext | undefined) => Boolean(context &&
-    latestApproval.current === context.token && (context.run ? runCurrent(context.run) : ownerCurrent(null))), [ownerCurrent, runCurrent]);
+  const approvalCurrent = useCallback((context: ApprovalContext | undefined) => Boolean(
+    context?.token === latestApproval.current && (context.run ? runCurrent(context.run) : ownerCurrent(null))), [ownerCurrent, runCurrent]);
   const workflowTestRunApprovalMutation = useMutation<WorkflowTestRunResult, Error, { approved: boolean }, ApprovalContext>({
     onMutate: ({ approved }) => {
       if (activeApproval.current) throw new Error("A workflow test run approval is already pending.");

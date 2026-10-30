@@ -148,7 +148,7 @@ export function manualPositionsFromNodes(nodes: readonly Node[], baseline: reado
   for (const node of nodes) {
     if (node.type === "canvasNote" || node.type === "workflowStart") continue;
     const original = before.get(node.id);
-    if (positions[node.id] || !original || original.position.x !== node.position.x || original.position.y !== node.position.y) positions[node.id] = { ...node.position };
+    if (positions[node.id] || original?.position.x !== node.position.x || original.position.y !== node.position.y) positions[node.id] = { ...node.position };
   }
   return positions;
 }

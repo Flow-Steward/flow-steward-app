@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import { useParams } from "react-router";
@@ -148,7 +149,7 @@ function WorkflowDetailPageContent({
       // layout state transition. Controller refresh deduplicates equal stamps;
       // stable method identities or a lucky query notification are not a trigger.
   const capturedSubmissionOwner = selectedRun.captureSubmissionOwner();
-  const currentSubmissionOwner = capturedSubmissionOwner && capturedSubmissionOwner.workflowId === workflowId &&
+  const currentSubmissionOwner = capturedSubmissionOwner?.workflowId === workflowId &&
     capturedSubmissionOwner.projectId === selectedProjectId && capturedSubmissionOwner.editorRevision === (serverRevision ?? null)
     ? capturedSubmissionOwner : null;
   const controlledParent = verifiedSelectedProof
@@ -166,7 +167,7 @@ function WorkflowDetailPageContent({
   }, [resultsDrawerOpen]);
   const navigateSelectedRun = async (action: () => Promise<boolean>) => {
     const capturedOwner = currentSubmissionOwner;
-    const capturedSelection = selectedRun.selected?.proof || null;
+    const capturedSelection = selectedRun.selected?.proof ?? null;
     if (!capturedOwner || !runNavigationKey || runNavigationFlightRef.current?.key === runNavigationKey ||
       capturedSelection && !selectedRun.isCurrent(capturedSelection)) return false;
     const flight = { key: runNavigationKey, serial: ++nextRunNavigationSerial.current };
@@ -207,7 +208,7 @@ function WorkflowDetailPageContent({
     historyDisabled: !currentSubmissionOwner,
     navigate: navigateSelectedRun,
     roles: session?.user?.roles || session?.roles || [],
-    timezone: String(session?.user?.timezone || objectOrEmpty(session).timezone || ""),
+    timezone: stringFromUnknownValue(session?.user?.timezone) || stringFromUnknownValue(objectOrEmpty(session).timezone),
     runAgainBusy: authorTestRun.workflowTestRunMutation.isPending,
     runAgainBlockedReason: wholeWorkflowRunBlockedReason || (authorTestRun.workflowTestRunPending ? t("react.workflows.run_again_active", "A Test Run is already active.") : ""),
     requestRunAgain: async (proof) => {
@@ -245,7 +246,7 @@ function WorkflowDetailPageContent({
       confirmLabel: t("react.workflows.run_bar_stop", "Stop"),
     }),
   });
-  const hookRunMarks = useWorkflowHookExecutionMarks(executionCanvasGraph, hookScope.frames, workflowId, changeSet.hasChanges || hookScope.childChangeSet.hasChanges ? 0 : serverRevision ?? 0, selectedRun.selected?.jobId, false, { parent: controlledParent, owner: currentSubmissionOwner && currentSubmissionOwner.workflowId === workflowId &&
+  const hookRunMarks = useWorkflowHookExecutionMarks(executionCanvasGraph, hookScope.frames, workflowId, changeSet.hasChanges || hookScope.childChangeSet.hasChanges ? 0 : serverRevision ?? 0, selectedRun.selected?.jobId, false, { parent: controlledParent, owner: currentSubmissionOwner?.workflowId === workflowId &&
       currentSubmissionOwner.projectId === selectedProjectId && currentSubmissionOwner.editorRevision === (serverRevision ?? null)
       ? { projectId: currentSubmissionOwner.projectId, ownerEpoch: currentSubmissionOwner.ownerEpoch } : undefined });
   // A step inside a hook is tested as a step of its own workflow.

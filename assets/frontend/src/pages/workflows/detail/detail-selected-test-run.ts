@@ -204,7 +204,7 @@ export function useSelectedWorkflowTestRun(options: Options) {
   const requestOpenResults = useCallback(async () => {
     const captured = captureSelection();
     const current = live.current;
-    if (!captured || current.verifiedJobId !== captured.jobId || !current.options.openResults) return false;
+    if (captured?.jobId !== current.verifiedJobId || !current.options.openResults) return false;
     const stillCurrent = () => isCurrent(captured) && live.current.verifiedJobId === captured.jobId;
     return await current.options.openResults(stillCurrent) && stillCurrent();
   }, [captureSelection, isCurrent]);

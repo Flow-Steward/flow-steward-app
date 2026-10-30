@@ -65,7 +65,7 @@ export function useWorkflowDetailAuthoringState(
     captureSubmissionOwner: () => selectedRegistration.current?.captureSubmissionOwner() ?? null,
     isCurrent: (captured) => {
       const current = selectedRegistration.current?.captureSubmissionOwner();
-      return Boolean(current && current.workflowId === captured.workflowId && current.projectId === captured.projectId &&
+      return Boolean(current?.workflowId === captured.workflowId && current.projectId === captured.projectId &&
         current.editorRevision === captured.editorRevision && current.ownerEpoch === captured.ownerEpoch);
     },
     acceptAcknowledgement: (payload, captured) => {
@@ -378,7 +378,7 @@ export function useWorkflowDetailAuthoringState(
           (index === 0 || canvasSelection.ids[index - 1] < item.canvasId))) return null;
       const rows = selection.map((item) => readSelected(item, canvasSelection, true));
       const first = rows[0];
-      if (!first || rows.some((row) => !row || row.changeSet !== first.changeSet || row.owner.ownerKey !== first.owner.ownerKey ||
+      if (!first || rows.some((row) => row?.changeSet !== first.changeSet || row.owner.ownerKey !== first.owner.ownerKey ||
         row.owner.workflowId !== first.owner.workflowId || row.owner.projectId !== first.owner.projectId ||
         row.owner.serverRevision !== first.owner.serverRevision)) return null;
       const firstHook = parseHookNodeId(first.canvasId);
