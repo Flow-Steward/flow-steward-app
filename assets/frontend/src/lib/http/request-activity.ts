@@ -2,6 +2,29 @@ let pendingRequests = 0;
 let pageWaits = 0;
 const listeners = new Set<() => void>();
 
+const LOADED_READS_LIMIT = 500;
+/**
+ * Reads whose response the page already shows. Repeating one -- a poll, a refetch after
+ * navigation or after a save -- only refreshes what is on screen, so it must not cover
+ * the page with the blocking loader: that darkened every screen and flashed the logo
+ * each time a list refreshed itself.
+ */
+const loadedReads = new Set<string>();
+
+export function isLoadedRead(key: string): boolean {
+  return loadedReads.has(key);
+}
+
+export function rememberLoadedRead(key: string) {
+  if (loadedReads.size >= LOADED_READS_LIMIT) loadedReads.clear();
+  loadedReads.add(key);
+}
+
+/** Tests start every case without reads already on screen. */
+export function forgetLoadedReads() {
+  loadedReads.clear();
+}
+
 export function hasPendingRequests(): boolean {
   return pendingRequests > 0;
 }

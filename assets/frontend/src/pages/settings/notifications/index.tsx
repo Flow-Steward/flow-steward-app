@@ -46,7 +46,6 @@ export function SettingsNotificationsPage() {
         workspaceId,
         includeAllWorkspaces: !workspaceId,
       }),
-    refetchInterval: 60_000,
   });
 
   const projects = Array.isArray(projectsQuery.data?.projects)

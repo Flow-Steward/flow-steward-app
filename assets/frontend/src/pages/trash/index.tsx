@@ -387,7 +387,6 @@ export function TrashPage() {
         projectId,
         limit: 500,
       }),
-    refetchInterval: 15_000,
   });
   const refetchTrash = trashQuery.refetch;
 

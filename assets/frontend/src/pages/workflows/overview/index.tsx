@@ -380,7 +380,6 @@ export function WorkflowsOverviewPage() {
     queryKey: queryKeys.workflowStats(workflowId),
     queryFn: () => fetchWorkflowStats(workflowId, { presentation: "background" }),
     enabled: canReadRegistry && Boolean(workflowId),
-    refetchInterval: 30_000,
   });
 
   const hasHooks = declaredWorkflowHooks(detailQuery.data?.steps).length > 0;

@@ -70,10 +70,10 @@ function elementBy(predicate: (element: Element) => boolean) {
   return screen.getByText((_, element) => Boolean(element && predicate(element)));
 }
 
-function renderPage(initialEntry = "/registry/workflows") {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+function renderPage(
+  initialEntry = "/registry/workflows",
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
@@ -117,7 +117,7 @@ function renderPageWithLocation(initialEntry = "/registry/workflows") {
 }
 
 describe("WorkflowsListPage", () => {
-  it("keeps the actual catalog search focused and loaded rows visible during its20s HTTP refresh", async () => {
+  it("does not poll, and keeps the actual catalog search focused and rows visible during a refresh", async () => {
     const actualApi = await vi.importActual<typeof WorkflowApi>("@/pages/workflows/shared/api");
     const actualHttp = await vi.importActual<typeof HttpClient>("@/lib/http/client");
     const previousHttp = mockedFetchJson.getMockImplementation();
@@ -136,14 +136,22 @@ describe("WorkflowsListPage", () => {
       return new Response(JSON.stringify(rows), { headers: { "content-type": "application/json" } });
     });
     vi.useFakeTimers();
-    const view = renderPage("/registry/workflows?search=nightly");
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = renderPage("/registry/workflows?search=nightly", queryClient);
     const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
     try {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       const field = screen.getByRole("searchbox", { name: "Search workflows" });
       field.focus();
       const row = screen.getByRole("link", { name: "Nightly reconciliation" });
-      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      // Nothing on this page changes on its own, so idle time sends nothing.
+      await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+      expect(calls).toBe(1);
+      // A refresh after a change elsewhere keeps the page as it is.
+      await act(async () => {
+        void queryClient.invalidateQueries();
+        await vi.advanceTimersByTimeAsync(0);
+      });
       expect(calls).toBe(2);
       expect(pending).toBeDefined();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });

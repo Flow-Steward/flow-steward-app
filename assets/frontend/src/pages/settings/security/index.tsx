@@ -431,7 +431,6 @@ export function SettingsSecurityPage({
   const policyQuery = useQuery({
     queryKey: ["settings", "security", "policy", projectId || "global"],
     queryFn: () => fetchSecurityPolicyRecord(projectId || undefined),
-    refetchInterval: 30_000,
   });
 
   const policyPayload = objectOrEmpty(policyQuery.data?.policy);

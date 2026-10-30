@@ -23,7 +23,6 @@ export function SettingsGeneralPage() {
   const overviewQuery = useQuery({
     queryKey: ["settings", "general", "overview"],
     queryFn: fetchGeneralSettingsOverview,
-    refetchInterval: 30_000,
   });
 
   const overview = objectOrEmpty(overviewQuery.data);

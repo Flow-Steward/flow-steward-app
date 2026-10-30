@@ -157,7 +157,6 @@ export function RegistryCatalogSurface({
   const listQuery = useQuery({
     queryKey: listQueryKey,
     queryFn: () => fetchRegistryList(endpoint),
-    refetchInterval: 20_000,
   });
 
   const modelOptionsQuery = useQuery({

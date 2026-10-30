@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import { beforeEach } from "vitest";
+import { forgetLoadedReads } from "@/lib/http/request-activity";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 function createTestStorage(): Storage {
@@ -75,4 +76,5 @@ if (globalThis.window !== undefined) {
 
 beforeEach(() => {
   testLocalStorage.clear();
+  forgetLoadedReads();
 });

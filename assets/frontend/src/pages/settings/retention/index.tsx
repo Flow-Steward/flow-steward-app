@@ -40,7 +40,6 @@ export function SettingsRetentionPage() {
   const retentionQuery = useQuery({
     queryKey: ["settings", "retention"],
     queryFn: fetchRetentionSettingsRecord,
-    refetchInterval: 30_000,
   });
 
   const payload = objectOrEmpty(retentionQuery.data);

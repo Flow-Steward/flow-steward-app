@@ -27,6 +27,42 @@ describe("fetchJson", () => {
     expect(hasPendingRequests()).toBe(false);
   });
 
+  it("refreshes a read already on screen without the blocking loader", async () => {
+    const respond = () => new Response(JSON.stringify({ items: [] }), { headers: { "content-type": "application/json" } });
+    let resolve!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise((finish) => { resolve = finish; }));
+
+    const first = fetchJson("/api/workflows");
+    expect(hasPendingRequests()).toBe(true);
+    resolve(respond());
+    await first;
+
+    const poll = fetchJson("/api/workflows");
+    expect(hasPendingRequests()).toBe(false);
+    resolve(respond());
+    await poll;
+
+    const save = fetchJson("/api/workflows", { method: "POST", body: "{}" });
+    expect(hasPendingRequests()).toBe(true);
+    resolve(respond());
+    await save;
+    expect(hasPendingRequests()).toBe(false);
+  });
+
+  it("keeps the loader for a read whose earlier attempt failed", async () => {
+    let resolve!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise((finish) => { resolve = finish; }));
+
+    const failed = fetchJson("/api/extensions");
+    resolve(new Response(JSON.stringify({ detail: "down" }), { status: 503, headers: { "content-type": "application/json" } }));
+    await expect(failed).rejects.toMatchObject({ status: 503 });
+
+    const retry = fetchJson("/api/extensions");
+    expect(hasPendingRequests()).toBe(true);
+    resolve(new Response("{}", { headers: { "content-type": "application/json" } }));
+    await retry;
+  });
+
   it.each([401, 403, 503])("preserves background HTTP %s failures without starting global activity", async (status) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ error: "Existing server error" }), { status, headers: { "content-type": "application/json", "Retry-After": "12" } }));
     await expect(fetchJson("/api/status", {}, { presentation: "background" })).rejects.toMatchObject({ status, message: "Existing server error", retryAfterSeconds: 12 });

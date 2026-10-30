@@ -172,7 +172,6 @@ export function useExtensionsHubState() {
     queryKey: ["extensions", "all", locale],
     queryFn: () => fetchExtensions("all"),
     enabled: !extensionId,
-    refetchInterval: 30_000,
     refetchOnMount: "always",
   });
   const archiveLifecycleQuery = useQuery({
@@ -433,7 +432,6 @@ export function useExtensionsHubState() {
       { presentation: "background" },
     ),
     enabled: Boolean(detailMode && detailExtension?.extension_id && activePageRequiresProject),
-    refetchInterval: 60_000,
   });
   const projects = useMemo(
     () => (Array.isArray(projectsQuery.data?.projects) ? projectsQuery.data.projects : []),

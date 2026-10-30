@@ -429,14 +429,12 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
     queryKey: ["projects", "notification-routes", projectId],
     queryFn: () => fetchProjectNotificationRoutes(projectId),
     enabled: Boolean(projectId),
-    refetchInterval: 30_000,
   });
 
   const providersQuery = useQuery({
     queryKey: ["projects", "notification-providers", projectId],
     queryFn: () => fetchProjectNotificationProviders(projectId),
     enabled: Boolean(projectId),
-    refetchInterval: 60_000,
   });
 
   const workflowsQuery = useQuery({

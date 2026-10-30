@@ -207,7 +207,6 @@ export function ProjectNotificationOverview({ projectId }: Readonly<{ projectId:
     queryKey: ["projects", "notification-overview", projectId],
     queryFn: () => fetchProjectNotificationOverview(projectId),
     enabled: Boolean(projectId),
-    refetchInterval: 30_000,
   });
   const entries = overviewQuery.data ?? [];
   const loading = overviewQuery.isPending;

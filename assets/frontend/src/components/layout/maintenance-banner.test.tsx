@@ -57,7 +57,7 @@ describe("MaintenanceBanner", () => {
     );
   });
 
-  it("polls every 15 seconds and refreshes on window focus", async () => {
+  it("re-checks every five minutes and on window focus at most once a minute", async () => {
     let status: MaintenanceStatus = "disabled";
     const fetchMock = vi.fn(async () => response(status));
     vi.stubGlobal("fetch", fetchMock);
@@ -70,18 +70,30 @@ describe("MaintenanceBanner", () => {
 
     status = "draining";
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
     });
     expect(screen.getByRole("status")).toHaveTextContent(
       "Maintenance Mode is starting",
     );
 
     status = "enabled";
+    const focus = async () => {
+      await act(async () => {
+        globalThis.dispatchEvent(new Event("focus"));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    };
+    await focus();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Maintenance Mode is starting",
+    );
+
     await act(async () => {
-      globalThis.dispatchEvent(new Event("focus"));
-      await Promise.resolve();
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(60_000);
     });
+    await focus();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Maintenance Mode is enabled",
     );

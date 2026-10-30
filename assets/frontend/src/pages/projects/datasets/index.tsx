@@ -57,7 +57,6 @@ export function ProjectDatasetsEditor({ projectId }: Readonly<ProjectDatasetsEdi
     queryKey: ["projects", projectId, "datasets"],
     queryFn: () => fetchProjectDatasetCatalog(projectId),
     enabled: Boolean(projectId),
-    refetchInterval: 20_000,
   });
 
   const availableDatasets = useMemo(

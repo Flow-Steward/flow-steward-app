@@ -91,7 +91,6 @@ export function JsonCollectionWorkbench({
   const listQuery = useQuery({
     queryKey: listQueryKey,
     queryFn: fetchList,
-    refetchInterval: 30_000,
   });
 
   const selectedListRow =

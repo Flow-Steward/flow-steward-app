@@ -57,7 +57,6 @@ export function useWorkflowProjectFilter(projectId: string, enabled: boolean) {
     enabled,
     retry: false,
     refetchOnMount: "always",
-    refetchInterval: enabled ? 20_000 : false,
   });
   const projects = projectsQuery.isSuccess ? projectsQuery.data : EMPTY_PROJECTS;
   const selectedProject = enabled && projectsQuery.isSuccess

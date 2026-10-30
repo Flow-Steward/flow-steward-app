@@ -1,5 +1,5 @@
 import { HttpError } from "@/lib/http/errors";
-import { beginRequest } from "@/lib/http/request-activity";
+import { beginRequest, isLoadedRead, rememberLoadedRead } from "@/lib/http/request-activity";
 import { isApiEnvelope } from "@/lib/http/types";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
@@ -64,14 +64,29 @@ export type FetchJsonOptions = {
   presentation?: "foreground" | "background";
 };
 
+function readKey(input: RequestInfo | URL, init: RequestInit): string | null {
+  const request = input instanceof Request ? input : null;
+  const method = (init.method || request?.method || "GET").toUpperCase();
+  if (method !== "GET") {
+    return null;
+  }
+  if (request) {
+    return request.url;
+  }
+  return input instanceof URL ? input.href : stringFromUnknownValue(input);
+}
+
 export async function fetchJson<T>(
   input: RequestInfo | URL,
   init: RequestInit = {},
   options: FetchJsonOptions = {},
 ): Promise<T> {
   const headers = buildHttpHeaders(init);
+  const key = readKey(input, init);
+  const presentation =
+    options.presentation ?? (key !== null && isLoadedRead(key) ? "background" : "foreground");
 
-  const finishRequest = options.presentation === "background" ? undefined : beginRequest();
+  const finishRequest = presentation === "background" ? undefined : beginRequest();
   try {
     const response = await fetch(input, {
       ...init,
@@ -90,6 +105,7 @@ export async function fetchJson<T>(
           payload,
         });
       }
+      if (key !== null) rememberLoadedRead(key);
       return payload.data as T;
     }
 
@@ -102,6 +118,7 @@ export async function fetchJson<T>(
       });
     }
 
+    if (key !== null) rememberLoadedRead(key);
     return payload as T;
   } finally {
     finishRequest?.();

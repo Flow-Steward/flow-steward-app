@@ -403,24 +403,18 @@ describe("AppShell", () => {
       }
       expectUninterrupted();
       polling = true;
-      await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
-      expect(pending.map((request) => request.path)).toEqual(["/api/system/maintenance"]);
+      // Maintenance re-checks every five minutes; approvals refresh every 30 s.
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(pending.map((request) => request.path)).toEqual(["/api/jobs/awaiting-approval"]);
       // The interaction lock must be absent even before its 400ms visible delay.
       expectUninterrupted();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
       expectUninterrupted();
-      await user.keyboard(" at15"); draft += " at15";
-      expectUninterrupted();
-      await finishPolls();
-      await act(async () => { await vi.advanceTimersByTimeAsync(14_600); });
-      expect(pending.map((request) => request.path).sort()).toEqual(["/api/jobs/awaiting-approval", "/api/system/maintenance"]);
-      expectUninterrupted();
       await user.keyboard(" at30"); draft += " at30";
-      await finishPolls();
       expectUninterrupted();
-      await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
       await finishPolls();
-      await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(29_600); });
+      expect(pending.map((request) => request.path)).toEqual(["/api/jobs/awaiting-approval"]);
       expectUninterrupted();
       await finishPolls(503);
       expectUninterrupted();
@@ -433,7 +427,7 @@ describe("AppShell", () => {
       expect(screen.getByTestId("approval-badge")).toHaveTextContent("1");
       expectUninterrupted();
       expect(requested.filter((path) => path === "/api/jobs/awaiting-approval")).toHaveLength(4);
-      expect(requested.filter((path) => path === "/api/system/maintenance")).toHaveLength(6);
+      expect(requested.filter((path) => path === "/api/system/maintenance")).toHaveLength(2);
       expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
     } finally {
       if (previousAsyncWrapper) configure({ asyncWrapper: previousAsyncWrapper });

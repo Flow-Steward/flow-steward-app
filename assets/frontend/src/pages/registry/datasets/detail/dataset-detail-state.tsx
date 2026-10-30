@@ -119,27 +119,23 @@ export function useDatasetDetailState() {
   const connectorsQuery = useQuery({
     queryKey: ["registry", "datasets", "connectors"],
     queryFn: fetchDatasetConnectors,
-    refetchInterval: 30_000,
   });
 
   const savedQueriesQuery = useQuery({
     queryKey: ["registry", "datasets", datasetId, "saved-queries"],
     queryFn: () => fetchDatasetQueryTemplates({ datasetId }),
     enabled: Boolean(datasetId),
-    refetchInterval: 30_000,
   });
 
   const dataConnectionsQuery = useQuery({
     queryKey: ["registry", "datasets", "data-connections"],
     queryFn: () => fetchDataConnections(),
-    refetchInterval: 20_000,
   });
 
   const projectCatalogQuery = useQuery({
     queryKey: ["registry", "datasets", datasetId, "projects"],
     queryFn: () => fetchDatasetProjectCatalog(datasetId),
     enabled: Boolean(datasetId),
-    refetchInterval: 30_000,
   });
 
   const dataset = detailQuery.data;

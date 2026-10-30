@@ -223,7 +223,6 @@ export function RegistryChangelogPage() {
         entityId,
         limit,
       }),
-    refetchInterval: 30_000,
   });
 
   const statsQuery = useQuery({

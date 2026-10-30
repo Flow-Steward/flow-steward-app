@@ -47,7 +47,6 @@ export function JsonRecordWorkbench({
   const recordQuery = useQuery({
     queryKey,
     queryFn: fetchRecord,
-    refetchInterval: 30_000,
   });
 
   useEffect(() => {

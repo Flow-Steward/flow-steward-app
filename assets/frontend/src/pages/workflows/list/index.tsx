@@ -340,7 +340,6 @@ export function WorkflowsListPage() {
     queryKey: [...queryKeys.workflowsList({ search: deferredSearch, enabledOnly }), projectFilter.accountId],
     queryFn: () => fetchWorkflows({ enabledOnly, search: deferredSearch }, { presentation: "background" }),
     enabled: canReadRegistry,
-    refetchInterval: canReadRegistry ? 20_000 : false,
     refetchOnMount: "always",
   });
 

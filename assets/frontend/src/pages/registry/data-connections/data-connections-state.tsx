@@ -80,13 +80,11 @@ export function useDataConnectionsState() {
   const workspacesQuery = useQuery({
     queryKey: ["registry", "data-connections", "workspaces"],
     queryFn: () => fetchWorkspaces(),
-    refetchInterval: 60_000,
   });
 
   const connectorsQuery = useQuery({
     queryKey: ["registry", "data-connections", "connectors"],
     queryFn: fetchDatasetConnectors,
-    refetchInterval: 60_000,
   });
 
   const workspaces = useMemo(
@@ -108,7 +106,6 @@ export function useDataConnectionsState() {
     queryKey: ["registry", "data-connections", resolvedWorkspaceId],
     queryFn: () =>
       fetchDataConnections({ workspaceId: resolvedWorkspaceId || undefined }),
-    refetchInterval: 30_000,
   });
   const workspaceById = useMemo(
     () =>

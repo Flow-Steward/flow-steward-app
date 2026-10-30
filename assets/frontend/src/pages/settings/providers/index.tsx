@@ -332,7 +332,6 @@ export function SettingsProvidersPage() {
   const providersQuery = useQuery({
     queryKey: ["settings", "providers"],
     queryFn: fetchModelProvidersCollection,
-    refetchInterval: 30_000,
   });
   const modelCatalogQuery = useQuery<{ families?: unknown }>({
     queryKey: ["settings", "model-catalog"],

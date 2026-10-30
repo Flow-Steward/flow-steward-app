@@ -108,7 +108,6 @@ export function SettingsServiceAccountsPage() {
     queryKey: ["settings", "service-accounts"],
     queryFn: fetchServiceAccountsCollection,
     enabled: isAdmin,
-    refetchInterval: 30_000,
   });
 
   const tokensQuery = useQuery({
@@ -121,21 +120,18 @@ export function SettingsServiceAccountsPage() {
     queryFn: () =>
       fetchServiceAccountTokensCollection(selectedServiceAccountKey),
     enabled: isAdmin && Boolean(selectedServiceAccountKey),
-    refetchInterval: 30_000,
   });
 
   const projectsQuery = useQuery({
     queryKey: ["settings", "service-accounts", "project-picker"],
     queryFn: () => fetchProjectsList({ page: 1, perPage: 200, search: "" }),
     enabled: isAdmin,
-    refetchInterval: 60_000,
   });
 
   const workflowsQuery = useQuery({
     queryKey: ["settings", "service-accounts", "workflow-picker"],
     queryFn: () => fetchWorkflows({ enabledOnly: false, search: "" }),
     enabled: isAdmin,
-    refetchInterval: 60_000,
   });
 
   const projectOptions = useMemo(

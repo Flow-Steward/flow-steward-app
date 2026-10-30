@@ -28,7 +28,6 @@ export function ProjectConnectionsEditor({ projectId }: Readonly<ProjectConnecti
     queryKey: ["projects", projectId, "connections"],
     queryFn: () => fetchProjectConnectionsList(projectId),
     enabled: Boolean(projectId),
-    refetchInterval: 20_000,
   });
 
   const connections = useMemo(

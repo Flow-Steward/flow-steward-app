@@ -84,29 +84,24 @@ export function useDatasetsState() {
   const datasetsQuery = useQuery({
     queryKey: ["registry", "datasets"],
     queryFn: fetchDatasets,
-    refetchInterval: 20_000,
   });
 
   const connectorsQuery = useQuery({
     queryKey: ["registry", "datasets", "connectors"],
     queryFn: fetchDatasetConnectors,
-    refetchInterval: 30_000,
   });
   const dataConnectionsQuery = useQuery({
     queryKey: ["registry", "datasets", "data-connections"],
     queryFn: () => fetchDataConnections(),
-    refetchInterval: 20_000,
   });
   const workspacesQuery = useQuery({
     queryKey: ["registry", "workspaces", "datasets"],
     queryFn: () => fetchWorkspaces(),
-    refetchInterval: 30_000,
   });
   const workspaceProjectsQuery = useQuery({
     queryKey: ["registry", "workspaces", draft.workspace_id, "datasets", "projects"],
     queryFn: () => fetchWorkspaceProjects(draft.workspace_id),
     enabled: Boolean(draft.workspace_id),
-    refetchInterval: 30_000,
   });
 
   const datasets = useMemo(

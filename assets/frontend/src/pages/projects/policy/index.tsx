@@ -66,7 +66,6 @@ export function ProjectPolicyEditor({ projectId }: Readonly<ProjectPolicyEditorP
     queryKey: ["projects", projectId, "policy"],
     queryFn: () => fetchProjectPolicy(projectId),
     enabled: Boolean(projectId),
-    refetchInterval: 20_000,
   });
 
   const payload = objectOrEmpty(policyQuery.data);

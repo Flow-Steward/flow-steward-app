@@ -6,7 +6,11 @@ import { TriangleAlert } from "lucide-react";
 import { fetchJson } from "@/lib/http/client";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
-const MAINTENANCE_POLL_INTERVAL_MS = 15_000;
+// Maintenance is switched rarely and by an operator; the API refuses changes while it
+// is on, so the banner only needs to catch up, not to race it.
+const MAINTENANCE_POLL_INTERVAL_MS = 5 * 60_000;
+// Returning to the window re-checks, but not for every switch to DevTools and back.
+const MAINTENANCE_FOCUS_RECHECK_MS = 60_000;
 
 type MaintenanceStatus = "disabled" | "draining" | "enabled";
 
@@ -39,8 +43,10 @@ export function MaintenanceBanner() {
   const { t } = useI18n();
   const [maintenance, setMaintenance] = useState<MaintenanceStatusPayload | null>(null);
   const activeRequest = useRef<AbortController | null>(null);
+  const lastCheckedAt = useRef(0);
 
   const refresh = useCallback(async () => {
+    lastCheckedAt.current = Date.now();
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
@@ -66,8 +72,15 @@ export function MaintenanceBanner() {
       return undefined;
     }
     ignoreAsyncResult(refresh());
-    const refreshOnFocus = () => ignoreAsyncResult(refresh());
-    const interval = globalThis.setInterval(refreshOnFocus, MAINTENANCE_POLL_INTERVAL_MS);
+    const refreshOnFocus = () => {
+      if (Date.now() - lastCheckedAt.current >= MAINTENANCE_FOCUS_RECHECK_MS) {
+        ignoreAsyncResult(refresh());
+      }
+    };
+    const interval = globalThis.setInterval(
+      () => ignoreAsyncResult(refresh()),
+      MAINTENANCE_POLL_INTERVAL_MS,
+    );
     globalThis.addEventListener("focus", refreshOnFocus);
     return () => {
       globalThis.clearInterval(interval);
