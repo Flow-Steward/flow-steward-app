@@ -307,6 +307,10 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
       queryClient.invalidateQueries({ queryKey: ["extensions", "all"] }),
       queryClient.invalidateQueries({ queryKey: EXTENSION_CATALOG_QUERY_KEY }),
       queryClient.invalidateQueries({ queryKey: EXTENSION_UPDATES_QUERY_KEY }),
+      // An update started from the extension's own page must not leave it
+      // showing the old version and manifest until a reload.
+      queryClient.invalidateQueries({ queryKey: ["extensions", "detail"] }),
+      queryClient.invalidateQueries({ queryKey: ["extensions", "compiled-manifest"] }),
       ...extensionArtifactCatalogQueryKeys.map((queryKey) =>
         queryClient.invalidateQueries({ queryKey }),
       ),

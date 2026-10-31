@@ -16,6 +16,7 @@ import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { HttpError } from "@/lib/http/errors";
 import { ExtensionsHubPage } from "@/pages/extensions";
 import {
+  fetchExtension,
   fetchExtensionArchiveLifecycleAvailability,
   fetchExtensions,
 } from "@/pages/extensions/api";
@@ -92,6 +93,7 @@ const mockedFetchCatalog = vi.mocked(fetchExtensionCatalog);
 const mockedFetchUpdates = vi.mocked(fetchExtensionUpdates);
 const mockedInstall = vi.mocked(installExtensionFromCatalog);
 const mockedFetchExtensions = vi.mocked(fetchExtensions);
+const mockedFetchExtension = vi.mocked(fetchExtension);
 const mockedArchiveLifecycle = vi.mocked(fetchExtensionArchiveLifecycleAvailability);
 
 const DIGEST = "a".repeat(64);
@@ -425,7 +427,9 @@ test("Update runs the catalog install call, says Updated to the version, and the
   expect(await screen.findByRole("button", { name: "Updating…" })).toBeDisabled();
   release();
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
-  expect(await screen.findByText("Updated to 1.10.0.")).toBeInTheDocument();
+  // The Installed tab's row reports the same outcome; this is the Catalog page's.
+  const catalogPanel = document.getElementById("extensions-marketplace-content") as HTMLElement;
+  expect(await within(catalogPanel).findByText("Updated to 1.10.0.")).toBeInTheDocument();
   const open = await screen.findByRole("link", { name: "Open installed extension" });
   await waitFor(() => expect(open).toHaveFocus());
   expect(screen.queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
@@ -735,8 +739,12 @@ describe("update notices (WordPress's update check)", () => {
     expect(within(alert).getByText("Version 1.10.0 is available; 1.9.0 is installed.")).toBeInTheDocument();
     expect(within(alert).getByText(/This version also asks for:\s*Reach the network\./)).toBeInTheDocument();
 
+    await waitFor(() => expect(mockedFetchExtension).toHaveBeenCalled());
+    const detailReads = mockedFetchExtension.mock.calls.length;
     fireEvent.click(within(alert).getByRole("button", { name: "Update to v1.10.0" }));
 
     await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
+    // The page re-reads the extension, so it does not keep showing the old version.
+    await waitFor(() => expect(mockedFetchExtension.mock.calls.length).toBeGreaterThan(detailReads));
   });
 });
