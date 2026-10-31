@@ -13,6 +13,7 @@ from .command_services_job import JobCommandService
 from .command_services_model_provider import ModelProviderCommandService
 from .command_services_project import ProjectCommandService
 from .command_services_project_connection import ProjectConnectionService
+from .command_services_skill import SkillCommandService
 from .command_services_tool import ToolCommandService
 from .command_services_tool_execution import ToolExecutionService
 from .command_services_trash import TrashLifecycleService

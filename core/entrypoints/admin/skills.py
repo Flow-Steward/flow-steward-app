@@ -11,38 +11,22 @@ from typing import Annotated
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 from pydantic import BaseModel, Field, StringConstraints
 
+from core.application.management import SkillCommandService
 from core.application.management.command_models import SkillMutationResultView
+from core.application.management.errors import ServiceError
 from core.application.management.query_models import (
     RegistryContractItemView,
     SkillDiffView,
     SkillRecordView,
     SkillValidationView,
 )
-from core.application.registry.active_workflow_dependencies import (
-    enabled_workflow_dependencies,
-)
 from core.application.registry.catalog_categories import CatalogCategory
-from core.application.registry.contract_validation import (
-    format_validation_error_detail,
-    validate_contract_items,
-    validate_skill_readiness,
-)
-from core.application.registry.db_store import RestoreValidationError
-from core.application.registry.identifier_keys import unique_text_key
-from core.application.registry.projected_artifact_rows import (
-    projection_aware_catalog_row,
-    projection_aware_catalog_rows,
-)
-from core.entrypoints.admin._readiness import enforce_enabled_save_validation
+from core.application.registry.contract_validation import validate_skill_readiness
 from core.entrypoints.admin._registry_scope import (
-    assert_create_account_scope,
     assert_row_in_account_scope,
     request_scope,
 )
-
-SKILL_EXPECTED_INPUTS_VALUE = "skill.expected_inputs"
-SKILL_EXPECTED_OUTPUTS_VALUE = "skill.expected_outputs"
-
+from core.entrypoints.admin._service_errors import raise_service_http_error, service_db_getter
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
@@ -129,6 +113,16 @@ def _get_skill_validation(db, skill_id: str) -> dict:
     return validate_skill_readiness(db, skill_id)
 
 
+def _skill_command_service() -> SkillCommandService:
+    # Late-bound lambdas keep module attributes (``_get_db``, ``_get_registry``,
+    # ``_get_skill_validation``) as the single substitution points.
+    return SkillCommandService(
+        get_db=service_db_getter(lambda: _get_db()),
+        reload_registry=lambda: _get_registry().reload_all(),
+        get_skill_validation=lambda db, skill_id: _get_skill_validation(db, skill_id),
+    )
+
+
 def _require_skill_in_scope(db, skill_id: str, request: Request) -> dict:
     """Load a skill and enforce caller account scope, else fail closed (404).
 
@@ -143,17 +137,6 @@ def _require_skill_in_scope(db, skill_id: str, request: Request) -> dict:
         skill, request_scope(request), detail=f"Skill '{skill_id}' not found"
     )
     return skill
-
-
-def _project_skill_contract_fields(skill: dict) -> dict:
-    payload = dict(skill or {})
-    stored_inputs = payload.get("_inputs")
-    stored_outputs = payload.get("_outputs")
-    if isinstance(stored_inputs, list):
-        payload["expected_inputs"] = list(stored_inputs)
-    if isinstance(stored_outputs, list):
-        payload["expected_outputs"] = list(stored_outputs)
-    return payload
 
 
 class SkillSave(BaseModel):
@@ -238,29 +221,12 @@ def list_skills(
     enabled_only: Annotated[bool, Query()] = False,
     search: Annotated[str | None, Query()] = None,
 ):
-    db = _get_db()
-    scope = request_scope(request)
-    rows = projection_aware_catalog_rows(
-        db,
-        "skill",
-        "skill_id",
-        db.list_skills(enabled_only=enabled_only, account_id=scope.account_id),
-        account_id=scope.account_id,
-        enabled_only=enabled_only,
-    )
-    if search:
-        query = str(search).strip().casefold()
-        if query:
-            rows = [
-                row
-                for row in rows
-                if query
-                in " ".join(
-                    str(row.get(field) or "")
-                    for field in ("skill_id", "display_name", "description", "category")
-                ).casefold()
-            ]
-    return [_project_skill_contract_fields(row) for row in rows]
+    try:
+        return _skill_command_service().list_skills(
+            scope=request_scope(request), enabled_only=enabled_only, search=search
+        )
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.get(
@@ -275,20 +241,10 @@ def list_skills(
     },
 )
 def get_skill(skill_id: str, request: Request):
-    db = _get_db()
-    scope = request_scope(request)
-    skill = projection_aware_catalog_row(
-        db,
-        "skill",
-        "skill_id",
-        skill_id,
-        db.get_skill(skill_id),
-        account_id=scope.account_id,
-    )
-    if not skill:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
-    assert_row_in_account_scope(skill, scope, detail=f"Skill '{skill_id}' not found")
-    return _project_skill_contract_fields(skill)
+    try:
+        return _skill_command_service().get_skill(skill_id, scope=request_scope(request))
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.get(
@@ -303,9 +259,10 @@ def get_skill(skill_id: str, request: Request):
     },
 )
 def get_skill_contract_validation(skill_id: str, request: Request):
-    db = _get_db()
-    _require_skill_in_scope(db, skill_id, request)
-    return {"skill_id": skill_id, "validation": _get_skill_validation(db, skill_id)}
+    try:
+        return _skill_command_service().validate_skill(skill_id, scope=request_scope(request))
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.get(
@@ -351,56 +308,12 @@ def create_skill(
         ),
     ],
 ):
-    db = _get_db()
-    scope = request_scope(request)
-    skill_id = unique_text_key(
-        body.skill_id,
-        lambda candidate: db.get_skill(candidate) is not None,
-    )
-
-    payload = body.model_dump()
-    payload["skill_id"] = skill_id
-    assert_create_account_scope(payload, scope)
-    # Registry ownership is transport context, not client-controlled SkillSave
-    # data. Otherwise non-default-account creates fall back to Main account.
-    payload["account_id"] = scope.account_id
-
-    _, input_issues = validate_contract_items(
-        payload.get("expected_inputs") or [],
-        path_prefix=SKILL_EXPECTED_INPUTS_VALUE,
-        default_required=False,
-        db=db,
-    )
-    _, output_issues = validate_contract_items(
-        payload.get("expected_outputs") or [],
-        path_prefix=SKILL_EXPECTED_OUTPUTS_VALUE,
-        default_required=True,
-        db=db,
-    )
-    if input_issues or output_issues:
-        validation = {"valid": False, "errors": input_issues + output_issues, "warnings": []}
-        raise HTTPException(
-            status_code=400,
-            detail=format_validation_error_detail(
-                entity_type="skill",
-                entity_id=skill_id,
-                action="save",
-                validation=validation,
-            ),
+    try:
+        return _skill_command_service().create_skill(
+            body.model_dump(), scope=request_scope(request)
         )
-
-    with db._transaction():
-        db.save_skill(payload, author=scope.actor_name)
-        validation = _get_skill_validation(db, skill_id)
-        enforce_enabled_save_validation(
-            entity_type="skill",
-            entity_id=skill_id,
-            action="save",
-            validation=validation,
-            final_enabled=bool(payload.get("enabled", False)),
-        )
-    _get_registry().reload_all()
-    return {"status": "created", "skill_id": skill_id, "validation": validation}
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.put(
@@ -430,59 +343,15 @@ def update_skill(
         ),
     ],
 ):
-    db = _get_db()
-    scope = request_scope(request)
-    existing = db.get_skill(skill_id)
-    if existing:
-        assert_row_in_account_scope(existing, scope, detail=f"Skill '{skill_id}' not found")
-    data = body.model_dump()
-    data["skill_id"] = skill_id
-    assert_create_account_scope(data, scope)
-    # Full replacement must retain the row's authenticated account ownership.
-    data["account_id"] = existing.get("account_id") if existing is not None else scope.account_id
-    projected_existing = _project_skill_contract_fields(existing or {})
-    if "expected_inputs" not in body.model_fields_set:
-        data["expected_inputs"] = list(projected_existing.get("expected_inputs") or [])
-    if "expected_outputs" not in body.model_fields_set:
-        data["expected_outputs"] = list(projected_existing.get("expected_outputs") or [])
-
-    _, input_issues = validate_contract_items(
-        data.get("expected_inputs") or [],
-        path_prefix=SKILL_EXPECTED_INPUTS_VALUE,
-        default_required=False,
-        db=db,
-    )
-    _, output_issues = validate_contract_items(
-        data.get("expected_outputs") or [],
-        path_prefix=SKILL_EXPECTED_OUTPUTS_VALUE,
-        default_required=True,
-        db=db,
-    )
-    if input_issues or output_issues:
-        validation = {"valid": False, "errors": input_issues + output_issues, "warnings": []}
-        raise HTTPException(
-            status_code=400,
-            detail=format_validation_error_detail(
-                entity_type="skill",
-                entity_id=skill_id,
-                action="save",
-                validation=validation,
-            ),
+    try:
+        return _skill_command_service().update_skill(
+            skill_id,
+            body.model_dump(),
+            provided_fields=body.model_fields_set,
+            scope=request_scope(request),
         )
-
-    with db._transaction():
-        db.save_skill(data, author=scope.actor_name)
-        validation = _get_skill_validation(db, skill_id)
-        enforce_enabled_save_validation(
-            entity_type="skill",
-            entity_id=skill_id,
-            action="save",
-            validation=validation,
-            final_enabled=bool(data.get("enabled", False)),
-        )
-    _get_registry().reload_all()
-    db.materialize_agents_for_skill(skill_id)
-    return {"status": "updated", "skill_id": skill_id, "validation": validation}
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.patch(
@@ -512,50 +381,12 @@ def patch_skill(
         ),
     ],
 ):
-    db = _get_db()
-    existing = db.get_skill(skill_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
-    assert_row_in_account_scope(
-        existing, request_scope(request), detail=f"Skill '{skill_id}' not found"
-    )
-
-    updates = body.model_dump(exclude_none=True)
-    if not updates:
-        return {"status": "no_change", "skill_id": skill_id}
-
-    if bool(existing.get("enabled", False)) and updates.get("enabled") is False:
-        dependencies = enabled_workflow_dependencies(
-            db,
-            agent_ids=db.get_agents_using_skill(skill_id),
+    try:
+        return _skill_command_service().patch_skill(
+            skill_id, body.model_dump(exclude_none=True), scope=request_scope(request)
         )
-        if dependencies:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "Active workflow dependency",
-                    "message": (
-                        f"Skill '{skill_id}' cannot be disabled while enabled workflows "
-                        f"depend on an agent using it: {', '.join(dependencies)}. Disable "
-                        "or update those workflows first."
-                    ),
-                    "workflow_ids": dependencies,
-                },
-            )
-
-    merged = {**existing, **updates, "skill_id": skill_id}
-    with db._transaction():
-        db.save_skill(merged, author=request_scope(request).actor_name)
-        validation = _get_skill_validation(db, skill_id)
-        enforce_enabled_save_validation(
-            entity_type="skill",
-            entity_id=skill_id,
-            action="save",
-            validation=validation,
-            final_enabled=bool(merged.get("enabled", False)),
-        )
-    _get_registry().reload_all()
-    return {"status": "updated", "skill_id": skill_id, "validation": validation}
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.patch(
@@ -571,49 +402,10 @@ def patch_skill(
     },
 )
 def toggle_skill(skill_id: str, request: Request):
-    db = _get_db()
-    current = db.get_skill(skill_id)
-    if not current:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
-    assert_row_in_account_scope(
-        current, request_scope(request), detail=f"Skill '{skill_id}' not found"
-    )
-
-    if bool(current.get("enabled", False)):
-        dependencies = enabled_workflow_dependencies(
-            db,
-            agent_ids=db.get_agents_using_skill(skill_id),
-        )
-        if dependencies:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "Active workflow dependency",
-                    "message": (
-                        f"Skill '{skill_id}' cannot be disabled while enabled workflows "
-                        f"depend on an agent using it: {', '.join(dependencies)}. Disable "
-                        "or update those workflows first."
-                    ),
-                    "workflow_ids": dependencies,
-                },
-            )
-
-    if not bool(current.get("enabled", False)):
-        validation = _get_skill_validation(db, skill_id)
-        if not validation.get("valid", False):
-            raise HTTPException(
-                status_code=400,
-                detail=format_validation_error_detail(
-                    entity_type="skill",
-                    entity_id=skill_id,
-                    action="enable",
-                    validation=validation,
-                ),
-            )
-
-    new_state = db.toggle_skill(skill_id)
-    _get_registry().reload_all()
-    return {"status": "toggled", "skill_id": skill_id, "enabled": new_state}
+    try:
+        return _skill_command_service().toggle_skill(skill_id, scope=request_scope(request))
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.delete(
@@ -629,50 +421,10 @@ def toggle_skill(skill_id: str, request: Request):
     },
 )
 def delete_skill(skill_id: str, request: Request):
-    db = _get_db()
-    scope = request_scope(request)
-    existing = db.get_skill(skill_id)
-    if existing:
-        assert_row_in_account_scope(existing, scope, detail=f"Skill '{skill_id}' not found")
-    dependency_lister = getattr(db, "get_skill_dependents", None)
-    dependency_rows = dependency_lister(skill_id, limit=26) if callable(dependency_lister) else []
-    if not isinstance(dependency_rows, list):
-        dependency_rows = []
-    dependent_ids = [
-        f"{str(row.get('dependency_kind') or '').strip()}:"
-        f"{str(row.get('dependency_id') or '').strip()}"
-        for row in dependency_rows[:25]
-        if isinstance(row, dict)
-        and str(row.get("dependency_kind") or "").strip()
-        and str(row.get("dependency_id") or "").strip()
-    ]
-    if dependent_ids:
-        action = "Remove or replace every listed dependency before trashing the skill."
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": "registry_dependency_conflict",
-                "entity_type": "registry_skill",
-                "entity_id": skill_id,
-                "dependent_ids": dependent_ids,
-                "action": action,
-                **({"dependent_ids_truncated": True} if len(dependency_rows) > 25 else {}),
-            },
-        )
     try:
-        db.delete_skill(skill_id, author=scope.actor_name)
-    except KeyError as e:
-        raise HTTPException(status_code=404, detail=str(e.args[0] if e.args else e))
-    except Exception as e:
-        if "violates foreign key" in str(e):
-            raise HTTPException(
-                status_code=409,
-                detail=f"Skill '{skill_id}' is still assigned to agents or workflow steps. Remove associations first.",
-            )
-        raise HTTPException(status_code=500, detail=str(e))
-
-    _get_registry().reload_all()
-    return {"status": "deleted", "skill_id": skill_id}
+        return _skill_command_service().delete_skill(skill_id, scope=request_scope(request))
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.post(
@@ -702,34 +454,15 @@ def clone_skill(
         ),
     ],
 ):
-    db = _get_db()
-    scope = request_scope(request)
-    source = _require_skill_in_scope(db, skill_id, request)
-
-    target_id = unique_text_key(
-        body.resolved_target_id() or f"{skill_id}_copy",
-        lambda candidate: db.get_skill(candidate) is not None,
-    )
-
-    clone_data = {
-        "skill_id": target_id,
-        "account_id": scope.account_id,
-        "display_name": body.display_name or f"{source.get('display_name', skill_id)} (Copy)",
-        "description": source.get("description", ""),
-        "category": source.get("category"),
-        "skill_type": source.get("skill_type", "secondary"),
-        "instructions": list(source.get("instructions") or []),
-        "prompt_template": str(source.get("prompt_template") or ""),
-        "expected_inputs": list(source.get("expected_inputs") or source.get("_inputs") or []),
-        "expected_outputs": list(source.get("expected_outputs") or source.get("_outputs") or []),
-        "examples": list(source.get("examples") or []),
-        "enabled": False,
-        "version": source.get("version", "1.0.0"),
-        "tags": list(source.get("tags") or []),
-    }
-    db.save_skill(clone_data, author=scope.actor_name)
-    _get_registry().reload_all()
-    return {"status": "cloned", "skill_id": target_id, "source_skill_id": skill_id}
+    try:
+        return _skill_command_service().clone_skill(
+            skill_id,
+            target_skill_id=body.resolved_target_id(),
+            display_name=body.display_name,
+            scope=request_scope(request),
+        )
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.get(
@@ -830,54 +563,12 @@ def restore_skill_revision(
         ),
     ],
 ):
-    db = _get_db()
-    _require_skill_in_scope(db, skill_id, request)
     try:
-        outcome = db.restore_entity_revision(
-            entity_type="skill",
-            entity_id=skill_id,
-            entry_id=str(body.entry_id),
-            author="admin_restore",
-            validate_restored=lambda _entity_type, _entity_id, _restored: _get_skill_validation(
-                db, skill_id
-            ),
+        return _skill_command_service().restore_skill_revision(
+            skill_id, body.entry_id, scope=request_scope(request)
         )
-    except RestoreValidationError as e:
-        validation = (
-            e.validation
-            if isinstance(e.validation, dict)
-            else {
-                "valid": False,
-                "errors": [],
-                "warnings": [],
-            }
-        )
-        raise HTTPException(
-            status_code=400,
-            detail=format_validation_error_detail(
-                entity_type="skill",
-                entity_id=skill_id,
-                action="restore",
-                validation=validation,
-            ),
-        )
-    except KeyError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    validation = outcome.get("validation")
-    if not isinstance(validation, dict):
-        validation = _get_skill_validation(db, skill_id)
-
-    _get_registry().reload_all()
-    return {
-        "status": "restored",
-        "skill_id": skill_id,
-        "restored_from_entry_id": str(body.entry_id),
-        "validation": validation,
-        "snapshot": outcome.get("restored"),
-    }
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.get(
@@ -911,30 +602,15 @@ def get_skill_inputs(skill_id: str, request: Request):
     },
 )
 def set_skill_inputs(skill_id: str, request: Request, inputs: list[InputItem]):
-    db = _get_db()
-    _require_skill_in_scope(db, skill_id, request)
-    payload = [i.model_dump() for i in inputs]
-    _, issues = validate_contract_items(
-        payload,
-        path_prefix=SKILL_EXPECTED_INPUTS_VALUE,
-        default_required=False,
-        db=db,
-    )
-    if issues:
-        validation = {"valid": False, "errors": issues, "warnings": []}
-        raise HTTPException(
-            status_code=400,
-            detail=format_validation_error_detail(
-                entity_type="skill",
-                entity_id=skill_id,
-                action="save_inputs",
-                validation=validation,
-            ),
+    try:
+        return _skill_command_service().set_skill_contract_items(
+            skill_id,
+            "inputs",
+            [item.model_dump() for item in inputs],
+            scope=request_scope(request),
         )
-    db.set_skill_inputs(skill_id, payload)
-    _get_registry().reload_all()
-    db.materialize_agents_for_skill(skill_id)
-    return db.get_skill_inputs(skill_id)
+    except ServiceError as exc:
+        raise_service_http_error(exc)
 
 
 @router.get(
@@ -968,27 +644,12 @@ def get_skill_outputs(skill_id: str, request: Request):
     },
 )
 def set_skill_outputs(skill_id: str, request: Request, outputs: list[OutputItem]):
-    db = _get_db()
-    _require_skill_in_scope(db, skill_id, request)
-    payload = [o.model_dump() for o in outputs]
-    _, issues = validate_contract_items(
-        payload,
-        path_prefix=SKILL_EXPECTED_OUTPUTS_VALUE,
-        default_required=True,
-        db=db,
-    )
-    if issues:
-        validation = {"valid": False, "errors": issues, "warnings": []}
-        raise HTTPException(
-            status_code=400,
-            detail=format_validation_error_detail(
-                entity_type="skill",
-                entity_id=skill_id,
-                action="save_outputs",
-                validation=validation,
-            ),
+    try:
+        return _skill_command_service().set_skill_contract_items(
+            skill_id,
+            "outputs",
+            [item.model_dump() for item in outputs],
+            scope=request_scope(request),
         )
-    db.set_skill_outputs(skill_id, payload)
-    _get_registry().reload_all()
-    db.materialize_agents_for_skill(skill_id)
-    return db.get_skill_outputs(skill_id)
+    except ServiceError as exc:
+        raise_service_http_error(exc)

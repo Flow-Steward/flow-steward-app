@@ -11,10 +11,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from core.application.management.command_models import AgentMutationResultView
+from core.application.management.command_services_agent import AgentCommandService
 from core.application.management.errors import ServiceError
 from core.application.management.query_models import AgentDiffView, AgentRecordView
-from core.application.registry.contract_validation import format_validation_error_detail
-from core.application.registry.db_store import RestoreValidationError
+from core.entrypoints.admin._service_errors import raise_service_http_error, service_db_getter
 from core.entrypoints.admin.agents_models import AgentCloneRequest, RestoreRevisionRequest
 from core.entrypoints.api.error_safety import safe_error_response
 
@@ -48,7 +48,15 @@ def register_agent_history_routes(
     get_scope: Callable[[Request], Any],
     assert_in_scope: Callable[[dict, Any, str], None],
     clone_agent_command: Callable[..., dict[str, Any]],
+    restore_agent_command: Callable[..., Any] | None = None,
 ) -> None:
+    if restore_agent_command is None:
+        restore_agent_command = AgentCommandService(
+            get_db=service_db_getter(get_db),
+            reload_registry=lambda: get_registry().reload_all(),
+            get_agent_validation=lambda db, agent_id, **_kwargs: get_agent_validation(db, agent_id),
+        ).restore_agent_revision
+
     @router.post(
         "/{agent_id}/clone",
         response_model=AgentMutationResultView,
@@ -203,53 +211,9 @@ def register_agent_history_routes(
             ),
         ],
     ):
-        db = get_db()
-        source = db.get_agent(agent_id)
-        if not source:
-            raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-        assert_in_scope(source, get_scope(request), detail=f"Agent '{agent_id}' not found")
+        # The service checks account scope and attributes the change to the actor.
+        scope = get_scope(request)
         try:
-            outcome = db.restore_entity_revision(
-                entity_type="agent",
-                entity_id=agent_id,
-                entry_id=str(body.entry_id),
-                author=f"{get_scope(request).actor_name}_restore",
-                validate_restored=lambda _entity_type, _entity_id, _restored: get_agent_validation(
-                    db, agent_id
-                ),
-            )
-        except RestoreValidationError as e:
-            validation = (
-                e.validation
-                if isinstance(e.validation, dict)
-                else {
-                    "valid": False,
-                    "errors": [],
-                    "warnings": [],
-                }
-            )
-            raise HTTPException(
-                status_code=400,
-                detail=format_validation_error_detail(
-                    entity_type="agent",
-                    entity_id=agent_id,
-                    action="restore",
-                    validation=validation,
-                ),
-            )
-        except KeyError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-        validation = outcome.get("validation")
-        if not isinstance(validation, dict):
-            validation = get_agent_validation(db, agent_id)
-        get_registry().reload_all()
-        return {
-            "status": "restored",
-            "agent_id": agent_id,
-            "restored_from_entry_id": str(body.entry_id),
-            "validation": validation,
-            "snapshot": outcome.get("restored"),
-        }
+            return restore_agent_command(agent_id=agent_id, entry_id=body.entry_id, scope=scope)
+        except ServiceError as exc:
+            raise_service_http_error(exc)

@@ -122,12 +122,16 @@ class TestAuditAuthorsResolveToTheActor:
 
     def test_agent_restore_attributes_the_change_to_the_caller(self):
         source = (ADMIN_ROUTES / "agents_history_routes.py").read_text(encoding="utf-8")
+        service_source = (
+            ADMIN_ROUTES.parents[1] / "application" / "management" / "command_services_agent.py"
+        ).read_text(encoding="utf-8")
 
         assert 'author="admin_restore"' not in source
-        assert 'author=f"{get_scope(request).actor_name}_restore"' in source
+        assert 'author="admin_restore"' not in service_source
+        assert 'author=f"{scope.actor_name}_restore"' in service_source
 
     def test_every_agent_history_route_asserts_account_scope(self):
-        """Each handler scopes inline or forwards caller scope to the clone service."""
+        """Each handler scopes inline or forwards caller scope to the clone/restore service."""
         source = (ADMIN_ROUTES / "agents_history_routes.py").read_text(encoding="utf-8")
         registration = next(
             node
@@ -148,14 +152,15 @@ class TestAuditAuthorsResolveToTheActor:
         for name, handler in handlers.items():
             body = ast.get_source_segment(source, handler)
             assert body is not None
-            if name == "clone_agent":
+            if name in {"clone_agent", "restore_agent_revision"}:
+                command = name.removesuffix("_revision") + "_command"
                 assert "scope = get_scope(request)" in body
                 calls = [
                     node
                     for node in ast.walk(handler)
                     if isinstance(node, ast.Call)
                     and isinstance(node.func, ast.Name)
-                    and node.func.id == "clone_agent_command"
+                    and node.func.id == command
                 ]
                 assert len(calls) == 1
                 assert any(

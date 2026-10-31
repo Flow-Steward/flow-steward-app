@@ -21,6 +21,12 @@ from typing import Any
 from fastapi import HTTPException, Request
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID
+from core.application.management.command_services_agent_rules import (
+    create_account_scope_allowed,
+)
+from core.application.management.command_services_agent_rules import (
+    row_in_account_scope as _row_in_account_scope,
+)
 from core.application.management.scope import ScopeContext, normalize_scope
 
 
@@ -44,23 +50,10 @@ def request_scope(request: Request) -> ScopeContext:
 def row_in_account_scope(row: dict | None, scope: ScopeContext | None) -> bool:
     """True if *row* is global (no account_id) or owned by the caller's account.
 
-    Fails closed on anything that is not a mapping. The registry stores return
-    ``dict | None``; a non-dict value means the caller's assumption about the
-    store is wrong, and an ownership check is the last place to guess.
+    Fails closed on anything that is not a mapping. The rule itself is owned by
+    the application layer so services and routes cannot drift apart.
     """
-    if row is None:
-        return False
-    if not isinstance(row, dict):
-        return False
-    row_account_id = str(row.get("account_id") or "").strip()
-    if not row_account_id:
-        # Platform-global registry object — visible to every scoped admin.
-        return True
-    scope_account_id = str(getattr(scope, "account_id", "") or "").strip()
-    if not scope_account_id:
-        # Caller has no resolved account but the row is owned — fail closed.
-        return False
-    return row_account_id == scope_account_id
+    return _row_in_account_scope(row, scope)
 
 
 def assert_row_in_account_scope(
@@ -84,11 +77,7 @@ def assert_create_account_scope(
     A scoped admin may create a global row (no account_id) or a row owned by their
     own account, but may not stamp another account's id onto a new object.
     """
-    requested_account_id = str((payload or {}).get("account_id") or "").strip()
-    if not requested_account_id:
-        return
-    scope_account_id = str(getattr(scope, "account_id", "") or "").strip()
-    if scope_account_id and requested_account_id != scope_account_id:
+    if not create_account_scope_allowed(payload, scope):
         raise HTTPException(status_code=403, detail="Access denied")
 
 

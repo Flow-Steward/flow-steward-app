@@ -155,14 +155,15 @@ def test_a_plain_context_template_still_renders():
 
 
 def test_saving_an_agent_refuses_a_context_template_the_sandbox_would_refuse():
-    from fastapi import HTTPException
+    from core.application.management.command_services_agent_rules import (
+        validate_agent_context_template,
+    )
+    from core.application.management.errors import ServiceValidationError
 
-    from core.entrypoints.admin.agents_helpers import _validate_agent_context_template
-
-    with pytest.raises(HTTPException) as refused:
-        _validate_agent_context_template({"context_template": "{% include 'x' %}"})
+    with pytest.raises(ServiceValidationError) as refused:
+        validate_agent_context_template({"context_template": "{% include 'x' %}"})
     assert refused.value.status_code == 400
-    with pytest.raises(HTTPException):
-        _validate_agent_context_template({"context_template": "{{ unclosed "})
+    with pytest.raises(ServiceValidationError):
+        validate_agent_context_template({"context_template": "{{ unclosed "})
 
-    _validate_agent_context_template({"context_template": "Task: {{ task_summary }}"})
+    validate_agent_context_template({"context_template": "Task: {{ task_summary }}"})

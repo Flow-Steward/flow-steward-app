@@ -12515,6 +12515,7 @@ class TestRegistryAccountScope:
         )
 
     def test_agent_contract_validation_resolves_active_projected_agent(self, monkeypatch):
+        import core.application.management.command_services_agent as agent_commands
         import core.entrypoints.admin.agents as agent_routes
 
         scope = normalize_scope(account_id="account-A")
@@ -12527,7 +12528,7 @@ class TestRegistryAccountScope:
         }
         lookup = MagicMock(return_value=projected)
         validation = MagicMock(return_value={"valid": True, "errors": [], "warnings": []})
-        monkeypatch.setattr(agent_routes, "projection_aware_catalog_row", lookup)
+        monkeypatch.setattr(agent_commands, "projection_aware_catalog_row", lookup)
         monkeypatch.setattr(agent_routes, "_get_agent_validation", validation)
 
         response = client.get("/api/agents/extension.install-1.projected_agent/contract-validation")

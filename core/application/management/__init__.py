@@ -31,6 +31,7 @@ __all__ = [
     "ServiceScopeNotFoundError",
     "ServiceUnavailableError",
     "ServiceValidationError",
+    "SkillCommandService",
     "ToolCommandService",
     "ToolExecutionService",
     "ToolQueryService",
@@ -62,6 +63,10 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "ProjectCommandService": (
         CORE_APPLICATION_MANAGEMENT_COMMAND_SERVICES_VALUE,
         "ProjectCommandService",
+    ),
+    "SkillCommandService": (
+        CORE_APPLICATION_MANAGEMENT_COMMAND_SERVICES_VALUE,
+        "SkillCommandService",
     ),
     "ToolCommandService": (
         CORE_APPLICATION_MANAGEMENT_COMMAND_SERVICES_VALUE,

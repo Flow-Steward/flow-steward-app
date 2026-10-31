@@ -9,6 +9,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.management.command_services_agent import AgentCommandService
+from core.application.management.errors import ServiceError
 from core.application.management.query_models import (
     AgentEffectiveIOView,
     AgentOutputFormatPreviewView,
@@ -16,12 +18,9 @@ from core.application.management.query_models import (
     AgentTemplateVariableView,
     RegistryContractItemView,
 )
-from core.application.registry.agent_own_io import get_agent_own_io, save_agent_own_io
-from core.application.registry.contract_validation import (
-    format_validation_error_detail,
-    validate_contract_items,
-)
+from core.application.registry.agent_own_io import get_agent_own_io
 from core.entrypoints.admin._registry_scope import assert_row_in_account_scope, request_scope
+from core.entrypoints.admin._service_errors import raise_service_http_error, service_db_getter
 from core.entrypoints.admin.agents_models import AgentInputItem, AgentOutputItem
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
@@ -32,7 +31,31 @@ def register_agent_io_routes(
     get_db: Callable[[], Any],
     get_registry: Callable[[], Any],
     primary_skill_id: Callable[[dict | None], str | None],
+    get_agent_commands: Callable[[], Any] | None = None,
 ) -> None:
+    default_commands = (
+        AgentCommandService(
+            get_db=service_db_getter(get_db),
+            reload_registry=lambda: get_registry().reload_all(),
+        )
+        if get_agent_commands is None
+        else None
+    )
+
+    def _commands() -> Any:
+        return get_agent_commands() if get_agent_commands is not None else default_commands
+
+    def _set_contract_items(agent_id: str, request: Request, kind: Any, items: list[Any]):
+        try:
+            return _commands().set_agent_contract_items(
+                agent_id,
+                kind,
+                [item.model_dump() for item in items],
+                scope=request_scope(request),
+            )
+        except ServiceError as exc:
+            raise_service_http_error(exc)
+
     # --------------------------------------------------------------------------- #
     # Performance metrics (from platform_events)                                       #
     # --------------------------------------------------------------------------- #
@@ -152,39 +175,7 @@ def register_agent_io_routes(
     )
     def set_agent_inputs(agent_id: str, request: Request, items: list[AgentInputItem]):
         """Replace all structured inputs for an agent."""
-        db = get_db()
-        agent = db.get_agent(agent_id)
-        if not agent:
-            raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-        assert_row_in_account_scope(
-            agent, request_scope(request), detail=f"Agent '{agent_id}' not found"
-        )
-        skill_id = primary_skill_id(agent)
-        payload = [i.model_dump() for i in items]
-        _, issues = validate_contract_items(
-            payload,
-            path_prefix="agent.inputs",
-            default_required=False,
-        )
-        if issues:
-            validation = {"valid": False, "errors": issues, "warnings": []}
-            raise HTTPException(
-                status_code=400,
-                detail=format_validation_error_detail(
-                    entity_type="agent",
-                    entity_id=agent_id,
-                    action="save_inputs",
-                    validation=validation,
-                ),
-            )
-        if skill_id:
-            db.set_skill_inputs(skill_id, payload)
-            get_registry().reload_all()
-            db.materialize_agents_for_skill(skill_id)
-            return db.get_skill_inputs(skill_id)
-        db.set_agent_inputs(agent_id, payload)
-        db.materialize_agent_contract(agent_id)
-        return db.get_agent_own_inputs(agent_id)
+        return _set_contract_items(agent_id, request, "inputs", items)
 
     @router.get(
         "/{agent_id}/outputs",
@@ -228,39 +219,7 @@ def register_agent_io_routes(
     )
     def set_agent_outputs(agent_id: str, request: Request, items: list[AgentOutputItem]):
         """Replace all structured outputs for an agent."""
-        db = get_db()
-        agent = db.get_agent(agent_id)
-        if not agent:
-            raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-        assert_row_in_account_scope(
-            agent, request_scope(request), detail=f"Agent '{agent_id}' not found"
-        )
-        skill_id = primary_skill_id(agent)
-        payload = [i.model_dump() for i in items]
-        _, issues = validate_contract_items(
-            payload,
-            path_prefix="agent.outputs",
-            default_required=True,
-        )
-        if issues:
-            validation = {"valid": False, "errors": issues, "warnings": []}
-            raise HTTPException(
-                status_code=400,
-                detail=format_validation_error_detail(
-                    entity_type="agent",
-                    entity_id=agent_id,
-                    action="save_outputs",
-                    validation=validation,
-                ),
-            )
-        if skill_id:
-            db.set_skill_outputs(skill_id, payload)
-            get_registry().reload_all()
-            db.materialize_agents_for_skill(skill_id)
-            return db.get_skill_outputs(skill_id)
-        db.set_agent_outputs(agent_id, payload)
-        db.materialize_agent_contract(agent_id)
-        return db.get_agent_own_outputs(agent_id)
+        return _set_contract_items(agent_id, request, "outputs", items)
 
     # The agent's own fields, whatever skill it has. /inputs and /outputs above keep
     # their behaviour: with a primary skill they read and write that skill.
@@ -275,19 +234,15 @@ def register_agent_io_routes(
         return db
 
     def _save_own(agent_id: str, request: Request, kind: Any, items: list[Any]):
-        db = _scoped_agent(agent_id, request)
-        saved, issues = save_agent_own_io(db, agent_id, kind, [i.model_dump() for i in items])
-        if issues:
-            raise HTTPException(
-                status_code=400,
-                detail=format_validation_error_detail(
-                    entity_type="agent",
-                    entity_id=agent_id,
-                    action=f"save_own_{kind}",
-                    validation={"valid": False, "errors": issues, "warnings": []},
-                ),
+        try:
+            return _commands().set_agent_own_io(
+                agent_id,
+                kind,
+                [item.model_dump() for item in items],
+                scope=request_scope(request),
             )
-        return saved
+        except ServiceError as exc:
+            raise_service_http_error(exc)
 
     _OWN_IO_RESPONSES: dict[int | str, dict[str, Any]] = {
         400: {"description": "Bad request"},
