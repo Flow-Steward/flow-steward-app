@@ -11,6 +11,7 @@ import {
   toggleRegistryEntity,
   updateRegistryEntity,
 } from "@/pages/registry/shared/api";
+import { registryConflictFromError, type RegistryConflict } from "@/pages/registry/shared/registry-conflict";
 import { firstStringFromUnknownValue, isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 export type RegistryEntity = Record<string, unknown>;
@@ -133,17 +134,23 @@ export function useRegistryEntityDetail({
   // so an error read as a status and a long server reason squeezed the title.
   const [saveStatus, setSaveStatus] = useState("");
   const [saveError, setSaveError] = useState("");
+  // A taken id or name keeps the server's matches and suggestion for the alert.
+  const [saveConflict, setSaveConflict] = useState<RegistryConflict | null>(null);
   const [saving, setSaving] = useState(false);
 
   /** Clearing the status (pages do this on edit) clears a pending error too. */
   function updateSaveStatus(value: string) {
     setSaveStatus(value);
-    if (!value) setSaveError("");
+    if (!value) {
+      setSaveError("");
+      setSaveConflict(null);
+    }
   }
 
-  function failSave(message: string) {
+  function failSave(message: string, conflict: RegistryConflict | null = null) {
     setSaveStatus("");
     setSaveError(message);
+    setSaveConflict(conflict);
   }
 
   const detailQuery = useQuery({
@@ -186,7 +193,10 @@ export function useRegistryEntityDetail({
       await historyQuery.refetch();
       return true;
     } catch (error) {
-      failSave(error instanceof Error ? error.message : t("react.registry.display_failed_save_changes", "Failed to save changes."));
+      failSave(
+        error instanceof Error ? error.message : t("react.registry.display_failed_save_changes", "Failed to save changes."),
+        registryConflictFromError(error),
+      );
       return false;
     } finally {
       setSaving(false);
@@ -229,6 +239,7 @@ export function useRegistryEntityDetail({
     routeEntityId,
     saveEntityOperation,
     saveEntityPatch,
+    saveConflict,
     saveError,
     saveStatus,
     saving,

@@ -8370,6 +8370,15 @@ msgid "react.registry.configured_scopes_are_sent_to_oauth_granted_scopes_are_sho
 msgstr ""
 "Sukonfigūruotos aprėptys siunčiamos OAuth; suteiktos aprėptys rodomos toliau."
 
+msgid "react.registry.conflict_use_id_value0"
+msgstr "Naudoti ID „{value0}“"
+
+msgid "react.registry.conflict_use_name_value0"
+msgstr "Naudoti pavadinimą „{value0}“"
+
+msgid "react.registry.conflict_used_by_value0"
+msgstr "Naudoja: {value0}"
+
 msgid "react.registry.connected_identity"
 msgstr "Prijungta tapatybė"
 

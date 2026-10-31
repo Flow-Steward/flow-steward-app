@@ -6,6 +6,7 @@ import { I18nContext, fallbackContext } from "@/lib/i18n/context";
 
 import { RegistryCatalogSurface } from "@/pages/registry/shared/catalog-surface";
 import { fetchJson } from "@/lib/http/client";
+import { HttpError } from "@/lib/http/errors";
 import {
   createRegistryEntity,
   deleteMcpProjectedToolConfirmed,
@@ -976,5 +977,54 @@ describe("guardrail Create enumeration authority", () => {
     expect(screen.getByRole("button", { name: /Create entry/i })).toBeDisabled();
     fireEvent.submit(screen.getByTestId("registry-create-form"));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
+  });
+});
+
+describe("registry create id conflict", () => {
+  it("shows the visible match and lets the user pick the suggested ID without retrying", async () => {
+    mockedUseHasCapability.mockReturnValue(true);
+    mockedCreateRegistryEntity.mockReset();
+    mockedFetchRegistryList.mockReset();
+    mockedFetchRegistryList.mockResolvedValue([]);
+    mockCatalogCategories();
+    mockedCreateRegistryEntity.mockRejectedValueOnce(
+      new HttpError({
+        status: 409,
+        url: "/api/skills",
+        payload: {
+          detail: {
+            code: "registry_id_conflict",
+            message: "Skill ID 'summary' is already taken. Choose another ID.",
+            matches: [{ id: "summary", display_name: "Summarize", enabled: false, used_by: [] }],
+            suggested_id: "summary_1",
+          },
+        },
+      }),
+    );
+    renderCatalogSurface({
+      createLabel: "Skill",
+      description: "Skill catalog",
+      endpoint: "/api/skills",
+      idKey: "skill_id",
+      listQueryKey: ["registry", "skills"],
+      title: "Skills catalog",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New Skill" }));
+    fireEvent.change(screen.getByLabelText(/^SKILL_ID/), { target: { value: "summary" } });
+    fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Summary writer" } });
+    await chooseOption("Category", "Marketing");
+    fireEvent.submit(screen.getByTestId("registry-create-form"));
+
+    const matches = await screen.findByTestId("registry-conflict-matches");
+    expect(matches).toHaveTextContent("Summarize summary");
+    expect(matches).toHaveTextContent("Disabled");
+    expect(screen.getByText("Failed to create entity.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use the ID “summary_1”" }));
+
+    expect(screen.getByLabelText(/^SKILL_ID/)).toHaveValue("summary_1");
+    expect(screen.getByLabelText(/^Display Name/)).toHaveValue("Summary writer");
+    expect(mockedCreateRegistryEntity).toHaveBeenCalledTimes(1);
   });
 });

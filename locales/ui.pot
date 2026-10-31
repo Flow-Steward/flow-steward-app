@@ -8226,6 +8226,15 @@ msgstr ""
 msgid "react.registry.configured_scopes_are_sent_to_oauth_granted_scopes_are_shown_below"
 msgstr ""
 
+msgid "react.registry.conflict_use_id_value0"
+msgstr ""
+
+msgid "react.registry.conflict_use_name_value0"
+msgstr ""
+
+msgid "react.registry.conflict_used_by_value0"
+msgstr ""
+
 msgid "react.registry.connected_identity"
 msgstr ""
 

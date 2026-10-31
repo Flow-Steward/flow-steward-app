@@ -7,13 +7,15 @@ import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
 
 import { fetchJson } from "@/lib/http/client";
-import { fetchRegistryDetail, fetchRegistryList } from "@/pages/registry/shared/api";
+import { HttpError } from "@/lib/http/errors";
+import { fetchRegistryDetail, fetchRegistryList, updateRegistryEntity } from "@/pages/registry/shared/api";
 import { RegistrySkillsDetailPage } from "@/pages/registry/skills/detail";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 vi.mock("@/pages/registry/shared/api", () => ({
   fetchRegistryDetail: vi.fn(),
   fetchRegistryList: vi.fn(),
+  updateRegistryEntity: vi.fn(),
 }));
 
 vi.mock("@/lib/http/client", () => ({
@@ -23,6 +25,7 @@ vi.mock("@/lib/http/client", () => ({
 const mockedFetchRegistryDetail = vi.mocked(fetchRegistryDetail);
 const mockedFetchRegistryList = vi.mocked(fetchRegistryList);
 const mockedFetchJson = vi.mocked(fetchJson);
+const mockedUpdateRegistryEntity = vi.mocked(updateRegistryEntity);
 
 function renderPage(locale: "en" | "lt" = "en") {
   const queryClient = new QueryClient({
@@ -58,6 +61,49 @@ describe("RegistrySkillsDetailPage", () => {
     mockedFetchRegistryDetail.mockReset();
     mockedFetchRegistryList.mockReset();
     mockedFetchJson.mockReset();
+  });
+
+  it("shows a rename conflict and lets the user pick the suggested name without saving again", async () => {
+    mockedFetchRegistryDetail.mockResolvedValue({ skill_id: "review_summary", display_name: "Owner skill", enabled: true, category: "sales", description: "", expected_inputs: [], expected_outputs: [], instructions: [] });
+    mockedFetchRegistryList.mockResolvedValue([]);
+    mockedFetchJson.mockImplementation(async (url) => (url === "/api/catalog-categories" ? [{ id: "sales", label: "Sales" }] : []));
+    mockedUpdateRegistryEntity.mockReset();
+    mockedUpdateRegistryEntity.mockRejectedValueOnce(
+      new HttpError({
+        status: 409,
+        url: "/api/skills/review_summary",
+        payload: {
+          detail: {
+            code: "registry_name_conflict",
+            message: "Skill name 'Summarize' is already used. Choose another name.",
+            matches: [
+              {
+                id: "summarize",
+                display_name: "Summarize",
+                enabled: true,
+                used_by: [{ entity_type: "agent", id: "writer", display_name: "Writer" }],
+              },
+            ],
+            suggested_display_name: "Summarize 2",
+          },
+        },
+      }),
+    );
+    renderPage();
+
+    const name = await screen.findByDisplayValue("Owner skill");
+    fireEvent.change(name, { target: { value: "summarize" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Config" }));
+
+    expect(await screen.findByTestId("registry-conflict-matches")).toHaveTextContent(
+      "Summarize summarize · Enabled · Used by: Writer",
+    );
+    expect(screen.getByText("Changes were not saved")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use the name “Summarize 2”" }));
+
+    expect(screen.getByDisplayValue("Summarize 2")).toBeInTheDocument();
+    expect(mockedUpdateRegistryEntity).toHaveBeenCalledTimes(1);
   });
 
   it("localizes the skill category select and shows the saved category by its shared label", async () => {

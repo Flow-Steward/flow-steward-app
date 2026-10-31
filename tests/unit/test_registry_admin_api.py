@@ -8428,7 +8428,7 @@ class TestWorkflowCRUD:
         }
         mock_db = MagicMock()
         mock_db.get_workflow.return_value = existing
-        mock_db._transaction.return_value = nullcontext()
+        mock_db._transaction.return_value = nullcontext(MagicMock())
         mock_db.save_workflow.side_effect = WorkflowRevisionConflictError("wf_stale_editor", 8)
 
         with patch.object(workflow_routes, "_get_db", return_value=mock_db):

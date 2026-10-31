@@ -116,6 +116,7 @@ export function RegistrySkillsDetailPage() {
     resolvedEntityId,
     routeEntityId,
     saveEntityPatch,
+    saveConflict,
     saveError,
     saveStatus,
     saving,
@@ -634,7 +635,11 @@ export function RegistrySkillsDetailPage() {
         eyebrow={t("trash.category.registry", "Registry")}
         title={entityName || t("react.registry.skill_detail", "Skill detail")}
       />
-      <SaveErrorAlert error={saveError} />
+      <SaveErrorAlert
+        conflict={saveConflict}
+        error={saveError}
+        onUseDisplayName={(value) => setDraft((current) => ({ ...current, displayName: value }))}
+      />
 
       {detailQuery.isError ? (
         <DsAlert title={t("react.registry.failed_to_load_skill_detail_variant_0403403d", "Failed to load skill detail")} tone="danger">

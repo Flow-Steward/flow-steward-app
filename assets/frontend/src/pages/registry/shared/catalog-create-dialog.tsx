@@ -4,6 +4,8 @@ import { DsAlert, DsCheckbox, DsDialog, DsSelect } from "@/components/shared/des
 import { AssignmentSelector } from "@/components/shared/assignment-selector";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { EntityForm, RegistryEntity } from "./catalog-surface-helpers";
+import type { RegistryConflict } from "./registry-conflict";
+import { SaveErrorAlert } from "./save-feedback";
 import { renderWhen, type AgentModelRoute } from "./catalog-create-payload";
 import {
   GuardrailRuleEditor,
@@ -62,6 +64,7 @@ type RegistryCreateDialogProps = {
   guardrailAgentSearch: string;
   guardrailAgentOptions: RegistryEntity[];
   createError: string;
+  createConflict?: RegistryConflict | null;
 };
 
 export function RegistryCreateDialog({
@@ -113,6 +116,7 @@ export function RegistryCreateDialog({
   guardrailAgentSearch,
   guardrailAgentOptions,
   createError,
+  createConflict = null,
 }: Readonly<RegistryCreateDialogProps>) {
   const { t } = useI18n();
   return (
@@ -392,7 +396,15 @@ export function RegistryCreateDialog({
                 >
                   {t("settings.mcp.status.enabled", "Enabled")}</DsCheckbox>
 
-                {renderWhen(Boolean(createError), <DsAlert title={createError} tone="danger" />)}
+                {createConflict ? (
+                  <SaveErrorAlert
+                    conflict={createConflict}
+                    error={createError}
+                    onUseDisplayName={(value) => setCreateForm((current) => ({ ...current, display_name: value }))}
+                    onUseId={showsIdentifierField ? (value) => setCreateForm((current) => ({ ...current, identifier: value })) : undefined}
+                    title={t("react.registry.display_failed_create_entity", "Failed to create entity.")}
+                  />
+                ) : renderWhen(Boolean(createError), <DsAlert title={createError} tone="danger" />)}
               </form>
         </DsDialog>
   );

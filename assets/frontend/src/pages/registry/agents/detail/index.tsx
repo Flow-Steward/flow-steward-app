@@ -44,6 +44,7 @@ import { useAgentDetailState } from "./agent-detail-state";
 export function RegistryAgentsDetailPage() {
   const { t } = useI18n();
   const {
+    saveConflict,
     saveError,
     saving,
     toggleEntityEnabled,
@@ -122,7 +123,11 @@ export function RegistryAgentsDetailPage() {
         eyebrow={t("trash.category.registry", "Registry")}
         title={entityName || t("react.registry.agent_detail", "Agent detail")}
       />
-      <SaveErrorAlert error={saveError} />
+      <SaveErrorAlert
+        conflict={saveConflict}
+        error={saveError}
+        onUseDisplayName={(value) => setDraft((current) => ({ ...current, displayName: value }))}
+      />
       {renderWhen(detailQuery.isError, (
         <DsAlert title={t("monitoring.health.unavailable", "Unavailable")} tone="danger">
           {t("react.registry.the_agent_detail_could_not_be_loaded", "The agent detail could not be loaded.")}</DsAlert>

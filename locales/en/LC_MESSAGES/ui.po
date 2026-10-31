@@ -8240,6 +8240,15 @@ msgstr "Config must be a JSON object."
 msgid "react.registry.configured_scopes_are_sent_to_oauth_granted_scopes_are_shown_below"
 msgstr "Configured scopes are sent to OAuth; granted scopes are shown below."
 
+msgid "react.registry.conflict_use_id_value0"
+msgstr "Use the ID “{value0}”"
+
+msgid "react.registry.conflict_use_name_value0"
+msgstr "Use the name “{value0}”"
+
+msgid "react.registry.conflict_used_by_value0"
+msgstr "Used by: {value0}"
+
 msgid "react.registry.connected_identity"
 msgstr "Connected identity"
 

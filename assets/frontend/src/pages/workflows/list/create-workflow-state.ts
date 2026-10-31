@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useState } from "react";
 
 import { fetchJson } from "@/lib/http/client";
+import { registryConflictFromError, type RegistryConflict } from "@/pages/registry/shared/registry-conflict";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 export const WORKFLOW_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
@@ -31,6 +32,8 @@ export function useCreateWorkflowForm(projectId: string) {
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [notice, setNotice] = useState("");
+  // A taken name keeps the server's matches and suggestion until the user edits.
+  const [conflict, setConflict] = useState<RegistryConflict | null>(null);
   const [idInvalid, setIdInvalid] = useState(false);
   const [nameInvalid, setNameInvalid] = useState(false);
   // The ID follows the display name until the user types an ID of their own.
@@ -58,6 +61,7 @@ export function useCreateWorkflowForm(projectId: string) {
     setCreating(true);
     setIdInvalid(false);
     setNotice("");
+    setConflict(null);
     try {
       const response = await fetchJson<Record<string, unknown>>("/api/workflows", {
         method: "POST",
@@ -70,6 +74,7 @@ export function useCreateWorkflowForm(projectId: string) {
       });
       return firstStringFromUnknownValue([response.workflow_id, trimmedId]).trim();
     } catch (error) {
+      setConflict(registryConflictFromError(error));
       setNotice(error instanceof Error ? error.message : t("react.workflows.failed_to_create_workflow", "Failed to create workflow."));
       return "";
     } finally {
@@ -79,6 +84,7 @@ export function useCreateWorkflowForm(projectId: string) {
 
   function reset() {
     setNotice("");
+    setConflict(null);
     setIdInvalid(false);
     setNameInvalid(false);
     setIdEdited(false);
@@ -88,6 +94,7 @@ export function useCreateWorkflowForm(projectId: string) {
   }
 
   return {
+    conflict,
     creating,
     description,
     displayName,
@@ -101,12 +108,14 @@ export function useCreateWorkflowForm(projectId: string) {
       setNameInvalid(false);
       if (!idEdited) setWorkflowId(workflowIdFromName(value));
       if (notice) setNotice("");
+      setConflict(null);
     },
     setWorkflowId: (value: string) => {
       setWorkflowId(value);
       setIdEdited(true);
       setIdInvalid(false);
       if (notice) setNotice("");
+      setConflict(null);
     },
     submit,
     workflowId,

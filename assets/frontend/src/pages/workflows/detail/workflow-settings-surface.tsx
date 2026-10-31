@@ -8,6 +8,8 @@ import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchWorkflowContract, fetchWorkflowDetail } from "@/pages/workflows/shared/api";
+import type { RegistryConflict } from "@/pages/registry/shared/registry-conflict";
+import { SaveErrorAlert } from "@/pages/registry/shared/save-feedback";
 import { findWorkflowLinkedProjectId } from "@/pages/workflows/shared/project-context";
 import { isWorkflowSettingsTab, type WorkflowChannelState } from "@/pages/workflows/shared/workflow-page-tabs";
 import { AutomationRuleEditor } from "./detail-automation-editor";
@@ -54,6 +56,7 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
   const canAuthor = useIsAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
   const [saveError, setSaveError] = useState("");
+  const [saveConflict, setSaveConflict] = useState<RegistryConflict | null>(null);
   const [savingWorkflowSurface, setSavingWorkflowSurface] = useState("");
   const [triggersWasOpened, setTriggersWasOpened] = useState(tab === "webhook");
   const workflowInterfaceControlIdPrefix = useId();
@@ -76,10 +79,11 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
     onSelectTab(next === "triggers" ? "webhook" : next);
   }
   const settings = useWorkflowSettingsController({
-    workflowId, workflowRecord, workflowInterfaceControlIdPrefix, setDrawerTab: changeDrawerTab, setSaveNotice: ignoreSaveNotice, setSaveError, drawerMode: "workflow-settings",
+    workflowId, workflowRecord, workflowInterfaceControlIdPrefix, setDrawerTab: changeDrawerTab, setSaveNotice: ignoreSaveNotice, setSaveError, setSaveConflict, drawerMode: "workflow-settings",
     setSavingWorkflowSurface: (value: string) => {
       if (value === "workflow") {
         setSaveError("");
+        setSaveConflict(null);
       }
       setSavingWorkflowSurface(value);
     },
@@ -113,7 +117,14 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
     <div hidden={!active} inert={!active}>
       {loadError ? <DsAlert title={t("react.workflows.workflow_unavailable", "Workflow unavailable")} tone="danger">{loadError.message}</DsAlert> : !ready ? <p>{t("registry.workflow_detail.loading", "Loading...")}</p> : <div className="flex flex-col gap-3">
         {/* A save that landed says so inside its button; only a failure stays on screen. */}
-        {saveError ? <DsAlert title={t("react.workflows.not_saved", "Not saved")} tone="danger"><p>{saveError}</p></DsAlert> : null}
+        {saveError && saveConflict ? (
+          <SaveErrorAlert
+            conflict={saveConflict}
+            error={saveError}
+            onUseDisplayName={settings.setWorkflowDisplayNameDraft}
+            title={t("react.workflows.not_saved", "Not saved")}
+          />
+        ) : saveError ? <DsAlert title={t("react.workflows.not_saved", "Not saved")} tone="danger"><p>{saveError}</p></DsAlert> : null}
         <div id="workflow-settings-surface"><WorkflowSettingsSmartSetup ctx={ctx} /></div>
         {triggersWasOpened ? <TriggersTab ctx={ctx} /> : null}
         {active && drawerTab === "schedules" ? <WorkflowScheduleProjectContext workflowId={workflowId} projectHint={projectId} onProjectChange={(id) => { const next = new URLSearchParams(searchParams); next.set("project_id", id); setSearchParams(next, { replace: true }); }} onTurnOnScheduleChannel={() => changeDrawerTab("smart-setup")} /> : null}

@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import type { RefObject } from "react";
 
 import { DsAlert } from "@/components/shared/design-system";
+import { SaveErrorAlert } from "@/pages/registry/shared/save-feedback";
 import { type CreateWorkflowForm, WORKFLOW_ID_RULE } from "@/pages/workflows/list/create-workflow-state";
 
 /**
@@ -17,7 +18,15 @@ export function CreateWorkflowFields({
     <>
       {/* A field-level rule belongs under its field; anything the server said
           is an alert, because it is not about one input. */}
-      {form.notice && !form.idInvalid && !form.nameInvalid ? (
+      {form.notice && !form.idInvalid && !form.nameInvalid && form.conflict ? (
+        <SaveErrorAlert
+          conflict={form.conflict}
+          error={form.notice}
+          onUseDisplayName={form.setDisplayName}
+          title={t("react.workflows.workflow_was_not_created", "Workflow was not created")}
+        />
+      ) : null}
+      {form.notice && !form.idInvalid && !form.nameInvalid && !form.conflict ? (
         <DsAlert title={t("react.workflows.workflow_was_not_created", "Workflow was not created")} tone="danger">
           {form.notice}
         </DsAlert>

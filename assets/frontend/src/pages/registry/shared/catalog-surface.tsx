@@ -19,6 +19,7 @@ import {
   type McpProjectedToolDeletePlan,
   toggleRegistryEntity,
 } from "@/pages/registry/shared/api";
+import { registryConflictFromError, type RegistryConflict } from "@/pages/registry/shared/registry-conflict";
 import { buildGridConfig } from "@/pages/registry/shared/catalog-grid-config";
 import { McpToolDeletePlanModal } from "@/pages/registry/shared/mcp-tool-delete-plan-modal";
 import {
@@ -133,6 +134,7 @@ export function RegistryCatalogSurface({
   const [mcpDeletePlan, setMcpDeletePlan] = useState<McpProjectedToolDeletePlan | null>(null);
   const [mcpDeleteError, setMcpDeleteError] = useState("");
   const [createError, setCreateError] = useState("");
+  const [createConflict, setCreateConflict] = useState<RegistryConflict | null>(null);
   const listPath = useMemo(() => registryListPath(endpoint), [endpoint]);
   const listHref = useHref(listPath);
   const createModalId = useMemo(() => modalIdForEndpoint(endpoint), [endpoint]);
@@ -272,6 +274,7 @@ export function RegistryCatalogSurface({
   function resetCreateState() {
     setCreateForm(EMPTY_FORM);
     setCreateError("");
+    setCreateConflict(null);
     setCategory("");
     setAgentSystemPrompt("");
     setAgentModelRoute("");
@@ -555,6 +558,7 @@ export function RegistryCatalogSurface({
   async function handleCreate(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreateError("");
+    setCreateConflict(null);
     setMessage("");
     setSaving(true);
     try {
@@ -602,6 +606,8 @@ export function RegistryCatalogSurface({
       }
     } catch (error) {
       const text = error instanceof Error ? error.message : t("react.registry.display_failed_create_entity", "Failed to create entity.");
+      // A taken id or name is shown with its matches; nothing is retried under another id.
+      setCreateConflict(registryConflictFromError(error));
       setCreateError(text);
       setMessage(text);
     } finally {
@@ -614,6 +620,7 @@ export function RegistryCatalogSurface({
       className="fs-button primary"
       onClick={() => {
         setCreateError("");
+        setCreateConflict(null);
         setCreateFormOpen(true);
       }}
       type="button"
@@ -778,6 +785,7 @@ export function RegistryCatalogSurface({
             guardrailAgentSearch,
             guardrailAgentOptions,
             createError,
+            createConflict,
           }}
         />
 

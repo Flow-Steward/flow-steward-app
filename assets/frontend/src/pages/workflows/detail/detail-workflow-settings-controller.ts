@@ -3,6 +3,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
+import { registryConflictFromError } from "@/pages/registry/shared/registry-conflict";
 import { builderMetadataDraftFromUnknown, builderMetadataPayload } from "@/pages/registry/shared/builder-metadata";
 import {
   jsonObjectFromDraft,
@@ -145,6 +146,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     drawerMode,
     refetchWorkflowSurfaces,
     setDrawerTab,
+    setSaveConflict,
     setSaveError,
     setSaveNotice,
     setSavingWorkflowSurface,
@@ -371,6 +373,8 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
       );
     } catch (error) {
       setWorkflowFormSaveFailed(true);
+      // A taken name: the surface lists the matches and offers the suggested name.
+      if (typeof setSaveConflict === "function") setSaveConflict(registryConflictFromError(error));
       const rawMessage = error instanceof Error ? error.message : "";
       setSaveError(
         rawMessage.includes("platform_workflow_requires_clone")
