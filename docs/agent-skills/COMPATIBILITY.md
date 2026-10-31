@@ -100,7 +100,7 @@ claimed.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All three skills; MCP tools from a server you add yourself | Personal token from an environment variable in the MCP headers | Package README for the skills; in `~/.cursor/mcp.json` a `flow-steward` entry with `"url": "<your address>/mcp"` and `"headers": {"Authorization": "Bearer ${env:FLOW_STEWARD_TOKEN}"}` | The plugin carries no MCP server; Enterprise admins must allow local plugin imports | Yes | Not verified: the client is not installed on the verification machine | No | No |
+| Operator | All three skills; MCP tools from a server you add yourself | Personal token from an environment variable in the MCP headers | Package README for the skills; in `~/.cursor/mcp.json` a `flow-steward` entry with `"url": "<your address>/mcp"` and `"headers": {"Authorization": "Bearer ${env:FLOW_STEWARD_TOKEN}"}` | The plugin carries no MCP server; an organization admin may have to allow local plugin imports | Yes | Not verified: the client is not installed on the verification machine | No | No |
 | Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: the client is not installed on the verification machine | No | No |
 
 ### Gemini CLI
