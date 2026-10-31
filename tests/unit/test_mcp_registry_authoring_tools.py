@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from typing import Any, ClassVar
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
@@ -459,9 +460,26 @@ def api(monkeypatch: pytest.MonkeyPatch):
     app.state.local_auth_enabled_override = lambda: False
     app.state.external_auth_enabled_override = lambda: False
     test_client = TestClient(app, raise_server_exceptions=False)
+
+    def forward(request: httpx.Request) -> httpx.Response:
+        # The MCP client's real request, served by the real app.
+        served = test_client.request(
+            request.method,
+            request.url.path,
+            params=request.url.params,
+            headers=dict(request.headers),
+            content=request.content or None,
+        )
+        headers = {
+            key: value
+            for key, value in served.headers.items()
+            if key.lower() not in {"content-encoding", "content-length", "transfer-encoding"}
+        }
+        return httpx.Response(served.status_code, headers=headers, content=served.content)
+
     client = AppApiClient(
         base_url="http://testserver",
-        transport=test_client._transport,
+        transport=httpx.MockTransport(forward),
         allow_anonymous_dev=False,
     )
     monkeypatch.setattr(server_api_tool, "AppApiClient", lambda: client)
