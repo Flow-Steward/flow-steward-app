@@ -157,3 +157,27 @@ def test_a_name_config_set_does_not_take_is_refused_with_the_nearest_and_the_pag
 
     assert message in str(refused.value)
     assert HOST_SETTINGS_DOCS_URL in str(refused.value)
+
+
+def test_a_reset_setting_overrides_an_assignment_outside_the_managed_block(
+    tmp_path: Path,
+) -> None:
+    from core.infrastructure.lifecycle.configuration_store import _replace_managed_block
+
+    env_path = tmp_path / ".env.prod"
+    _write_lifecycle_secret_environment(env_path)
+    # Where `install.sh --setting` appends a key the file did not have yet.
+    installed = env_path.read_text(encoding="utf-8") + f"{PRIVATE}=1\n"
+    env_path.write_text(installed, encoding="utf-8")
+    service = _service(tmp_path)
+    reset = DeploymentConfig(
+        environment="production", deployment_profile="scalable", file_storage="local_fs"
+    )
+
+    environment = service.prepare_environment(reset)[2]
+    managed = "\n".join(f"{name}={value}" for name, value in environment.items())
+    rewritten = _replace_managed_block(installed, managed, preserve_keys=frozenset())
+
+    assert environment[PRIVATE] == "0"
+    assert f"{PRIVATE}=1" not in rewritten
+    assert f"{PRIVATE}=0" in rewritten

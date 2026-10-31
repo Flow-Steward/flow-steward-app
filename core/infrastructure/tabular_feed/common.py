@@ -78,3 +78,26 @@ def _clamped_limit(options: dict[str, Any], option_name: str, env_name: str, def
     operator_max = _limit_env(env_name, default)
     requested = _positive_int(options.get(option_name))
     return min(operator_max, requested) if requested is not None else operator_max
+
+
+#: A text cell a spreadsheet would evaluate (OWASP CSV injection): workflow data
+#: such as a scraped page title must not become a formula in the exported file.
+_SPREADSHEET_FORMULA_PREFIX = r"^[=+\-@\t\r]"
+
+
+def _neutralize_spreadsheet_formulas(frame: Any) -> Any:
+    """Prefix formula-looking text cells with an apostrophe; other columns are kept."""
+    pl = _pl()
+    schema = frame.collect_schema()
+    text_columns = [name for name, dtype in schema.items() if dtype == pl.String]
+    if not text_columns:
+        return frame
+    return frame.with_columns(
+        [
+            pl.when(pl.col(name).str.contains(_SPREADSHEET_FORMULA_PREFIX))
+            .then(pl.lit("'") + pl.col(name))
+            .otherwise(pl.col(name))
+            .alias(name)
+            for name in text_columns
+        ]
+    )

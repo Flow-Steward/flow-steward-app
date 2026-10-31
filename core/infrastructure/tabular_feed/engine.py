@@ -34,6 +34,7 @@ from core.infrastructure.tabular_feed.common import (
     _fail,
     _input,
     _limit_env,
+    _neutralize_spreadsheet_formulas,
     _pl,
     _positive_int,
     _text,
@@ -819,29 +820,6 @@ def merge_rows(action: dict[str, Any]) -> dict[str, Any]:
             "row_count": len(output),
             "preview_rows": _preview(output),
         },
-    )
-
-
-#: A text cell a spreadsheet would evaluate (OWASP CSV injection): workflow data
-#: such as a scraped page title must not become a formula in the exported file.
-_SPREADSHEET_FORMULA_PREFIX = r"^[=+\-@\t\r]"
-
-
-def _neutralize_spreadsheet_formulas(frame: Any) -> Any:
-    """Prefix formula-looking text cells with an apostrophe; other columns are kept."""
-    pl = _pl()
-    schema = frame.collect_schema()
-    text_columns = [name for name, dtype in schema.items() if dtype == pl.String]
-    if not text_columns:
-        return frame
-    return frame.with_columns(
-        [
-            pl.when(pl.col(name).str.contains(_SPREADSHEET_FORMULA_PREFIX))
-            .then(pl.lit("'") + pl.col(name))
-            .otherwise(pl.col(name))
-            .alias(name)
-            for name in text_columns
-        ]
     )
 
 

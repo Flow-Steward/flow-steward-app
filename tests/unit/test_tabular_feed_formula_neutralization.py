@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from core.infrastructure.tabular_feed.engine import _neutralize_spreadsheet_formulas
+from core.infrastructure.tabular_feed.common import _neutralize_spreadsheet_formulas
 
 
 def test_formula_looking_text_gets_an_apostrophe() -> None:
