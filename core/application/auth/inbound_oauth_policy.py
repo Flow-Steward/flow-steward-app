@@ -70,7 +70,7 @@ OFFLINE_ACCESS_SCOPE = "offline_access"
 # ---------------------------------------------------------------------------
 BLOCKER_PUBLIC_HTTPS_REQUIRED = "public_https_required"
 BLOCKER_ISSUER_MISMATCH = "issuer_mismatch"
-BLOCKER_FORWARD_SECRET_MISSING = "forward_secret_missing"
+BLOCKER_FORWARD_SECRET_MISSING = "forward_secret_missing"  # pragma: allowlist secret
 BLOCKER_STORAGE_MISSING = "storage_missing"
 BLOCKER_DISABLED_BY_ADMIN = "disabled_by_admin"
 

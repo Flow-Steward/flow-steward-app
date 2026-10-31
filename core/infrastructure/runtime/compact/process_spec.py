@@ -214,7 +214,7 @@ _RUNTIME_ENV = frozenset(
 #: no allowlist above: the supervisor mints it for each container start
 #: (`mint_mcp_forward_secret`), only the app and mcp roles receive it, and nothing writes
 #: it to `.env` or to the volume, so it is also outside the self-minted durable secrets.
-MCP_FORWARD_SECRET_ENV = "FS_MCP_FORWARD_SECRET"
+MCP_FORWARD_SECRET_ENV = "FS_MCP_FORWARD_SECRET"  # pragma: allowlist secret
 
 
 def mint_mcp_forward_secret() -> str:

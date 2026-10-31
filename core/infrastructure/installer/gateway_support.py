@@ -189,7 +189,7 @@ _WORKER_TOKEN_ENV = "FS_WORKER_MCP_BEARER_TOKEN"
 # lifecycle's required durable secrets (_INSTALLER_SECRET_NAMES, env_registry's
 # _PLACEHOLDER_SECRET_NAMES): an installation without it starts normally with OAuth
 # unavailable, and Compact mints its own on every start and never writes it to .env.
-_MCP_FORWARD_SECRET_ENV = "FS_MCP_FORWARD_SECRET"
+_MCP_FORWARD_SECRET_ENV = "FS_MCP_FORWARD_SECRET"  # pragma: allowlist secret
 _MAX_CLI_READINESS_OUTPUT_BYTES = 1024 * 1024
 _MAX_CLI_READINESS_CHECKS = 256
 _MAX_CLI_READINESS_FIELD_LENGTH = 4096

@@ -28,7 +28,7 @@ from core.application.auth.password import session_token_hash
 
 ORIGIN = "https://fs.example.test"
 RESOURCE = f"{ORIGIN}/mcp"
-FORWARD_SECRET = "integration-forward-secret-" + "x" * 16
+FORWARD_SECRET = "integration-forward-secret-" + "x" * 16  # pragma: allowlist secret
 CLIENT_ID = "https://claude.ai/oauth/claude-code-client-metadata"
 REDIRECT = "http://127.0.0.1:53111/callback"
 CSRF = "csrf-integration-value"
