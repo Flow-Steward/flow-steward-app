@@ -100,7 +100,9 @@ def test_a_pending_setting_merges_into_the_active_ones_and_reaches_the_environme
     assert environment[PRIVATE] == "1"
     reset = service._candidate(candidate, ConfigurationPatch(operator_settings=f"{PRIVATE}="))
     assert PRIVATE not in reset.operator_settings
-    assert PRIVATE not in service.prepare_environment(reset)[2]
+    # Written with its default, not left out: an absent key would let an assignment
+    # outside the managed block keep the old value.
+    assert service.prepare_environment(reset)[2][PRIVATE] == "0"
 
 
 def test_stack_toml_carries_the_settings_and_omits_the_key_when_none_are_set(
