@@ -432,19 +432,18 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
             request_kwargs["additional_headers"] = additional_headers
         payload = client.request(method, path, **request_kwargs)
     except AppApiError as exc:
-        envelope = {
-            "ok": False,
-            "tool": tool,
-            "error": _authoring_error(exc.payload, exc.status_code)
+        error = (
+            _authoring_error(exc.payload, exc.status_code)
             if tool in _AUTHORING_TOOLS
-            else _route_error(exc.payload, exc.status_code),
-        }
+            else _route_error(exc.payload, exc.status_code)
+        )
         if tool == "workflow_import":
             # Only the fixed resolution fields leave the import preflight context.
-            envelope["error"].pop("details", None)
+            error.pop("details", None)
             blocking = _blocking_dependencies(exc.payload)
             if blocking:
-                envelope["error"]["blocking_dependencies"] = blocking
+                error["blocking_dependencies"] = blocking
+        envelope = {"ok": False, "tool": tool, "error": error}
         raise ToolError(json.dumps(envelope, ensure_ascii=False, sort_keys=True)) from exc
 
     return json.dumps(
