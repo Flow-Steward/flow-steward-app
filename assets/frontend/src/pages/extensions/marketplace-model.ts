@@ -521,3 +521,25 @@ export function updateLabel(phase: ExtensionCatalogInstallState["phase"], versio
   if (phase === "awaiting_approval") return t("react.extensions.awaiting_approval", "Awaiting approval");
   return t("react.extensions.update_to_version", "Update to v{value0}", { value0: version });
 }
+
+/* ---- Update notices: the Installed page and the extension's page ----------- */
+
+const GITHUB_RELEASE_ASSET = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\//u;
+
+/**
+ * Where to read what changed, as WordPress's "View version details" opens a
+ * plugin's changelog: the GitHub release the archive is attached to, or the
+ * extension's page in the Catalog when the archive is hosted elsewhere.
+ */
+export function releaseNotesLink(entry: ExtensionCatalogEntry): { href: string; external: boolean } {
+  const match = GITHUB_RELEASE_ASSET.exec(entry.release_zip_url ?? "");
+  if (match) return { href: `https://github.com/${match[1]}/${match[2]}/releases/tag/${match[3]}`, external: true };
+  return { href: entryPath(entry.extension_id), external: false };
+}
+
+/** WordPress's update notice: a newer release exists, and whether it runs here. */
+export function updateNoticeTitle(entry: ExtensionCatalogEntry, t: I18nContextValue["t"] = fallbackContext.t): string {
+  return entry.display_state === "incompatible"
+    ? t("react.extensions.new_version_incompatible", "There is a new version of {name} available, but it does not work with this server.", { name: entry.name })
+    : t("react.extensions.new_version_available", "There is a new version of {name} available.", { name: entry.name });
+}

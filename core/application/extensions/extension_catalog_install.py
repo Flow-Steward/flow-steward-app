@@ -55,6 +55,11 @@ STATE_INCOMPATIBLE = "incompatible"
 #: installed locally and stay true whatever the catalog offers.
 _INSTALLABLE_STATES = frozenset({STATE_INSTALL, STATE_UPDATE_AVAILABLE})
 
+#: How long the update check reuses what the catalog host last said. WordPress
+#: re-checks plugin updates at most hourly on its Plugins screen; the Installed
+#: page and the navigation count share that window, and "Check again" skips it.
+EXTENSION_UPDATE_CHECK_MAX_AGE_SECONDS = 3600
+
 
 def catalog_release_compatible(item: ExtensionCatalogItem, *, platform_version: str) -> bool:
     """Whether this deployment's version falls inside the entry's declared range.
@@ -335,6 +340,54 @@ class ExtensionCatalogInstallService:
             ],
         }
 
+    def list_updates(
+        self,
+        *,
+        scope: ScopeContext | None = None,
+        refresh: bool = False,
+    ) -> dict[str, Any]:
+        """The installed extensions the catalog has a newer release of.
+
+        Each item is the listing's own entry, so the page updates it through
+        the same catalog install call. A newer release this server cannot run
+        is listed too, as ``incompatible``: the user learns it exists and what
+        it needs, as WordPress does, but there is nothing to press. A catalog
+        that cannot be reached answers ``checked: false`` and never raises.
+        ``refresh`` is "Check again": it asks the host now instead of reusing
+        its answer from the last hour.
+        """
+        max_age_seconds = 0 if refresh else EXTENSION_UPDATE_CHECK_MAX_AGE_SECONDS
+        try:
+            index = self._load_index(max_age_seconds=max_age_seconds)
+        except ExtensionCatalogError:
+            return {
+                "kind": "extension_update_check",
+                "checked": False,
+                "availability": self._availability(),
+                "count": 0,
+                "items": [],
+            }
+        installs = self._installs_by_extension_id(scope=scope)
+        platform_version = self._platform_version()
+        items = []
+        for item in index.items:
+            install = installs.get(item.extension_id)
+            if install is None:
+                continue
+            comparison = _installed_version_comparison(install, item.version)
+            if comparison is None or comparison >= 0:
+                continue
+            items.append(self._project_item(item, install, platform_version))
+        return {
+            "kind": "extension_update_check",
+            "checked": True,
+            "availability": self._availability(index),
+            # Names the permissions a newer release adds, as the listing does.
+            "permission_labels": dict(PERMISSION_LABELS),
+            "count": len(items),
+            "items": items,
+        }
+
     def install_from_catalog(
         self,
         extension_id: str,
@@ -538,6 +591,7 @@ class ExtensionCatalogInstallService:
 
 
 __all__ = [
+    "EXTENSION_UPDATE_CHECK_MAX_AGE_SECONDS",
     "STATE_INCOMPATIBLE",
     "STATE_INSTALL",
     "STATE_INSTALLED",

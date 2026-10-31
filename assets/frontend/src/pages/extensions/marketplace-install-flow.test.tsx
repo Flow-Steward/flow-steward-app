@@ -21,9 +21,11 @@ import {
 } from "@/pages/extensions/api";
 import {
   fetchExtensionCatalog,
+  fetchExtensionUpdates,
   installExtensionFromCatalog,
   type ExtensionCatalogEntry,
   type ExtensionCatalogListing,
+  type ExtensionUpdateCheck,
 } from "@/pages/extensions/catalog-api";
 
 vi.mock("@/pages/extensions/api", () => ({
@@ -54,6 +56,7 @@ vi.mock("@/pages/extensions/catalog-api", async (importOriginal) => {
   return {
     ...original,
     fetchExtensionCatalog: vi.fn(),
+    fetchExtensionUpdates: vi.fn(),
     installExtensionFromCatalog: vi.fn(),
   };
 });
@@ -86,6 +89,7 @@ vi.mock("@/pages/projects/connections/api", () => ({
 }));
 
 const mockedFetchCatalog = vi.mocked(fetchExtensionCatalog);
+const mockedFetchUpdates = vi.mocked(fetchExtensionUpdates);
 const mockedInstall = vi.mocked(installExtensionFromCatalog);
 const mockedFetchExtensions = vi.mocked(fetchExtensions);
 const mockedArchiveLifecycle = vi.mocked(fetchExtensionArchiveLifecycleAvailability);
@@ -149,6 +153,28 @@ function listing(items: ExtensionCatalogEntry[] = [catalogEntry()]): ExtensionCa
   };
 }
 
+function updateCheck(items: ExtensionCatalogEntry[] = [], checked = true): ExtensionUpdateCheck {
+  return {
+    kind: "extension_update_check",
+    checked,
+    availability: { ...listing(items).availability, available: checked },
+    permission_labels: { "extension:network": "Reach the network" },
+    count: items.length,
+    items,
+  };
+}
+
+/** Acme CRM 1.9.0 is installed; the catalog offers 1.10.0 from a GitHub release. */
+const OLDER_RECORD = { ...INSTALLED_RECORD, version: "1.9.0" };
+const UPDATE_ENTRY = catalogEntry({
+  display_state: "update_available",
+  installed_version: "1.9.0",
+  installed_install_id: "inst_acme",
+  installed_state: "active",
+  release_zip_url: "https://github.com/acme/ext-crm/releases/download/v1.10.0/acme_crm-1.10.0.zip",
+  added_permissions: ["extension:network"],
+});
+
 const INSTALLED_LISTING = listing([
   catalogEntry({ display_state: "installed", installed_version: "1.10.0", installed_state: "active" }),
 ]);
@@ -205,6 +231,7 @@ function renderHub(url = ENTRY_URL) {
               }
               path="/extensions"
             />
+            <Route element={<ExtensionsHubPage />} path="/extensions/:extensionId" />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
@@ -226,6 +253,7 @@ beforeEach(() => {
     remediation: { install_update: [], uninstall: [] },
   } as never);
   mockedFetchCatalog.mockResolvedValue(listing());
+  mockedFetchUpdates.mockResolvedValue(updateCheck());
 });
 
 test("a plain install reports Installed only after the request returns, then offers the installed extension", async () => {
@@ -626,4 +654,89 @@ test("the refusal is recognised by its code, never by its wording", async () => 
   await waitFor(() => expect(noticeOn("acme_crm")).toHaveTextContent(CHANGED_MESSAGE));
   expect(noticeOn("acme_crm")).toHaveClass("is-failed");
   expect(await quickUpdate("1.10.0")).toBeEnabled();
+});
+
+
+describe("update notices (WordPress's update check)", () => {
+  test("the Installed row names the newer release, links to what changed, and updates through the catalog", async () => {
+    mockedFetchExtensions.mockResolvedValue([OLDER_RECORD] as never);
+    mockedFetchUpdates.mockResolvedValue(updateCheck([UPDATE_ENTRY]));
+    mockedInstall.mockImplementation(async () => {
+      mockedFetchExtensions.mockResolvedValue([INSTALLED_RECORD] as never);
+      mockedFetchUpdates.mockResolvedValue(updateCheck());
+      return { status: "updated" };
+    });
+    renderHub("/extensions#installed");
+
+    const table = await screen.findByRole("table", { name: "Installed extensions" });
+    expect(await within(table).findByText("There is a new version of Acme CRM available.")).toBeInTheDocument();
+    expect(within(table).getByText("1.10.0 available")).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: "View version 1.10.0 details" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/ext-crm/releases/tag/v1.10.0",
+    );
+
+    fireEvent.click(within(table).getByRole("button", { name: "Update to v1.10.0" }));
+
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
+    expect(await within(table).findByText("Updated to 1.10.0.")).toBeInTheDocument();
+    expect(within(table).queryByText("There is a new version of Acme CRM available.")).not.toBeInTheDocument();
+    expect(mockedFetchUpdates.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  test("a release this server cannot run is announced without an Update button", async () => {
+    mockedFetchExtensions.mockResolvedValue([OLDER_RECORD] as never);
+    mockedFetchUpdates.mockResolvedValue(updateCheck([
+      { ...UPDATE_ENTRY, display_state: "incompatible", compatible: false, compatible_flow_steward: { min: "9.0.0" } },
+    ]));
+    renderHub("/extensions#installed");
+
+    const table = await screen.findByRole("table", { name: "Installed extensions" });
+    expect(
+      await within(table).findByText(/There is a new version of Acme CRM available, but it does not work with this server\. Needs Flow Steward 9\.0\.0 or later\./),
+    ).toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
+  });
+
+  test("a catalog that cannot be reached says so without blocking the page, and Check again asks now", async () => {
+    mockedFetchExtensions.mockResolvedValue([OLDER_RECORD] as never);
+    mockedFetchUpdates.mockResolvedValue(updateCheck([], false));
+    renderHub("/extensions#installed");
+
+    expect(await screen.findByText("Couldn't check for extension updates.")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Installed extensions" })).toBeInTheDocument();
+
+    mockedFetchUpdates.mockResolvedValue(updateCheck());
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+
+    await waitFor(() => expect(mockedFetchUpdates).toHaveBeenLastCalledWith(true));
+    await waitFor(() => expect(screen.queryByText("Couldn't check for extension updates.")).not.toBeInTheDocument());
+  });
+
+  test("an unconfigured catalog is not reported as a failed check", async () => {
+    mockedFetchExtensions.mockResolvedValue([OLDER_RECORD] as never);
+    const unconfigured = updateCheck([], false);
+    mockedFetchUpdates.mockResolvedValue({ ...unconfigured, availability: { ...unconfigured.availability, configured: false } });
+    renderHub("/extensions#installed");
+
+    await screen.findByRole("table", { name: "Installed extensions" });
+    await waitFor(() => expect(mockedFetchUpdates).toHaveBeenCalled());
+    expect(screen.queryByText("Couldn't check for extension updates.")).not.toBeInTheDocument();
+  });
+
+  test("the extension's page carries the same notice with the permissions the update adds", async () => {
+    mockedFetchExtensions.mockResolvedValue([OLDER_RECORD] as never);
+    mockedFetchUpdates.mockResolvedValue(updateCheck([UPDATE_ENTRY]));
+    mockedInstall.mockResolvedValue({ status: "updated" });
+    renderHub("/extensions/acme_crm");
+
+    const notice = await screen.findByText("There is a new version of Acme CRM available.");
+    const alert = notice.closest("[data-extension-update]") as HTMLElement;
+    expect(within(alert).getByText("Version 1.10.0 is available; 1.9.0 is installed.")).toBeInTheDocument();
+    expect(within(alert).getByText(/This version also asks for:\s*Reach the network\./)).toBeInTheDocument();
+
+    fireEvent.click(within(alert).getByRole("button", { name: "Update to v1.10.0" }));
+
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
+  });
 });

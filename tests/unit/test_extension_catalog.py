@@ -978,3 +978,172 @@ def test_malformed_category_labels_reject_the_whole_index(labels: Any) -> None:
     payload["category_labels"] = labels
     with pytest.raises(ValueError, match="category_labels"):
         parse_extension_catalog_index(payload)
+
+
+# ---------------------------------------------------------------------------
+# Update check (WordPress's update notice on the Installed page)
+# ---------------------------------------------------------------------------
+
+
+def test_the_update_check_reuses_the_hosts_answer_within_its_window(
+    monkeypatch: pytest.MonkeyPatch, clock: _Clock
+) -> None:
+    host = _install_host(monkeypatch, _reply(_index(1)))
+
+    load_extension_catalog(max_age_seconds=3600)
+    clock.advance(3599)
+    load_extension_catalog(max_age_seconds=3600)
+    assert len(host.calls) == 1
+
+    clock.advance(1)
+    load_extension_catalog(max_age_seconds=3600)
+    assert len(host.calls) == 2
+
+
+def test_browsing_the_catalog_still_asks_inside_the_update_window(
+    monkeypatch: pytest.MonkeyPatch, clock: _Clock
+) -> None:
+    host = _install_host(monkeypatch, _reply(_index(1)))
+
+    load_extension_catalog(max_age_seconds=3600)
+    clock.advance(1)
+    load_extension_catalog()
+
+    assert len(host.calls) == 2
+
+
+def test_a_failed_update_check_waits_out_the_window_instead_of_redialling(
+    monkeypatch: pytest.MonkeyPatch, clock: _Clock
+) -> None:
+    host = _install_host(monkeypatch, CatalogFetchError("down"))
+
+    with pytest.raises(ExtensionCatalogError):
+        load_extension_catalog(max_age_seconds=3600)
+    # Past the short retry cooldown, still inside the update window.
+    clock.advance(600)
+    with pytest.raises(ExtensionCatalogError):
+        load_extension_catalog(max_age_seconds=3600)
+
+    assert len(host.calls) == 1
+
+
+def _updates_service(
+    monkeypatch: pytest.MonkeyPatch, *installs: _Install, payload: dict[str, Any] | None = None
+) -> tuple[ExtensionCatalogInstallService, _Host]:
+    service, _fetched = _service(
+        monkeypatch, store=_InstallStore(*installs), binding=_BindingService()
+    )
+    host = _install_host(monkeypatch, _reply(payload or _index(3)))
+    return service, host
+
+
+def test_the_update_check_lists_only_installs_with_a_newer_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service, _host = _updates_service(
+        monkeypatch,
+        _Install("synthetic_extension_000", "2.0.0", "inst_same"),
+        _Install("synthetic_extension_001", "1.0.0", "inst_old", state="disabled"),
+        _Install("synthetic_extension_002", "9.0.0", "inst_newer"),
+        _Install("not_in_the_catalog", "0.1.0", "inst_local"),
+    )
+
+    result = service.list_updates(scope=normalize_scope(account_id="acc_7"))
+
+    assert result["kind"] == "extension_update_check"
+    assert result["checked"] is True
+    assert result["count"] == 1
+    [row] = result["items"]
+    # The listing's own entry, so the page updates through the catalog install call.
+    assert row["extension_id"] == "synthetic_extension_001"
+    assert row["display_state"] == STATE_UPDATE_AVAILABLE
+    assert row["version"] == "2.1.1"
+    assert row["installed_version"] == "1.0.0"
+    assert row["installed_state"] == "disabled"
+    assert row["release_zip_sha256"]
+
+
+def test_a_newer_release_this_server_cannot_run_is_still_announced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _index(3)
+    payload["items"][1]["compatible_flow_steward"] = {"min": "9.0.0", "max": ""}
+    service, _host = _updates_service(
+        monkeypatch, _Install("synthetic_extension_001", "1.0.0", "inst_old"), payload=payload
+    )
+
+    result = service.list_updates()
+
+    assert result["count"] == 1
+    [row] = result["items"]
+    assert row["display_state"] == STATE_INCOMPATIBLE
+    assert row["compatible"] is False
+    assert row["compatible_flow_steward"]["min"] == "9.0.0"
+
+
+def test_an_unreachable_catalog_answers_unchecked_instead_of_failing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_host(monkeypatch, CatalogFetchError("down"))
+    service = ExtensionCatalogInstallService(
+        get_install_store=lambda: _InstallStore(_Install("synthetic_extension_001", "1.0.0", "i")),
+        get_binding_service=lambda: _BindingService(),
+    )
+
+    result = service.list_updates()
+
+    assert result["checked"] is False
+    assert result["count"] == 0
+    assert result["items"] == []
+    assert result["availability"]["available"] is False
+
+
+def test_check_again_asks_the_host_inside_the_window(
+    monkeypatch: pytest.MonkeyPatch, clock: _Clock
+) -> None:
+    service, host = _updates_service(
+        monkeypatch, _Install("synthetic_extension_001", "1.0.0", "inst_old")
+    )
+
+    service.list_updates()
+    clock.advance(1)
+    service.list_updates()
+    assert len(host.calls) == 1
+
+    service.list_updates(refresh=True)
+    assert len(host.calls) == 2
+
+
+@pytest.mark.parametrize(("query", "refresh"), [("", False), ("?refresh=true", True)])
+def test_the_update_route_hands_check_again_to_the_service(
+    monkeypatch: pytest.MonkeyPatch, query: str, refresh: bool
+) -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from starlette.responses import JSONResponse
+
+    from core.entrypoints.api import extension_catalog as routes
+
+    calls: list[dict[str, Any]] = []
+
+    def _list_updates(self: Any, **kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        return {"kind": "extension_update_check", "count": 0, "items": []}
+
+    monkeypatch.setattr(ExtensionCatalogInstallService, "list_updates", _list_updates)
+    app = FastAPI()
+    app.include_router(
+        routes.create_extension_catalog_router(
+            get_extension_install_store=lambda: None,
+            extension_binding_service=lambda: None,
+            request_scope=lambda request: "scope",
+            service_error_response=lambda exc, *_args: JSONResponse({}, status_code=400),
+            api_error_response=lambda exc, **_kwargs: JSONResponse({}, status_code=500),
+        )
+    )
+
+    response = TestClient(app).get(f"/api/extensions/catalog/updates{query}")
+
+    assert response.status_code == 200
+    assert response.json()["kind"] == "extension_update_check"
+    assert calls == [{"scope": "scope", "refresh": refresh}]

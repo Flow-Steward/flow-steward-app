@@ -4025,6 +4025,9 @@ msgstr "{count} extension"
 msgid "react.extensions.change_the_filter_or_install_an_extension_from_a_zip_file"
 msgstr "Change the filter or install an extension from a `.zip` file."
 
+msgid "react.extensions.check_again"
+msgstr "Check again"
+
 msgid "react.extensions.check_failed"
 msgstr "Check failed"
 
@@ -4780,6 +4783,12 @@ msgstr "New"
 msgid "react.extensions.new_connection"
 msgstr "New connection"
 
+msgid "react.extensions.new_version_available"
+msgstr "There is a new version of {name} available."
+
+msgid "react.extensions.new_version_incompatible"
+msgstr "There is a new version of {name} available, but it does not work with this server."
+
 msgid "react.extensions.next"
 msgstr "Next"
 
@@ -5463,6 +5472,15 @@ msgstr "Update to v{value0}"
 msgid "react.extensions.updated_value0"
 msgstr "· Updated {value0}"
 
+msgid "react.extensions.updates_available_count"
+msgstr "{count} updates available"
+
+msgid "react.extensions.updates_check_failed"
+msgstr "Couldn't check for extension updates."
+
+msgid "react.extensions.updates_check_failed_detail"
+msgstr "The catalog could not be reached. Installed extensions keep working."
+
 msgid "react.extensions.updating"
 msgstr "Updating…"
 
@@ -5522,6 +5540,12 @@ msgstr "Verified publisher"
 
 msgid "react.extensions.version"
 msgstr "version:"
+
+msgid "react.extensions.version_available"
+msgstr "{version} available"
+
+msgid "react.extensions.view_version_details"
+msgstr "View version {version} details"
 
 msgid "react.extensions.what_it_adds"
 msgstr "What it adds"

@@ -419,10 +419,12 @@ function SidebarNavigationItem({
 }>) {
   const tooltip = useSidebarTooltip(railState === "collapsed");
   const Icon = item.icon;
+  const counted = Boolean(item.count && item.count > 0);
+  const label = counted && item.countLabel ? `${item.label}, ${item.countLabel}` : item.label;
   return (
     <NavLink
       {...tooltip.triggerInteractionProps}
-      aria-label={railState === "collapsed" ? item.label : undefined}
+      aria-label={railState === "collapsed" || counted ? label : undefined}
       className="fs-app-sidebar__item"
       data-active={active ? "true" : "false"}
       end={!active}
@@ -430,9 +432,14 @@ function SidebarNavigationItem({
     >
       <Icon aria-hidden="true" size={16} strokeWidth={1.5} />
       <span className="fs-app-sidebar__label">{item.label}</span>
+      {counted ? (
+        <span aria-hidden="true" className="fs-app-sidebar__count" data-testid={`nav-count-${item.key}`}>
+          {item.count}
+        </span>
+      ) : null}
       <SidebarTooltip
         id={tooltip.tooltipId}
-        label={item.label}
+        label={label}
         visible={tooltip.visible}
       />
     </NavLink>

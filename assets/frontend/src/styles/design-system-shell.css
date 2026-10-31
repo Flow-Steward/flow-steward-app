@@ -326,6 +326,30 @@
   background: var(--fs-sidebar-active-marker);
 }
 
+/* WordPress's count bubble on a navigation row, such as extension updates. */
+.fs-app-sidebar__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: auto;
+  padding-inline: 4px;
+  border-radius: var(--fs-count-pill-radius);
+  color: var(--fs-sidebar-attention-count-text);
+  background: var(--fs-sidebar-attention-count-bg);
+  font-family: var(--fs-count-pill-font);
+  font-size: var(--fs-count-pill-font-size);
+  font-weight: var(--fs-count-pill-font-weight);
+  line-height: var(--fs-count-pill-line-height);
+}
+
+/* Collapsed, the bubble sits on the icon's corner, as the approval bell's does. */
+.fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+
 .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__group-label,
 .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__label,
 .fs-app-sidebar[data-rail-state="collapsed"] .fs-app-sidebar__workspace-meta,
