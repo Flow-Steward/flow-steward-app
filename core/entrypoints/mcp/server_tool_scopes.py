@@ -56,6 +56,10 @@ _REPORTS_READ = ("reports.read", "reports:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
 _REPORTS_WRITE = ("reports.write", "reports:*", _TOKEN_COMMAND, _TOKEN_ADMIN_ALL)
 _NOTIFY_READ = ("notify.read", "notify:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
 _NOTIFY_DISPATCH = ("notify:dispatch", "notify:*", _TOKEN_COMMAND, _TOKEN_ADMIN_ALL)
+# Reads the HTTP surface leaves to its generic read family.
+_GENERIC_READ = (_TOKEN_READ, _TOKEN_ADMIN_ALL)
+# /api/model-selection/options is a registry read route.
+_REGISTRY_READ = ("registry.read", "registry:*", _TOKEN_ADMIN_ALL)
 
 #: tool name -> any-of scopes. Every registered tool must appear here; the
 #: guardrail test in tests/unit/test_mcp_tool_scopes.py fails on any omission,
@@ -116,6 +120,30 @@ MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
     "workflow_export": _WORKFLOWS_READ,
     "workflow_stats": _WORKFLOWS_READ,
     "workflow_import": ADMIN,
+    # --- agents and skills: /api/agents* and /api/skills* are admin-only, so a
+    # token needs admin:all for reads as well; the schemas are generic reads ---
+    "agent_authoring_schema": _GENERIC_READ,
+    "skill_authoring_schema": _GENERIC_READ,
+    "agent_list": ADMIN,
+    "agent_get": ADMIN,
+    "agent_create": ADMIN,
+    "agent_update": ADMIN,
+    "agent_validate": ADMIN,
+    "agent_set_enabled": ADMIN,
+    "agent_skill_assign": ADMIN,
+    "agent_skill_unassign": ADMIN,
+    "agent_skill_set_instructions": ADMIN,
+    "skill_list": ADMIN,
+    "skill_get": ADMIN,
+    "skill_create": ADMIN,
+    "skill_update": ADMIN,
+    "skill_inputs_set": ADMIN,
+    "skill_outputs_set": ADMIN,
+    "skill_validate": ADMIN,
+    "skill_set_enabled": ADMIN,
+    # Enabling a workflow is a registry write, like workflow_apply_changes.
+    "workflow_set_enabled": ADMIN,
+    "model_options": _REGISTRY_READ,
     # --- reports -----------------------------------------------------------
     "report_get": _REPORTS_READ,
     "report_generate": _REPORTS_WRITE,

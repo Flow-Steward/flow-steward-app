@@ -13,10 +13,18 @@ from mcp.types import CallToolResult, TextContent
 
 
 def mcp_tool_is_mutation(tool: str) -> bool:
-    """Derive mutation behavior from the public capability taxonomy."""
-    required_scopes = MCP_TOOL_SCOPES.get(str(tool or "").strip())
+    """Derive mutation behavior from the route method and the public capability taxonomy.
+
+    A GET route never mutates, even when only ``admin:all`` may read it (agents,
+    skills); a POST route is a logical read only when a read scope may call it.
+    """
+    name = str(tool or "").strip()
+    required_scopes = MCP_TOOL_SCOPES.get(name)
     if required_scopes is None:
         return True
+    route = MCP_TOOL_ROUTES.get(name)
+    if route is not None and route.method == "GET":
+        return False
     return not any(scope == "read:*" or scope.endswith(".read") for scope in required_scopes)
 
 

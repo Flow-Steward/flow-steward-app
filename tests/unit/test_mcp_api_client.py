@@ -16,9 +16,9 @@ from core.entrypoints.mcp.server_tool_scopes import MCP_TOOL_SCOPES
 
 def test_every_public_mcp_tool_has_one_explicit_app_api_route() -> None:
     assert set(MCP_TOOL_ROUTES) == set(MCP_TOOL_SCOPES)
-    assert len(MCP_TOOL_ROUTES) == 51
+    assert len(MCP_TOOL_ROUTES) == 72
     for tool, route in MCP_TOOL_ROUTES.items():
-        assert route.method in {"GET", "POST", "PUT"}, tool
+        assert route.method in {"GET", "POST", "PUT", "PATCH", "DELETE"}, tool
         assert route.path.startswith("/api/") or route.path.startswith("/webhook/"), tool
 
     for removed in (

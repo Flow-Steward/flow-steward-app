@@ -9,9 +9,9 @@ import pytest
 from pydantic import ValidationError
 
 from core.application.extensions.extension_descriptor import ExtensionDescriptorArtifacts
+from core.application.management.command_models_registry_agents_skills import AgentPatch, AgentSave
 from core.application.registry.agent_manifest import AgentManifest
 from core.application.registry.db_store_agents_mixin import RegistryDBStoreAgentsMixin
-from core.entrypoints.admin.agents_models import AgentPatch, AgentSave
 
 ROOT = Path(__file__).resolve().parents[2]
 

@@ -9,10 +9,17 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel
 
 from core.application.management import SkillCommandService
 from core.application.management.command_models import SkillMutationResultView
+from core.application.management.command_models_registry_agents_skills import (
+    InputItem,
+    OutputItem,
+    SkillCreate,
+    SkillPatch,
+    SkillSave,
+)
 from core.application.management.errors import ServiceError
 from core.application.management.query_models import (
     RegistryContractItemView,
@@ -20,7 +27,6 @@ from core.application.management.query_models import (
     SkillRecordView,
     SkillValidationView,
 )
-from core.application.registry.catalog_categories import CatalogCategory
 from core.application.registry.contract_validation import validate_skill_readiness
 from core.entrypoints.admin._registry_scope import (
     assert_row_in_account_scope,
@@ -137,60 +143,6 @@ def _require_skill_in_scope(db, skill_id: str, request: Request) -> dict:
         skill, request_scope(request), detail=f"Skill '{skill_id}' not found"
     )
     return skill
-
-
-class SkillSave(BaseModel):
-    skill_id: str | None = None
-    version: str = "1.0.0"
-    display_name: str
-    description: str = ""
-    enabled: bool = False
-    category: CatalogCategory = ""
-    skill_type: str = "secondary"
-    instructions: list[str] = []
-    prompt_template: str = ""
-    expected_inputs: list[dict] = []
-    expected_outputs: list[dict] = []
-    input_schema: dict = {}
-    output_schema: dict = {}
-    examples: list[dict] = []
-    builder_metadata_jsonb: dict = {}
-    tags: list[str] = []
-
-
-class SkillCreate(SkillSave):
-    skill_id: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = Field(...)
-
-
-class SkillPatch(BaseModel):
-    display_name: str | None = None
-    description: str | None = None
-    enabled: bool | None = None
-    category: CatalogCategory | None = None
-    skill_type: str | None = None
-    instructions: list[str] | None = None
-    prompt_template: str | None = None
-    input_schema: dict | None = None
-    output_schema: dict | None = None
-    examples: list[dict] | None = None
-    builder_metadata_jsonb: dict | None = None
-    tags: list[str] | None = None
-
-
-class InputItem(BaseModel):
-    name: str
-    type: str = "text"
-    description: str = ""
-    required: bool = False
-    contract_id: str | None = None
-
-
-class OutputItem(BaseModel):
-    name: str
-    type: str = "text"
-    description: str = ""
-    required: bool = True
-    contract_id: str | None = None
 
 
 class RestoreRevisionRequest(BaseModel):

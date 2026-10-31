@@ -71,9 +71,14 @@ mcp = MCPServer(
         "then save a disabled draft. Project-name resolution additionally requires projects.read "
         "or current broader project-read authority. Draft creation requires an admin user "
         "with admin:all on a token; machine tokens retain their current operator role. "
-        "The user inspects and enables the draft in the existing editor. Use its Test Run "
-        "and result interfaces for execution evidence; validation does not verify execution "
-        "or external effects, and Test Run may execute external operations."
+        "Missing agents and skills are created with agent_create/skill_create from the "
+        "agent_authoring_schema/skill_authoring_schema bodies, read with agent_get/skill_get "
+        "(disabled ones included) and changed with targeted agent_update/skill_update. "
+        "agent_set_enabled, skill_set_enabled and workflow_set_enabled set the desired "
+        "enabled state explicitly and require the same admin authority. A 409 conflict is "
+        "reported, never resolved by renaming. Use Test Run and result interfaces for "
+        "execution evidence; validation does not verify execution or external effects, "
+        "and Test Run may execute external operations."
     ),
     middleware=[
         McpCallerIdentityMiddleware(auth_enabled=MCP_AUTH_ENABLED),

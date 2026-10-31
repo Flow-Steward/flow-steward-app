@@ -16,6 +16,8 @@ from core.entrypoints.mcp.server_discovery import McpToolDiscoveryMiddleware, vi
 from core.entrypoints.mcp.server_tool_scopes import MCP_TOOL_SCOPES
 
 _ROUTE_IDENTIFIERS = {
+    "agent_id": "agent_1",
+    "skill_id": "skill_1",
     "group_id": "group-1",
     "hook_id": "hook-1",
     "entry_key": "entry-1",
@@ -28,7 +30,7 @@ _ROUTE_IDENTIFIERS = {
 
 
 def test_scope_and_route_tables_cover_exact_public_inventory() -> None:
-    assert len(MCP_TOOL_SCOPES) == 51
+    assert len(MCP_TOOL_SCOPES) == 72
     assert set(MCP_TOOL_SCOPES) == set(MCP_TOOL_ROUTES)
     assert {
         "kb_search",
@@ -124,6 +126,18 @@ def test_mutating_tools_never_accept_read_only_scopes() -> None:
         "workflow_import",
         "report_generate",
         "dispatch_project_notification",
+        "agent_create",
+        "agent_update",
+        "agent_set_enabled",
+        "agent_skill_assign",
+        "agent_skill_unassign",
+        "agent_skill_set_instructions",
+        "skill_create",
+        "skill_update",
+        "skill_inputs_set",
+        "skill_outputs_set",
+        "skill_set_enabled",
+        "workflow_set_enabled",
     ):
         assert "read:*" not in set(MCP_TOOL_SCOPES[tool]), tool
 

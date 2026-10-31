@@ -1326,6 +1326,15 @@ Connect the client to the existing authenticated MCP endpoint above. Consult
 | `workflow_export` | Export a workflow linked to the project as its YAML bundle, returned as `bundle_yaml` text (`include_children` adds the workflows it invokes), through `GET /api/projects/{project_id}/workflows/{workflow_id}/export`. |
 | `workflow_import` | Import a YAML bundle into the project as disabled drafts, with optional `target_workflow_id` and dependency `resolutions`, through `POST /api/projects/{project_id}/workflow-imports`; it needs the same authority as saving a draft. |
 | `workflow_stats` | Read a workflow's run statistics through `GET /api/projects/{project_id}/workflows/{workflow_id}/stats`. |
+| `agent_authoring_schema` / `skill_authoring_schema` | Return the JSON Schemas of the agent or skill create and patch bodies, taken from the request models of the admin routes, and the patch rules, through `GET /api/agent-authoring/schema` and `GET /api/skill-authoring/schema`. |
+| `agent_list` / `agent_get` / `skill_list` / `skill_get` | List and read agents and skills, disabled ones included, through `GET /api/agents`, `/api/agents/{agent_id}`, `/api/skills` and `/api/skills/{skill_id}`. |
+| `agent_create` / `skill_create` | Create one agent or skill (disabled by default) under exactly the requested ID through `POST /api/agents` or `POST /api/skills`. |
+| `agent_update` / `skill_update` | Change only the passed fields through `PATCH /api/agents/{agent_id}` or `PATCH /api/skills/{skill_id}`. |
+| `skill_inputs_set` / `skill_outputs_set` | Replace a skill's whole input or output contract through `PUT /api/skills/{skill_id}/inputs` or `/outputs`. |
+| `agent_validate` / `skill_validate` | Read readiness through the `contract-validation` routes; a valid result is a static check. |
+| `agent_skill_assign` / `agent_skill_unassign` / `agent_skill_set_instructions` | Assign a skill to an agent with optional instructions, remove it, or replace its instructions, through `POST`/`DELETE /api/agents/{agent_id}/skills[/{skill_id}]` and `PUT /api/agents/{agent_id}/skills/{skill_id}/prompt`. |
+| `agent_set_enabled` / `skill_set_enabled` / `workflow_set_enabled` | Set the desired enabled state (never a toggle) through the `PATCH` route with `enabled`; a workflow also needs `expected_revision`. |
+| `model_options` | List the providers and models the account may select, without secrets, through `GET /api/model-selection/options`. |
 
 To inspect a Hook, call `workflow_hooks_list(project_name, workflow_id)` with
 the workflow that declares it. Select a returned `hook_id`, then call
@@ -1378,7 +1387,21 @@ with blocking issues and keeps running its current revision; every agent, child
 workflow, connection and extension install an operation names must be usable by
 the workflow's account. It requires `admin:all`, like draft creation.
 
-The authoring tools do not enable, execute, schedule or publish workflows. The builder
+Agents, skills and their schemas follow the admin routes: every agent and skill
+tool, reads included, needs an administrator and a token with `admin:all`; the two
+schema tools need `read:*`, `model_options` needs `registry.read`. Patches change
+only the fields passed: `null` never clears a field, an agent's `config` and
+`prompts` merge shallowly, and an empty `config.provider`/`config.model` inherits
+the project route. There is no version check on agent and skill fields, so read
+the object right before changing it. A taken ID or display name is a `409`
+`registry_id_conflict` or `registry_name_conflict` whose payload (visible matches,
+a suggestion that nothing reserves) reaches the MCP caller as `error.details`;
+nothing is renamed automatically. `agent_set_enabled`, `skill_set_enabled` and
+`workflow_set_enabled` set the enabled state explicitly and keep the readiness and
+dependency checks of the `PATCH` routes.
+
+The authoring tools do not execute, schedule or publish workflows; enabling is the
+explicit `*_set_enabled` call above. The builder
 can test saved disabled drafts through Workflow or Step Test Run, subject to
 readiness, project binding and caller permissions. Normal launches, including MCP
 `workflow_trigger`, require the workflow to be enabled. Validation does not prove runtime execution or

@@ -32,6 +32,42 @@ _AUTHORING_ISSUE_KEYS = frozenset(
     {"code", "path", "message", "severity", "blocking", "repair_guidance"}
 )
 _AUTHORING_CODE_RE = re.compile(r"^[a-z][a-z0-9_.]{0,99}$")
+#: Agent, skill, enablement and model-option tools: their refusals carry the
+#: route's error payload unchanged (conflict matches, readiness issues).
+_REGISTRY_TOOLS = frozenset(
+    {
+        "agent_authoring_schema",
+        "skill_authoring_schema",
+        "agent_list",
+        "agent_get",
+        "agent_create",
+        "agent_update",
+        "agent_validate",
+        "agent_set_enabled",
+        "agent_skill_assign",
+        "agent_skill_unassign",
+        "agent_skill_set_instructions",
+        "skill_list",
+        "skill_get",
+        "skill_create",
+        "skill_update",
+        "skill_inputs_set",
+        "skill_outputs_set",
+        "skill_validate",
+        "skill_set_enabled",
+        "workflow_set_enabled",
+        "model_options",
+    }
+)
+#: The tool argument that is the whole request body, sent as given.
+_REGISTRY_BODY_ARGUMENTS = {
+    "agent_create": "agent",
+    "agent_update": "changes",
+    "skill_create": "skill",
+    "skill_update": "changes",
+    "skill_inputs_set": "inputs",
+    "skill_outputs_set": "outputs",
+}
 
 
 def _request_headers(ctx: object | None) -> dict[str, str]:
@@ -82,6 +118,16 @@ def _project_id_from_name(client: AppApiClient, *, bearer: str, project_name: st
     raise AppApiError(404, {"error": "Project was not found or is not available"})
 
 
+def _registry_body(tool: str, arguments: dict[str, Any]) -> object | None:
+    """The body of a registry write: only what the caller passed, nothing defaulted."""
+    body_argument = _REGISTRY_BODY_ARGUMENTS.get(tool)
+    if body_argument is not None:
+        return arguments.get(body_argument)
+    if tool == "agent_skill_unassign":
+        return None
+    return {key: value for key, value in arguments.items() if value is not None}
+
+
 def _delegation_parts(
     tool: str,
     *,
@@ -96,10 +142,12 @@ def _delegation_parts(
     body: object | None = arguments if method != "GET" else None
     additional_headers: dict[str, str] | None = None
 
-    if tool in _AUTHORING_TOOLS and params is not None:
+    if (tool in _AUTHORING_TOOLS or tool in _REGISTRY_TOOLS) and params is not None:
         # httpx encodes None as an empty query value, not an absent optional field.
         params = {key: value for key, value in params.items() if value is not None}
-    if tool == "project_list":
+    if tool in _REGISTRY_TOOLS and body is not None:
+        body = _registry_body(tool, arguments)
+    elif tool == "project_list":
         params = {"page": 1, "per_page": 200}
     elif tool == "project_jobs":
         params = {"page": 1, "per_page": max(1, min(int(arguments.get("limit") or 10), 50))}
@@ -147,6 +195,34 @@ def _error_message(payload: object, status_code: int) -> str:
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return f"Flow Steward app API returned HTTP {status_code}"
+
+
+def _registry_error(payload: object, status_code: int) -> dict[str, Any]:
+    """Keep the route's own error payload whole: callers act on its matches and issues.
+
+    Admin routes answer ``{"detail": {...}}`` (conflicts, readiness) or
+    ``{"detail": "text"}``; request validation answers ``{"code", "message",
+    "details": {"errors": [...]}}``. The caller is the one the route answered,
+    so nothing is filtered out of the payload it already may read.
+    """
+    data = payload if isinstance(payload, dict) else {}
+    detail = data.get("detail")
+    error: dict[str, Any] = {
+        "code": _error_code(status_code),
+        "message": _error_message(data, status_code),
+        "status_code": status_code,
+    }
+    if isinstance(detail, dict):
+        error["message"] = _error_message(detail, status_code)
+        error["details"] = detail
+        candidate = detail.get("code")
+    else:
+        if isinstance(data.get("details"), dict):
+            error["details"] = data["details"]
+        candidate = data.get("code")
+    if isinstance(candidate, str) and _AUTHORING_CODE_RE.fullmatch(candidate):
+        error["code"] = candidate
+    return error
 
 
 def _authoring_error(payload: object, status_code: int) -> dict[str, Any]:
@@ -264,6 +340,8 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
                 "job_id",
                 "thread_id",
                 "report_id",
+                "agent_id",
+                "skill_id",
             )
             if f"{{{key}}}" in route_path
         }
@@ -299,6 +377,8 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
             "tool": tool,
             "error": _authoring_error(exc.payload, exc.status_code)
             if tool in _AUTHORING_TOOLS
+            else _registry_error(exc.payload, exc.status_code)
+            if tool in _REGISTRY_TOOLS
             else {
                 "code": _error_code(exc.status_code),
                 "message": _error_message(exc.payload, exc.status_code),

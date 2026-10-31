@@ -16,6 +16,10 @@ from fastapi import APIRouter, Body, HTTPException, Query, Request
 from core.application.auth.enforce import require_roles
 from core.application.management import AgentCommandService
 from core.application.management.command_models import AgentMutationResultView
+from core.application.management.command_models_registry_agents_skills import (
+    AgentPatch,
+    AgentSave,
+)
 from core.application.management.errors import ServiceError
 from core.application.management.query_models import (
     AgentRecordView,
@@ -31,9 +35,7 @@ from core.entrypoints.admin.agents_models import (
     AgentCloneRequest,
     AgentInputItem,
     AgentOutputItem,
-    AgentPatch,
     AgentRelationshipsReplace,
-    AgentSave,
     PromptUpdate,
     ReorderRequest,
     RestoreRevisionRequest,

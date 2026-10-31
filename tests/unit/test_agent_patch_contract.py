@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from core.entrypoints.admin.agents_models import AgentPatch
+from core.application.management.command_models_registry_agents_skills import AgentPatch
 
 
 def test_a_patch_of_supported_fields_still_works() -> None:
