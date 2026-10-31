@@ -3,12 +3,14 @@
 from fastapi import HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from core.application.management.errors import ServiceError
 from core.application.registry.db_store_workflows_mixin import WorkflowRevisionConflictError
 from core.application.workflows.workflow_group_extraction_service import (
     GroupExtractionError,
     GroupExtractionService,
 )
 from core.application.workflows.workflow_portability import WorkflowPortabilityError
+from core.entrypoints.admin._service_errors import raise_service_http_error
 from core.entrypoints.admin.workflows_common import (
     _get_db,
     _platform_logger_for_admin_catalog,
@@ -61,6 +63,7 @@ def convert_group_to_child(
         reactions=lambda workflow_id, account_id: logger.list_workflow_reactions(
             workflow_id=workflow_id, account_id=account_id, enabled_only=False
         ),
+        scope=scope,
     )
     arguments = {
         **body.model_dump(exclude={"dry_run", "preview_digest"}),
@@ -79,5 +82,7 @@ def convert_group_to_child(
         raise HTTPException(exc.status_code, {"message": str(exc), "issues": exc.issues}) from exc
     except WorkflowPortabilityError as exc:
         raise HTTPException(exc.status_code, exc.detail()) from exc
+    except ServiceError as exc:
+        raise_service_http_error(exc)
     _refresh_workflow_cache_after_commit()
     return result

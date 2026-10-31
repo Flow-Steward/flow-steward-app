@@ -19,7 +19,10 @@ from core.application.management.errors import (
 from core.application.management.scope import ScopeContext
 from core.application.registry.contract_item_validation import validate_contract_items
 from core.application.registry.contract_validation_entities import validate_skill_readiness
-from core.application.registry.db_store_common import RestoreValidationError
+from core.application.registry.db_store_common import (
+    RegistryCreateConflictError,
+    RestoreValidationError,
+)
 from core.application.registry.identifier_keys import unique_text_key
 from core.application.registry.projected_artifact_rows import (
     projection_aware_catalog_row,
@@ -33,6 +36,12 @@ from .command_services_agent_rules import (
     require_create_account_scope,
     require_disable_allowed,
     require_row_in_account_scope,
+)
+from .registry_name_conflicts import (
+    effective_display_name,
+    id_conflict_error,
+    require_free_display_name,
+    require_free_id,
 )
 
 SKILL_EXPECTED_INPUTS_VALUE = "skill.expected_inputs"
@@ -129,19 +138,63 @@ class SkillCommandService:
                 issues=input_issues + output_issues,
             )
 
+    @staticmethod
+    def _taken_skill_ids(db: Any) -> list[str]:
+        """Every stored account-level skill id, Trash included, for a suggested free id."""
+        return [
+            str(row.get("skill_id") or "")
+            for row in db.list_skills(include_trashed=True) or []
+            if isinstance(row, Mapping)
+        ]
+
     def _save_skill(
-        self, db: Any, data: dict[str, Any], *, skill_id: str, scope: ScopeContext
+        self,
+        db: Any,
+        data: dict[str, Any],
+        *,
+        skill_id: str,
+        scope: ScopeContext,
+        create: bool = False,
+        previous: Mapping[str, Any] | None = None,
     ) -> dict:
-        with db._transaction():
-            db.save_skill(data, author=scope.actor_name)
-            validation = self._get_skill_validation(db, skill_id)
-            enforce_enabled_save_validation(
+        """Save under one transaction with the display-name check.
+
+        *create* inserts without ever touching an existing row (a taken id is a
+        conflict); *previous* is the stored skill, whose unchanged name is never
+        refused.
+        """
+        try:
+            with db._transaction():
+                require_free_display_name(
+                    db,
+                    entity_type="skill",
+                    display_name=effective_display_name(data, skill_id),
+                    scope=scope,
+                    entity_id=skill_id,
+                    current_display_name=(
+                        None if previous is None else effective_display_name(previous, skill_id)
+                    ),
+                )
+                if create:
+                    db.save_skill(data, author=scope.actor_name, create_only=True)
+                else:
+                    db.save_skill(data, author=scope.actor_name)
+                validation = self._get_skill_validation(db, skill_id)
+                enforce_enabled_save_validation(
+                    entity_type="skill",
+                    entity_id=skill_id,
+                    action="save",
+                    validation=validation,
+                    final_enabled=bool(data.get("enabled", False)),
+                )
+        except RegistryCreateConflictError as exc:
+            raise id_conflict_error(
+                db,
                 entity_type="skill",
                 entity_id=skill_id,
-                action="save",
-                validation=validation,
-                final_enabled=bool(data.get("enabled", False)),
-            )
+                scope=scope,
+                taken_ids=lambda: self._taken_skill_ids(db),
+            ) from exc
         return validation
 
     # ------------------------------------------------------------------ #
@@ -206,10 +259,18 @@ class SkillCommandService:
     def create_skill(
         self, payload: Mapping[str, Any], *, scope: ScopeContext
     ) -> SkillMutationResultView:
+        """Create a skill under exactly the requested id; a taken id is a conflict."""
         db = self._db()
-        skill_id = unique_text_key(
-            payload.get("skill_id"),
-            lambda candidate: db.get_skill(candidate) is not None,
+        skill_id = str(payload.get("skill_id") or "").strip()
+        if not skill_id:
+            raise ServiceValidationError("skill_id is required")
+        require_free_id(
+            db,
+            entity_type="skill",
+            entity_id=skill_id,
+            scope=scope,
+            exists=lambda candidate: db.get_skill(candidate) is not None,
+            taken_ids=lambda: self._taken_skill_ids(db),
         )
         data = dict(payload)
         data["skill_id"] = skill_id
@@ -218,7 +279,7 @@ class SkillCommandService:
         # Otherwise non-default-account creates fall back to Main account.
         data["account_id"] = scope.account_id
         self._validate_expected_io(db, skill_id, data)
-        validation = self._save_skill(db, data, skill_id=skill_id, scope=scope)
+        validation = self._save_skill(db, data, skill_id=skill_id, scope=scope, create=True)
         self._reload_registry()
         return SkillMutationResultView(status="created", skill_id=skill_id, validation=validation)
 
@@ -248,7 +309,7 @@ class SkillCommandService:
         if "expected_outputs" not in provided_fields:
             data["expected_outputs"] = list(projected_existing.get("expected_outputs") or [])
         self._validate_expected_io(db, skill_id, data)
-        validation = self._save_skill(db, data, skill_id=skill_id, scope=scope)
+        validation = self._save_skill(db, data, skill_id=skill_id, scope=scope, previous=existing)
         self._reload_registry()
         db.materialize_agents_for_skill(skill_id)
         return SkillMutationResultView(status="updated", skill_id=skill_id, validation=validation)
@@ -269,7 +330,7 @@ class SkillCommandService:
             target_enabled=updates.get("enabled") is not False,
         )
         merged = {**existing, **updates, "skill_id": skill_id}
-        validation = self._save_skill(db, merged, skill_id=skill_id, scope=scope)
+        validation = self._save_skill(db, merged, skill_id=skill_id, scope=scope, previous=existing)
         self._reload_registry()
         return SkillMutationResultView(status="updated", skill_id=skill_id, validation=validation)
 

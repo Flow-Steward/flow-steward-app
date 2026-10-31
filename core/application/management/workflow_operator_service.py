@@ -115,6 +115,7 @@ class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthor
             reactions=lambda workflow_id, account_id: reaction_store.list_workflow_reactions(
                 workflow_id=workflow_id, account_id=account_id, enabled_only=False
             ),
+            scope=scope,
         )
         try:
             if dry_run:

@@ -9,6 +9,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from core.application.management.registry_name_conflicts import (
+    effective_display_name,
+    require_free_display_name,
+)
 from core.application.registry.contract_validation import validate_workflow_readiness
 from core.application.registry.contract_validation_workflow_readiness import (
     _child_definition_loader,
@@ -63,8 +67,12 @@ class GroupExtractionService:
         project_visible: Callable[[str], bool],
         reactions: Callable[[str, str], list[dict]],
         validate: Callable = validate_workflow_readiness,
+        scope: Any = None,
     ):
         self.db = db
+        # The caller's scope: the child's user-chosen name is checked against
+        # the workflows this caller sees, as any other workflow create.
+        self.scope = scope
         self.account_id = str(account_id)
         self.reference_access = reference_access
         self.project_visible = project_visible
@@ -323,6 +331,14 @@ class GroupExtractionService:
                 )
             child = dict(plan.child)
             child["execution_graph"] = child["settings"]["execution_graph"]
+            if self.scope is not None:
+                require_free_display_name(
+                    self.db,
+                    entity_type="workflow",
+                    display_name=effective_display_name(child, child["workflow_id"]),
+                    scope=self.scope,
+                    entity_id=child["workflow_id"],
+                )
             created = create_workflow_with_definition(
                 self.db, child, author=author, load_child=_child_definition_loader(self.db)
             )

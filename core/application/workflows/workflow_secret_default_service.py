@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from typing import Any, Protocol
 
+from core.application.management.errors import ServiceError
 from core.application.registry.db_store_workflows_mixin import WorkflowRevisionConflictError
 from core.application.registry.workflow_secret_defaults import (
     SecretDefaultRejected,
@@ -211,6 +212,7 @@ class WorkflowSecretDefaultService:
             raise exc.error from exc.error.__cause__
         except (
             SecretDefaultRejected,
+            ServiceError,
             WorkflowMetadataValidationError,
             WorkflowRevisionConflictError,
             WorkflowSecretMutationError,
@@ -333,9 +335,16 @@ class WorkflowSecretDefaultService:
         expected_revision: int | None,
         validate_saved: Callable[[], dict[str, Any]],
         final_enabled: bool,
+        before_save: Callable[[], None] | None = None,
     ) -> tuple[int, dict[str, Any]]:
-        """Persist final metadata, validate it, and retire displaced secrets atomically."""
+        """Persist final metadata, validate it, and retire displaced secrets atomically.
+
+        *before_save* runs first inside the same transaction (the display-name
+        check); a service error it raises reaches the caller unchanged.
+        """
         with self._mutation_transaction() as transaction:
+            if before_save is not None:
+                before_save()
             saved_revision = self.repository.save_workflow(
                 final_payload,
                 author=author,

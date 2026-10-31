@@ -16,6 +16,10 @@ from core.application.management.errors import (
     ServiceUnavailableError,
 )
 from core.application.management.guards import require_workflow_access
+from core.application.management.registry_name_conflicts import (
+    effective_display_name,
+    require_free_display_name,
+)
 from core.application.management.scope import ScopeContext
 from core.application.registry.contract_validation_workflow_readiness import (
     validate_workflow_readiness,
@@ -238,6 +242,13 @@ class WorkflowAuthoringDrafts(DraftReferences):
             binding = getattr(self.db, "add_project_workflow_binding", None)
             if not callable(binding):
                 raise ServiceUnavailableError("Workflow project association is unavailable")
+            require_free_display_name(
+                self.db,
+                entity_type="workflow",
+                display_name=effective_display_name(prepared.payload, workflow_id),
+                scope=resolved,
+                entity_id=workflow_id,
+            )
             try:
                 create_workflow_with_definition(
                     self.db, prepared.payload, author=resolved.actor_name

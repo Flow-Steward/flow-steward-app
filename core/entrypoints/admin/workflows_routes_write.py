@@ -18,7 +18,12 @@ from core.application.registry.db_store_workflows_mixin import (
     WorkflowRevisionConflictError,
 )
 from core.application.registry.workflow_secret_defaults import SecretDefaultRejected
-from core.application.management.errors import ServiceConflictError
+from core.application.management.errors import ServiceConflictError, ServiceError
+from core.application.management.registry_name_conflicts import (
+    effective_display_name,
+    require_free_display_name,
+)
+from core.entrypoints.admin._service_errors import raise_service_http_error
 from core.application.workflows.workflow_secret_default_service import (
     WorkflowMetadataValidationError,
     WorkflowSecretMutationError,
@@ -61,6 +66,18 @@ def _workflow_revision_guard(expected_revision: int | None, existing: dict) -> i
             },
         )
     return int(expected_revision)
+
+
+def _workflow_rename_guard(db: Any, scope: Any, workflow_id: str, existing: dict, final: dict):
+    """The display-name check a metadata save runs inside its own transaction."""
+    return lambda: require_free_display_name(
+        db,
+        entity_type="workflow",
+        display_name=effective_display_name(final, workflow_id),
+        scope=scope,
+        entity_id=workflow_id,
+        current_display_name=effective_display_name(existing, workflow_id),
+    )
 
 
 def _raise_consumer_conflict(exc: WorkflowConsumerConflictError) -> None:
@@ -145,6 +162,13 @@ def create_workflow(body: WorkflowSave, request: Request):
             payload["project_id"] = normalized_project_id
         payload["trigger"] = _sanitize_workflow_trigger(payload.get("trigger"))
         with db._transaction():
+            require_free_display_name(
+                db,
+                entity_type="workflow",
+                display_name=effective_display_name(payload, workflow_id),
+                scope=scope,
+                entity_id=workflow_id,
+            )
             db.save_workflow(payload, author=scope.actor_name, create_only=True)
             _bind_workflow_to_project_if_requested(
                 db,
@@ -174,6 +198,8 @@ def create_workflow(body: WorkflowSave, request: Request):
         ) from exc
     except HTTPException:
         raise
+    except ServiceError as exc:
+        raise_service_http_error(exc)
     except DATABASE_OPERATION_ERRORS as exc:
         _raise_workflow_backend_unavailable(
             workflow_id=body.workflow_id,
@@ -238,7 +264,10 @@ def update_workflow(workflow_id: str, body: WorkflowMetadataUpdate, request: Req
             expected_revision=expected_revision,
             validate_saved=lambda: _get_workflow_validation(db, workflow_id, account_id=account_id),
             final_enabled=final_enabled,
+            before_save=_workflow_rename_guard(db, scope, workflow_id, existing, data),
         )
+    except ServiceError as exc:
+        raise_service_http_error(exc)
     except WorkflowRevisionConflictError as exc:
         _raise_workflow_revision_conflict(exc)
     except WorkflowConsumerConflictError as exc:
@@ -339,7 +368,10 @@ def patch_workflow(workflow_id: str, body: WorkflowPatch, request: Request):
             expected_revision=expected_revision,
             validate_saved=lambda: _get_workflow_validation(db, workflow_id, account_id=account_id),
             final_enabled=final_enabled,
+            before_save=_workflow_rename_guard(db, scope, workflow_id, existing, merged),
         )
+    except ServiceError as exc:
+        raise_service_http_error(exc)
     except WorkflowRevisionConflictError as exc:
         _raise_workflow_revision_conflict(exc)
     except WorkflowConsumerConflictError as exc:

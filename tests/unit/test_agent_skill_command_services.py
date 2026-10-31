@@ -66,11 +66,9 @@ def _db_with_skill(**skill):
 # --------------------------------------------------------------------------- #
 
 
-def test_create_agent_stamps_transport_account_and_keeps_id_suffixing():
+def test_create_agent_stamps_transport_account_under_the_requested_id():
     db = MagicMock()
-    db.get_agent.side_effect = lambda agent_id: (
-        {"agent_id": agent_id} if agent_id == "writer" else None
-    )
+    db.get_agent.return_value = None
     reload_registry = MagicMock()
     service = _agent_service(db, reload_registry=reload_registry)
 
@@ -81,7 +79,8 @@ def test_create_agent_stamps_transport_account_and_keeps_id_suffixing():
 
     saved = db.save_agent.call_args.args[0]
     assert result.status == "created"
-    assert result.agent_id == saved["agent_id"] != "writer"
+    assert result.agent_id == saved["agent_id"] == "writer"
+    assert db.save_agent.call_args.kwargs["create_only"] is True
     assert saved["account_id"] == ACCOUNT_A
     assert saved["skills"] == ["draft"]
     assert saved["base_skill"] == "draft"

@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from functools import partial
 
+from core.application.management.registry_name_conflicts import workflow_row_visible
 from core.entrypoints.admin.workflows_common import *  # NOSONAR
 from core.entrypoints.admin.workflows_projection import *  # NOSONAR
 
@@ -130,19 +131,7 @@ def _enforce_project_connection_scope(
 
 
 def _workflow_visible_to_scope(scope: Any, workflow: dict[str, Any]) -> bool:
-    workflow_id = _normalize_text(workflow.get("workflow_id") or workflow.get("id"))
-    if workflow_id:
-        try:
-            require_workflow_access(scope, workflow_id)
-        except ServiceForbiddenError:
-            return False
-    project_id = _normalize_optional_entity_id(workflow.get("project_id"))
-    allowed_project_ids = getattr(scope, "allowed_project_ids", None)
-    if project_id and allowed_project_ids and project_id not in allowed_project_ids:
-        return False
-    row_account_id = _normalize_text(workflow.get("account_id"))
-    scope_account_id = _normalize_text(getattr(scope, "account_id", ""))
-    return not (row_account_id and scope_account_id and row_account_id != scope_account_id)
+    return workflow_row_visible(scope, workflow)
 
 
 def _enforce_workflow_row_scope(db: Any, scope: Any, workflow: dict[str, Any]) -> dict[str, Any]:

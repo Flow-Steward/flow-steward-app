@@ -23,7 +23,10 @@ from core.application.registry.contract_validation_entities import (
     validate_agent_readiness,
     validate_agent_skill_compatibility,
 )
-from core.application.registry.db_store_common import RestoreValidationError
+from core.application.registry.db_store_common import (
+    RegistryCreateConflictError,
+    RestoreValidationError,
+)
 from core.application.registry.identifier_keys import unique_text_key
 from core.application.registry.projected_artifact_rows import (
     guardrail_assignable_catalog_rows,
@@ -47,6 +50,12 @@ from .command_services_agent_rules import (
 )
 from .command_services_common import _service_scope
 from .command_services_tool import _tool_row_in_scope
+from .registry_name_conflicts import (
+    effective_display_name,
+    id_conflict_error,
+    require_free_display_name,
+    require_free_id,
+)
 
 _VIOLATES_FOREIGN_KEY = "violates foreign key"
 
@@ -114,6 +123,14 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
                 ),
             )
 
+    def _taken_agent_ids(self, db: Any) -> list[str]:
+        """Every stored agent id, Trash included, for a suggested free id."""
+        return [
+            str(row.get("agent_id") or "")
+            for row in db.list_agents(include_trashed=True) or []
+            if isinstance(row, Mapping)
+        ]
+
     def _save_agent(
         self,
         db: Any,
@@ -122,10 +139,30 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
         agent_id: str,
         scope: ScopeContext,
         sync_relationships: bool = True,
+        create: bool = False,
+        previous: Mapping[str, Any] | None = None,
     ) -> dict:
+        """Save under one transaction with the display-name check.
+
+        *create* inserts without ever touching an existing row (a taken id is a
+        conflict); *previous* is the stored agent, whose unchanged name is never
+        refused.
+        """
         try:
             with db._transaction():
-                if sync_relationships:
+                require_free_display_name(
+                    db,
+                    entity_type="agent",
+                    display_name=effective_display_name(data, agent_id),
+                    scope=scope,
+                    entity_id=agent_id,
+                    current_display_name=(
+                        None if previous is None else effective_display_name(previous, agent_id)
+                    ),
+                )
+                if create:
+                    db.save_agent(data, author=scope.actor_name, create_only=True)
+                elif sync_relationships:
                     db.save_agent(data, author=scope.actor_name)
                 else:
                     db.save_agent(data, author=scope.actor_name, sync_relationships=False)
@@ -137,6 +174,14 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
                     validation=validation,
                     final_enabled=bool(data.get("enabled", False)),
                 )
+        except RegistryCreateConflictError as exc:
+            raise id_conflict_error(
+                db,
+                entity_type="agent",
+                entity_id=agent_id,
+                scope=scope,
+                taken_ids=lambda: self._taken_agent_ids(db),
+            ) from exc
         except ValueError as exc:
             raise ServiceValidationError(str(exc)) from exc
         return validation
@@ -221,9 +266,18 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
     def create_agent(
         self, payload: Mapping[str, Any], *, scope: ScopeContext
     ) -> AgentMutationResultView:
+        """Create an agent under exactly the requested id; a taken id is a conflict."""
         db = self._db()
-        agent_id = unique_text_key(
-            payload.get("agent_id"), lambda candidate: db.get_agent(candidate) is not None
+        agent_id = str(payload.get("agent_id") or "").strip()
+        if not agent_id:
+            raise ServiceValidationError("agent_id is required")
+        require_free_id(
+            db,
+            entity_type="agent",
+            entity_id=agent_id,
+            scope=scope,
+            exists=lambda candidate: db.get_agent(candidate) is not None,
+            taken_ids=lambda: self._taken_agent_ids(db),
         )
         data = dict(payload)
         data["agent_id"] = agent_id
@@ -234,7 +288,7 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
         data = normalize_agent_payload(data)
         validate_agent_context_template(data.get("prompts"))
         validate_agent_provider_model(data, account_id=scope.account_id, conn=db.conn)
-        validation = self._save_agent(db, data, agent_id=agent_id, scope=scope)
+        validation = self._save_agent(db, data, agent_id=agent_id, scope=scope, create=True)
         self._reload_registry()
         return AgentMutationResultView(status="created", agent_id=agent_id, validation=validation)
 
@@ -258,7 +312,7 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
         data["agent_id"] = agent_id
         validate_agent_context_template(data.get("prompts"))
         validate_agent_provider_model(data, account_id=scope.account_id, conn=db.conn)
-        validation = self._save_agent(db, data, agent_id=agent_id, scope=scope)
+        validation = self._save_agent(db, data, agent_id=agent_id, scope=scope, previous=existing)
         self._reload_registry()
         return AgentMutationResultView(status="updated", agent_id=agent_id, validation=validation)
 
@@ -319,7 +373,12 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
         validate_agent_provider_model(merged, account_id=scope.account_id, conn=db.conn)
 
         validation = self._save_agent(
-            db, merged, agent_id=agent_id, scope=scope, sync_relationships=False
+            db,
+            merged,
+            agent_id=agent_id,
+            scope=scope,
+            sync_relationships=False,
+            previous=existing,
         )
         self._reload_registry()
         return AgentMutationResultView(status="updated", agent_id=agent_id, validation=validation)

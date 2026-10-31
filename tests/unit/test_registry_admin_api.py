@@ -1015,7 +1015,7 @@ class TestAgentCRUD:
         assert "connector workflow steps" in resp.text
         mock_db.save_agent.assert_not_called()
 
-    def test_create_agent_suffixes_duplicate_agent_id(self, registry_client):
+    def test_create_agent_refuses_a_taken_agent_id_without_renaming(self, registry_client):
         try:
             import core.entrypoints.admin.agents as agent_routes
         except Exception as e:
@@ -1023,8 +1023,14 @@ class TestAgentCRUD:
 
         mock_db = MagicMock()
         mock_db.get_agent.side_effect = lambda agent_id: (
-            {"agent_id": agent_id} if agent_id in {"duplicate_agent", "duplicate_agent_1"} else None
+            {"agent_id": agent_id, "display_name": "Existing", "enabled": True}
+            if agent_id in {"duplicate_agent", "duplicate_agent_1"}
+            else None
         )
+        mock_db.list_agents.return_value = [
+            {"agent_id": "duplicate_agent", "display_name": "Existing", "enabled": True},
+            {"agent_id": "duplicate_agent_1", "display_name": "Existing 1", "enabled": False},
+        ]
         mock_registry = MagicMock()
 
         with (
@@ -1045,10 +1051,13 @@ class TestAgentCRUD:
                 },
             )
 
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["agent_id"] == "duplicate_agent_2"
-        assert mock_db.save_agent.call_args.args[0]["agent_id"] == "duplicate_agent_2"
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert detail["code"] == "registry_id_conflict"
+        assert detail["id"] == "duplicate_agent"
+        assert [match["id"] for match in detail["matches"]] == ["duplicate_agent"]
+        assert detail["suggested_id"] == "duplicate_agent_2"
+        mock_db.save_agent.assert_not_called()
 
     def test_create_agent_persists_request_account_scope(self, registry_client):
         import core.entrypoints.admin.agents as agent_routes
@@ -3075,7 +3084,7 @@ class TestSkillIdAliasing:
         saved = mock_db.save_skill.call_args[0][0]
         assert saved["skill_id"] == "via_skill_alias"
 
-    def test_create_skill_suffixes_duplicate_skill_id(self, registry_client):
+    def test_create_skill_refuses_a_taken_skill_id_without_renaming(self, registry_client):
         try:
             import core.entrypoints.admin.skills as skill_routes
         except Exception as e:
@@ -3085,6 +3094,10 @@ class TestSkillIdAliasing:
         mock_db.get_skill.side_effect = lambda skill_id: (
             {"skill_id": skill_id} if skill_id in {"review_summary", "review_summary_1"} else None
         )
+        mock_db.list_skills.return_value = [
+            {"skill_id": "review_summary", "display_name": "Review", "enabled": True},
+            {"skill_id": "review_summary_1", "display_name": "Review 1", "enabled": True},
+        ]
         mock_registry = MagicMock()
 
         with (
@@ -3105,10 +3118,13 @@ class TestSkillIdAliasing:
                 },
             )
 
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["skill_id"] == "review_summary_2"
-        assert mock_db.save_skill.call_args.args[0]["skill_id"] == "review_summary_2"
+        assert resp.status_code == 409
+        detail = resp.json()["detail"]
+        assert detail["code"] == "registry_id_conflict"
+        assert detail["field"] == "skill_id"
+        assert [match["id"] for match in detail["matches"]] == ["review_summary"]
+        assert detail["suggested_id"] == "review_summary_2"
+        mock_db.save_skill.assert_not_called()
 
     def test_toggle_skill_response_includes_skill_id(self, registry_client):
         """PATCH /api/skills/{id}/toggle response includes skill_id."""
