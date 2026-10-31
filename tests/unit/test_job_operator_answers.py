@@ -58,7 +58,7 @@ def _jobs_control_client(job_command_service) -> TestClient:
             project_command_service=lambda: SimpleNamespace(),
             approval_command_service=lambda: SimpleNamespace(),
             job_command_service=lambda: job_command_service,
-            request_scope=lambda *_args, **_kwargs: ScopeContext(account_id="account-42"),
+            request_scope=lambda *_args, **_kwargs: ScopeContext(account_id=DEFAULT_ACCOUNT_ID),
             service_error_response=_error_response,
             api_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=500),
             logger=SimpleNamespace(info=lambda *_args, **_kwargs: None),
