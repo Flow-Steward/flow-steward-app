@@ -473,6 +473,25 @@ def test_acknowledge_route_keeps_the_authenticated_actor_and_reports_the_named_o
     ]
 
 
+def test_cancel_and_acknowledge_record_the_signed_in_user_not_a_placeholder():
+    """Live check 2026-10-31: a PAT caller was journaled as operator/system."""
+    commands = _RecordingJobCommands()
+    client = _jobs_control_client(commands)
+
+    @client.app.middleware("http")
+    async def _signed_in(request, call_next):
+        request.state.auth_user = {"username": "admin@example.test", "roles": ["admin"]}
+        return await call_next(request)
+
+    client.post("/api/jobs/7/cancel", json={"comment": "Stop it"})
+    client.post("/api/jobs/7/acknowledge", json={"actor": "ops-agent"})
+
+    assert [row["actor"] for row in commands.cancelled] == ["admin@example.test"]
+    assert [(row.actor, row.reported_actor) for row in commands.acknowledged] == [
+        ("admin@example.test", "ops-agent")
+    ]
+
+
 def _lifecycle_bl(status: str = "failed") -> MagicMock:
     bl = MagicMock()
     bl.get_job.return_value = {"id": 41, "project_id": "1", "status": status}

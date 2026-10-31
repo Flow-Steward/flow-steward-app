@@ -435,6 +435,64 @@ def test_authoring_conflict_retains_domain_code_from_real_service_envelope():
     assert error["workflow_id"] == "new"
 
 
+def test_workflow_name_conflict_keeps_its_visible_matches_and_suggestion():
+    """Live check 2026-10-31: MCP draft save dropped what HTTP and the UI show."""
+    from core.application.management.errors import ServiceConflictError
+    from core.infrastructure.runtime import serve_request_runtime
+
+    match = {
+        "id": "feedback_digest",
+        "display_name": "Feedback Digest",
+        "enabled": True,
+        "updated_at": "2026-10-31T18:52:03+00:00",
+        "origin": "account",
+        "used_by": [],
+        "used_by_truncated": False,
+    }
+    message = "Workflow name 'FEEDBACK digest' is already used. Choose another name."
+    response = serve_request_runtime.service_error_response(
+        ServiceConflictError(
+            message,
+            payload={
+                "error": "registry_name_conflict",
+                "code": "registry_name_conflict",
+                "message": message,
+                "entity_type": "workflow",
+                "field": "display_name",
+                "display_name": "FEEDBACK digest",
+                "matches": [match],
+                "matches_truncated": False,
+                "suggested_display_name": "FEEDBACK digest 2",
+            },
+        ),
+        error_payload=serve_request_runtime.build_error_payload_factory(
+            err_request_failed="Request failed", default_correlation_id_fn=lambda: "test"
+        ),
+        request_correlation_id=lambda *_args, **_kwargs: "test",
+        error_code_for_status=serve_request_runtime.error_code_for_status,
+        err_request_failed="Request failed",
+    )
+    _queue_responses(AppApiError(response.status_code, json.loads(response.body)))
+    with pytest.raises(ToolError) as raised:
+        server_api_tool.api_tool_response(
+            "workflow_draft_save", {"project_id": "project-1", "bundle_yaml": "draft"}
+        )
+
+    error = json.loads(str(raised.value))["error"]
+    assert error["code"] == "registry_name_conflict"
+    assert error["message"] == message
+    assert error["details"] == {
+        "code": "registry_name_conflict",
+        "message": message,
+        "entity_type": "workflow",
+        "field": "display_name",
+        "display_name": "FEEDBACK digest",
+        "matches": [match],
+        "matches_truncated": False,
+        "suggested_display_name": "FEEDBACK digest 2",
+    }
+
+
 def test_existing_tools_keep_generic_envelope_for_the_same_domain_payload():
     _queue_responses(
         AppApiError(

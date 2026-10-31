@@ -22,6 +22,20 @@ from core.entrypoints.api.approval_decision_transport import approval_decision_f
 from core.entrypoints.api.idempotency_headers import validate_idempotency_key
 
 
+def _authenticated_username(request: Request, *, default: str) -> str:
+    """The signed-in user the auth middleware resolved, for the audit trail.
+
+    The middleware publishes the principal as the ``request.state.auth_user``
+    dict; a request without one (an unauthenticated test app) keeps *default*.
+    """
+    user = getattr(request.state, "auth_user", None)
+    if isinstance(user, dict):
+        username = str(user.get("username") or "").strip()
+        if username:
+            return username
+    return default
+
+
 def create_jobs_control_router(
     *,
     project_command_service: Callable[[], Any],
@@ -198,9 +212,7 @@ def create_jobs_control_router(
         body: JobAcknowledgeRequest | None = None,
     ):
         """Mark a failed job as acknowledged (triaged) without changing its status."""
-        username = "system"
-        if hasattr(request.state, "user") and request.state.user:
-            username = getattr(request.state.user, "username", None) or "system"
+        username = _authenticated_username(request, default="system")
         try:
             payload = job_command_service().acknowledge_job(
                 job_id,
@@ -256,9 +268,7 @@ def create_jobs_control_router(
     ):
         """Cancel a pending, resume-pending, in-progress, or awaiting_approval job."""
         try:
-            username = "operator"
-            if hasattr(request.state, "user") and request.state.user:
-                username = getattr(request.state.user, "username", None) or "operator"
+            username = _authenticated_username(request, default="operator")
             comment = (body.comment if body is not None else "").strip()
             job_command_service().cancel_job(
                 job_id,

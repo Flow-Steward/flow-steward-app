@@ -88,10 +88,19 @@ procedure are in [references/agents-and-skills.md](references/agents-and-skills.
    `skill_inputs_set`/`skill_outputs_set` replace its whole contract lists;
    `skill_validate` reports readiness.
 2. `agent_authoring_schema`, then `agent_create(agent)`; it is saved disabled.
-   Assign skills in the create body or with `agent_skill_assign(agent_id,
-   skill_id, skill_prompt)`; `agent_skill_set_instructions` replaces one
-   assignment's instructions. `agent_validate` reports readiness.
-3. A `registry_id_conflict` or `registry_name_conflict` changes nothing:
+   Assign skills with `agent_skill_assign(agent_id, skill_id, skill_prompt)`;
+   `agent_skill_set_instructions` replaces one assignment's instructions.
+   `agent_validate` reports readiness.
+3. Only enabled objects can be wired together: `agent_skill_assign` refuses a
+   disabled skill (`skill.disabled`), and a workflow draft that names a
+   disabled agent is refused with `authoring.reference_not_permitted`. When
+   the user asked you to build the automation, enable each new skill
+   (`skill_validate`, then `skill_set_enabled(skill_id, true)`) before you
+   assign it, and each new agent (`agent_validate`, then
+   `agent_set_enabled(agent_id, true)`) before you compose the workflow, and
+   tell the user which ones you enabled. The workflow itself is still saved
+   disabled.
+4. A `registry_id_conflict` or `registry_name_conflict` changes nothing:
    follow the conflict procedure in the reference. Never rename or overwrite
    on your own.
 

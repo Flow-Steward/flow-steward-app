@@ -32,6 +32,17 @@ _AUTHORING_ISSUE_KEYS = frozenset(
     {"code", "path", "message", "severity", "blocking", "repair_guidance"}
 )
 _AUTHORING_CODE_RE = re.compile(r"^[a-z][a-z0-9_.]{0,99}$")
+_NAME_CONFLICT_CODE = "registry_name_conflict"
+_NAME_CONFLICT_DETAIL_KEYS = (
+    "code",
+    "message",
+    "entity_type",
+    "field",
+    "display_name",
+    "matches",
+    "matches_truncated",
+    "suggested_display_name",
+)
 #: Agent, skill, enablement and model-option tools: their refusals carry the
 #: route's error payload unchanged (conflict matches, readiness issues).
 _REGISTRY_TOOLS = frozenset(
@@ -284,6 +295,12 @@ def _authoring_error(payload: object, status_code: int) -> dict[str, Any]:
         value = error_data.get(key)
         if isinstance(value, int) and not isinstance(value, bool):
             error[key] = value
+    if error["code"] == _NAME_CONFLICT_CODE:
+        # The same visibility-filtered conflict the registry tools return in
+        # full: the matches and the suggested name are what the caller acts on.
+        error["details"] = {
+            key: error_data[key] for key in _NAME_CONFLICT_DETAIL_KEYS if key in error_data
+        }
     return error
 
 

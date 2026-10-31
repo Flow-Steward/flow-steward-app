@@ -32,14 +32,18 @@ and it holds no credentials.
   `patch.json_schema` the `changes` of `agent_update`, `patch.semantics` how a
   patch merges, `related` the readiness, enable and assignment operations.
 - `agent_create(agent)` creates exactly `agent['agent_id']`, saved disabled.
-  `skills` may list `{skill_id, skill_prompt}` assignments.
+  Assign skills afterwards with `agent_skill_assign`: a `skills` list in the
+  create body stores the assignment without its `skill_prompt` and does not
+  refuse a disabled skill.
 - `agent_update(agent_id, changes)`: only the fields sent change; null never
   clears; `config` and `prompts` merge shallowly; an empty
   `config.provider`/`config.model` inherits the project route. Skills and
   tools are refused here.
 - `agent_skill_assign(agent_id, skill_id, skill_prompt)` adds a skill with
   agent-specific instructions; an already assigned skill is a 409, an unknown
-  one a 404, one the agent's contract cannot use is refused with its issues.
+  one a 404, a disabled one (`skill.disabled`) or one the agent's contract
+  cannot use is refused with its issues. Enable a new skill before assigning
+  it.
   `agent_skill_unassign` removes it; `agent_skill_set_instructions` replaces
   the instructions of one assignment.
 - `agent_validate` checks readiness; `agent_set_enabled(agent_id, enabled)`
