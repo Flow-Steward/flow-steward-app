@@ -1,13 +1,13 @@
 # pip-audit Risk Acceptance
 
-Last reviewed: 2026-10-23
+Last reviewed: 2026-10-31
 
 ## Accepted Vulnerabilities
 
 ### mcp / GHSA-84m7-p3x7-pcfv, CVE-2026-59951
 
 - Audit label: semgrep
-- Accepted until: 2026-10-30
+- Accepted until: 2026-11-14
 - Scope: isolated Semgrep audit-tool environment only
 - Owner: Flow Steward maintainers
 - Status: temporary acceptance pending a compatible Semgrep release
@@ -21,11 +21,14 @@ The flaw is in the MCP server transport; Flow Steward runs Semgrep only as a
 static-analysis CLI against the checked-out source tree, with configured rule
 registry downloads permitted and no MCP SDK client or server transport startup.
 Remove this acceptance as soon as a Semgrep release permits mcp 1.30.0 or later.
+Rechecked 2026-10-31: the latest release, Semgrep 1.183.0, still pins
+`mcp==1.29.0`, and the scan still starts no MCP transport, so all four mcp
+acceptances were extended to 2026-11-14 rather than allowed to lapse.
 
 ### mcp / GHSA-5h93-6whr-6q8j
 
 - Audit label: semgrep
-- Accepted until: 2026-10-30
+- Accepted until: 2026-11-14
 - Scope: isolated Semgrep audit-tool environment only
 - Owner: Flow Steward maintainers
 - Status: temporary acceptance pending a compatible Semgrep release
@@ -47,7 +50,7 @@ Sources: [maintainer advisory](https://github.com/modelcontextprotocol/python-sd
 ### mcp / GHSA-rwrf-2pqf-9j8j
 
 - Audit label: semgrep
-- Accepted until: 2026-10-30
+- Accepted until: 2026-11-14
 - Scope: isolated Semgrep audit-tool environment only
 - Owner: Flow Steward maintainers
 - Status: temporary acceptance pending a compatible Semgrep release
@@ -69,7 +72,7 @@ Sources: [maintainer advisory](https://github.com/modelcontextprotocol/python-sd
 ### mcp / GHSA-w4fh-qvv9-3v23
 
 - Audit label: semgrep
-- Accepted until: 2026-10-30
+- Accepted until: 2026-11-14
 - Scope: isolated Semgrep audit-tool environment only
 - Owner: Flow Steward maintainers
 - Status: temporary acceptance pending a compatible Semgrep release
