@@ -428,7 +428,7 @@ test("Update runs the catalog install call, says Updated to the version, and the
   release();
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
   // The Installed tab's row reports the same outcome; this is the Catalog page's.
-  const catalogPanel = document.getElementById("extensions-marketplace-content") as HTMLElement;
+  const catalogPanel = screen.getByRole("tabpanel", { name: "Catalog" });
   expect(await within(catalogPanel).findByText("Updated to 1.10.0.")).toBeInTheDocument();
   const open = await screen.findByRole("link", { name: "Open installed extension" });
   await waitFor(() => expect(open).toHaveFocus());
@@ -734,8 +734,8 @@ describe("update notices (WordPress's update check)", () => {
     mockedInstall.mockResolvedValue({ status: "updated" });
     renderHub("/extensions/acme_crm");
 
-    const notice = await screen.findByText("There is a new version of Acme CRM available.");
-    const alert = notice.closest("[data-extension-update]") as HTMLElement;
+    const alert = await screen.findByTestId("extension-update-notice");
+    expect(within(alert).getByText("There is a new version of Acme CRM available.")).toBeInTheDocument();
     expect(within(alert).getByText("Version 1.10.0 is available; 1.9.0 is installed.")).toBeInTheDocument();
     expect(within(alert).getByText(/This version also asks for:\s*Reach the network\./)).toBeInTheDocument();
 

@@ -156,7 +156,7 @@ function extensionUpdatePageNotice(extensionId: string, updates: ExtensionUpdate
   const notice = install?.phase === "idle" && (install.outcome === "cancelled" || install.outcome === "superseded") ? install.status : "";
   return (
     <>
-      <div data-extension-update={extensionId}>
+      <div data-extension-update={extensionId} data-testid="extension-update-notice">
         <DsAlert title={updateNoticeTitle(entry, t)} tone="warning">
           {action.note ? <p>{action.note}</p> : null}
           {addedPermissions.length ? (
