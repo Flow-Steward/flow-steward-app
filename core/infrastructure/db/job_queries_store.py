@@ -50,12 +50,28 @@ def _parse_dt(raw: datetime | str | None) -> datetime | None:
 def _build_project_jobs_where(
     *,
     column_exists: Callable[[str, str], bool],
+    project_id: str,
     include_trashed: bool,
-) -> str:
+    status: Sequence[str] | None = None,
+    workflow_id: str | None = None,
+    workflow_ids: Sequence[str] | None = None,
+) -> tuple[str, list[Any]]:
     conditions = [SQL_PROJECT_ID_EQ]
+    params: list[Any] = [project_id]
     if not include_trashed and column_exists("jobs", "deleted_at"):
         conditions.append(SQL_DELETED_AT_IS_NULL)
-    return SQL_AND.join(conditions)
+    statuses = _status_values(status)
+    if statuses:
+        conditions.append("LOWER(COALESCE(status, '')) = ANY(%s)")
+        params.append(list(statuses))
+    if workflow_id:
+        conditions.append("selected_workflow = %s")
+        params.append(str(workflow_id))
+    if workflow_ids is not None:
+        # A workflow restriction fails closed: a run with no workflow is outside it.
+        conditions.append("selected_workflow = ANY(%s)")
+        params.append(sorted({str(value) for value in workflow_ids}))
+    return SQL_AND.join(conditions), params
 
 
 def _build_attention_where(
@@ -168,15 +184,22 @@ def get_jobs(
     limit: int = 50,
     offset: int = 0,
     include_trashed: bool = False,
+    status: Sequence[str] | None = None,
+    workflow_id: str | None = None,
+    workflow_ids: Sequence[str] | None = None,
 ) -> list[dict]:
-    where_sql = _build_project_jobs_where(
+    where_sql, params = _build_project_jobs_where(
         column_exists=column_exists,
+        project_id=project_id,
         include_trashed=include_trashed,
+        status=status,
+        workflow_id=workflow_id,
+        workflow_ids=workflow_ids,
     )
     with conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
         cur.execute(
             f"SELECT * FROM jobs WHERE {where_sql} ORDER BY COALESCE(started_at, queued_at) DESC NULLS LAST, id DESC LIMIT %s OFFSET %s",
-            (project_id, limit, max(0, int(offset or 0))),
+            (*params, limit, max(0, int(offset or 0))),
         )
         return [dict(row) for row in cur.fetchall()]
 
@@ -187,13 +210,20 @@ def count_jobs(
     column_exists: Callable[[str, str], bool],
     project_id: str,
     include_trashed: bool = False,
+    status: Sequence[str] | None = None,
+    workflow_id: str | None = None,
+    workflow_ids: Sequence[str] | None = None,
 ) -> int:
-    where_sql = _build_project_jobs_where(
+    where_sql, params = _build_project_jobs_where(
         column_exists=column_exists,
+        project_id=project_id,
         include_trashed=include_trashed,
+        status=status,
+        workflow_id=workflow_id,
+        workflow_ids=workflow_ids,
     )
     with conn.cursor() as cur:
-        cur.execute(f"SELECT COUNT(*) FROM jobs WHERE {where_sql}", (project_id,))
+        cur.execute(f"SELECT COUNT(*) FROM jobs WHERE {where_sql}", tuple(params))
         row = cur.fetchone()
         return int(row[0] if row else 0)
 

@@ -6829,10 +6829,10 @@ def test_aggregate_job_list_filters_attention_and_count_at_scope_boundary(group_
     call = bl.list_jobs_for_attention.call_args.kwargs
     assert call["scope"] == scope
     assert call["workflow_id"] == "release"
-    assert call["status"] == ("failed",)
+    # "failed" is a status group key: it selects the whole Failed group.
+    assert call["status"] == ("failed", "max_iterations", "triage_needed")
     assert call["search"] == "blocked"
-    if not group_by:
-        assert bl.count_jobs_for_attention.call_args.kwargs["scope"] == scope
+    assert bl.count_jobs_for_attention.call_args.kwargs["scope"] == scope
 
 
 @pytest.mark.parametrize("filters", [{"project_id": "foreign"}, {"workflow_id": "foreign"}])

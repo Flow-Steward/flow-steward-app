@@ -6,14 +6,10 @@ import inspect
 import json
 from typing import Any
 
-_TERMINAL_STATUSES = {
-    "completed",
-    "failed",
-    "cancelled",
-    "timed_out",
-    "timeout",
-    "abandoned",
-}
+from core.application.observability_vocabulary import job_status_meta
+
+#: Domain events the bundle reads; one more is requested to tell a cut list.
+_EVENTS_LIMIT = 200
 
 
 def _payload(value: Any) -> dict[str, Any]:
@@ -24,6 +20,10 @@ def _payload(value: Any) -> dict[str, Any]:
 
 def _rows(value: Any, key: str) -> list[dict[str, Any]]:
     return [dict(row) for row in (_payload(value).get(key) or []) if isinstance(row, dict)]
+
+
+def _has_more(value: Any) -> bool:
+    return bool(_payload(value).get("has_more"))
 
 
 def _mapping(value: Any) -> dict[str, Any]:
@@ -137,35 +137,38 @@ async def build_job_result_bundle(
     if inspect.isawaitable(status_value):
         status_value = await status_value
     status = _payload(status_value)
-    messages = _rows(
-        job_query_service.list_messages(
-            str(job_id),
-            since_id="",
-            before_id="",
-            limit=max(1, int(include_messages_limit or 100)),
-            scope=scope,
-        ),
-        "messages",
+    # The newest window of messages and logs: the end of a run holds its result.
+    message_page = job_query_service.list_messages(
+        str(job_id),
+        since_id="",
+        before_id="",
+        newest=True,
+        limit=max(1, int(include_messages_limit or 100)),
+        scope=scope,
     )
-    logs = _rows(
-        job_query_service.list_logs(
-            str(job_id),
-            since_id="",
-            before_id="",
-            newest=False,
-            limit=max(1, int(include_logs_limit or 50)),
-            scope=scope,
-        ),
-        "logs",
+    messages = _rows(message_page, "messages")
+    log_page = job_query_service.list_logs(
+        str(job_id),
+        since_id="",
+        before_id="",
+        newest=True,
+        limit=max(1, int(include_logs_limit or 50)),
+        scope=scope,
     )
+    logs = _rows(log_page, "logs")
     events = _rows(
-        job_query_service.list_events(str(job_id), since_id="", limit=200, scope=scope),
+        job_query_service.list_events(
+            str(job_id), since_id="", limit=_EVENTS_LIMIT + 1, scope=scope
+        ),
         "events",
     )
+    events_truncated = len(events) > _EVENTS_LIMIT
+    events = events[:_EVENTS_LIMIT]
     summary, sources = _summary(status, messages, logs)
     findings = _findings(messages, logs, events)
     artifacts = _artifacts(messages, logs)
-    normalized_status = str(status.get("status") or "").strip().lower()
+    meta = job_status_meta(status.get("status"))
+    outcome = str(meta.get("outcome") or "unknown")
     resolved_job_id = str(status.get("id") or job_id)
     return {
         "job": {
@@ -175,7 +178,11 @@ async def build_job_result_bundle(
             "current_group_id": status.get("current_group_id"),
             "current_agent": status.get("current_agent"),
         },
-        "completed": normalized_status in _TERMINAL_STATUSES,
+        # True only for a run that finished successfully; a failed or cancelled
+        # run is terminal but not completed. `outcome` and `terminal` say which.
+        "completed": outcome == "completed",
+        "terminal": bool(meta.get("terminal")),
+        "outcome": outcome,
         "workflow_result": status.get("workflow_result"),
         "result_summary": summary,
         "findings": findings,
@@ -188,6 +195,13 @@ async def build_job_result_bundle(
         ),
         "raw": {"status": status, "messages": messages, "logs": logs, "events": events},
         "result_sources": sources,
+        # Messages and logs are the newest window; events are the oldest ones.
+        # A true flag means the raw list, and what was derived from it, is partial.
+        "truncated": {
+            "messages": _has_more(message_page),
+            "logs": _has_more(log_page),
+            "events": events_truncated,
+        },
     }
 
 

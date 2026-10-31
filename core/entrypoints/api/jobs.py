@@ -261,14 +261,35 @@ def create_api_jobs_router(
         return payload.dump()
 
     @router.get("/api/jobs/awaiting-approval")
-    def api_jobs_awaiting_approval(request: Request):
+    def api_jobs_awaiting_approval(
+        request: Request,
+        page: Annotated[
+            int | None,
+            Query(ge=1, description="Return one page with its total instead of the whole list."),
+        ] = None,
+        per_page: Annotated[
+            int | None,
+            Query(ge=1, le=200, description="Page size; implies page=1 when page is absent."),
+        ] = None,
+    ):
         """Return all jobs currently awaiting user approval across all projects.
+
+        Without ``page``/``per_page`` the answer stays the whole scoped list.
+        With either, it is one bounded page: ``{jobs, total, page, per_page,
+        total_pages, has_more}``.
 
         Declared `def`, not `async def`: `list_awaiting_approval_jobs` is
         synchronous, and a blocking call in an async handler runs on the event
         loop and stalls the whole application (RD-002).
         """
         try:
+            if page is not None or per_page is not None:
+                page_payload = job_query_service().page_awaiting_approval_jobs(
+                    page=page or 1,
+                    per_page=per_page or 25,
+                    scope=request_scope(request),
+                )
+                return JSONResponse(page_payload.dump())
             payload = job_query_service().list_awaiting_approval_jobs(
                 scope=request_scope(request),
             )

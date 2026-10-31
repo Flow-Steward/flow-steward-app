@@ -27,6 +27,14 @@ def _job_group_for_step(job: dict[str, Any], step_id: Any) -> str | None:
     return None
 
 
+#: A run in one of these statuses is still running, queued, or paused on a
+#: durable wait (approval, timer, child workflow): restarting it would start a
+#: second run beside the live one, so restart refuses it.
+_RESTART_REFUSED_STATUSES = frozenset(
+    {"pending", "queued", "resume_pending", "in_progress", *DURABLE_WAIT_STATUSES}
+)
+
+
 class JobCommandService:
     _TERMINAL_STATUSES: ClassVar[set[str]] = set(_JOB_DELETE_TERMINAL_STATUSES)
 
@@ -277,7 +285,31 @@ class JobCommandService:
             raise ServiceError("Failed to acknowledge job") from exc
         if not ok:
             raise ServiceNotFoundError("Job not found or already acknowledged")
+        detail = {"acknowledged_by": actor}
+        reported_actor = str(command.reported_actor or "").strip()
+        if reported_actor:
+            # Named by the caller, not verified: kept beside the authenticated actor.
+            detail["reported_actor"] = reported_actor
+        self._journal_operator_action(
+            bl,
+            str(job_id),
+            event="manual_acknowledge",
+            reason="Acknowledged by operator",
+            detail=detail,
+        )
         return JobLifecycleResultView(job_id=str(job_id), status="acknowledged")
+
+    def _journal_operator_action(
+        self, bl: Any, job_id: str, *, event: str, reason: str, detail: dict[str, Any]
+    ) -> None:
+        """Record who took an operator action, and why, in the job's runtime journal."""
+        if self._append_runtime_journal is None:
+            return
+        try:
+            self._append_runtime_journal(bl, job_id, event=event, reason=reason, detail=detail)
+        except Exception as exc:
+            # The action already happened; a journal failure must not undo or hide it.
+            logger.warning("%s journal entry for job %s failed: %s", event, job_id, exc)
 
     def unacknowledge_job(
         self,
@@ -305,7 +337,6 @@ class JobCommandService:
         comment: str = CANCELLED_BY_USER_VALUE,
         scope: ScopeContext | None = None,
     ) -> JobLifecycleResultView:
-        del actor
         bl = self._logger()
         resolved = _service_scope(scope, project_id=None)
         job = self._require_job_in_scope(bl, str(job_id), resolved)
@@ -361,6 +392,17 @@ class JobCommandService:
                 )
         except Exception as exc:
             logger.debug("cancel_job(%s) runtime reconciliation failed: %s", job_id, exc)
+        self._journal_operator_action(
+            bl,
+            str(job_id),
+            event="manual_cancel",
+            reason=str(comment or CANCELLED_BY_USER_VALUE),
+            detail={
+                "cancelled_by": str(actor or "operator").strip() or "operator",
+                "comment": str(comment or CANCELLED_BY_USER_VALUE),
+                "previous_status": job_status,
+            },
+        )
 
         return JobLifecycleResultView(
             job_id=str(job_id),
@@ -379,6 +421,21 @@ class JobCommandService:
         bl = self._logger()
         resolved = _service_scope(scope, project_id=None)
         job = self._require_job_in_scope(bl, str(job_id), resolved)
+        job_status = str(job.get("status") or "").strip().lower()
+        if job_status in _RESTART_REFUSED_STATUSES:
+            message = (
+                f"Cannot restart job #{job_id} while it is {job_status}; "
+                "cancel it first or wait for it to finish"
+            )
+            raise ServiceConflictError(
+                message,
+                payload={
+                    "error": message,
+                    "code": "job_restart_active",
+                    "job_id": str(job_id),
+                    "status": job_status,
+                },
+            )
         if self._build_rerun_workflow_selection is None or self._enqueue_task is None:
             raise ServiceUnavailableError("Job restart is not available")
 

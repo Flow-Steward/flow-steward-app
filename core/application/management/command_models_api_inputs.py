@@ -408,6 +408,9 @@ class WorkflowReactionsUpdateInput(ViewModel):
 
 class JobAcknowledgeInput(ViewModel):
     actor: str = "system"
+    #: An actor the caller names (an agent, a person behind a shared token);
+    #: recorded beside ``actor``, never instead of it.
+    reported_actor: str = ""
 
 
 class ProjectJobsBulkDeleteInput(ViewModel):

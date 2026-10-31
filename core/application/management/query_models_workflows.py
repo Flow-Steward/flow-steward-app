@@ -215,10 +215,30 @@ class WorkflowValidationIssueView(ViewModel):
     field: str | None = None
 
 
+#: What a static workflow validation never proves; the same list as the
+#: authoring draft validation (core.application.workflows.authoring.drafts).
+WORKFLOW_VALIDATION_UNPERFORMED_CHECKS = (
+    "runtime_execution",
+    "external_effects",
+    "business_intent",
+)
+
+
 class WorkflowValidationResultView(ViewModel):
     workflow_id: str
     validation: dict[str, Any] = Field(default_factory=dict)
     issues: list[WorkflowValidationIssueView] = Field(default_factory=list)
+    execution_verified: bool = Field(
+        default=False,
+        description=(
+            "Always false: validation reads the stored definition and its contracts; "
+            "it never runs the workflow, so a valid result is not a successful run."
+        ),
+    )
+    unperformed_checks: list[str] = Field(
+        default_factory=lambda: list(WORKFLOW_VALIDATION_UNPERFORMED_CHECKS),
+        description="Checks this validation did not perform.",
+    )
 
 
 class WorkflowContractResultView(ViewModel):

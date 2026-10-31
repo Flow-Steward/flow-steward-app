@@ -79,6 +79,20 @@ class AwaitingApprovalJobView(ViewModel):
     status: str | None = None
 
 
+class AwaitingApprovalJobsPageView(ViewModel):
+    """One bounded page of the scoped approvals queue, newest first."""
+
+    jobs: list[AwaitingApprovalJobView] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    per_page: int = 25
+    total_pages: int = 1
+    has_more: bool = Field(
+        default=False,
+        description="True when later pages hold more approvals than this page lists.",
+    )
+
+
 class JobsListView(ViewModel):
     model_config = ConfigDict(
         title="Job List Response",

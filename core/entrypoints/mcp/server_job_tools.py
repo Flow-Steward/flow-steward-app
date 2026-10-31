@@ -22,14 +22,23 @@ def job_list(
 ) -> str:
     """List scoped jobs with pagination; group_by='attention' groups operator triage.
 
-    status takes one status or a comma list (failed,stuck) and matches any of them.
+    status takes one status or a comma list (failed,stuck) and matches any of them;
+    a status group key selects its whole group (stuck also lists orphaned runs,
+    failed also lists max_iterations and triage_needed). Grouped attention pages
+    too: has_more=true means the groups hold only this page of `total` runs.
     """
     return api_tool_response("job_list", locals())
 
 
 @mcp.tool()
-def job_approvals_pending() -> str:
-    """List jobs awaiting approval within the caller's current scope."""
+def job_approvals_pending(
+    page: Annotated[int, Field(ge=1)] = 1,
+    per_page: Annotated[int, Field(ge=1, le=200)] = 25,
+) -> str:
+    """List jobs awaiting approval within the caller's current scope, one page at a time.
+
+    `total` counts the whole scoped queue; has_more=true means later pages remain.
+    """
     return api_tool_response("job_approvals_pending", locals())
 
 
@@ -39,7 +48,13 @@ def job_result(
     include_messages_limit: Annotated[int, Field(ge=1, le=2000)] = 100,
     include_logs_limit: Annotated[int, Field(ge=1, le=2000)] = 50,
 ) -> str:
-    """Return a final or partial result bundle for one job."""
+    """Return a final or partial result bundle for one job.
+
+    `completed` is true only for a successful run; `terminal` and `outcome`
+    (completed, failed, cancelled, waiting, ...) tell how it ended or where it
+    stands. Messages and logs are the newest window; `truncated` flags a list
+    the limits cut.
+    """
     return api_tool_response("job_result", locals())
 
 
@@ -133,13 +148,16 @@ def job_approvals(job_id: str) -> str:
 
 @mcp.tool()
 def job_cancel(job_id: str, comment: str = "Cancelled via MCP") -> str:
-    """Cancel a pending or running job."""
+    """Cancel a pending, running or waiting job; the comment is kept as the reason."""
     return api_tool_response("job_cancel", locals())
 
 
 @mcp.tool()
 def job_acknowledge(job_id: str, actor: str = "") -> str:
-    """Mark a job as acknowledged for operator triage."""
+    """Mark a job as acknowledged for operator triage.
+
+    The token's user is recorded as the actor; `actor` is journaled beside it.
+    """
     return api_tool_response("job_acknowledge", locals())
 
 
@@ -151,7 +169,11 @@ def job_unacknowledge(job_id: str) -> str:
 
 @mcp.tool()
 def job_restart(job_id: str) -> str:
-    """Re-enqueue a failed or cancelled job with the same inputs."""
+    """Re-enqueue a finished job with the same inputs as a new run.
+
+    A run that is still running, queued, or waiting (timer, child workflow,
+    approval) is refused with a conflict; cancel it first.
+    """
     return api_tool_response("job_restart", locals())
 
 

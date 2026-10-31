@@ -235,6 +235,7 @@ from core.application.management.query_models import (
     AuthServiceAccountTokensListView,
     AuthTokensListView,
     AuthUsersListView,
+    AwaitingApprovalJobsPageView,
     AwaitingApprovalJobView,
     CallableWorkflowListView,
     ChangelogDiffView,

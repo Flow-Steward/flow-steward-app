@@ -264,8 +264,11 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         offset: int = 0,
         *,
         include_trashed: bool = False,
+        status: Sequence[str] | None = None,
+        workflow_id: str | None = None,
+        workflow_ids: Sequence[str] | None = None,
     ) -> list:
-        """Return jobs for a project, newest first, with pagination."""
+        """Return jobs for a project, newest first, with pagination and optional filters."""
         return job_queries_store.get_jobs(
             self.conn,
             column_exists=self._column_exists,
@@ -273,15 +276,29 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             limit=limit,
             offset=offset,
             include_trashed=include_trashed,
+            status=status,
+            workflow_id=workflow_id,
+            workflow_ids=workflow_ids,
         )
 
-    def count_jobs(self, project_id: str, *, include_trashed: bool = False) -> int:
-        """Return total number of jobs for a project."""
+    def count_jobs(
+        self,
+        project_id: str,
+        *,
+        include_trashed: bool = False,
+        status: Sequence[str] | None = None,
+        workflow_id: str | None = None,
+        workflow_ids: Sequence[str] | None = None,
+    ) -> int:
+        """Return the number of a project's jobs matching the same filters as get_jobs."""
         return job_queries_store.count_jobs(
             self.conn,
             column_exists=self._column_exists,
             project_id=project_id,
             include_trashed=include_trashed,
+            status=status,
+            workflow_id=workflow_id,
+            workflow_ids=workflow_ids,
         )
 
     def list_jobs_for_attention(

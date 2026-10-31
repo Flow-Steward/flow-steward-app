@@ -23,6 +23,14 @@ class JobsAttentionGroupsView(ViewModel):
     group_by: str = "attention"
     project_id: str | None = None
     groups: AttentionGroupsView = Field(default_factory=AttentionGroupsView)
+    total: int = Field(default=0, description="Scoped runs matching the filters, on every page.")
+    page: int = 1
+    per_page: int = 25
+    total_pages: int = 1
+    has_more: bool = Field(
+        default=False,
+        description="True when later pages hold more runs; the groups then are not complete.",
+    )
 
 
 class JobCancelAcceptedView(ViewModel):

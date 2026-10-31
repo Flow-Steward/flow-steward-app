@@ -150,8 +150,20 @@ def _delegation_parts(
     elif tool == "project_list":
         params = {"page": 1, "per_page": 200}
     elif tool == "project_jobs":
-        params = {"page": 1, "per_page": max(1, min(int(arguments.get("limit") or 10), 50))}
-    elif tool in {"job_acknowledge", "job_unacknowledge", "job_restart"}:
+        params = {
+            "page": max(1, int(arguments.get("page") or 1)),
+            "per_page": max(1, min(int(arguments.get("limit") or 10), 50)),
+        }
+        status = str(arguments.get("status") or "").strip()
+        if status:
+            params["status"] = status
+    elif tool == "job_cancel":
+        # Only the reason is the body; the idempotency key travels as a header.
+        body = {"comment": str(arguments.get("comment") or "")}
+    elif tool == "job_acknowledge":
+        actor = str(arguments.get("actor") or "").strip()
+        body = {"actor": actor} if actor else None
+    elif tool in {"job_unacknowledge", "job_restart"}:
         body = None
     elif tool == "job_approval_decide":
         body = {

@@ -829,6 +829,23 @@ class JobRetryInterruptedStepRequest(BaseModel):
     requested_by: str = "operator"
 
 
+class JobCancelRequest(BaseModel):
+    """Optional body of a cancel request: why the run was stopped."""
+
+    comment: str = Field(default="", max_length=2000)
+
+
+class JobAcknowledgeRequest(BaseModel):
+    """Optional body of an acknowledge request.
+
+    ``actor`` names who acknowledged on the caller's side (an agent, or the person
+    behind a shared token). The authenticated user stays the recorded actor;
+    this name is journaled beside it, unverified.
+    """
+
+    actor: str = Field(default="", max_length=255)
+
+
 # ── Task ────────────────────────────────────────────────────────────────
 
 _MANUAL_TASK_SUMMARY_MAX_LENGTH = 20_000

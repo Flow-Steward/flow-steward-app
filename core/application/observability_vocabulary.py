@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Any
 
 _WAITING_FOR_APPROVAL_LABEL = "Waiting for approval"
@@ -190,6 +191,19 @@ def job_status_group_statuses(group: str) -> tuple[str, ...]:
         if key == group:
             return statuses
     return ()
+
+
+def job_status_filter_statuses(values: Iterable[str]) -> tuple[str, ...]:
+    """The stored statuses a jobs status filter selects, deduplicated in order.
+
+    A group key selects every stored status of its group (``stuck`` also selects
+    ``orphaned``; ``failed`` also selects ``max_iterations`` and ``triage_needed``),
+    as the operator surfaces read them. Any other value is kept as given.
+    """
+    selected: list[str] = []
+    for value in values:
+        selected.extend(job_status_group_statuses(value) or (value,))
+    return tuple(dict.fromkeys(selected))
 
 
 _EVENT_STATUS_ALIASES = {

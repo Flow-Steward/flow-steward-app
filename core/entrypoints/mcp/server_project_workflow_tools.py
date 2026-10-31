@@ -13,8 +13,13 @@ def project_list() -> str:
 
 
 @mcp.tool()
-def project_jobs(project_name: str, limit: int = 10) -> str:
-    """List recent jobs for a project."""
+def project_jobs(project_name: str, limit: int = 10, page: int = 1, status: str = "") -> str:
+    """List a project's jobs you may see, newest first, one page of `limit` (at most 50).
+
+    status takes one status or a comma list; a status group key (failed, stuck,
+    waiting, ...) selects its whole group. `total` and `total_pages` tell whether
+    more pages exist.
+    """
     return api_tool_response("project_jobs", locals())
 
 
@@ -30,7 +35,11 @@ def workflow_list(
 
 @mcp.tool()
 def workflow_validate(workflow_id: str, project_name: str = "") -> str:
-    """Validate workflow readiness and contract issues."""
+    """Validate workflow readiness and contract issues of the stored definition.
+
+    Static only: `execution_verified` is always false and `unperformed_checks`
+    lists what it did not prove. A valid result is not a successful run.
+    """
     return api_tool_response("workflow_validate", locals())
 
 

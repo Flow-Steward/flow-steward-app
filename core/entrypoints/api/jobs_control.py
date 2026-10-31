@@ -17,6 +17,7 @@ from core.application.management.command_models import (
     WorkflowRunInput,
 )
 from core.application.management.query_models import JobCancelAcceptedView
+from core.application.management.requests import JobAcknowledgeRequest, JobCancelRequest
 from core.entrypoints.api.approval_decision_transport import approval_decision_from_request
 from core.entrypoints.api.idempotency_headers import validate_idempotency_key
 
@@ -191,7 +192,11 @@ def create_jobs_control_router(
         return JSONResponse(payload.dump(), status_code=202)
 
     @router.post("/api/jobs/{job_id}/acknowledge")
-    def job_acknowledge(job_id: str, request: Request):
+    def job_acknowledge(
+        job_id: str,
+        request: Request,
+        body: JobAcknowledgeRequest | None = None,
+    ):
         """Mark a failed job as acknowledged (triaged) without changing its status."""
         username = "system"
         if hasattr(request.state, "user") and request.state.user:
@@ -199,7 +204,10 @@ def create_jobs_control_router(
         try:
             payload = job_command_service().acknowledge_job(
                 job_id,
-                JobAcknowledgeInput(actor=username),
+                JobAcknowledgeInput(
+                    actor=username,
+                    reported_actor=body.actor if body is not None else "",
+                ),
                 scope=request_scope(request),
             )
         except ServiceError as e:
@@ -244,16 +252,18 @@ def create_jobs_control_router(
     def job_cancel(
         request: Request,
         job_id: Annotated[str, Path(description="Job to cancel.")],
+        body: JobCancelRequest | None = None,
     ):
         """Cancel a pending, resume-pending, in-progress, or awaiting_approval job."""
         try:
             username = "operator"
             if hasattr(request.state, "user") and request.state.user:
                 username = getattr(request.state.user, "username", None) or "operator"
+            comment = (body.comment if body is not None else "").strip()
             job_command_service().cancel_job(
                 job_id,
                 actor=username,
-                comment="Cancelled by user",
+                comment=comment or "Cancelled by user",
                 scope=request_scope(request),
             )
             return JSONResponse({"cancelled": True, "job_id": job_id})

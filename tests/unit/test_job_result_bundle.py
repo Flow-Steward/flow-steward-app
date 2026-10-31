@@ -14,7 +14,7 @@ class _Jobs:
     async def get_job_status(self, job_id, *, scope, include_workflow_result=False):
         return _view(id=job_id, status="completed", runtime={"last_response_excerpt": "done"})
 
-    def list_messages(self, job_id, *, since_id, before_id, limit, scope):
+    def list_messages(self, job_id, *, since_id, before_id, newest, limit, scope):
         return _view(messages=[{"summary": "message", "artifacts": {"files": [{"id": "a"}]}}])
 
     def list_logs(self, job_id, *, since_id, before_id, newest, limit, scope):

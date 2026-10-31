@@ -1277,11 +1277,20 @@ the installed bytes.
 
 #### Inspect operations and reports
 
-Use `job_list(group_by="attention")` for a bounded triage snapshot, or normal
-paginated `job_list` for a complete inventory. Grouped attention does not page;
-normal responses provide `total_pages`. Exact project/workflow filters retain
-the caller's authority. Read pending gates through `job_approvals_pending` and
-inspect known jobs with `job_status`, `job_result`, `job_errors` and `job_approval`.
+Use `job_list(group_by="attention")` for a triage view, or normal paginated
+`job_list` for an inventory. Both page: `total` counts every scoped run that
+matches, and grouped attention sets `has_more=true` when its groups hold only
+the current page. A `status` group key (`failed`, `stuck`, `waiting`, ...)
+selects its whole group, so `stuck` also lists `orphaned` runs and `failed` also
+lists `max_iterations` and `triage_needed`. Runs waiting on a timer or a child
+workflow sit in the running group, not in needs-attention. Exact
+project/workflow filters retain the caller's authority. Read pending gates
+through `job_approvals_pending` (paged, with `total` and `has_more`) and inspect
+known jobs with `job_status`, `job_result`, `job_errors` and `job_approval`.
+`job_result.completed` is true only for a successful run; read `terminal` and
+`outcome` for how a run ended, and `truncated` for lists its limits cut.
+`workflow_validate` checks the stored definition only: it returns
+`execution_verified=false` and the `unperformed_checks`.
 Permission failures remain errors. Approval/restart/cancel actions require the
 user's requested action and the tool's existing authority.
 
@@ -1435,15 +1444,15 @@ External webhook invocation belongs to CRM/ERP, forms, and other event providers
 | Area | Tool signature | Use |
 |---|---|---|
 | Projects | `project_list()` | List project names, IDs, and job counts. |
-| Projects | `project_jobs(project_name, limit=10)` | List recent jobs for one project. |
+| Projects | `project_jobs(project_name, limit=10, page=1, status="")` | List one project's jobs the caller may see (its workflow restrictions apply), newest first, `limit` (at most 50) per page; `total`/`total_pages` tell whether more pages exist. `status` accepts statuses or group keys. |
 | Workflows | `workflow_list(project_name, enabled_only=true, include_validation=false)` | List workflows linked to a project. |
-| Workflows | `workflow_validate(workflow_id, project_name="")` | Validate workflow readiness. With `project_name`, validate in that project binding; without it, use the global workflow endpoint under the caller’s workflow access restrictions. `workflow_suggestions` follows the same rule; `workflow_contract` requires a concrete `project_name`. |
+| Workflows | `workflow_validate(workflow_id, project_name="")` | Validate workflow readiness statically (`execution_verified=false`, with `unperformed_checks`). With `project_name`, validate in that project binding; without it, use the global workflow endpoint under the caller’s workflow access restrictions. `workflow_suggestions` follows the same rule; `workflow_contract` requires a concrete `project_name`. |
 | Workflows | `workflow_contract(workflow_id, project_name)` | Return normalized public input/output contract and schemas. |
 | Workflows | `workflow_suggestions(workflow_id, project_name="")` | Return repair suggestions for workflow issues. |
 | Workflows | `workflow_trigger(project_name, workflow_id, payload=null, client_context=null, test_mode=false, files=null)` | Start the selected workflow after required inputs are collected; actual files use the bounded `files` upload array. Returns a job ID for status and human approval. |
-| Jobs | `job_list(project_id="", workflow_id="", status="", group_by="", search="", page=1, per_page=25)` | Find scoped jobs without knowing job IDs; `group_by="attention"` groups jobs for triage. |
-| Approvals | `job_approvals_pending()` | List jobs awaiting approval in the current scope. Queue failures return errors. |
-| Jobs | `job_result(job_id, include_messages_limit=100, include_logs_limit=50)` | Return an agent-friendly status/result/findings/artifacts bundle. Both limits accept 1–2000; zero does not disable inclusion. |
+| Jobs | `job_list(project_id="", workflow_id="", status="", group_by="", search="", page=1, per_page=25)` | Find scoped jobs without knowing job IDs; `group_by="attention"` groups one page of jobs for triage (`has_more` marks an incomplete answer). Status group keys select their whole group. |
+| Approvals | `job_approvals_pending(page=1, per_page=25)` | List one page (at most 200) of jobs awaiting approval in the current scope, with `total` and `has_more`. Queue failures return errors. |
+| Jobs | `job_result(job_id, include_messages_limit=100, include_logs_limit=50)` | Return an agent-friendly status/result/findings/artifacts bundle from the newest messages and logs. `completed` is true only for success; `terminal`, `outcome` and `truncated` qualify it. Both limits accept 1–2000; zero does not disable inclusion. |
 | Jobs | `job_status(job_id)` | Return bounded polling progress, current step/group, durable wait and cost. Active steps are capped at 32 and scalar text at 512 characters; counts and truncation indicators are included. Use the dedicated result, approval, errors and trace tools for detail. |
 | Jobs | `job_runtime_journal(job_id)` | Return runtime journal entries. |
 | Jobs | `job_decision_overrides(job_id, active_only=false, domain="", limit=200)` | List deterministic decision overrides. |
@@ -1457,10 +1466,10 @@ External webhook invocation belongs to CRM/ERP, forms, and other event providers
 | Approvals | `job_approval(job_id)` | Read the active approval gate payload. |
 | Approvals | `job_approvals(job_id)` | List approval history. |
 | Approvals | `job_approval_decide(thread_id, approval_id, approved, idempotency_key, comment="", action="")` | Approve/reject a paused workflow through the app approval API. `approval_id` identifies the current gate and `idempotency_key` makes retries safe. |
-| Lifecycle | `job_cancel(job_id, comment="Cancelled via MCP")` | Cancel a pending/running job. |
-| Lifecycle | `job_acknowledge(job_id, actor="")` | Mark a job as acknowledged. |
+| Lifecycle | `job_cancel(job_id, comment="Cancelled via MCP")` | Cancel a pending, running or waiting job; the comment is the recorded reason and enters the runtime journal. |
+| Lifecycle | `job_acknowledge(job_id, actor="")` | Mark a job as acknowledged. The token's user is the recorded actor; `actor` is journaled beside it. |
 | Lifecycle | `job_unacknowledge(job_id)` | Remove acknowledgment. |
-| Lifecycle | `job_restart(job_id)` | Re-enqueue a failed/cancelled job with the same inputs. |
+| Lifecycle | `job_restart(job_id)` | Re-enqueue a finished job with the same inputs. A running, queued or waiting (timer, child, approval) run is refused with a conflict. |
 | Reports | `report_generate(report_type, params=null, persist=true)` | Generate an operator report. `report_type` must be one of `job_summary`, `job_cost_breakdown`, `activity_daily`, `project_summary`, `project_stats`, `core_health_summary`; anything else returns `invalid_argument`. |
 | Reports | `report_get(report_id)` | Fetch a persisted report. |
 | Notifications | `project_notification_routes(project_name, enabled_only=false)` | List project notification routes. |

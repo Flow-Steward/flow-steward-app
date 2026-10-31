@@ -14,12 +14,17 @@ from core.application.jobs.workflow_run_projection import (
 )
 from core.application.management.errors import ACCESS_DENIED_MESSAGE
 from core.application.management.query_services_approval import ApprovalQueryService
+from core.application.observability_vocabulary import job_status_filter_statuses
 from core.application.reports.job_trigger import job_trigger
 from core.application.security.credential_redaction import redact
 from core.application.workflows.workflow_hook_contract import hook_run_label
 
-from .query_models import JobDetailContractView
+from .query_models import AwaitingApprovalJobsPageView, JobDetailContractView
 from .query_services_common import *  # NOSONAR
+
+#: Page-size ceiling of grouped attention and of the pending-approvals page.
+_ATTENTION_PAGE_MAX = 2000
+_APPROVALS_PAGE_MAX = 200
 
 
 def job_status_filter_values(status: str | Sequence[str] | None) -> tuple[str, ...]:
@@ -27,6 +32,20 @@ def job_status_filter_values(status: str | Sequence[str] | None) -> tuple[str, .
     raw = (status,) if isinstance(status, str) else tuple(status or ())
     values = (part.strip().lower() for item in raw for part in str(item or "").split(","))
     return tuple(dict.fromkeys(value for value in values if value))
+
+
+def _page_window(*, page: int, per_page: int, offset: int, cap: int) -> tuple[int, int, int]:
+    """(page, per_page, row offset) of one page; an explicit offset wins over ``page``."""
+    normalized_per_page = max(1, min(int(per_page), cap))
+    normalized_offset = max(0, int(offset or 0))
+    if normalized_offset:
+        return (
+            (normalized_offset // normalized_per_page) + 1,
+            normalized_per_page,
+            normalized_offset,
+        )
+    normalized_page = max(1, int(page or 1))
+    return normalized_page, normalized_per_page, (normalized_page - 1) * normalized_per_page
 
 
 class _JobDiagnosticQueries(Protocol):
@@ -345,7 +364,9 @@ class JobQueryServiceCoreMixin:
         normalized_limit = max(1, min(int(limit or 25), 2000))
         normalized_project_id = coerce_optional_project_id(project_id)
         normalized_statuses = job_status_filter_values(status)
-        normalized_status = normalized_statuses or None
+        # A status group key (failed, stuck, ...) selects its whole group before
+        # the store pages or counts, so `stuck` also lists `orphaned` runs.
+        normalized_status = job_status_filter_statuses(normalized_statuses) or None
         echoed_status = ",".join(normalized_statuses) or None
         normalized_workflow_id = str(workflow_id or "").strip() or None
         normalized_search = " ".join(str(search or "").split()) or None
@@ -509,16 +530,28 @@ class JobQueryServiceCoreMixin:
                 payload={"error": "Unsupported group_by value", "supported": ["attention"]},
             )
 
+        # Grouped attention pages like the plain list: `per_page` (or `limit`)
+        # rows of the newest scoped runs, with the total of the whole scoped set,
+        # so a caller can tell a complete answer from the first page of many.
+        attention_page, attention_per_page, attention_offset = _page_window(
+            page=page,
+            per_page=per_page or normalized_limit,
+            offset=offset,
+            cap=_ATTENTION_PAGE_MAX,
+        )
         if not workspace_allowed:
             return JobsAttentionGroupsView(
                 project_id=str(normalized_project_id) if normalized_project_id else None,
                 groups=AttentionGroupsView(),
+                page=attention_page,
+                per_page=attention_per_page,
             )
 
-        rows = (
+        fetched = (
             bl.list_jobs_for_attention(
                 project_id=normalized_project_id,
-                limit=normalized_limit,
+                limit=attention_per_page,
+                offset=attention_offset,
                 account_id=acct,
                 status=normalized_status,
                 **_list_filter_kwargs(),
@@ -527,11 +560,23 @@ class JobQueryServiceCoreMixin:
             if hasattr(bl, "list_jobs_for_attention")
             else []
         )
+        fetched = [dict(row) for row in fetched or [] if isinstance(row, dict)]
+        total = (
+            int(
+                bl.count_jobs_for_attention(
+                    project_id=normalized_project_id,
+                    status=normalized_status,
+                    account_id=acct,
+                    **_list_filter_kwargs(),
+                    **_workspace_filter_kwargs(),
+                )
+                or 0
+            )
+            if hasattr(bl, "count_jobs_for_attention")
+            else attention_offset + len(fetched)
+        )
         rows = [
-            dict(row)
-            for row in rows
-            if isinstance(row, dict)
-            and self._scope_allows_project_id(resolved, row.get("project_id"))
+            row for row in fetched if self._scope_allows_project_id(resolved, row.get("project_id"))
         ]
         groups = AttentionGroupsView()
         for row in rows:
@@ -545,6 +590,11 @@ class JobQueryServiceCoreMixin:
             group_by="attention",
             project_id=str(normalized_project_id) if normalized_project_id else None,
             groups=groups,
+            total=total,
+            page=attention_page,
+            per_page=attention_per_page,
+            total_pages=max(1, -(-total // attention_per_page)),
+            has_more=attention_offset + len(fetched) < total,
         )
 
     def list_awaiting_approval_jobs(
@@ -572,6 +622,33 @@ class JobQueryServiceCoreMixin:
             if isinstance(job, dict) and job_row_in_scope(resolved, job)
         ]
 
+    def page_awaiting_approval_jobs(
+        self,
+        *,
+        page: int = 1,
+        per_page: int = 25,
+        scope: ScopeContext | None = None,
+    ) -> AwaitingApprovalJobsPageView:
+        """One bounded page of the scoped approvals queue, newest first, with its total.
+
+        The page is cut from the queue after the scope filter, so ``total`` and
+        ``has_more`` describe exactly what this caller may decide.
+        """
+        normalized_page, normalized_per_page, offset = _page_window(
+            page=page, per_page=per_page or 25, offset=0, cap=_APPROVALS_PAGE_MAX
+        )
+        jobs = self.list_awaiting_approval_jobs(scope=scope)
+        total = len(jobs)
+        page_jobs = jobs[offset : offset + normalized_per_page]
+        return AwaitingApprovalJobsPageView(
+            jobs=page_jobs,
+            total=total,
+            page=normalized_page,
+            per_page=normalized_per_page,
+            total_pages=max(1, -(-total // normalized_per_page)),
+            has_more=offset + len(page_jobs) < total,
+        )
+
     def list_project_jobs(
         self,
         project_id: Any,
@@ -581,7 +658,6 @@ class JobQueryServiceCoreMixin:
         status: str = "",
         scope: ScopeContext | None = None,
     ) -> ProjectJobsListView:
-        _ = status
         resolved = self._scope(scope, project_id=project_id)
         bl = self._get_logger()
         if not bl:
@@ -597,12 +673,26 @@ class JobQueryServiceCoreMixin:
         normalized_per_page = max(1, min(int(per_page or 25), 500))
         normalized_page = max(1, int(page or 1))
         offset = (normalized_page - 1) * normalized_per_page
+        # Status (group keys select their whole group) and the caller's workflow
+        # restrictions filter in the store, before the page and the total.
+        filters: dict[str, Any] = {}
+        statuses = job_status_filter_statuses(job_status_filter_values(status))
+        if statuses:
+            filters["status"] = statuses
+        if resolved.workflow_id:
+            filters["workflow_id"] = str(resolved.workflow_id)
+        if resolved.allowed_workflow_ids:
+            filters["workflow_ids"] = sorted(resolved.allowed_workflow_ids)
         rows = (
-            bl.get_jobs(normalized_project_id, limit=normalized_per_page, offset=offset)
+            bl.get_jobs(normalized_project_id, limit=normalized_per_page, offset=offset, **filters)
             if hasattr(bl, "get_jobs")
             else []
         )
-        total = bl.count_jobs(normalized_project_id) if hasattr(bl, "count_jobs") else len(rows)
+        total = (
+            bl.count_jobs(normalized_project_id, **filters)
+            if hasattr(bl, "count_jobs")
+            else len(rows)
+        )
 
         serialized_rows: list[ProjectJobRowView] = []
         for row in rows or []:

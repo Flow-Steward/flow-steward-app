@@ -265,7 +265,8 @@ _INTERNAL_OPENAPI_SUCCESS_MODEL_OVERRIDES: dict[tuple[str, str], Any] = {
     ("POST", "/api/jobs/{job_id}/acknowledge"): JobLifecycleResultView,
     ("POST", "/api/jobs/{job_id}/unacknowledge"): JobLifecycleResultView,
     ("POST", "/api/jobs/{job_id}/restart"): JobLifecycleResultView,
-    ("GET", "/api/jobs/awaiting-approval"): list[AwaitingApprovalJobView],
+    ("GET", "/api/jobs/awaiting-approval"): list[AwaitingApprovalJobView]
+    | AwaitingApprovalJobsPageView,
     ("GET", "/api/jobs/{job_id}/runtime-journal"): JobRuntimeJournalView,
     ("GET", "/api/jobs/{job_id}/decision-overrides"): JobDecisionOverridesView,
     ("POST", "/api/jobs/{job_id}/decision-overrides"): JobDecisionOverrideResultView,

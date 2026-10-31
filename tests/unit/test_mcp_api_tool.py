@@ -69,10 +69,7 @@ def test_mutation_forwards_caller_correlation_and_idempotency() -> None:
             "path": "/api/jobs/job-1/cancel",
             "bearer": "caller-token",
             "params": None,
-            "json_body": {
-                "comment": "stop",
-                "idempotency_key": "idem-1",
-            },
+            "json_body": {"comment": "stop"},
             "correlation_id": "corr-1",
             "idempotency_key": "idem-1",
         }
