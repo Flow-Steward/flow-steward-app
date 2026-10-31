@@ -512,8 +512,8 @@ the consent screen:
 
 ### 16. Settings, visibility and the account switch
 
-Settings → Security keeps the PAT list and adds "Connected AI apps" directly
-below it, built from existing components. Each row shows client name and host,
+Settings → Account → Personal tokens keeps the PAT list and adds "Connected AI apps"
+directly below it, built from existing components (see "Stage 5B implementation notes"). Each row shows client name and host,
 preset and exact scopes, projects, created, expires, last used ("Access used"
 only when `last_used_at` is set, with no claim about the client), status
 (active, expired, revoked) and a Revoke action with the existing confirmation
@@ -522,7 +522,7 @@ sees only their own grants, as for PATs. The section also shows the readiness
 blocker. The task 4 wizard reads the same `GET /api/auth/oauth-grants`.
 
 The account setting `mcp_oauth` (`system_settings`, `{"enabled": false}` by
-default; row 12) is toggled by an administrator in the same page. Off: the
+default; row 12) is toggled by an administrator on Settings → Security. Off: the
 authorization server is not ready for that account, and existing OAuth tokens of
 that account are rejected by the resolve query; grants are not deleted.
 
@@ -641,6 +641,55 @@ rate-limit store, keyed by client IP and by `client_id` + IP.
 
 Anything beyond this list found during 5B is recorded separately and is not
 implemented implicitly.
+
+## Stage 5B implementation notes (corrections found in code)
+
+5B implemented the change list above. Where the code showed this record to be wrong
+or incomplete, the record was corrected here rather than worked around:
+
+- Decision 16, location. In 0.9.6 the PAT list is not on Settings → Security (that
+  page is the administrator's account security policy) but on Settings → Account →
+  Personal tokens. "Connected AI apps" sits directly below the PAT table there; the
+  administrator's `mcp_oauth` switch sits on Settings → Security, with the readiness
+  blockers.
+- Decision 2, readiness before sign-in. `/oauth/authorize` and the metadata document
+  run before any user is known, so the account switch cannot be read for "the"
+  account there: the installation counts as enabled when any account has
+  `mcp_oauth.enabled`. Consent, the token endpoint and every access-token use check the
+  user's (grant's) own account. On a single-account installation the two are the same.
+- Decision 4, public paths. `/oauth/consent` also joins `AUTH_PUBLIC_PATHS`: its
+  `?error=` variant is reached before sign-in (a client that is not allowed, a
+  readiness blocker) and must render without a session. The `?request=` variant still
+  requires a session: the React page redirects to sign-in and every call it makes is a
+  session-only `/api/oauth/*` route.
+- Decision 4, interactive-only routes. "Interactive principal" is enforced as a
+  browser session cookie (or an external identity); a session token sent as a bearer is
+  refused too, because the CSRF check applies only to cookies.
+- Decision 15, presets. A request for `admin:all` alone also offers the operational
+  preset (seven scopes): `admin:all` covers them, so it is a narrower alternative, not
+  a widening.
+- Decision 12, classification. `oauth_callback` (the outbound connector callback's
+  system scope) is also assigned in `core/` and is classified role-authorized; the
+  guard test found it.
+- Decision 19, Scalable secret. The secret is not added to `_PLACEHOLDER_SECRET_NAMES`
+  / installer-provisioned secrets: that would make `config apply` refuse every existing
+  0.9.6 install without it (contradicting "nothing is required") and would make the
+  Compact self-minted secrets persist it to the volume. The Scalable installer instead
+  generates it in the runtime step that install, resume and update all run before
+  `fs-app`/`fs-mcp` start. A Compact→Scalable profile switch done by `config apply`
+  alone has no secret until the next `./install.sh`; OAuth reports
+  `forward_secret_missing` meanwhile.
+- Decision 13, header removal. Scalable in `external_proxy` mode (the operator's own
+  nginx/apache) reaches `fs-app` without the bundled Traefik, so the header is not
+  stripped there; the shared secret remains the control. The external-Traefik overlay
+  strips it as well.
+- Decision 20, existing databases. `flow-steward database upgrade` replays the
+  canonical `db/schema/` (idempotent `CREATE TABLE`) when the schema fingerprint
+  changes, so the five tables also reach an existing 0.9.x database through the normal
+  upgrade, not only by hand.
+- Decision 11, cleanup. Consumed refresh tokens stay until their grant is deleted, so
+  reuse detection keeps working for the grant's whole life; only pending
+  authorizations and expired access tokens are deleted early.
 
 ## Consequences
 

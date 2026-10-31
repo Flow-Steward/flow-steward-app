@@ -27,7 +27,7 @@ class ResolvedPrincipal(BaseModel):
     is_active: bool = True
     roles: list[str] = Field(default_factory=list)
     scopes: list[str] = Field(default_factory=list)
-    auth_source: str = ""  # "local", "machine", "pat", "external"
+    auth_source: str = ""  # one of TOKEN_SCOPED_ / ROLE_AUTHORIZED_AUTH_SOURCES
     principal_type: str = "user"  # "user", "service_account"
     account_id: str = DEFAULT_ACCOUNT_ID
     account_ids: list[str] = Field(default_factory=list)
@@ -42,10 +42,47 @@ class ResolvedPrincipal(BaseModel):
     must_change_password: bool = False
     timezone: str = ""
     locale: str = ""
+    # ADR 0047 decision 12: the grant behind an ``auth_source="oauth"`` principal.
+    oauth_grant_id: str = ""
+    oauth_client_id: str = ""
+    oauth_resource: str = ""
 
     def to_scope_dict(self) -> dict[str, Any]:
         """Return a dict suitable for ``scope_from_principal``."""
         return self.model_dump()
+
+
+#: Auth sources whose stored scopes are the trust basis downstream (ADR 0047 decision 12).
+#: Every check that decides "authorized by scopes or by role" goes through
+#: :func:`is_token_scoped_principal`; no other module may hold its own copy of this set.
+TOKEN_SCOPED_AUTH_SOURCES: frozenset[str] = frozenset({"pat", "machine", "token", "oauth"})
+#: Auth sources authorized by the principal's live role. Every ``auth_source`` value
+#: assigned in ``core/`` must be in exactly one of the two sets; a guard test fails on
+#: an unclassified one instead of letting it silently receive role authority.
+ROLE_AUTHORIZED_AUTH_SOURCES: frozenset[str] = frozenset(
+    {"", "local", "external", "mcp_dev", "project_connection", "oauth_callback"}
+)
+
+
+def is_token_scoped_principal(principal: Any) -> bool:
+    """Whether ``principal`` is authorized by its stored scopes rather than its role.
+
+    PAT, machine-token, generic token, OAuth and service-account principals are;
+    interactive sessions and external identities are authorized by role. Accepts a
+    principal dict or an object with ``auth_source`` / ``principal_type`` attributes
+    (``ScopeContext``, ``ResolvedPrincipal``).
+    """
+    if principal is None:
+        return False
+    if isinstance(principal, dict):
+        auth_source = principal.get("auth_source")
+        principal_type = principal.get("principal_type")
+    else:
+        auth_source = getattr(principal, "auth_source", "")
+        principal_type = getattr(principal, "principal_type", "")
+    normalized_source = str(auth_source or "").strip().lower()
+    normalized_type = str(principal_type or "").strip().lower()
+    return normalized_source in TOKEN_SCOPED_AUTH_SOURCES or normalized_type == "service_account"
 
 
 _ROLE_LEVELS = {
@@ -238,11 +275,7 @@ def _caller_is_scope_restricted(caller: dict | None) -> bool:
     meaningful scope list, so scope-subset enforcement does not apply to them
     beyond the admin carve-out handled separately.
     """
-    if not isinstance(caller, dict):
-        return False
-    auth_source = str(caller.get("auth_source") or "").strip().lower()
-    principal_type = str(caller.get("principal_type") or "").strip().lower()
-    return auth_source in {"pat", "machine"} or principal_type == "service_account"
+    return is_token_scoped_principal(caller)
 
 
 def _caller_role_scope_ceiling(caller: dict | None) -> set[str]:

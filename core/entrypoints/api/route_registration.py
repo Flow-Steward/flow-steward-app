@@ -571,6 +571,31 @@ def _register_auth_route_bindings(current_app: FastAPI) -> None:
     )
 
 
+def _inbound_oauth_service(current_app: FastAPI):
+    from core.application.auth.inbound_oauth_service import InboundOAuthService
+
+    identity_store = _composed_service(current_app, "identity_store")
+    return InboundOAuthService(identity_store) if identity_store else None
+
+
+def _register_inbound_oauth_routes(current_app: FastAPI) -> None:
+    """ADR 0047: the authorization server and its session-only consent/grant routes."""
+    from core.entrypoints.api.oauth_authorization_server_routes import (
+        create_oauth_authorization_server_router,
+    )
+    from core.entrypoints.api.oauth_consent_routes import create_oauth_consent_router
+
+    current_app.include_router(
+        create_oauth_authorization_server_router(
+            service_factory=lambda: _inbound_oauth_service(current_app),
+            request_client_ip=lambda request: _request_client_ip(request),
+        )
+    )
+    current_app.include_router(
+        create_oauth_consent_router(service_factory=lambda: _inbound_oauth_service(current_app))
+    )
+
+
 def _register_ui_route_bindings(current_app: FastAPI) -> None:
     _register_ui_routes(
         current_app,
@@ -864,6 +889,7 @@ def _register_core_routes(current_app: FastAPI) -> None:
         _register_foundation_routes,
         _register_api_route_bindings,
         _register_auth_route_bindings,
+        _register_inbound_oauth_routes,
         _register_ui_route_bindings,
         _register_job_and_webhook_routes,
     ):

@@ -2178,7 +2178,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example:58",
-      ".env.example.prod:75"
+      ".env.example.prod:79"
     ],
     "environments": [
       "production",
@@ -2567,7 +2567,7 @@
     "default_example_value": ".png,.jpg,.jpeg,.webp,.gif,.pdf,.xlsx,.xls,.docx,.txt,.md,.csv",
     "documented_sources": [
       ".env.example:34",
-      ".env.example.prod:52"
+      ".env.example.prod:56"
     ],
     "environments": [
       "production",
@@ -2591,7 +2591,7 @@
     "default_example_value": "image/png,image/jpeg,image/webp,image/gif,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/octet-stream",
     "documented_sources": [
       ".env.example:33",
-      ".env.example.prod:51"
+      ".env.example.prod:55"
     ],
     "environments": [
       "production",
@@ -2806,7 +2806,7 @@
     "default_example_value": "10",
     "documented_sources": [
       ".env.example:32",
-      ".env.example.prod:50"
+      ".env.example.prod:54"
     ],
     "environments": [
       "production",
@@ -2830,7 +2830,7 @@
     "default_example_value": "20971520",
     "documented_sources": [
       ".env.example:31",
-      ".env.example.prod:49"
+      ".env.example.prod:53"
     ],
     "environments": [
       "production",
@@ -2929,7 +2929,7 @@
     "default_example_value": "1",
     "documented_sources": [
       ".env.example:61",
-      ".env.example.prod:84"
+      ".env.example.prod:88"
     ],
     "environments": [
       "production",
@@ -2955,7 +2955,7 @@
     "default_example_value": "1",
     "documented_sources": [
       ".env.example:62",
-      ".env.example.prod:85"
+      ".env.example.prod:89"
     ],
     "environments": [
       "production",
@@ -3013,7 +3013,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example:63",
-      ".env.example.prod:86"
+      ".env.example.prod:90"
     ],
     "environments": [
       "production",
@@ -3042,7 +3042,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example:64",
-      ".env.example.prod:87"
+      ".env.example.prod:91"
     ],
     "environments": [
       "production",
@@ -3093,7 +3093,7 @@
     "default_example_value": "0",
     "documented_sources": [
       ".env.example:60",
-      ".env.example.prod:83"
+      ".env.example.prod:87"
     ],
     "environments": [
       "production",
@@ -3465,7 +3465,7 @@
     ],
     "default_example_value": "https://flowsteward.example.com",
     "documented_sources": [
-      ".env.example.prod:81"
+      ".env.example.prod:85"
     ],
     "environments": [
       "production",
@@ -3514,7 +3514,7 @@
     ],
     "default_example_value": "../../backups",
     "documented_sources": [
-      ".env.example.prod:109"
+      ".env.example.prod:113"
     ],
     "environments": [
       "production"
@@ -3541,7 +3541,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example:59",
-      ".env.example.prod:76"
+      ".env.example.prod:80"
     ],
     "environments": [
       "production",
@@ -3588,7 +3588,7 @@
     ],
     "default_example_value": "52428800",
     "documented_sources": [
-      ".env.example:114"
+      ".env.example:117"
     ],
     "environments": [
       "production",
@@ -4501,7 +4501,7 @@
     "default_example_value": "postgres_age",
     "documented_sources": [
       ".env.example:26",
-      ".env.example.prod:45",
+      ".env.example.prod:49",
       ".env.example.memory:10"
     ],
     "environments": [
@@ -4997,7 +4997,7 @@
     ],
     "default_example_value": "../../db/schema",
     "documented_sources": [
-      ".env.example.prod:110"
+      ".env.example.prod:114"
     ],
     "environments": [
       "production"
@@ -5049,7 +5049,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example:45",
-      ".env.example.prod:63"
+      ".env.example.prod:67"
     ],
     "environments": [
       "production",
@@ -5076,7 +5076,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example:44",
-      ".env.example.prod:62"
+      ".env.example.prod:66"
     ],
     "environments": [
       "production",
@@ -5103,7 +5103,7 @@
     "default_example_value": "0.1",
     "documented_sources": [
       ".env.example:46",
-      ".env.example.prod:64"
+      ".env.example.prod:68"
     ],
     "environments": [
       "production",
@@ -5314,8 +5314,8 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example:76",
-      ".env.example.prod:93",
+      ".env.example:79",
+      ".env.example.prod:97",
       ".env.example.ops:82"
     ],
     "environments": [
@@ -5341,8 +5341,8 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example:74",
-      ".env.example.prod:91",
+      ".env.example:77",
+      ".env.example.prod:95",
       ".env.example.ops:80"
     ],
     "environments": [
@@ -5536,7 +5536,7 @@
     ],
     "default_example_value": "../../extensions",
     "documented_sources": [
-      ".env.example.prod:107"
+      ".env.example.prod:111"
     ],
     "environments": [
       "production"
@@ -5584,8 +5584,8 @@
     ],
     "default_example_value": "209715200",
     "documented_sources": [
-      ".env.example:87",
-      ".env.example.prod:113",
+      ".env.example:90",
+      ".env.example.prod:117",
       ".env.example.ops:103"
     ],
     "environments": [
@@ -5609,7 +5609,7 @@
     ],
     "default_example_value": "1048576",
     "documented_sources": [
-      ".env.example:107"
+      ".env.example:110"
     ],
     "environments": [
       "production",
@@ -5632,8 +5632,8 @@
     ],
     "default_example_value": "https://raw.githubusercontent.com/Flow-Steward/extensions/main/index.json",
     "documented_sources": [
-      ".env.example:138",
-      ".env.example.prod:135"
+      ".env.example:141",
+      ".env.example.prod:139"
     ],
     "environments": [
       "production",
@@ -5657,7 +5657,7 @@
     "default_example_value": "0",
     "documented_sources": [
       ".env.example:35",
-      ".env.example.prod:53"
+      ".env.example.prod:57"
     ],
     "environments": [
       "production",
@@ -5683,8 +5683,8 @@
     ],
     "default_example_value": "off",
     "documented_sources": [
-      ".env.example:99",
-      ".env.example.prod:111",
+      ".env.example:102",
+      ".env.example.prod:115",
       ".env.example.ops:101"
     ],
     "environments": [
@@ -5711,8 +5711,8 @@
     ],
     "default_example_value": "524288000",
     "documented_sources": [
-      ".env.example:102",
-      ".env.example.prod:112",
+      ".env.example:105",
+      ".env.example.prod:116",
       ".env.example.ops:102"
     ],
     "environments": [
@@ -5828,8 +5828,8 @@
     ],
     "default_example_value": "300",
     "documented_sources": [
-      ".env.example:89",
-      ".env.example.prod:114",
+      ".env.example:92",
+      ".env.example.prod:118",
       ".env.example.ops:104"
     ],
     "environments": [
@@ -5853,7 +5853,7 @@
     ],
     "default_example_value": "5242880",
     "documented_sources": [
-      ".env.example:84"
+      ".env.example:87"
     ],
     "environments": [
       "production",
@@ -5875,7 +5875,7 @@
     "default_example_value": "db_dsn,dsn,project_connections,project_providers,watch,watch_config,config,raw_config,secret_refs,credentials,auth,callback_url",
     "documented_sources": [
       ".env.example:37",
-      ".env.example.prod:55"
+      ".env.example.prod:59"
     ],
     "environments": [
       "production",
@@ -5897,7 +5897,7 @@
     "default_example_value": "password,secret,token,api_key,apikey,api_secret,access_token,refresh_token,authorization,credential,private_key,client_secret,webhook_secret,signing_key",
     "documented_sources": [
       ".env.example:36",
-      ".env.example.prod:54"
+      ".env.example.prod:58"
     ],
     "environments": [
       "production",
@@ -5919,7 +5919,7 @@
     "default_example_value": "secret,token,password,api_key,credential,dsn,connection,watch",
     "documented_sources": [
       ".env.example:38",
-      ".env.example.prod:56"
+      ".env.example.prod:60"
     ],
     "environments": [
       "production",
@@ -5943,7 +5943,7 @@
     "default_example_value": "8",
     "documented_sources": [
       ".env.example:39",
-      ".env.example.prod:57"
+      ".env.example.prod:61"
     ],
     "environments": [
       "production",
@@ -5967,7 +5967,7 @@
     "default_example_value": "500",
     "documented_sources": [
       ".env.example:40",
-      ".env.example.prod:58"
+      ".env.example.prod:62"
     ],
     "environments": [
       "production",
@@ -6115,8 +6115,8 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example:105",
-      ".env.example.prod:120",
+      ".env.example:108",
+      ".env.example.prod:124",
       ".env.example.ops:110"
     ],
     "environments": [
@@ -6214,8 +6214,8 @@
     ],
     "default_example_value": "1073741824",
     "documented_sources": [
-      ".env.example:93",
-      ".env.example.prod:116",
+      ".env.example:96",
+      ".env.example.prod:120",
       ".env.example.ops:106"
     ],
     "environments": [
@@ -6241,8 +6241,8 @@
     ],
     "default_example_value": "2000000",
     "documented_sources": [
-      ".env.example:92",
-      ".env.example.prod:115",
+      ".env.example:95",
+      ".env.example.prod:119",
       ".env.example.ops:105"
     ],
     "environments": [
@@ -6268,7 +6268,7 @@
     ],
     "default_example_value": "20971520",
     "documented_sources": [
-      ".env.example:118"
+      ".env.example:121"
     ],
     "environments": [
       "production",
@@ -6502,7 +6502,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example:142",
+      ".env.example:145",
       ".env.example.prod:13"
     ],
     "environments": [
@@ -6895,7 +6895,7 @@
     "default_example_value": "1",
     "documented_sources": [
       ".env.example:54",
-      ".env.example.prod:82"
+      ".env.example.prod:86"
     ],
     "environments": [
       "production",
@@ -6922,7 +6922,7 @@
     ],
     "default_example_value": "../../logs",
     "documented_sources": [
-      ".env.example.prod:108"
+      ".env.example.prod:112"
     ],
     "environments": [
       "production"
@@ -7307,8 +7307,8 @@
     ],
     "default_example_value": "https://raw.githubusercontent.com/Flow-Steward/mcps/main/index.json",
     "documented_sources": [
-      ".env.example:139",
-      ".env.example.prod:136"
+      ".env.example:142",
+      ".env.example.prod:140"
     ],
     "environments": [
       "production",
@@ -7320,6 +7320,33 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "FS_MCP_CATALOG_URL"
+  },
+  {
+    "canonical_name": "FS_MCP_FORWARD_SECRET",
+    "code_read_locations": [
+      "core/application/auth/inbound_oauth_policy.py",
+      "core/entrypoints/mcp/server_api_auth.py",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_security_auth"
+    ],
+    "default_example_value": "",
+    "documented_sources": [
+      ".env.example:74",
+      ".env.example.prod:41"
+    ],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "ADR 0047: internal secret (at least 32 characters) fs-mcp sends to fs-app as X-Flow-Steward-Mcp-Forward when it forwards a cloud-client OAuth access token. Scalable: generated by install.sh, also on update; Compact: minted by the supervisor on every start for the app and mcp roles only and never written to .env. Optional: without it inbound OAuth reports forward_secret_missing and PATs are unaffected.",
+    "owning_subsystem": "security",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": true,
+    "variable_name": "FS_MCP_FORWARD_SECRET"
   },
   {
     "canonical_name": "FS_MCP_GROUNDING_REQUIRED",
@@ -7367,6 +7394,7 @@
   {
     "canonical_name": "FS_MCP_ISSUER_URL",
     "code_read_locations": [
+      "core/application/auth/inbound_oauth_policy.py",
       "core/entrypoints/mcp/server_runtime.py",
       "infra/docker/docker-compose.prod.yaml",
       "infra/docker/docker-compose.yaml"
@@ -7409,6 +7437,7 @@
   {
     "canonical_name": "FS_MCP_RESOURCE_URL",
     "code_read_locations": [
+      "core/application/auth/inbound_oauth_policy.py",
       "core/entrypoints/mcp/server_runtime.py",
       "infra/docker/docker-compose.prod.yaml",
       "infra/docker/docker-compose.yaml"
@@ -7443,7 +7472,7 @@
     "default_example_value": "postgres",
     "documented_sources": [
       ".env.example:23",
-      ".env.example.prod:42",
+      ".env.example.prod:46",
       ".env.example.memory:7"
     ],
     "environments": [
@@ -7472,7 +7501,7 @@
     "default_example_value": "postgres_unified",
     "documented_sources": [
       ".env.example:21",
-      ".env.example.prod:40",
+      ".env.example.prod:44",
       ".env.example.memory:5"
     ],
     "environments": [
@@ -7500,7 +7529,7 @@
     "default_example_value": "postgres",
     "documented_sources": [
       ".env.example:22",
-      ".env.example.prod:41",
+      ".env.example.prod:45",
       ".env.example.memory:6"
     ],
     "environments": [
@@ -7528,7 +7557,7 @@
     "default_example_value": "postgres_fts",
     "documented_sources": [
       ".env.example:24",
-      ".env.example.prod:43",
+      ".env.example.prod:47",
       ".env.example.memory:8"
     ],
     "environments": [
@@ -7556,7 +7585,7 @@
     "default_example_value": "postgres_pgvector",
     "documented_sources": [
       ".env.example:25",
-      ".env.example.prod:44",
+      ".env.example.prod:48",
       ".env.example.memory:9"
     ],
     "environments": [
@@ -7703,7 +7732,7 @@
     ],
     "default_example_value": "[]",
     "documented_sources": [
-      ".env.example:145",
+      ".env.example:148",
       ".env.example.prod:17"
     ],
     "environments": [
@@ -7729,7 +7758,7 @@
     ],
     "default_example_value": "{}",
     "documented_sources": [
-      ".env.example:143",
+      ".env.example:146",
       ".env.example.prod:15"
     ],
     "environments": [
@@ -8175,8 +8204,8 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example:75",
-      ".env.example.prod:92",
+      ".env.example:78",
+      ".env.example.prod:96",
       ".env.example.ops:81"
     ],
     "environments": [
@@ -8200,8 +8229,8 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example:78",
-      ".env.example.prod:95",
+      ".env.example:81",
+      ".env.example.prod:99",
       ".env.example.ops:84"
     ],
     "environments": [
@@ -8227,8 +8256,8 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example:73",
-      ".env.example.prod:90",
+      ".env.example:76",
+      ".env.example.prod:94",
       ".env.example.ops:79"
     ],
     "environments": [
@@ -8252,8 +8281,8 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example:77",
-      ".env.example.prod:94",
+      ".env.example:80",
+      ".env.example.prod:98",
       ".env.example.ops:83"
     ],
     "environments": [
@@ -8322,7 +8351,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example:27",
-      ".env.example.prod:46"
+      ".env.example.prod:50"
     ],
     "environments": [
       "production",
@@ -8538,7 +8567,7 @@
     ],
     "default_example_value": "1048576",
     "documented_sources": [
-      ".env.example:109"
+      ".env.example:112"
     ],
     "environments": [
       "production",
@@ -8656,6 +8685,7 @@
   {
     "canonical_name": "FS_PUBLIC_BASE_URL",
     "code_read_locations": [
+      "core/application/auth/inbound_oauth_policy.py",
       "core/application/auth/serve_auth_runtime.py",
       "core/application/extensions/callback_contract.py",
       "core/entrypoints/mcp/server_runtime.py",
@@ -8668,7 +8698,7 @@
     ],
     "default_example_value": "https://flowsteward.example.com",
     "documented_sources": [
-      ".env.example.prod:80"
+      ".env.example.prod:84"
     ],
     "environments": [
       "production",
@@ -8737,7 +8767,7 @@
     ],
     "default_example_value": "100",
     "documented_sources": [
-      ".env.example:132",
+      ".env.example:135",
       ".env.example.ops:189"
     ],
     "environments": [
@@ -8761,7 +8791,7 @@
     ],
     "default_example_value": "10",
     "documented_sources": [
-      ".env.example:129",
+      ".env.example:132",
       ".env.example.ops:188"
     ],
     "environments": [
@@ -8930,8 +8960,8 @@
     ],
     "default_example_value": "compose-local",
     "documented_sources": [
-      ".env.example:151",
-      ".env.example.prod:142"
+      ".env.example:154",
+      ".env.example.prod:146"
     ],
     "environments": [
       "production",
@@ -9237,7 +9267,7 @@
     ],
     "default_example_value": "ghcr.io/flow-steward,docker.io/flowsteward",
     "documented_sources": [
-      ".env.example.prod:124"
+      ".env.example.prod:128"
     ],
     "environments": [
       "production"
@@ -9262,7 +9292,7 @@
     ],
     "default_example_value": "Flow-Steward/flow-steward-app",
     "documented_sources": [
-      ".env.example.prod:123"
+      ".env.example.prod:127"
     ],
     "environments": [
       "production"
@@ -9303,7 +9333,7 @@
     ],
     "default_example_value": "5242880",
     "documented_sources": [
-      ".env.example:111"
+      ".env.example:114"
     ],
     "environments": [
       "production",
@@ -9980,7 +10010,7 @@
     "default_example_value": "local-dev-secret-not-for-production",
     "documented_sources": [
       ".env.example:55",
-      ".env.example.prod:72"
+      ".env.example.prod:76"
     ],
     "environments": [
       "production",
@@ -10488,8 +10518,8 @@
     ],
     "default_example_value": "134217728",
     "documented_sources": [
-      ".env.example:94",
-      ".env.example.prod:117",
+      ".env.example:97",
+      ".env.example.prod:121",
       ".env.example.ops:107"
     ],
     "environments": [
@@ -10515,8 +10545,8 @@
     ],
     "default_example_value": "67108864",
     "documented_sources": [
-      ".env.example:96",
-      ".env.example.prod:119",
+      ".env.example:99",
+      ".env.example.prod:123",
       ".env.example.ops:109"
     ],
     "environments": [
@@ -10542,8 +10572,8 @@
     ],
     "default_example_value": "100000",
     "documented_sources": [
-      ".env.example:95",
-      ".env.example.prod:118",
+      ".env.example:98",
+      ".env.example.prod:122",
       ".env.example.ops:108"
     ],
     "environments": [
@@ -10567,7 +10597,7 @@
     ],
     "default_example_value": "120",
     "documented_sources": [
-      ".env.example:126"
+      ".env.example:129"
     ],
     "environments": [
       "production",
@@ -10590,7 +10620,7 @@
     ],
     "default_example_value": "4",
     "documented_sources": [
-      ".env.example:120"
+      ".env.example:123"
     ],
     "environments": [
       "production",
@@ -10613,7 +10643,7 @@
     ],
     "default_example_value": "2",
     "documented_sources": [
-      ".env.example:122"
+      ".env.example:125"
     ],
     "environments": [
       "production",
@@ -10636,7 +10666,7 @@
     ],
     "default_example_value": "2",
     "documented_sources": [
-      ".env.example:124"
+      ".env.example:127"
     ],
     "environments": [
       "production",
@@ -10845,7 +10875,7 @@
     "default_example_value": "1000",
     "documented_sources": [
       ".env.example:41",
-      ".env.example.prod:59"
+      ".env.example.prod:63"
     ],
     "environments": [
       "production",
@@ -11562,7 +11592,7 @@
     "default_example_value": "0",
     "documented_sources": [
       ".env.example:51",
-      ".env.example.prod:69"
+      ".env.example.prod:73"
     ],
     "environments": [
       "production",
@@ -11703,8 +11733,8 @@
     ],
     "default_example_value": "https://raw.githubusercontent.com/Flow-Steward/workflows/main/index.json",
     "documented_sources": [
-      ".env.example:136",
-      ".env.example.prod:133"
+      ".env.example:139",
+      ".env.example.prod:137"
     ],
     "environments": [
       "production",
@@ -11729,7 +11759,7 @@
     ],
     "default_example_value": "52428800",
     "documented_sources": [
-      ".env.example:116"
+      ".env.example:119"
     ],
     "environments": [
       "production",
@@ -13493,7 +13523,7 @@
     ],
     "default_example_value": "flow_steward",
     "documented_sources": [
-      ".env.example.prod:98"
+      ".env.example.prod:102"
     ],
     "environments": [
       "production",
@@ -13694,7 +13724,7 @@
     ],
     "default_example_value": "fs-postgres-extended:0.1.0-pgvector-0.8.5",
     "documented_sources": [
-      ".env.example.prod:128"
+      ".env.example.prod:132"
     ],
     "environments": [
       "production"
@@ -13880,7 +13910,7 @@
     ],
     "default_example_value": "CHANGE_ME_STRONG_PASSWORD",
     "documented_sources": [
-      ".env.example.prod:100"
+      ".env.example.prod:104"
     ],
     "environments": [
       "production",
@@ -14149,7 +14179,7 @@
     ],
     "default_example_value": "flow_steward",
     "documented_sources": [
-      ".env.example.prod:99"
+      ".env.example.prod:103"
     ],
     "environments": [
       "production",
@@ -14506,7 +14536,7 @@
     ],
     "default_example_value": "rabbitmq:3.13-management",
     "documented_sources": [
-      ".env.example.prod:129"
+      ".env.example.prod:133"
     ],
     "environments": [
       "production"
@@ -14549,7 +14579,7 @@
     ],
     "default_example_value": "CHANGE_ME_STRONG_PASSWORD",
     "documented_sources": [
-      ".env.example.prod:102"
+      ".env.example.prod:106"
     ],
     "environments": [
       "production",
@@ -14643,7 +14673,7 @@
     ],
     "default_example_value": "flow_steward",
     "documented_sources": [
-      ".env.example.prod:101"
+      ".env.example.prod:105"
     ],
     "environments": [
       "production",
@@ -15067,7 +15097,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.prod:79",
+      ".env.example.prod:83",
       ".env.example.ops:228"
     ],
     "environments": [
@@ -16692,7 +16722,7 @@
     ],
     "default_example_value": "traefik:v3.3",
     "documented_sources": [
-      ".env.example.prod:125"
+      ".env.example.prod:129"
     ],
     "environments": [
       "production"

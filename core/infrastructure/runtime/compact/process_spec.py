@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -208,6 +209,19 @@ _RUNTIME_ENV = frozenset(
 )
 
 
+#: ADR 0047 decision 13: the internal secret with which the MCP role proves to the app
+#: that it forwards an OAuth access token as the MCP's own back end. It is deliberately in
+#: no allowlist above: the supervisor mints it for each container start
+#: (`mint_mcp_forward_secret`), only the app and mcp roles receive it, and nothing writes
+#: it to `.env` or to the volume, so it is also outside the self-minted durable secrets.
+MCP_FORWARD_SECRET_ENV = "FS_MCP_FORWARD_SECRET"
+
+
+def mint_mcp_forward_secret() -> str:
+    """A fresh forward secret for this start; restarts of both roles share one value."""
+    return secrets.token_urlsafe(32)
+
+
 @dataclass(frozen=True, slots=True)
 class ProcessSpec:
     role: str
@@ -355,6 +369,9 @@ def build_process_specs(
     worker_token = str(parent_environment.get("FS_WORKER_MCP_BEARER_TOKEN") or "").strip()
     if not worker_token:
         raise ValueError("FS_WORKER_MCP_BEARER_TOKEN is required for Compact workers")
+    # Absent (an older supervisor), OAuth reports forward_secret_missing; PATs still work.
+    forward_secret = str(parent_environment.get(MCP_FORWARD_SECRET_ENV) or "").strip()
+    forward_secret_env = {MCP_FORWARD_SECRET_ENV: forward_secret} if forward_secret else {}
     application_env = (
         _COMMON_ENV
         | _DATABASE_ENV
@@ -432,6 +449,11 @@ def build_process_specs(
                     "FS_EXTENSION_INSTALLER_PROXY_ENABLED": "1",
                     "FS_EXTENSION_INSTALLER_ORIGIN": f"http://127.0.0.1:{ports.installer_port}",
                     "FS_LOG_DIR": "/data/logs/app",
+                    # ADR 0047: the authorization server compares its own issuer and
+                    # resource with the ones the MCP role advertises, so it sees the same
+                    # derived values, and it checks the MCP role's forward header.
+                    **_mcp_discovery_environment(parent_environment),
+                    **forward_secret_env,
                 },
             ),
             supplementary_gids=(10100, 10102),
@@ -486,6 +508,7 @@ def build_process_specs(
                     "FS_MCP_ALLOWED_HOSTS": _public_authority(parent_environment),
                     "FS_LOG_DIR": "/data/logs/mcp",
                     **_mcp_discovery_environment(parent_environment),
+                    **forward_secret_env,
                 },
             ),
             supplementary_gids=(10102,),

@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
 
 from core.application.auth.enforce import require_roles
+from core.application.auth.principal import is_token_scoped_principal
 from core.application.jobs.job_polling import build_job_polling_payload
 from core.application.jobs.public_approval_serializer import TOKEN_APPROVAL_KEYS
 from core.application.jobs.terminal_persistence import cancel_job_terminally
@@ -49,10 +50,7 @@ _RETRY_REQUIRES_FORCE_STATUSES = frozenset(
 
 
 def _is_token_scope(scope: Any) -> bool:
-    return (
-        str(getattr(scope, "auth_source", "") or "").strip().lower() in {"machine", "pat", "token"}
-        or str(getattr(scope, "principal_type", "") or "").strip().lower() == "service_account"
-    )
+    return is_token_scoped_principal(scope)
 
 
 def _token_approval_gate_response(gate: dict[str, Any]) -> dict[str, Any]:

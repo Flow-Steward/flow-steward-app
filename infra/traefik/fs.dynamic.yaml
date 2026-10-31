@@ -10,6 +10,8 @@ http:
       entryPoints:
         - websecure
       service: fs-mcp
+      middlewares:
+        - fs-strip-mcp-forward
       tls: {}
 
     fs:
@@ -18,6 +20,7 @@ http:
         - websecure
       service: fs
       middlewares:
+        - fs-strip-mcp-forward
         - fs-compress
       tls: {}
 
@@ -35,6 +38,13 @@ http:
           - url: "http://fs-app:8099"
 
   middlewares:
+    # ADR 0047 decision 13, defence in depth: X-Flow-Steward-Mcp-Forward is sent only by
+    # fs-mcp to fs-app on the internal network. Every public router removes an inbound
+    # copy (an empty custom request header deletes it); the shared secret is the control.
+    fs-strip-mcp-forward:
+      headers:
+        customRequestHeaders:
+          X-Flow-Steward-Mcp-Forward: ""
     fs-compress:
       compress:
         encodings:

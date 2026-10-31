@@ -52,11 +52,54 @@ def test_traefik_publishes_exact_authenticated_mcp_path_over_tls() -> None:
         "priority": 100,
         "entryPoints": ["websecure"],
         "service": "fs-mcp",
+        "middlewares": ["fs-strip-mcp-forward"],
         "tls": {},
     }
     assert services["fs-mcp"]["loadBalancer"]["servers"] == [{"url": "http://fs-mcp:8100"}]
     assert compose["services"]["fs-mcp"]["environment"]["FS_MCP_AUTH_DISABLED"] == "0"
     assert "ports" not in compose["services"]["fs-mcp"]
+
+
+def test_traefik_removes_the_mcp_forward_header_on_every_public_router() -> None:
+    """ADR 0047 decision 13 (checklist S7): defence in depth for the MCP forward secret.
+
+    fs-mcp alone sends X-Flow-Steward-Mcp-Forward to fs-app on the internal network. A
+    public client must not be able to present it, so every router Traefik serves clears it
+    (a custom request header set to "" is deleted); the shared secret stays the control.
+    """
+    dynamic = yaml.safe_load((ROOT / "infra/traefik/fs.dynamic.yaml").read_text())
+    http = dynamic["http"]
+
+    assert http["middlewares"]["fs-strip-mcp-forward"] == {
+        "headers": {"customRequestHeaders": {"X-Flow-Steward-Mcp-Forward": ""}}
+    }
+    unprotected = sorted(
+        name
+        for name, router in http["routers"].items()
+        if "fs-strip-mcp-forward" not in (router.get("middlewares") or [])
+    )
+    assert unprotected == []
+    # First in the chain, so nothing behind it can observe the client's copy.
+    assert http["routers"]["fs"]["middlewares"][0] == "fs-strip-mcp-forward"
+
+
+def test_external_traefik_overlay_removes_the_mcp_forward_header() -> None:
+    """ADR 0047 decision 13 (checklist S7) for a Scalable behind the operator's Traefik."""
+    overlay = yaml.safe_load(
+        (ROOT / "infra/docker/scalable/ingress-external_traefik.yaml").read_text()
+    )
+    project = "${COMPOSE_PROJECT_NAME:-flow-steward}"
+    middleware = f"{project}-strip-mcp-forward"
+    labels = {
+        service: list(overlay["services"][service]["labels"]) for service in ("fs-app", "fs-mcp")
+    }
+
+    assert (
+        f"traefik.http.middlewares.{middleware}.headers.customrequestheaders."
+        "X-Flow-Steward-Mcp-Forward="
+    ) in labels["fs-app"]
+    assert f"traefik.http.routers.{project}-app.middlewares={middleware}@docker" in labels["fs-app"]
+    assert f"traefik.http.routers.{project}-mcp.middlewares={middleware}@docker" in labels["fs-mcp"]
 
 
 def test_prod_compose_requires_metrics_token_for_metrics_services() -> None:

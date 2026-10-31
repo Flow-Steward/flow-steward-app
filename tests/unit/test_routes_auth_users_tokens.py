@@ -196,6 +196,68 @@ def test_auth_introspection_returns_bounded_effective_principal() -> None:
     assert interactive.json()["principal"]["scopes"] == ["admin:all"]
 
 
+def test_auth_introspection_of_an_oauth_token_names_its_grant_and_never_synthesizes_scopes() -> (
+    None
+):
+    """ADR 0047 decisions 12 and 14 (task5b F3 at the router): an administrator's OAuth
+    grant with the operational preset introspects as those scopes, never admin:all."""
+    oauth_user = {
+        "id": "user-1",
+        "username": "admin",
+        "roles": ["admin"],
+        "principal_type": "admin",
+        "auth_source": "oauth",
+        "account_id": "acc-default",
+        "scopes": [],
+        "oauth_grant_id": "grant-1",
+        "oauth_client_id": "https://claude.ai/oauth/claude-code-client-metadata",
+        "oauth_resource": "https://fs.example.com/mcp",
+    }
+    router = create_auth_users_router(
+        local_auth_enabled=lambda: True,
+        external_auth_enabled=lambda: False,
+        get_logger_only=lambda: SimpleNamespace(conn=_Conn(_Cursor())),
+        auth_tables_available=lambda _bl: True,
+        require_authenticated_user=lambda _request, **_kwargs: dict(oauth_user),
+        request_auth_user_payload=lambda request: getattr(request.state, "auth_user", None),
+        api_error_response=_api_error_response,
+        log_auth_audit_event=lambda *_args, **_kwargs: None,
+        auth_login_clear_user_failures=_clear_user_login_failures,
+        get_user_by_id=lambda _bl, _user_id: dict(oauth_user),
+        get_user_by_username=lambda _bl, _username: dict(oauth_user),
+        normalize_requested_roles=lambda roles: list(roles or []),
+        seed_default_roles=lambda _bl: None,
+        password_hash=lambda value: f"hash:{value}",
+        auth_user_column_exists=lambda _bl, _column: True,
+        real_dict_cursor_kwargs=dict,
+        auth_admin_roles={"admin"},
+        err_authentication_required="auth-required",
+        err_database_not_configured="db-missing",
+        err_auth_tables_not_available="auth-tables-missing",
+        err_admin_role_required="admin-required",
+        err_local_auth_disabled="local-auth-disabled",
+        err_invalid_json_body="invalid-json",
+        auth_csrf_cookie_name="csrf_cookie",
+    )
+
+    principal = (
+        _client_with_state(router, auth_user=oauth_user, auth_source="oauth")
+        .get("/api/auth/introspect")
+        .json()["principal"]
+    )
+    assert principal["auth_source"] == "oauth"
+    assert principal["scopes"] == []
+    assert principal["resource"] == "https://fs.example.com/mcp"
+    assert principal["oauth_client_id"] == oauth_user["oauth_client_id"]
+    assert principal["grant_id"] == "grant-1"
+
+    pat = _client_with_state(
+        router, auth_user={**oauth_user, "auth_source": "pat"}, auth_source="pat"
+    ).get("/api/auth/introspect")
+    assert "resource" not in pat.json()["principal"]
+    assert "grant_id" not in pat.json()["principal"]
+
+
 def test_auth_users_router_success_paths() -> None:
     cursor = _Cursor()
     bl = SimpleNamespace(conn=_Conn(cursor))

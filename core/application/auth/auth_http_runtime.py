@@ -8,7 +8,21 @@ from urllib.parse import urlencode
 
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from core.application.auth.principal import ResolvedPrincipal, principal_has_required_scopes
+from core.application.auth.inbound_oauth_policy import (
+    MCP_FORWARD_HEADER,
+    PROTOCOL_PATHS,
+    current_oauth_environment,
+    is_interactive_only_path,
+    is_oauth_access_token,
+    is_oauth_non_bearer_secret,
+    oauth_forward_accepted,
+    oauth_principal_denied_route,
+)
+from core.application.auth.principal import (
+    ResolvedPrincipal,
+    is_token_scoped_principal,
+    principal_has_required_scopes,
+)
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.mcp_dev_proxy import MCP_DEV_AUTH_HEADER, mcp_dev_proxy_enabled
 
@@ -130,11 +144,7 @@ def mcp_dev_system_principal(request: Any) -> ResolvedPrincipal | None:
 
 
 def _principal_requires_http_scopes(user: dict[str, Any] | None) -> bool:
-    if not isinstance(user, dict):
-        return False
-    auth_source = str(user.get("auth_source") or "").strip().lower()
-    principal_type = str(user.get("principal_type") or "").strip().lower()
-    return auth_source in {"pat", "machine"} or principal_type == "service_account"
+    return isinstance(user, dict) and is_token_scoped_principal(user)
 
 
 def _is_viewer_extension_detail_read(path: str, method: str) -> bool:
@@ -355,6 +365,11 @@ async def local_auth_middleware(
         if dev_principal is None:
             return JSONResponse({"error": "Authentication is not configured"}, status_code=503)
 
+    if path in PROTOCOL_PATHS:
+        # ADR 0047 decision 4: the protocol endpoints authenticate the client by the
+        # protocol itself and never derive identity from a cookie or a bearer.
+        return await call_next(request)
+
     public_auth_path = bool(is_public_auth_path_fn(path))
     if callable(route_registered_fn):
         try:
@@ -398,16 +413,12 @@ async def local_auth_middleware(
             if public_auth_path:
                 return await call_next(request)
             return JSONResponse({"error": err_auth_tables_not_available}, status_code=503)
-        user = get_user_by_session_token_fn(bl, token) if token else None
-        if not isinstance(user, dict) and bearer_token:
-            from core.application.auth.resolve import (
-                resolve_machine_principal,
-                resolve_pat_principal,
-            )
-
-            user = resolve_pat_principal(bl, bearer_token)
-            if not isinstance(user, dict):
-                user = resolve_machine_principal(bl, bearer_token)
+        user = _resolve_local_token(
+            bl,
+            token=token,
+            bearer_token=bearer_token,
+            get_user_by_session_token_fn=get_user_by_session_token_fn,
+        )
         principal = normalize_live_principal_fn(user, default_auth_source="local")
         auth_source = "local"
 
@@ -454,6 +465,12 @@ async def local_auth_middleware(
     request.state.auth_user = principal.model_dump()
     request.state.auth_source = str(principal.auth_source or auth_source).strip() or auth_source
     user = request.state.auth_user
+
+    oauth_refusal = _oauth_request_refusal(
+        request, principal=principal, path=path, method=method, token_source=token_source
+    )
+    if oauth_refusal is not None:
+        return oauth_refusal
 
     if (
         auth_source == "local"
@@ -522,6 +539,72 @@ async def local_auth_middleware(
             return JSONResponse({"error": err_operator_role_required}, status_code=403)
 
     return await call_next(request)
+
+
+def _resolve_local_token(
+    bl: Any,
+    *,
+    token: str,
+    bearer_token: str,
+    get_user_by_session_token_fn: Any,
+) -> dict[str, Any] | None:
+    """Session, then PAT, then machine token -- or the OAuth resolver alone.
+
+    ADR 0047 decision 10: an ``fs_oat_`` bearer is resolved only as an OAuth access
+    token, never as a session, PAT or machine token; ``fs_oac_`` codes and
+    ``fs_ort_`` refresh tokens are never accepted as bearers.
+    """
+    if bearer_token and is_oauth_non_bearer_secret(bearer_token):
+        return None
+    if bearer_token and is_oauth_access_token(bearer_token):
+        from core.application.auth.inbound_oauth_service import resolve_oauth_access_principal
+
+        return resolve_oauth_access_principal(bl, bearer_token)
+    user = get_user_by_session_token_fn(bl, token) if token else None
+    if not isinstance(user, dict) and bearer_token:
+        from core.application.auth.resolve import (
+            resolve_machine_principal,
+            resolve_pat_principal,
+        )
+
+        user = resolve_pat_principal(bl, bearer_token)
+        if not isinstance(user, dict):
+            user = resolve_machine_principal(bl, bearer_token)
+    return user
+
+
+def _oauth_request_refusal(
+    request: Any,
+    *,
+    principal: ResolvedPrincipal,
+    path: str,
+    method: str,
+    token_source: str,
+) -> JSONResponse | None:
+    """The inbound OAuth rules of ADR 0047 decisions 4, 12 and 13, or ``None``."""
+    source = str(principal.auth_source or "").strip().lower()
+    if source == "oauth":
+        forwarded = oauth_forward_accepted(
+            path,
+            request.headers.get(MCP_FORWARD_HEADER),
+            current_oauth_environment().forward_secret,
+        )
+        if not forwarded:
+            return JSONResponse({"error": "invalid_token"}, status_code=401)
+        if oauth_principal_denied_route(path, method):
+            return JSONResponse(
+                {"error": "This route is not available to an OAuth access token"},
+                status_code=403,
+            )
+        return None
+    if is_interactive_only_path(path):
+        interactive = source == "external" or (source == "local" and token_source == "cookie")
+        if not interactive:
+            return JSONResponse(
+                {"error": "This route requires an interactive browser session"},
+                status_code=403,
+            )
+    return None
 
 
 def build_local_auth_middleware_handler(**kwargs):

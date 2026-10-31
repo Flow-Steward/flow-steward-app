@@ -10,7 +10,7 @@ import psycopg
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, env_flag
 from core.application.auth.password import session_token_hash
-from core.application.auth.principal import ResolvedPrincipal
+from core.application.auth.principal import ResolvedPrincipal, is_token_scoped_principal
 from core.infrastructure.db.psycopg_runtime import sql as psycopg_sql
 
 AND_U_DELETED_AT_IS_NULL_VALUE = "AND u.deleted_at IS NULL"
@@ -532,13 +532,14 @@ def _normalize_principal_dict(raw: dict) -> ResolvedPrincipal:
         must_change_password=bool(raw.get("must_change_password", False)),
         timezone=str(raw.get("timezone") or "").strip(),
         locale=str(raw.get("locale") or "").strip(),
+        oauth_grant_id=str(raw.get("oauth_grant_id") or "").strip(),
+        oauth_client_id=str(raw.get("oauth_client_id") or "").strip(),
+        oauth_resource=str(raw.get("oauth_resource") or "").strip(),
     )
 
 
 def _principal_requires_account_id(raw: dict) -> bool:
-    source = str(raw.get("auth_source") or "").strip().lower()
-    principal_type = str(raw.get("principal_type") or "").strip().lower()
-    return source in {"pat", "machine"} or principal_type == "service_account"
+    return is_token_scoped_principal(raw)
 
 
 def normalize_principal(raw: dict | ResolvedPrincipal | None) -> ResolvedPrincipal | None:

@@ -123,6 +123,8 @@ def create_frontend_shell_router(
         @router.get("/bootstrap", include_in_schema=False)
         @router.get("/forgot-password", include_in_schema=False)
         @router.get("/reset-password", include_in_schema=False)
+        # ADR 0047: the inbound OAuth consent and error page (React-owned).
+        @router.get("/oauth/consent", include_in_schema=False)
         async def public_auth_shell():
             return _shell_response()
 

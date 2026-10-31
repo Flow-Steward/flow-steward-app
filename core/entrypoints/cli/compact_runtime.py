@@ -41,7 +41,11 @@ from core.infrastructure.runtime.compact.health import (
     monitor_dependencies,
     monitor_roles,
 )
-from core.infrastructure.runtime.compact.process_spec import build_process_specs
+from core.infrastructure.runtime.compact.process_spec import (
+    MCP_FORWARD_SECRET_ENV,
+    build_process_specs,
+    mint_mcp_forward_secret,
+)
 from core.infrastructure.runtime.compact.provenance import verify_compact_environment_identity
 from core.infrastructure.runtime.compact.readiness import ReadinessRegistry
 from core.infrastructure.runtime.compact.router import CompactRouterConfig, render_router_config
@@ -321,6 +325,9 @@ def main() -> int:
         bootstrapped = _bootstrap(data_root)
         process_environment = dict(os.environ)
         process_environment["FS_WORKER_MCP_BEARER_TOKEN"] = bootstrapped.worker_token
+        # ADR 0047 decision 19: a new MCP->app forward secret on every container start,
+        # handed to the app and mcp roles only and never written to .env or the volume.
+        process_environment[MCP_FORWARD_SECRET_ENV] = mint_mcp_forward_secret()
         _publish_bootstrap_state_file(process_environment, bootstrapped.bootstrap_state_file)
         router_path = Path("/run/flow-steward-compact/router.yaml")
         router_path.parent.mkdir(mode=0o755, parents=True, exist_ok=True)

@@ -88,3 +88,89 @@ CREATE TABLE public.fs_tabular_snapshot_commits (
         REFERENCES public.fs_tabular_snapshot_heads(account_id, project_id, workflow_id, profile_key)
         ON DELETE CASCADE
 );
+
+-- Inbound OAuth for the MCP server (ADR 0047). Protocol-owned records, separate from
+-- personal_access_tokens. Raw codes and tokens are never stored: only SHA-256 hashes.
+-- Not part of the required startup contract: a database without them reports the
+-- OAuth readiness blocker storage_missing and keeps serving PATs.
+CREATE TABLE public.oauth_clients (
+    client_id text PRIMARY KEY CHECK (char_length(client_id) BETWEEN 1 AND 2048),
+    client_name text DEFAULT ''::text NOT NULL,
+    redirect_uris_jsonb jsonb NOT NULL CHECK (jsonb_typeof(redirect_uris_jsonb) = 'array'),
+    metadata_sha256 text NOT NULL,
+    fetched_at timestamp with time zone NOT NULL,
+    cache_expires_at timestamp with time zone NOT NULL,
+    first_seen_at timestamp with time zone NOT NULL,
+    last_used_at timestamp with time zone
+);
+
+CREATE TABLE public.oauth_grants (
+    id uuid PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    account_id uuid NOT NULL,
+    client_id text NOT NULL REFERENCES public.oauth_clients(client_id) ON DELETE RESTRICT,
+    client_name_snapshot text NOT NULL,
+    resource text NOT NULL,
+    preset text NOT NULL,
+    scopes_jsonb jsonb NOT NULL CHECK (jsonb_typeof(scopes_jsonb) = 'array'),
+    allowed_project_ids_jsonb jsonb NOT NULL CHECK (jsonb_typeof(allowed_project_ids_jsonb) = 'array'),
+    allowed_workflow_ids_jsonb jsonb DEFAULT '[]'::jsonb NOT NULL
+        CHECK (jsonb_typeof(allowed_workflow_ids_jsonb) = 'array'),
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    last_used_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    revoked_reason text,
+    CONSTRAINT chk_oauth_grants_lifetime CHECK (
+        expires_at > created_at AND expires_at <= created_at + interval '90 days'
+    )
+);
+
+CREATE TABLE public.oauth_authorizations (
+    id uuid PRIMARY KEY,
+    client_id text NOT NULL REFERENCES public.oauth_clients(client_id) ON DELETE CASCADE,
+    redirect_uri text NOT NULL,
+    resource text NOT NULL,
+    code_challenge text NOT NULL,
+    state text,
+    requested_scopes_jsonb jsonb NOT NULL CHECK (jsonb_typeof(requested_scopes_jsonb) = 'array'),
+    browser_binding_hash text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    decided_at timestamp with time zone,
+    decision text CHECK (decision IN ('approved', 'denied')),
+    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+    account_id uuid,
+    preset text,
+    scopes_jsonb jsonb,
+    allowed_project_ids_jsonb jsonb,
+    grant_expires_at timestamp with time zone,
+    code_hash text UNIQUE,
+    code_expires_at timestamp with time zone,
+    code_consumed_at timestamp with time zone,
+    grant_id uuid REFERENCES public.oauth_grants(id) ON DELETE SET NULL
+);
+
+CREATE TABLE public.oauth_access_tokens (
+    id uuid PRIMARY KEY,
+    token_hash text NOT NULL UNIQUE,
+    grant_id uuid NOT NULL REFERENCES public.oauth_grants(id) ON DELETE CASCADE,
+    scopes_jsonb jsonb NOT NULL CHECK (jsonb_typeof(scopes_jsonb) = 'array'),
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE public.oauth_refresh_tokens (
+    id uuid PRIMARY KEY,
+    token_hash text NOT NULL UNIQUE,
+    grant_id uuid NOT NULL REFERENCES public.oauth_grants(id) ON DELETE CASCADE,
+    parent_id uuid REFERENCES public.oauth_refresh_tokens(id) ON DELETE SET NULL,
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    consumed_at timestamp with time zone
+);
+
+CREATE INDEX idx_oauth_grants_user_revoked ON public.oauth_grants (user_id, revoked_at);
+CREATE INDEX idx_oauth_access_tokens_grant ON public.oauth_access_tokens (grant_id);
+CREATE INDEX idx_oauth_refresh_tokens_grant ON public.oauth_refresh_tokens (grant_id);
+CREATE INDEX idx_oauth_authorizations_expires ON public.oauth_authorizations (expires_at);

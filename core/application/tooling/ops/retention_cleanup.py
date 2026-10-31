@@ -27,6 +27,7 @@ from core.application.tooling.ops.retention_repository import (
     _delete_or_count_action_log,
     _delete_or_count_agent_messages,
     _delete_or_count_idempotency_tombstones,
+    _delete_or_count_inbound_oauth,
     _delete_or_count_project_settings_revisions,
     _delete_or_count_registry_changelog,
     _delete_or_count_terminal_job_checkpoints,
@@ -502,6 +503,7 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
         "datasets_expired": 0,
         "artifact_cleanup_failed": 0,
         "workflow_definition_snapshots": 0,
+        "inbound_oauth": 0,
     }
 
     artifact_storage = resolve_artifact_storage_adapter_from_env(environ=_runtime_env)
@@ -584,6 +586,12 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
             )
 
             stats["idempotency_tombstones"] = _delete_or_count_idempotency_tombstones(
+                cur,
+                cache=table_exists_cache,
+                dry_run=cfg.dry_run,
+            )
+
+            stats["inbound_oauth"] = _delete_or_count_inbound_oauth(
                 cur,
                 cache=table_exists_cache,
                 dry_run=cfg.dry_run,

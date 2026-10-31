@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from contextlib import suppress
 from typing import Any
 
+from core.application.auth.principal import is_token_scoped_principal
 from core.application.idempotency import (
     RequestIdempotencyService,
 )
@@ -287,10 +288,7 @@ class ApprovalCommandService:
         decision = ApprovalDecisionInput.model_validate(decision)
         resolved_scope = _service_scope(scope)
         auth_source = str(getattr(resolved_scope, "auth_source", "") or "").strip().lower()
-        principal_type = str(getattr(resolved_scope, "principal_type", "") or "").strip().lower()
-        token_principal = (
-            auth_source in {"machine", "pat", "token"} or principal_type == "service_account"
-        )
+        token_principal = is_token_scoped_principal(resolved_scope)
         if decision.external_actor is not None and auth_source != "machine":
             raise ServiceValidationError(
                 "external_actor is only allowed for machine-token decisions"

@@ -19,6 +19,7 @@ from core.infrastructure.installer.core_dependency_images import (
     core_service_names,
 )
 from core.infrastructure.installer.gateway_support import (
+    _MCP_FORWARD_SECRET_ENV,
     _WORKER_TOKEN_ENV,
     _compose_ps_rows,
     _last_output_line,
@@ -82,10 +83,36 @@ class RuntimeOperations:
             exit_code=8,
         )
 
+    def _ensure_mcp_forward_secret(
+        self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
+    ) -> None:
+        """Give a Scalable installation its fs-mcp -> fs-app forward secret (ADR 0047).
+
+        Here rather than in the secrets step because an update of a completed
+        installation never runs that step, and an installation from the previous release
+        has no such secret: the runtime step is the one install, resume and update all
+        run before fs-app and fs-mcp start. Only an existing env file is completed; the
+        value is never logged.
+        """
+        if config.deployment_profile != "scalable":
+            return
+        env_path = self._env_path(config)
+        if not env_path.exists():
+            return
+        before = _read_env(env_path).get(_MCP_FORWARD_SECRET_ENV)
+        self.state_store.ensure_env_secrets(
+            env_path,
+            (_MCP_FORWARD_SECRET_ENV,),
+            secret_factory=self._secret_factory,
+        )
+        if not str(before or "").strip():
+            log.write(f"Generated {_MCP_FORWARD_SECRET_ENV} for the MCP OAuth forwarding check.")
+
     def start_runtime(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> None:
         self._prepare_default_host_artifact_root(config, log=log)
+        self._ensure_mcp_forward_secret(config, log=log)
         self.restore_container_names(config)
         services = (
             ["compact-runtime"]

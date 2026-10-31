@@ -6,6 +6,8 @@ http:
       rule: "Path(`/health/ready`)"
       priority: 110
       service: health
+      middlewares:
+        - strip-mcp-forward
     mcp:
       entryPoints:
         - compact
@@ -18,12 +20,24 @@ http:
       rule: "Path(`/mcp`) || PathPrefix(`/mcp/`) || PathPrefix(`/.well-known/oauth-protected-resource`)"
       priority: 100
       service: mcp
+      middlewares:
+        - strip-mcp-forward
     app:
       entryPoints:
         - compact
       rule: "PathPrefix(`/`)"
       priority: 10
       service: app
+      middlewares:
+        - strip-mcp-forward
+  middlewares:
+    # ADR 0047 decision 13, defence in depth: X-Flow-Steward-Mcp-Forward is sent only by
+    # the mcp role to the app role over loopback. Every public router removes an inbound
+    # copy (an empty custom request header deletes it); the shared secret is the control.
+    strip-mcp-forward:
+      headers:
+        customRequestHeaders:
+          X-Flow-Steward-Mcp-Forward: ""
   services:
     app:
       loadBalancer:

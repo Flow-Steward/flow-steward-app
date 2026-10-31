@@ -25,7 +25,10 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
-from core.application.auth.principal import principal_has_required_scopes
+from core.application.auth.principal import (
+    is_token_scoped_principal,
+    principal_has_required_scopes,
+)
 from core.application.jobs.public_workflow_snapshot_query import reconcile_public_job_snapshot
 from core.application.jobs.public_workflow_stream_preflight import (
     PublicWorkflowStreamCursorExpired,
@@ -197,9 +200,8 @@ async def _event_generator(
 def _is_external_principal(principal: dict | None) -> bool:
     if not isinstance(principal, dict):
         return False
-    source = str(principal.get("auth_source") or "").strip().lower()
     kind = str(principal.get("principal_type") or principal.get("actor_type") or "").strip().lower()
-    return source in {"machine", "pat", "token"} or kind == "service_account"
+    return is_token_scoped_principal(principal) or kind == "service_account"
 
 
 def _stream_error() -> str:

@@ -25,18 +25,21 @@ def test_compact_router_renders_exact_mcp_and_app_routes() -> None:
         ),
         "priority": 100,
         "service": "mcp",
+        "middlewares": ["strip-mcp-forward"],
     }
     assert routers["app"] == {
         "entryPoints": ["compact"],
         "rule": "PathPrefix(`/`)",
         "priority": 10,
         "service": "app",
+        "middlewares": ["strip-mcp-forward"],
     }
     assert routers["readiness"] == {
         "entryPoints": ["compact"],
         "rule": "Path(`/health/ready`)",
         "priority": 110,
         "service": "health",
+        "middlewares": ["strip-mcp-forward"],
     }
     assert services["app"]["loadBalancer"]["servers"] == [{"url": "http://127.0.0.1:8099"}]
     assert services["mcp"]["loadBalancer"]["servers"] == [{"url": "http://127.0.0.1:8100"}]
@@ -79,3 +82,25 @@ def test_compact_router_sends_only_the_protected_resource_metadata_to_mcp() -> N
     assert "/.well-known/oauth-authorization-server" not in mcp_rule
     assert "PathPrefix(`/.well-known`)" not in mcp_rule
     assert "PathPrefix(`/.well-known/`)" not in mcp_rule
+
+
+def test_compact_router_removes_the_mcp_forward_header_on_every_public_router() -> None:
+    """ADR 0047 decision 13 (checklist S7): defence in depth for the MCP forward secret.
+
+    Only the mcp role may send X-Flow-Steward-Mcp-Forward to the app, over loopback. A
+    client must not be able to present it through the public entry point, so every router
+    on that entry point clears it (Traefik deletes a custom request header set to "").
+    """
+    rendered = yaml.safe_load(render_router_config(CompactRouterConfig()))
+    http = rendered["http"]
+
+    assert http["middlewares"]["strip-mcp-forward"] == {
+        "headers": {"customRequestHeaders": {"X-Flow-Steward-Mcp-Forward": ""}}
+    }
+    unprotected = sorted(
+        name
+        for name, router in http["routers"].items()
+        if "compact" in router["entryPoints"]
+        and "strip-mcp-forward" not in (router.get("middlewares") or [])
+    )
+    assert unprotected == []

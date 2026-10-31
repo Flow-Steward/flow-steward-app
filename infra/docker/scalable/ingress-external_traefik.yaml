@@ -13,6 +13,12 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.tls=true"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.priority=10"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.service=${COMPOSE_PROJECT_NAME:-flow-steward}-app"
+      # ADR 0047 decision 13, defence in depth: the operator's Traefik removes an inbound
+      # X-Flow-Steward-Mcp-Forward (an empty custom request header deletes it); only
+      # fs-mcp sends it to fs-app on the internal network, and the shared secret is the
+      # control.
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME:-flow-steward}-strip-mcp-forward.headers.customrequestheaders.X-Flow-Steward-Mcp-Forward="
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-app.middlewares=${COMPOSE_PROJECT_NAME:-flow-steward}-strip-mcp-forward@docker"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-flow-steward}-app.loadbalancer.server.port=8099"
   fs-mcp:
     networks:
@@ -28,6 +34,7 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.tls=true"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.priority=100"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.service=${COMPOSE_PROJECT_NAME:-flow-steward}-mcp"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.middlewares=${COMPOSE_PROJECT_NAME:-flow-steward}-strip-mcp-forward@docker"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME:-flow-steward}-mcp.loadbalancer.server.port=8100"
 
 networks:

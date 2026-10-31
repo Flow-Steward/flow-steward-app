@@ -315,6 +315,9 @@ services:
       FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL}
       FS_MCP_ISSUER_URL: ${FS_MCP_ISSUER_URL:-}
       FS_MCP_RESOURCE_URL: ${FS_MCP_RESOURCE_URL:-}
+      # ADR 0047 decision 13: proves to fs-app that an OAuth access token arrives as the
+      # MCP's own back end. Empty leaves OAuth unavailable; PATs do not depend on it.
+      FS_MCP_FORWARD_SECRET: ${FS_MCP_FORWARD_SECRET:-}
       PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
     expose:
       - "8100"
@@ -360,6 +363,12 @@ services:
       # them to uvicorn's --forwarded-allow-ips. Compact hands the same value to its router.
       FS_PROXY_TRUSTED_IPS: ${FS_PROXY_TRUSTED_IPS:-}
       FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL}
+      # ADR 0047: the authorization server's readiness compares its issuer and resource
+      # with any override the MCP server sees, and checks the MCP forward header. All
+      # three are optional: without the secret OAuth reports forward_secret_missing.
+      FS_MCP_ISSUER_URL: ${FS_MCP_ISSUER_URL:-}
+      FS_MCP_RESOURCE_URL: ${FS_MCP_RESOURCE_URL:-}
+      FS_MCP_FORWARD_SECRET: ${FS_MCP_FORWARD_SECRET:-}
       FS_SERVE_SSL: "0"
       FS_EXTENSION_INSTALLER_PROXY_ENABLED: "1"
       CONTROL_LOOPS_ENABLED: "0"

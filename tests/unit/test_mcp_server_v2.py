@@ -24,9 +24,10 @@ def test_runtime_uses_official_mcp_v2_server_and_exact_inventory(monkeypatch) ->
 def test_auth_settings_decide_token_resource_validation_explicitly() -> None:
     """mcp 2.2 warns when resource_server_url is set without validate_token_resource.
 
-    App API tokens are introspected by AppApiTokenVerifier and carry no RFC 8707
-    resource, so the server opts out explicitly; 3.0 would otherwise refuse every token.
-    Runs in a subprocess because the runtime builds its auth settings at import time.
+    ADR 0047 decision 14: the SDK validates every token's resource. OAuth access tokens
+    carry the resource they were issued for; PATs, machine tokens and sessions are
+    vouched for by AppApiTokenVerifier as valid for this server's own resource. Runs in
+    a subprocess because the runtime builds its auth settings at import time.
     """
     script = (
         "import warnings\n"
@@ -34,7 +35,9 @@ def test_auth_settings_decide_token_resource_validation_explicitly() -> None:
         "warnings.simplefilter('error', MCPDeprecationWarning)\n"
         "from core.entrypoints.mcp import server_runtime\n"
         "assert server_runtime.MCP_AUTH_ENABLED\n"
-        "assert server_runtime.auth_settings.validate_token_resource is False\n"
+        "assert server_runtime.auth_settings.validate_token_resource is True\n"
+        "assert server_runtime.token_verifier._resource_server_url == "
+        "server_runtime.MCP_RESOURCE_URL\n"
     )
     env = {key: value for key, value in os.environ.items() if key != "FS_MCP_AUTH_DISABLED"}
     env["FS_MCP_AUTH_ENABLED"] = "1"

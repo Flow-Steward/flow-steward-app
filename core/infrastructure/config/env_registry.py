@@ -93,6 +93,9 @@ _CLONE_TARGET_OWNED_NAMES = frozenset(
         "FS_HOST_UID",
         "FS_INGRESS_MODE",
         "FS_LOGS_DIR",
+        # ADR 0047: an internal secret between this installation's own fs-mcp and
+        # fs-app; a clone keeps (or generates) the target's rather than the source's.
+        "FS_MCP_FORWARD_SECRET",
         "FS_MCP_ISSUER_URL",
         "FS_MCP_RESOURCE_URL",
         "FS_PROXY_NETWORK",

@@ -184,6 +184,12 @@ _BOOTSTRAP_DOCKER_MODE = "0"
 _BOOTSTRAP_HOST_ROUTE = "host.docker.internal"
 _HOSTS_FILE = Path("/etc/hosts")
 _WORKER_TOKEN_ENV = "FS_WORKER_MCP_BEARER_TOKEN"
+# ADR 0047 decision 19: the Scalable fs-mcp -> fs-app forward secret for OAuth access
+# tokens. A leaf secret the installer generates, but deliberately not one of the
+# lifecycle's required durable secrets (_INSTALLER_SECRET_NAMES, env_registry's
+# _PLACEHOLDER_SECRET_NAMES): an installation without it starts normally with OAuth
+# unavailable, and Compact mints its own on every start and never writes it to .env.
+_MCP_FORWARD_SECRET_ENV = "FS_MCP_FORWARD_SECRET"
 _MAX_CLI_READINESS_OUTPUT_BYTES = 1024 * 1024
 _MAX_CLI_READINESS_CHECKS = 256
 _MAX_CLI_READINESS_FIELD_LENGTH = 4096

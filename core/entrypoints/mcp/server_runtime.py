@@ -30,11 +30,13 @@ else:
 
 token_verifier: Any = None
 auth_settings: Any = None
+#: The issuer and protected resource this server advertises (empty with auth off).
+MCP_ISSUER_URL = ""
+MCP_RESOURCE_URL = ""
 if MCP_AUTH_ENABLED:
     try:
         from mcp.server.auth.settings import AuthSettings
 
-        token_verifier = AppApiTokenVerifier()
         # P1-5: derived from the public origin when not set explicitly, so a public
         # client is never sent to a development name to discover how to authenticate.
         # Read by name through the canonical runtime environment, so each variable
@@ -46,12 +48,19 @@ if MCP_AUTH_ENABLED:
                 "FS_MCP_RESOURCE_URL": str(runtime_env.get("FS_MCP_RESOURCE_URL") or ""),
             }
         )
+        MCP_ISSUER_URL, MCP_RESOURCE_URL = issuer_url, resource_url
+        token_verifier = AppApiTokenVerifier(
+            resource_server_url=resource_url,
+            issuer_url=issuer_url,
+        )
         auth_settings = AuthSettings(
             issuer_url=cast(Any, issuer_url),
             resource_server_url=cast(Any, resource_url),
-            # App API tokens are not RFC 8707 resource-bound: AppApiTokenVerifier
-            # introspects them through the application API, which owns their validity.
-            validate_token_resource=False,
+            # ADR 0047 decision 14: an OAuth access token carries the resource it was
+            # issued for and the SDK refuses any other; PATs, machine tokens and
+            # sessions are vouched for by the verifier as valid for this resource.
+            # Ships together with the verifier change, or every PAT would be refused.
+            validate_token_resource=True,
         )
     except Exception:
         logger.exception("MCP auth initialization failed")
@@ -90,4 +99,4 @@ mcp = MCPServer(
 )
 
 
-__all__ = ["MCP_AUTH_ENABLED", "logger", "mcp"]
+__all__ = ["MCP_AUTH_ENABLED", "MCP_ISSUER_URL", "MCP_RESOURCE_URL", "logger", "mcp"]

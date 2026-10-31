@@ -480,6 +480,11 @@ services:
       # them to uvicorn's --forwarded-allow-ips. Compact hands the same value to its router.
       FS_PROXY_TRUSTED_IPS: ${FS_PROXY_TRUSTED_IPS:-}
       FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL:-https://localhost:8099}
+      # ADR 0047: readiness of the inbound OAuth server (issuer/resource overrides and
+      # the MCP forward secret). Optional; without the secret OAuth stays unavailable.
+      FS_MCP_ISSUER_URL: ${FS_MCP_ISSUER_URL:-}
+      FS_MCP_RESOURCE_URL: ${FS_MCP_RESOURCE_URL:-}
+      FS_MCP_FORWARD_SECRET: ${FS_MCP_FORWARD_SECRET:-}
       FS_EXTENSION_INSTALLER_PROXY_ENABLED: "1"
       CONTROL_LOOPS_ENABLED: "0"
       PORT: "8099"
@@ -938,6 +943,7 @@ services:
       FS_DEPLOYMENT_REVISION: ${FS_BUILD_SHA:-}
       FS_MCP_ISSUER_URL: ${FS_MCP_ISSUER_URL:-http://fs-app:8099}
       FS_MCP_RESOURCE_URL: ${FS_MCP_RESOURCE_URL:-http://localhost:8100}
+      FS_MCP_FORWARD_SECRET: ${FS_MCP_FORWARD_SECRET:-}
       PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
   # AC17-R116: SeaweedFS runs as the user its own image chooses, and that matters.
   # The image's entrypoint starts as root, fixes the ownership of a mounted /data for

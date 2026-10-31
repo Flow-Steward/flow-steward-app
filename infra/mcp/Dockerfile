@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir --require-hashes -r requirements-mcp.lock
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/__init__.py core/__init__.py
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/__init__.py core/infrastructure/__init__.py
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/mcp_dev_proxy.py core/infrastructure/mcp_dev_proxy.py
+COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/public_identity.py core/infrastructure/public_identity.py
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/runtime_env.py core/infrastructure/runtime_env.py
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/entrypoints/mcp/ core/entrypoints/mcp/
 

@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import os
 from collections.abc import Mapping
+from typing import Any, cast
 from urllib.parse import urlsplit
 
+from core.entrypoints.mcp import server_runtime
 from core.entrypoints.mcp.server_build_revision import verify_embedded_build_revision
+from core.entrypoints.mcp.server_oauth_discovery import OAuthDiscoveryAdapter
 from core.entrypoints.mcp.server_runtime import logger, mcp
 from mcp.server.transport_security import TransportSecuritySettings
 
@@ -84,6 +87,38 @@ def _streamable_http_run_kwargs(*, host: str, port: int) -> dict[str, object]:
     }
 
 
+def build_streamable_http_app(*, host: str, port: int) -> Any:
+    """The SDK Starlette app, wrapped in the OAuth discovery adapter when auth is on.
+
+    ADR 0047 decision 3: built with ``mcp.streamable_http_app`` and served by uvicorn
+    exactly as the SDK's ``run_streamable_http_async`` does, so the adapter can answer
+    protected resource metadata and complete the 401 challenge.
+    """
+    kwargs = _streamable_http_run_kwargs(host=host, port=port)
+    kwargs.pop("port")
+    app: Any = mcp.streamable_http_app(**cast(Any, kwargs))
+    if server_runtime.auth_settings is not None and server_runtime.MCP_RESOURCE_URL:
+        app = OAuthDiscoveryAdapter(
+            app,
+            resource_url=server_runtime.MCP_RESOURCE_URL,
+            issuer_url=server_runtime.MCP_ISSUER_URL,
+        )
+    return app
+
+
+def _serve_streamable_http(*, host: str, port: int) -> None:
+    import anyio
+    import uvicorn
+
+    config = uvicorn.Config(
+        build_streamable_http_app(host=host, port=port),
+        host=host,
+        port=port,
+        log_level=mcp.settings.log_level.lower(),
+    )
+    anyio.run(uvicorn.Server(config).serve)
+
+
 def main() -> None:
     args = _build_argument_parser().parse_args()
     verify_embedded_build_revision()
@@ -91,10 +126,7 @@ def main() -> None:
     if args.transport == "stdio":
         mcp.run(transport="stdio")
         return
-    mcp.run(
-        transport="streamable-http",
-        **_streamable_http_run_kwargs(host=args.host, port=args.port),
-    )
+    _serve_streamable_http(host=args.host, port=args.port)
 
 
 __all__ = [
@@ -102,5 +134,6 @@ __all__ = [
     "_allowed_hosts",
     "_build_argument_parser",
     "_streamable_http_run_kwargs",
+    "build_streamable_http_app",
     "main",
 ]

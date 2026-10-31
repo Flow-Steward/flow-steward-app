@@ -182,6 +182,13 @@ RETENTION_POLICY_ENV_KEYS = {
     "FS_RETENTION_REVISIONS_KEEP",
 }
 APP_ENV_KEYS = APP_ENV_KEYS | RETENTION_POLICY_ENV_KEYS
+# ADR 0047: the inbound OAuth server's readiness compares its issuer and resource with
+# any override the MCP server sees, and checks the MCP forward secret.
+APP_ENV_KEYS = APP_ENV_KEYS | {
+    "FS_MCP_FORWARD_SECRET",
+    "FS_MCP_ISSUER_URL",
+    "FS_MCP_RESOURCE_URL",
+}
 WORKER_ENV_KEYS = (
     COMMON_ROLE_ENV_KEYS
     | APP_WORKER_ENV_KEYS

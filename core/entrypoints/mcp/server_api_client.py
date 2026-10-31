@@ -7,7 +7,11 @@ from typing import Any, TypedDict, cast
 
 import httpx
 
-from core.entrypoints.mcp.server_api_auth import app_api_base_url
+from core.entrypoints.mcp.server_api_auth import (
+    MCP_FORWARD_HEADER,
+    app_api_base_url,
+    mcp_forward_headers,
+)
 from core.infrastructure.mcp_dev_proxy import MCP_DEV_AUTH_HEADER, mcp_dev_proxy_enabled
 
 
@@ -195,8 +199,11 @@ class AppApiClient:
                 "cookie",
                 "host",
                 MCP_DEV_AUTH_HEADER.lower(),
+                MCP_FORWARD_HEADER.lower(),
             }:
                 headers[normalized] = str(value)
+        # ADR 0047 decision 13: set last, so no caller-supplied header can replace it.
+        headers.update(mcp_forward_headers())
         request_kwargs: _RequestKwargs = {"headers": headers, "params": params or {}}
         if json_body is not None:
             request_kwargs["json"] = json_body
@@ -211,6 +218,14 @@ class AppApiClient:
         if response.is_error:
             raise AppApiError(response.status_code, payload)
         return payload
+
+    @staticmethod
+    def _relative_path(path: str) -> str:
+        """Requests go to ``FS_APP_INTERNAL_URL`` only: never an absolute URL."""
+        normalized = str(path or "")
+        if not normalized.startswith("/") or normalized.startswith("//"):
+            raise ValueError("app API path must be relative to FS_APP_INTERNAL_URL")
+        return normalized
 
     def request(
         self,
@@ -238,7 +253,9 @@ class AppApiClient:
                 timeout=self._timeout,
                 transport=cast(httpx.BaseTransport | None, self._transport),
             ) as client:
-                response = client.request(str(method).upper(), path, **request_kwargs)
+                response = client.request(
+                    str(method).upper(), self._relative_path(path), **request_kwargs
+                )
         except httpx.HTTPError as exc:
             raise AppApiError(503, {"error": type(exc).__name__}) from exc
         return self._response_payload(response)
@@ -269,7 +286,9 @@ class AppApiClient:
                 timeout=self._timeout,
                 transport=cast(httpx.AsyncBaseTransport | None, self._transport),
             ) as client:
-                response = await client.request(str(method).upper(), path, **request_kwargs)
+                response = await client.request(
+                    str(method).upper(), self._relative_path(path), **request_kwargs
+                )
         except httpx.HTTPError as exc:
             raise AppApiError(503, {"error": type(exc).__name__}) from exc
         return self._response_payload(response)

@@ -156,6 +156,7 @@ def test_mcp_compose_environment_is_a_closed_transport_allowlist() -> None:
         "ENVIRONMENT",
         "FS_APP_INTERNAL_URL",
         "FS_DEPLOYMENT_REVISION",
+        "FS_MCP_FORWARD_SECRET",
         "FS_MCP_ISSUER_URL",
         "FS_MCP_RESOURCE_URL",
         "FS_STACK_ENVIRONMENT",
@@ -167,6 +168,8 @@ def test_mcp_compose_environment_is_a_closed_transport_allowlist() -> None:
         "FS_DEPLOYMENT_REVISION",
         "FS_IMAGE_DIGEST",
         "FS_MCP_AUTH_DISABLED",
+        # ADR 0047 decision 13: the MCP->app forward secret for OAuth access tokens.
+        "FS_MCP_FORWARD_SECRET",
         "FS_MCP_ISSUER_URL",
         "FS_MCP_RESOURCE_URL",
         "FS_STACK_ENVIRONMENT",

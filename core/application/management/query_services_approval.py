@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.application.auth.principal import is_token_scoped_principal
 from core.application.jobs.public_approval_serializer import (
     serialize_approval_history_entry,
     serialize_token_approval_payload,
@@ -14,9 +15,7 @@ from .query_services_common import *  # NOSONAR
 
 
 def _is_token_principal(scope: ScopeContext) -> bool:
-    source = str(getattr(scope, "auth_source", "") or "").strip().lower()
-    principal_type = str(getattr(scope, "principal_type", "") or "").strip().lower()
-    return source in {"machine", "pat", "token"} or principal_type == "service_account"
+    return is_token_scoped_principal(scope)
 
 
 class ApprovalQueryService:

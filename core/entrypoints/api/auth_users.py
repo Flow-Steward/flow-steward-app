@@ -16,7 +16,7 @@ from core.application.auth.account_memberships import normalize_membership_accou
 from core.application.auth.config import AUTH_PASSWORD_RESET_TTL_MINUTES, DEFAULT_ACCOUNT_ID
 from core.application.auth.email import normalize_email_address
 from core.application.auth.password import password_reset_token_hash
-from core.application.auth.principal import ResolvedPrincipal
+from core.application.auth.principal import ResolvedPrincipal, is_token_scoped_principal
 from core.application.auth.rate_limit import ClearUserLoginFailures
 from core.application.auth.serve_auth_runtime import public_base_url
 from core.application.auth.user_admin.command_service import UserAdminCommandService
@@ -181,15 +181,10 @@ def create_auth_users_router(
         ).strip()
         principal_type = str(principal.get("principal_type") or "user").strip()
         scopes = [str(item) for item in principal.get("scopes") or [] if str(item).strip()]
-        if (
-            not scopes
-            and principal_type != "service_account"
-            and auth_source
-            not in {
-                "machine",
-                "pat",
-            }
-        ):
+        token_scoped = is_token_scoped_principal(
+            {"auth_source": auth_source, "principal_type": principal_type}
+        )
+        if not scopes and not token_scoped:
             roles = {str(item).strip().lower() for item in principal.get("roles") or []}
             if "admin" in roles:
                 scopes = ["admin:all"]
@@ -212,6 +207,16 @@ def create_auth_users_router(
                 "allowed_project_ids": list(principal.get("allowed_project_ids") or []),
                 "allowed_workflow_ids": list(principal.get("allowed_workflow_ids") or []),
                 "expires_at": expires_at,
+                # ADR 0047 decision 14: only an OAuth principal names its grant.
+                **(
+                    {
+                        "resource": str(principal.get("oauth_resource") or ""),
+                        "oauth_client_id": str(principal.get("oauth_client_id") or ""),
+                        "grant_id": str(principal.get("oauth_grant_id") or ""),
+                    }
+                    if auth_source == "oauth"
+                    else {}
+                ),
             },
         }
 

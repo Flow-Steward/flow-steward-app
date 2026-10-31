@@ -733,3 +733,38 @@ def _delete_or_count_terminal_job_checkpoints(
             dry_run=dry_run,
         )
     return total
+
+
+#: ADR 0047 decision 11: inbound OAuth records, oldest-first dependency order.
+_INBOUND_OAUTH_RETENTION: tuple[tuple[str, str], ...] = (
+    # Pending authorizations (and their codes) live 10 minutes; nothing is granted
+    # by an abandoned flow.
+    ("oauth_authorizations", "expires_at <= NOW()"),
+    # Access tokens are useless after expiry; refresh tokens stay with their grant
+    # so reuse detection keeps working until the grant itself is deleted.
+    ("oauth_access_tokens", "expires_at <= NOW()"),
+    # Revoked and expired grants stay visible in Settings for 30 days, then go with
+    # every token by cascade.
+    (
+        "oauth_grants",
+        "COALESCE(revoked_at, expires_at) <= NOW() - INTERVAL '30 days' "
+        "AND (revoked_at IS NOT NULL OR expires_at <= NOW())",
+    ),
+    # A client with no grant and no use for 30 days is forgotten (re-fetched on demand).
+    (
+        "oauth_clients",
+        "COALESCE(last_used_at, first_seen_at) <= NOW() - INTERVAL '30 days' "
+        "AND NOT EXISTS (SELECT 1 FROM oauth_grants g "
+        "WHERE g.client_id = oauth_clients.client_id)",
+    ),
+)
+
+
+def _delete_or_count_inbound_oauth(cur, *, cache: dict[str, bool], dry_run: bool) -> int:
+    """Expire inbound OAuth rows; a database without the tables is skipped."""
+    total = 0
+    for table, where_sql in _INBOUND_OAUTH_RETENTION:
+        if not _table_exists(cur, cache, table):
+            continue
+        total += _delete_or_count(cur, table=table, where_sql=where_sql, params=(), dry_run=dry_run)
+    return total

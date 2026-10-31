@@ -51,6 +51,15 @@ AUTH_PUBLIC_PATHS = {
     "/reset-password",
     "/bootstrap",
     "/favicon.ico",
+    # ADR 0047 decision 4: the inbound OAuth protocol endpoints. They never derive
+    # identity from a cookie; the middleware passes them through untouched.
+    "/.well-known/oauth-authorization-server",
+    "/oauth/authorize",
+    "/oauth/token",
+    "/oauth/revoke",
+    # The consent shell: its error variant must render before sign-in; the
+    # request variant loads data only through session-authenticated /api routes.
+    "/oauth/consent",
 }
 
 PUBLIC_WEBHOOK_PATH_PREFIXES = (
@@ -174,6 +183,8 @@ AUTH_ADMIN_ONLY_PATTERNS = (
     re.compile(r"^/api/auth/users(?:/|$)"),
     re.compile(r"^/api/auth/accounts(?:/|$)"),
     re.compile(r"^/api/auth/service-accounts(?:/|$)"),
+    # ADR 0047 decision 16: the account switch for inbound OAuth.
+    re.compile(r"^/api/settings/mcp-oauth$"),
     re.compile(r"^/api/projects/[^/]+/providers(?:/|$)"),
     # Project workflow management is admin-only for writes (e.g. PUT workflow
     # bindings), but the read-only diagnostics — contract / validate / suggestions

@@ -32,7 +32,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
 | `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `169` |
-| `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `35` |
+| `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `36` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
 | `openapi_docs` | Curated public/internal OpenAPI schema and Swagger UI exposure controls. | `6` |
@@ -50,16 +50,16 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `769`
-- Cataloged variables from `.env.example*` or manifest: `557`
+- Raw env-like names discovered by audit: `770`
+- Cataloged variables from `.env.example*` or manifest: `558`
 - Raw audit-only names outside examples/manifest: `212`
-- Unique variables in shipped `.env.example*` files: `345`
-- Variables in canonical manifest: `467`
+- Unique variables in shipped `.env.example*` files: `346`
+- Variables in canonical manifest: `468`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
 - Internal Runtime: `130`
-- Public / Operator: `298`
+- Public / Operator: `299`
 - Test Config: `33`
 - Test Only: `16`
 - Tooling Internal: `75`
@@ -422,7 +422,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_PROXY_NETWORK` | compact_runtime | production | no | no | - | - | Docker Compose (2) | used but undocumented in .env.example surfaces | `infra/docker/compact/ingress-external_proxy-docker.yaml`<br>`infra/docker/scalable/ingress-external_proxy-docker.yaml` |
 | `FS_PROXY_PLACEMENT` | compact_runtime | production | no | no | `host` | - | No direct literal reads found | Compact profile process inventory, ports, and bounded lifecycle budgets. | - |
 | `FS_PROXY_TRUSTED_IPS` | compact_runtime | production | no | no | `127.0.0.1/32,::1/128` | - | Docker Compose (3) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_PUBLIC_BASE_URL` | core_runtime | production, local_development | yes | no | `https://flowsteward.example.com` | .env.example.prod | Application (2), Docker Compose (3), MCP (1) | Auth / public origin | `core/application/auth/serve_auth_runtime.py`<br>`core/application/extensions/callback_contract.py`<br>`core/entrypoints/mcp/server_runtime.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_PUBLIC_BASE_URL` | core_runtime | production, local_development | yes | no | `https://flowsteward.example.com` | .env.example.prod | Application (3), Docker Compose (3), MCP (1) | Auth / public origin | `core/application/auth/inbound_oauth_policy.py`<br>`core/application/auth/serve_auth_runtime.py`<br>`core/application/extensions/callback_contract.py`<br>`core/entrypoints/mcp/server_runtime.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>+1 more in JSON audit |
 | `FS_PUBLIC_SSE_MAX_CONNECTIONS_PER_ACCOUNT` | core_runtime | production, local_development | no | no | `100` | .env.example, .env.example.ops | Config (1) | Process-local concurrent public job SSE stream limit per account (range 1 .. 10000). | `core/infrastructure/config/public_workflow.py` |
 | `FS_PUBLIC_SSE_MAX_CONNECTIONS_PER_PRINCIPAL` | core_runtime | production, local_development | no | no | `10` | .env.example, .env.example.ops | Config (1) | Process-local concurrent public job SSE stream limit per authenticated principal (range 1 .. 1000). | `core/infrastructure/config/public_workflow.py` |
 | `FS_READY_LEASE_STALE_SECONDS` | core_runtime | production, local_development | no | no | `120` | .env.example.ops | Infrastructure (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/infrastructure/runtime/readiness_runtime.py` |
@@ -524,6 +524,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_EXTENSION_PAYLOAD_REDACT_MAX_DEPTH` | core_redaction_pii | production, local_development | no | no | `8` | .env.example, .env.example.prod | Config (1) | Attachment / payload redaction policy (required defaults for supported bootstraps) | `core/infrastructure/config/runtime_config.py` |
 | `FS_EXTENSION_PAYLOAD_STRING_TRUNCATE_LENGTH` | core_redaction_pii | production, local_development | no | no | `500` | .env.example, .env.example.prod | Config (1) | Attachment / payload redaction policy (required defaults for supported bootstraps) | `core/infrastructure/config/runtime_config.py` |
 | `FS_MCP_AUTH_DISABLED` | core_security_auth | production, local_development | no | no | `0` | .env.example.ops | Docker Compose (1), Infrastructure (1), MCP (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/mcp/server_runtime.py`<br>`core/infrastructure/mcp_dev_proxy.py`<br>`infra/docker/docker-compose.dev.yaml` |
+| `FS_MCP_FORWARD_SECRET` | core_security_auth | production, local_development | no | yes | - | .env.example, .env.example.prod | Application (1), Docker Compose (2), MCP (1) | ADR 0047: internal secret (at least 32 characters) fs-mcp sends to fs-app as X-Flow-Steward-Mcp-Forward when it forwards a cloud-client OAuth access token. Scalable: generated by install.sh, also on update; Compact: minted by the supervisor on every start for the app and mcp roles only and never written to .env. Optional: without it inbound OAuth reports forward_secret_missing and PATs are unaffected. | `core/application/auth/inbound_oauth_policy.py`<br>`core/entrypoints/mcp/server_api_auth.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_TRACE_REDACT_MAX_LENGTH` | core_redaction_pii | production, local_development | no | no | `1000` | .env.example, .env.example.prod | Config (1) | Attachment / payload redaction policy (required defaults for supported bootstraps) | `core/infrastructure/config/runtime_config.py` |
 | `SECURITY_PII_SALT` | core_redaction_pii | production, local_development | yes | yes | - | .env.example.prod, .env.example.ops | Docker Compose (3), Security (1) | Security scanning; Auth / public origin; Salt for deterministic PII pseudonymisation; every agent workflow fails at run time without it. | `core/infrastructure/security/config.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 #### storage
@@ -792,8 +793,8 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_AUTH_ALLOW_DISABLED` | core_security_auth | production, local_development | no | no | - | - | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/auth_http_runtime.py` |
 | `FS_AUTH_BOOTSTRAP_STATE_FILE` | core_security_auth | production, local_development | no | no | - | - | Application (1), Docker Compose (3) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/serve_auth_runtime.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_MCP_AUTH_ENABLED` | core_security_auth | production, local_development | no | no | - | - | MCP (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/mcp/server_runtime.py` |
-| `FS_MCP_ISSUER_URL` | core_security_auth | production, local_development | no | no | `http://localhost:8099` | - | Docker Compose (2), MCP (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/mcp/server_runtime.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_MCP_RESOURCE_URL` | core_security_auth | production, local_development | no | no | `http://localhost:8100` | - | Docker Compose (2), MCP (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/mcp/server_runtime.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_MCP_ISSUER_URL` | core_security_auth | production, local_development | no | no | `http://localhost:8099` | - | Application (1), Docker Compose (2), MCP (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/inbound_oauth_policy.py`<br>`core/entrypoints/mcp/server_runtime.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_MCP_RESOURCE_URL` | core_security_auth | production, local_development | no | no | `http://localhost:8100` | - | Application (1), Docker Compose (2), MCP (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/inbound_oauth_policy.py`<br>`core/entrypoints/mcp/server_runtime.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_SESSION_TOKEN` | core_security_auth | production, local_development | no | yes | - | - | Application (2), Tooling (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/orchestration/tools/mcp_tools.py`<br>`core/application/orchestration/tools/mcp_tools_client.py`<br>`core/application/tooling/ops/deployment_doctor_common.py` |
 #### storage
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
