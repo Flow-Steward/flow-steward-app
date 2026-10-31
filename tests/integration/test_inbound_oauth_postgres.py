@@ -511,9 +511,14 @@ def test_code_exchange_happy_path_without_secrets_at_rest_or_in_logs(http, world
     )
     assert "auth_oauth_consent_approve" in audit
     _api(http, payload["access_token"], "/api/projects", forward=False)
+    # The scripted client's own HTTP library logs the URLs it requests; only the
+    # server side (app, middleware, uvicorn, audit) is under test here.
+    server_log = "\n".join(
+        record.getMessage() for record in caplog.records if not record.name.startswith("httpx")
+    )
     for secret in secrets_:
         assert secret not in dump, "secret persisted"
-        assert secret not in caplog.text, "secret logged"
+        assert secret not in server_log, "secret logged"
         assert secret not in audit, "secret audited"
 
 
