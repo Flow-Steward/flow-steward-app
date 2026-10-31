@@ -24,6 +24,8 @@ import {
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
+import { McpOAuthCard } from "@/pages/settings/security/mcp-oauth-card";
+
 import "@/pages/settings/shared/settings.css";
 
 type Primitive = boolean | number | string;
@@ -907,6 +909,7 @@ export function SettingsSecurityPage({
 
         {renderWhen(Boolean(policyMessage), <DsAlert title={policyMessage} />)}
       </DsCard>
+      {renderWhen(!isProjectSecurity, <McpOAuthCard />)}
     </>
   );
 

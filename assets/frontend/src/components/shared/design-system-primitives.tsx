@@ -167,10 +167,11 @@ export function DsRadio({
   children,
   name,
   value,
-}: PropsWithChildren<{ checked: boolean; onChange: () => void; name: string; value: string }>) {
+  disabled,
+}: PropsWithChildren<{ checked: boolean; onChange: () => void; name: string; value: string; disabled?: boolean }>) {
   return (
     <label className="fs-radio-label">
-      <input checked={checked} name={name} onChange={onChange} type="radio" value={value} />
+      <input checked={checked} disabled={disabled} name={name} onChange={onChange} type="radio" value={value} />
       <span className="fs-radio-mark" aria-hidden="true" />
       <span>{children}</span>
     </label>

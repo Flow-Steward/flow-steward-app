@@ -133,6 +133,9 @@ describe("SettingsSecurityPage", () => {
       if (url === "/api/security/posture") {
         return { score: 100, level: "hardened", status: "no_data" };
       }
+      if (url === "/api/settings/mcp-oauth") {
+        return { enabled: false, readiness: { ready: false, blockers: ["disabled_by_admin"] } };
+      }
       throw new Error(`Unexpected request: ${url}`);
     });
   });

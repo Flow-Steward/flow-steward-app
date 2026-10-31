@@ -172,6 +172,27 @@ describe("AppRouter", () => {
     },
   );
 
+  it.each(["/oauth/consent?error=client_not_allowed", "/app/oauth/consent?error=client_not_allowed"])(
+    "serves the OAuth consent error page %s without a session and outside the app shell",
+    async (path) => {
+      globalThis.history.pushState({}, "", path);
+      mockedUseAuth.mockReturnValue({
+        error: null,
+        isAuthenticated: false,
+        logout: vi.fn(async () => undefined),
+        refresh: vi.fn(async () => undefined),
+        switchAccount: vi.fn(async () => undefined),
+        session: createSession(),
+        status: "anonymous",
+      });
+
+      render(createElement(AppRouter));
+
+      expect(await screen.findByText("This app is not supported")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "This page is not available." })).not.toBeInTheDocument();
+    },
+  );
+
   it("renders settings hub control surfaces registered without a dedicated component", async () => {
     globalThis.history.pushState({}, "", "/settings/custom-module");
     mockedUseAuth.mockReturnValue({

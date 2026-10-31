@@ -28811,3 +28811,338 @@ msgstr "Nuosavos įvestys"
 
 msgid "react.registry.agent_own_outputs"
 msgstr "Nuosavos išvestys"
+
+msgid "react.oauth.authorization_not_found_title"
+msgstr "Šios prisijungimo užklausos nepavyko rasti"
+
+msgid "react.oauth.authorization_not_found_copy"
+msgstr "Pradėkite prijungimą iš programos iš naujo."
+
+msgid "react.oauth.browser_mismatch_title"
+msgstr "Atidarykite prijungimą toje pačioje naršyklėje"
+
+msgid "react.oauth.browser_mismatch_copy"
+msgstr ""
+"Ši užklausa pradėta kitoje naršyklėje arba jos slapukas pašalintas. "
+"Pradėkite prijungimą iš programos šioje naršyklėje iš naujo."
+
+msgid "react.oauth.authorization_already_decided_title"
+msgstr "Į šią užklausą jau atsakyta"
+
+msgid "react.oauth.authorization_already_decided_copy"
+msgstr ""
+"Kiekvieną prijungimo užklausą galima patvirtinti arba atmesti tik kartą. "
+"Jei reikia, pradėkite prijungimą iš programos iš naujo."
+
+msgid "react.oauth.authorization_expired_title"
+msgstr "Šios prisijungimo užklausos galiojimas baigėsi"
+
+msgid "react.oauth.authorization_expired_copy"
+msgstr "Užklausos galioja 10 minučių. Pradėkite prijungimą iš programos iš naujo."
+
+msgid "react.oauth.request_failed_title"
+msgstr "Prisijungimo užklausos užbaigti nepavyko"
+
+msgid "react.oauth.request_failed_copy"
+msgstr "Patikrinkite ryšį ir bandykite dar kartą."
+
+msgid "react.oauth.preset_exceeds_authority"
+msgstr "Negalima: ši prieiga viršija jūsų vaidmens teises."
+
+msgid "react.oauth.preset_not_requested"
+msgstr "Negalima: programa šios prieigos neprašė."
+
+msgid "react.oauth.preset_unavailable"
+msgstr "Šiai užklausai negalima."
+
+msgid "react.oauth.eyebrow"
+msgstr "DI programos prijungimas"
+
+msgid "react.oauth.error_description"
+msgstr "Programos prijungti prie Flow Steward nepavyko."
+
+msgid "react.oauth.error_title"
+msgstr "Prijungimas sustabdytas"
+
+msgid "react.oauth.consent_description"
+msgstr ""
+"Prieš leisdami peržiūrėkite, ką {value1} galės daryti su jūsų Flow "
+"Steward paskyra."
+
+msgid "react.oauth.consent_title"
+msgstr "Leisti {value1} prieigą prie Flow Steward?"
+
+msgid "react.oauth.app_title"
+msgstr "Programa"
+
+msgid "react.oauth.app_description"
+msgstr "Kas prašo prieigos ir kur grįšite priėmę sprendimą."
+
+msgid "react.oauth.app_name"
+msgstr "Pavadinimas"
+
+msgid "react.oauth.app_published_by"
+msgstr "Tapatybę paskelbė"
+
+msgid "react.oauth.app_returns_to"
+msgstr "Grįžtama į"
+
+msgid "react.oauth.loopback_title"
+msgstr "Programa grįžta į šį kompiuterį"
+
+msgid "react.oauth.loopback_copy"
+msgstr ""
+"Priėmus sprendimą naršyklė grįš į šiame kompiuteryje veikiančią programą."
+" Tęskite tik jei šį prijungimą pradėjote patys."
+
+msgid "react.oauth.access_title"
+msgstr "Prieiga"
+
+msgid "react.oauth.access_description"
+msgstr ""
+"Programa gauna tik čia pasirinktą prieigą ir niekada daugiau, nei leidžia"
+" jūsų vaidmuo."
+
+msgid "react.oauth.nothing_grantable_title"
+msgstr "Nieko suteikti negalima"
+
+msgid "react.oauth.nothing_grantable_copy"
+msgstr ""
+"Programos prašoma prieiga viršija jūsų paskyros teises. Užklausą galite "
+"tik atmesti."
+
+msgid "react.oauth.access_legend"
+msgstr "Prieigos lygis"
+
+msgid "react.oauth.preset_subset"
+msgstr "Tik programos prašoma prieiga:"
+
+msgid "react.oauth.limits_title"
+msgstr "Projektai ir trukmė"
+
+msgid "react.oauth.limits_description"
+msgstr "Dar labiau susiaurinkite prieigą ir pasirinkite, kada ji baigsis."
+
+msgid "react.oauth.projects_help"
+msgstr ""
+"Tuščia reiškia visus jums prieinamus projektus. Projektų pasirinkimas "
+"neizoliuoja visai paskyrai bendrų agentų ir įgūdžių."
+
+msgid "react.oauth.expiry_legend"
+msgstr "Prieiga baigiasi po"
+
+msgid "react.oauth.expiry_help"
+msgstr ""
+"Ryšio atnaujinimas šios datos niekada nepratęsia. Anksčiau atšaukti "
+"galite skiltyje Nustatymai → Paskyra → Asmeniniai prieigos raktai."
+
+msgid "react.oauth.deny"
+msgstr "Atmesti"
+
+msgid "react.oauth.sending"
+msgstr "Siunčiama…"
+
+msgid "react.oauth.allow"
+msgstr "Leisti prieigą"
+
+msgid "react.oauth.loading"
+msgstr "Įkeliama prisijungimo užklausa"
+
+msgid "react.oauth.access_used_on"
+msgstr "Prieiga naudota {value1}"
+
+msgid "react.oauth.not_used_yet"
+msgstr "Dar nenaudota"
+
+msgid "react.oauth.revoke_failed"
+msgstr "Prieigos atšaukti nepavyko."
+
+msgid "react.oauth.app_lowercase"
+msgstr "programa"
+
+msgid "react.oauth.connected_apps"
+msgstr "Prijungtos DI programos"
+
+msgid "react.oauth.connected_apps_description"
+msgstr "Debesijos DI programos, kurioms leidote naudoti Flow Steward jūsų vardu."
+
+msgid "react.oauth.connected_apps_unavailable"
+msgstr "Prijungtų programų įkelti nepavyko"
+
+msgid "react.oauth.column_app"
+msgstr "Programa"
+
+msgid "react.oauth.column_access"
+msgstr "Prieiga"
+
+msgid "react.oauth.column_projects"
+msgstr "Projektai"
+
+msgid "react.oauth.project_count"
+msgstr "Projektų: {value1}"
+
+msgid "react.oauth.all_projects"
+msgstr "Visi jums prieinami projektai"
+
+msgid "react.oauth.revoke_access"
+msgstr "Atšaukti prieigą"
+
+msgid "react.oauth.no_connected_apps"
+msgstr "Prijungtų DI programų nėra"
+
+msgid "react.oauth.no_connected_apps_copy"
+msgstr ""
+"Kai prijungsite ChatGPT arba Claude prie Flow Steward ir patvirtinsite "
+"prieigą, programa atsiras čia ir ją bus galima bet kada atšaukti."
+
+msgid "react.oauth.loading_connected_apps"
+msgstr "Įkeliamos prijungtos programos"
+
+msgid "react.oauth.revoke_description"
+msgstr ""
+"Programa iš karto netenka prieigos, įskaitant atnaujinimo raktą. Kad "
+"veiktų, ją reikės prijungti iš naujo."
+
+msgid "react.oauth.revoke_warning"
+msgstr "Atšaukta prieiga lieka sąraše, kol bus išvalyta."
+
+msgid "react.oauth.setting_not_saved"
+msgstr "Nustatymas neišsaugotas."
+
+msgid "react.oauth.setting_description"
+msgstr ""
+"Leisti ChatGPT ir Claude prisijungti prie šios paskyros per OAuth, kai "
+"naudotojas prisijungia ir patvirtina prieigą."
+
+msgid "react.oauth.setting_title"
+msgstr "Debesijos DI programos (OAuth)"
+
+msgid "react.oauth.setting_unavailable"
+msgstr "Nustatymo įkelti nepavyko"
+
+msgid "react.oauth.setting_switch"
+msgstr "Leisti debesijos DI programoms prisijungti"
+
+msgid "react.oauth.setting_help"
+msgstr ""
+"Pagal numatymą išjungta. Veikia tik tada, kai šis diegimas turi viešą "
+"HTTPS adresą. Išjungus iš karto atmetami visi šios paskyros OAuth raktai;"
+" suteikta prieiga lieka sąraše ir ją galima atšaukti. Asmeniniams "
+"prieigos raktams tai įtakos neturi."
+
+msgid "react.oauth.public_https_required_title"
+msgstr "Reikia viešo HTTPS adreso"
+
+msgid "react.oauth.public_https_required_copy"
+msgstr ""
+"Debesijos DI programos, pavyzdžiui, ChatGPT ir Claude, gali prisijungti "
+"tik prie diegimo su viešu HTTPS adresu. Nustatykite FS_PUBLIC_BASE_URL į "
+"tą adresą; localhost, privačių ir vietinio tinklo adresų naudoti "
+"negalima."
+
+msgid "react.oauth.issuer_mismatch_title"
+msgstr "MCP adresas nesutampa su šiuo diegimu"
+
+msgid "react.oauth.issuer_mismatch_copy"
+msgstr ""
+"FS_MCP_ISSUER_URL arba FS_MCP_RESOURCE_URL nurodo kitą adresą nei "
+"FS_PUBLIC_BASE_URL. Pašalinkite perrašymą arba suderinkite jį, tada "
+"paleiskite iš naujo."
+
+msgid "react.oauth.forward_secret_missing_title"
+msgstr "MCP serveris nesusietas su programa"
+
+msgid "react.oauth.forward_secret_missing_copy"
+msgstr ""
+"Trūksta vidinės paslapties tarp MCP serverio ir programos arba ji per "
+"trumpa. Atnaujinkite arba paleiskite diegimą iš naujo, kad ji būtų "
+"sugeneruota."
+
+msgid "react.oauth.storage_missing_title"
+msgstr "Duomenų bazėje trūksta OAuth lentelių"
+
+msgid "react.oauth.storage_missing_copy"
+msgstr ""
+"Ši duomenų bazė sukurta anksčiau, nei atsirado debesijos programų "
+"prijungimas. Kad programos galėtų prisijungti, administratorius turi "
+"pridėti OAuth lenteles. Asmeniniai prieigos raktai toliau veikia."
+
+msgid "react.oauth.disabled_by_admin_title"
+msgstr "Debesijos DI programos išjungtos"
+
+msgid "react.oauth.disabled_by_admin_copy"
+msgstr ""
+"Administratorius neleido debesijos DI programoms prisijungti prie šios "
+"paskyros. Tai galima įjungti skiltyje Nustatymai → Saugumas."
+
+msgid "react.oauth.client_not_allowed_title"
+msgstr "Ši programa nepalaikoma"
+
+msgid "react.oauth.client_not_allowed_copy"
+msgstr ""
+"Tokiu būdu prie Flow Steward gali prisijungti tik ChatGPT ir Claude. "
+"Vietiniai klientai naudoja asmeninį prieigos raktą."
+
+msgid "react.oauth.client_metadata_unavailable_title"
+msgstr "Programos nepavyko identifikuoti"
+
+msgid "react.oauth.client_metadata_unavailable_copy"
+msgstr ""
+"Flow Steward nepavyko įkelti programos tapatybės dokumento. Patikrinkite,"
+" ar šis diegimas pasiekia chatgpt.com ir claude.ai, tada pradėkite "
+"prijungimą iš naujo."
+
+msgid "react.oauth.invalid_client_metadata_title"
+msgstr "Programos tapatybės dokumentas nepriimtas"
+
+msgid "react.oauth.invalid_client_metadata_copy"
+msgstr ""
+"Programa save aprašo būdu, kurio Flow Steward nepalaiko, todėl "
+"prisijungti negali."
+
+msgid "react.oauth.invalid_redirect_uri_title"
+msgstr "Grįžimo adresas nepriimtas"
+
+msgid "react.oauth.invalid_redirect_uri_copy"
+msgstr ""
+"Programa paprašė grįžti į adresą, kurio nėra užregistravusi. Saugumo "
+"sumetimais prijungimas sustabdytas."
+
+msgid "react.oauth.invalid_request_title"
+msgstr "Prisijungimo užklausa neišsami"
+
+msgid "react.oauth.invalid_request_copy"
+msgstr ""
+"Programa atsiuntė užklausą, kurios Flow Steward negali apdoroti. "
+"Pradėkite prijungimą iš programos iš naujo."
+
+msgid "react.oauth.rate_limited_title"
+msgstr "Per daug bandymų prisijungti"
+
+msgid "react.oauth.rate_limited_copy"
+msgstr "Palaukite kelias minutes, tada pradėkite prijungimą iš programos iš naujo."
+
+msgid "react.oauth.unknown_error_title"
+msgstr "Programai prisijungti nepavyko"
+
+msgid "react.oauth.unknown_error_copy"
+msgstr ""
+"Pradėkite prijungimą iš programos iš naujo. Jei vis nepavyksta, "
+"kreipkitės į administratorių."
+
+msgid "react.oauth.preset_full_authoring"
+msgstr "Visiškas kūrimas"
+
+msgid "react.oauth.preset_operational"
+msgstr "Stebėti ir paleisti darbo eigas"
+
+msgid "react.oauth.preset_full_authoring_description"
+msgstr ""
+"admin:all yra visiška prieiga: viskas, ką galite daryti Flow Steward, "
+"įskaitant darbo eigų, agentų ir įgūdžių kūrimą bei keitimą. Tai nėra "
+"siaura teisė."
+
+msgid "react.oauth.preset_operational_description"
+msgstr ""
+"Rasti projektus, skaityti būsenas, klaidas, ataskaitas ir patvirtinimus, "
+"paleisti ar atšaukti vykdymus."

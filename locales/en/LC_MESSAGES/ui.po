@@ -28389,3 +28389,338 @@ msgstr "Own Inputs"
 
 msgid "react.registry.agent_own_outputs"
 msgstr "Own Outputs"
+
+msgid "react.oauth.authorization_not_found_title"
+msgstr "This connection request was not found"
+
+msgid "react.oauth.authorization_not_found_copy"
+msgstr "Start the connection again from the app."
+
+msgid "react.oauth.browser_mismatch_title"
+msgstr "Open the connection in the same browser"
+
+msgid "react.oauth.browser_mismatch_copy"
+msgstr ""
+"This request was started in another browser or its cookie was removed. "
+"Start the connection again from the app in this browser."
+
+msgid "react.oauth.authorization_already_decided_title"
+msgstr "This request has already been answered"
+
+msgid "react.oauth.authorization_already_decided_copy"
+msgstr ""
+"Each connection request can be approved or denied once. Start the "
+"connection again from the app if needed."
+
+msgid "react.oauth.authorization_expired_title"
+msgstr "This connection request has expired"
+
+msgid "react.oauth.authorization_expired_copy"
+msgstr ""
+"Requests are valid for 10 minutes. Start the connection again from the "
+"app."
+
+msgid "react.oauth.request_failed_title"
+msgstr "The connection request could not be completed"
+
+msgid "react.oauth.request_failed_copy"
+msgstr "Check the connection and try again."
+
+msgid "react.oauth.preset_exceeds_authority"
+msgstr "Not available: this access is more than your own role allows."
+
+msgid "react.oauth.preset_not_requested"
+msgstr "Not available: the app did not ask for this access."
+
+msgid "react.oauth.preset_unavailable"
+msgstr "Not available for this request."
+
+msgid "react.oauth.eyebrow"
+msgstr "Connect an AI app"
+
+msgid "react.oauth.error_description"
+msgstr "The app could not be connected to Flow Steward."
+
+msgid "react.oauth.error_title"
+msgstr "Connection stopped"
+
+msgid "react.oauth.consent_description"
+msgstr ""
+"Review what {value1} may do with your Flow Steward account before you "
+"allow it."
+
+msgid "react.oauth.consent_title"
+msgstr "Allow {value1} to access Flow Steward?"
+
+msgid "react.oauth.app_title"
+msgstr "App"
+
+msgid "react.oauth.app_description"
+msgstr "Who is asking and where you return after deciding."
+
+msgid "react.oauth.app_name"
+msgstr "Name"
+
+msgid "react.oauth.app_published_by"
+msgstr "Identity published by"
+
+msgid "react.oauth.app_returns_to"
+msgstr "Returns to"
+
+msgid "react.oauth.loopback_title"
+msgstr "The app returns to this computer"
+
+msgid "react.oauth.loopback_copy"
+msgstr ""
+"After you decide, the browser returns to a program running on this "
+"computer. Continue only if you started this connection yourself."
+
+msgid "react.oauth.access_title"
+msgstr "Access"
+
+msgid "react.oauth.access_description"
+msgstr ""
+"The app gets only the access you choose here, never more than your own "
+"role allows."
+
+msgid "react.oauth.nothing_grantable_title"
+msgstr "Nothing can be granted"
+
+msgid "react.oauth.nothing_grantable_copy"
+msgstr ""
+"The access this app asks for is more than your account allows. You can "
+"only deny the request."
+
+msgid "react.oauth.access_legend"
+msgstr "Access level"
+
+msgid "react.oauth.preset_subset"
+msgstr "Only the access this app requested:"
+
+msgid "react.oauth.limits_title"
+msgstr "Projects and duration"
+
+msgid "react.oauth.limits_description"
+msgstr "Narrow the access further and choose when it ends."
+
+msgid "react.oauth.projects_help"
+msgstr ""
+"Empty means every project you can access. Choosing projects does not "
+"isolate account-wide agents and skills."
+
+msgid "react.oauth.expiry_legend"
+msgstr "Access ends after"
+
+msgid "react.oauth.expiry_help"
+msgstr ""
+"Refreshing the connection never extends this date. You can revoke it "
+"earlier in Settings → Account → Personal tokens."
+
+msgid "react.oauth.deny"
+msgstr "Deny"
+
+msgid "react.oauth.sending"
+msgstr "Sending…"
+
+msgid "react.oauth.allow"
+msgstr "Allow access"
+
+msgid "react.oauth.loading"
+msgstr "Loading the connection request"
+
+msgid "react.oauth.access_used_on"
+msgstr "Access used {value1}"
+
+msgid "react.oauth.not_used_yet"
+msgstr "Not used yet"
+
+msgid "react.oauth.revoke_failed"
+msgstr "Access could not be revoked."
+
+msgid "react.oauth.app_lowercase"
+msgstr "app"
+
+msgid "react.oauth.connected_apps"
+msgstr "Connected AI apps"
+
+msgid "react.oauth.connected_apps_description"
+msgstr "Cloud AI apps you allowed to use Flow Steward on your behalf."
+
+msgid "react.oauth.connected_apps_unavailable"
+msgstr "Connected apps could not be loaded"
+
+msgid "react.oauth.column_app"
+msgstr "App"
+
+msgid "react.oauth.column_access"
+msgstr "Access"
+
+msgid "react.oauth.column_projects"
+msgstr "Projects"
+
+msgid "react.oauth.project_count"
+msgstr "{value1} projects"
+
+msgid "react.oauth.all_projects"
+msgstr "All projects within your access"
+
+msgid "react.oauth.revoke_access"
+msgstr "Revoke access"
+
+msgid "react.oauth.no_connected_apps"
+msgstr "No connected AI apps"
+
+msgid "react.oauth.no_connected_apps_copy"
+msgstr ""
+"When you connect ChatGPT or Claude to Flow Steward and approve the "
+"access, the app appears here and can be revoked at any time."
+
+msgid "react.oauth.loading_connected_apps"
+msgstr "Loading connected apps"
+
+msgid "react.oauth.revoke_description"
+msgstr ""
+"The app loses access immediately, including its refresh token. It has to "
+"be connected again to work."
+
+msgid "react.oauth.revoke_warning"
+msgstr "Revoked access stays listed until it is cleaned up."
+
+msgid "react.oauth.setting_not_saved"
+msgstr "The setting was not saved."
+
+msgid "react.oauth.setting_description"
+msgstr ""
+"Let ChatGPT and Claude connect to this account over OAuth after a user "
+"signs in and approves the access."
+
+msgid "react.oauth.setting_title"
+msgstr "Cloud AI apps (OAuth)"
+
+msgid "react.oauth.setting_unavailable"
+msgstr "The setting could not be loaded"
+
+msgid "react.oauth.setting_switch"
+msgstr "Allow cloud AI apps to connect"
+
+msgid "react.oauth.setting_help"
+msgstr ""
+"Off by default. It works only when this installation has a public HTTPS "
+"address. Turning it off immediately rejects every OAuth token of this "
+"account; the granted access stays listed and can be revoked. Personal "
+"access tokens are not affected."
+
+msgid "react.oauth.public_https_required_title"
+msgstr "A public HTTPS address is required"
+
+msgid "react.oauth.public_https_required_copy"
+msgstr ""
+"Cloud AI apps such as ChatGPT and Claude can connect only to an "
+"installation with a public HTTPS address. Set FS_PUBLIC_BASE_URL to that "
+"address; localhost, private and local network addresses cannot be used."
+
+msgid "react.oauth.issuer_mismatch_title"
+msgstr "The MCP address does not match this installation"
+
+msgid "react.oauth.issuer_mismatch_copy"
+msgstr ""
+"FS_MCP_ISSUER_URL or FS_MCP_RESOURCE_URL points to a different address "
+"than FS_PUBLIC_BASE_URL. Remove the override or make it match, then "
+"restart."
+
+msgid "react.oauth.forward_secret_missing_title"
+msgstr "The MCP server is not linked to the application"
+
+msgid "react.oauth.forward_secret_missing_copy"
+msgstr ""
+"The internal secret between the MCP server and the application is missing"
+" or too short. Update or restart the installation so it is generated."
+
+msgid "react.oauth.storage_missing_title"
+msgstr "The database is missing the OAuth tables"
+
+msgid "react.oauth.storage_missing_copy"
+msgstr ""
+"This database was created before cloud app connections existed. An "
+"administrator has to add the OAuth tables before apps can connect. "
+"Personal access tokens keep working."
+
+msgid "react.oauth.disabled_by_admin_title"
+msgstr "Cloud AI apps are turned off"
+
+msgid "react.oauth.disabled_by_admin_copy"
+msgstr ""
+"An administrator has not allowed cloud AI apps to connect to this "
+"account. It can be turned on in Settings → Security."
+
+msgid "react.oauth.client_not_allowed_title"
+msgstr "This app is not supported"
+
+msgid "react.oauth.client_not_allowed_copy"
+msgstr ""
+"Only ChatGPT and Claude can connect to Flow Steward this way. Local "
+"clients use a personal access token instead."
+
+msgid "react.oauth.client_metadata_unavailable_title"
+msgstr "The app could not be identified"
+
+msgid "react.oauth.client_metadata_unavailable_copy"
+msgstr ""
+"Flow Steward could not load the app's identity document. Check that this "
+"installation can reach chatgpt.com and claude.ai, then start the "
+"connection again."
+
+msgid "react.oauth.invalid_client_metadata_title"
+msgstr "The app's identity document is not accepted"
+
+msgid "react.oauth.invalid_client_metadata_copy"
+msgstr ""
+"The app describes itself in a way Flow Steward does not support, so it "
+"cannot connect."
+
+msgid "react.oauth.invalid_redirect_uri_title"
+msgstr "The return address is not accepted"
+
+msgid "react.oauth.invalid_redirect_uri_copy"
+msgstr ""
+"The app asked to return to an address it has not registered. For your "
+"safety the connection was stopped."
+
+msgid "react.oauth.invalid_request_title"
+msgstr "The connection request is incomplete"
+
+msgid "react.oauth.invalid_request_copy"
+msgstr ""
+"The app sent a request Flow Steward cannot process. Start the connection "
+"again from the app."
+
+msgid "react.oauth.rate_limited_title"
+msgstr "Too many connection attempts"
+
+msgid "react.oauth.rate_limited_copy"
+msgstr "Wait a few minutes, then start the connection again from the app."
+
+msgid "react.oauth.unknown_error_title"
+msgstr "The app could not connect"
+
+msgid "react.oauth.unknown_error_copy"
+msgstr ""
+"Start the connection again from the app. If it keeps failing, ask an "
+"administrator."
+
+msgid "react.oauth.preset_full_authoring"
+msgstr "Full authoring"
+
+msgid "react.oauth.preset_operational"
+msgstr "Monitor and run workflows"
+
+msgid "react.oauth.preset_full_authoring_description"
+msgstr ""
+"admin:all is full access: everything you can do in Flow Steward, "
+"including creating and changing workflows, agents and skills. It is not a"
+" narrow permission."
+
+msgid "react.oauth.preset_operational_description"
+msgstr ""
+"Find projects, read statuses, errors, reports and approvals, and start or"
+" cancel runs."

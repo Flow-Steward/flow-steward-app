@@ -134,3 +134,73 @@ export type ProfileSaveResult = {
   succeeded: ProfileField[];
   failed: Partial<Record<ProfileField, string>>;
 };
+
+/** Readiness of the inbound OAuth server for cloud AI apps (ADR 0047, decision 2). */
+export type OAuthReadiness = {
+  ready: boolean;
+  blockers: string[];
+};
+
+export type OAuthPresetId = "operational" | "full_authoring";
+
+export type OAuthConsentPreset = {
+  id: OAuthPresetId;
+  /** The scopes this preset would actually grant: the preset ∩ the request. */
+  scopes: string[];
+  available: boolean;
+  reason: "" | "exceeds_authority" | "not_requested" | string;
+  /** The client asked for fewer scopes than the preset holds. */
+  subset_of_preset: boolean;
+};
+
+export type OAuthConsentClient = {
+  client_id: string;
+  client_name: string;
+  client_host: string;
+  redirect_uri: string;
+  redirect_uri_host: string;
+  redirect_uri_loopback: boolean;
+};
+
+export type OAuthConsentView = {
+  request_id: string;
+  expires_at: string;
+  client: OAuthConsentClient;
+  requested_scopes: string[];
+  presets: OAuthConsentPreset[];
+  default_preset: OAuthPresetId | null;
+  expiry_days_options: number[];
+  default_expiry_days: number;
+};
+
+export type OAuthConsentDecision =
+  | { decision: "approve"; preset: OAuthPresetId; expiry_days: number; project_ids: string[] }
+  | { decision: "deny" };
+
+export type OAuthGrantStatus = "active" | "expired" | "revoked";
+
+export type OAuthGrant = {
+  id: string;
+  client_id: string;
+  client_name: string;
+  client_host: string;
+  preset: string;
+  scopes: string[];
+  allowed_project_ids: string[];
+  created_at: string;
+  expires_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  status: OAuthGrantStatus;
+};
+
+export type OAuthGrantsPage = {
+  grants: OAuthGrant[];
+  readiness: OAuthReadiness;
+};
+
+export type McpOAuthSetting = {
+  enabled: boolean;
+  readiness: OAuthReadiness;
+};

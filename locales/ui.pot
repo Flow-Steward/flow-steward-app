@@ -27394,3 +27394,279 @@ msgstr ""
 
 msgid "react.registry.agent_own_outputs"
 msgstr ""
+
+msgid "react.oauth.authorization_not_found_title"
+msgstr ""
+
+msgid "react.oauth.authorization_not_found_copy"
+msgstr ""
+
+msgid "react.oauth.browser_mismatch_title"
+msgstr ""
+
+msgid "react.oauth.browser_mismatch_copy"
+msgstr ""
+
+msgid "react.oauth.authorization_already_decided_title"
+msgstr ""
+
+msgid "react.oauth.authorization_already_decided_copy"
+msgstr ""
+
+msgid "react.oauth.authorization_expired_title"
+msgstr ""
+
+msgid "react.oauth.authorization_expired_copy"
+msgstr ""
+
+msgid "react.oauth.request_failed_title"
+msgstr ""
+
+msgid "react.oauth.request_failed_copy"
+msgstr ""
+
+msgid "react.oauth.preset_exceeds_authority"
+msgstr ""
+
+msgid "react.oauth.preset_not_requested"
+msgstr ""
+
+msgid "react.oauth.preset_unavailable"
+msgstr ""
+
+msgid "react.oauth.eyebrow"
+msgstr ""
+
+msgid "react.oauth.error_description"
+msgstr ""
+
+msgid "react.oauth.error_title"
+msgstr ""
+
+msgid "react.oauth.consent_description"
+msgstr ""
+
+msgid "react.oauth.consent_title"
+msgstr ""
+
+msgid "react.oauth.app_title"
+msgstr ""
+
+msgid "react.oauth.app_description"
+msgstr ""
+
+msgid "react.oauth.app_name"
+msgstr ""
+
+msgid "react.oauth.app_published_by"
+msgstr ""
+
+msgid "react.oauth.app_returns_to"
+msgstr ""
+
+msgid "react.oauth.loopback_title"
+msgstr ""
+
+msgid "react.oauth.loopback_copy"
+msgstr ""
+
+msgid "react.oauth.access_title"
+msgstr ""
+
+msgid "react.oauth.access_description"
+msgstr ""
+
+msgid "react.oauth.nothing_grantable_title"
+msgstr ""
+
+msgid "react.oauth.nothing_grantable_copy"
+msgstr ""
+
+msgid "react.oauth.access_legend"
+msgstr ""
+
+msgid "react.oauth.preset_subset"
+msgstr ""
+
+msgid "react.oauth.limits_title"
+msgstr ""
+
+msgid "react.oauth.limits_description"
+msgstr ""
+
+msgid "react.oauth.projects_help"
+msgstr ""
+
+msgid "react.oauth.expiry_legend"
+msgstr ""
+
+msgid "react.oauth.expiry_help"
+msgstr ""
+
+msgid "react.oauth.deny"
+msgstr ""
+
+msgid "react.oauth.sending"
+msgstr ""
+
+msgid "react.oauth.allow"
+msgstr ""
+
+msgid "react.oauth.loading"
+msgstr ""
+
+msgid "react.oauth.access_used_on"
+msgstr ""
+
+msgid "react.oauth.not_used_yet"
+msgstr ""
+
+msgid "react.oauth.revoke_failed"
+msgstr ""
+
+msgid "react.oauth.app_lowercase"
+msgstr ""
+
+msgid "react.oauth.connected_apps"
+msgstr ""
+
+msgid "react.oauth.connected_apps_description"
+msgstr ""
+
+msgid "react.oauth.connected_apps_unavailable"
+msgstr ""
+
+msgid "react.oauth.column_app"
+msgstr ""
+
+msgid "react.oauth.column_access"
+msgstr ""
+
+msgid "react.oauth.column_projects"
+msgstr ""
+
+msgid "react.oauth.project_count"
+msgstr ""
+
+msgid "react.oauth.all_projects"
+msgstr ""
+
+msgid "react.oauth.revoke_access"
+msgstr ""
+
+msgid "react.oauth.no_connected_apps"
+msgstr ""
+
+msgid "react.oauth.no_connected_apps_copy"
+msgstr ""
+
+msgid "react.oauth.loading_connected_apps"
+msgstr ""
+
+msgid "react.oauth.revoke_description"
+msgstr ""
+
+msgid "react.oauth.revoke_warning"
+msgstr ""
+
+msgid "react.oauth.setting_not_saved"
+msgstr ""
+
+msgid "react.oauth.setting_description"
+msgstr ""
+
+msgid "react.oauth.setting_title"
+msgstr ""
+
+msgid "react.oauth.setting_unavailable"
+msgstr ""
+
+msgid "react.oauth.setting_switch"
+msgstr ""
+
+msgid "react.oauth.setting_help"
+msgstr ""
+
+msgid "react.oauth.public_https_required_title"
+msgstr ""
+
+msgid "react.oauth.public_https_required_copy"
+msgstr ""
+
+msgid "react.oauth.issuer_mismatch_title"
+msgstr ""
+
+msgid "react.oauth.issuer_mismatch_copy"
+msgstr ""
+
+msgid "react.oauth.forward_secret_missing_title"
+msgstr ""
+
+msgid "react.oauth.forward_secret_missing_copy"
+msgstr ""
+
+msgid "react.oauth.storage_missing_title"
+msgstr ""
+
+msgid "react.oauth.storage_missing_copy"
+msgstr ""
+
+msgid "react.oauth.disabled_by_admin_title"
+msgstr ""
+
+msgid "react.oauth.disabled_by_admin_copy"
+msgstr ""
+
+msgid "react.oauth.client_not_allowed_title"
+msgstr ""
+
+msgid "react.oauth.client_not_allowed_copy"
+msgstr ""
+
+msgid "react.oauth.client_metadata_unavailable_title"
+msgstr ""
+
+msgid "react.oauth.client_metadata_unavailable_copy"
+msgstr ""
+
+msgid "react.oauth.invalid_client_metadata_title"
+msgstr ""
+
+msgid "react.oauth.invalid_client_metadata_copy"
+msgstr ""
+
+msgid "react.oauth.invalid_redirect_uri_title"
+msgstr ""
+
+msgid "react.oauth.invalid_redirect_uri_copy"
+msgstr ""
+
+msgid "react.oauth.invalid_request_title"
+msgstr ""
+
+msgid "react.oauth.invalid_request_copy"
+msgstr ""
+
+msgid "react.oauth.rate_limited_title"
+msgstr ""
+
+msgid "react.oauth.rate_limited_copy"
+msgstr ""
+
+msgid "react.oauth.unknown_error_title"
+msgstr ""
+
+msgid "react.oauth.unknown_error_copy"
+msgstr ""
+
+msgid "react.oauth.preset_full_authoring"
+msgstr ""
+
+msgid "react.oauth.preset_operational"
+msgstr ""
+
+msgid "react.oauth.preset_full_authoring_description"
+msgstr ""
+
+msgid "react.oauth.preset_operational_description"
+msgstr ""

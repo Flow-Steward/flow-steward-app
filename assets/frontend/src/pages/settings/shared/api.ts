@@ -8,6 +8,10 @@ import type {
   CreatePersonalTokenInput,
   CreateUserInput,
   EmailChangeStatus,
+  McpOAuthSetting,
+  OAuthConsentDecision,
+  OAuthConsentView,
+  OAuthGrantsPage,
   PersonalTokenPage,
   ProfileField,
   ProfileSaveResult,
@@ -477,5 +481,38 @@ export async function revokePersonalToken(tokenId: string) {
   return fetchJson<unknown>(`/api/auth/tokens/${encodeURIComponent(tokenId)}/revoke`, {
     method: "POST",
     body: JSON.stringify({}),
+  });
+}
+
+export async function fetchOAuthConsent(requestId: string): Promise<OAuthConsentView> {
+  return fetchJson<OAuthConsentView>(`/api/oauth/authorizations/${encodeURIComponent(requestId)}`);
+}
+
+export async function decideOAuthConsent(requestId: string, decision: OAuthConsentDecision) {
+  return fetchJson<{ redirect_to: string }>(
+    `/api/oauth/authorizations/${encodeURIComponent(requestId)}/decision`,
+    { method: "POST", body: JSON.stringify(decision) },
+  );
+}
+
+export async function fetchOAuthGrants(): Promise<OAuthGrantsPage> {
+  return fetchJson<OAuthGrantsPage>("/api/auth/oauth-grants");
+}
+
+export async function revokeOAuthGrant(grantId: string) {
+  return fetchJson<unknown>(`/api/auth/oauth-grants/${encodeURIComponent(grantId)}/revoke`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function fetchMcpOAuthSetting(): Promise<McpOAuthSetting> {
+  return fetchJson<McpOAuthSetting>("/api/settings/mcp-oauth");
+}
+
+export async function saveMcpOAuthSetting(enabled: boolean): Promise<McpOAuthSetting> {
+  return fetchJson<McpOAuthSetting>("/api/settings/mcp-oauth", {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
   });
 }

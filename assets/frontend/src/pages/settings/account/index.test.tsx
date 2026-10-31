@@ -49,7 +49,9 @@ vi.mock("@/pages/settings/shared/api", () => ({
   createPersonalToken: vi.fn(),
   fetchAccountProfileRecord: vi.fn(),
   fetchCurrentAccountRecord: vi.fn(),
+  fetchOAuthGrants: vi.fn(async () => ({ grants: [], readiness: { ready: true, blockers: [] } })),
   fetchPersonalTokensCollection: vi.fn(),
+  revokeOAuthGrant: vi.fn(),
   requestAccountEmailChange: vi.fn(),
   revokePersonalToken: vi.fn(),
   saveAccountProfileRecord: vi.fn(),
@@ -112,6 +114,14 @@ describe("SettingsAccountPage", () => {
     expect(screen.getByRole("tab", { name: "Sign-in" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Personal tokens" })).toBeInTheDocument();
     expect(screen.queryByText("platform-grid")).not.toBeInTheDocument();
+  });
+
+  it("lists connected AI apps directly below the personal tokens", async () => {
+    renderPage("/settings/account?tab=tokens");
+    const panel = await screen.findByRole("tabpanel", { name: "Personal tokens" });
+    const tables = await within(panel).findAllByRole("table");
+    expect(tables.map((table) => table.getAttribute("aria-label"))).toEqual(["Personal access tokens", "Connected AI apps"]);
+    expect(await within(panel).findByText("No connected AI apps")).toBeInTheDocument();
   });
 
   it.each([

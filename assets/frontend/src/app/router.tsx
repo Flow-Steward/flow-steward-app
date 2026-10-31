@@ -102,6 +102,7 @@ const RegistryWorkspacesDetailPage = lazyNamed(
   () => import("@/pages/registry/workspaces/detail"),
   "RegistryWorkspacesDetailPage",
 );
+const OAuthConsentPage = lazyNamed(() => import("@/pages/oauth/consent"), "OAuthConsentPage");
 const SettingsAccountPage = lazyNamed(() => import("@/pages/settings/account"), "SettingsAccountPage");
 const SettingsHubPage = lazyNamed(() => import("@/pages/settings/hub"), "SettingsHubPage");
 const SettingsSecurityPage = lazyNamed(() => import("@/pages/settings/security"), "SettingsSecurityPage");
@@ -240,6 +241,16 @@ function AppRoutes() {
           <Route path="forgot-password" element={<ResetPasswordPage />} />
           <Route path="reset-password" element={<ResetPasswordPage />} />
         </Route>
+        {/* Standalone: the error variant renders before sign-in, the request
+            variant guards itself with RequireAuth (ADR 0047). */}
+        <Route
+          path="oauth/consent"
+          element={
+            <Suspense fallback={<PageLoadingState label={t("react.routing.preparing_page", "Preparing this page")} standalone />}>
+              <OAuthConsentPage />
+            </Suspense>
+          }
+        />
 
         <Route
           path="registry/workflows/:workflowId/builder"
