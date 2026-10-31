@@ -6618,8 +6618,10 @@ class TestQueryServiceRegressions:
             .dump()
         )
 
-        assert bl.list_jobs_for_attention.call_args.kwargs["status"] == ("failed", "stuck")
-        assert bl.count_jobs_for_attention.call_args.kwargs["status"] == ("failed", "stuck")
+        # Deduplicated and lowercased, then each group key selects its whole group.
+        selected = ("failed", "max_iterations", "triage_needed", "stuck", "orphaned")
+        assert bl.list_jobs_for_attention.call_args.kwargs["status"] == selected
+        assert bl.count_jobs_for_attention.call_args.kwargs["status"] == selected
         assert payload["status"] == "failed,stuck"
 
     def test_job_list_forwards_hide_acknowledged_to_rows_and_count(self):
