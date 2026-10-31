@@ -147,6 +147,12 @@ class SkillCommandService:
             if isinstance(row, Mapping)
         ]
 
+    @staticmethod
+    def _persisted_enabled(db: Any, skill_id: str) -> bool | None:
+        """The enabled state the store now holds; a mutation result reports it, not null."""
+        row = db.get_skill(skill_id)
+        return bool(row.get("enabled", False)) if isinstance(row, Mapping) else None
+
     def _save_skill(
         self,
         db: Any,
@@ -281,7 +287,12 @@ class SkillCommandService:
         self._validate_expected_io(db, skill_id, data)
         validation = self._save_skill(db, data, skill_id=skill_id, scope=scope, create=True)
         self._reload_registry()
-        return SkillMutationResultView(status="created", skill_id=skill_id, validation=validation)
+        return SkillMutationResultView(
+            status="created",
+            skill_id=skill_id,
+            enabled=self._persisted_enabled(db, skill_id),
+            validation=validation,
+        )
 
     def update_skill(
         self,
@@ -312,7 +323,12 @@ class SkillCommandService:
         validation = self._save_skill(db, data, skill_id=skill_id, scope=scope, previous=existing)
         self._reload_registry()
         db.materialize_agents_for_skill(skill_id)
-        return SkillMutationResultView(status="updated", skill_id=skill_id, validation=validation)
+        return SkillMutationResultView(
+            status="updated",
+            skill_id=skill_id,
+            enabled=self._persisted_enabled(db, skill_id),
+            validation=validation,
+        )
 
     def patch_skill(
         self, skill_id: str, updates: Mapping[str, Any], *, scope: ScopeContext
@@ -322,7 +338,11 @@ class SkillCommandService:
         existing = self._require_skill(db, skill_id, scope)
         updates = dict(updates)
         if not updates:
-            return SkillMutationResultView(status="no_change", skill_id=skill_id)
+            return SkillMutationResultView(
+                status="no_change",
+                skill_id=skill_id,
+                enabled=bool(existing.get("enabled", False)),
+            )
         self._check_enabled_transition(
             db,
             skill_id,
@@ -332,7 +352,12 @@ class SkillCommandService:
         merged = {**existing, **updates, "skill_id": skill_id}
         validation = self._save_skill(db, merged, skill_id=skill_id, scope=scope, previous=existing)
         self._reload_registry()
-        return SkillMutationResultView(status="updated", skill_id=skill_id, validation=validation)
+        return SkillMutationResultView(
+            status="updated",
+            skill_id=skill_id,
+            enabled=self._persisted_enabled(db, skill_id),
+            validation=validation,
+        )
 
     def toggle_skill(self, skill_id: str, *, scope: ScopeContext) -> SkillMutationResultView:
         """Set ``enabled`` to the opposite of the current state.

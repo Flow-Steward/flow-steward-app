@@ -66,20 +66,24 @@ keep other entries:
 }
 ```
 
-From the marketplace folder, check your CLI's help, then:
+From the marketplace folder, check your CLI's help, then register it:
 
 ```bash
 codex plugin marketplace add .
-codex plugin add flow-steward-operator@flow-steward-local
 ```
 
-Restart the client and find the three skills in its skills listing. To update,
-replace the plugin directory and run
+The CLI has no install command: in an interactive session open `/plugins`,
+choose the `flow-steward-local` marketplace and install `flow-steward-operator`,
+or install it from the Plugins tab of the ChatGPT desktop app. Start a new
+session and find the three skills in its skills listing. To update, replace
+the plugin directory, run
 `codex plugin marketplace upgrade flow-steward-local`; the client runs a cached
 copy, so compare the installed files with the new ones before relying on the
-update. To remove the plugin, delete its entry from `marketplace.json` (or run
+update, and start a new session. To remove the plugin, uninstall it in
+`/plugins` or the app's Plugins tab, or run
 `codex plugin marketplace remove flow-steward-local` to drop the whole local
-marketplace) and restart. See the [Codex plugin documentation](https://developers.openai.com/plugins/build/plugins).
+marketplace. See [Package your plugin](https://developers.openai.com/plugins/build/plugins)
+and [Plugins](https://learn.chatgpt.com/docs/plugins).
 
 ### Cursor
 

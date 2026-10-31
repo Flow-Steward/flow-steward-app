@@ -124,9 +124,17 @@ def _row_names(entity_type: str, row: Mapping[str, Any]) -> list[str]:
 
 
 def _origin(row: Mapping[str, Any]) -> str:
+    """Where the object comes from: an extension, the platform, or the caller's account.
+
+    Ownership decides it, not ``scope_kind``: agents and skills are stored with
+    the column default ``'system'`` even when a user creates them in an account
+    (the store gives a system row without project or install the default
+    account). Only a row without an account is platform-global, and only an
+    extension projection carries ``source_install_id``.
+    """
     if _text(row.get("source_install_id")):
         return "extension"
-    if not _text(row.get("account_id")) or _text(row.get("scope_kind")) == "system":
+    if not _text(row.get("account_id")):
         return "system"
     return "account"
 

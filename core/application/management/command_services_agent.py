@@ -131,6 +131,12 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
             if isinstance(row, Mapping)
         ]
 
+    @staticmethod
+    def _persisted_enabled(db: Any, agent_id: str) -> bool | None:
+        """The enabled state the store now holds; a mutation result reports it, not null."""
+        row = db.get_agent(agent_id)
+        return bool(row.get("enabled", False)) if isinstance(row, Mapping) else None
+
     def _save_agent(
         self,
         db: Any,
@@ -290,7 +296,12 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
         validate_agent_provider_model(data, account_id=scope.account_id, conn=db.conn)
         validation = self._save_agent(db, data, agent_id=agent_id, scope=scope, create=True)
         self._reload_registry()
-        return AgentMutationResultView(status="created", agent_id=agent_id, validation=validation)
+        return AgentMutationResultView(
+            status="created",
+            agent_id=agent_id,
+            enabled=self._persisted_enabled(db, agent_id),
+            validation=validation,
+        )
 
     def update_agent(
         self, agent_id: str, payload: Mapping[str, Any], *, scope: ScopeContext
@@ -314,7 +325,12 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
         validate_agent_provider_model(data, account_id=scope.account_id, conn=db.conn)
         validation = self._save_agent(db, data, agent_id=agent_id, scope=scope, previous=existing)
         self._reload_registry()
-        return AgentMutationResultView(status="updated", agent_id=agent_id, validation=validation)
+        return AgentMutationResultView(
+            status="updated",
+            agent_id=agent_id,
+            enabled=self._persisted_enabled(db, agent_id),
+            validation=validation,
+        )
 
     def patch_agent(
         self, agent_id: str, updates: Mapping[str, Any], *, scope: ScopeContext
@@ -329,7 +345,11 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
         existing = self._require_agent(db, agent_id, scope)
         updates = dict(updates)
         if not updates:
-            return AgentMutationResultView(status="no_change", agent_id=agent_id)
+            return AgentMutationResultView(
+                status="no_change",
+                agent_id=agent_id,
+                enabled=bool(existing.get("enabled", False)),
+            )
 
         self._check_enabled_transition(
             db,
@@ -381,7 +401,12 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
             previous=existing,
         )
         self._reload_registry()
-        return AgentMutationResultView(status="updated", agent_id=agent_id, validation=validation)
+        return AgentMutationResultView(
+            status="updated",
+            agent_id=agent_id,
+            enabled=self._persisted_enabled(db, agent_id),
+            validation=validation,
+        )
 
     def toggle_agent(self, agent_id: str, *, scope: ScopeContext) -> AgentMutationResultView:
         """Set ``enabled`` to the opposite of the current state.

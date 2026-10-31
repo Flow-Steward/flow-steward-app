@@ -265,6 +265,32 @@ def test_system_and_extension_agents_count_as_visible_names(monkeypatch):
     assert db.saved == []
 
 
+def test_user_created_agents_and_skills_are_account_objects_despite_the_scope_kind_default():
+    """Live check 2026-10-31 (F7): user agents and skills are stored with the
+    ``scope_kind`` column default ``'system'``; ownership, not that column,
+    makes them account objects."""
+    db = RegistryDB(
+        agents=[_agent("writer", "Report Writer", scope_kind="system")],
+        skills=[_skill("summary", "Feedback Summary", scope_kind="system")],
+    )
+
+    with pytest.raises(ServiceConflictError) as agent:
+        _agents(db).create_agent(
+            {"agent_id": "w2", "display_name": "report writer"}, scope=_scope()
+        )
+    with pytest.raises(ServiceConflictError) as skill:
+        _skills(db).create_skill(
+            {"skill_id": "s2", "display_name": "FEEDBACK summary"}, scope=_scope()
+        )
+    with pytest.raises(ServiceConflictError) as agent_id:
+        _agents(db).create_agent({"agent_id": "writer", "display_name": "Other"}, scope=_scope())
+
+    assert agent.value.payload["matches"][0]["origin"] == "account"
+    assert skill.value.payload["matches"][0]["origin"] == "account"
+    assert agent_id.value.payload["matches"][0]["origin"] == "account"
+    assert db.saved == []
+
+
 def test_agent_patch_and_put_refuse_renaming_into_a_taken_name():
     db = RegistryDB(agents=[_agent("writer", "Writer"), _agent("editor", "Editor")])
     service = _agents(db)

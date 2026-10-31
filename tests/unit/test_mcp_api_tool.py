@@ -493,7 +493,8 @@ def test_workflow_name_conflict_keeps_its_visible_matches_and_suggestion():
     }
 
 
-def test_existing_tools_keep_generic_envelope_for_the_same_domain_payload():
+def test_existing_tools_keep_the_legacy_domain_code_and_route_details():
+    """Live check 2026-10-31 (F5): every API-backed tool keeps the domain code."""
     _queue_responses(
         AppApiError(
             409,
@@ -511,9 +512,60 @@ def test_existing_tools_keep_generic_envelope_for_the_same_domain_payload():
     with pytest.raises(ToolError) as raised:
         server_api_tool.api_tool_response("project_list", {})
     assert json.loads(str(raised.value))["error"] == {
-        "code": "conflict",
+        "code": "workflow_id_conflict",
         "message": "workflow_id_conflict",
         "status_code": 409,
+        "details": {"context": {"workflow_id": "new"}},
+    }
+
+
+def test_job_restart_refusal_keeps_its_domain_code_from_the_real_service_envelope():
+    """Live check 2026-10-31 (F5): HTTP said job_restart_active, MCP said conflict."""
+    from core.application.management.errors import ServiceConflictError
+    from core.application.management.job_operator_actions import require_restartable
+    from core.infrastructure.runtime import serve_request_runtime
+
+    with pytest.raises(ServiceConflictError) as refused:
+        require_restartable("job-1", {"status": "awaiting_timer"})
+    response = serve_request_runtime.service_error_response(
+        refused.value,
+        error_payload=serve_request_runtime.build_error_payload_factory(
+            err_request_failed="Request failed", default_correlation_id_fn=lambda: "test"
+        ),
+        request_correlation_id=lambda *_args, **_kwargs: "test",
+        error_code_for_status=serve_request_runtime.error_code_for_status,
+        err_request_failed="Request failed",
+    )
+    _queue_responses(AppApiError(response.status_code, json.loads(response.body)))
+    with pytest.raises(ToolError) as raised:
+        server_api_tool.api_tool_response("job_restart", {"job_id": "job-1"})
+
+    error = json.loads(str(raised.value))["error"]
+    assert error["code"] == "job_restart_active"
+    assert error["status_code"] == 409
+    assert error["message"].startswith("Cannot restart job #job-1 while it is awaiting_timer")
+    assert error["details"] == {"context": {"job_id": "job-1", "status": "awaiting_timer"}}
+
+
+def test_a_status_only_refusal_keeps_the_generic_code_and_no_empty_details():
+    _queue_responses(
+        AppApiError(
+            404,
+            {
+                "status": "error",
+                "code": "not_found",
+                "message": "Job not found",
+                "error": "Job not found",
+                "details": {},
+            },
+        )
+    )
+    with pytest.raises(ToolError) as raised:
+        server_api_tool.api_tool_response("job_status", {"job_id": "job-1"})
+    assert json.loads(str(raised.value))["error"] == {
+        "code": "not_found",
+        "message": "Job not found",
+        "status_code": 404,
     }
 
 
@@ -889,6 +941,7 @@ def test_a_blocked_import_names_what_to_resolve_and_how():
             "workflow_import", {"project_name": "alpha", "bundle_yaml": "kind: bundle\n"}
         )
     error = json.loads(str(raised.value))["error"]
+    assert "details" not in error
     assert error["blocking_dependencies"] == [
         {
             "dependency_key": "workflow:mcp_paid_emails",

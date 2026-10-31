@@ -693,10 +693,100 @@ def test_cli_can_diagnose_linked_disabled_draft_before_enabling(command):
     assert service._registry_db().get_workflow(workflow_id)["enabled"] is False
 
 
-@pytest.mark.parametrize("method_name", ["project_workflow_validate", "project_workflow_contract"])
+@pytest.mark.parametrize(
+    "method_name",
+    ["project_workflow_validate", "project_workflow_contract", "project_workflow_suggestions"],
+)
 def test_disabled_draft_diagnostics_keep_workflow_scope_restrictions(method_name):
     service = _disabled_workflow_service("draft_workflow")
     scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID, allowed_workflow_ids=frozenset({"other"}))
     method = getattr(service, method_name)
     with pytest.raises(ServiceNotFoundError, match="not linked"):
         method("project-own", "draft_workflow", scope=scope)
+
+
+# ---------------------------------------------------------------------------
+# Repairing a disabled draft (live check 2026-10-31, F6)
+#
+# The Operator skill repairs a saved, disabled draft with workflow_list
+# (include_validation) and workflow_suggestions before enabling it. Both
+# answered only "workflow.unavailable" / 404 for it, while workflow_validate
+# already read the draft as it stands.
+# ---------------------------------------------------------------------------
+
+
+_DRAFT_ISSUE = {"code": "step.agent_missing", "path": "workflow", "message": "Pick an agent"}
+
+
+def _linked_disabled_draft_service(workflow_id: str, monkeypatch) -> WorkflowOperatorService:
+    monkeypatch.setattr(
+        "core.application.registry.contract_validation.validate_workflow_readiness",
+        lambda _db, _workflow_id: {"valid": False, "errors": [dict(_DRAFT_ISSUE)], "warnings": []},
+    )
+    service = _disabled_workflow_service(workflow_id)
+    service._project_query_service = lambda: SimpleNamespace(
+        get_workflow_bindings=lambda project_id, scope=None: SimpleNamespace(
+            project_workflows=[
+                {
+                    "workflow_id": workflow_id,
+                    "display_name": "Draft in progress",
+                    "enabled": False,
+                    "availability_status": "unavailable",
+                    "new_runs_blocked": True,
+                    "availability_reason_code": "workflow_disabled",
+                }
+            ]
+        )
+    )
+    return service
+
+
+def test_suggestions_are_served_for_a_linked_disabled_draft(monkeypatch) -> None:
+    service = _linked_disabled_draft_service("draft_workflow", monkeypatch)
+
+    result = service.project_workflow_suggestions("project-own", "draft_workflow")
+
+    assert result.workflow_id == "draft_workflow"
+    assert [row["reason"] for row in result.suggestions] == ["Pick an agent"]
+    # The suggestions answer the same validation workflow_validate reports.
+    validation = service.project_workflow_validate("project-own", "draft_workflow")
+    assert validation.validation["errors"] == [_DRAFT_ISSUE]
+
+
+def test_the_run_gated_suggestions_still_refuse_a_disabled_workflow(monkeypatch) -> None:
+    service = _linked_disabled_draft_service("draft_workflow", monkeypatch)
+
+    with pytest.raises(ServiceNotFoundError, match="not available"):
+        service.workflow_suggestions("draft_workflow")
+
+
+def test_catalog_validation_reads_a_disabled_draft_as_it_stands(monkeypatch) -> None:
+    service = _linked_disabled_draft_service("draft_workflow", monkeypatch)
+
+    item = service.list_project_workflows(
+        "project-own", enabled_only=False, include_validation=True
+    ).workflows[0]
+
+    assert item.validation == {"valid": False, "errors": [_DRAFT_ISSUE], "warnings": []}
+    # Still a disabled draft: nothing about running it changed.
+    assert item.enabled is False
+    assert item.new_runs_blocked is True
+    assert item.availability_status == "unavailable"
+    assert (
+        service.list_project_workflows(
+            "project-own", enabled_only=True, include_validation=True
+        ).workflows
+        == []
+    )
+
+
+def test_suggestions_still_refuse_a_draft_unavailable_for_another_reason(monkeypatch) -> None:
+    service = _linked_disabled_draft_service("draft_workflow", monkeypatch)
+    bindings = service._project_query_service().get_workflow_bindings("project-own")
+    bindings.project_workflows[0]["availability_reason_code"] = "dependency_unavailable"
+    service._project_query_service = lambda: SimpleNamespace(
+        get_workflow_bindings=lambda project_id, scope=None: bindings
+    )
+
+    with pytest.raises(ServiceNotFoundError, match="not available"):
+        service.project_workflow_suggestions("project-own", "draft_workflow")

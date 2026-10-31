@@ -185,8 +185,71 @@ def test_patch_with_no_fields_is_no_change():
     db = _db_with_agent()
     result = _agent_service(db).patch_agent("writer", {}, scope=_scope())
 
-    assert result.model_dump(exclude_none=True) == {"status": "no_change", "agent_id": "writer"}
+    assert result.model_dump(exclude_none=True) == {
+        "status": "no_change",
+        "agent_id": "writer",
+        "enabled": False,
+    }
     db.save_agent.assert_not_called()
+
+
+def _stateful_db(kind: str, rows: dict | None = None):
+    """A store that keeps what it saves, with the real store's ``enabled`` default."""
+    db = MagicMock()
+    stored = dict(rows or {})
+
+    def save(data, author="admin", **kwargs):
+        stored[data[f"{kind}_id"]] = {**data, "enabled": data.get("enabled", True)}
+
+    getattr(db, f"save_{kind}").side_effect = save
+    getattr(db, f"get_{kind}").side_effect = lambda entity_id: (
+        dict(stored[entity_id]) if entity_id in stored else None
+    )
+    return db
+
+
+def test_agent_mutations_report_the_persisted_enabled_state_not_null():
+    """Live check 2026-10-31 (F8): create/update/set_enabled answered enabled=null."""
+    db = _stateful_db("agent")
+    service = _agent_service(db)
+
+    created = service.create_agent(
+        {"agent_id": "writer", "display_name": "Writer", "enabled": False}, scope=_scope()
+    )
+    enabled = service.patch_agent("writer", {"enabled": True}, scope=_scope())
+    renamed = service.patch_agent("writer", {"description": "Writes"}, scope=_scope())
+    replaced = service.update_agent(
+        "writer", {"display_name": "Writer", "enabled": False}, scope=_scope()
+    )
+    unchanged = service.patch_agent("writer", {}, scope=_scope())
+
+    assert (created.status, created.enabled) == ("created", False)
+    assert (enabled.status, enabled.enabled) == ("updated", True)
+    assert (renamed.status, renamed.enabled) == ("updated", True)
+    assert (replaced.status, replaced.enabled) == ("updated", False)
+    assert (unchanged.status, unchanged.enabled) == ("no_change", False)
+
+
+def test_skill_mutations_report_the_persisted_enabled_state_not_null():
+    db = _stateful_db("skill")
+    service = _skill_service(db)
+
+    created = service.create_skill(
+        {"skill_id": "draft", "display_name": "Draft", "enabled": False}, scope=_scope()
+    )
+    enabled = service.patch_skill("draft", {"enabled": True}, scope=_scope())
+    replaced = service.update_skill(
+        "draft",
+        {"display_name": "Draft", "enabled": False},
+        provided_fields={"display_name", "enabled"},
+        scope=_scope(),
+    )
+    unchanged = service.patch_skill("draft", {}, scope=_scope())
+
+    assert (created.status, created.enabled) == ("created", False)
+    assert (enabled.status, enabled.enabled) == ("updated", True)
+    assert (replaced.status, replaced.enabled) == ("updated", False)
+    assert (unchanged.status, unchanged.enabled) == ("no_change", False)
 
 
 def test_toggle_enable_requires_readiness_with_enable_action():

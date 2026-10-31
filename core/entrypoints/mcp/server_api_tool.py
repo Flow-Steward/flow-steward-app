@@ -43,8 +43,8 @@ _NAME_CONFLICT_DETAIL_KEYS = (
     "matches_truncated",
     "suggested_display_name",
 )
-#: Agent, skill, enablement and model-option tools: their refusals carry the
-#: route's error payload unchanged (conflict matches, readiness issues).
+#: Agent, skill, enablement and model-option tools: their writes send only the
+#: arguments the caller passed.
 _REGISTRY_TOOLS = frozenset(
     {
         "agent_authoring_schema",
@@ -211,6 +211,20 @@ def _error_code(status_code: int) -> str:
     }.get(int(status_code), "app_api_error")
 
 
+#: The generic code the application's error envelope uses for each status
+#: (``serve_request_runtime.error_code_for_status``): not a domain code.
+_APP_STATUS_CODES = {
+    400: "invalid_request",
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    422: "validation_error",
+    429: "rate_limited",
+    503: "service_unavailable",
+}
+
+
 def _error_message(payload: object, status_code: int) -> str:
     if isinstance(payload, dict):
         for key in ("error", "message", "detail"):
@@ -220,13 +234,15 @@ def _error_message(payload: object, status_code: int) -> str:
     return f"Flow Steward app API returned HTTP {status_code}"
 
 
-def _registry_error(payload: object, status_code: int) -> dict[str, Any]:
-    """Keep the route's own error payload whole: callers act on its matches and issues.
+def _route_error(payload: object, status_code: int) -> dict[str, Any]:
+    """Keep the route's domain code and its own error payload whole.
 
     Admin routes answer ``{"detail": {...}}`` (conflicts, readiness) or
-    ``{"detail": "text"}``; request validation answers ``{"code", "message",
-    "details": {"errors": [...]}}``. The caller is the one the route answered,
-    so nothing is filtered out of the payload it already may read.
+    ``{"detail": "text"}``; the service envelope answers ``{"code", "message",
+    "details": {...}}`` with the domain code (``job_restart_active``) as its
+    ``code``, or, for a legacy domain error, the generic status code with the
+    domain code as ``error``. The caller is the one the route answered, so
+    nothing is filtered out of the payload it already may read.
     """
     data = payload if isinstance(payload, dict) else {}
     detail = data.get("detail")
@@ -246,9 +262,18 @@ def _registry_error(payload: object, status_code: int) -> dict[str, Any]:
         error["details"] = detail
         candidate = detail.get("code")
     else:
-        if isinstance(data.get("details"), dict):
+        if isinstance(data.get("details"), dict) and data["details"]:
             error["details"] = data["details"]
         candidate = data.get("code")
+        legacy = data.get("error")
+        if (
+            candidate == _APP_STATUS_CODES.get(int(status_code))
+            and isinstance(legacy, str)
+            and legacy != candidate
+            and _AUTHORING_CODE_RE.fullmatch(legacy)
+        ):
+            # The API helper adds a generic status code around legacy domain errors.
+            candidate = legacy
     if isinstance(candidate, str) and _AUTHORING_CODE_RE.fullmatch(candidate):
         error["code"] = candidate
     return error
@@ -412,15 +437,11 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
             "tool": tool,
             "error": _authoring_error(exc.payload, exc.status_code)
             if tool in _AUTHORING_TOOLS
-            else _registry_error(exc.payload, exc.status_code)
-            if tool in _REGISTRY_TOOLS
-            else {
-                "code": _error_code(exc.status_code),
-                "message": _error_message(exc.payload, exc.status_code),
-                "status_code": exc.status_code,
-            },
+            else _route_error(exc.payload, exc.status_code),
         }
         if tool == "workflow_import":
+            # Only the fixed resolution fields leave the import preflight context.
+            envelope["error"].pop("details", None)
             blocking = _blocking_dependencies(exc.payload)
             if blocking:
                 envelope["error"]["blocking_dependencies"] = blocking

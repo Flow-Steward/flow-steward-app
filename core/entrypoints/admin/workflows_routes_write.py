@@ -324,7 +324,11 @@ def patch_workflow(workflow_id: str, body: WorkflowPatch, request: Request):
     updates = body.model_dump(exclude_none=True)
     updates.pop("expected_revision", None)
     if not updates:
-        return {"status": "no_change", "workflow_id": workflow_id}
+        return {
+            "status": "no_change",
+            "workflow_id": workflow_id,
+            "enabled": bool(existing.get("enabled", False)),
+        }
     try:
         updates = _get_workflow_portability_service(db).public_patch_payload(
             dict(existing),
@@ -397,6 +401,8 @@ def patch_workflow(workflow_id: str, body: WorkflowPatch, request: Request):
     return {
         "status": "updated",
         "workflow_id": workflow_id,
+        # The state the save committed (it refuses rather than store another one).
+        "enabled": final_enabled,
         "revision": saved_revision,
         "validation": validation,
     }

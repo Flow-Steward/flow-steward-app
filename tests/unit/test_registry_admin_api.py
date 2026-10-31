@@ -8638,6 +8638,8 @@ class TestWorkflowCRUD:
             )
 
         assert resp.status_code == 200
+        # Live check 2026-10-31 (F8): the result carries the saved enabled state.
+        assert resp.json()["enabled"] is False
         saved_payload = mock_db.save_workflow.call_args.args[0]
         callable_settings = saved_payload["settings"]["callable"]
         assert callable_settings["enabled"] is True

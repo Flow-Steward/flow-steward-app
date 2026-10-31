@@ -39,6 +39,14 @@ class _WorkflowUnavailableError(ServiceNotFoundError):
         self.availability_status = availability_status or "unavailable"
 
 
+def _is_disabled_draft(binding: dict[str, Any]) -> bool:
+    """A project workflow that is unavailable only because it is switched off.
+
+    Its author may still read, repair and re-validate it; running it stays refused.
+    """
+    return str(binding.get("availability_reason_code") or "").lower() == "workflow_disabled"
+
+
 class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthoringMixin):
     """Shared workflow operator surfaces used by MCP, API, and CLI."""
 
@@ -174,9 +182,7 @@ class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthor
         if binding is None:
             raise ServiceNotFoundError("Workflow not linked to project")
         availability_status = str(binding.get("availability_status") or "available").lower()
-        disabled_draft = allow_disabled and (
-            str(binding.get("availability_reason_code") or "").lower() == "workflow_disabled"
-        )
+        disabled_draft = allow_disabled and _is_disabled_draft(binding)
         if not disabled_draft and (
             not bool(binding.get("enabled", True))
             or bool(binding.get("new_runs_blocked"))
@@ -481,7 +487,10 @@ class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthor
             )
             if include_validation:
                 try:
-                    _workflow, validation = self._workflow_validation_payload(workflow_id)
+                    # A disabled draft is validated as it stands, as workflow_validate does.
+                    _workflow, validation = self._workflow_validation_payload(
+                        workflow_id, require_available=not _is_disabled_draft(row)
+                    )
                 except _WorkflowUnavailableError as exc:
                     item.enabled = False
                     item.availability_status = exc.availability_status
@@ -584,8 +593,12 @@ class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthor
             **self._workflow_contract_payload(workflow_id, require_available=require_available)
         )
 
-    def workflow_suggestions(self, workflow_id: str) -> WorkflowSuggestionsResultView:
-        workflow, validation = self._workflow_validation_payload(workflow_id)
+    def workflow_suggestions(
+        self, workflow_id: str, *, require_available: bool = True
+    ) -> WorkflowSuggestionsResultView:
+        workflow, validation = self._workflow_validation_payload(
+            workflow_id, require_available=require_available
+        )
         issues = self._workflow_validation_issues(workflow, validation)
         return WorkflowSuggestionsResultView(
             workflow_id=str(workflow_id or "").strip(),
@@ -628,5 +641,8 @@ class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthor
         scope: Any = None,
     ) -> WorkflowSuggestionsResultView:
         return self.workflow_suggestions(
-            self._require_project_workflow(project_id, workflow_id, scope=scope)
+            self._require_project_workflow(
+                project_id, workflow_id, scope=scope, allow_disabled=True
+            ),
+            require_available=False,
         )

@@ -121,11 +121,11 @@ ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
             line.lower().encode("utf-8")
             for line in (
                 f"### {_EXTERNAL_AGENT_RUNTIME.title()}",
+                # The documented CLI only registers and refreshes a marketplace;
+                # installing happens in the client's /plugins browser.
                 f"{_EXTERNAL_AGENT_RUNTIME} plugin marketplace add .",
-                f"{_EXTERNAL_AGENT_RUNTIME} plugin add {package}@flow-steward-local",
                 f"`{_EXTERNAL_AGENT_RUNTIME} plugin marketplace upgrade flow-steward-local`; the client runs a cached",
                 f"`{_EXTERNAL_AGENT_RUNTIME} plugin marketplace remove flow-steward-local` to drop the whole local",
-                f"marketplace) and restart. See the [{_EXTERNAL_AGENT_RUNTIME.title()} plugin documentation](https://developers.openai.com/plugins/build/plugins).",
                 f"### {_EXTERNAL_CODE_CLIENT}",
             )
         }
@@ -378,7 +378,7 @@ _EXTERNAL_CLIENT_DOCUMENTATION_EXAMPLES = (
     ),
     (
         Path("docs/agent-skills/flow-steward-developer/README.md"),
-        f"{_EXTERNAL_AGENT_RUNTIME} plugin add flow-steward-developer@flow-steward-local",
+        f"`{_EXTERNAL_AGENT_RUNTIME} plugin marketplace upgrade flow-steward-local`; the client runs a cached",
     ),
 )
 
