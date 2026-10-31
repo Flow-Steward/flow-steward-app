@@ -5,5 +5,27 @@
   "description": "Build, run and manage Flow Steward automations through your Flow Steward MCP connection: workflows, agents and skills, runs, approvals and operational reports. Also reports issues and shares workflow templates.",
   "author": {
     "name": "Flow Steward"
+  },
+  "homepage": "https://github.com/Flow-Steward/flow-steward-app/tree/main/docs/agent-skills",
+  "repository": "https://github.com/Flow-Steward/flow-steward-app",
+  "license": "Apache-2.0",
+  "keywords": [
+    "flow-steward",
+    "automation",
+    "workflows",
+    "mcp"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Flow Steward Operator",
+        "shortDescription": "Build and run automations",
+        "longDescription": "Flow Steward Operator teaches your AI agent to work with a self-hosted Flow Steward installation through its MCP server: find what exists, create skills and agents, compose and validate workflows as disabled drafts, enable and run them on request, and answer questions about runs, errors, approvals and reports. It can also prepare bug reports and share workflow templates on GitHub. The package holds instructions only; it contains no address or token, and your token decides what the agent may do.",
+        "developerName": "Flow Steward",
+        "category": "Productivity",
+        "logo": "./assets/icon.svg",
+        "composerIcon": "./assets/icon.svg"
+      }
+    }
   }
 }

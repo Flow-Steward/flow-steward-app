@@ -1,8 +1,43 @@
 {
   "name": "flow-steward-operator",
+  "displayName": "Flow Steward Operator",
   "version": "1.0.0",
   "description": "Build, run and manage Flow Steward automations through your Flow Steward MCP connection: workflows, agents and skills, runs, approvals and operational reports. Also reports issues and shares workflow templates.",
   "author": {
     "name": "Flow Steward"
+  },
+  "homepage": "https://github.com/Flow-Steward/flow-steward-app/tree/main/docs/agent-skills",
+  "repository": "https://github.com/Flow-Steward/flow-steward-app",
+  "license": "Apache-2.0",
+  "keywords": [
+    "flow-steward",
+    "automation",
+    "workflows",
+    "mcp"
+  ],
+  "icon": "./assets/icon.svg",
+  "userConfig": {
+    "mcp_url": {
+      "type": "string",
+      "title": "Flow Steward MCP address",
+      "description": "The MCP address of your own Flow Steward installation, ending in /mcp, as its AI-agent setup page shows it.",
+      "required": true
+    },
+    "mcp_token": {
+      "type": "string",
+      "title": "Flow Steward personal access token",
+      "description": "A personal access token from your Flow Steward user settings. It is kept in your system credential store, never in the plugin.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "mcpServers": {
+    "flow-steward": {
+      "type": "http",
+      "url": "${user_config.mcp_url}",
+      "headers": {
+        "Authorization": "Bearer ${user_config.mcp_token}"
+      }
+    }
   }
 }

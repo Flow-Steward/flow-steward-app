@@ -1,0 +1,18 @@
+{
+  "name": "flow-steward-operator",
+  "version": "1.0.0",
+  "description": "Build, run and manage Flow Steward automations through your Flow Steward MCP connection: workflows, agents and skills, runs, approvals and operational reports. Also reports issues and shares workflow templates.",
+  "author": {
+    "name": "Flow Steward"
+  },
+  "homepage": "https://github.com/Flow-Steward/flow-steward-app/tree/main/docs/agent-skills",
+  "repository": "https://github.com/Flow-Steward/flow-steward-app",
+  "license": "Apache-2.0",
+  "keywords": [
+    "flow-steward",
+    "automation",
+    "workflows",
+    "mcp"
+  ],
+  "logo": "assets/icon.svg"
+}

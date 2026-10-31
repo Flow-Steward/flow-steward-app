@@ -5,5 +5,27 @@
   "description": "Build, test and publish Flow Steward extensions with the CLI and SDK, contribute code to the core repository, and report issues. Needs no Flow Steward MCP connection.",
   "author": {
     "name": "Flow Steward"
+  },
+  "homepage": "https://github.com/Flow-Steward/flow-steward-app/tree/main/docs/agent-skills",
+  "repository": "https://github.com/Flow-Steward/flow-steward-app",
+  "license": "Apache-2.0",
+  "keywords": [
+    "flow-steward",
+    "extensions",
+    "sdk",
+    "cli"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Flow Steward Developer",
+        "shortDescription": "Build Flow Steward extensions",
+        "longDescription": "Flow Steward Developer teaches your AI agent to build, validate, test and release Flow Steward extensions with the existing CLI and extension SDK, list them in the public extension catalog, and take a core bug or improvement from the issue to a reviewed pull request. It works in a terminal with Git and Docker and needs no Flow Steward MCP connection or token.",
+        "developerName": "Flow Steward",
+        "category": "Productivity",
+        "logo": "./assets/icon.svg",
+        "composerIcon": "./assets/icon.svg"
+      }
+    }
   }
 }

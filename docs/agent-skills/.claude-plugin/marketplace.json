@@ -1,0 +1,21 @@
+{
+  "name": "flow-steward",
+  "owner": {
+    "name": "Flow Steward"
+  },
+  "description": "Flow Steward agent skill packages: Operator for automations through MCP, Developer for extensions and code contributions.",
+  "plugins": [
+    {
+      "name": "flow-steward-operator",
+      "source": "./flow-steward-operator",
+      "description": "Build, run and manage Flow Steward automations through your Flow Steward MCP connection: workflows, agents and skills, runs, approvals and operational reports. Also reports issues and shares workflow templates.",
+      "category": "productivity"
+    },
+    {
+      "name": "flow-steward-developer",
+      "source": "./flow-steward-developer",
+      "description": "Build, test and publish Flow Steward extensions with the CLI and SDK, contribute code to the core repository, and report issues. Needs no Flow Steward MCP connection.",
+      "category": "productivity"
+    }
+  ]
+}

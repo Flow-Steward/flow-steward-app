@@ -1,0 +1,46 @@
+{
+  "author": {
+    "name": "Flow Steward"
+  },
+  "homepage": "https://github.com/Flow-Steward/flow-steward-app/tree/main/docs/agent-skills",
+  "repository": "https://github.com/Flow-Steward/flow-steward-app",
+  "license": "Apache-2.0",
+  "icon_source": "assets/frontend/public/favicon.svg",
+  "marketplace": {
+    "name": "flow-steward",
+    "description": "Flow Steward agent skill packages: Operator for automations through MCP, Developer for extensions and code contributions."
+  },
+  "packages": {
+    "flow-steward-operator": {
+      "version": "1.0.0",
+      "display_name": "Flow Steward Operator",
+      "short_description": "Build and run automations",
+      "description": "Build, run and manage Flow Steward automations through your Flow Steward MCP connection: workflows, agents and skills, runs, approvals and operational reports. Also reports issues and shares workflow templates.",
+      "long_description": "Flow Steward Operator teaches your AI agent to work with a self-hosted Flow Steward installation through its MCP server: find what exists, create skills and agents, compose and validate workflows as disabled drafts, enable and run them on request, and answer questions about runs, errors, approvals and reports. It can also prepare bug reports and share workflow templates on GitHub. The package holds instructions only; it contains no address or token, and your token decides what the agent may do.",
+      "category": "Productivity",
+      "keywords": ["flow-steward", "automation", "workflows", "mcp"],
+      "mcp_connection": {
+        "server": "flow-steward",
+        "url_option": {
+          "key": "mcp_url",
+          "title": "Flow Steward MCP address",
+          "description": "The MCP address of your own Flow Steward installation, ending in /mcp, as its AI-agent setup page shows it."
+        },
+        "token_option": {
+          "key": "mcp_token",
+          "title": "Flow Steward personal access token",
+          "description": "A personal access token from your Flow Steward user settings. It is kept in your system credential store, never in the plugin."
+        }
+      }
+    },
+    "flow-steward-developer": {
+      "version": "1.0.0",
+      "display_name": "Flow Steward Developer",
+      "short_description": "Build Flow Steward extensions",
+      "description": "Build, test and publish Flow Steward extensions with the CLI and SDK, contribute code to the core repository, and report issues. Needs no Flow Steward MCP connection.",
+      "long_description": "Flow Steward Developer teaches your AI agent to build, validate, test and release Flow Steward extensions with the existing CLI and extension SDK, list them in the public extension catalog, and take a core bug or improvement from the issue to a reviewed pull request. It works in a terminal with Git and Docker and needs no Flow Steward MCP connection or token.",
+      "category": "Productivity",
+      "keywords": ["flow-steward", "extensions", "sdk", "cli"]
+    }
+  }
+}

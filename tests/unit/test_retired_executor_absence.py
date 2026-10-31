@@ -131,6 +131,12 @@ ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
         }
         for package in _AGENT_SKILL_PACKAGES
     },
+    # The compatibility matrix names each local client only in its section
+    # heading; the rows below a heading say "the client".
+    Path("docs/agent-skills/COMPATIBILITY.md"): {
+        f"### {_EXTERNAL_AGENT_RUNTIME.title()}".lower().encode("utf-8"),
+        f"### {_EXTERNAL_CODE_CLIENT}".lower().encode("utf-8"),
+    },
     Path("docs/extension-authoring-agent-playbook.md"): {
         f"native local {_EXTERNAL_AGENT_RUNTIME.title()} and {_EXTERNAL_CODE_CLIENT} skill directories. After an authorized".lower().encode(
             "utf-8"

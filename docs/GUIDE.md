@@ -1275,6 +1275,12 @@ a scoped read. Archive extraction or file copying alone does not establish
 runtime discovery. Use the same reviewed package source for updates and verify
 the installed bytes.
 
+The [compatibility matrix](agent-skills/COMPATIBILITY.md) lists each client with
+its format, setup, limits and verification status. Each Flow Steward release
+carries both packages as archives with checksums; how they are built, attached
+to the GitHub Release and submitted to client catalogs is in
+[agent-skills/publishing](agent-skills/publishing/README.md).
+
 #### Inspect operations and reports
 
 Use `job_list(group_by="attention")` for a triage view, or normal paginated

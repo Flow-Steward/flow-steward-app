@@ -1,0 +1,18 @@
+{
+  "name": "flow-steward-developer",
+  "version": "1.0.0",
+  "description": "Build, test and publish Flow Steward extensions with the CLI and SDK, contribute code to the core repository, and report issues. Needs no Flow Steward MCP connection.",
+  "author": {
+    "name": "Flow Steward"
+  },
+  "homepage": "https://github.com/Flow-Steward/flow-steward-app/tree/main/docs/agent-skills",
+  "repository": "https://github.com/Flow-Steward/flow-steward-app",
+  "license": "Apache-2.0",
+  "keywords": [
+    "flow-steward",
+    "extensions",
+    "sdk",
+    "cli"
+  ],
+  "logo": "assets/icon.svg"
+}
