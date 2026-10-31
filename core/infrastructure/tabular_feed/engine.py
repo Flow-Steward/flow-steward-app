@@ -822,6 +822,29 @@ def merge_rows(action: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+#: A text cell a spreadsheet would evaluate (OWASP CSV injection): workflow data
+#: such as a scraped page title must not become a formula in the exported file.
+_SPREADSHEET_FORMULA_PREFIX = r"^[=+\-@\t\r]"
+
+
+def _neutralize_spreadsheet_formulas(frame: Any) -> Any:
+    """Prefix formula-looking text cells with an apostrophe; other columns are kept."""
+    pl = _pl()
+    schema = frame.collect_schema()
+    text_columns = [name for name, dtype in schema.items() if dtype == pl.String]
+    if not text_columns:
+        return frame
+    return frame.with_columns(
+        [
+            pl.when(pl.col(name).str.contains(_SPREADSHEET_FORMULA_PREFIX))
+            .then(pl.lit("'") + pl.col(name))
+            .otherwise(pl.col(name))
+            .alias(name)
+            for name in text_columns
+        ]
+    )
+
+
 def write(action: dict[str, Any]) -> dict[str, Any]:
     payload = _input(action)
     fmt = _text(payload.get("format"), "csv").lower()
@@ -852,6 +875,8 @@ def write(action: dict[str, Any]) -> dict[str, Any]:
                     delimiter = "\t" if fmt == "tsv" else _text(options.get("delimiter"), ",")
                     if delimiter == "\\t":
                         delimiter = "\t"
+                    if options.get("neutralize_formulas", True) is not False:
+                        frame = _neutralize_spreadsheet_formulas(frame)
                     frame.sink_csv(output_path, separator=delimiter)
                     content_type = "text/tab-separated-values" if fmt == "tsv" else TEXT_CSV_VALUE
                 elif fmt == "ndjson":
@@ -875,6 +900,9 @@ def write(action: dict[str, Any]) -> dict[str, Any]:
             df, _meta = _dataset_dataframe(action, dataset_handle)
             if columns:
                 df = df.select([column for column in columns if column in df.columns])
+            if fmt == "xlsx" and options.get("neutralize_formulas", True) is not False:
+                # openpyxl stores a string that starts with "=" as a formula.
+                df = _neutralize_spreadsheet_formulas(df)
             row_count = df.height
         if fmt == "json":
             df.write_json(output_path)
