@@ -291,7 +291,7 @@ class ExtensionCatalogInstallService:
         *,
         get_install_store: Callable[[], Any],
         get_binding_service: Callable[[], Any],
-        load_index: Callable[[], Any] = load_extension_catalog,
+        load_index: Callable[..., Any] = load_extension_catalog,
         availability: Callable[..., dict[str, Any]] = extension_catalog_availability,
         fetch_artifact: Callable[..., bytes] = fetch_extension_release_artifact,
         # `compatible_flow_steward` is a product range, so it is checked against the
