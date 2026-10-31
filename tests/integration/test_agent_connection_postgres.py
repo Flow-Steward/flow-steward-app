@@ -149,7 +149,7 @@ def test_a_lost_response_is_answered_by_the_same_attempt(world) -> None:
     service = AgentConnectionService(world.store, oauth_readiness=world.service().readiness)
     operator = world.principal("operator")
     request = {
-        "client_id": "codex",
+        "client_id": "cursor",
         "package_id": "flow-steward-operator",
         "preset_id": "operational",
         "project_ids": [world.projects[0]],

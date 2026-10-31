@@ -27848,7 +27848,7 @@ msgstr ""
 msgid "react.agent_access.client_claude_code_description"
 msgstr ""
 
-msgid "react.agent_access.client_codex_description"
+msgid "react.agent_access.client_openai_agent_description"
 msgstr ""
 
 msgid "react.agent_access.client_cursor_description"
@@ -27911,10 +27911,10 @@ msgstr ""
 msgid "react.agent_access.step_open_readme_description"
 msgstr ""
 
-msgid "react.agent_access.step_codex_config"
+msgid "react.agent_access.step_toml_config"
 msgstr ""
 
-msgid "react.agent_access.step_codex_config_description"
+msgid "react.agent_access.step_toml_config_description"
 msgstr ""
 
 msgid "react.agent_access.step_token_environment"

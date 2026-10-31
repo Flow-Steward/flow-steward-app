@@ -29324,8 +29324,8 @@ msgstr "Kūrėjams, kurie terminale su CLI ir SDK kuria plėtinius ir prisideda 
 msgid "react.agent_access.client_claude_code_description"
 msgstr "Terminalas, IDE plėtiniai ir Claude darbalaukio programos skirtukas Code."
 
-msgid "react.agent_access.client_codex_description"
-msgstr "Codex CLI ir ChatGPT darbalaukio programos programavimo agentas."
+msgid "react.agent_access.client_openai_agent_description"
+msgstr "OpenAI komandinės eilutės programavimo agentas ir ChatGPT darbalaukio programos programavimo agentas."
 
 msgid "react.agent_access.client_cursor_description"
 msgstr "Cursor darbalaukio programa."
@@ -29367,7 +29367,7 @@ msgid "react.agent_access.step_configure_claude_plugin"
 msgstr "Įveskite adresą ir prieigos raktą"
 
 msgid "react.agent_access.step_configure_claude_plugin_description"
-msgstr "Paleiskite tai Claude Code seanse ir įveskite dvi toliau pateiktas reikšmes. Claude Code prieigos raktą laiko jūsų sistemos kredencialų saugykloje."
+msgstr "Paleiskite tai kliento seanse ir įveskite dvi toliau pateiktas reikšmes. Klientas prieigos raktą laiko jūsų sistemos kredencialų saugykloje."
 
 msgid "react.agent_access.value_mcp_address"
 msgstr "Flow Steward MCP adresas"
@@ -29387,10 +29387,10 @@ msgstr "Atlikite diegimo veiksmus"
 msgid "react.agent_access.step_open_readme_description"
 msgstr "Paketo README pateikia šio kliento diegimo, atnaujinimo ir šalinimo veiksmus."
 
-msgid "react.agent_access.step_codex_config"
+msgid "react.agent_access.step_toml_config"
 msgstr "Įrašykite serverį į ~/.codex/config.toml"
 
-msgid "react.agent_access.step_codex_config_description"
+msgid "react.agent_access.step_toml_config_description"
 msgstr "Pridėkite šią sekciją ir palikite likusį failą. Joje nurodytas kintamasis su prieigos raktu, ne pats raktas."
 
 msgid "react.agent_access.step_token_environment"

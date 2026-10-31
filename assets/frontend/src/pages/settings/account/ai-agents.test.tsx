@@ -104,7 +104,7 @@ function setupPayload(overrides: Partial<AgentAccessSetup> = {}): AgentAccessSet
     default_expiry_days: 30,
     first_request: step({ id: "first_request", title: "Make the first request", content: "List my Flow Steward projects and their enabled workflows." }),
     clients: [
-      { id: "claude_code", label: "Claude Code", connection: "local", description_key: "react.agent_access.client_claude_code_description", description: "Terminal", mcp_blockers: [], packages: [operator(), developer] },
+      { id: "claude_code", label: "Local agent", connection: "local", description_key: "react.agent_access.client_claude_code_description", description: "Terminal", mcp_blockers: [], packages: [operator(), developer] },
       {
         id: "chatgpt",
         label: "ChatGPT",
@@ -122,7 +122,7 @@ function setupPayload(overrides: Partial<AgentAccessSetup> = {}): AgentAccessSet
 function created(overrides: Partial<AgentAccessIssueResult> = {}): AgentAccessIssueResult {
   return {
     status: "created",
-    token: { id: "tok-1", label: "AI agent · Claude Code", scopes: ["projects.read"] },
+    token: { id: "tok-1", label: "AI agent · Local agent", scopes: ["projects.read"] },
     secret: SECRET,
     secret_already_shown: false,
     ...overrides,
@@ -136,7 +136,7 @@ function renderSection() {
 
 async function chooseLocalOperator() {
   renderSection();
-  fireEvent.click(await screen.findByRole("radio", { name: /Claude Code/ }));
+  fireEvent.click(await screen.findByRole("radio", { name: /Local agent/ }));
   await screen.findByRole("radio", { name: /Flow Steward Operator/ });
 }
 
@@ -145,7 +145,7 @@ describe("AiAgentsSection", () => {
     vi.clearAllMocks();
     mockedSetup.mockResolvedValue(setupPayload());
     mockedProjects.mockResolvedValue({ projects: [{ id: "p-1", name: "Shop" }] } as never);
-    mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Claude Code", scopes: ["projects.read"], last_used_at: null, expires_at: "2026-11-30T12:00:00Z", allowed_project_ids: [] } });
+    mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Local agent", scopes: ["projects.read"], last_used_at: null, expires_at: "2026-11-30T12:00:00Z", allowed_project_ids: [] } });
     mockedTokens.mockResolvedValue({ tokens: [], total: 0, page: 1, per_page: 25, total_pages: 1 } as never);
   });
 
@@ -192,11 +192,11 @@ describe("AiAgentsSection", () => {
   it("after a lost response asks about the same attempt and never shows the secret again", async () => {
     mockedIssue.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     mockedIssue.mockResolvedValueOnce(created({ status: "replayed", secret: "", secret_already_shown: true }));
-    mockedTokens.mockResolvedValue({ tokens: [{ id: "tok-1", label: "AI agent · Claude Code", created_at: "2026-10-31T12:00:00Z", scopes: [], allowed_project_ids: [], allowed_workflow_ids: [] }], total: 1, page: 1, per_page: 25, total_pages: 1 } as never);
+    mockedTokens.mockResolvedValue({ tokens: [{ id: "tok-1", label: "AI agent · Local agent", created_at: "2026-10-31T12:00:00Z", scopes: [], allowed_project_ids: [], allowed_workflow_ids: [] }], total: 1, page: 1, per_page: 25, total_pages: 1 } as never);
     await chooseLocalOperator();
     fireEvent.click(screen.getByRole("button", { name: "Create token" }));
     expect(await screen.findByText("We could not confirm whether the token was created")).toBeInTheDocument();
-    expect(await screen.findByText(/AI agent · Claude Code/)).toBeInTheDocument();
+    expect(await screen.findByText(/AI agent · Local agent/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Monitor and run workflows/ })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Check again" }));
     expect(await screen.findByText("This token already exists; its secret was shown once")).toBeInTheDocument();
@@ -223,7 +223,7 @@ describe("AiAgentsSection", () => {
     await chooseLocalOperator();
     fireEvent.click(screen.getByRole("button", { name: "Create token" }));
     fireEvent.click(await screen.findByRole("button", { name: "Revoke token" }));
-    mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Claude Code", scopes: [], revoked: true, last_used_at: "2026-10-31T12:05:00Z" } });
+    mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Local agent", scopes: [], revoked: true, last_used_at: "2026-10-31T12:05:00Z" } });
     const dialogButtons = await screen.findAllByRole("button", { name: "Revoke token" });
     fireEvent.click(dialogButtons[dialogButtons.length - 1]);
     await waitFor(() => expect(mockedRevoke).toHaveBeenCalledWith("tok-1"));

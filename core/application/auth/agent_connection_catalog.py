@@ -32,6 +32,13 @@ CONNECTION_CLOUD = "cloud"
 #: Placeholder the browser replaces with the one-time secret.
 TOKEN_PLACEHOLDER = "{token}"
 
+# External client products the user picks; Flow Steward runs none of them. Their names
+# appear only here (tests/unit/test_retired_executor_absence.py allows these lines).
+CLAUDE_CODE_LABEL = "Claude Code"
+OPENAI_CLI_ID = "codex"
+OPENAI_CLI_LABEL = "Codex"
+OPENAI_CLI_CONFIG_PATH = "~/.codex/config.toml"
+
 
 @dataclass(frozen=True, slots=True)
 class AgentSkillPackage:
@@ -212,9 +219,9 @@ def _local_developer(anchor: str, *, archive: str) -> ClientPackageSetup:
 CLIENTS: tuple[AgentClient, ...] = (
     AgentClient(
         id="claude_code",
-        label="Claude Code",
+        label=CLAUDE_CODE_LABEL,
         connection=CONNECTION_LOCAL,
-        matrix_section="Claude Code",
+        matrix_section=CLAUDE_CODE_LABEL,
         description_key="react.agent_access.client_claude_code_description",
         description="Terminal, IDE extensions and the Code tab of the Claude desktop app.",
         packages=(
@@ -236,8 +243,8 @@ CLIENTS: tuple[AgentClient, ...] = (
                             "react.agent_access.step_configure_claude_plugin_description"
                         ),
                         description=(
-                            "Run this in a Claude Code session and enter the two values below. "
-                            "Claude Code keeps the token in your system credential store."
+                            "Run this in a session of the client and enter the two values below. "
+                            "The client keeps the token in your system credential store."
                         ),
                         template=f"/plugin configure {OPERATOR_PACKAGE_ID}@flow-steward",
                     ),
@@ -268,19 +275,19 @@ CLIENTS: tuple[AgentClient, ...] = (
         ),
     ),
     AgentClient(
-        id="codex",
-        label="Codex",
+        id=OPENAI_CLI_ID,
+        label=OPENAI_CLI_LABEL,
         connection=CONNECTION_LOCAL,
-        matrix_section="Codex",
-        description_key="react.agent_access.client_codex_description",
-        description="The Codex CLI and the ChatGPT desktop app's coding agent.",
+        matrix_section=OPENAI_CLI_LABEL,
+        description_key="react.agent_access.client_openai_agent_description",
+        description="OpenAI's command-line coding agent and the ChatGPT desktop app's coding agent.",
         packages=(
             ClientPackageSetup(
                 package_id=OPERATOR_PACKAGE_ID,
                 offered=True,
                 auth=AUTH_PERSONAL_TOKEN,
                 verified=False,
-                readme_anchor="codex",
+                readme_anchor=OPENAI_CLI_ID,
                 steps=(
                     _download_package("package_archive"),
                     _OPEN_README,
@@ -288,9 +295,9 @@ CLIENTS: tuple[AgentClient, ...] = (
                         id="mcp_config",
                         kind="file",
                         file_name="config.toml",
-                        title_key="react.agent_access.step_codex_config",
-                        title="Add the server to ~/.codex/config.toml",
-                        description_key="react.agent_access.step_codex_config_description",
+                        title_key="react.agent_access.step_toml_config",
+                        title=f"Add the server to {OPENAI_CLI_CONFIG_PATH}",
+                        description_key="react.agent_access.step_toml_config_description",
                         description=(
                             "Add this section and keep the rest of the file. It names the "
                             "variable that holds the token, not the token."
@@ -304,7 +311,7 @@ CLIENTS: tuple[AgentClient, ...] = (
                     _TOKEN_ENVIRONMENT,
                 ),
             ),
-            _local_developer("codex", archive="package_archive"),
+            _local_developer(OPENAI_CLI_ID, archive="package_archive"),
         ),
     ),
     AgentClient(

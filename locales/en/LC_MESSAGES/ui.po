@@ -28902,8 +28902,8 @@ msgstr "For developers who build extensions and contribute code with the CLI and
 msgid "react.agent_access.client_claude_code_description"
 msgstr "Terminal, IDE extensions and the Code tab of the Claude desktop app."
 
-msgid "react.agent_access.client_codex_description"
-msgstr "The Codex CLI and the ChatGPT desktop app's coding agent."
+msgid "react.agent_access.client_openai_agent_description"
+msgstr "OpenAI's command-line coding agent and the ChatGPT desktop app's coding agent."
 
 msgid "react.agent_access.client_cursor_description"
 msgstr "The Cursor desktop app."
@@ -28945,7 +28945,7 @@ msgid "react.agent_access.step_configure_claude_plugin"
 msgstr "Enter the address and the token"
 
 msgid "react.agent_access.step_configure_claude_plugin_description"
-msgstr "Run this in a Claude Code session and enter the two values below. Claude Code keeps the token in your system credential store."
+msgstr "Run this in a session of the client and enter the two values below. The client keeps the token in your system credential store."
 
 msgid "react.agent_access.value_mcp_address"
 msgstr "Flow Steward MCP address"
@@ -28965,10 +28965,10 @@ msgstr "Follow the install steps"
 msgid "react.agent_access.step_open_readme_description"
 msgstr "The package README has the install, update and removal steps for this client."
 
-msgid "react.agent_access.step_codex_config"
+msgid "react.agent_access.step_toml_config"
 msgstr "Add the server to ~/.codex/config.toml"
 
-msgid "react.agent_access.step_codex_config_description"
+msgid "react.agent_access.step_toml_config_description"
 msgstr "Add this section and keep the rest of the file. It names the variable that holds the token, not the token."
 
 msgid "react.agent_access.step_token_environment"

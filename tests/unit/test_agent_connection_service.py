@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from core.application.auth import agent_connection_service as service_module
 from core.application.auth.agent_access_presets import OPERATIONAL_SCOPES
+from core.application.auth.agent_connection_catalog import CLAUDE_CODE_LABEL, OPENAI_CLI_ID
 from core.application.auth.agent_connection_service import (
     AgentConnectionError,
     AgentConnectionService,
@@ -231,15 +232,15 @@ def test_a_public_https_install_has_no_cloud_blocker(world) -> None:
 def test_steps_are_filled_except_the_token(world) -> None:
     store, _table = world
     view = _service(store).setup_view(_user())
-    codex = next(client for client in view["clients"] if client["id"] == "codex")
-    steps = {step["id"]: step for step in codex["packages"][0]["steps"]}
+    local = next(client for client in view["clients"] if client["id"] == OPENAI_CLI_ID)
+    steps = {step["id"]: step for step in local["packages"][0]["steps"]}
     assert 'url = "https://fs.example.com/mcp"' in steps["mcp_config"]["content"]
     assert steps["mcp_config"]["uses_token"] is False
     assert steps["token_environment"]["content"] == 'export FLOW_STEWARD_TOKEN="{token}"'
     assert steps["download_package"]["values"]["archive"] == "flow-steward-operator-1.0.0.zip"
     assert steps["download_package"]["url"].endswith("/releases/tag/v0.9.6")
     assert steps["open_readme"]["url"].endswith(
-        "/blob/v0.9.6/docs/agent-skills/flow-steward-operator/README.md#codex"
+        f"/blob/v0.9.6/docs/agent-skills/flow-steward-operator/README.md#{OPENAI_CLI_ID}"
     )
     cursor = next(client for client in view["clients"] if client["id"] == "cursor")
     cursor_config = next(s for s in cursor["packages"][0]["steps"] if s["id"] == "mcp_config")
@@ -280,7 +281,7 @@ def test_one_attempt_creates_one_token_and_a_repeat_never_shows_the_secret(world
     assert first["status"] == "created"
     assert first["secret"] == f"{SECRET_PREFIX}tok-1"
     assert first["token"]["scopes"] == list(OPERATIONAL_SCOPES)
-    assert first["token"]["label"] == "AI agent · Claude Code"
+    assert first["token"]["label"] == f"AI agent · {CLAUDE_CODE_LABEL}"
     for _ in range(3):  # double click, retry after a lost response, a third try
         repeat = _issue(service)
         assert repeat["status"] == "replayed"
