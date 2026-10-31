@@ -182,7 +182,7 @@ describe("AiAgentsSection", () => {
     resolve(created());
     expect(await screen.findByLabelText("Flow Steward personal access token")).toHaveTextContent(SECRET);
     const [key, request] = mockedIssue.mock.calls[0];
-    expect(key).toMatch(/\w{16,}/);
+    expect(key).toMatch(/^[\w-]{16,}$/);
     expect(request).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator", preset: "operational", expiry_days: 30, project_ids: [] });
     expect(await screen.findByText("Not used yet")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hide the token" }));
