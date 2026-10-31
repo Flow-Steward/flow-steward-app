@@ -28724,3 +28724,291 @@ msgid "react.oauth.preset_operational_description"
 msgstr ""
 "Find projects, read statuses, errors, reports and approvals, and start or"
 " cancel runs."
+
+msgid "react.agent_access.public_address_missing_title"
+msgstr "This installation has no public address"
+
+msgid "react.agent_access.public_address_missing_copy"
+msgstr "FS_PUBLIC_BASE_URL is not set, so there is no MCP address to give an AI client. An administrator sets it to the address people open Flow Steward with."
+
+msgid "react.agent_access.internal_address_title"
+msgstr "The MCP address is an internal one"
+
+msgid "react.agent_access.internal_address_copy"
+msgstr "FS_MCP_RESOURCE_URL names a service inside the installation's network, which an AI client cannot reach. An administrator removes the override or sets it to a public address."
+
+msgid "react.agent_access.exceeds_authority"
+msgstr "This access is more than your own role allows."
+
+msgid "react.agent_access.project_not_accessible"
+msgstr "One of the selected projects is not available to you."
+
+msgid "react.agent_access.setup_unavailable"
+msgstr "The AI agent setup could not be loaded"
+
+msgid "react.agent_access.loading"
+msgstr "Loading the AI agent setup…"
+
+msgid "react.agent_access.oauth_access_description"
+msgstr "{client} connects from its own servers. You choose the access in Flow Steward when it connects: sign in, pick the access, projects and expiry, and approve. No token is created here."
+
+msgid "react.agent_access.step3_title"
+msgstr "3. Access"
+
+msgid "react.agent_access.oauth_ready_title"
+msgstr "Ready for cloud AI apps"
+
+msgid "react.agent_access.oauth_ready_copy"
+msgstr "After you approve, the access appears under Personal tokens → Connected AI apps, where you can revoke it."
+
+msgid "react.agent_access.token_access_description"
+msgstr "{client} uses a personal access token from your account. It can never do more than you can."
+
+msgid "react.agent_access.access_level"
+msgstr "What the agent may do"
+
+msgid "react.agent_access.preset_exceeds_authority"
+msgstr "Not available: it is more than your role allows."
+
+msgid "react.agent_access.admin_all_title"
+msgstr "admin:all is full access"
+
+msgid "react.agent_access.projects_help"
+msgstr "Empty means every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account and are not limited by project."
+
+msgid "react.agent_access.uncertain_title"
+msgstr "We could not confirm whether the token was created"
+
+msgid "react.agent_access.uncertain_copy"
+msgstr "The answer was lost. Check again: it asks about the same attempt, so it never creates a second token. Tokens this wizard created are listed below; revoke any you do not want."
+
+msgid "react.agent_access.check_again"
+msgstr "Check again"
+
+msgid "react.agent_access.open_personal_tokens"
+msgstr "Open personal tokens"
+
+msgid "react.agent_access.new_attempt"
+msgstr "Start a new attempt"
+
+msgid "react.agent_access.secret_already_shown_title"
+msgstr "This token already exists; its secret was shown once"
+
+msgid "react.agent_access.secret_already_shown_copy"
+msgstr "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token below and create a new one."
+
+msgid "react.agent_access.secret_once_title"
+msgstr "Copy the token now"
+
+msgid "react.agent_access.secret_once_copy"
+msgstr "It is filled into the setup below and shown only on this page, once. It disappears when you leave or hide it."
+
+msgid "react.agent_access.hide_token"
+msgstr "Hide the token"
+
+msgid "react.agent_access.start_over"
+msgstr "Start over"
+
+msgid "react.agent_access.title"
+msgstr "AI agents"
+
+msgid "react.agent_access.description"
+msgstr "Connect an AI client to Flow Steward: pick the client and the package, get the settings filled in, and make the first request."
+
+msgid "react.agent_access.step1_title"
+msgstr "1. AI client"
+
+msgid "react.agent_access.choose_client"
+msgstr "Which client do you use?"
+
+msgid "react.agent_access.cloud"
+msgstr "Cloud"
+
+msgid "react.agent_access.local"
+msgstr "On your computer"
+
+msgid "react.agent_access.package_description"
+msgstr "The package teaches the agent how to work with Flow Steward. It holds no address and no token."
+
+msgid "react.agent_access.step2_title"
+msgstr "2. Package"
+
+msgid "react.agent_access.choose_package"
+msgstr "What will you do with the agent?"
+
+msgid "react.agent_access.not_verified"
+msgstr "Not verified in this client"
+
+msgid "react.agent_access.setup_description"
+msgstr "The address is this installation's public MCP address."
+
+msgid "react.agent_access.setup_description_no_mcp"
+msgstr "This package does not connect to this installation, so no token is needed."
+
+msgid "react.agent_access.step4_title"
+msgstr "4. Set up {client}"
+
+msgid "react.agent_access.step5_title"
+msgstr "5. First request"
+
+msgid "react.agent_access.usage_after_token"
+msgstr "Once the token exists, its expiry, scopes and last use appear here."
+
+msgid "react.agent_access.usage_oauth"
+msgstr "The approved access, with its expiry, scopes and last use, appears under Personal tokens → Connected AI apps."
+
+msgid "react.agent_access.token_placeholder"
+msgstr "<your personal token>"
+
+msgid "react.agent_access.copied"
+msgstr "Copied."
+
+msgid "react.agent_access.copy_failed"
+msgstr "Could not copy. Select the text and copy it manually."
+
+msgid "react.agent_access.open_release"
+msgstr "Open the release"
+
+msgid "react.agent_access.open_readme"
+msgstr "Open the README"
+
+msgid "react.agent_access.token_appears_here"
+msgstr "The token appears here once it is created. It is shown only once."
+
+msgid "react.agent_access.copy"
+msgstr "Copy"
+
+msgid "react.agent_access.download_file"
+msgstr "Download {name}"
+
+msgid "react.agent_access.revoke_failed"
+msgstr "The token could not be revoked."
+
+msgid "react.agent_access.token_status_unavailable"
+msgstr "The token's state could not be loaded"
+
+msgid "react.agent_access.loading_token"
+msgstr "Loading the token's state…"
+
+msgid "react.agent_access.not_used_help"
+msgstr "Copying or downloading the settings does not count. The time appears after the first request with this token."
+
+msgid "react.agent_access.package_operator_description"
+msgstr "For people who build and run automations by talking to an AI agent. The agent works through this installation's MCP server, so it needs access."
+
+msgid "react.agent_access.package_developer_description"
+msgstr "For developers who build extensions and contribute code with the CLI and SDK in a terminal. It does not connect to this installation and needs no token."
+
+msgid "react.agent_access.client_claude_code_description"
+msgstr "Terminal, IDE extensions and the Code tab of the Claude desktop app."
+
+msgid "react.agent_access.client_codex_description"
+msgstr "The Codex CLI and the ChatGPT desktop app's coding agent."
+
+msgid "react.agent_access.client_cursor_description"
+msgstr "The Cursor desktop app."
+
+msgid "react.agent_access.client_gemini_cli_description"
+msgstr "The Gemini CLI terminal client."
+
+msgid "react.agent_access.client_claude_ai_description"
+msgstr "Claude chat on the web, desktop and mobile, and Cowork tasks."
+
+msgid "react.agent_access.reason_no_terminal"
+msgstr "Chat has no terminal, and file and terminal access in Cowork is not verified for this package."
+
+msgid "react.agent_access.client_chatgpt_description"
+msgstr "ChatGPT chat and Work on the web, desktop and mobile."
+
+msgid "react.agent_access.reason_listing_not_published"
+msgstr "The Developer listing for ChatGPT's desktop coding agent is not published yet. Chat itself has no terminal."
+
+msgid "react.agent_access.step_first_request"
+msgstr "Make the first request"
+
+msgid "react.agent_access.step_first_request_description"
+msgstr "Ask your agent this. It should answer from the MCP tools and report a permission error as an error."
+
+msgid "react.agent_access.step_download_marketplace"
+msgstr "Download the packages"
+
+msgid "react.agent_access.step_download_marketplace_description"
+msgstr "Download {archive} from the Flow Steward {core_version} release and extract it. Check it against the release's SHA256SUMS."
+
+msgid "react.agent_access.step_install_claude_plugin"
+msgstr "Install the plugin"
+
+msgid "react.agent_access.step_install_claude_plugin_description"
+msgstr "Replace the path with the extracted flow-steward-agent-skills folder."
+
+msgid "react.agent_access.step_configure_claude_plugin"
+msgstr "Enter the address and the token"
+
+msgid "react.agent_access.step_configure_claude_plugin_description"
+msgstr "Run this in a Claude Code session and enter the two values below. Claude Code keeps the token in your system credential store."
+
+msgid "react.agent_access.value_mcp_address"
+msgstr "Flow Steward MCP address"
+
+msgid "react.agent_access.value_personal_token"
+msgstr "Flow Steward personal access token"
+
+msgid "react.agent_access.step_download_package"
+msgstr "Download the package"
+
+msgid "react.agent_access.step_download_package_description"
+msgstr "Download {archive} from the Flow Steward {core_version} release and install it as the package README describes for {client}."
+
+msgid "react.agent_access.step_open_readme"
+msgstr "Follow the install steps"
+
+msgid "react.agent_access.step_open_readme_description"
+msgstr "The package README has the install, update and removal steps for this client."
+
+msgid "react.agent_access.step_codex_config"
+msgstr "Add the server to ~/.codex/config.toml"
+
+msgid "react.agent_access.step_codex_config_description"
+msgstr "Add this section and keep the rest of the file. It names the variable that holds the token, not the token."
+
+msgid "react.agent_access.step_token_environment"
+msgstr "Make the token available to the client"
+
+msgid "react.agent_access.step_token_environment_description"
+msgstr "Set the variable where the client starts, for example in your shell profile. Anyone who can read it can use the token."
+
+msgid "react.agent_access.step_cursor_config"
+msgstr "Add the server to ~/.cursor/mcp.json"
+
+msgid "react.agent_access.step_cursor_config_description"
+msgstr "Merge this entry into the file's mcpServers. Cursor reads the token from the variable, so the file holds no secret."
+
+msgid "react.agent_access.step_gemini_add"
+msgstr "Add the server"
+
+msgid "react.agent_access.step_gemini_add_description"
+msgstr "Gemini CLI keeps the token in its own settings file. Run the command only on your own computer."
+
+msgid "react.agent_access.step_claude_upload"
+msgstr "Upload the package"
+
+msgid "react.agent_access.step_claude_upload_description"
+msgstr "Download {archive} from the Flow Steward {core_version} release and upload it in Claude under Customize > Plugins > Upload plugin."
+
+msgid "react.agent_access.step_claude_connector"
+msgstr "Add Flow Steward as a custom connector"
+
+msgid "react.agent_access.step_claude_connector_description"
+msgstr "Add a custom connector with this address. Claude opens Flow Steward: sign in, choose the access and approve it. You copy no token."
+
+msgid "react.agent_access.step_chatgpt_listing"
+msgstr "The package is not in the OpenAI plugin directory yet"
+
+msgid "react.agent_access.step_chatgpt_listing_description"
+msgstr "Until it is listed, ChatGPT works with the MCP tools alone, without the package's instructions."
+
+msgid "react.agent_access.step_chatgpt_connector"
+msgstr "Add Flow Steward as a custom MCP connector"
+
+msgid "react.agent_access.step_chatgpt_connector_description"
+msgstr "Add a custom MCP connector with this address. ChatGPT opens Flow Steward: sign in, choose the access and approve it. You copy no token."

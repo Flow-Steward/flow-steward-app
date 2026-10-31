@@ -20,6 +20,7 @@ from core.application.auth.agent_access_presets import (
     agent_access_preset,
     granted_preset_scopes,
     offered_presets,
+    preset_offers,
 )
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.inbound_oauth_clients import (
@@ -369,29 +370,7 @@ class InboundOAuthService:
 
     @staticmethod
     def _preset_offers(user: Mapping[str, Any], requested: list[str]) -> list[dict[str, Any]]:
-        offers: list[dict[str, Any]] = []
-        for preset in offered_presets(requested):
-            scopes = granted_preset_scopes(preset, requested)
-            try:
-                enforce_token_scope_within_caller_authority(
-                    dict(user),
-                    requested_scopes=scopes,
-                    requested_project_ids=[],
-                    requested_workflow_ids=[],
-                )
-                available, reason = True, ""
-            except TokenAuthorityError:
-                available, reason = False, "exceeds_authority"
-            offers.append(
-                {
-                    "id": preset.id,
-                    "scopes": scopes,
-                    "available": available,
-                    "reason": reason,
-                    "subset_of_preset": len(scopes) < len(preset.scopes),
-                }
-            )
-        return offers
+        return preset_offers(user, requested)
 
     def consent_view(
         self,

@@ -398,6 +398,8 @@ INTERACTIVE_ONLY_PREFIXES: tuple[str, ...] = (
     "/api/oauth/",
     "/api/auth/oauth-grants",
     "/api/settings/mcp-oauth",
+    # Task 4: the AI-agent wizard mints personal tokens; only a person in a browser may.
+    "/api/auth/agent-access/",
 )
 #: The four protocol endpoints, public and never authenticated by a cookie.
 PROTOCOL_PATHS: frozenset[str] = frozenset(

@@ -27670,3 +27670,291 @@ msgstr ""
 
 msgid "react.oauth.preset_operational_description"
 msgstr ""
+
+msgid "react.agent_access.public_address_missing_title"
+msgstr ""
+
+msgid "react.agent_access.public_address_missing_copy"
+msgstr ""
+
+msgid "react.agent_access.internal_address_title"
+msgstr ""
+
+msgid "react.agent_access.internal_address_copy"
+msgstr ""
+
+msgid "react.agent_access.exceeds_authority"
+msgstr ""
+
+msgid "react.agent_access.project_not_accessible"
+msgstr ""
+
+msgid "react.agent_access.setup_unavailable"
+msgstr ""
+
+msgid "react.agent_access.loading"
+msgstr ""
+
+msgid "react.agent_access.oauth_access_description"
+msgstr ""
+
+msgid "react.agent_access.step3_title"
+msgstr ""
+
+msgid "react.agent_access.oauth_ready_title"
+msgstr ""
+
+msgid "react.agent_access.oauth_ready_copy"
+msgstr ""
+
+msgid "react.agent_access.token_access_description"
+msgstr ""
+
+msgid "react.agent_access.access_level"
+msgstr ""
+
+msgid "react.agent_access.preset_exceeds_authority"
+msgstr ""
+
+msgid "react.agent_access.admin_all_title"
+msgstr ""
+
+msgid "react.agent_access.projects_help"
+msgstr ""
+
+msgid "react.agent_access.uncertain_title"
+msgstr ""
+
+msgid "react.agent_access.uncertain_copy"
+msgstr ""
+
+msgid "react.agent_access.check_again"
+msgstr ""
+
+msgid "react.agent_access.open_personal_tokens"
+msgstr ""
+
+msgid "react.agent_access.new_attempt"
+msgstr ""
+
+msgid "react.agent_access.secret_already_shown_title"
+msgstr ""
+
+msgid "react.agent_access.secret_already_shown_copy"
+msgstr ""
+
+msgid "react.agent_access.secret_once_title"
+msgstr ""
+
+msgid "react.agent_access.secret_once_copy"
+msgstr ""
+
+msgid "react.agent_access.hide_token"
+msgstr ""
+
+msgid "react.agent_access.start_over"
+msgstr ""
+
+msgid "react.agent_access.title"
+msgstr ""
+
+msgid "react.agent_access.description"
+msgstr ""
+
+msgid "react.agent_access.step1_title"
+msgstr ""
+
+msgid "react.agent_access.choose_client"
+msgstr ""
+
+msgid "react.agent_access.cloud"
+msgstr ""
+
+msgid "react.agent_access.local"
+msgstr ""
+
+msgid "react.agent_access.package_description"
+msgstr ""
+
+msgid "react.agent_access.step2_title"
+msgstr ""
+
+msgid "react.agent_access.choose_package"
+msgstr ""
+
+msgid "react.agent_access.not_verified"
+msgstr ""
+
+msgid "react.agent_access.setup_description"
+msgstr ""
+
+msgid "react.agent_access.setup_description_no_mcp"
+msgstr ""
+
+msgid "react.agent_access.step4_title"
+msgstr ""
+
+msgid "react.agent_access.step5_title"
+msgstr ""
+
+msgid "react.agent_access.usage_after_token"
+msgstr ""
+
+msgid "react.agent_access.usage_oauth"
+msgstr ""
+
+msgid "react.agent_access.token_placeholder"
+msgstr ""
+
+msgid "react.agent_access.copied"
+msgstr ""
+
+msgid "react.agent_access.copy_failed"
+msgstr ""
+
+msgid "react.agent_access.open_release"
+msgstr ""
+
+msgid "react.agent_access.open_readme"
+msgstr ""
+
+msgid "react.agent_access.token_appears_here"
+msgstr ""
+
+msgid "react.agent_access.copy"
+msgstr ""
+
+msgid "react.agent_access.download_file"
+msgstr ""
+
+msgid "react.agent_access.revoke_failed"
+msgstr ""
+
+msgid "react.agent_access.token_status_unavailable"
+msgstr ""
+
+msgid "react.agent_access.loading_token"
+msgstr ""
+
+msgid "react.agent_access.not_used_help"
+msgstr ""
+
+msgid "react.agent_access.package_operator_description"
+msgstr ""
+
+msgid "react.agent_access.package_developer_description"
+msgstr ""
+
+msgid "react.agent_access.client_claude_code_description"
+msgstr ""
+
+msgid "react.agent_access.client_codex_description"
+msgstr ""
+
+msgid "react.agent_access.client_cursor_description"
+msgstr ""
+
+msgid "react.agent_access.client_gemini_cli_description"
+msgstr ""
+
+msgid "react.agent_access.client_claude_ai_description"
+msgstr ""
+
+msgid "react.agent_access.reason_no_terminal"
+msgstr ""
+
+msgid "react.agent_access.client_chatgpt_description"
+msgstr ""
+
+msgid "react.agent_access.reason_listing_not_published"
+msgstr ""
+
+msgid "react.agent_access.step_first_request"
+msgstr ""
+
+msgid "react.agent_access.step_first_request_description"
+msgstr ""
+
+msgid "react.agent_access.step_download_marketplace"
+msgstr ""
+
+msgid "react.agent_access.step_download_marketplace_description"
+msgstr ""
+
+msgid "react.agent_access.step_install_claude_plugin"
+msgstr ""
+
+msgid "react.agent_access.step_install_claude_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_configure_claude_plugin"
+msgstr ""
+
+msgid "react.agent_access.step_configure_claude_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.value_mcp_address"
+msgstr ""
+
+msgid "react.agent_access.value_personal_token"
+msgstr ""
+
+msgid "react.agent_access.step_download_package"
+msgstr ""
+
+msgid "react.agent_access.step_download_package_description"
+msgstr ""
+
+msgid "react.agent_access.step_open_readme"
+msgstr ""
+
+msgid "react.agent_access.step_open_readme_description"
+msgstr ""
+
+msgid "react.agent_access.step_codex_config"
+msgstr ""
+
+msgid "react.agent_access.step_codex_config_description"
+msgstr ""
+
+msgid "react.agent_access.step_token_environment"
+msgstr ""
+
+msgid "react.agent_access.step_token_environment_description"
+msgstr ""
+
+msgid "react.agent_access.step_cursor_config"
+msgstr ""
+
+msgid "react.agent_access.step_cursor_config_description"
+msgstr ""
+
+msgid "react.agent_access.step_gemini_add"
+msgstr ""
+
+msgid "react.agent_access.step_gemini_add_description"
+msgstr ""
+
+msgid "react.agent_access.step_claude_upload"
+msgstr ""
+
+msgid "react.agent_access.step_claude_upload_description"
+msgstr ""
+
+msgid "react.agent_access.step_claude_connector"
+msgstr ""
+
+msgid "react.agent_access.step_claude_connector_description"
+msgstr ""
+
+msgid "react.agent_access.step_chatgpt_listing"
+msgstr ""
+
+msgid "react.agent_access.step_chatgpt_listing_description"
+msgstr ""
+
+msgid "react.agent_access.step_chatgpt_connector"
+msgstr ""
+
+msgid "react.agent_access.step_chatgpt_connector_description"
+msgstr ""

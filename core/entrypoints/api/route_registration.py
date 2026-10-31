@@ -596,6 +596,30 @@ def _register_inbound_oauth_routes(current_app: FastAPI) -> None:
     )
 
 
+def _agent_connection_service(current_app: FastAPI):
+    from core.application.auth.agent_connection_service import AgentConnectionService
+
+    identity_store = _composed_service(current_app, "identity_store")
+    if not identity_store:
+        return None
+    oauth_service = _inbound_oauth_service(current_app)
+    return AgentConnectionService(
+        identity_store,
+        oauth_readiness=oauth_service.readiness if oauth_service is not None else None,
+    )
+
+
+def _register_agent_access_routes(current_app: FastAPI) -> None:
+    """Task 4: the session-only routes of the "connect an AI agent" wizard."""
+    from core.entrypoints.api.agent_connection_routes import create_agent_connection_router
+
+    current_app.include_router(
+        create_agent_connection_router(
+            service_factory=lambda: _agent_connection_service(current_app)
+        )
+    )
+
+
 def _register_ui_route_bindings(current_app: FastAPI) -> None:
     _register_ui_routes(
         current_app,
@@ -890,6 +914,7 @@ def _register_core_routes(current_app: FastAPI) -> None:
         _register_api_route_bindings,
         _register_auth_route_bindings,
         _register_inbound_oauth_routes,
+        _register_agent_access_routes,
         _register_ui_route_bindings,
         _register_job_and_webhook_routes,
     ):

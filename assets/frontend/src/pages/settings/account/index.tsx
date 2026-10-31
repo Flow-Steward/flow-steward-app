@@ -41,6 +41,7 @@ function expiryLabel(value: ExpiryChoice, t: I18nContextValue["t"] = fallbackCon
   return t("react.settings.value1_days", "{value1} days", { value1: String(value) });
 }
 import { fetchProjectsList } from "@/pages/projects/list/api";
+import { AiAgentsSection } from "@/pages/settings/account/ai-agents";
 import { ConnectedAppsSection } from "@/pages/settings/account/connected-apps";
 import {
   changeAccountPassword,
@@ -92,6 +93,7 @@ function getBuiltInAccountTabs(t: I18nContextValue["t"] = fallbackContext.t): Ac
   { key: "profile", label: t("account.profile.title", "Profile") },
   { key: "signin", label: t("react.settings.sign_in", "Sign-in") },
   { key: "tokens", label: t("react.settings.personal_tokens", "Personal tokens") },
+  { key: "ai-agents", label: t("react.agent_access.title", "AI agents") },
 ];
 }
 const EXTENSION_ACCOUNT_TABS = registeredAccountProfileTabs.filter((tab) => Boolean(resolveRegisteredPageComponent(tab.componentKey)));
@@ -515,6 +517,7 @@ export function SettingsAccountPage() {
         {activeTab === "profile" ? renderProfilePanel() : null}
         {activeTab === "signin" ? renderSigninPanel() : null}
         {activeTab === "tokens" ? renderTokensPanel() : null}
+        {activeTab === "ai-agents" ? <AiAgentsSection /> : null}
         {EXTENSION_ACCOUNT_TABS.map((tab) => {
           if (activeTab !== tab.key) return null;
           const Component = resolveRegisteredPageComponent(tab.componentKey);

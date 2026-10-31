@@ -29146,3 +29146,291 @@ msgid "react.oauth.preset_operational_description"
 msgstr ""
 "Rasti projektus, skaityti būsenas, klaidas, ataskaitas ir patvirtinimus, "
 "paleisti ar atšaukti vykdymus."
+
+msgid "react.agent_access.public_address_missing_title"
+msgstr "Šis diegimas neturi viešo adreso"
+
+msgid "react.agent_access.public_address_missing_copy"
+msgstr "FS_PUBLIC_BASE_URL nenustatytas, todėl nėra MCP adreso, kurį būtų galima duoti DI klientui. Administratorius nustato jį adresu, kuriuo žmonės atidaro Flow Steward."
+
+msgid "react.agent_access.internal_address_title"
+msgstr "MCP adresas yra vidinis"
+
+msgid "react.agent_access.internal_address_copy"
+msgstr "FS_MCP_RESOURCE_URL nurodo paslaugą diegimo vidiniame tinkle, kurios DI klientas negali pasiekti. Administratorius pašalina šį nustatymą arba nurodo viešą adresą."
+
+msgid "react.agent_access.exceeds_authority"
+msgstr "Ši prieiga viršija tai, ką leidžia jūsų vaidmuo."
+
+msgid "react.agent_access.project_not_accessible"
+msgstr "Vienas iš pasirinktų projektų jums nepasiekiamas."
+
+msgid "react.agent_access.setup_unavailable"
+msgstr "Nepavyko įkelti DI agento nustatymų"
+
+msgid "react.agent_access.loading"
+msgstr "Įkeliami DI agento nustatymai…"
+
+msgid "react.agent_access.oauth_access_description"
+msgstr "{client} jungiasi iš savo serverių. Prieigą pasirinksite Flow Steward, kai jis prisijungs: prisijunkite, pasirinkite prieigą, projektus ir galiojimą ir patvirtinkite. Čia joks prieigos raktas nekuriamas."
+
+msgid "react.agent_access.step3_title"
+msgstr "3. Prieiga"
+
+msgid "react.agent_access.oauth_ready_title"
+msgstr "Paruošta debesų DI programoms"
+
+msgid "react.agent_access.oauth_ready_copy"
+msgstr "Patvirtinus prieiga atsiras skiltyje Asmeniniai prieigos raktai → Prijungtos DI programos, kur ją galėsite atšaukti."
+
+msgid "react.agent_access.token_access_description"
+msgstr "{client} naudoja jūsų paskyros asmeninį prieigos raktą. Jis niekada negali daugiau nei jūs."
+
+msgid "react.agent_access.access_level"
+msgstr "Ką agentas gali daryti"
+
+msgid "react.agent_access.preset_exceeds_authority"
+msgstr "Nepasiekiama: viršija tai, ką leidžia jūsų vaidmuo."
+
+msgid "react.agent_access.admin_all_title"
+msgstr "admin:all yra visiška prieiga"
+
+msgid "react.agent_access.projects_help"
+msgstr "Tuščia reiškia visus jums pasiekiamus projektus. Pasirinkus projektus, paleidimai, užduotys ir darbo eigos apribojami jais; agentai ir įgūdžiai priklauso visai paskyrai ir projektu neribojami."
+
+msgid "react.agent_access.uncertain_title"
+msgstr "Nepavyko patvirtinti, ar prieigos raktas sukurtas"
+
+msgid "react.agent_access.uncertain_copy"
+msgstr "Atsakymas prarastas. Patikrinkite dar kartą: klausiama apie tą patį bandymą, todėl antras prieigos raktas niekada nesukuriamas. Šio vedlio sukurti prieigos raktai išvardyti žemiau; atšaukite nereikalingus."
+
+msgid "react.agent_access.check_again"
+msgstr "Tikrinti dar kartą"
+
+msgid "react.agent_access.open_personal_tokens"
+msgstr "Atidaryti asmeninius prieigos raktus"
+
+msgid "react.agent_access.new_attempt"
+msgstr "Pradėti naują bandymą"
+
+msgid "react.agent_access.secret_already_shown_title"
+msgstr "Šis prieigos raktas jau yra; jo slaptoji reikšmė parodyta vieną kartą"
+
+msgid "react.agent_access.secret_already_shown_copy"
+msgstr "Šis bandymas prieigos raktą sukūrė anksčiau, o slaptosios reikšmės nebegalima parodyti dar kartą. Jei jos neišsaugojote, atšaukite prieigos raktą žemiau ir sukurkite naują."
+
+msgid "react.agent_access.secret_once_title"
+msgstr "Nukopijuokite prieigos raktą dabar"
+
+msgid "react.agent_access.secret_once_copy"
+msgstr "Jis įrašytas į toliau pateiktus nustatymus ir rodomas tik šiame puslapyje, vieną kartą. Jis dings, kai išeisite arba jį paslėpsite."
+
+msgid "react.agent_access.hide_token"
+msgstr "Paslėpti prieigos raktą"
+
+msgid "react.agent_access.start_over"
+msgstr "Pradėti iš naujo"
+
+msgid "react.agent_access.title"
+msgstr "DI agentai"
+
+msgid "react.agent_access.description"
+msgstr "Prijunkite DI klientą prie Flow Steward: pasirinkite klientą ir paketą, gaukite užpildytus nustatymus ir atlikite pirmą užklausą."
+
+msgid "react.agent_access.step1_title"
+msgstr "1. DI klientas"
+
+msgid "react.agent_access.choose_client"
+msgstr "Kokį klientą naudojate?"
+
+msgid "react.agent_access.cloud"
+msgstr "Debesyje"
+
+msgid "react.agent_access.local"
+msgstr "Jūsų kompiuteryje"
+
+msgid "react.agent_access.package_description"
+msgstr "Paketas moko agentą dirbti su Flow Steward. Jame nėra nei adreso, nei prieigos rakto."
+
+msgid "react.agent_access.step2_title"
+msgstr "2. Paketas"
+
+msgid "react.agent_access.choose_package"
+msgstr "Ką darysite su agentu?"
+
+msgid "react.agent_access.not_verified"
+msgstr "Šiame kliente nepatikrinta"
+
+msgid "react.agent_access.setup_description"
+msgstr "Adresas yra šio diegimo viešas MCP adresas."
+
+msgid "react.agent_access.setup_description_no_mcp"
+msgstr "Šis paketas nesijungia prie šio diegimo, todėl prieigos rakto nereikia."
+
+msgid "react.agent_access.step4_title"
+msgstr "4. Nustatykite {client}"
+
+msgid "react.agent_access.step5_title"
+msgstr "5. Pirma užklausa"
+
+msgid "react.agent_access.usage_after_token"
+msgstr "Kai prieigos raktas bus sukurtas, čia matysite jo galiojimą, leidimus ir paskutinį naudojimą."
+
+msgid "react.agent_access.usage_oauth"
+msgstr "Patvirtinta prieiga su galiojimu, leidimais ir paskutiniu naudojimu rodoma skiltyje Asmeniniai prieigos raktai → Prijungtos DI programos."
+
+msgid "react.agent_access.token_placeholder"
+msgstr "<jūsų asmeninis prieigos raktas>"
+
+msgid "react.agent_access.copied"
+msgstr "Nukopijuota."
+
+msgid "react.agent_access.copy_failed"
+msgstr "Nepavyko nukopijuoti. Pažymėkite tekstą ir nukopijuokite rankiniu būdu."
+
+msgid "react.agent_access.open_release"
+msgstr "Atidaryti leidimą"
+
+msgid "react.agent_access.open_readme"
+msgstr "Atidaryti README"
+
+msgid "react.agent_access.token_appears_here"
+msgstr "Prieigos raktas čia atsiras, kai bus sukurtas. Jis rodomas tik vieną kartą."
+
+msgid "react.agent_access.copy"
+msgstr "Kopijuoti"
+
+msgid "react.agent_access.download_file"
+msgstr "Atsisiųsti {name}"
+
+msgid "react.agent_access.revoke_failed"
+msgstr "Nepavyko atšaukti prieigos rakto."
+
+msgid "react.agent_access.token_status_unavailable"
+msgstr "Nepavyko įkelti prieigos rakto būsenos"
+
+msgid "react.agent_access.loading_token"
+msgstr "Įkeliama prieigos rakto būsena…"
+
+msgid "react.agent_access.not_used_help"
+msgstr "Nustatymų kopijavimas ar atsisiuntimas nesiskaito. Laikas atsiras po pirmos užklausos su šiuo prieigos raktu."
+
+msgid "react.agent_access.package_operator_description"
+msgstr "Žmonėms, kurie kuria ir vykdo automatizacijas kalbėdamiesi su DI agentu. Agentas dirba per šio diegimo MCP serverį, todėl jam reikia prieigos."
+
+msgid "react.agent_access.package_developer_description"
+msgstr "Kūrėjams, kurie terminale su CLI ir SDK kuria plėtinius ir prisideda kodu. Jis nesijungia prie šio diegimo ir jam nereikia prieigos rakto."
+
+msgid "react.agent_access.client_claude_code_description"
+msgstr "Terminalas, IDE plėtiniai ir Claude darbalaukio programos skirtukas Code."
+
+msgid "react.agent_access.client_codex_description"
+msgstr "Codex CLI ir ChatGPT darbalaukio programos programavimo agentas."
+
+msgid "react.agent_access.client_cursor_description"
+msgstr "Cursor darbalaukio programa."
+
+msgid "react.agent_access.client_gemini_cli_description"
+msgstr "Gemini CLI terminalo klientas."
+
+msgid "react.agent_access.client_claude_ai_description"
+msgstr "Claude pokalbiai žiniatinklyje, darbalaukyje ir mobiliajame bei Cowork užduotys."
+
+msgid "react.agent_access.reason_no_terminal"
+msgstr "Pokalbiuose nėra terminalo, o failų ir terminalo prieiga Cowork šiam paketui nepatikrinta."
+
+msgid "react.agent_access.client_chatgpt_description"
+msgstr "ChatGPT pokalbiai ir Work žiniatinklyje, darbalaukyje ir mobiliajame."
+
+msgid "react.agent_access.reason_listing_not_published"
+msgstr "Developer paketo įrašas ChatGPT darbalaukio programavimo agentui dar nepaskelbtas. Pačiuose pokalbiuose terminalo nėra."
+
+msgid "react.agent_access.step_first_request"
+msgstr "Atlikite pirmą užklausą"
+
+msgid "react.agent_access.step_first_request_description"
+msgstr "Paklauskite agento štai ko. Jis turėtų atsakyti naudodamas MCP įrankius, o leidimo klaidą pranešti kaip klaidą."
+
+msgid "react.agent_access.step_download_marketplace"
+msgstr "Atsisiųskite paketus"
+
+msgid "react.agent_access.step_download_marketplace_description"
+msgstr "Atsisiųskite {archive} iš Flow Steward {core_version} leidimo ir išskleiskite. Patikrinkite pagal leidimo SHA256SUMS."
+
+msgid "react.agent_access.step_install_claude_plugin"
+msgstr "Įdiekite papildinį"
+
+msgid "react.agent_access.step_install_claude_plugin_description"
+msgstr "Pakeiskite kelią išskleisto aplanko flow-steward-agent-skills keliu."
+
+msgid "react.agent_access.step_configure_claude_plugin"
+msgstr "Įveskite adresą ir prieigos raktą"
+
+msgid "react.agent_access.step_configure_claude_plugin_description"
+msgstr "Paleiskite tai Claude Code seanse ir įveskite dvi toliau pateiktas reikšmes. Claude Code prieigos raktą laiko jūsų sistemos kredencialų saugykloje."
+
+msgid "react.agent_access.value_mcp_address"
+msgstr "Flow Steward MCP adresas"
+
+msgid "react.agent_access.value_personal_token"
+msgstr "Flow Steward asmeninis prieigos raktas"
+
+msgid "react.agent_access.step_download_package"
+msgstr "Atsisiųskite paketą"
+
+msgid "react.agent_access.step_download_package_description"
+msgstr "Atsisiųskite {archive} iš Flow Steward {core_version} leidimo ir įdiekite taip, kaip paketo README aprašo klientui {client}."
+
+msgid "react.agent_access.step_open_readme"
+msgstr "Atlikite diegimo veiksmus"
+
+msgid "react.agent_access.step_open_readme_description"
+msgstr "Paketo README pateikia šio kliento diegimo, atnaujinimo ir šalinimo veiksmus."
+
+msgid "react.agent_access.step_codex_config"
+msgstr "Įrašykite serverį į ~/.codex/config.toml"
+
+msgid "react.agent_access.step_codex_config_description"
+msgstr "Pridėkite šią sekciją ir palikite likusį failą. Joje nurodytas kintamasis su prieigos raktu, ne pats raktas."
+
+msgid "react.agent_access.step_token_environment"
+msgstr "Padarykite prieigos raktą pasiekiamą klientui"
+
+msgid "react.agent_access.step_token_environment_description"
+msgstr "Nustatykite kintamąjį ten, kur klientas paleidžiamas, pavyzdžiui, apvalkalo profilyje. Kiekvienas, galintis jį perskaityti, gali naudoti prieigos raktą."
+
+msgid "react.agent_access.step_cursor_config"
+msgstr "Įrašykite serverį į ~/.cursor/mcp.json"
+
+msgid "react.agent_access.step_cursor_config_description"
+msgstr "Įterpkite šį įrašą į failo mcpServers. Cursor prieigos raktą skaito iš kintamojo, todėl faile slaptos reikšmės nėra."
+
+msgid "react.agent_access.step_gemini_add"
+msgstr "Pridėkite serverį"
+
+msgid "react.agent_access.step_gemini_add_description"
+msgstr "Gemini CLI prieigos raktą laiko savo nustatymų faile. Komandą vykdykite tik savo kompiuteryje."
+
+msgid "react.agent_access.step_claude_upload"
+msgstr "Įkelkite paketą"
+
+msgid "react.agent_access.step_claude_upload_description"
+msgstr "Atsisiųskite {archive} iš Flow Steward {core_version} leidimo ir įkelkite jį Claude skiltyje Customize > Plugins > Upload plugin."
+
+msgid "react.agent_access.step_claude_connector"
+msgstr "Pridėkite Flow Steward kaip pasirinktinę jungtį"
+
+msgid "react.agent_access.step_claude_connector_description"
+msgstr "Pridėkite pasirinktinę jungtį su šiuo adresu. Claude atidarys Flow Steward: prisijunkite, pasirinkite prieigą ir patvirtinkite. Jokio prieigos rakto kopijuoti nereikia."
+
+msgid "react.agent_access.step_chatgpt_listing"
+msgstr "Paketo dar nėra OpenAI papildinių kataloge"
+
+msgid "react.agent_access.step_chatgpt_listing_description"
+msgstr "Kol jis neįtrauktas, ChatGPT dirba tik su MCP įrankiais, be paketo instrukcijų."
+
+msgid "react.agent_access.step_chatgpt_connector"
+msgstr "Pridėkite Flow Steward kaip pasirinktinę MCP jungtį"
+
+msgid "react.agent_access.step_chatgpt_connector_description"
+msgstr "Pridėkite pasirinktinę MCP jungtį su šiuo adresu. ChatGPT atidarys Flow Steward: prisijunkite, pasirinkite prieigą ir patvirtinkite. Jokio prieigos rakto kopijuoti nereikia."

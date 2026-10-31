@@ -24,9 +24,16 @@ Submission is a separate step after the materials in
 [publishing/](publishing/README.md) are complete and the publisher account is
 ready; a positive review decision is not guaranteed.
 
-**Waits for OAuth (task 5)** marks a cloud client: the client's servers open the
-MCP connection and accept only OAuth sign-in, which Flow Steward does not offer
-yet. Its skills can be installed today; its MCP connection cannot.
+**OAuth sign-in (task 5)** marks a cloud client: the client's servers open the
+MCP connection and accept only OAuth sign-in. Flow Steward offers it when the
+installation has a public HTTPS address and an administrator has turned on cloud
+AI apps (Settings → Security); you then sign in to Flow Steward and approve the
+access in the window the client opens. Its skills can be installed without it.
+No cloud client has been verified against a live installation yet.
+
+Each installation's **Settings → Account → AI agents** page walks through the
+rows below with the installation's own MCP address filled in, creates the
+personal token where a row uses one, and names what blocks a cloud client.
 
 **Developer** functions need a terminal and file access. They are listed only
 for clients that have both.
@@ -64,7 +71,7 @@ directory.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | Skills only; the plugin's MCP server entry is ignored there because its address is a user option | Waits for OAuth (task 5): Flow Steward is then added as a custom connector with your address | Upload the zip; connector after task 5 | No MCP tools until task 5; a connector with your own address is added by you, it is not listed in the directory | Yes | Not verified: needs a claude.ai account session | No | No |
+| Operator | Skills only; the plugin's MCP server entry is ignored there because its address is a user option | OAuth sign-in (task 5): Flow Steward is added as a custom connector with your address | Upload the zip; add the connector with your address | MCP tools need a public HTTPS address and cloud AI apps turned on; a connector with your own address is added by you, it is not listed in the directory | Yes | Not verified: needs a claude.ai account session | No | No |
 | Developer | Not offered: chat has no terminal; Cowork file and terminal access for this package is unverified | — | — | — | — | — | — | — |
 
 ### Codex
@@ -88,7 +95,7 @@ zip (Agent Plugins `plugin.json` with OpenAI metadata under `extensions`).
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | Skills-only listing; MCP tools after you connect Flow Steward as a custom MCP server | Waits for OAuth (task 5) | Install from the directory; custom MCP server with your address after task 5 | A listing with an MCP server needs one public address, and per-customer address templates are reserved for trusted developers, so the listing stays skills-only; an MCP server cannot be added to a skills-only listing later | Yes | Not verified: no publisher account or ChatGPT session | No | No |
+| Operator | Skills-only listing; MCP tools after you connect Flow Steward as a custom MCP server | OAuth sign-in (task 5) | Install from the directory; custom MCP server with your address | A listing with an MCP server needs one public address, and per-customer address templates are reserved for trusted developers, so the listing stays skills-only; an MCP server cannot be added to a skills-only listing later | Yes | Not verified: no publisher account or ChatGPT session | No | No |
 | Developer | Skills-only listing for the desktop coding agent; not for chat, which has no terminal | None | Install from the directory | Same listing rules | Yes | Not verified: no publisher account or ChatGPT session | No | No |
 
 ### Cursor

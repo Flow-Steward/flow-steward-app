@@ -8,8 +8,14 @@ stays :func:`core.application.auth.principal.enforce_token_scope_within_caller_a
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
+from core.application.auth.principal import (
+    TokenAuthorityError,
+    enforce_token_scope_within_caller_authority,
+)
 from core.application.auth.scope_contracts import scope_granted
 
 OPERATIONAL_PRESET_ID = "operational"
@@ -84,9 +90,47 @@ def offered_presets(requested: list[str]) -> list[AgentAccessPreset]:
     return offered
 
 
+#: Reason a preset is shown but cannot be chosen: it exceeds the caller's authority.
+EXCEEDS_AUTHORITY_REASON = "exceeds_authority"
+
+
+def preset_offers(caller: Mapping[str, Any] | None, requested: list[str]) -> list[dict[str, Any]]:
+    """The presets offered for ``requested``, each marked available for ``caller`` or not.
+
+    A preset the caller could not mint stays listed with ``available: False`` and the
+    reason, so the consent screen and the wizard show it disabled instead of hiding
+    it. The ceiling is :func:`enforce_token_scope_within_caller_authority`, the same
+    check every token issuance applies.
+    """
+    offers: list[dict[str, Any]] = []
+    for preset in offered_presets(requested):
+        scopes = granted_preset_scopes(preset, requested)
+        try:
+            enforce_token_scope_within_caller_authority(
+                dict(caller) if caller is not None else None,
+                requested_scopes=scopes,
+                requested_project_ids=[],
+                requested_workflow_ids=[],
+            )
+            available, reason = True, ""
+        except TokenAuthorityError:
+            available, reason = False, EXCEEDS_AUTHORITY_REASON
+        offers.append(
+            {
+                "id": preset.id,
+                "scopes": scopes,
+                "available": available,
+                "reason": reason,
+                "subset_of_preset": len(scopes) < len(preset.scopes),
+            }
+        )
+    return offers
+
+
 __all__ = [
     "AGENT_ACCESS_PRESETS",
     "AGENT_ACCESS_SCOPES",
+    "EXCEEDS_AUTHORITY_REASON",
     "FULL_AUTHORING_PRESET_ID",
     "FULL_AUTHORING_SCOPES",
     "OPERATIONAL_PRESET_ID",
@@ -95,4 +139,5 @@ __all__ = [
     "agent_access_preset",
     "granted_preset_scopes",
     "offered_presets",
+    "preset_offers",
 ]

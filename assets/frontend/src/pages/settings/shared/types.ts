@@ -204,3 +204,92 @@ export type McpOAuthSetting = {
   enabled: boolean;
   readiness: OAuthReadiness;
 };
+
+/** Settings → Account → AI agents (task 4): one setup step the wizard renders. */
+export type AgentSetupStep = {
+  id: string;
+  kind: "link" | "command" | "file" | "value" | "notice";
+  title_key: string;
+  title: string;
+  description_key: string;
+  description: string;
+  values: Record<string, string>;
+  /** Filled by the server except the `{token}` placeholder, which only the browser fills. */
+  content: string;
+  uses_token: boolean;
+  uses_mcp_url: boolean;
+  file_name: string;
+  url: string;
+};
+
+export type AgentClientPackage = {
+  package_id: string;
+  offered: boolean;
+  available: boolean;
+  auth: "personal_token" | "oauth" | "none";
+  verified: boolean;
+  message_key: string;
+  message: string;
+  steps: AgentSetupStep[];
+};
+
+export type AgentClient = {
+  id: string;
+  label: string;
+  connection: "local" | "cloud";
+  description_key: string;
+  description: string;
+  mcp_blockers: string[];
+  packages: AgentClientPackage[];
+};
+
+export type AgentSkillPackage = {
+  id: string;
+  display_name: string;
+  short_description: string;
+  version: string;
+  needs_mcp: boolean;
+  description_key: string;
+  description: string;
+};
+
+export type AgentAccessSetup = {
+  mcp_url: string;
+  mcp_blocker: string;
+  cloud_readiness: OAuthReadiness;
+  core_version: string;
+  packages: AgentSkillPackage[];
+  presets: OAuthConsentPreset[];
+  expiry_days_options: number[];
+  default_expiry_days: number;
+  first_request: AgentSetupStep;
+  clients: AgentClient[];
+};
+
+export type AgentAccessToken = {
+  id: string;
+  label?: string;
+  scopes?: string[];
+  allowed_project_ids?: string[];
+  expires_at?: string | null;
+  created_at?: string | null;
+  last_used_at?: string | null;
+  revoked?: boolean;
+  expired?: boolean;
+};
+
+export type AgentAccessTokenRequest = {
+  client_id: string;
+  package_id: string;
+  preset: OAuthPresetId;
+  expiry_days: number;
+  project_ids: string[];
+};
+
+export type AgentAccessIssueResult = {
+  status: "created" | "replayed";
+  token: AgentAccessToken;
+  /** The one-time secret; empty on a replay of the same attempt. */
+  secret: string;
+  secret_already_shown: boolean;
+};

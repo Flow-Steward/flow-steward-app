@@ -804,6 +804,8 @@ def is_self_service_auth_write_route(path: str) -> bool:
     return bool(
         re.fullmatch(r"/api/oauth/authorizations/[^/]+/decision", path_text)
         or re.fullmatch(r"/api/auth/oauth-grants/[^/]+/revoke", path_text)
+        # Task 4: the wizard mints the caller's own token; the service caps its access.
+        or path_text == "/api/auth/agent-access/tokens"
     )
 
 

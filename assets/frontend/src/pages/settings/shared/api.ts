@@ -8,6 +8,10 @@ import type {
   CreatePersonalTokenInput,
   CreateUserInput,
   EmailChangeStatus,
+  AgentAccessIssueResult,
+  AgentAccessSetup,
+  AgentAccessToken,
+  AgentAccessTokenRequest,
   McpOAuthSetting,
   OAuthConsentDecision,
   OAuthConsentView,
@@ -515,4 +519,29 @@ export async function saveMcpOAuthSetting(enabled: boolean): Promise<McpOAuthSet
     method: "PUT",
     body: JSON.stringify({ enabled }),
   });
+}
+
+export async function fetchAgentAccessSetup(): Promise<AgentAccessSetup> {
+  return fetchJson<AgentAccessSetup>("/api/auth/agent-access/setup");
+}
+
+/**
+ * One wizard attempt. `attemptKey` stays the same for every repeat of the attempt, so
+ * the server creates at most one token for it and a repeat never returns the secret.
+ */
+export async function issueAgentAccessToken(
+  attemptKey: string,
+  payload: AgentAccessTokenRequest,
+): Promise<AgentAccessIssueResult> {
+  return fetchJson<AgentAccessIssueResult>("/api/auth/agent-access/tokens", {
+    method: "POST",
+    headers: { "Idempotency-Key": attemptKey },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchAgentAccessToken(tokenId: string): Promise<{ token: AgentAccessToken }> {
+  return fetchJson<{ token: AgentAccessToken }>(
+    `/api/auth/agent-access/tokens/${encodeURIComponent(tokenId)}`,
+  );
 }
