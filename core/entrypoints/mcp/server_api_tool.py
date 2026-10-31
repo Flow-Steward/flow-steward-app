@@ -213,7 +213,13 @@ def _registry_error(payload: object, status_code: int) -> dict[str, Any]:
         "status_code": status_code,
     }
     if isinstance(detail, dict):
-        error["message"] = _error_message(detail, status_code)
+        # Conflict payloads put the code under "error" and the sentence under "message".
+        message = detail.get("message")
+        error["message"] = (
+            message.strip()
+            if isinstance(message, str) and message.strip()
+            else _error_message(detail, status_code)
+        )
         error["details"] = detail
         candidate = detail.get("code")
     else:
