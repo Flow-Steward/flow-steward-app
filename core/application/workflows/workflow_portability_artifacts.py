@@ -168,7 +168,11 @@ def _owned_manual_row(row: Any, ref: str) -> dict[str, Any] | None:
 
 class WorkflowPortabilityArtifactsMixin:
     def _export_definitions(
-        self, workflows: list[dict[str, Any]], *, account_id: str
+        self,
+        workflows: list[dict[str, Any]],
+        *,
+        account_id: str,
+        allowed_project_ids: frozenset[str] = frozenset(),
     ) -> dict[str, list[dict[str, Any]]]:
         """Every owned agent, skill, manual data contract and guardrail the workflows use."""
         definitions = empty_definitions()
@@ -215,7 +219,9 @@ class WorkflowPortabilityArtifactsMixin:
         contract_ids = {item["contract_id"] for item in contracts}
         definitions["data_contracts"] = contracts
         definitions["skills"] = [self._portable_skill(row, contract_ids) for row in skill_rows]
-        definitions["guardrails"] = self._export_guardrails(exported_agents, account_id=account_id)
+        definitions["guardrails"] = self._export_guardrails(
+            exported_agents, account_id=account_id, allowed_project_ids=allowed_project_ids
+        )
         return definitions
 
     def _exportable_row(self, kind: str, ref: str, account_id: str) -> dict[str, Any] | None:
@@ -342,8 +348,18 @@ class WorkflowPortabilityArtifactsMixin:
             place(contract_id)
         return ordered
 
-    def _export_guardrails(self, agent_ids: set[str], *, account_id: str) -> list[dict[str, Any]]:
-        """The account's rules for the exported agents, global and every project's."""
+    def _export_guardrails(
+        self,
+        agent_ids: set[str],
+        *,
+        account_id: str,
+        allowed_project_ids: frozenset[str] = frozenset(),
+    ) -> list[dict[str, Any]]:
+        """The account's rules for the exported agents, global and every project's.
+
+        A caller restricted to some projects gets only those projects' rules; an empty
+        *allowed_project_ids* means the caller is not restricted.
+        """
         if not agent_ids or not account_id:
             return []
         rows = _call_db_list(self.db, "list_guardrails", account_id=account_id)
@@ -357,6 +373,8 @@ class WorkflowPortabilityArtifactsMixin:
             if not agents:
                 continue
             project_id = _text(row.get("project_id"))
+            if allowed_project_ids and project_id and project_id not in allowed_project_ids:
+                continue
             rule = {
                 "id": _text(row.get("id")),
                 "display_name": _text(row.get("display_name")),

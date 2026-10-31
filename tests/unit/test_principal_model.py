@@ -439,3 +439,33 @@ def test_operator_role_ceiling_does_not_gain_admin_only_categories():
                 requested_project_ids=[],
                 requested_workflow_ids=[],
             )
+
+
+def test_admin_owned_pat_without_admin_all_cannot_mint_admin_all():
+    import pytest
+
+    from core.application.auth.principal import (
+        TokenAuthorityError,
+        enforce_token_scope_within_caller_authority,
+    )
+
+    # A PAT keeps its owner's roles; its scopes, not those roles, bound what it mints.
+    caller = {
+        "principal_type": "admin",
+        "auth_source": "pat",
+        "roles": ["admin"],
+        "scopes": ["command:*"],
+    }
+    with pytest.raises(TokenAuthorityError):
+        enforce_token_scope_within_caller_authority(
+            caller,
+            requested_scopes=["admin:all"],
+            requested_project_ids=[],
+            requested_workflow_ids=[],
+        )
+    enforce_token_scope_within_caller_authority(
+        {**caller, "scopes": ["admin:all"]},
+        requested_scopes=["admin:all"],
+        requested_project_ids=[],
+        requested_workflow_ids=[],
+    )

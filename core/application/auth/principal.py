@@ -219,10 +219,14 @@ def _normalized_requested_scopes(scopes: list[str] | None) -> list[str]:
 def _caller_is_admin(caller: dict | None) -> bool:
     if not isinstance(caller, dict):
         return False
+    if "admin:all" in principal_scopes(caller):
+        return True
     roles = {str(role or "").strip().lower() for role in (caller.get("roles") or [])}
-    return bool(roles.intersection({"admin", "system_actor"})) or "admin:all" in principal_scopes(
-        caller
-    )
+    if _caller_is_scope_restricted(caller):
+        # A PAT keeps its owner's roles, but its scopes are its authority: an admin's
+        # token without admin:all must not mint one that has it.
+        return "system_actor" in roles
+    return bool(roles.intersection({"admin", "system_actor"}))
 
 
 def _caller_is_scope_restricted(caller: dict | None) -> bool:

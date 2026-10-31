@@ -222,6 +222,7 @@ class WorkflowOperatorAuthoringMixin:
                 include_children=include_children,
                 project_id=_text(project_id),
                 reference_only=reference_only,
+                allowed_project_ids=frozenset(getattr(scope, "allowed_project_ids", None) or ()),
             )
         except WorkflowPortabilityError as exc:
             raise _portability_error(exc) from exc

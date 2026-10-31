@@ -197,11 +197,14 @@ def with_private_address_hint(detail: str, connector_result: Any) -> str:
     result = _as_mapping(connector_result)
     invocation = _as_mapping(result.get("invocation"))
     response = _as_mapping(invocation.get("response"))
-    codes = {response.get("error_code")}
+    # The codes come from extension JSON: anything that is not a string (a list, an
+    # object) is not a code, and must not break the failure report being built.
+    candidates = [response.get("error_code")]
     for source in (result, invocation, response):
         errors = source.get("errors")
         if isinstance(errors, list):
-            codes.update(error.get("code") for error in errors if isinstance(error, dict))
+            candidates.extend(error.get("code") for error in errors if isinstance(error, dict))
+    codes = {code for code in candidates if isinstance(code, str)}
     return f"{detail}. {private_addresses_hint()}" if NETWORK_BLOCKED_CODE in codes else detail
 
 

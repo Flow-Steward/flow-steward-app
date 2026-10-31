@@ -17,6 +17,7 @@ from core.application.lifecycle.contracts import (
     public_base_url,
 )
 from core.application.lifecycle.errors import LifecycleError
+from core.application.lifecycle.operator_settings import operator_setting_specs
 from core.application.lifecycle.runtime_installation_context import (
     deployment_monitoring_dependencies,
     deployment_monitoring_expectations,
@@ -357,9 +358,16 @@ class ConfigurationRenderingMixin:
                 "FS_EXTENSION_INSTALLER_ORIGIN": config.extension_installer_origin,
             }
         )
-        # Host settings the operator set by name; a reset one is no longer managed, so
-        # its default applies again.
-        managed.update({name: value for name, value in config.operator_settings.items() if value})
+        # Host settings the operator set by name. A reset one is written with its
+        # default: left out, an assignment `install.sh --setting` put outside the
+        # managed block would survive and keep the old value (an SSRF switch left on).
+        stack_environment = (
+            "local_development" if config.environment == "development" else "production"
+        )
+        for name, spec in operator_setting_specs().items():
+            managed[name] = config.operator_settings.get(name) or spec.default_for_environment(
+                stack_environment
+            )
         # AC17-R167: never the source profile's, which `existing` holds on a switch.
         managed.update(profile_owned_environment(config.deployment_profile))
         managed["FS_MONITORING_EXPECTATIONS"] = deployment_monitoring_expectations(config)

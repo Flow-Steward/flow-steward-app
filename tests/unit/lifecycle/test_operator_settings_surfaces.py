@@ -90,6 +90,18 @@ def test_an_extension_that_blocks_a_private_address_gets_the_same_hint(
     assert other == detail
 
 
+def test_malformed_extension_error_codes_leave_the_detail_unchanged() -> None:
+    detail = "Connector failed"
+
+    assert (
+        url_safety.with_private_address_hint(
+            detail, {"invocation": {"response": {"error_code": []}}}
+        )
+        == detail
+    )
+    assert url_safety.with_private_address_hint(detail, {"errors": [{"code": {}}]}) == detail
+
+
 def test_config_show_reads_as_sections_and_ends_with_the_command_and_the_page() -> None:
     lines = _config_show_lines(
         {

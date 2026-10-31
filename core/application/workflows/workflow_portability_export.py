@@ -61,6 +61,7 @@ class WorkflowPortabilityExportMixin:
         include_children: bool = False,
         project_id: str = "",
         reference_only: bool = False,
+        allowed_project_ids: frozenset[str] = frozenset(),
     ) -> str:
         """The workflow (and, with *include_children*, what it calls) as one bundle.
 
@@ -72,7 +73,8 @@ class WorkflowPortabilityExportMixin:
 
         The bundle also carries the definitions of the agents, skills, manual data
         contracts and guardrails its workflows use, unless *reference_only* asks
-        for the earlier file that names them only.
+        for the earlier file that names them only. A caller restricted to
+        *allowed_project_ids* gets only those projects' guardrails.
         """
         workflow = _call_db_get(self.db, "get_workflow", workflow_id)
         if workflow is None:
@@ -102,7 +104,9 @@ class WorkflowPortabilityExportMixin:
             None
             if reference_only
             else self._export_definitions(
-                full_sources, account_id=_text(workflow.get("account_id"))
+                full_sources,
+                account_id=_text(workflow.get("account_id")),
+                allowed_project_ids=allowed_project_ids,
             )
         )
         if definitions is not None:

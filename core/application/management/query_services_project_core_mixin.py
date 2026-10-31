@@ -389,9 +389,18 @@ class ProjectQueryServiceCoreMixin:
                 projects = projects[offset : offset + normalized_per_page]
             page_rows = []
             for project in projects:
-                page_rows.append(
-                    ProjectGridRowView.model_validate(self._serialize_projects_grid_row(project))
-                )
+                row = self._serialize_projects_grid_row(project)
+                if resolved.allowed_workflow_ids:
+                    # As in get_workflow_bindings: a token limited to some workflows
+                    # does not learn which other workflows a project binds.
+                    row["workflow_ids"] = [
+                        workflow_id
+                        for workflow_id in row.get("workflow_ids") or []
+                        if workflow_id in resolved.allowed_workflow_ids
+                    ]
+                    if row.get("operator_default_workflow_id") not in resolved.allowed_workflow_ids:
+                        row["operator_default_workflow_id"] = ""
+                page_rows.append(ProjectGridRowView.model_validate(row))
         except Exception:
             page_rows = []
             total = 0

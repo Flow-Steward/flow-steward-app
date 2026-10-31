@@ -40,6 +40,10 @@ def _row(**overrides: Any) -> dict[str, Any]:
         (_row(trigger_config_jsonb={"chat_id": "7"}), EVENT, {}, False),
         (_row(trigger_config_jsonb={"chat_id": ""}), EVENT, {"chat_id": "8"}, True),
         (_row(trigger_config_jsonb={"event_name": "x"}), EVENT, {}, True),
+        (_row(trigger_config_jsonb={"approved": True}), EVENT, {"approved": True}, True),
+        (_row(trigger_config_jsonb={"approved": True}), EVENT, {"approved": False}, False),
+        (_row(trigger_config_jsonb={"approved": True}), EVENT, {}, False),
+        (_row(trigger_config_jsonb={"approved": False}), EVENT, {"approved": "false"}, True),
     ],
 )
 def test_trigger_matches_event(row, event_type, payload, expected):

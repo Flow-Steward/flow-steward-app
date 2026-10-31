@@ -283,12 +283,25 @@ def _redact_definitions(value: Any, *, key: str = "") -> Any:
 
 def _redact_schema_field(name: str, schema: Any) -> Any:
     redacted = _redact_definitions(schema)
-    if _sensitive_key(name) and isinstance(redacted, dict):
-        return {
-            key: _REDACTED if key in _SCHEMA_LITERAL_KEYS else item
-            for key, item in redacted.items()
-        }
+    if _sensitive_key(name):
+        return _mask_schema_literals(redacted)
     return redacted
+
+
+def _mask_schema_literals(schema: Any) -> Any:
+    """Mask the literals of a credential field's schema at every depth.
+
+    The field stays sensitive inside `allOf`, `items`, nested `properties` and the
+    like, so a default nested there is as secret as one on the field itself.
+    """
+    if isinstance(schema, dict):
+        return {
+            key: _REDACTED if key in _SCHEMA_LITERAL_KEYS else _mask_schema_literals(item)
+            for key, item in schema.items()
+        }
+    if isinstance(schema, list):
+        return [_mask_schema_literals(item) for item in schema]
+    return schema
 
 
 def _json_safe(value: Any) -> Any:

@@ -10,6 +10,10 @@ from langchain_core.tools import tool
 from core.infrastructure import standard_text as primitive
 from core.infrastructure.standard_numbers import coerce as coerce_number
 
+#: Padding formats a value for display; a width taken from workflow data must not
+#: make a worker allocate gigabytes of fill.
+MAX_PAD_WIDTH = 10_000
+
 
 @tool
 def trim(value: Any) -> dict[str, Any]:
@@ -43,6 +47,8 @@ def append(value: Any, append_value: Any) -> dict[str, Any]:
 def pad(value: Any, width: Any, fill_char: Any = " ", side: Any = "left") -> dict[str, Any]:
     """Pad a value deterministically."""
     places = int(coerce_number(width))
+    if places > MAX_PAD_WIDTH:
+        raise ValueError(f"width must not exceed {MAX_PAD_WIDTH}")
     fill = str(fill_char or " ")
     if len(fill) != 1:
         raise ValueError("fill_char must contain exactly one character")

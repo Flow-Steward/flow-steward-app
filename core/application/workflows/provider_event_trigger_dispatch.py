@@ -59,13 +59,29 @@ def trigger_matches_event(row: dict[str, Any], *, event_type: str, payload: dict
     if not configured_event or configured_event != _text(event_type):
         return False
     for key, expected in _as_dict(row.get("trigger_config_jsonb")).items():
-        if key in _EVENT_KEYS or isinstance(expected, bool):
+        if key in _EVENT_KEYS:
+            continue
+        if isinstance(expected, bool):
+            # A checkbox is a condition too: {"approved": true} needs approved true.
+            if _boolean_value(payload.get(key)) is not expected:
+                return False
             continue
         if not isinstance(expected, (str, int, float)) or _text(expected) == "":
             continue
         if _text(payload.get(key)) != _text(expected):
             return False
     return True
+
+
+def _boolean_value(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    normalized = _text(value).lower()
+    if normalized in {"true", "1"}:
+        return True
+    if normalized in {"false", "0"}:
+        return False
+    return None
 
 
 def _workflow_inputs(

@@ -1336,6 +1336,41 @@ class TestQueryServices:
         count_kwargs = bl.count_projects.call_args.kwargs
         assert count_kwargs["has_jobs"] == "yes"
 
+    def test_list_projects_hides_workflows_outside_the_token_allowlist(self):
+        from core.application.management.project_grid_rows import serialize_projects_grid_row
+
+        bl = MagicMock()
+        bl.list_projects.return_value = [
+            {
+                "id": 1,
+                "name": "Alpha",
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "operator_default_workflow_id": "wf-hidden",
+                "workflow_ids": ["wf-allowed", "wf-hidden"],
+            }
+        ]
+        bl.count_projects.return_value = 1
+        service = ProjectQueryService(
+            get_logger=lambda: bl,
+            serialize_projects_grid_row=serialize_projects_grid_row,
+            get_queue_depth=lambda _project_id: 0,
+            get_ready_queue_depth=lambda: 0,
+            to_json_obj=lambda value: value,
+        )
+
+        payload = service.list_projects(
+            scope=ScopeContext(
+                account_id=DEFAULT_ACCOUNT_ID,
+                actor_id="machine-1",
+                principal_type="service_account",
+                allowed_workflow_ids=frozenset({"wf-allowed"}),
+            )
+        )
+
+        row = payload.projects[0].model_dump()
+        assert row["workflow_ids"] == ["wf-allowed"]
+        assert row["operator_default_workflow_id"] == ""
+
     def test_project_query_service_get_runtime_config_returns_run_config(self):
         bl = MagicMock()
         bl.get_project.return_value = {"account_id": DEFAULT_ACCOUNT_ID, "id": 7, "name": "Demo"}
