@@ -167,7 +167,7 @@ def test_list_project_workflows_marks_stale_binding_when_validation_workflow_mis
         project_query_service=lambda: query,
     )
 
-    def missing_workflow(_workflow_id):
+    def missing_workflow(_workflow_id, **_kwargs):
         raise ServiceNotFoundError("Workflow 'deleted_demo_workflow' not found")
 
     monkeypatch.setattr(service, "_workflow_validation_payload", missing_workflow)
