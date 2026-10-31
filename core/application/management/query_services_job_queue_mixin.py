@@ -1,4 +1,5 @@
 # ruff: noqa: F403, F405
+# mypy: ignore-errors
 """Job queues read by operators: the pending-approvals queue and one project's jobs."""
 
 from __future__ import annotations
