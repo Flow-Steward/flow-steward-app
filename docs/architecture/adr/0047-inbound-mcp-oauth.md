@@ -80,7 +80,7 @@ introspection or other endpoints for third parties, external identity providers,
 any second protected resource. Requirements of the public catalogs (universal
 URL, verified review, template URL) are not part of this record.
 
-Local clients (Claude Code, Codex, Cursor, Gemini) keep using PATs. A local
+Local clients that send a static bearer header keep using PATs. A local
 client that happens to support CIMD with a loopback redirect may use OAuth as a
 side effect.
 
