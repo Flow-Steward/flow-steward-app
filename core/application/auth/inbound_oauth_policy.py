@@ -442,6 +442,17 @@ def oauth_principal_denied_route(path: str, method: str) -> bool:
     return is_interactive_only_path(normalized)
 
 
+def oauth_introspection_fields(principal: Mapping[str, object], auth_source: str) -> dict:
+    """ADR 0047 decision 14: only an OAuth principal names its resource, client and grant."""
+    if str(auth_source or "").strip().lower() != "oauth":
+        return {}
+    return {
+        "resource": str(principal.get("oauth_resource") or ""),
+        "oauth_client_id": str(principal.get("oauth_client_id") or ""),
+        "grant_id": str(principal.get("oauth_grant_id") or ""),
+    }
+
+
 def oauth_forward_accepted(path: str, header_value: str | None, secret: str) -> bool:
     """Whether ``fs-app`` accepts an OAuth access token on this request (decision 13).
 
@@ -491,6 +502,7 @@ __all__ = [
     "is_oauth_non_bearer_secret",
     "normalize_resource",
     "oauth_forward_accepted",
+    "oauth_introspection_fields",
     "oauth_issuer_and_resource",
     "oauth_principal_denied_route",
     "parse_requested_scopes",
