@@ -6869,8 +6869,19 @@ def _configure_runtime_contract(
         "--format",
         "{{.Id}}",
     )
-    compose_prefix = (*gateway._compose_prefix(config), "--profile", "cli")
-    ps_command = (*compose_prefix, "ps", "-q", "--all", "fs-cli")
+    ps_command = (
+        "docker",
+        "ps",
+        "--all",
+        "--quiet",
+        "--no-trunc",
+        "--filter",
+        f"label=com.docker.compose.project={gateway._project_identity()}",
+        "--filter",
+        "label=com.docker.compose.service=fs-cli",
+        "--filter",
+        "label=com.docker.compose.oneoff=False",
+    )
     inspect_command = ("docker", "container", "inspect", container_id)
     process.outcomes.update(
         {
@@ -7008,6 +7019,26 @@ def test_cli_runtime_uses_bootstrap_host_docker_gid_for_stable_identity(
     assert helper_command[helper_command.index("--docker-gid") + 1] == "20"
     assert context.docker_gid == "20"
     assert context.environment["FS_DOCKER_GID"] == "20"
+
+
+def test_cli_runtime_lookup_ignores_the_one_off_handoff_container(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A release handoff runs in `compose run fs-cli`; `compose ps fs-cli` lists that
+    # one-off next to the service container, so the lookup must filter it out.
+    gateway, process, config, _helper, ps_command, _inspect = _configure_runtime_contract(
+        tmp_path,
+        monkeypatch,
+    )
+    log = gateway.state_store.open_log("one-off-handoff")
+    try:
+        gateway.ensure_cli_runtime(config, log=log)
+    finally:
+        log.close()
+    assert ps_command in process.commands
+    assert "label=com.docker.compose.oneoff=False" in ps_command
+    assert not any("up" in command for command in process.commands)
 
 
 def test_cli_repair_prepares_missing_default_clone_transfer_root_as_private_directory(

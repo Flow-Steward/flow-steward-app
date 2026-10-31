@@ -508,8 +508,22 @@ class CliRuntimeOperations:
         expected_image_id: str,
         log: InstallerLog | None,
     ) -> tuple[bool, str]:
+        # A release handoff runs inside a one-off `compose run fs-cli` container,
+        # which `compose ps fs-cli` would also list; only the service container counts.
         ps_outcome = self._cli_runtime_process(
-            [*context.compose_prefix, "ps", "-q", "--all", "fs-cli"],
+            [
+                "docker",
+                "ps",
+                "--all",
+                "--quiet",
+                "--no-trunc",
+                "--filter",
+                f"label=com.docker.compose.project={self._project_identity()}",
+                "--filter",
+                "label=com.docker.compose.service=fs-cli",
+                "--filter",
+                "label=com.docker.compose.oneoff=False",
+            ],
             environment=context.environment,
             log=log,
         )
