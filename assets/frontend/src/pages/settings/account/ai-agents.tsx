@@ -261,7 +261,7 @@ export function AiAgentsSection() {
               const meta = setup.packages.find((pkg) => pkg.id === item.package_id);
               return (
                 <div className="fs-field" key={item.package_id}>
-                  <DsRadio checked={packageId === item.package_id} disabled={!item.available} name="agent-access-package" onChange={() => setPackageId(item.package_id)} value={item.package_id}>{meta?.display_name || item.package_id} {item.verified ? null : <DsBadge tone="orange">{t("react.agent_access.not_verified", "Not verified in this client")}</DsBadge>}</DsRadio>
+                  <DsRadio checked={packageId === item.package_id} disabled={!item.available} name="agent-access-package" onChange={() => setPackageId(item.package_id)} value={item.package_id}>{meta?.display_name || item.package_id} {!item.available || item.verified ? null : <DsBadge tone="orange">{t("react.agent_access.not_verified", "Not verified in this client")}</DsBadge>}</DsRadio>
                   <span className="fs-field-helper">{meta ? t(meta.description_key, meta.description) : ""}</span>
                   {item.message_key ? <span className="fs-field-helper">{t(item.message_key, item.message)}</span> : null}
                 </div>

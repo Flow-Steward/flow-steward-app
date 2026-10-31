@@ -238,6 +238,7 @@ describe("AiAgentsSection", () => {
     expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
     expect(screen.queryByText("Add Flow Steward as a custom MCP connector")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Flow Steward Developer/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Flow Steward Developer/ })).not.toHaveAccessibleName(/Not verified/);
     expect(screen.getByText("Not published")).toBeInTheDocument();
   });
 
