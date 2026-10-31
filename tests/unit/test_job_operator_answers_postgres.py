@@ -62,6 +62,10 @@ class _JobStore:
         )
 
 
+def _present(row: dict) -> dict:
+    return {key: value for key, value in row.items() if value is not None}
+
+
 def _setup(audit_db):
     _store, conn, workflow_id, project_id = audit_db
     account, tenant, workspace = conn.execute(
@@ -75,8 +79,9 @@ def _setup(audit_db):
     }
     service = JobQueryService(
         get_logger=lambda: _JobStore(conn, project),
-        serialize_attention_job_row=lambda row: row,
-        serialize_awaiting_approval_job_row=lambda row: row,
+        # The store leaves absent columns as NULL; the views take them as unset.
+        serialize_attention_job_row=_present,
+        serialize_awaiting_approval_job_row=_present,
         job_attention_group=job_attention_group,
         build_runtime_payload_for_api=AsyncMock(return_value={}),
     )
