@@ -81,3 +81,43 @@ it.each([
   } });
   expect(workflow.tags).toEqual(["billing", "expected-failure"]);
 });
+
+it("reports a rename into a taken name as a conflict and keeps the draft for the user's choice", async () => {
+  const workflow = { workflow_id: "shipping-summary", display_name: "Shipping summary", description: "Original",
+    enabled: false, revision: 7, settings: { callable: { enabled: false, trigger_channels: ["ui"],
+      input_mode: "fields", expected_inputs: [], expected_outputs: [] } } };
+  const requests: string[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    requests.push(`${init?.method} ${String(input)}`);
+    return new Response(JSON.stringify({ detail: {
+      code: "registry_name_conflict",
+      message: "Workflow name 'Order Sync' is already used. Choose another name.",
+      matches: [{ id: "order_sync", display_name: "Order Sync", enabled: true, used_by: [] }],
+      suggested_display_name: "Order Sync 2",
+    } }), { status: 409, headers: { "content-type": "application/json" } });
+  });
+  const setSaveError = vi.fn();
+  const setSaveConflict = vi.fn();
+  const contract = { data: { interface: workflow.settings.callable } };
+  const { result } = renderHook(() => {
+    const settings = useWorkflowSettingsController({ workflowId: "shipping-summary", workflowRecord: workflow,
+      drawerMode: "workflow-settings", workflowInterfaceControlIdPrefix: "shipping-summary", setDrawerTab: vi.fn(),
+      setSaveError, setSaveConflict, setSaveNotice: vi.fn(), setSavingWorkflowSurface: vi.fn(),
+      refetchWorkflowSurfaces: async () => undefined });
+    useWorkflowSettingsHydration({ ...settings, workflow, workflowContractQuery: contract,
+      workflowId: "shipping-summary", savingWorkflowSurface: "" });
+    return settings;
+  });
+  await waitFor(() => expect(result.current.workflowDisplayNameDraft).toBe("Shipping summary"));
+  act(() => result.current.setWorkflowDisplayNameDraft("order sync"));
+  await act(async () => result.current.handleSaveWorkflowSettings());
+
+  expect(requests).toEqual(["PATCH /api/workflows/shipping-summary"]);
+  expect(setSaveError).toHaveBeenLastCalledWith("Workflow name 'Order Sync' is already used. Choose another name.");
+  expect(setSaveConflict).toHaveBeenLastCalledWith(expect.objectContaining({
+    code: "registry_name_conflict",
+    suggestedDisplayName: "Order Sync 2",
+    matches: [expect.objectContaining({ id: "order_sync", display_name: "Order Sync" })],
+  }));
+  expect(result.current.workflowDisplayNameDraft).toBe("order sync");
+});

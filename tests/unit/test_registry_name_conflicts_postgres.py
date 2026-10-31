@@ -9,6 +9,7 @@ and both would commit.
 from __future__ import annotations
 
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
@@ -70,20 +71,38 @@ def stores(audit_db):
             conn.execute("DELETE FROM registry_agents WHERE agent_id = %s", (agent_id,))
 
 
-def _race(stores, first_payload, second_payload):
+def _wait_for_lock_wait(conn, wait_event: str) -> bool:
+    """Whether a session of this database waits on *wait_event* within the hold time."""
+    deadline = time.monotonic() + _HOLD_SECONDS
+    while time.monotonic() < deadline:
+        waiting = conn.execute(
+            """SELECT count(*) FROM pg_stat_activity
+                WHERE datname = current_database()
+                  AND wait_event_type = 'Lock' AND wait_event = %s""",
+            (wait_event,),
+        ).fetchone()[0]
+        if waiting:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _race(stores, first_payload, second_payload, *, wait_event: str):
     first, second, conn, _suffix, created = stores
     created.extend({first_payload["agent_id"], second_payload["agent_id"]})
     held = _HeldFirstInsert(first)
     first.save_agent = held
     scope = normalize_scope(account_id=DEFAULT_ACCOUNT_ID, actor_id="race")
     with ThreadPoolExecutor(max_workers=2) as pool:
-        winner = pool.submit(_service(first).create_agent, first_payload, scope=scope)
-        assert held.inserted.wait(_HOLD_SECONDS), winner.exception(timeout=1)
-        loser = pool.submit(_service(second).create_agent, second_payload, scope=scope)
-        # The second create must wait for the first transaction, not finish beside it.
-        with pytest.raises(TimeoutError):
-            loser.result(timeout=1)
-        held.release.set()
+        try:
+            winner = pool.submit(_service(first).create_agent, first_payload, scope=scope)
+            assert held.inserted.wait(_HOLD_SECONDS), winner.exception(timeout=1)
+            loser = pool.submit(_service(second).create_agent, second_payload, scope=scope)
+            # The second create must wait for the first transaction, not finish beside it.
+            assert _wait_for_lock_wait(conn, wait_event), loser.exception(timeout=1)
+            assert not loser.done()
+        finally:
+            held.release.set()
         result = winner.result(timeout=_HOLD_SECONDS)
         with pytest.raises(ServiceConflictError) as refused:
             loser.result(timeout=_HOLD_SECONDS)
@@ -101,6 +120,7 @@ def test_concurrent_creates_with_one_name_create_one_agent(stores):
         stores,
         {"agent_id": f"race_a_{suffix}", "display_name": name},
         {"agent_id": f"race_b_{suffix}", "display_name": f"  race   WRITER {suffix.upper()} "},
+        wait_event="advisory",
     )
 
     assert result.agent_id == f"race_a_{suffix}"
@@ -116,6 +136,7 @@ def test_concurrent_creates_with_one_id_never_overwrite(stores):
         stores,
         {"agent_id": agent_id, "display_name": f"First {suffix}"},
         {"agent_id": agent_id, "display_name": f"Second {suffix}"},
+        wait_event="transactionid",
     )
 
     assert result.agent_id == agent_id
