@@ -6995,19 +6995,18 @@ def test_history_source_filter_preserves_scope_and_reaches_rows_and_count(group_
         assert rows["project_ids"] == ["p"]
     else:
         assert "project_ids" not in rows
-    if not group_by:
-        count = bl.count_jobs_for_attention.call_args.kwargs
-        assert count["task_source"] == rows["task_source"]
-        assert count["scope"] is rows["scope"]
-        assert count["scope"].model_dump() == original_scope
-        assert count["workflow_id"] == "release"
-        assert count["account_id"] == rows["account_id"]
-        assert count["project_id"] == rows["project_id"]
-        assert count.get("project_ids") == rows.get("project_ids")
-    else:
+    # Grouped attention pages too, so both shapes count with the rows' own filters.
+    count = bl.count_jobs_for_attention.call_args.kwargs
+    assert count["task_source"] == rows["task_source"]
+    assert count["scope"] is rows["scope"]
+    assert count["scope"].model_dump() == original_scope
+    assert count["workflow_id"] == "release"
+    assert count["account_id"] == rows["account_id"]
+    assert count["project_id"] == rows["project_id"]
+    assert count.get("project_ids") == rows.get("project_ids")
+    if group_by:
         # Attention grouping forwards the full allowed scope instead of a project_ids list.
         assert rows["scope"].allowed_project_ids == frozenset({"p"})
-        bl.count_jobs_for_attention.assert_not_called()
 
     assert scope.model_dump() == original_scope
 
