@@ -754,5 +754,6 @@ class PlatformLoggerServiceTokensMixin:
             "roles": ["operator"],
             "is_active": True,
             "auth_source": "machine",
+            "expires_at": row.get("expires_at"),
             "token_label": str(row.get("token_label") or "").strip(),
         }

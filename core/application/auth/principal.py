@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -328,6 +328,40 @@ def enforce_token_scope_within_caller_authority(
         }
         if not requested_workflows or not requested_workflows.issubset(caller_workflows):
             raise TokenAuthorityError("Requested workflow allowlist exceeds the caller's authority")
+
+
+def _aware_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def enforce_token_lifetime_within_caller(
+    caller: dict | None, *, requested_expires_at: datetime | None
+) -> None:
+    """Reject a token that would outlive the token minting it.
+
+    Scope-subset checks bound *what* a minted token may do; this bounds *how long*.
+    A PAT or machine-token caller with an expiry may only mint tokens that expire
+    no later than itself, so a short-lived token cannot renew itself indefinitely.
+    ``requested_expires_at=None`` asks for a token that never expires. Interactive
+    session callers and non-expiring tokens are not bounded here.
+    """
+    if not _caller_is_scope_restricted(caller):
+        return
+    caller_expires_at = _aware_datetime((caller or {}).get("expires_at"))
+    if caller_expires_at is None:
+        return
+    requested = _aware_datetime(requested_expires_at)
+    if requested is None or requested > caller_expires_at:
+        raise TokenAuthorityError("Requested expiry exceeds the caller's token lifetime")
 
 
 def is_machine_principal(user: dict | None) -> bool:

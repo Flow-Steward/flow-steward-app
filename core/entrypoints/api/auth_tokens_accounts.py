@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.principal import (
     TokenAuthorityError,
+    enforce_token_lifetime_within_caller,
     enforce_token_scope_within_caller_authority,
 )
 from core.application.management.requests import (
@@ -639,6 +641,14 @@ def create_auth_tokens_accounts_router(
                 requested_scopes=list(body.scopes or []),
                 requested_project_ids=list(body.allowed_project_ids or []),
                 requested_workflow_ids=list(body.allowed_workflow_ids or []),
+            )
+            enforce_token_lifetime_within_caller(
+                admin_user,
+                requested_expires_at=(
+                    datetime.now(UTC) + timedelta(days=int(expires_in_days))
+                    if expires_in_days is not None
+                    else None
+                ),
             )
         except TokenAuthorityError as e:
             return JSONResponse({"error": str(e)}, status_code=e.status_code)
