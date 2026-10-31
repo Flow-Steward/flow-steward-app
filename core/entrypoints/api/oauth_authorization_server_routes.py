@@ -7,6 +7,7 @@ identity from a cookie or a bearer.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -45,12 +46,36 @@ async def _form_fields(request: Request) -> dict[str, str]:
     return fields
 
 
+class OAuthQueryRedactionFilter(logging.Filter):
+    """Keep the authorization request's query (``state`` among it) out of access logs.
+
+    ADR 0047 decision 21. The uvicorn access record carries the request target as
+    its third argument; for ``/oauth/*`` only the path is kept.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
+            target = args[2]
+            if target.startswith("/oauth/") and "?" in target:
+                record.args = (*args[:2], target.split("?", 1)[0] + "?[redacted]", *args[3:])
+        return True
+
+
+def install_access_log_redaction() -> None:
+    for name in ("uvicorn.access", "gunicorn.access"):
+        access_logger = logging.getLogger(name)
+        if not any(isinstance(item, OAuthQueryRedactionFilter) for item in access_logger.filters):
+            access_logger.addFilter(OAuthQueryRedactionFilter())
+
+
 def create_oauth_authorization_server_router(
     *,
     service_factory: Callable[[], InboundOAuthService | None],
     request_client_ip: Callable[[Request], str],
 ) -> APIRouter:
     router = APIRouter(tags=["oauth"])
+    install_access_log_redaction()
 
     def _service() -> InboundOAuthService | None:
         try:
@@ -128,4 +153,8 @@ def create_oauth_authorization_server_router(
     return router
 
 
-__all__ = ["create_oauth_authorization_server_router"]
+__all__ = [
+    "OAuthQueryRedactionFilter",
+    "create_oauth_authorization_server_router",
+    "install_access_log_redaction",
+]

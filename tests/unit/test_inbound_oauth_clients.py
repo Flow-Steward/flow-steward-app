@@ -17,7 +17,7 @@ CLIENT_ID = "https://claude.ai/oauth/claude-code-client-metadata"
 def _document(**overrides) -> bytes:
     document = {
         "client_id": CLIENT_ID,
-        "client_name": "Claude Code",
+        "client_name": "Desktop agent",
         "redirect_uris": ["http://localhost/callback", "http://127.0.0.1/callback"],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
@@ -87,7 +87,7 @@ def test_unsupported_documents_are_refused(overrides: dict) -> None:
 
 def test_valid_document_keeps_name_and_redirects() -> None:
     metadata = clients.validate_client_metadata(_document(), client_id=CLIENT_ID)
-    assert metadata.client_name == "Claude Code"
+    assert metadata.client_name == "Desktop agent"
     assert metadata.redirect_uris == ("http://localhost/callback", "http://127.0.0.1/callback")
     assert len(metadata.metadata_sha256) == 64
     unnamed = clients.validate_client_metadata(

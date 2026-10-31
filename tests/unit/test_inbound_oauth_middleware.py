@@ -303,3 +303,13 @@ def test_principal_model_carries_only_the_three_oauth_fields() -> None:
     assert principal.oauth_grant_id == ""
     with pytest.raises(ValueError):
         ResolvedPrincipal(id="x", pat_id="p")  # extra="forbid" still holds
+
+
+def test_consent_and_own_grant_revocation_are_self_service_writes() -> None:
+    """A viewer may answer its own consent and revoke its own grants (role gate skipped)."""
+    from core.application.auth.serve_auth_runtime import is_self_service_auth_write_route
+
+    assert is_self_service_auth_write_route("/api/oauth/authorizations/abc/decision")
+    assert is_self_service_auth_write_route("/api/auth/oauth-grants/abc/revoke")
+    assert not is_self_service_auth_write_route("/api/settings/mcp-oauth")
+    assert not is_self_service_auth_write_route("/api/oauth/authorizations/abc")

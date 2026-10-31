@@ -35,11 +35,11 @@ CSRF = "csrf-integration-value"
 
 
 def client_document(client_id: str = CLIENT_ID) -> bytes:
-    """A Claude Code-like CIMD document: public client, loopback redirect."""
+    """A loopback desktop-agent CIMD document: public client, loopback redirect."""
     return json.dumps(
         {
             "client_id": client_id,
-            "client_name": "Claude Code (test)",
+            "client_name": "Desktop agent (test)",
             "redirect_uris": ["http://127.0.0.1/callback", "http://localhost/callback"],
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],

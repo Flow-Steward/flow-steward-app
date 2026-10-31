@@ -2,7 +2,7 @@
 
 The real ``fs-app`` (in-process uvicorn) and the real ``fs-mcp`` process
 (``python -m core.entrypoints.mcp.server``) on loopback ports, the audit PostgreSQL,
-and a scripted client that presents Claude Code's CIMD ``client_id`` with a loopback
+and a scripted client that presents the desktop agent's CIMD ``client_id`` with a loopback
 redirect. The CIMD document is served by an injected fetcher (the only stand-in: the
 real host is claude.ai). Discovery -> authorize -> sign-in session -> consent -> code
 exchange -> MCP tools/list and tools/call -> API -> application service -> refresh ->
@@ -217,7 +217,7 @@ def test_scripted_public_client_full_chain(stack) -> None:
     )
     request_id = query_of(response.headers["location"])["request"]
     view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
-    assert view["client"]["client_name"] == "Claude Code (test)"
+    assert view["client"]["client_name"] == "Desktop agent (test)"
     decision = browser.post(
         f"/api/oauth/authorizations/{request_id}/decision",
         json={

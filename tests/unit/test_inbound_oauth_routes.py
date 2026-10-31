@@ -72,7 +72,7 @@ def _document() -> bytes:
     return json.dumps(
         {
             "client_id": CLIENT_ID,
-            "client_name": "Claude Code",
+            "client_name": "Desktop agent",
             "redirect_uris": ["http://127.0.0.1/callback"],
             "token_endpoint_auth_method": "none",
         }
@@ -307,3 +307,47 @@ def test_revocation_requires_token_and_client(store) -> None:
     response = _client(store).post("/oauth/revoke", data={"token": "x"})
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_request"
+
+
+def test_authorization_query_never_reaches_the_access_log() -> None:
+    """S1/A3: uvicorn logs the request target; for /oauth/* the query is dropped."""
+    import logging
+
+    from core.entrypoints.api.oauth_authorization_server_routes import (
+        OAuthQueryRedactionFilter,
+        install_access_log_redaction,
+    )
+
+    install_access_log_redaction()
+    install_access_log_redaction()
+    access = logging.getLogger("uvicorn.access")
+    assert sum(isinstance(item, OAuthQueryRedactionFilter) for item in access.filters) == 1
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        1,
+        '%s - "%s %s HTTP/%s" %d',
+        (
+            "198.51.100.7:1",
+            "GET",
+            "/oauth/authorize?state=secret-state&scope=jobs.read",
+            "1.1",
+            302,
+        ),
+        None,
+    )
+    assert OAuthQueryRedactionFilter().filter(record)
+    assert "secret-state" not in record.getMessage()
+    assert "/oauth/authorize?[redacted]" in record.getMessage()
+    other = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        1,
+        '%s - "%s %s HTTP/%s" %d',
+        ("x", "GET", "/api/jobs?page=2", "1.1", 200),
+        None,
+    )
+    OAuthQueryRedactionFilter().filter(other)
+    assert "/api/jobs?page=2" in other.getMessage()

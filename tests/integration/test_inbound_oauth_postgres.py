@@ -379,6 +379,37 @@ def test_consent_never_exceeds_the_users_authority(http, world) -> None:
     assert world.grant_rows() == []
 
 
+def test_a_viewer_can_grant_a_read_subset_and_revoke_it(http, world) -> None:
+    """Consent and revocation are the user's own actions, not role-gated writes."""
+    browser, request_id, _verifier = _browser_flow(http, "viewer", scope="jobs.read")
+    view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
+    assert view["presets"][0]["available"] is True
+    assert view["presets"][0]["subset_of_preset"] is True
+    approved = _decide(
+        browser, request_id, {"decision": "approve", "preset": "operational", "expiry_days": 7}
+    )
+    assert approved.status_code == 200, approved.text
+    code = query_of(approved.json()["redirect_to"])["code"]
+    assert code.startswith("fs_oac_")
+    service = world.service()
+    with pytest.raises(OAuthProtocolError):
+        exchange(service, code, "wrong-verifier-" + "x" * 40)
+    rows = world.grant_rows()
+    assert rows == []
+    browser, request_id, verifier = _browser_flow(http, "viewer", scope="jobs.read")
+    code = query_of(
+        _decide(
+            browser, request_id, {"decision": "approve", "preset": "operational", "expiry_days": 7}
+        ).json()["redirect_to"]
+    )["code"]
+    assert exchange(service, code, verifier)["scope"] == "jobs.read"
+    [grant] = browser.get("/api/auth/oauth-grants").json()["grants"]
+    revoked = browser.post(
+        f"/api/auth/oauth-grants/{grant['id']}/revoke", headers={"x-csrf-token": CSRF}
+    )
+    assert revoked.status_code == 200, revoked.text
+
+
 def test_grant_lifetime_is_a_choice_of_at_most_90_days(http, world) -> None:
     """Z14."""
     for expiry in (91, None):

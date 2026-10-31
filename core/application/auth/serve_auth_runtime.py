@@ -797,7 +797,14 @@ def is_self_service_auth_write_route(path: str) -> bool:
         "/api/users/me/email-change/request",
     }:
         return True
-    return bool(re.fullmatch(r"/api/auth/tokens/[^/]+/revoke", path_text))
+    if re.fullmatch(r"/api/auth/tokens/[^/]+/revoke", path_text):
+        return True
+    # ADR 0047: a user answers their own OAuth consent and revokes their own grants
+    # whatever their role; the service caps the access at the user's authority.
+    return bool(
+        re.fullmatch(r"/api/oauth/authorizations/[^/]+/decision", path_text)
+        or re.fullmatch(r"/api/auth/oauth-grants/[^/]+/revoke", path_text)
+    )
 
 
 def optional_route_path_allowed(
