@@ -54,8 +54,9 @@ describe("ConnectedAppsSection", () => {
     ]));
     renderSection();
     const table = await screen.findByRole("table", { name: "Connected AI apps" });
+    // The table renders while the query loads; wait for its rows, not just the table.
+    await waitFor(() => expect(within(table).getAllByRole("row").slice(1)).toHaveLength(3));
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows).toHaveLength(3);
     expect(rows[0]).toHaveTextContent("ChatGPT");
     expect(rows[0]).toHaveTextContent("Monitor and run workflows");
     expect(rows[0]).toHaveTextContent("projects.read, jobs.read");
