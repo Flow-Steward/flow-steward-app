@@ -7,8 +7,9 @@ description: Use when a contributor wants to fix a bug or propose an improvement
 
 The core repository is <https://github.com/Flow-Steward/flow-steward-app>
 (Apache-2.0). Issues and pull requests go there. Extensions and workflow
-templates are published elsewhere: use `flow-steward-publish-extension` or
-`flow-steward-publish-workflow` for those.
+templates are published elsewhere: use `flow-steward-publish-extension` for an
+extension; a workflow template goes to <https://github.com/Flow-Steward/workflows>,
+whose README explains the submission.
 
 The repository's own rules win over this skill. Read, in this order:
 `AGENTS.md`, `docs/standards/README.md`, `docs/standards/agent-workflow-standard.md`,
@@ -17,6 +18,13 @@ The repository's own rules win over this skill. Read, in this order:
 `frontend-standard.md`, `security-standard.md`, `configuration-standard.md`).
 Security vulnerabilities go privately to `security@flow-steward.org`
 (`SECURITY.md`), never to a public issue or pull request.
+
+This work needs a terminal with Git and Docker, a full clone of the
+repository, and GitHub access (your client's GitHub tools or an authenticated
+`gh`) for the fork and the pull request. It does not need a Flow Steward MCP
+connection. When one of them is missing, say which and what it blocks: without
+a terminal or clone no change can be made or verified; without GitHub the user
+pushes and opens the pull request from your prepared branch and description.
 
 ## 1. Start from an issue
 

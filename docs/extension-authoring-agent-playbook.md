@@ -6,12 +6,13 @@ extension from the extension catalog (https://github.com/Flow-Steward/extensions
 Flow Steward Core does not bundle any extension.
 
 For portable developer-client guidance, use the
-[Flow Steward Extension Authoring skill](agent-skills/flow-steward/skills/flow-steward-extension-authoring/SKILL.md).
-[Installation and usage](GUIDE.md#developer-toolkit-local-agent-skills) cover
-the portable plugin and optional native standalone skills. After an authorized
-extension installation, use the
-[Workflow Authoring skill](agent-skills/flow-steward/skills/flow-steward-workflow-authoring/SKILL.md)
-to discover its operations through the existing MCP catalog.
+[Flow Steward Extension Authoring skill](agent-skills/flow-steward-developer/skills/flow-steward-extension-authoring/SKILL.md)
+in the Flow Steward Developer package.
+[Installation and usage](GUIDE.md#agent-skill-packages) cover
+the packages and optional native standalone skills. After an authorized
+extension installation, its operations are discovered through the existing
+MCP catalog, for example with the Operator package's
+[Automations skill](agent-skills/flow-steward-operator/skills/flow-steward-workflow-authoring/SKILL.md).
 
 It is not a replacement for canonical standards. When rules conflict, follow
 this order: system/tool rules, direct task instructions, `AGENTS.md`,

@@ -19,7 +19,8 @@ plans, audit results and screenshots are not release documentation.
   [architectural decisions](architecture/adr/README.md).
 - [Extension authoring](extension-authoring-agent-playbook.md),
   [extension runtime guarantees](security/extension-runtime.md) and
-  [distributable agent skills](agent-skills/flow-steward/README.md).
+  distributable agent skills: [Operator](agent-skills/flow-steward-operator/README.md)
+  and [Developer](agent-skills/flow-steward-developer/README.md).
 - [Design-system reference](frontend/design-system.md).
 - [Environment catalog](configuration/flow-steward-env-catalog.md) and
   [static catalog contracts](catalogs/static-catalog-contracts.md).

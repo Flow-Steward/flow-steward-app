@@ -51,8 +51,9 @@ existing administrator authority. A launch grant is not a creation grant.
 Current machine-token operator policy is retained. Request-local MCP tool
 discovery supplements authorization on each call.
 
-The portable plugin in `docs/agent-skills/flow-steward/` packages two namespaced
-skills for local reuse/authoring and operational reads/reports through existing
+The portable skills in `docs/agent-skills/` (since 2026-10-31 split into the
+`flow-steward-operator` and `flow-steward-developer` packages) cover
+local reuse/authoring and operational reads/reports through existing
 MCP tools, and extension development through the existing public CLI. They
 reference current contracts and canonical standards, without copied
 catalogs, client-specific engineering rules or a new distribution service.
@@ -92,4 +93,4 @@ refused before any write.
 - [Security standard](../../standards/security-standard.md)
 - [ADR 0002: Runtime Ownership](0002-runtime-ownership.md)
 - [ADR 0015: Atomic Extension Package and Artifact Lifecycle](0015-atomic-extension-package-and-artifact-lifecycle.md)
-- [Developer Toolkit guide](../../GUIDE.md#developer-toolkit-local-agent-skills)
+- [Agent skill packages guide](../../GUIDE.md#agent-skill-packages)

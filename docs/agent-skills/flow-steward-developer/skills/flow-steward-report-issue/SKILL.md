@@ -10,6 +10,19 @@ Issues and feature requests go to
 one report that a maintainer can act on without a follow-up question. Work with
 the user: you collect and draft, the user confirms what is sent.
 
+This skill reports a problem; it does not fix it. Do not change Flow Steward
+code, settings or data while preparing a report. A workaround the user can
+apply in their own workflow is worth noting in the issue.
+
+What this needs, and what to do without it:
+
+- **GitHub**: your client's GitHub tools or an authenticated `gh` CLI, and the
+  user's permission to post on their behalf. Without them, produce the finished
+  draft and the link from step 6; the user submits it in the browser. Never
+  claim that an issue was filed when it was not.
+- **The diagnostics report** comes from the user or their administrator
+  (step 2). You do not need a terminal or server access for it.
+
 **Security vulnerabilities are never public issues.** If the problem lets
 someone read, change or run something they should not, stop and tell the user
 to email `security@flow-steward.org` with the subject prefix `[SECURITY]`, as
@@ -44,8 +57,9 @@ Ask the user to get it one of two ways:
 
 - **In the UI** (administrator only): **System → Monitoring**, then
   **Download diagnostics**. The file is
-  `flow-steward-diagnostics-<UTC stamp>.json`.
-- **From the command line**, in the installation folder on the server:
+  `flow-steward-diagnostics-<UTC stamp>.json`. This is the usual way.
+- **From the command line**, by someone with access to the server, in the
+  installation folder:
 
   ```bash
   ./flow-steward reports diagnostics
@@ -55,8 +69,9 @@ Ask the user to get it one of two ways:
   `.flow-steward/diagnostics/flow-steward-diagnostics-<UTC stamp>.json` and
   prints the path.
 
-An agent with an administrator token can also fetch it with
-`GET /api/system/diagnostics/report`. The command-line report is the most
+Administrators can also fetch it from the API with
+`GET /api/system/diagnostics/report`; an agent does that only when the user
+already gave it that access for this purpose. The command-line report is the most
 complete, because only the host sees Docker and the containers; prefer it when
 the user has access to the server. A non-administrator cannot download the
 report; ask the user to get it from their administrator. If the stack is down so badly that neither works, say so in the

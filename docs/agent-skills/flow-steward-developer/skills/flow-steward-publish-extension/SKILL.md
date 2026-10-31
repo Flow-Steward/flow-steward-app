@@ -16,6 +16,12 @@ Build the extension first with the `flow-steward-extension-authoring` skill.
 Publishing does not install anything; never install, enable or publish without
 the user's explicit request.
 
+This work needs a terminal with Git and Docker, a Flow Steward application
+checkout for the quality gate, and GitHub access (your client's GitHub tools or
+an authenticated `gh`) to push tags and open the catalog pull request. It does
+not need a Flow Steward MCP connection. When one is missing, say which step it
+blocks and do not report that step as done.
+
 ## 1. One public repository per extension
 
 - `extension.yaml` sits at the **repository root**.

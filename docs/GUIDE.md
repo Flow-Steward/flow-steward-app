@@ -1250,33 +1250,30 @@ Authorization: Bearer <token>
 
 The exact header configuration key depends on the MCP client. The requirement is the HTTP header itself, not a product-specific wrapper.
 
-### Developer Toolkit: local agent skills
+### Agent skill packages
 
-The [Flow Steward agent plugin](agent-skills/flow-steward/README.md) packages
-six skills that use current platform contracts:
+Two independently installable agent skill packages use current platform
+contracts. Choosing a package never changes permissions: the token decides what
+an agent may do.
 
-| Skill | Audience and use |
-| --- | --- |
-| [Workflows and Operations](agent-skills/flow-steward/skills/flow-steward-workflow-authoring/SKILL.md) | End users: reuse local workflows, create disabled drafts, inspect scoped runs/errors/pending approvals, request operational reports, export and import workflows. |
-| [Report an Issue](agent-skills/flow-steward/skills/flow-steward-report-issue/SKILL.md) | End users: report a bug or request a feature on GitHub with the System Diagnostics report attached. |
-| [Publish a Workflow](agent-skills/flow-steward/skills/flow-steward-publish-workflow/SKILL.md) | Authors: publish a workflow template to the Flow-Steward/workflows catalog. |
-| [Extension Authoring](agent-skills/flow-steward/skills/flow-steward-extension-authoring/SKILL.md) | Developers: build extensions (including custom code for workflows) with the supported CLI and target-release contracts. |
-| [Publish an Extension](agent-skills/flow-steward/skills/flow-steward-publish-extension/SKILL.md) | Developers: release an extension and list it in the Flow-Steward/extensions catalog. |
-| [Contribute Code](agent-skills/flow-steward/skills/flow-steward-contribute-code/SKILL.md) | Developers: fix a bug or propose an improvement in the core repository, from issue to pull request. |
+| Package | Skills | Needs |
+| --- | --- | --- |
+| [Flow Steward Operator](agent-skills/flow-steward-operator/README.md) (`flow-steward-operator`) | [Automations](agent-skills/flow-steward-operator/skills/flow-steward-workflow-authoring/SKILL.md): discover, create skills and agents, compose, validate and save disabled workflow drafts, enable and run on request, change existing workflows, repair disabled objects, runs, errors, approvals and reports. [Report an Issue](agent-skills/flow-steward-operator/skills/flow-steward-report-issue/SKILL.md). [Publish a Workflow](agent-skills/flow-steward-operator/skills/flow-steward-publish-workflow/SKILL.md) to the Flow-Steward/workflows catalog. | The configured MCP connection; no checkout or terminal. |
+| [Flow Steward Developer](agent-skills/flow-steward-developer/README.md) (`flow-steward-developer`) | [Extension Authoring](agent-skills/flow-steward-developer/skills/flow-steward-extension-authoring/SKILL.md), [Publish an Extension](agent-skills/flow-steward-developer/skills/flow-steward-publish-extension/SKILL.md) to the Flow-Steward/extensions catalog, [Contribute Code](agent-skills/flow-steward-developer/skills/flow-steward-contribute-code/SKILL.md) to the core repository, [Report an Issue](agent-skills/flow-steward-developer/skills/flow-steward-report-issue/SKILL.md). | A terminal, Git, Docker, the supported CLI and the Development environment; no MCP token. |
 
-The end-user skills work through the configured MCP and need no platform
-checkout. Extension and core development use the supported CLI and the
-Development environment.
+Both packages ship the same Report an Issue skill, copied from one source in
+`docs/agent-skills/shared/`. Neither package needs the other.
 
 #### Install in a local client
 
 Follow the package README's supported Codex local marketplace, Cursor local
-plugin or Claude session-local installation steps. Optional standalone skill
-installation copies the same `skills/<name>` leaves into native skill folders.
-The package works outside this repository and contains no endpoint or token.
-Verify the skills in the client, then verify MCP `tools/list` and a scoped read.
-Archive extraction or file copying alone does not establish runtime discovery.
-Use the same reviewed package source for updates and verify the installed bytes.
+plugin or Claude marketplace steps for each package. Optional standalone skill
+installation copies the same `skills/<name>` folders into native skill folders.
+The packages work outside this repository and contain no endpoint or token.
+Verify the skills in the client; for Operator, then verify MCP `tools/list` and
+a scoped read. Archive extraction or file copying alone does not establish
+runtime discovery. Use the same reviewed package source for updates and verify
+the installed bytes.
 
 #### Inspect operations and reports
 

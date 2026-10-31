@@ -118,8 +118,9 @@ contracts, engineering standards and architectural decisions.
 The repository guides:
 
 - [User guide and CLI configuration](docs/GUIDE.md)
-- [Flow Steward agent skills package](docs/agent-skills/flow-steward/README.md)
-  ([setup in the user guide](docs/GUIDE.md#developer-toolkit-local-agent-skills))
+- Agent skill packages: [Flow Steward Operator](docs/agent-skills/flow-steward-operator/README.md)
+  and [Flow Steward Developer](docs/agent-skills/flow-steward-developer/README.md)
+  ([setup in the user guide](docs/GUIDE.md#agent-skill-packages))
 - [Compact and Scalable deployment](docs/operations/compact-scalable-deployment.md)
 - [Official release upgrade](docs/GUIDE.md#maintenance-and-release-upgrade)
 - [Installation Clone](docs/operations/installation-clone.md)

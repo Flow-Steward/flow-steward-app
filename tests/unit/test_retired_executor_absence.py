@@ -107,28 +107,29 @@ ALLOWED_HISTORICAL_PROVENANCE_LINES = {
 # this plan's branch provenance) are allowed. A changed line, extra instruction,
 # or runtime/module path still goes through the retired-surface scan.
 _EXTERNAL_CODE_CLIENT = "Clau" + "de Code"
+# Each independently installable agent skill package documents the same
+# install lifecycle for the same local clients in its own README.
+_AGENT_SKILL_PACKAGES = ("flow-steward-operator", "flow-steward-developer")
 ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
     Path("docs/GUIDE.md"): {
         f"Follow the package README's supported {_EXTERNAL_AGENT_RUNTIME.title()} local marketplace, Cursor local".lower().encode(
             "utf-8"
         ),
     },
-    Path("docs/agent-skills/flow-steward/README.md"): {
-        line.lower().encode("utf-8")
-        for line in (
-            f"`plugin.json` targets Agent Plugins 1.0.0 for {_EXTERNAL_AGENT_RUNTIME.title()} and Cursor;",
-            f"`.claude-plugin/plugin.json` provides {_EXTERNAL_CODE_CLIENT} metadata. Both discover the",
-            f"### {_EXTERNAL_AGENT_RUNTIME.title()}",
-            f"{_EXTERNAL_AGENT_RUNTIME} plugin marketplace add .",
-            f"{_EXTERNAL_AGENT_RUNTIME} plugin list --marketplace flow-steward-local --available --json",
-            f"{_EXTERNAL_AGENT_RUNTIME} plugin add flow-steward@flow-steward-local",
-            f"marketplace. [{_EXTERNAL_AGENT_RUNTIME.title()} packaging documentation](https://developers.openai.com/plugins/build/plugins)",
-            f"### {_EXTERNAL_CODE_CLIENT}",
-            f"{_EXTERNAL_AGENT_RUNTIME.title()} `.agents/skills/` or `~/.agents/skills/`; Cursor `.agents/skills/`,",
-            f"`$flow-steward-extension-authoring` in {_EXTERNAL_AGENT_RUNTIME.title()} and the corresponding `/` names",
-            f"Native paths are documented for [{_EXTERNAL_AGENT_RUNTIME.title()}](https://developers.openai.com/{_EXTERNAL_AGENT_RUNTIME}/skills),",
-            f"again. {_EXTERNAL_AGENT_RUNTIME.title()} loads a cached installed copy; confirm the refreshed install's bytes",
-        )
+    **{
+        Path(f"docs/agent-skills/{package}/README.md"): {
+            line.lower().encode("utf-8")
+            for line in (
+                f"### {_EXTERNAL_AGENT_RUNTIME.title()}",
+                f"{_EXTERNAL_AGENT_RUNTIME} plugin marketplace add .",
+                f"{_EXTERNAL_AGENT_RUNTIME} plugin add {package}@flow-steward-local",
+                f"`{_EXTERNAL_AGENT_RUNTIME} plugin marketplace upgrade flow-steward-local`; the client runs a cached",
+                f"`{_EXTERNAL_AGENT_RUNTIME} plugin marketplace remove flow-steward-local` to drop the whole local",
+                f"marketplace) and restart. See the [{_EXTERNAL_AGENT_RUNTIME.title()} plugin documentation](https://developers.openai.com/plugins/build/plugins).",
+                f"### {_EXTERNAL_CODE_CLIENT}",
+            )
+        }
+        for package in _AGENT_SKILL_PACKAGES
     },
     Path("docs/extension-authoring-agent-playbook.md"): {
         f"native local {_EXTERNAL_AGENT_RUNTIME.title()} and {_EXTERNAL_CODE_CLIENT} skill directories. After an authorized".lower().encode(
@@ -366,8 +367,12 @@ _EXTERNAL_CLIENT_DOCUMENTATION_EXAMPLES = (
         f"Follow the package README's supported {_EXTERNAL_AGENT_RUNTIME.title()} local marketplace, Cursor local",
     ),
     (
-        Path("docs/agent-skills/flow-steward/README.md"),
+        Path("docs/agent-skills/flow-steward-operator/README.md"),
         f"{_EXTERNAL_AGENT_RUNTIME} plugin marketplace add .",
+    ),
+    (
+        Path("docs/agent-skills/flow-steward-developer/README.md"),
+        f"{_EXTERNAL_AGENT_RUNTIME} plugin add flow-steward-developer@flow-steward-local",
     ),
 )
 

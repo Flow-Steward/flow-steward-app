@@ -54,10 +54,12 @@ README explains the submission.
 
 ## AI agents
 
-The Flow Steward agent plugin in [docs/agent-skills/flow-steward](docs/agent-skills/flow-steward/README.md)
-has skills for this whole process: `flow-steward-report-issue`,
-`flow-steward-contribute-code`, `flow-steward-publish-extension` and
-`flow-steward-publish-workflow`.
+The [Flow Steward Developer](docs/agent-skills/flow-steward-developer/README.md)
+agent skill package has skills for this whole process:
+`flow-steward-report-issue`, `flow-steward-contribute-code` and
+`flow-steward-publish-extension`. Workflow templates are shared with
+`flow-steward-publish-workflow` from the
+[Flow Steward Operator](docs/agent-skills/flow-steward-operator/README.md) package.
 
 ## Code of Conduct
 

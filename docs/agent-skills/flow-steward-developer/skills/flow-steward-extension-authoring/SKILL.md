@@ -8,6 +8,13 @@ description: Use when a developer or integrator wants to create or change a Flow
 Build against the target release's contracts and existing lifecycle. Keep
 provider logic in the extension's out-of-process runtime.
 
+This work needs a terminal with Docker, a Flow Steward application checkout of
+the target release installed in the Development environment, and the
+extension's own checkout. It does not need a Flow Steward MCP connection or
+token. When the terminal or the checkout is missing, say which one and stop
+before writing files you cannot validate; never report an unvalidated bundle
+as ready.
+
 ## Locate the contracts
 
 Find the target Flow Steward application checkout. Read `AGENTS.md`, applicable
@@ -301,6 +308,8 @@ version; the same or a lower version is refused.
 Then use `extensions list`, `extensions show <extension_id>` and
 `extensions health <extension_id>` to inspect the installed result. Report what
 ran, actual results, archive identity and remaining connection/readiness needs.
-Do not install, enable or publish automatically. After authorized installation,
-use the workflow-authoring skill's live discovery through the existing knowledge
-synchronization path; do not create another index or execution interface.
+Do not install, enable or publish automatically. After an authorized
+installation, the extension's operations reach workflow authoring through the
+existing knowledge synchronization; confirm them in the installation's UI, or
+with its MCP `capability_search` when one is connected. Do not create another
+index or execution interface.

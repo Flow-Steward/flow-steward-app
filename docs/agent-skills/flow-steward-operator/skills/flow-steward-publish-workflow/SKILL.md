@@ -14,6 +14,17 @@ current copy before you start and follow it where it differs from this skill.
 Publishing makes the workflow public. Get the user's explicit go-ahead before
 opening the pull request.
 
+What this needs, and what to do without it:
+
+- **Flow Steward MCP** for the export. Without it, the user exports the file in
+  the UI (step 2) and gives it to you.
+- **GitHub**: your client's GitHub tools or an authenticated `gh` CLI, with the
+  user's permission to act on their account. Without either, prepare the file,
+  its catalog path and the pull request text, and tell the user to submit them
+  in the browser (step 5). Do not claim that a pull request exists.
+- **A terminal** only for the optional local catalog check; skip it and say so
+  when there is none.
+
 ## 1. Prepare the workflow in Flow Steward
 
 - **Name** (`display_name`): a readable title, not an identifier —
@@ -24,14 +35,16 @@ opening the pull request.
 - **Version**: semantic, such as `1.0.0` (the default for a new workflow). A
   version already published in the catalog for the same `workflow_id` is
   refused; raise it for every new submission. The workflow screens show no
-  version field; an administrator can change it through the workflow metadata
-  API (read the workflow, then a full `PUT /api/workflows/<workflow_id>` with
-  the same metadata and the new `version`; see the API reference). Confirm the
-  new version in the exported file.
+  version field and the MCP tools do not change it; an administrator changes
+  it through the workflow metadata API (read the workflow, then a full
+  `PUT /api/workflows/<workflow_id>` with the same metadata and the new
+  `version`; see the API reference). Tell the user when this step is needed.
+  Confirm the new version in the exported file.
 - It must be a current, phase-free workflow. A phase-based
   `platform.workflow_bundle.v1` export is refused.
-- Validate it and run it at least once (a controlled Test Run), so the template
-  is known to work.
+- Validate it and run it at least once (a controlled Test Run, or a run through
+  the `flow-steward-workflow-authoring` skill), so the template is known to
+  work. Say in the pull request if it was not run.
 
 ## 2. Export
 
@@ -92,6 +105,11 @@ exported with child workflows when it has any. With `gh`:
 ```bash
 gh pr create --repo Flow-Steward/workflows --title "Add <title> <version>" --body-file pr.md
 ```
+
+Without GitHub tools, the user opens the category folder on
+<https://github.com/Flow-Steward/workflows>, chooses **Add file → Upload
+files** (GitHub forks the repository for them), uploads the file under the
+name from step 4, and pastes your title and description into the pull request.
 
 The **Validate submission** check refuses, among others: a file that is not
 `platform.workflow_bundle.v2`, a called workflow missing from the file, an
