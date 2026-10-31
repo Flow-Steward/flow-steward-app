@@ -5,6 +5,7 @@ from .query_services_common import *  # noqa: F403,F401  # NOSONAR
 from .query_services_job_core_mixin import JobQueryServiceCoreMixin
 from .query_services_job_journal_mixin import JobQueryServiceJournalMixin
 from .query_services_job_details_mixin import JobQueryServiceDetailsMixin
+from .query_services_job_queue_mixin import JobQueryServiceQueueMixin
 from .query_services_project_core_mixin import ProjectQueryServiceCoreMixin
 from .query_services_project_history_mixin import ProjectQueryServiceHistoryMixin
 from .query_services_project_ops_mixin import ProjectQueryServiceOpsMixin
@@ -16,6 +17,7 @@ from .query_services_tool import ToolQueryService
 
 class JobQueryService(
     JobQueryServiceCoreMixin,
+    JobQueryServiceQueueMixin,
     JobQueryServiceJournalMixin,
     JobQueryServiceDetailsMixin,
 ):
