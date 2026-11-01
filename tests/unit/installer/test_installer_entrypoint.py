@@ -1543,7 +1543,7 @@ def test_an_installed_runs_warnings_are_said_on_screen(monkeypatch) -> None:
     "args,expected_exit,expected_error",
     [(["--help"], 0, ""), (["--not-an-installer-option"], 2, "No such option")],
 )
-def test_main_returns_parser_exit_and_restores_signal_handlers(
+def test_main_exits_with_parser_status_and_restores_signal_handlers(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     args: list[str],
@@ -1561,7 +1561,9 @@ def test_main_returns_parser_exit_and_restores_signal_handlers(
     try:
         for sig in previous:
             signal.signal(sig, original_handler)
-        assert installer.main(args) == expected_exit
+        with pytest.raises(SystemExit) as exited:
+            installer.main(args)
+        assert exited.value.code == expected_exit
         for sig in previous:
             assert signal.getsignal(sig) is original_handler
     finally:

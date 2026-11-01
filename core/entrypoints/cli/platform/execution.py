@@ -140,7 +140,9 @@ def execute_command(
             operation_id=_optional_text(getattr(validated, "operation_id", None)),
             log_path=_optional_text(getattr(validated, "log_path", None)),
         )
-    except BaseException as exc:  # mapping is the public executor boundary
+    # The public executor boundary maps every service exit (SystemExit, CancelledError,
+    # GeneratorExit included) to a redacted CLI envelope; tests pin that contract.
+    except BaseException as exc:  # NOSONAR - public executor boundary, mapped not swallowed
         _log_captured_stdout(
             captured_stdout,
             technical_sink=technical_sink,

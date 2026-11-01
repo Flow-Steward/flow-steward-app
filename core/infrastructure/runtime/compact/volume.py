@@ -264,8 +264,9 @@ def _adopt_empty_provider_volume(
 
     if not owner_ok:
         os.fchown(root_fd, layout.root_uid, layout.root_gid)
+    # ADR 0029: every process reads extensions through the "other" bits.
     # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
-    os.fchmod(root_fd, 0o755)  # nosec B103 -- root is traversal-only; child modes protect data.
+    os.fchmod(root_fd, 0o755)  # nosec B103 -- root is traversal-only; child modes protect data.  # NOSONAR
     os.fsync(root_fd)
     prepared = os.fstat(root_fd)
     if (prepared.st_uid, prepared.st_gid) != expected_owner:

@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 _OBS_LOGGER_CACHE: dict[str, Any] = {}
 
 
-class _AgentProcessCancellation(KeyboardInterrupt):
+# SIGTERM cancellation must escape agent ``except Exception`` handlers, like Ctrl-C.
+class _AgentProcessCancellation(KeyboardInterrupt):  # NOSONAR - must bypass except Exception
     """Unwind agent work to its process entry without treating cancellation as a result."""
 
 

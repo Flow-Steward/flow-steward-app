@@ -280,6 +280,15 @@ def resolve_base_url(
     return _internal_compose_runtime_url(normalized_default, source)
 
 
+_WS_TO_HTTP_SCHEME = {"ws": "http", "wss": "https"}
+
+
+def _http_url_for_ws(url: str) -> str:
+    """Return the HTTP(S) URL that serves the same origin as a WS(S) URL."""
+    parts = urlsplit(url)
+    return urlunsplit(parts._replace(scheme=_WS_TO_HTTP_SCHEME.get(parts.scheme, parts.scheme)))
+
+
 def resolve_ws_url(
     env: Mapping[str, str] | None = None,
     *,
@@ -293,7 +302,7 @@ def resolve_ws_url(
 
     base_url = resolve_base_url(
         source,
-        default=default.replace("wss://", "https://", 1).replace("ws://", "http://", 1),
+        default=_http_url_for_ws(default),
         include_dotenv=False,
     )
     try:

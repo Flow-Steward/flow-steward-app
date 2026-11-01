@@ -359,14 +359,16 @@ def test_failed_run_verified_evidence_allows_only_exact_run_cleanup(
     "args,expected_exit,expected_error",
     [(["--help"], 0, ""), (["not-a-candidate-command"], 2, "invalid choice")],
 )
-def test_main_returns_parser_exit_without_invoking_service(
+def test_main_exits_with_parser_status_without_invoking_service(
     capsys, args: list[str], expected_exit: int, expected_error: str
 ) -> None:
     class UnusedService:
         def __getattr__(self, name):
             pytest.fail(f"parser-only invocation must not access service action {name}")
 
-    assert main(args, service=UnusedService()) == expected_exit
+    with pytest.raises(SystemExit) as exited:
+        main(args, service=UnusedService())
+    assert exited.value.code == expected_exit
 
     output = capsys.readouterr()
     if expected_error:

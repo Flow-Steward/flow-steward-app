@@ -300,8 +300,9 @@ def test_the_container_is_unprivileged_and_bounded(hostile_bundle) -> None:
     assert limits, f"the container did not report its limits: {rows}"
     reported = json.loads(limits["detail"])
     assert reported["uid"] != 0, "the suite ran as root"
-    reported_user = f"{reported['uid']}:{reported['gid']}"
-    assert reported_user == RUNNER_USER
+    expected_uid, expected_gid = RUNNER_USER.split(":")
+    assert str(reported["uid"]) == expected_uid
+    assert str(reported["gid"]) == expected_gid
     assert reported["pids"] == RUNNER_PIDS
     # 512m, as the runner declares it.
     assert int(reported["memory"]) == 512 * 1024 * 1024, reported["memory"]

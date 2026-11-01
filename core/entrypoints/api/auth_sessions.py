@@ -482,7 +482,9 @@ def create_auth_sessions_router(
             secure=_auth_cookie_secure(),
             max_age=session_ttl_hours * 3600,
         )
-        response.set_cookie(
+        # CSRF double-submit: the SPA reads this cookie and echoes it in a header, so it
+        # cannot be HttpOnly. The session cookie above stays HttpOnly.
+        response.set_cookie(  # NOSONAR - CSRF double-submit cookie must be readable by the SPA
             key=_AUTH_CSRF_COOKIE_NAME,
             value=csrf_token,
             httponly=False,

@@ -935,17 +935,14 @@ def _terminal_facts() -> TerminalFacts:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> None:
+    """Run the installer; Click's standalone mode exits with the command's status."""
     with _installer_signal_handlers():
-        try:
-            installer_command.main(
-                args=list(sys.argv[1:] if argv is None else argv),
-                prog_name="install.sh",
-                standalone_mode=True,
-            )
-        except SystemExit as exc:
-            return int(exc.code) if isinstance(exc.code, int) else 0
-    return 0
+        installer_command.main(
+            args=list(sys.argv[1:] if argv is None else argv),
+            prog_name="install.sh",
+            standalone_mode=True,
+        )
 
 
 @contextmanager
@@ -967,4 +964,4 @@ def _installer_signal_handlers():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

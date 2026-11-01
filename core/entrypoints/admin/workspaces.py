@@ -204,6 +204,7 @@ def update_workspace(request: Request, workspace_id: UUID, body: WorkspacePatch)
     responses={
         400: {"description": "Invalid workspace key"},
         404: {"description": "Workspace not found"},
+        503: {"description": "Workspace storage is unavailable"},
     },
 )
 def preview_workspace_key_change(
@@ -230,6 +231,7 @@ def preview_workspace_key_change(
         400: {"description": "Invalid workspace request"},
         404: {"description": "Workspace not found"},
         409: {"description": "Workspace key conflict"},
+        503: {"description": "Workspace storage is unavailable"},
     },
 )
 def change_workspace_key(

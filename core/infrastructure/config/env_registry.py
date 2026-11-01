@@ -617,7 +617,9 @@ def _resolve_installer_value(
     if name == "LANGGRAPH_POSTGRES_URI":
         return f"postgresql://flow_steward:{postgres_password}@pg-fs:5432/flow_steward"
     if name == "RABBITMQ_URL":
-        return f"amqp://flow_steward:{rabbitmq_pass}@rabbitmq-fs:5672/"
+        # The bundled broker is reachable only on the internal Compose network and has no
+        # TLS listener; an external broker is configured with its own amqps:// URL.
+        return f"amqp://flow_steward:{rabbitmq_pass}@rabbitmq-fs:5672/"  # NOSONAR - internal broker
     if name == "FS_PUBLIC_BASE_URL":
         return base_url
     if name == "FS_AUTH_TRUSTED_ORIGINS":

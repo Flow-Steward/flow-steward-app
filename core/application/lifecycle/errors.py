@@ -150,5 +150,6 @@ class LifecycleError(RuntimeError):
         )
 
 
-class ForcedLifecycleInterrupt(BaseException):
+# A forced interrupt must escape every ``except Exception`` handler, like KeyboardInterrupt.
+class ForcedLifecycleInterrupt(BaseException):  # NOSONAR - must bypass except Exception
     """Internal control flow raised only by the scoped signal adapter."""

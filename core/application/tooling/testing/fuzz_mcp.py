@@ -436,7 +436,8 @@ def run_fuzz_mcp_options(options: FuzzMcpOptions) -> int:
         session.headers.update({"Authorization": f"Bearer {bearer}"})
 
     has_auth = bool(bearer)
-    suffix = f"{random_gen.randint(100000, 999999)}"
+    # Seeded on purpose: the same --seed must replay the same fuzz run; nothing here is secret.
+    suffix = f"{random_gen.randint(100000, 999999)}"  # NOSONAR - reproducible seeded fuzzing
     results: list[CheckResult] = []
     results.append(
         _run(

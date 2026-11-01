@@ -51,8 +51,10 @@ _DEFAULT_RABBITMQ_USER = str(_runtime_env.get("RABBITMQ_USER", "guest") or "gues
 
 _DEFAULT_RABBITMQ_PASSWORD = str(_runtime_env.get("RABBITMQ_PASSWORD", "guest") or "guest").strip()
 
+# Fallback for the bundled broker on the internal network (no TLS listener); a deployment
+# with an external broker sets RABBITMQ_URL, which may use amqps://.
 _DEFAULT_URL = (
-    f"amqp://{_DEFAULT_RABBITMQ_USER}:{_DEFAULT_RABBITMQ_PASSWORD}"
+    f"amqp://{_DEFAULT_RABBITMQ_USER}:{_DEFAULT_RABBITMQ_PASSWORD}"  # NOSONAR - internal broker
     f"@{_DEFAULT_RABBITMQ_HOST}:{_DEFAULT_RABBITMQ_PORT}/"
 )
 

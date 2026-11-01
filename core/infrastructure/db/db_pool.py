@@ -378,7 +378,9 @@ def _run_rollback_callbacks(
     for callback in callbacks:
         try:
             callback()
-        except BaseException as exc:
+        # Every compensation must run; each failure is re-raised below as a group or
+        # attached to the owner's propagating failure, never swallowed.
+        except BaseException as exc:  # NOSONAR - collected and re-raised below
             failures.append(exc)
             logger.exception("Deferred transaction rollback callback failed")
     if not failures:

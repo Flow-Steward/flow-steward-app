@@ -97,16 +97,15 @@ def test_line_only_source_shift_does_not_stale_tracked_artifacts(tmp_path: Path)
     module.synchronize_env_artifacts(repo, check=False)
     audit_path = repo / "docs/configuration/flow-steward-env-audit.json"
     catalog_path = repo / "docs/configuration/flow-steward-env-catalog.md"
-    expected = (audit_path.read_text(encoding="utf-8"), catalog_path.read_text(encoding="utf-8"))
+    expected_audit = audit_path.read_text(encoding="utf-8")
+    expected_catalog = catalog_path.read_text(encoding="utf-8")
 
     source = repo / "core/example.py"
     source.write_text("\n" + source.read_text(encoding="utf-8"), encoding="utf-8")
 
     assert module.synchronize_env_artifacts(repo, check=True) == ()
-    assert (
-        audit_path.read_text(encoding="utf-8"),
-        catalog_path.read_text(encoding="utf-8"),
-    ) == expected
+    assert audit_path.read_text(encoding="utf-8") == expected_audit
+    assert catalog_path.read_text(encoding="utf-8") == expected_catalog
 
 
 def test_env_artifact_fingerprint_covers_every_scanned_source() -> None:

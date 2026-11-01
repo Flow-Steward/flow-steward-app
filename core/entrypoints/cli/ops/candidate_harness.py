@@ -310,11 +310,8 @@ def main(
     *,
     service: CandidateHarnessServicePort | None = None,
 ) -> int:
-    parser = _parser()
-    try:
-        args = parser.parse_args(argv)
-    except SystemExit as exc:
-        return exc.code if isinstance(exc.code, int) else 2
+    # argparse exits the process itself for --help (0) and usage errors (2).
+    args = _parser().parse_args(argv)
     if args.command == "cleanup" and not args.confirm:
         print("candidate cleanup requires --confirm", file=sys.stderr)
         return 2
