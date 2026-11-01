@@ -116,10 +116,11 @@ reported problem and rerun `./install.sh`. The Scalable command remains availabl
 for an explicit operator seed repair.
 
 Fresh installations initialize from `db/schema/` and apply the released SQL
-migrations during bootstrap; no separate upgrade command is needed. For an
-existing installation with pending migrations, enable maintenance, verify a
-backup, and run `database upgrade --maintenance-confirmed --confirm` as described
-in the [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
+migrations during bootstrap; no separate upgrade command is needed.
+Later SQL migrations use `database upgrade` on existing installations with
+pending migrations. Enable maintenance and verify a backup before running it
+with `--maintenance-confirmed --confirm`; see the
+[deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
 
 A fresh production install of a clean checkout exactly at its published
 `v<VERSION>` tag (`git checkout v<version>` before `./install.sh`) installs that
