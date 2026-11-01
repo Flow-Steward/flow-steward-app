@@ -10123,12 +10123,25 @@ def test_a_rollback_across_a_migration_is_refused_by_name(tmp_path: Path) -> Non
     assert "backup" in raised.value.remediation
 
 
-def test_an_unapplied_forward_migration_has_a_dedicated_failure_code(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("profile", "application_service"),
+    [("compact", "compact-runtime"), ("scalable", "fs-app")],
+)
+def test_an_unapplied_forward_migration_has_a_dedicated_failure_code(
+    tmp_path: Path, profile: str, application_service: str
+) -> None:
+    """Both profiles: the release's own image asks, and a pending migration stops the update.
+
+    The 0.9.8 OAuth-table migration is the first one a release carries; before it the
+    check could only ever pass.
+    """
     process = FakeProcessExecutor()
     gateway = _gateway(tmp_path, process, environment={})
+    checked: list[tuple[str, ...]] = []
 
     def run(command, **kwargs):
         if "--baseline-migration-history" in command:
+            checked.append(tuple(command))
             return ProcessOutcome(
                 command=tuple(command),
                 returncode=2,
@@ -10138,7 +10151,7 @@ def test_an_unapplied_forward_migration_has_a_dedicated_failure_code(tmp_path: P
 
     process.run = run  # type: ignore[method-assign]
     log = gateway.state_store.open_log("forward-migration")
-    config = _scalable()
+    config = InstallConfig(deployment_profile=profile, environment="production")
 
     with pytest.raises(InstallerFailure) as raised:
         gateway.precheck_migrations(config, log=log)
@@ -10146,6 +10159,9 @@ def test_an_unapplied_forward_migration_has_a_dedicated_failure_code(tmp_path: P
 
     assert raised.value.code == "release_migration_required"
     assert "database upgrade" in raised.value.remediation
+    assert len(checked) == 1
+    assert application_service in checked[0]
+    assert "core.application.tooling.db.upgrade_db" in checked[0]
 
 
 _COMPACT_INDEX = f"sha256:{'a' * 64}"

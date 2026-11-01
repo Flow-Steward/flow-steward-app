@@ -1662,6 +1662,10 @@
       "consumer": "core.infrastructure.security.policy_loader default security policy"
     },
     {
+      "path": "db/migrations/20261101153533_inbound_oauth_tables.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
       "path": "db/schema/001_schema_part_01.sql",
       "consumer": "core.infrastructure.db.schema_state canonical startup schema fingerprint"
     },

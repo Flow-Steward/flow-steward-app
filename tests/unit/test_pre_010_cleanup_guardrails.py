@@ -3487,10 +3487,17 @@ def test_canonical_schema_has_no_code_capability_tables_or_repository_columns() 
 
 
 def test_db_migrations_holds_no_historical_migrations() -> None:
+    """No migration predates the db/schema/ baseline (2026-09-26).
+
+    The directory stayed empty until the 0.9.x line shipped and was upgraded in place;
+    a schema change after a release needs a migration (ADR 0012, 2026-11-01 amendment).
+    What stays forbidden is a pre-baseline migration chain next to the baseline.
+    """
     files = sorted(
         path.name for path in (ROOT / "db" / "migrations").iterdir() if path.name != ".gitkeep"
     )
-    assert files == []
+    historical = [name for name in files if name[:14] < "20260926000000"]
+    assert historical == []
 
 
 def test_registry_seed_has_no_software_delivery_entities() -> None:
