@@ -19,8 +19,7 @@ and deployment, and official stable tag publication. The source is exclusively
 AI prepares a bounded proposal for existing documentation pages. A separate
 trusted job validates the allowed paths and opens or updates a PR using a narrowly
 scoped GitHub App token. AI has no GitHub write or registry credentials. Changes
-are built without secrets and require human acceptance before the existing Pages
-deployment. The accepted source checkpoint travels in the reviewed PR. Bootstrap
+are built without secrets and require human acceptance before deployment to the existing server at `docs.flowsteward.org`. The accepted source checkpoint travels in the reviewed PR. Bootstrap
 checks existing gaps; failures and no-ops do not silently mark changes accepted.
 
 Official stable `vX.Y.Z` tags build once per native Linux AMD64/ARM64 architecture.

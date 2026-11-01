@@ -161,7 +161,8 @@ In the documentation repository, set `DOCS_SYNC_ACTOR` to the App's exact bot lo
 `OPENAI_API_KEY` as a secret and optionally `DOCS_AI_MODEL` as a variable. Run its
 **Propose product documentation updates** workflow manually for the initial full
 reconciliation. Subsequent runs inspect all changes since the last accepted source
-checkpoint and update one bot PR. Review and merge it to publish through the
-existing Pages workflow. Configure Pages' actual origin/base path before overriding
-`SITE_URL`/`BASE_URL`; the automation preserves the existing Pages target by default.
+checkpoint and update one bot PR. Review and merge it to publish to the existing documentation server at
+`docs.flowsteward.org`. The site builds with that origin and `BASE_URL=/`; no
+GitHub Pages or DNS migration is required. Configure its scoped SSH deployment
+identity and verified host key as described in the documentation repository.
 See the documentation repository README for review, failure and retry behavior.
