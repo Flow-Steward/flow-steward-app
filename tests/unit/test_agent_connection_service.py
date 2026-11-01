@@ -189,7 +189,9 @@ def test_the_mcp_address_comes_from_the_public_configuration(base_url, resource,
     endpoint = agent_mcp_endpoint(
         OAuthEnvironment(public_base_url=base_url, resource_override=resource)
     )
-    assert (endpoint.url, endpoint.blocker) == expected
+    expected_url, expected_blocker = expected
+    assert endpoint.url == expected_url
+    assert endpoint.blocker == expected_blocker
 
 
 def test_no_development_fallback_address_is_ever_handed_out(world) -> None:
@@ -197,9 +199,11 @@ def test_no_development_fallback_address_is_ever_handed_out(world) -> None:
     view = _service(store, base_url="").setup_view(_user())
     assert view["mcp_url"] == ""
     assert view["mcp_blocker"] == "public_address_missing"
-    assert "localhost:8100" not in str(view) and "fs-app" not in str(view)
+    assert "localhost:8100" not in str(view)
+    assert "fs-app" not in str(view)
+    service = _service(store, base_url="")
     with pytest.raises(AgentConnectionError) as refused:
-        _issue(_service(store, base_url=""))
+        _issue(service)
     assert refused.value.code == "public_address_missing"
     assert store.tokens == []
 
@@ -326,10 +330,12 @@ def test_a_new_attempt_is_a_new_token(world) -> None:
 def test_a_refused_attempt_leaves_no_claim_behind(world) -> None:
     store, table = world
     service = _service(store)
+    viewer = _user("viewer")
     with pytest.raises(AgentConnectionError) as refused:
-        _issue(service, user=_user("viewer"))
+        _issue(service, user=viewer)
     assert refused.value.code == "exceeds_authority"
-    assert store.tokens == [] and table.rows == {}
+    assert store.tokens == []
+    assert table.rows == {}
     with pytest.raises(AgentConnectionError) as refused:
         _issue(service, preset_id="full_authoring")
     assert refused.value.code == "exceeds_authority"
@@ -352,10 +358,12 @@ def test_a_refused_attempt_leaves_no_claim_behind(world) -> None:
 )
 def test_unsupported_requests_are_refused_without_a_token(world, overrides, code) -> None:
     store, table = world
+    service = _service(store)
     with pytest.raises(AgentConnectionError) as refused:
-        _issue(_service(store), **overrides)
+        _issue(service, **overrides)
     assert refused.value.code == code
-    assert store.tokens == [] and table.rows == {}
+    assert store.tokens == []
+    assert table.rows == {}
 
 
 def test_projects_restrict_the_token(world) -> None:
@@ -381,8 +389,9 @@ def test_token_status_reports_only_the_token_facts(world) -> None:
         "revoked",
         "expired",
     }
+    admin = _user("admin")
     with pytest.raises(AgentConnectionError) as missing:
-        service.token_status(_user("admin"), created["token"]["id"])
+        service.token_status(admin, created["token"]["id"])
     assert missing.value.status == 404
 
 
@@ -426,7 +435,8 @@ def test_http_creation_then_replay_without_the_secret(world) -> None:
     assert repeat.json()["secret_already_shown"] is True
     assert SECRET_PREFIX not in repeat.text
     status = client.get(f"/api/auth/agent-access/tokens/{created.json()['token']['id']}")
-    assert status.status_code == 200 and SECRET_PREFIX not in status.text
+    assert status.status_code == 200
+    assert SECRET_PREFIX not in status.text
     assert len(store.tokens) == 1
 
 

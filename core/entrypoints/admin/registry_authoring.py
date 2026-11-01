@@ -20,7 +20,6 @@ _RESPONSES: dict[int | str, dict[str, str]] = {
 
 @router.get(
     "/api/agent-authoring/schema",
-    response_model=RegistryAuthoringSchemaView,
     responses=_RESPONSES,
 )
 def get_agent_authoring_schema() -> RegistryAuthoringSchemaView:
@@ -30,7 +29,6 @@ def get_agent_authoring_schema() -> RegistryAuthoringSchemaView:
 
 @router.get(
     "/api/skill-authoring/schema",
-    response_model=RegistryAuthoringSchemaView,
     responses=_RESPONSES,
 )
 def get_skill_authoring_schema() -> RegistryAuthoringSchemaView:

@@ -246,7 +246,8 @@ def test_scope_handling(store, scope: str, expected) -> None:
     request_id = _query(response)["request"][0]
     stored = store.authorizations[request_id]["requested_scopes"]
     if expected is None:
-        assert len(stored) == 7 and "admin:all" not in stored
+        assert len(stored) == 7
+        assert "admin:all" not in stored
     else:
         assert stored == expected
 

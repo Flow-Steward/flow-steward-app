@@ -74,7 +74,8 @@ def test_compact_forward_secret_is_minted_fresh_for_every_start() -> None:
     first, second = process_spec.mint_mcp_forward_secret(), process_spec.mint_mcp_forward_secret()
 
     assert first != second
-    assert len(first) >= 32 and len(second) >= 32
+    assert len(first) >= 32
+    assert len(second) >= 32
 
 
 def test_compact_supervisor_mints_the_forward_secret_on_start() -> None:

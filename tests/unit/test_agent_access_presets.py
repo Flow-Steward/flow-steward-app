@@ -24,7 +24,8 @@ def test_the_two_presets_and_their_exact_scopes() -> None:
         "workflows.write",
     )
     assert presets.FULL_AUTHORING_SCOPES == ("admin:all",)
-    assert (*presets.OPERATIONAL_SCOPES, "admin:all") == SUPPORTED_SCOPES
+    supported = SUPPORTED_SCOPES
+    assert supported == (*presets.OPERATIONAL_SCOPES, "admin:all")
     assert presets.agent_access_preset("operational") is presets.AGENT_ACCESS_PRESETS[0]
     assert presets.agent_access_preset("nope") is None
 

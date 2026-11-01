@@ -69,6 +69,8 @@ class FetchedDocument:
 
 MetadataFetcher = Callable[[str], FetchedDocument]
 
+_CLIENT_ID_NOT_ALLOWED = "client_id is not an allowed client metadata URL"
+
 
 def validate_client_id(
     client_id: str | None,
@@ -82,12 +84,12 @@ def validate_client_id(
     """
     raw = str(client_id or "")
     if not raw or raw != raw.strip() or len(raw) > MAX_CLIENT_ID_LENGTH:
-        raise ClientNotAllowedError("client_id is not an allowed client metadata URL")
+        raise ClientNotAllowedError(_CLIENT_ID_NOT_ALLOWED)
     try:
         parsed = urlsplit(raw)
         port = parsed.port
     except ValueError as exc:
-        raise ClientNotAllowedError("client_id is not an allowed client metadata URL") from exc
+        raise ClientNotAllowedError(_CLIENT_ID_NOT_ALLOWED) from exc
     host = parsed.hostname or ""
     if (
         parsed.scheme != "https"
@@ -102,7 +104,7 @@ def validate_client_id(
         or parsed.netloc.lower() not in {host, f"{host}:443"}
         or parsed.path in ("", "/")
     ):
-        raise ClientNotAllowedError("client_id is not an allowed client metadata URL")
+        raise ClientNotAllowedError(_CLIENT_ID_NOT_ALLOWED)
     return raw
 
 
@@ -116,7 +118,7 @@ def validate_client_metadata(body: bytes, *, client_id: str) -> ClientMetadata:
     """Validate a fetched CIMD document against ``client_id``."""
     try:
         document = json.loads(body.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
+    except ValueError as exc:  # UnicodeDecodeError is a ValueError
         raise InvalidClientMetadataError("client metadata is not JSON") from exc
     if not isinstance(document, dict):
         raise InvalidClientMetadataError("client metadata is not a JSON object")

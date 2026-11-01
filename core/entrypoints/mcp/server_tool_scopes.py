@@ -28,6 +28,8 @@ _TOKEN_ADMIN_ALL = "admin:all"
 _TOKEN_READ = "read:*"
 _TOKEN_COMMAND = "command:*"
 _TOKEN_WORKFLOWS_ALL = "workflows:*"
+_TOKEN_REGISTRY_READ = "registry.read"
+_TOKEN_REGISTRY_ALL = "registry:*"
 
 ADMIN = (_TOKEN_ADMIN_ALL,)
 
@@ -37,8 +39,8 @@ _PROJECTS_READ = ("projects.read", "projects:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
 _WORKFLOWS_READ = (
     "workflows.read",
     _TOKEN_WORKFLOWS_ALL,
-    "registry.read",
-    "registry:*",
+    _TOKEN_REGISTRY_READ,
+    _TOKEN_REGISTRY_ALL,
     _TOKEN_READ,
     _TOKEN_ADMIN_ALL,
 )
@@ -48,8 +50,8 @@ _WORKFLOWS_WRITE = ("workflows.write", _TOKEN_WORKFLOWS_ALL, _TOKEN_COMMAND, _TO
 _WORKFLOW_DEFINITION_READ = (
     "workflows.read",
     _TOKEN_WORKFLOWS_ALL,
-    "registry.read",
-    "registry:*",
+    _TOKEN_REGISTRY_READ,
+    _TOKEN_REGISTRY_ALL,
     _TOKEN_ADMIN_ALL,
 )
 _REPORTS_READ = ("reports.read", "reports:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
@@ -59,7 +61,7 @@ _NOTIFY_DISPATCH = ("notify:dispatch", "notify:*", _TOKEN_COMMAND, _TOKEN_ADMIN_
 # Reads the HTTP surface leaves to its generic read family.
 _GENERIC_READ = (_TOKEN_READ, _TOKEN_ADMIN_ALL)
 # /api/model-selection/options is a registry read route.
-_REGISTRY_READ = ("registry.read", "registry:*", _TOKEN_ADMIN_ALL)
+_REGISTRY_READ = (_TOKEN_REGISTRY_READ, _TOKEN_REGISTRY_ALL, _TOKEN_ADMIN_ALL)
 
 #: tool name -> any-of scopes. Every registered tool must appear here; the
 #: guardrail test in tests/unit/test_mcp_tool_scopes.py fails on any omission,

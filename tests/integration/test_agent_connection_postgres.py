@@ -121,7 +121,8 @@ def test_double_click_and_retry_create_one_token_and_show_the_secret_once(world,
         "WHERE replay_response_jsonb->>'token_id' = %s",
         (first.json()["token"]["id"],),
     )
-    assert len(stored) == 1 and secret not in stored[0][0]
+    assert len(stored) == 1
+    assert secret not in stored[0][0]
 
 
 def test_two_concurrent_requests_of_one_attempt_create_one_token(world, http) -> None:
@@ -158,7 +159,8 @@ def test_a_lost_response_is_answered_by_the_same_attempt(world) -> None:
     key = f"attempt-{uuid.uuid4()}"
     created = service.issue_token(operator, attempt_key=key, **request)  # response "lost"
     replay = service.issue_token(operator, attempt_key=key, **request)
-    assert replay["status"] == "replayed" and replay["secret"] == ""
+    assert replay["status"] == "replayed"
+    assert replay["secret"] == ""
     assert replay["token"]["id"] == created["token"]["id"]
     assert replay["token"]["allowed_project_ids"] == [world.projects[0]]
     with pytest.raises(AgentConnectionError) as mismatch:

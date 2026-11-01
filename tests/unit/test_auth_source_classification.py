@@ -122,7 +122,8 @@ def test_the_guard_fails_on_a_synthetic_unclassified_source_and_a_copied_set() -
 
 def test_the_classification_is_disjoint_and_knows_oauth() -> None:
     assert not TOKEN_SCOPED_AUTH_SOURCES & ROLE_AUTHORIZED_AUTH_SOURCES
-    assert {"pat", "machine", "token", "oauth"} == TOKEN_SCOPED_AUTH_SOURCES
+    token_scoped = TOKEN_SCOPED_AUTH_SOURCES
+    assert token_scoped == {"pat", "machine", "token", "oauth"}
     assert is_token_scoped_principal({"auth_source": "oauth"})
     assert is_token_scoped_principal({"auth_source": "local", "principal_type": "service_account"})
     assert not is_token_scoped_principal({"auth_source": "local"})
@@ -216,10 +217,11 @@ def test_place_7_approval_decision_of_oauth_is_a_token_decision() -> None:
     decision = ApprovalDecisionInput.model_validate(
         {"approved": False, "action": "approve", "approval_id": "a-1"}
     )
+    scope = ScopeContext(account_id=_OAUTH_ADMIN["account_id"], auth_source="oauth")
     with pytest.raises(ServiceValidationError, match="approved conflicts with approve action"):
         service.resume_task(
             thread_id="t-1",
-            scope=ScopeContext(account_id=_OAUTH_ADMIN["account_id"], auth_source="oauth"),
+            scope=scope,
             decision=decision,
         )
 

@@ -91,16 +91,17 @@ def test_create_agent_refuses_a_foreign_account_and_standard_tool_actions():
     db = MagicMock()
     db.get_agent.return_value = None
     service = _agent_service(db)
+    scope = _scope()
 
     with pytest.raises(ServiceForbiddenError):
         service.create_agent(
             {"agent_id": "writer", "account_id": ACCOUNT_B, "display_name": "W"},
-            scope=_scope(),
+            scope=scope,
         )
     with pytest.raises(ServiceValidationError, match="Standard Tool Actions"):
         service.create_agent(
             {"agent_id": "writer", "display_name": "W", "tools": ["std.http_request"]},
-            scope=_scope(),
+            scope=scope,
         )
     db.save_agent.assert_not_called()
 
@@ -109,10 +110,11 @@ def test_enabled_save_with_invalid_readiness_is_a_contract_error():
     db = MagicMock()
     db.get_agent.return_value = None
     service = _agent_service(db, validation=INVALID)
+    scope = _scope()
 
     with pytest.raises(ServiceValidationError) as refused:
         service.create_agent(
-            {"agent_id": "writer", "display_name": "W", "enabled": True}, scope=_scope()
+            {"agent_id": "writer", "display_name": "W", "enabled": True}, scope=scope
         )
 
     assert refused.value.payload["action"] == "save"
@@ -143,15 +145,18 @@ def test_foreign_account_agent_is_not_found_for_every_mutation():
 def test_patch_and_toggle_share_the_disable_dependency_rule(route):
     db = _db_with_agent(enabled=True)
     service = _agent_service(db)
+    scope = _scope()
+
+    def disable():
+        if route == "patch":
+            return service.patch_agent("writer", {"enabled": False}, scope=scope)
+        return service.toggle_agent("writer", scope=scope)
 
     with (
         patch.object(rules, "enabled_workflow_dependencies", return_value=["daily_import"]),
         pytest.raises(ServiceConflictError) as refused,
     ):
-        if route == "patch":
-            service.patch_agent("writer", {"enabled": False}, scope=_scope())
-        else:
-            service.toggle_agent("writer", scope=_scope())
+        disable()
 
     assert refused.value.payload == {
         "error": "Active workflow dependency",
@@ -255,9 +260,10 @@ def test_skill_mutations_report_the_persisted_enabled_state_not_null():
 def test_toggle_enable_requires_readiness_with_enable_action():
     db = _db_with_agent(enabled=False)
     service = _agent_service(db, validation=INVALID)
+    scope = _scope()
 
     with pytest.raises(ServiceValidationError) as refused:
-        service.toggle_agent("writer", scope=_scope())
+        service.toggle_agent("writer", scope=scope)
 
     assert refused.value.payload["action"] == "enable"
     db.toggle_agent.assert_not_called()
@@ -279,16 +285,17 @@ def test_toggle_flips_and_reloads():
 def test_delete_agent_maps_store_failures():
     db = _db_with_agent()
     service = _agent_service(db)
+    scope = _scope()
 
     db.delete_agent.side_effect = RuntimeError("update violates foreign key constraint")
     with pytest.raises(ServiceConflictError, match="referenced by workflow steps"):
-        service.delete_agent("writer", scope=_scope())
+        service.delete_agent("writer", scope=scope)
     db.delete_agent.side_effect = KeyError("Agent 'writer' not found")
     with pytest.raises(ServiceNotFoundError):
-        service.delete_agent("writer", scope=_scope())
+        service.delete_agent("writer", scope=scope)
     db.delete_agent.side_effect = RuntimeError("boom")
     with pytest.raises(ServiceError) as failed:
-        service.delete_agent("writer", scope=_scope())
+        service.delete_agent("writer", scope=scope)
     assert failed.value.status_code == 500
 
 
@@ -307,9 +314,10 @@ def test_restore_attributes_the_actor_and_returns_the_snapshot():
 def test_add_agent_tool_rolls_back_an_invalid_mapping():
     db = _db_with_agent()
     service = _agent_service(db, validation=INVALID)
+    scope = _scope()
 
     with pytest.raises(ServiceValidationError) as refused:
-        service.add_agent_tool("writer", " lookup ", scope=_scope())
+        service.add_agent_tool("writer", " lookup ", scope=scope)
 
     db.add_agent_tool.assert_called_once_with("writer", "lookup")
     db.remove_agent_tool.assert_called_once_with("writer", "lookup")
@@ -340,15 +348,18 @@ def test_skill_patch_and_toggle_share_the_disable_dependency_rule(route):
     db = _db_with_skill(enabled=True)
     db.get_agents_using_skill.return_value = ["writer"]
     service = _skill_service(db)
+    scope = _scope()
+
+    def disable():
+        if route == "patch":
+            return service.patch_skill("draft", {"enabled": False}, scope=scope)
+        return service.toggle_skill("draft", scope=scope)
 
     with (
         patch.object(rules, "enabled_workflow_dependencies", return_value=["daily"]) as deps,
         pytest.raises(ServiceConflictError) as refused,
     ):
-        if route == "patch":
-            service.patch_skill("draft", {"enabled": False}, scope=_scope())
-        else:
-            service.toggle_skill("draft", scope=_scope())
+        disable()
 
     deps.assert_called_once_with(db, agent_ids=["writer"])
     assert refused.value.payload["error"] == "Active workflow dependency"
@@ -379,9 +390,11 @@ def test_skill_delete_reports_dependents_before_deleting():
     db.get_skill_dependents.return_value = [
         {"dependency_kind": "agent", "dependency_id": f"a{i}"} for i in range(26)
     ]
+    service = _skill_service(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as refused:
-        _skill_service(db).delete_skill("draft", scope=_scope())
+        service.delete_skill("draft", scope=scope)
 
     payload = refused.value.payload
     assert payload["error"] == "registry_dependency_conflict"
@@ -407,10 +420,12 @@ def test_skill_clone_is_disabled_and_owned_by_the_caller():
 
 def test_skill_contract_items_reject_invalid_rows():
     db = _db_with_skill()
+    service = _skill_service(db)
+    scope = _scope()
 
     with pytest.raises(ServiceValidationError) as refused:
-        _skill_service(db).set_skill_contract_items(
-            "draft", "inputs", [{"name": "", "type": "text"}], scope=_scope()
+        service.set_skill_contract_items(
+            "draft", "inputs", [{"name": "", "type": "text"}], scope=scope
         )
 
     assert refused.value.payload["action"] == "save_inputs"
@@ -423,11 +438,13 @@ def test_skill_contract_items_reject_invalid_rows():
 
 
 def test_service_errors_keep_the_http_detail_shape():
+    not_found = ServiceNotFoundError("Agent 'x' not found")
     with pytest.raises(HTTPException) as plain:
-        raise_service_http_error(ServiceNotFoundError("Agent 'x' not found"))
+        raise_service_http_error(not_found)
     assert (plain.value.status_code, plain.value.detail) == (404, "Agent 'x' not found")
 
     payload = {"error": "Active workflow dependency", "message": "m", "workflow_ids": ["w"]}
+    conflict = ServiceConflictError("m", payload=payload)
     with pytest.raises(HTTPException) as structured:
-        raise_service_http_error(ServiceConflictError("m", payload=payload))
+        raise_service_http_error(conflict)
     assert (structured.value.status_code, structured.value.detail) == (409, payload)

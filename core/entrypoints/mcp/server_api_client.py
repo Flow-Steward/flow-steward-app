@@ -27,6 +27,10 @@ class _RequestKwargs(TypedDict, total=False):
     json: object
 
 
+_AGENT_PATH = "/api/agents/{agent_id}"
+_SKILL_PATH = "/api/skills/{skill_id}"
+
+
 def _route(method: str, path: str) -> AppApiRoute:
     return AppApiRoute(method=method, path=path)
 
@@ -113,24 +117,24 @@ MCP_TOOL_ROUTES: dict[str, AppApiRoute] = {
     "agent_authoring_schema": _route("GET", "/api/agent-authoring/schema"),
     "skill_authoring_schema": _route("GET", "/api/skill-authoring/schema"),
     "agent_list": _route("GET", "/api/agents"),
-    "agent_get": _route("GET", "/api/agents/{agent_id}"),
+    "agent_get": _route("GET", _AGENT_PATH),
     "agent_create": _route("POST", "/api/agents"),
-    "agent_update": _route("PATCH", "/api/agents/{agent_id}"),
+    "agent_update": _route("PATCH", _AGENT_PATH),
     "agent_validate": _route("GET", "/api/agents/{agent_id}/contract-validation"),
-    "agent_set_enabled": _route("PATCH", "/api/agents/{agent_id}"),
+    "agent_set_enabled": _route("PATCH", _AGENT_PATH),
     "agent_skill_assign": _route("POST", "/api/agents/{agent_id}/skills"),
     "agent_skill_unassign": _route("DELETE", "/api/agents/{agent_id}/skills/{skill_id}"),
     "agent_skill_set_instructions": _route(
         "PUT", "/api/agents/{agent_id}/skills/{skill_id}/prompt"
     ),
     "skill_list": _route("GET", "/api/skills"),
-    "skill_get": _route("GET", "/api/skills/{skill_id}"),
+    "skill_get": _route("GET", _SKILL_PATH),
     "skill_create": _route("POST", "/api/skills"),
-    "skill_update": _route("PATCH", "/api/skills/{skill_id}"),
+    "skill_update": _route("PATCH", _SKILL_PATH),
     "skill_inputs_set": _route("PUT", "/api/skills/{skill_id}/inputs"),
     "skill_outputs_set": _route("PUT", "/api/skills/{skill_id}/outputs"),
     "skill_validate": _route("GET", "/api/skills/{skill_id}/contract-validation"),
-    "skill_set_enabled": _route("PATCH", "/api/skills/{skill_id}"),
+    "skill_set_enabled": _route("PATCH", _SKILL_PATH),
     "workflow_set_enabled": _route("PATCH", "/api/workflows/{workflow_id}"),
     "model_options": _route("GET", "/api/model-selection/options"),
     "project_notification_routes": _route("GET", "/api/projects/{project_id}/notification-routes"),

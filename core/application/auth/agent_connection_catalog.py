@@ -31,6 +31,8 @@ CONNECTION_CLOUD = "cloud"
 
 #: Placeholder the browser replaces with the one-time secret.
 TOKEN_PLACEHOLDER = "{token}"
+#: A copy field that holds nothing but the MCP endpoint URL.
+MCP_URL_TEMPLATE = "{mcp_url}"
 
 # External client products the user picks; Flow Steward runs none of them. Their names
 # appear only here (tests/unit/test_retired_executor_absence.py allows these lines).
@@ -253,7 +255,7 @@ CLIENTS: tuple[AgentClient, ...] = (
                         kind="value",
                         title_key="react.agent_access.value_mcp_address",
                         title="Flow Steward MCP address",
-                        template="{mcp_url}",
+                        template=MCP_URL_TEMPLATE,
                     ),
                     SetupStep(
                         id="mcp_token",
@@ -426,7 +428,7 @@ CLIENTS: tuple[AgentClient, ...] = (
                     SetupStep(
                         id="custom_connector",
                         kind="value",
-                        template="{mcp_url}",
+                        template=MCP_URL_TEMPLATE,
                         title_key="react.agent_access.step_claude_connector",
                         title="Add Flow Steward as a custom connector",
                         description_key="react.agent_access.step_claude_connector_description",
@@ -479,7 +481,7 @@ CLIENTS: tuple[AgentClient, ...] = (
                     SetupStep(
                         id="custom_connector",
                         kind="value",
-                        template="{mcp_url}",
+                        template=MCP_URL_TEMPLATE,
                         title_key="react.agent_access.step_chatgpt_connector",
                         title="Add Flow Steward as a custom MCP connector",
                         description_key="react.agent_access.step_chatgpt_connector_description",

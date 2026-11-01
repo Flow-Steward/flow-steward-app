@@ -59,10 +59,9 @@ def test_allowed_client_ids() -> None:
 @pytest.mark.parametrize("document_client_id", [CLIENT_ID[:-1] + "X", CLIENT_ID + "/"])
 def test_document_client_id_must_match_exactly(document_client_id: str) -> None:
     """C2."""
+    document = _document(client_id=document_client_id)
     with pytest.raises(clients.InvalidClientMetadataError):
-        clients.validate_client_metadata(
-            _document(client_id=document_client_id), client_id=CLIENT_ID
-        )
+        clients.validate_client_metadata(document, client_id=CLIENT_ID)
 
 
 @pytest.mark.parametrize(
@@ -81,8 +80,9 @@ def test_document_client_id_must_match_exactly(document_client_id: str) -> None:
 )
 def test_unsupported_documents_are_refused(overrides: dict) -> None:
     """C3."""
+    document = _document(**overrides)
     with pytest.raises(clients.InvalidClientMetadataError):
-        clients.validate_client_metadata(_document(**overrides), client_id=CLIENT_ID)
+        clients.validate_client_metadata(document, client_id=CLIENT_ID)
 
 
 def test_valid_document_keeps_name_and_redirects() -> None:

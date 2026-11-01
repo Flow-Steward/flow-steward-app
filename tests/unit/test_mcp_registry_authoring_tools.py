@@ -112,10 +112,12 @@ def test_every_new_tool_is_registered_routed_scoped_and_maps_to_its_api_only() -
     tools = mcp._tool_manager._tools
     assert set(tools) >= NEW_TOOLS
     for name in NEW_TOOLS:
-        assert name in MCP_TOOL_ROUTES and name in MCP_TOOL_SCOPES, name
+        assert name in MCP_TOOL_ROUTES, name
+        assert name in MCP_TOOL_SCOPES, name
         source = inspect.getsource(tools[name].fn)
         assert f'api_tool_response("{name}", locals())' in source, name
-        assert "core.application" not in source and "core.infrastructure" not in source, name
+        assert "core.application" not in source, name
+        assert "core.infrastructure" not in source, name
         assert str(tools[name].description or "").strip(), name
 
 
@@ -307,7 +309,8 @@ def test_tool_sends_one_request_with_only_the_passed_fields(
 ) -> None:
     result = json.loads(server_api_tool.api_tool_response(tool, arguments))
 
-    assert result["ok"] is True and result["tool"] == tool
+    assert result["ok"] is True
+    assert result["tool"] == tool
     (request,) = recorded.requests
     assert request["method"] == method
     assert request["path"] == path
@@ -513,8 +516,9 @@ def _call(name: str, **arguments: Any) -> dict[str, Any]:
 
 
 def _refusal(name: str, **arguments: Any) -> dict[str, Any]:
+    tool_fn = _tool(name).fn
     with pytest.raises(ToolError) as refused:
-        _tool(name).fn(**arguments)
+        tool_fn(**arguments)
     return json.loads(str(refused.value))["error"]
 
 

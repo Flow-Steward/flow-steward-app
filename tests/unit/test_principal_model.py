@@ -492,10 +492,9 @@ def test_expiring_token_cannot_mint_a_token_without_expiry(auth_source):
         enforce_token_lifetime_within_caller,
     )
 
+    caller = _expiring_token_caller(auth_source, days=5)
     with pytest.raises(TokenAuthorityError, match="token lifetime"):
-        enforce_token_lifetime_within_caller(
-            _expiring_token_caller(auth_source, days=5), requested_expires_at=None
-        )
+        enforce_token_lifetime_within_caller(caller, requested_expires_at=None)
 
 
 def test_expiring_token_cannot_mint_a_longer_lived_token():
@@ -507,10 +506,9 @@ def test_expiring_token_cannot_mint_a_longer_lived_token():
     )
 
     caller = _expiring_token_caller("pat", days=5)
+    longer_expiry = datetime.now(UTC) + timedelta(days=10)
     with pytest.raises(TokenAuthorityError):
-        enforce_token_lifetime_within_caller(
-            caller, requested_expires_at=datetime.now(UTC) + timedelta(days=10)
-        )
+        enforce_token_lifetime_within_caller(caller, requested_expires_at=longer_expiry)
     enforce_token_lifetime_within_caller(
         caller, requested_expires_at=datetime.now(UTC) + timedelta(days=3)
     )

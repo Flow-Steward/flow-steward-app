@@ -187,11 +187,11 @@ def test_draft_save_refuses_a_visible_workflow_name_and_writes_nothing():
         "account_id": SCOPE["account_id"],
         "enabled": False,
     }
+    draft_service = service(db)
+    bundle_yaml = bundle(display_name="order  SYNC")
 
     with pytest.raises(ServiceConflictError) as refused:
-        service(db).save(
-            scope=SCOPE, project_id="project", bundle_yaml=bundle(display_name="order  SYNC")
-        )
+        draft_service.save(scope=SCOPE, project_id="project", bundle_yaml=bundle_yaml)
 
     assert refused.value.payload["code"] == NAME_CONFLICT_CODE
     assert refused.value.payload["matches"][0]["id"] == "existing"

@@ -258,9 +258,12 @@ class AgentConnectionService:
         clients = []
         for client in CLIENTS:
             is_cloud = client.connection == CONNECTION_CLOUD
-            blockers = (
-                cloud_blockers if is_cloud else ([endpoint.blocker] if endpoint.blocker else [])
-            )
+            if is_cloud:
+                blockers = cloud_blockers
+            elif endpoint.blocker:
+                blockers = [endpoint.blocker]
+            else:
+                blockers = []
             clients.append(
                 {
                     "id": client.id,

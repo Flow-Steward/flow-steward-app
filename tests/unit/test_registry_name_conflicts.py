@@ -196,10 +196,12 @@ def test_suggestion_skips_every_visible_variant_and_is_only_a_hint():
 
 def test_agent_create_refuses_a_visible_name_in_another_case_and_spacing():
     db = RegistryDB(agents=[_agent("writer", "Report Writer", enabled=True, updated_at="t1")])
+    service = _agents(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as refused:
-        _agents(db).create_agent(
-            {"agent_id": "writer_two", "display_name": "  report   WRITER "}, scope=_scope()
+        service.create_agent(
+            {"agent_id": "writer_two", "display_name": "  report   WRITER "}, scope=scope
         )
 
     payload = refused.value.payload
@@ -253,11 +255,12 @@ def test_system_and_extension_agents_count_as_visible_names(monkeypatch):
         ),
     )
     service = _agents(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as system:
-        service.create_agent({"agent_id": "a1", "display_name": "researcher"}, scope=_scope())
+        service.create_agent({"agent_id": "a1", "display_name": "researcher"}, scope=scope)
     with pytest.raises(ServiceConflictError) as extension:
-        service.create_agent({"agent_id": "a2", "display_name": "SUMMARIZER"}, scope=_scope())
+        service.create_agent({"agent_id": "a2", "display_name": "SUMMARIZER"}, scope=scope)
 
     assert system.value.payload["matches"][0]["origin"] == "system"
     assert extension.value.payload["matches"][0]["origin"] == "extension"
@@ -273,17 +276,18 @@ def test_user_created_agents_and_skills_are_account_objects_despite_the_scope_ki
         agents=[_agent("writer", "Report Writer", scope_kind="system")],
         skills=[_skill("summary", "Feedback Summary", scope_kind="system")],
     )
+    agent_service = _agents(db)
+    skill_service = _skills(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as agent:
-        _agents(db).create_agent(
-            {"agent_id": "w2", "display_name": "report writer"}, scope=_scope()
-        )
+        agent_service.create_agent({"agent_id": "w2", "display_name": "report writer"}, scope=scope)
     with pytest.raises(ServiceConflictError) as skill:
-        _skills(db).create_skill(
-            {"skill_id": "s2", "display_name": "FEEDBACK summary"}, scope=_scope()
+        skill_service.create_skill(
+            {"skill_id": "s2", "display_name": "FEEDBACK summary"}, scope=scope
         )
     with pytest.raises(ServiceConflictError) as agent_id:
-        _agents(db).create_agent({"agent_id": "writer", "display_name": "Other"}, scope=_scope())
+        agent_service.create_agent({"agent_id": "writer", "display_name": "Other"}, scope=scope)
 
     assert agent.value.payload["matches"][0]["origin"] == "account"
     assert skill.value.payload["matches"][0]["origin"] == "account"
@@ -294,11 +298,12 @@ def test_user_created_agents_and_skills_are_account_objects_despite_the_scope_ki
 def test_agent_patch_and_put_refuse_renaming_into_a_taken_name():
     db = RegistryDB(agents=[_agent("writer", "Writer"), _agent("editor", "Editor")])
     service = _agents(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as patched:
-        service.patch_agent("editor", {"display_name": "WRITER"}, scope=_scope())
+        service.patch_agent("editor", {"display_name": "WRITER"}, scope=scope)
     with pytest.raises(ServiceConflictError) as replaced:
-        service.update_agent("editor", {"display_name": " writer "}, scope=_scope())
+        service.update_agent("editor", {"display_name": " writer "}, scope=scope)
 
     assert patched.value.payload["matches"][0]["id"] == "writer"
     assert replaced.value.payload["matches"][0]["id"] == "writer"
@@ -331,9 +336,11 @@ def test_agent_rename_into_a_free_name_saves_under_the_name_lock():
 
 def test_agent_create_refuses_a_taken_id_without_renaming_or_saving():
     db = RegistryDB(agents=[_agent("writer", "Writer", enabled=True)])
+    service = _agents(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as refused:
-        _agents(db).create_agent({"agent_id": "writer", "display_name": "Other"}, scope=_scope())
+        service.create_agent({"agent_id": "writer", "display_name": "Other"}, scope=scope)
 
     payload = refused.value.payload
     assert payload["code"] == conflicts.ID_CONFLICT_CODE
@@ -346,9 +353,11 @@ def test_agent_create_refuses_a_taken_id_without_renaming_or_saving():
 
 def test_an_id_held_by_another_account_conflicts_without_revealing_the_owner():
     db = RegistryDB(agents=[_agent("writer", "Secret name", account_id=ACCOUNT_B)])
+    service = _agents(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as refused:
-        _agents(db).create_agent({"agent_id": "writer", "display_name": "Mine"}, scope=_scope())
+        service.create_agent({"agent_id": "writer", "display_name": "Mine"}, scope=scope)
 
     payload = refused.value.payload
     assert payload["code"] == conflicts.ID_CONFLICT_CODE
@@ -367,9 +376,11 @@ def test_an_id_taken_after_the_precheck_is_the_same_id_conflict():
         return real_save(data, author, **kwargs)
 
     db.save_agent = racing_save
+    service = _agents(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as refused:
-        _agents(db).create_agent({"agent_id": "writer", "display_name": "Loser"}, scope=_scope())
+        service.create_agent({"agent_id": "writer", "display_name": "Loser"}, scope=scope)
 
     assert refused.value.payload["code"] == conflicts.ID_CONFLICT_CODE
     assert db.agents["writer"]["display_name"] == "Winner"
@@ -403,12 +414,11 @@ def test_agent_conflict_lists_only_where_used_rows_the_caller_may_see():
             },
         ],
     )
+    service = _agents(db)
+    scope = _scope(allowed_project_ids=["p1"])
 
     with pytest.raises(ServiceConflictError) as refused:
-        _agents(db).create_agent(
-            {"agent_id": "writer_2", "display_name": "writer"},
-            scope=_scope(allowed_project_ids=["p1"]),
-        )
+        service.create_agent({"agent_id": "writer_2", "display_name": "writer"}, scope=scope)
 
     used_by = refused.value.payload["matches"][0]["used_by"]
     assert used_by == [
@@ -432,13 +442,14 @@ def test_agent_clone_still_suffixes_its_target_id():
 def test_skill_create_refuses_a_visible_name_and_a_taken_id():
     db = RegistryDB(skills=[_skill("summary", "Summarize Report")])
     service = _skills(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as named:
         service.create_skill(
-            {"skill_id": "summary_2", "display_name": "summarize report"}, scope=_scope()
+            {"skill_id": "summary_2", "display_name": "summarize report"}, scope=scope
         )
     with pytest.raises(ServiceConflictError) as keyed:
-        service.create_skill({"skill_id": "summary", "display_name": "Other"}, scope=_scope())
+        service.create_skill({"skill_id": "summary", "display_name": "Other"}, scope=scope)
 
     assert named.value.payload["code"] == conflicts.NAME_CONFLICT_CODE
     assert named.value.payload["entity_type"] == "skill"
@@ -457,17 +468,18 @@ def test_skill_put_and_patch_refuse_a_taken_name_but_keep_existing_duplicates_ed
         ]
     )
     service = _skills(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError):
-        service.patch_skill("summary_old", {"display_name": "other "}, scope=_scope())
+        service.patch_skill("summary_old", {"display_name": "other "}, scope=scope)
     with pytest.raises(ServiceConflictError):
         service.update_skill(
             "summary_old",
             {"display_name": "OTHER"},
             provided_fields={"display_name"},
-            scope=_scope(),
+            scope=scope,
         )
-    service.patch_skill("summary_old", {"description": "still editable"}, scope=_scope())
+    service.patch_skill("summary_old", {"description": "still editable"}, scope=scope)
 
     assert [entry[1]["skill_id"] for entry in db.saved] == ["summary_old"]
 
@@ -481,11 +493,11 @@ def test_skill_conflict_lists_only_agents_the_caller_may_see():
         ],
     )
     db.agents_using_skill["summary"] = ["mine", "theirs"]
+    service = _skills(db)
+    scope = _scope()
 
     with pytest.raises(ServiceConflictError) as refused:
-        _skills(db).create_skill(
-            {"skill_id": "summary_2", "display_name": "Summary"}, scope=_scope()
-        )
+        service.create_skill({"skill_id": "summary_2", "display_name": "Summary"}, scope=scope)
 
     assert refused.value.payload["matches"][0]["used_by"] == [
         {"entity_type": "agent", "id": "mine", "display_name": "Mine", "enabled": True}
@@ -552,13 +564,14 @@ def test_workflow_conflict_lists_only_visible_callers(monkeypatch):
         ]
 
     monkeypatch.setattr(conflicts, "workflow_consumers", consumers)
+    scope = _scope(allowed_project_ids=["p1"])
 
-    with pytest.raises(ServiceConflictError) as refused, db._transaction():
+    with db._transaction(), pytest.raises(ServiceConflictError) as refused:
         conflicts.require_free_display_name(
             db,
             entity_type="workflow",
             display_name="CHILD",
-            scope=_scope(allowed_project_ids=["p1"]),
+            scope=scope,
             entity_id="child_2",
         )
 
@@ -575,8 +588,9 @@ def test_workflow_conflict_lists_only_visible_callers(monkeypatch):
 
 def test_the_check_refuses_to_run_outside_the_saving_transaction():
     db = RegistryDB(agents=[_agent("writer", "Writer")])
+    scope = _scope()
 
     with pytest.raises(RuntimeError, match="inside the saving transaction"):
         conflicts.require_free_display_name(
-            db, entity_type="agent", display_name="Writer", scope=_scope()
+            db, entity_type="agent", display_name="Writer", scope=scope
         )

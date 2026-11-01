@@ -287,24 +287,25 @@ def test_decision_once_and_before_expiry(world) -> None:
     outcome = service.start_authorization(authorize_params(challenge))
     request_id = query_of(outcome.location)["request"]
     late = world.service(clock=lambda: now + timedelta(minutes=10, seconds=1))
+    operator = world.principal("operator")
     with pytest.raises(ConsentError) as expired:
         late.decide(
             request_id,
-            user=world.principal("operator"),
+            user=operator,
             browser_binding=outcome.browser_binding,
             decision="deny",
         )
     assert expired.value.status == 410
     service.decide(
         request_id,
-        user=world.principal("operator"),
+        user=operator,
         browser_binding=outcome.browser_binding,
         decision="deny",
     )
     with pytest.raises(ConsentError) as twice:
         service.decide(
             request_id,
-            user=world.principal("operator"),
+            user=operator,
             browser_binding=outcome.browser_binding,
             decision="deny",
         )
@@ -420,19 +421,20 @@ def test_grant_lifetime_is_a_choice_of_at_most_90_days(http, world) -> None:
         assert _decide(browser, request_id, body).status_code == 400
     import psycopg
 
+    world.sql(
+        "INSERT INTO oauth_clients (client_id, redirect_uris_jsonb, metadata_sha256, "
+        "fetched_at, cache_expires_at, first_seen_at) VALUES (%s, '[]', 'x', now(), now(), "
+        "now()) ON CONFLICT DO NOTHING",
+        (CLIENT_ID,),
+    )
+    grant_params = (str(uuid.uuid4()), world.users["operator"]["id"], CLIENT_ID, RESOURCE)
     with pytest.raises(psycopg.errors.CheckViolation):
-        world.sql(
-            "INSERT INTO oauth_clients (client_id, redirect_uris_jsonb, metadata_sha256, "
-            "fetched_at, cache_expires_at, first_seen_at) VALUES (%s, '[]', 'x', now(), now(), "
-            "now()) ON CONFLICT DO NOTHING",
-            (CLIENT_ID,),
-        )
         world.sql(
             "INSERT INTO oauth_grants (id, user_id, account_id, client_id, client_name_snapshot, "
             "resource, preset, scopes_jsonb, allowed_project_ids_jsonb, created_at, expires_at) "
             "VALUES (%s, %s, '00000000-0000-0000-0000-000000000002', %s, 'x', %s, "
             "'operational', '[]', '[]', now(), now() + interval '91 days')",
-            (str(uuid.uuid4()), world.users["operator"]["id"], CLIENT_ID, RESOURCE),
+            grant_params,
         )
     world.conn.rollback()
 
@@ -536,7 +538,8 @@ def test_code_reuse_revokes_the_grant(http, world) -> None:
     assert second.status_code == 400
     assert second.json()["error"] == "invalid_grant"
     [(_grant_id, revoked_at, reason, _expires, _scopes)] = world.grant_rows()
-    assert revoked_at is not None and reason == "code_reuse"
+    assert revoked_at is not None
+    assert reason == "code_reuse"
     assert _api(http, first["access_token"], "/api/auth/introspect").status_code == 401
     audit = world.sql(
         "SELECT count(*) FROM platform_action_log WHERE action_type = 'auth_oauth_code_reuse'"
@@ -645,7 +648,8 @@ def test_refresh_rotates_within_the_same_grant(world) -> None:
         "SELECT consumed_at IS NOT NULL, parent_id IS NOT NULL FROM oauth_refresh_tokens "
         "ORDER BY created_at"
     )
-    assert (True, False) in rows and (False, True) in rows
+    assert (True, False) in rows
+    assert (False, True) in rows
 
 
 def test_refresh_reuse_revokes_everything(world) -> None:
@@ -657,7 +661,8 @@ def test_refresh_reuse_revokes_everything(world) -> None:
         _refresh(service, first["refresh_token"])
     assert reuse.value.error == "invalid_grant"
     [(_id, revoked_at, reason, _expires, _scopes)] = world.grant_rows()
-    assert revoked_at is not None and reason == "refresh_reuse"
+    assert revoked_at is not None
+    assert reason == "refresh_reuse"
     assert service.resolve_access_principal(second["access_token"]) is None
     with pytest.raises(OAuthProtocolError):
         _refresh(service, second["refresh_token"])
@@ -681,7 +686,8 @@ def test_concurrent_refresh_is_strict(world) -> None:
         thread.start()
     for thread in threads:
         thread.join(timeout=30)
-    assert "invalid_grant" in results and any(isinstance(item, dict) for item in results)
+    assert "invalid_grant" in results
+    assert any(isinstance(item, dict) for item in results)
     assert world.grant_rows()[0][1] is not None
 
 
@@ -692,7 +698,8 @@ def test_refresh_can_narrow_but_never_widen(world) -> None:
     narrow = _refresh(service, first["refresh_token"], scope="jobs.read")
     assert narrow["scope"] == "jobs.read"
     principal = service.resolve_access_principal(narrow["access_token"])
-    assert principal is not None and principal["scopes"] == ["jobs.read"]
+    assert principal is not None
+    assert principal["scopes"] == ["jobs.read"]
     full = _refresh(service, narrow["refresh_token"])
     assert len(full["scope"].split(" ")) == 7
     with pytest.raises(OAuthProtocolError) as wider:
@@ -759,7 +766,8 @@ def test_client_revocation_endpoint(http, world) -> None:
     response = http().post(
         "/oauth/revoke", data={"token": by_access["access_token"], "client_id": CLIENT_ID}
     )
-    assert response.status_code == 200 and response.content == b""
+    assert response.status_code == 200
+    assert response.content == b""
     assert world.grant_rows()[-1][2] == "client_revoked"
 
     by_refresh = _tokens(world, service)
@@ -947,7 +955,8 @@ def test_project_restricted_grant_sees_only_its_project(http, world) -> None:
     listing = _api(http, access, "/api/projects")
     assert listing.status_code == 200
     visible = {str(item.get("id")) for item in listing.json().get("projects", [])}
-    assert allowed in visible and hidden not in visible
+    assert allowed in visible
+    assert hidden not in visible
     assert _api(http, access, f"/api/projects/{hidden}").status_code in {403, 404}
 
 

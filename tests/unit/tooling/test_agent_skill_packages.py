@@ -47,7 +47,8 @@ _SVG_NAMESPACE = 'xmlns="http://www.w3.org/2000/svg"'
 
 def _sync_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("sync_packages", SYNC_SCRIPT)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -187,7 +188,8 @@ def test_openai_directory_fields_fit_the_listing_limits(package: str) -> None:
     assert 0 < len(interface["developerName"]) <= 80
     assert interface["category"]
     for icon in (interface["logo"], interface["composerIcon"]):
-        assert icon.startswith("./") and (root / icon).is_file()
+        assert icon.startswith("./")
+        assert (root / icon).is_file()
 
 
 @pytest.mark.parametrize("package", sorted(PACKAGE_SKILLS))
@@ -196,7 +198,8 @@ def test_icon_is_the_product_favicon_on_a_square_canvas(package: str) -> None:
     source = ICON_SOURCE.read_bytes()
     box = re.search(rb'viewBox="(\S+) (\S+) (\S+) (\S+)"', icon)
 
-    assert box is not None and box.group(3) == box.group(4)
+    assert box is not None
+    assert box.group(3) == box.group(4)
     assert re.sub(rb'viewBox="[^"]*"', b"", icon) == re.sub(rb'viewBox="[^"]*"', b"", source)
     assert (
         _json(SKILLS_DIR / package / ".cursor-plugin" / "plugin.json")["logo"] == "assets/icon.svg"
