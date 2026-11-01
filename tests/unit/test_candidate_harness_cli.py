@@ -366,8 +366,9 @@ def test_main_exits_with_parser_status_without_invoking_service(
         def __getattr__(self, name):
             pytest.fail(f"parser-only invocation must not access service action {name}")
 
+    service = UnusedService()
     with pytest.raises(SystemExit) as exited:
-        main(args, service=UnusedService())
+        main(args, service=service)
     assert exited.value.code == expected_exit
 
     output = capsys.readouterr()
