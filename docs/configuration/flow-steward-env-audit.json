@@ -9191,6 +9191,48 @@
     "variable_name": "FS_READY_WORKFLOW_KNOWLEDGE_MISSED_INTERVALS"
   },
   {
+    "canonical_name": "FS_RELEASE_DOCKERHUB_NAMESPACE",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/release-automation.py"
+    ],
+    "conditional_groups": [
+      "release_publication"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Explicit docker.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "release",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_RELEASE_DOCKERHUB_NAMESPACE"
+  },
+  {
+    "canonical_name": "FS_RELEASE_GHCR_NAMESPACE",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/release-automation.py"
+    ],
+    "conditional_groups": [
+      "release_publication"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Explicit ghcr.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "release",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_RELEASE_GHCR_NAMESPACE"
+  },
+  {
     "canonical_name": "FS_RELEASE_HANDOFF_INHERITED_LOCKS",
     "code_read_locations": [],
     "conditional_groups": [

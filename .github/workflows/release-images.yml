@@ -1,0 +1,237 @@
+name: Publish official images
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable stable tag (vX.Y.Z)
+        required: true
+        type: string
+      artifact_run_id:
+        description: Retry publication using native archives from this workflow run ID (leave empty for a new build)
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  resolve:
+    if: >-
+      github.repository == 'Flow-Steward/flow-steward-app' &&
+      (github.event_name == 'push' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.identity.outputs.tag }}
+      version: ${{ steps.identity.outputs.version }}
+      revision: ${{ steps.identity.outputs.revision }}
+      artifact_run_id: ${{ steps.identity.outputs.artifact_run_id }}
+      reuse: ${{ steps.identity.outputs.reuse }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve clean public tag and main ancestry
+        id: identity
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+        run: |
+          python3 -c 'import os; from core.application.tooling.release_automation import stable_version; stable_version(os.environ["RELEASE_TAG"])'
+          revision="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          git checkout --detach "$revision"
+          python3 core/entrypoints/cli/scripts/release-automation.py identity --tag "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          printf 'tag=%s\n' "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          if [[ -n "$ARTIFACT_RUN_ID" ]]; then
+            [[ "$ARTIFACT_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+            printf 'artifact_run_id=%s\nreuse=true\n' "$ARTIFACT_RUN_ID" >> "$GITHUB_OUTPUT"
+          else
+            printf 'artifact_run_id=%s\n' "$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+            if [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]; then
+              printf 'reuse=false\n' >> "$GITHUB_OUTPUT"
+            else
+              printf 'reuse=true\n' >> "$GITHUB_OUTPUT"
+            fi
+          fi
+  quality:
+    needs: resolve
+    runs-on: ${{ vars.RELEASE_GATE_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 180
+    env:
+      FS_COMPOSE_PROJECT_NAME: fs-release-gate-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.revision }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare disposable Docker gate
+        run: |
+          cp .env.example .env
+          docker compose -p "$FS_COMPOSE_PROJECT_NAME" -f infra/docker/docker-compose.yaml build pg-fs
+      - name: Complete exact-SHA Tier 2 and Tier 3 gate
+        env:
+          RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
+        run: ./core/entrypoints/cli/scripts/lint.sh --full --fingerprint-source commit --commit-sha "$RELEASE_REVISION"
+      - name: Retain quality evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-quality-${{ github.run_attempt }}
+          path: logs/quality/evidence
+          retention-days: 30
+          if-no-files-found: warn
+  native:
+    needs: [resolve, quality]
+    if: needs.resolve.outputs.reuse == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.revision }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver: docker-container
+          endpoint: default
+      - name: Build canonical role set as native OCI archives
+        env:
+          FS_RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+          FS_RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
+          FS_RELEASE_PLATFORM: linux/${{ matrix.architecture }}
+          FS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/native
+        run: ./scripts/release/official-release-build.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/native/
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+  publish:
+    needs: [resolve, quality, native]
+    if: >-
+      always() && needs.resolve.result == 'success' && needs.quality.result == 'success' &&
+      (needs.native.result == 'success' ||
+       (needs.native.result == 'skipped' && needs.resolve.outputs.reuse == 'true'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+      packages: write
+      actions: read
+    env:
+      FS_RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+      FS_RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
+      FS_RELEASE_GHCR_NAMESPACE: ${{ vars.RELEASE_GHCR_NAMESPACE }}
+      FS_RELEASE_DOCKERHUB_NAMESPACE: ${{ vars.RELEASE_DOCKERHUB_NAMESPACE }}
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.revision }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set publication paths outside the clean source tree
+        run: |
+          printf 'FS_RELEASE_ARTIFACT_DIR=%s/native\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'FS_RELEASE_EVIDENCE=%s/release-verification.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'REGISTRY_AUTH_FILE=%s/registry-auth.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Validate retained archive run provenance
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          ARTIFACT_RUN_ID: ${{ needs.resolve.outputs.artifact_run_id }}
+        with:
+          script: |
+            const runId = Number(process.env.ARTIFACT_RUN_ID);
+            if (!Number.isSafeInteger(runId) || runId <= 0) throw new Error('Invalid archive run ID');
+            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: runId});
+            const {data: workflow} = await github.rest.actions.getWorkflow({...context.repo, workflow_id: 'release-images.yml'});
+            if ((run.event === 'push' && run.head_sha !== process.env.FS_RELEASE_REVISION) ||
+                (run.event === 'workflow_dispatch' && run.head_branch !== 'main') || run.workflow_id !== workflow.id ||
+                !['push', 'workflow_dispatch'].includes(run.event)) {
+              throw new Error('Archive run does not match this public source and release workflow');
+            }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: native-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/native
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.resolve.outputs.artifact_run_id }}
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          endpoint: default
+      - name: Install publication tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y skopeo
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Validate archives and protect immutable registry versions
+        run: |
+          cp "$HOME/.docker/config.json" "$REGISTRY_AUTH_FILE"
+          chmod 600 "$REGISTRY_AUTH_FILE"
+          python3 core/entrypoints/cli/scripts/release-automation.py preflight --tag "$RELEASE_TAG" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR"
+      - name: Copy identical archives to both registries and verify both
+        run: |
+          result=0
+          FS_RELEASE_DOCKERHUB_NAMESPACE= ./scripts/release/official-release-publish.sh || result=1
+          FS_RELEASE_GHCR_NAMESPACE= ./scripts/release/official-release-publish.sh || result=1
+          ./scripts/release/official-release-verify.sh || result=1
+          python3 core/entrypoints/cli/scripts/release-automation.py evidence --tag "$RELEASE_TAG" --evidence "$FS_RELEASE_EVIDENCE" || result=1
+          exit "$result"
+      - name: Retain registry verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-verification-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-verification.json
+          retention-days: 90
+          if-no-files-found: warn
+      - name: Publish stable GitHub Release only after both registries verify
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const tag = process.env.RELEASE_TAG;
+            let release;
+            try {
+              ({data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag}));
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              ({data: release} = await github.rest.repos.createRelease({
+                ...context.repo, tag_name: tag, target_commitish: process.env.FS_RELEASE_REVISION,
+                name: tag, draft: false, prerelease: false,
+                body: 'Native AMD64 and ARM64 images verified in both GHCR and Docker Hub. See attached digest evidence.'
+              }));
+            }
+            if (release.draft || release.prerelease) throw new Error('Existing release must be stable and non-draft; review it manually');
+            await github.rest.repos.uploadReleaseAsset({
+              ...context.repo, release_id: release.id,
+              name: `registry-verification-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}.json`,
+              data: fs.readFileSync(process.env.FS_RELEASE_EVIDENCE),
+              headers: {'content-type': 'application/json'}
+            });

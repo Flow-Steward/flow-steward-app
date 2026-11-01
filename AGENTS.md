@@ -140,9 +140,10 @@ Reuse is fingerprint-bound; input-scoped Tier 2 checks reuse a pass across commi
 and worktrees through the `flow-steward-quality-cache` volume (ADR 0036). Final handoff and release evidence must describe the
 final commit SHA. Candidate publication requires complete green Tier 2 and Tier 3
 evidence for that same SHA; `--full` refreshes or reuses exact-SHA Tier 2 before
-the Tier 3 delta and succeeds only after cumulative validation. GitHub
-Actions are disabled; no CI artifact or remote check is
-required. Additional audit checks remain available through `--checks`.
+the Tier 3 delta and succeeds only after cumulative validation. GitHub Actions
+may orchestrate documentation updates/deployment and official tag releases
+(ADR 0048), using the same canonical Docker checks. Local contributor handoff
+does not require a remote check. Additional audit checks remain available through `--checks`.
 
 For a focused fix/verify cycle, selected checks remain available:
 

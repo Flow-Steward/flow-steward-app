@@ -93,8 +93,9 @@ ADR takes the next unused number; never reuse a retired number.
 | [0045](0045-terminal-artifact-presentation.md) | Terminal presentation claims for prepared extension artifacts | Accepted |
 | [0046](0046-projected-skill-identity-anchors.md) | Identity anchors for installed projected skills | Accepted |
 | [0047](0047-inbound-mcp-oauth.md) | Inbound OAuth for the MCP server | Proposed |
-| [0048](0048-llm-provider-cloud-scope.md) | Account-scoped cloud provider routing settings | Proposed |
+| [0048](0048-documentation-and-tag-release-actions.md) | Documentation and Tag-Release Actions | Accepted |
 | [0049](0049-patched-semgrep-audit-distribution.md) | Verified Semgrep audit distribution | Accepted |
+| [0050](0050-llm-provider-cloud-scope.md) | Account-scoped cloud provider routing settings | Proposed |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;
