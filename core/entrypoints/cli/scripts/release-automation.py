@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +17,7 @@ from core.application.tooling.release_automation import (  # noqa: E402
     release_identity,
     require_complete_release,
 )
+from core.infrastructure.runtime_env import runtime_env  # noqa: E402
 
 
 def main() -> int:
@@ -33,8 +33,8 @@ def main() -> int:
             print(f"version={version}\nrevision={revision}")
             return 0
         namespaces = registry_namespaces(
-            os.environ.get("FS_RELEASE_GHCR_NAMESPACE", ""),
-            os.environ.get("FS_RELEASE_DOCKERHUB_NAMESPACE", ""),
+            runtime_env.get("FS_RELEASE_GHCR_NAMESPACE", ""),
+            runtime_env.get("FS_RELEASE_DOCKERHUB_NAMESPACE", ""),
         )
         if args.action == "preflight":
             if args.artifact_dir is None:

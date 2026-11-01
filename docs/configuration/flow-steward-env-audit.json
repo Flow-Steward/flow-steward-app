@@ -9195,15 +9195,17 @@
     "code_read_locations": [
       "core/entrypoints/cli/scripts/release-automation.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "release_publication"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Explicit docker.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "release",
     "required": false,
     "retired_alias_names": [],
     "secret": false,
@@ -9214,15 +9216,17 @@
     "code_read_locations": [
       "core/entrypoints/cli/scripts/release-automation.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "release_publication"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Explicit ghcr.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "release",
     "required": false,
     "retired_alias_names": [],
     "secret": false,

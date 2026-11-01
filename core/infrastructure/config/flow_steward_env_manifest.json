@@ -72,6 +72,9 @@
     },
     "static_catalogs": {
       "description": "Read-only Git-hosted static catalogs for workflow templates and extensions."
+    },
+    "release_publication": {
+      "description": "CI and manual tooling for publishing official release images."
     }
   },
   "variables": [
@@ -5034,6 +5037,40 @@
       "default": "4",
       "owner": "runtime",
       "notes": "How many workflow-knowledge sync intervals may pass without a successful iteration before readiness reports the capability unavailable."
+    },
+    {
+      "name": "FS_RELEASE_DOCKERHUB_NAMESPACE",
+      "groups": [
+        "release_publication"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "release",
+      "notes": "Explicit docker.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting."
+    },
+    {
+      "name": "FS_RELEASE_GHCR_NAMESPACE",
+      "groups": [
+        "release_publication"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "release",
+      "notes": "Explicit ghcr.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting."
     },
     {
       "name": "FS_RELEASE_HANDOFF_INHERITED_LOCKS",
