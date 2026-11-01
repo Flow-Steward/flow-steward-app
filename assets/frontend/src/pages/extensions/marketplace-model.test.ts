@@ -354,12 +354,12 @@ test("a selected value the loaded index no longer has is dropped", () => {
 describe("update notices", () => {
   it("links a GitHub-hosted release to its release notes, as WordPress links the changelog", () => {
     const github = entry({
-      extension_id: "flowsteward.docling",
+      extension_id: "acme.crm",
       version: "0.3.0",
-      release_zip_url: "https://github.com/Flow-Steward/ext-document-docling/releases/download/v0.3.0/flowsteward.docling-0.3.0.zip",
+      release_zip_url: "https://github.com/acme/ext-crm/releases/download/v0.3.0/acme.crm-0.3.0.zip",
     });
     expect(releaseNotesLink(github)).toEqual({
-      href: "https://github.com/Flow-Steward/ext-document-docling/releases/tag/v0.3.0",
+      href: "https://github.com/acme/ext-crm/releases/tag/v0.3.0",
       external: true,
     });
   });
