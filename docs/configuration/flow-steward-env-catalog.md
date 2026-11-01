@@ -45,20 +45,21 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `provider_openai` | OpenAI provider credentials. | `0` |
 | `quality_tools` | Quality and SonarQube helpers. | `14` |
 | `release_discovery` | Official GitHub repository used for stable release discovery. | `2` |
+| `release_publication` | CI and manual tooling for publishing official release images. | `2` |
 | `static_catalogs` | Read-only Git-hosted static catalogs for workflow templates and extensions. | `3` |
 | `test_tools` | Test runner and E2E helpers. | `33` |
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `770`
-- Cataloged variables from `.env.example*` or manifest: `558`
+- Raw env-like names discovered by audit: `772`
+- Cataloged variables from `.env.example*` or manifest: `560`
 - Raw audit-only names outside examples/manifest: `212`
 - Unique variables in shipped `.env.example*` files: `346`
-- Variables in canonical manifest: `468`
+- Variables in canonical manifest: `470`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `130`
+- Internal Runtime: `132`
 - Public / Operator: `299`
 - Test Config: `33`
 - Test Only: `16`
@@ -726,6 +727,8 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_COMPACT_IMAGE_REGISTRY_REF` | compact_runtime | production | yes | no | - | - | No direct literal reads found | Compact profile process inventory, ports, and bounded lifecycle budgets. | - |
 | `FS_COMPACT_IMAGE_REVISION` | compact_runtime | production | yes | no | - | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.compact.yaml` |
 | `FS_COMPACT_IMAGE_ROLE` | compact_runtime | production | yes | no | `compact-runtime` | - | No direct literal reads found | Compact profile process inventory, ports, and bounded lifecycle budgets. | - |
+| `FS_RELEASE_DOCKERHUB_NAMESPACE` | release_publication | production, local_development | no | no | - | - | CLI scripts (1) | Explicit docker.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting. | `core/entrypoints/cli/scripts/release-automation.py` |
+| `FS_RELEASE_GHCR_NAMESPACE` | release_publication | production, local_development | no | no | - | - | CLI scripts (1) | Explicit ghcr.io/owner publication namespace for CI and manual release tooling; required for publication, never an application runtime setting. | `core/entrypoints/cli/scripts/release-automation.py` |
 | `FS_RELEASE_VERSION` | core_runtime | production, local_development | no | no | - | - | No direct literal reads found | Durable installed release identity written by the installer and atomically advanced with release image pins. | - |
 #### runtime
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |

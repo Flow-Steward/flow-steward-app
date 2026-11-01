@@ -102,9 +102,11 @@ def test_policy_update_role_matrix(client, role, expected_status):
 Each executable quality check has one owning tier in
 `infra/tooling/quality/check-registry.json`. Higher tiers execute their delta;
 they do not rerun checks owned by lower tiers. A matching fingerprint may reuse
-checksummed evidence. Tiers 1–3 run in local Docker; final verification must
-identify the exact commit SHA and candidate environment. GitHub Actions are
-disabled, and no GitHub CI artifact or remote status check is required.
+checksummed evidence. Contributor tiers 1–3 run in local Docker through the canonical registry;
+final verification must identify the exact commit SHA and candidate environment.
+Local contributor gates remain required. GitHub Actions may orchestrate the same
+Docker gates for official tag publication (ADR 0048); automation is not a substitute
+for local handoff evidence. Documentation PR/build/deploy workflows are also enabled.
 
 Evidence has one of two reuse scopes, set per check in the registry (ADR 0036):
 
@@ -198,7 +200,9 @@ A small diff `MUST NOT` be treated as low risk solely because it is small.
 
 ## Local Execution Policy
 
-- `MUST` run quality gates and SonarQube locally in Docker.
+- `MUST` run contributor quality gates and SonarQube locally in Docker. Official
+  release Actions `MUST` run the same canonical Docker gate before publishing; no
+  host-only or reduced test command may replace it.
 - `MUST NOT` require GitHub Actions, GitHub artifacts, or remote check status for handoff or merge.
 - Critical skipped or excluded tests `MUST` remain visible as temporary debt.
 - Deterministic configuration and generated-artifact checks `SHOULD` run before expensive tests.
