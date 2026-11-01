@@ -1543,6 +1543,8 @@ def test_extension_accounts_machine_tokens_and_pat_paths() -> None:
     resolved_machine = logger.resolve_machine_token(machine["token"])
     assert resolved_machine
     assert resolved_machine["principal_type"] == "service_account"
+    # Minting checks bound a new token by its caller's lifetime, so the principal carries it.
+    assert "expires_at" in resolved_machine
 
     project_uuid = "00000000-0000-0000-0000-000000000105"
     pat = logger.create_pat(
@@ -1568,6 +1570,7 @@ def test_extension_accounts_machine_tokens_and_pat_paths() -> None:
     resolved_pat = logger.resolve_pat(pat["raw_token"])
     assert resolved_pat
     assert resolved_pat["principal_type"] == "user"
+    assert "expires_at" in resolved_pat
     revoked_pat = logger.revoke_pat(41, 7)
     assert revoked_pat
     assert revoked_pat["revoked"] is True

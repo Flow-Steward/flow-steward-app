@@ -3417,6 +3417,63 @@ class TestLocalAuthEndpoints:
             expires_in_days=30,
         )
 
+    @pytest.mark.parametrize(
+        ("payload", "expected_error"),
+        [
+            ({"name": "renewal", "scopes": ["command:*"]}, "token lifetime"),
+            (
+                {"name": "renewal", "scopes": ["command:*"], "expires_in_days": 30},
+                "token lifetime",
+            ),
+            (
+                {"name": "widen", "scopes": ["admin:all"], "expires_in_days": 1},
+                "exceed the caller",
+            ),
+        ],
+    )
+    def test_api_auth_tokens_create_is_bounded_by_the_calling_pat(
+        self, client, payload, expected_error
+    ):
+        """A narrow, expiring admin PAT can neither outlive itself nor widen its scopes."""
+        from datetime import UTC, datetime, timedelta
+
+        mock_bl = MagicMock()
+        mock_bl.resolve_pat.return_value = {
+            "principal_type": "user",
+            "id": "14",
+            "username": "admin",
+            "display_name": "Admin",
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "scopes": ["command:*"],
+            "allowed_project_ids": [],
+            "allowed_workflow_ids": [],
+            "roles": ["admin"],
+            "is_active": True,
+            "auth_source": "pat",
+            "expires_at": datetime.now(UTC) + timedelta(days=2),
+            "pat_id": "31",
+            "pat_label": "short-lived",
+        }
+        with (
+            patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
+            patch.dict(
+                client.app.state.runtime_container.service_factories, {"db": lambda: mock_bl}
+            ),
+            patch.object(api_routes, "_auth_tables_available", return_value=True),
+            patch.object(api_routes, "_auth_pat_tables_available", return_value=True),
+            patch.object(api_routes, "_csrf_request_valid", return_value=True),
+            patch.object(api_routes, "_get_user_by_session_token", return_value=None),
+        ):
+            resp = client.post(
+                "/api/auth/tokens",
+                headers={"Authorization": "Bearer fs_pat_short_lived"},
+                json=payload,
+            )
+
+        assert resp.status_code == 403, resp.text
+        assert expected_error in resp.json()["error"]
+        mock_bl.create_pat.assert_not_called()
+
     def test_api_auth_tokens_revoke_revokes_current_user_token(self, client):
         try:
             pass

@@ -9,6 +9,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from datetime import UTC
 
+import pytest
+
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.principal import ResolvedPrincipal
 from core.application.auth.resolve import (
@@ -469,3 +471,73 @@ def test_admin_owned_pat_without_admin_all_cannot_mint_admin_all():
         requested_project_ids=[],
         requested_workflow_ids=[],
     )
+
+
+def _expiring_token_caller(auth_source: str, *, days: int) -> dict:
+    from datetime import UTC, datetime, timedelta
+
+    return {
+        "principal_type": "service_account" if auth_source == "machine" else "user",
+        "auth_source": auth_source,
+        "roles": ["admin"],
+        "scopes": ["command:*"],
+        "expires_at": datetime.now(UTC) + timedelta(days=days),
+    }
+
+
+@pytest.mark.parametrize("auth_source", ["pat", "machine"])
+def test_expiring_token_cannot_mint_a_token_without_expiry(auth_source):
+    from core.application.auth.principal import (
+        TokenAuthorityError,
+        enforce_token_lifetime_within_caller,
+    )
+
+    with pytest.raises(TokenAuthorityError, match="token lifetime"):
+        enforce_token_lifetime_within_caller(
+            _expiring_token_caller(auth_source, days=5), requested_expires_at=None
+        )
+
+
+def test_expiring_token_cannot_mint_a_longer_lived_token():
+    from datetime import UTC, datetime, timedelta
+
+    from core.application.auth.principal import (
+        TokenAuthorityError,
+        enforce_token_lifetime_within_caller,
+    )
+
+    caller = _expiring_token_caller("pat", days=5)
+    with pytest.raises(TokenAuthorityError):
+        enforce_token_lifetime_within_caller(
+            caller, requested_expires_at=datetime.now(UTC) + timedelta(days=10)
+        )
+    enforce_token_lifetime_within_caller(
+        caller, requested_expires_at=datetime.now(UTC) + timedelta(days=3)
+    )
+
+
+def test_token_lifetime_accepts_iso_caller_expiry():
+    from datetime import UTC, datetime, timedelta
+
+    from core.application.auth.principal import (
+        TokenAuthorityError,
+        enforce_token_lifetime_within_caller,
+    )
+
+    caller = _expiring_token_caller("pat", days=5)
+    caller["expires_at"] = caller["expires_at"].isoformat().replace("+00:00", "Z")
+    with pytest.raises(TokenAuthorityError):
+        enforce_token_lifetime_within_caller(caller, requested_expires_at=None)
+    enforce_token_lifetime_within_caller(
+        caller, requested_expires_at=datetime.now(UTC) + timedelta(days=1)
+    )
+
+
+def test_token_lifetime_does_not_bound_sessions_or_non_expiring_tokens():
+    from core.application.auth.principal import enforce_token_lifetime_within_caller
+
+    session_caller = {"principal_type": "user", "auth_source": "local", "roles": ["admin"]}
+    enforce_token_lifetime_within_caller(session_caller, requested_expires_at=None)
+    non_expiring = _expiring_token_caller("pat", days=5)
+    non_expiring["expires_at"] = None
+    enforce_token_lifetime_within_caller(non_expiring, requested_expires_at=None)

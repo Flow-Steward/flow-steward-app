@@ -101,6 +101,7 @@ class PlatformLoggerPersonalAccessTokensMixin:
             "roles": roles,
             "is_active": True,
             "auth_source": "pat",
+            "expires_at": row.get("expires_at"),
             "pat_id": str(row.get("pat_id") or ""),
             "pat_label": str(row.get("pat_label") or "").strip(),
         }
