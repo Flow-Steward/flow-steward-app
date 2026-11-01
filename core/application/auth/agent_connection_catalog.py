@@ -114,7 +114,7 @@ PACKAGES: tuple[AgentSkillPackage, ...] = (
     AgentSkillPackage(
         id=OPERATOR_PACKAGE_ID,
         display_name="Flow Steward Operator",
-        version="1.0.0",
+        version="1.0.1",
         short_description="Build and run automations",
         needs_mcp=True,
         description_key="react.agent_access.package_operator_description",
@@ -231,7 +231,7 @@ CLIENTS: tuple[AgentClient, ...] = (
                 package_id=OPERATOR_PACKAGE_ID,
                 offered=True,
                 auth=AUTH_PERSONAL_TOKEN,
-                verified=True,
+                verified=False,
                 readme_anchor="claude-code",
                 steps=(
                     _DOWNLOAD_MARKETPLACE,

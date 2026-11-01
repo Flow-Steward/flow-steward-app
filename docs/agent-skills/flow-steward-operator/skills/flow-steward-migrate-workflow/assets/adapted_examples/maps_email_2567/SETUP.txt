@@ -1,0 +1,19 @@
+UNBOUND DISABLED DRAFT — not ready to import, save, or run.
+
+No overlapping runs or competing writes during read-update/append.
+Map each template-local connector symbol to documented Workspace action and confirm installed dispatch args, result envelope and connection selection.
+Workspace scopes: google_sheets_account with drive.file and app-visible target document.
+Native StandardTools Text regex_find_all must be available; no agent, skill, model or external extraction provider is required.
+Destination sheet one email column A with header Emails (2567) or emails (5385).
+Raw HTML native HTTP response_body must be string; no automatic HTML-to-text preprocessing.
+Source Google/website redirect behaviors remain subject to native HTTP policy; 5385 no-redirect native matches source site setting.
+Extraction is deterministic within source-compatible patterns and bounds. JS null/no-match failure is adapted to an empty list; Python regex VERSION0 is used, not a JavaScript evaluator. 2567 excludes png/jpg/gif/jpeg suffix prefixes; 5385 additionally excludes webp/svg, as in their source patterns.
+
+ADAPTATIONS:
+URL/email extraction now uses deterministic native StandardTools regex_find_all with source-compatible patterns, full match strings, Python regex VERSION0 and empty flags. No model or agent is used. Global JS match is represented by regex_find_all; no-match returns [] instead of legacy null/map failures.
+HTML must fit 30000 characters and response limit 1MiB; extraction <=100 values or fail closed. Native regex also enforces input<=1MiB characters, pattern<=4096, <=1000 matches without truncation and 0.1-second timeout.
+Within-query ordered unique emails; append only, no cross-run deduplication. Source case-sensitive filter alternatives retained. Origin shape guard additionally rejects malformed origins, paths, query/fragment and userinfo instead of attempting invalid source URLs.
+Provider errors do not automatically retry; inspect any completed appends before re-running.
+Self-invocation fire-and-forget replaced by joined serial included query child; 2-second inter-query delay preserved.
+
+No provider calls, source JavaScript execution, Docker gates, import or engine execution performed during assembly. Required secrets have no defaults. Bind dependencies and validate with synthetic provider responses before any activation.

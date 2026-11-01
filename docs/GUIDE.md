@@ -115,10 +115,11 @@ starting its role processes. Its host launcher does not support
 reported problem and rerun `./install.sh`. The Scalable command remains available
 for an explicit operator seed repair.
 
-At 1.0, `db/migrations/` is empty, so a fresh installation needs no separate
-migration command. Later SQL migrations use `database upgrade` after enabling
-maintenance and verifying a backup, with `--maintenance-confirmed --confirm`;
-see the [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
+Fresh installations initialize from `db/schema/` and apply the released SQL
+migrations during bootstrap; no separate upgrade command is needed. For an
+existing installation with pending migrations, enable maintenance, verify a
+backup, and run `database upgrade --maintenance-confirmed --confirm` as described
+in the [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
 
 A fresh production install of a clean checkout exactly at its published
 `v<VERSION>` tag (`git checkout v<version>` before `./install.sh`) installs that
@@ -171,14 +172,14 @@ issue-bootstrap-token` does the same on the Scalable profile, but a Compact
 launcher supports `users create` and refuses the installer-owned
 `users issue-bootstrap-token` command, so the installer is the portable answer.
 
-A database created by a pre-release (pre-1.0) build cannot be upgraded: 1.0
-starts from a clean `db/schema/` baseline with no historical migrations, and
-`database upgrade` and the installer refuse such a database unchanged. Recreate
-it with a new installation from a clean checkout and a distinct Compose project
-identity, then run the Step 1 installer and status/doctor checks above. Initial
-schema and seed setup remain installer-owned. Pre-1.0 data is not carried over;
-see [ADR 0012](architecture/adr/0012-post-1.0-sql-migrations.md) for the baseline
-policy.
+Released 0.9.x installations can update in place when their database passes the
+migration-history and canonical-baseline checks. A database whose ledger
+contains migrations from before the 2026-09-26 baseline is refused unchanged
+and must be recreated from a clean installation; data is not carried over
+automatically. A database without a migration ledger must first pass the
+canonical baseline contract before the ledger is created and pending migrations
+are applied. See [ADR 0012](architecture/adr/0012-post-1.0-sql-migrations.md) and
+the [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
 
 `install.sh` bootstraps its Python installer inside Docker, so a host Python
 runtime is not required for the normal setup path. It is a one-time
@@ -2733,3 +2734,41 @@ final release verification requires local Tier 2 and Tier 3 evidence for the sam
 exact commit SHA. The canonical `--full` command validates or refreshes Tier 2
 before the long Tier 3 delta and succeeds only after cumulative evidence validation.
 Additional audit checks are available through `lint.sh --checks` when needed.
+
+
+## Regular expressions in Standard Tools
+
+Use **Text → Regex find / Regex find all / Regex replace / Regex replace all**
+(`std.text.regex_find`, `regex_find_all`, `regex_replace`, `regex_replace_all`)
+in a connector step. Supply string `value`, bare `pattern`, and optional `flags`
+(`i` case insensitive, `m` multiline, `s` dot matches newline, `x` verbose,
+`a` ASCII character classes). Each flag may appear at most once (5 characters
+maximum). These actions run locally without a model or API.
+
+Find returns `result` as the first full match, or null. Find all returns an
+ordered array of non-overlapping full matches, or `[]`; capturing groups do not
+change the shape. For example, pattern `([A-Z])(\d+)` on `A12 B34` returns
+`["A12", "B34"]`. Empty patterns can produce zero-width matches.
+
+Replace also takes `replacement`: the first action replaces one match, the all
+action replaces every match. Python group references such as `\g<1>` and named
+references are supported; JavaScript `$1` is literal text. An unmatched input is
+returned unchanged. Use Python-compatible patterns, without `/.../g` wrappers.
+The engine is the timeout-capable `regex` package with VERSION0 as the default.
+Reverse matching (`(?r)`) and inverted/overlapping engine spans are rejected
+to preserve source order.
+
+Input and output are limited to 1,048,576 characters, patterns and replacements
+to 4096 characters, and operations to 1000 matches and 100ms of matching time.
+Before compilation, a conservative expansion budget multiplies pattern length
+by every counted repetition bound (including sequential repeats); values above
+65,536 fail with `regex_compile_limit`. This protects compilation, which has no
+engine timeout. Ambiguous numeric repetitions and comments inside repeat
+bounds are rejected too. The check is deliberately conservative, including
+literal counts inside character classes. Simplify large counted patterns or
+split the operation.
+Limits and invalid patterns, flags or replacements fail the connector step with
+a `regex_*` error; no partial result is returned. Replacement expansion is also
+bounded before allocation and can reject oversized capture expansion. Route
+connector errors through the workflow's explicit error policy. These are
+Standard Tools operations; no new Transform or Tabular Feed action is implied.

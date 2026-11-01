@@ -1,0 +1,1991 @@
+schema_version: platform.workflow_bundle.v2
+kind: workflow_bundle
+metadata:
+  source_workflow_id: n8n_2567
+  external_template_id: 2567
+  migration_mode: business_equivalent_adaptation
+  status: unbound_draft
+  runtime_verified: false
+  setup_required: true
+  behavior_changes:
+  - URL/email extraction now uses deterministic native StandardTools regex_find_all
+    with source-compatible patterns, full match strings, Python regex VERSION0 and
+    empty flags. No model or agent is used. Global JS match is represented by regex_find_all;
+    no-match returns [] instead of legacy null/map failures.
+  - HTML must fit 30000 characters and response limit 1MiB; extraction <=100 values
+    or fail closed. Native regex also enforces input<=1MiB characters, pattern<=4096,
+    <=1000 matches without truncation and 0.1-second timeout.
+  - Within-query ordered unique emails; append only, no cross-run deduplication. Source
+    case-sensitive filter alternatives retained. Origin shape guard additionally rejects
+    malformed origins, paths, query/fragment and userinfo instead of attempting invalid
+    source URLs.
+  - Provider errors do not automatically retry; inspect any completed appends before
+    re-running.
+  - Self-invocation fire-and-forget replaced by joined serial included query child;
+    2-second inter-query delay preserved.
+  source_sha256: 1ed26f5e188a5efe657c20e323280f93b5302c76578bc428c335ca9d66112032 # pragma: allowlist secret -- public source content SHA-256, not a credential
+  inventory_evidence:
+    record: logs/workflow-migration/batch-15/inventory.json
+    current_evidence_reinspected: '2026-11-01'
+    network_refresh_performed: false
+    reason: Explicit offline instruction; published local operation contracts re-read,
+      live installed IDs/arguments unverified
+  trigger_setup:
+    schedule: manual and callable; no schedule
+  unperformed_checks:
+  - target import/save
+  - engine execution
+  - installed tool schema verification
+  - provider/network requests
+workflows:
+- workflow_id: n8n_2567
+  version: 0.1.0
+  display_name: n8n_2567
+  description: Disabled business-equivalent adapted draft; consult setup and migration
+    metadata.
+  enabled: false
+  trigger: {}
+  settings:
+    portability:
+      import_state: draft
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: true
+      expected_inputs:
+      - &id001
+        name: connection_ref
+        type: string
+        required: true
+      - &id002
+        name: spreadsheet_id
+        type: string
+        required: true
+      - &id003
+        name: sheet_title
+        type: string
+        required: true
+      - name: queries
+        type: array
+        required: true
+      expected_outputs: []
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+  participants: []
+  tags:
+  - migration
+  - unbound
+  steps:
+  - step_id: setup_inputs
+    step_kind: set_variable
+    display_name: setup_inputs
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.setup_inputs.connection_ref:
+            source: state.inputs.connection_ref
+          state.setup_inputs.spreadsheet_id:
+            source: state.inputs.spreadsheet_id
+          state.setup_inputs.sheet_title:
+            source: state.inputs.sheet_title
+          state.setup_inputs.queries:
+            source: state.inputs.queries
+    error_policy:
+      on_error: route_to_step
+  - step_id: setup
+    step_kind: template
+    display_name: setup
+    optional: false
+    override:
+      template:
+        text: '{{ ''ready'' if i.connection_ref and i.spreadsheet_id and i.sheet_title
+          and i.queries is sequence and i.queries is not string and 0 < i.queries|length
+          <= 10 else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: i
+          source: state.setup_inputs
+          type: json
+          required: true
+        result_target: state.check_setup
+    error_policy:
+      on_error: route_to_step
+  - step_id: setup_ok
+    step_kind: if
+    display_name: setup_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_setup
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+  - step_id: query_guard
+    step_kind: template
+    display_name: query_guard
+    optional: false
+    override:
+      template:
+        text: '{{ ''ready'' if q is string and 0 < q|length <= 500 else ''invalid''
+          }}'
+        format: text
+        inputs:
+        - name: q
+          source: state.query
+          type: json
+          required: true
+        result_target: state.check_query_guard
+    error_policy:
+      on_error: route_to_step
+    for_each_id: queries
+  - step_id: query_guard_ok
+    step_kind: if
+    display_name: query_guard_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_query_guard
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+    for_each_id: queries
+  - step_id: query_child
+    step_kind: invoke_workflow
+    display_name: query_child
+    optional: false
+    workflow_id: n8n_2567_query
+    override:
+      invoke_workflow:
+        workflow_id: n8n_2567_query
+        input_mapping:
+          connection_ref: state.inputs.connection_ref
+          spreadsheet_id: state.inputs.spreadsheet_id
+          sheet_title: state.inputs.sheet_title
+          query: state.query
+        output_mapping: {}
+    error_policy:
+      on_error: route_to_step
+    for_each_id: queries
+  - step_id: delay
+    step_kind: wait
+    display_name: delay
+    optional: false
+    override:
+      wait:
+        duration_ms: 2000
+    error_policy:
+      on_error: route_to_step
+    for_each_id: queries
+  - step_id: next_query
+    step_kind: continue
+    display_name: next_query
+    optional: false
+    override:
+      continue: {}
+    for_each_id: queries
+  - step_id: done
+    step_kind: stop_success
+    display_name: done
+    optional: false
+    override:
+      stop_success:
+        message: Completed within documented adapted input envelope.
+  - step_id: failed
+    step_kind: stop_fail
+    display_name: failed
+    optional: false
+    override:
+      stop_fail:
+        message: Input/setup/shape/provider/provenance failure. No automatic retry;
+          inspect partial external effects before retry.
+  - step_id: failed_queries
+    step_kind: stop_fail
+    display_name: failed_queries
+    optional: false
+    override:
+      stop_fail:
+        message: Fail closed inside item scope; parent/container must inspect partial
+          external effects before retry.
+    for_each_id: queries
+  groups: []
+  for_each:
+  - for_each_id: queries
+    group_id: null
+    display_name: queries
+    over: state.inputs.queries
+    item_name: query
+    index_name: query_index
+    body:
+      kind: sequence
+      entry:
+        id: query_guard
+        kind: step
+    error_policy:
+      on_error: route_to_step
+  execution_graph:
+    schema_version: 1
+    entry:
+      id: setup_inputs
+      kind: step
+    edges:
+    - source:
+        id: setup
+        kind: step
+      target:
+        id: setup_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: setup_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: setup_inputs
+        kind: step
+      target:
+        id: setup
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: query_guard
+        kind: step
+      target:
+        id: query_guard_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: query_guard_ok
+        kind: step
+      target:
+        id: failed_queries
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: query_guard_ok
+        kind: step
+      target:
+        id: query_child
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: query_child
+        kind: step
+      target:
+        id: delay
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: delay
+        kind: step
+      target:
+        id: next_query
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: setup_ok
+        kind: step
+      target:
+        id: queries
+        kind: for_each
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: queries
+        kind: for_each
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: setup_inputs
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: setup_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: query_guard
+        kind: step
+      target:
+        id: failed_queries
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: query_guard_ok
+        kind: step
+      target:
+        id: failed_queries
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: query_child
+        kind: step
+      target:
+        id: failed_queries
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: delay
+        kind: step
+      target:
+        id: failed_queries
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: queries
+        kind: for_each
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+- workflow_id: n8n_2567_query
+  version: 0.1.0
+  display_name: n8n_2567_query
+  description: Disabled business-equivalent adapted draft; consult setup and migration
+    metadata.
+  enabled: false
+  trigger: {}
+  settings:
+    portability:
+      import_state: draft
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: true
+      expected_inputs:
+      - *id001
+      - *id002
+      - *id003
+      - name: query
+        type: string
+        required: true
+      expected_outputs: []
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+  participants: []
+  tags:
+  - migration
+  - unbound
+  steps:
+  - step_id: setup_inputs
+    step_kind: set_variable
+    display_name: setup_inputs
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.setup_inputs.connection_ref:
+            source: state.inputs.connection_ref
+          state.setup_inputs.spreadsheet_id:
+            source: state.inputs.spreadsheet_id
+          state.setup_inputs.sheet_title:
+            source: state.inputs.sheet_title
+          state.setup_inputs.query:
+            source: state.inputs.query
+    error_policy:
+      on_error: route_to_step
+  - step_id: setup
+    step_kind: template
+    display_name: setup
+    optional: false
+    override:
+      template:
+        text: '{{ ''ready'' if i.connection_ref and i.spreadsheet_id and i.sheet_title
+          else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: i
+          source: state.setup_inputs
+          type: json
+          required: true
+        result_target: state.check_setup
+    error_policy:
+      on_error: route_to_step
+  - step_id: setup_ok
+    step_kind: if
+    display_name: setup_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_setup
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+  - step_id: initialize
+    step_kind: set_variable
+    display_name: initialize
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.seen: {}
+          state.urls_seen: {}
+    error_policy:
+      on_error: route_to_step
+  - step_id: maps
+    step_kind: http_request
+    display_name: maps
+    optional: false
+    override:
+      http_request:
+        method: GET
+        url: https://www.google.com/maps/search/{{ state.inputs.query }}
+        headers:
+          Accept: text/html
+        query_params: {}
+        auth_mode: none
+        auth_ref: ''
+        timeout_seconds: 45
+        expected_statuses:
+        - 200
+        response_mode: inline
+        max_response_bytes: 1048576
+        response_target: state.maps
+    error_policy:
+      on_error: route_to_step
+  - step_id: maps_bound
+    step_kind: template
+    display_name: maps_bound
+    optional: false
+    override:
+      template:
+        text: '{{ ''ready'' if html is string and html|length <= 30000 else ''invalid''
+          }}'
+        format: text
+        inputs:
+        - name: html
+          source: state.maps
+          type: json
+          required: true
+        result_target: state.check_maps_bound
+    error_policy:
+      on_error: route_to_step
+  - step_id: maps_bound_ok
+    step_kind: if
+    display_name: maps_bound_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_maps_bound
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+  - step_id: urls_pattern
+    step_kind: set_variable
+    display_name: urls_pattern
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.urls_pattern: https?://[^/]+
+          state.urls_flags: ''
+    error_policy:
+      on_error: route_to_step
+  - step_id: urls
+    step_kind: connector
+    display_name: urls
+    optional: false
+    connector_id: connector.std.text
+    override:
+      connector:
+        function_name: regex_find_all
+        input_mapping:
+          value: state.maps
+          pattern: state.urls_pattern
+          flags: state.urls_flags
+        output_mapping:
+          result: state.urls
+    error_policy:
+      on_error: route_to_step
+  - step_id: urls_provenance
+    step_kind: template
+    display_name: urls_provenance
+    optional: false
+    override:
+      template:
+        text: '{%- set ns=namespace(ok=vs is sequence and vs is not string and vs
+          is not mapping and vs|length <= 100) -%}{%- for v in vs -%}{%- if v is not
+          string or not v or v not in html -%}{%- set ns.ok=false -%}{%- endif -%}{%-
+          endfor -%}{{ ''ready'' if ns.ok else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: vs
+          source: state.urls
+          type: json
+          required: true
+        - name: html
+          source: state.maps
+          type: json
+          required: true
+        result_target: state.check_urls_provenance
+    error_policy:
+      on_error: route_to_step
+  - step_id: urls_provenance_ok
+    step_kind: if
+    display_name: urls_provenance_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_urls_provenance
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+  - step_id: url_filter
+    step_kind: template
+    display_name: url_filter
+    optional: false
+    override:
+      template:
+        text: '{{ ''ready'' if u is string and (u.startswith(''https://'') or u.startswith(''http'' ~ ''://''))
+          and ''/'' not in u.split(''://'',1)[-1] and ''?'' not in u and ''#'' not
+          in u and ''@'' not in u and '' '' not in u and ''\n'' not in u and u not
+          in seen and ''google'' not in u and ''gstatic'' not in u and ''ggpht'' not
+          in u and ''schema.org'' not in u and ''example.com'' not in u and ''sentry-next.wixpress.com''
+          not in u and ''imli.com'' not in u and ''sentry.wixpress.com'' not in u
+          and ''ingest.sentry.io'' not in u else ''skip'' }}'
+        format: text
+        inputs:
+        - name: u
+          source: state.url
+          type: json
+          required: true
+        - name: seen
+          source: state.urls_seen
+          type: json
+          required: true
+        result_target: state.url_filter
+    error_policy:
+      on_error: route_to_step
+    for_each_id: url_items
+  - step_id: url_filter_ok
+    step_kind: if
+    display_name: url_filter_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.url_filter
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+    for_each_id: url_items
+  - step_id: remember_url
+    step_kind: collect
+    display_name: remember_url
+    optional: false
+    override:
+      collect:
+        mode: set_key
+        source: state.url
+        target: state.urls_seen
+        key:
+          source: state.url
+    error_policy:
+      on_error: route_to_step
+    for_each_id: url_items
+  - step_id: page_child
+    step_kind: invoke_workflow
+    display_name: page_child
+    optional: false
+    workflow_id: n8n_2567_page
+    override:
+      invoke_workflow:
+        workflow_id: n8n_2567_page
+        input_mapping:
+          url: state.url
+          seen: state.seen
+        output_mapping:
+          seen: state.seen
+    error_policy:
+      on_error: route_to_step
+    for_each_id: url_items
+  - step_id: next_url
+    step_kind: continue
+    display_name: next_url
+    optional: false
+    override:
+      continue: {}
+    for_each_id: url_items
+  - step_id: email_values_input
+    step_kind: set_variable
+    display_name: email_values_input
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.email_values_input.value0:
+            source: state.seen
+    error_policy:
+      on_error: route_to_step
+  - step_id: email_values
+    step_kind: transform
+    display_name: email_values
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.email_values_input
+        fields:
+        - from: value0
+          to: items
+          type: array
+          required: true
+          actions:
+          - action: json.values
+        output_mode: mapped_only
+        result_target: state.email_values
+    error_policy:
+      on_error: route_to_step
+  - step_id: append_email_args
+    step_kind: set_variable
+    display_name: append_email_args
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.append_email_args.connection_ref:
+            source: state.inputs.connection_ref
+          state.append_email_args.spreadsheet_id:
+            source: state.inputs.spreadsheet_id
+          state.append_email_args.sheet_title:
+            source: state.inputs.sheet_title
+          state.append_email_args.table_range: A:A
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: append_email_matrix_cells
+    step_kind: set_variable
+    display_name: append_email_matrix_cells
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.append_email_matrix_cells.c000:
+            source: state.email
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: append_email_matrix_row_input
+    step_kind: set_variable
+    display_name: append_email_matrix_row_input
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.append_email_matrix_row_input.value0:
+            source: state.append_email_matrix_cells
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: append_email_matrix_row
+    step_kind: transform
+    display_name: append_email_matrix_row
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.append_email_matrix_row_input
+        fields:
+        - from: value0
+          to: row
+          type: array
+          required: true
+          actions:
+          - action: json.values
+        output_mode: mapped_only
+        result_target: state.append_email_matrix_row
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: append_email_matrix_wrapper
+    step_kind: set_variable
+    display_name: append_email_matrix_wrapper
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.append_email_matrix_wrapper.only:
+            source: state.append_email_matrix_row.row
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: append_email_matrix_input
+    step_kind: set_variable
+    display_name: append_email_matrix_input
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.append_email_matrix_input.value0:
+            source: state.append_email_matrix_wrapper
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: append_email_matrix
+    step_kind: transform
+    display_name: append_email_matrix
+    optional: false
+    override:
+      transform:
+        mode: object
+        input:
+          source: state.append_email_matrix_input
+        fields:
+        - from: value0
+          to: rows
+          type: array
+          required: true
+          actions:
+          - action: json.values
+        output_mode: mapped_only
+        result_target: state.append_email_matrix
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: append_email
+    step_kind: connector
+    display_name: append_email
+    optional: false
+    connector_id: connector.workspace_append_google_sheet_rows
+    override:
+      connector:
+        function_name: append_google_sheet_rows
+        input_mapping:
+          connection_ref: state.append_email_args.connection_ref
+          spreadsheet_id: state.append_email_args.spreadsheet_id
+          sheet_title: state.append_email_args.sheet_title
+          table_range: state.append_email_args.table_range
+          inline_rows: state.append_email_matrix.rows
+        output_mapping: {}
+    error_policy:
+      on_error: route_to_step
+    for_each_id: write_emails
+  - step_id: next_write
+    step_kind: continue
+    display_name: next_write
+    optional: false
+    override:
+      continue: {}
+    for_each_id: write_emails
+  - step_id: done
+    step_kind: stop_success
+    display_name: done
+    optional: false
+    override:
+      stop_success:
+        message: Completed within documented adapted input envelope.
+  - step_id: failed
+    step_kind: stop_fail
+    display_name: failed
+    optional: false
+    override:
+      stop_fail:
+        message: Input/setup/shape/provider/provenance failure. No automatic retry;
+          inspect partial external effects before retry.
+  - step_id: failed_write_emails
+    step_kind: stop_fail
+    display_name: failed_write_emails
+    optional: false
+    override:
+      stop_fail:
+        message: Fail closed inside item scope; parent/container must inspect partial
+          external effects before retry.
+    for_each_id: write_emails
+  - step_id: failed_url_items
+    step_kind: stop_fail
+    display_name: failed_url_items
+    optional: false
+    override:
+      stop_fail:
+        message: Fail closed inside item scope; parent/container must inspect partial
+          external effects before retry.
+    for_each_id: url_items
+  groups: []
+  for_each:
+  - for_each_id: url_items
+    group_id: null
+    display_name: url_items
+    over: state.urls
+    item_name: url
+    index_name: url_index
+    body:
+      kind: sequence
+      entry:
+        id: url_filter
+        kind: step
+    error_policy:
+      on_error: route_to_step
+  - for_each_id: write_emails
+    group_id: null
+    display_name: write_emails
+    over: state.email_values.items
+    item_name: email
+    index_name: email_index
+    body:
+      kind: sequence
+      entry:
+        id: append_email_args
+        kind: step
+    error_policy:
+      on_error: route_to_step
+  execution_graph:
+    schema_version: 1
+    entry:
+      id: setup_inputs
+      kind: step
+    edges:
+    - source:
+        id: setup
+        kind: step
+      target:
+        id: setup_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: setup_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: setup_inputs
+        kind: step
+      target:
+        id: setup
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: setup_ok
+        kind: step
+      target:
+        id: initialize
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: initialize
+        kind: step
+      target:
+        id: maps
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: maps_bound
+        kind: step
+      target:
+        id: maps_bound_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: maps_bound_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: maps
+        kind: step
+      target:
+        id: maps_bound
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: urls_pattern
+        kind: step
+      target:
+        id: urls
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: urls_provenance
+        kind: step
+      target:
+        id: urls_provenance_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: urls_provenance_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: urls
+        kind: step
+      target:
+        id: urls_provenance
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: maps_bound_ok
+        kind: step
+      target:
+        id: urls_pattern
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: url_filter
+        kind: step
+      target:
+        id: url_filter_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: url_filter_ok
+        kind: step
+      target:
+        id: remember_url
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: url_filter_ok
+        kind: step
+      target:
+        id: next_url
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: remember_url
+        kind: step
+      target:
+        id: page_child
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: page_child
+        kind: step
+      target:
+        id: next_url
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: urls_provenance_ok
+        kind: step
+      target:
+        id: url_items
+        kind: for_each
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: email_values_input
+        kind: step
+      target:
+        id: email_values
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: url_items
+        kind: for_each
+      target:
+        id: email_values_input
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email_matrix_row_input
+        kind: step
+      target:
+        id: append_email_matrix_row
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email_matrix_input
+        kind: step
+      target:
+        id: append_email_matrix
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email_matrix_cells
+        kind: step
+      target:
+        id: append_email_matrix_row_input
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email_matrix_row
+        kind: step
+      target:
+        id: append_email_matrix_wrapper
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email_matrix_wrapper
+        kind: step
+      target:
+        id: append_email_matrix_input
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email_args
+        kind: step
+      target:
+        id: append_email_matrix_cells
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email_matrix
+        kind: step
+      target:
+        id: append_email
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: append_email
+        kind: step
+      target:
+        id: next_write
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: email_values
+        kind: step
+      target:
+        id: write_emails
+        kind: for_each
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: write_emails
+        kind: for_each
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: setup_inputs
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: setup_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: initialize
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: maps
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: maps_bound
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: maps_bound_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: urls_pattern
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: urls
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: urls_provenance
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: urls_provenance_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: url_filter
+        kind: step
+      target:
+        id: failed_url_items
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: url_filter_ok
+        kind: step
+      target:
+        id: failed_url_items
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: remember_url
+        kind: step
+      target:
+        id: failed_url_items
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: page_child
+        kind: step
+      target:
+        id: failed_url_items
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: email_values_input
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: email_values
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email_args
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email_matrix_cells
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email_matrix_row_input
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email_matrix_row
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email_matrix_wrapper
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email_matrix_input
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email_matrix
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: append_email
+        kind: step
+      target:
+        id: failed_write_emails
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: url_items
+        kind: for_each
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: write_emails
+        kind: for_each
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+- workflow_id: n8n_2567_page
+  version: 0.1.0
+  display_name: n8n_2567_page
+  description: Disabled business-equivalent adapted draft; consult setup and migration
+    metadata.
+  enabled: false
+  trigger: {}
+  settings:
+    portability:
+      import_state: draft
+    callable:
+      enabled: true
+      input_mode: fields
+      strict_inputs: true
+      expected_inputs:
+      - name: url
+        type: string
+        required: true
+      - name: seen
+        type: object
+        required: true
+      expected_outputs:
+      - name: seen
+        type: object
+        required: true
+      trigger_channels:
+      - ui
+      - api
+      - mcp
+      - parent_workflow
+  participants: []
+  tags:
+  - migration
+  - unbound
+  steps:
+  - step_id: setup
+    step_kind: set_variable
+    display_name: setup
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.seen:
+            source: state.inputs.seen
+    error_policy:
+      on_error: route_to_step
+  - step_id: fetch_page
+    step_kind: http_request
+    display_name: fetch_page
+    optional: false
+    override:
+      http_request:
+        method: GET
+        url: '{{ state.inputs.url }}'
+        headers:
+          Accept: text/html
+        query_params: {}
+        auth_mode: none
+        auth_ref: ''
+        timeout_seconds: 45
+        expected_statuses:
+        - 200
+        response_mode: inline
+        max_response_bytes: 1048576
+        response_target: state.page
+    error_policy:
+      on_error: route_to_step
+  - step_id: html_bound
+    step_kind: template
+    display_name: html_bound
+    optional: false
+    override:
+      template:
+        text: '{{ ''ready'' if html is string and html|length <= 30000 else ''invalid''
+          }}'
+        format: text
+        inputs:
+        - name: html
+          source: state.page
+          type: json
+          required: true
+        result_target: state.check_html_bound
+    error_policy:
+      on_error: route_to_step
+  - step_id: html_bound_ok
+    step_kind: if
+    display_name: html_bound_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_html_bound
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+  - step_id: emails_pattern
+    step_kind: set_variable
+    display_name: emails_pattern
+    optional: false
+    override:
+      set_variable:
+        assignments:
+          state.emails_pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(?!png|jpg|gif|jpeg)[a-zA-Z]{2,}'
+          state.emails_flags: ''
+    error_policy:
+      on_error: route_to_step
+  - step_id: emails
+    step_kind: connector
+    display_name: emails
+    optional: false
+    connector_id: connector.std.text
+    override:
+      connector:
+        function_name: regex_find_all
+        input_mapping:
+          value: state.page
+          pattern: state.emails_pattern
+          flags: state.emails_flags
+        output_mapping:
+          result: state.extracted
+    error_policy:
+      on_error: route_to_step
+  - step_id: emails_provenance
+    step_kind: template
+    display_name: emails_provenance
+    optional: false
+    override:
+      template:
+        text: '{%- set ns=namespace(ok=vs is sequence and vs is not string and vs
+          is not mapping and vs|length <= 100) -%}{%- for v in vs -%}{%- if v is not
+          string or not v or v not in html -%}{%- set ns.ok=false -%}{%- endif -%}{%-
+          endfor -%}{{ ''ready'' if ns.ok else ''invalid'' }}'
+        format: text
+        inputs:
+        - name: vs
+          source: state.extracted
+          type: json
+          required: true
+        - name: html
+          source: state.page
+          type: json
+          required: true
+        result_target: state.check_emails_provenance
+    error_policy:
+      on_error: route_to_step
+  - step_id: emails_provenance_ok
+    step_kind: if
+    display_name: emails_provenance_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.check_emails_provenance
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+  - step_id: email_filter
+    step_kind: template
+    display_name: email_filter
+    optional: false
+    override:
+      template:
+        text: '{{ ''ready'' if e is string and ''@'' in e and ''.'' in e.split(''@'')[-1]
+          and e not in seen and ''google'' not in e and ''gstatic'' not in e and ''ggpht''
+          not in e and ''schema.org'' not in e and ''example.com'' not in e and ''sentry.wixpress.com''
+          not in e and ''sentry-next.wixpress.com'' not in e and ''ingest.sentry.io''
+          not in e and ''sentry.io'' not in e and ''imli.com'' not in e else ''skip''
+          }}'
+        format: text
+        inputs:
+        - name: e
+          source: state.email
+          type: json
+          required: true
+        - name: seen
+          source: state.seen
+          type: json
+          required: true
+        result_target: state.filter
+    error_policy:
+      on_error: route_to_step
+    for_each_id: email_items
+  - step_id: email_filter_ok
+    step_kind: if
+    display_name: email_filter_ok
+    optional: false
+    override:
+      if:
+        condition:
+          selector: state.filter
+          operator: equals
+          value: ready
+    error_policy:
+      on_error: route_to_step
+    for_each_id: email_items
+  - step_id: remember
+    step_kind: collect
+    display_name: remember
+    optional: false
+    override:
+      collect:
+        mode: set_key
+        source: state.email
+        target: state.seen
+        key:
+          source: state.email
+    error_policy:
+      on_error: route_to_step
+    for_each_id: email_items
+  - step_id: next_email
+    step_kind: continue
+    display_name: next_email
+    optional: false
+    override:
+      continue: {}
+    for_each_id: email_items
+  - step_id: done
+    step_kind: stop_success
+    display_name: done
+    optional: false
+    override:
+      stop_success:
+        message: Completed within documented adapted input envelope.
+  - step_id: failed
+    step_kind: stop_fail
+    display_name: failed
+    optional: false
+    override:
+      stop_fail:
+        message: Input/setup/shape/provider/provenance failure. No automatic retry;
+          inspect partial external effects before retry.
+  - step_id: failed_email_items
+    step_kind: stop_fail
+    display_name: failed_email_items
+    optional: false
+    override:
+      stop_fail:
+        message: Fail closed inside item scope; parent/container must inspect partial
+          external effects before retry.
+    for_each_id: email_items
+  groups: []
+  for_each:
+  - for_each_id: email_items
+    group_id: null
+    display_name: email_items
+    over: state.extracted
+    item_name: email
+    index_name: email_index
+    body:
+      kind: sequence
+      entry:
+        id: email_filter
+        kind: step
+    error_policy:
+      on_error: route_to_step
+  execution_graph:
+    schema_version: 1
+    entry:
+      id: setup
+      kind: step
+    edges:
+    - source:
+        id: setup
+        kind: step
+      target:
+        id: fetch_page
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: html_bound
+        kind: step
+      target:
+        id: html_bound_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: html_bound_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: fetch_page
+        kind: step
+      target:
+        id: html_bound
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: emails_pattern
+        kind: step
+      target:
+        id: emails
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: emails_provenance
+        kind: step
+      target:
+        id: emails_provenance_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: emails_provenance_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: emails
+        kind: step
+      target:
+        id: emails_provenance
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: html_bound_ok
+        kind: step
+      target:
+        id: emails_pattern
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: email_filter
+        kind: step
+      target:
+        id: email_filter_ok
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: email_filter_ok
+        kind: step
+      target:
+        id: remember
+        kind: step
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: email_filter_ok
+        kind: step
+      target:
+        id: next_email
+        kind: step
+      outcome:
+        name: 'false'
+      rework: false
+    - source:
+        id: remember
+        kind: step
+      target:
+        id: next_email
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: emails_provenance_ok
+        kind: step
+      target:
+        id: email_items
+        kind: for_each
+      outcome:
+        name: 'true'
+      rework: false
+    - source:
+        id: email_items
+        kind: for_each
+      target:
+        id: done
+        kind: step
+      outcome:
+        name: success
+      rework: false
+    - source:
+        id: setup
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: fetch_page
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: html_bound
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: html_bound_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: emails_pattern
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: emails
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: emails_provenance
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: emails_provenance_ok
+        kind: step
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: email_filter
+        kind: step
+      target:
+        id: failed_email_items
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: email_filter_ok
+        kind: step
+      target:
+        id: failed_email_items
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: remember
+        kind: step
+      target:
+        id: failed_email_items
+        kind: step
+      outcome:
+        name: error
+      rework: false
+    - source:
+        id: email_items
+        kind: for_each
+      target:
+        id: failed
+        kind: step
+      outcome:
+        name: error
+      rework: false
+dependencies:
+  tools:
+  - tool_id: connector.workspace_append_google_sheet_rows
+    display_name: Bind Workspace append_google_sheet_rows
+    required: true
+    sources:
+    - n8n_2567_query.append_email.connector_id
+    metadata:
+      binding_required: true
+      reference_kind: template_local_symbol_not_a_real_installation_id
+      extension_id: flowsteward.google-workspace
+      published_version: 0.3.1
+      operation_id: append_google_sheet_rows
+      contract_evidence: logs/workflow-migration/batch-15/workspace-operations.yaml
+      installed_argument_schema: unverified; function_name dispatch and result.* output
+        mappings require binding-time confirmation
+  - tool_id: std.text
+    display_name: Native StandardTools Text
+    required: true
+    sources:
+    - n8n_2567_query.urls.connector_id
+    - n8n_2567_page.emails.connector_id
+    metadata:
+      binding_required: false
+      operation_id: regex_find_all
+      contract_evidence: core/application/registry/builtin_standard_tools.py and std.text
+        regex action implementation
+      contract:
+        inputs:
+        - value
+        - pattern
+        - flags
+        output: 'result: array of full match strings; no-match []'
+        engine: Python regex VERSION0
+        limits:
+          input_characters: 1048576
+          pattern_characters: 4096
+          matches: 1000
+          timeout_seconds: 0.1
+  agents: []
+  skills: []
+  child_workflows:
+  - workflow_id: n8n_2567_query
+    required: true
+    sources:
+    - included_child
+  - workflow_id: n8n_2567_page
+    required: true
+    sources:
+    - included_child
+  project_connections: []
+import_hints:
+  default_enabled: false
+  import_state: draft
+  conflict_policy: rename_workflow

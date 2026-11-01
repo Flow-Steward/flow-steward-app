@@ -1432,3 +1432,44 @@ assert not any(name.startswith('core.application.workflows.ai_builder') for name
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("role", ("app", "worker", "compact"))
+def test_materialized_slice_runs_standard_and_regex_actions_without_repository_fallback(
+    tmp_path: Path, role: str
+) -> None:
+    output_root = tmp_path / role
+    _source_slice_module().materialize_source_slice(
+        source_root=ROOT,
+        manifest_path=MANIFEST_ROOT / f"{role}.json",
+        output_root=output_root,
+    )
+    script = r"""
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(root))
+from core.application.orchestration.tools import standard_tools, regex_actions
+print(json.dumps({
+    'standard_module': str(Path(standard_tools.__file__).resolve()),
+    'regex_module': str(Path(regex_actions.__file__).resolve()),
+    'uppercase': standard_tools.upper.invoke({'value': 'sample'}),
+    'matches': standard_tools.regex_find_all.invoke({'value': 'a12 b34', 'pattern': r'\d+'}),
+    'replacement': standard_tools.regex_replace_all.invoke({'value': 'a1 b2', 'pattern': r'\d', 'replacement': '#'}),
+}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", script, str(output_root)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    actual = json.loads(result.stdout)
+    assert Path(actual["standard_module"]).is_relative_to(output_root.resolve())
+    assert Path(actual["regex_module"]).is_relative_to(output_root.resolve())
+    assert actual["uppercase"] == {"result": "SAMPLE"}
+    assert actual["matches"] == {"result": ["12", "34"]}
+    assert actual["replacement"] == {"result": "a# b#"}

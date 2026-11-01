@@ -11,6 +11,7 @@ extensions as fixtures.
 from __future__ import annotations
 
 import contextlib
+import json
 from typing import ClassVar
 
 import pytest
@@ -109,6 +110,9 @@ def _descriptor(supplier: str) -> dict:
 
 def _remote_llm_a_descriptor() -> dict:
     return _descriptor("remote_llm_a")
+
+
+_DISCOVERY_REFERENCE = "ref"
 
 
 def _claimed_discovery_snapshot(**overrides) -> dict:
@@ -891,7 +895,7 @@ class TestLlmProviderDescriptor:
         "field",
         ["authHeader", "clientCertificate", "signingKey", "headers"],
     )
-    def test_rejects_connection_fields_outside_host_owned_v1_allowlist(self, field):
+    def test_rejects_unsafe_or_noncanonical_connection_fields(self, field):
         descriptor = _remote_llm_a_descriptor()
         block = descriptor["runtime"]["extension_contract_v2"]["llm_provider"]
         block["required_connection_config"] = [field]
@@ -899,7 +903,7 @@ class TestLlmProviderDescriptor:
         result = validate_extension_descriptor(descriptor)
 
         assert not result["valid"]
-        assert any("upstream_base_url" in error["message"] for error in result["errors"])
+        assert any("connection config" in error["message"] for error in result["errors"])
 
     def test_rejects_noncanonical_manifest_connection_field_alias(self):
         descriptor = _remote_llm_a_descriptor()
@@ -1475,6 +1479,7 @@ def test_discovery_preserves_safe_error_category(monkeypatch, category: str) -> 
     )
 
     use_cases = LlmProviderExtensionUseCases(object(), get_logger_only=lambda: None)
+    monkeypatch.setattr("core.application.auth.secrets.decrypt_secret", lambda value: value)
     monkeypatch.setattr(
         use_cases,
         "_resolve_install",
@@ -1499,7 +1504,10 @@ def test_discovery_preserves_safe_error_category(monkeypatch, category: str) -> 
     monkeypatch.setattr(
         store,
         "begin_install_discovery",
-        lambda *_args, **_kwargs: _claimed_discovery_snapshot(),
+        lambda *_args, **_kwargs: _claimed_discovery_snapshot(
+            credential_secret_ref=_DISCOVERY_REFERENCE,
+            encrypted_value=json.dumps({"api_key": "fixture"}),
+        ),
     )
     monkeypatch.setattr(store, "list_sources", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(
@@ -1790,6 +1798,7 @@ def test_discovery_rejects_release_change_before_persistence(monkeypatch) -> Non
     )
 
     use_cases = LlmProviderExtensionUseCases(object(), get_logger_only=lambda: None)
+    monkeypatch.setattr("core.application.auth.secrets.decrypt_secret", lambda value: value)
     monkeypatch.setattr(
         use_cases,
         "_resolve_install",
@@ -1814,7 +1823,11 @@ def test_discovery_rejects_release_change_before_persistence(monkeypatch) -> Non
     monkeypatch.setattr(
         store,
         "begin_install_discovery",
-        lambda *_args, **_kwargs: _claimed_discovery_snapshot(release_id="release-old"),
+        lambda *_args, **_kwargs: _claimed_discovery_snapshot(
+            release_id="release-old",
+            credential_secret_ref=_DISCOVERY_REFERENCE,
+            encrypted_value=json.dumps({"api_key": "fixture"}),
+        ),
     )
     monkeypatch.setattr(svc, "fetch_models_via_remote_runtime", lambda *_a, **_k: [])
     monkeypatch.setattr(svc, "group_discovered_models", lambda *_a, **_k: [])
@@ -1848,6 +1861,7 @@ def test_discovery_rejects_same_release_descriptor_change_after_runtime(monkeypa
     descriptor = _remote_llm_a_descriptor()
     contract = extract_llm_provider_contract(descriptor)
     use_cases = LlmProviderExtensionUseCases(object(), get_logger_only=lambda: None)
+    monkeypatch.setattr("core.application.auth.secrets.decrypt_secret", lambda value: value)
     monkeypatch.setattr(
         use_cases,
         "_resolve_install",
@@ -1879,8 +1893,8 @@ def test_discovery_rejects_same_release_descriptor_change_after_runtime(monkeypa
             "extension_id": "fixture.remote-llm-a",
             "llm_provider_state_revision": "revision-1",
             "remote_base_url": "https://runtime.example.com",
-            "credential_secret_ref": "",
-            "encrypted_value": "",
+            "credential_secret_ref": _DISCOVERY_REFERENCE,
+            "encrypted_value": json.dumps({"api_key": "fixture"}),
             "connection_config_jsonb": {},
         },
     )
@@ -1934,6 +1948,7 @@ def test_discovery_uses_contract_from_claimed_descriptor_snapshot(monkeypatch) -
     ]["query_id"] = "llm.claimed"
     resolved_contract = extract_llm_provider_contract(resolved_descriptor)
     use_cases = LlmProviderExtensionUseCases(object(), get_logger_only=lambda: None)
+    monkeypatch.setattr("core.application.auth.secrets.decrypt_secret", lambda value: value)
     monkeypatch.setattr(
         use_cases,
         "_resolve_install",
@@ -1963,8 +1978,8 @@ def test_discovery_uses_contract_from_claimed_descriptor_snapshot(monkeypatch) -
             "extension_id": "fixture.remote-llm-a",
             "llm_provider_state_revision": "revision-1",
             "remote_base_url": "https://runtime.example.com",
-            "credential_secret_ref": "",
-            "encrypted_value": "",
+            "credential_secret_ref": _DISCOVERY_REFERENCE,
+            "encrypted_value": json.dumps({"api_key": "fixture"}),
             "connection_config_jsonb": {},
         },
     )
@@ -2004,6 +2019,7 @@ def test_discovery_rejects_blank_locked_release_before_persistence(monkeypatch) 
     )
 
     use_cases = LlmProviderExtensionUseCases(object(), get_logger_only=lambda: None)
+    monkeypatch.setattr("core.application.auth.secrets.decrypt_secret", lambda value: value)
     monkeypatch.setattr(
         use_cases,
         "_resolve_install",
@@ -2028,7 +2044,10 @@ def test_discovery_rejects_blank_locked_release_before_persistence(monkeypatch) 
     monkeypatch.setattr(
         store,
         "begin_install_discovery",
-        lambda *_args, **_kwargs: _claimed_discovery_snapshot(),
+        lambda *_args, **_kwargs: _claimed_discovery_snapshot(
+            credential_secret_ref=_DISCOVERY_REFERENCE,
+            encrypted_value=json.dumps({"api_key": "fixture"}),
+        ),
     )
     monkeypatch.setattr(svc, "fetch_models_via_remote_runtime", lambda *_a, **_k: [])
     monkeypatch.setattr(svc, "group_discovered_models", lambda *_a, **_k: [])
@@ -3319,3 +3338,101 @@ class TestRuntimeResolution:
         assert connection["credentials"] == {"api_key": "secret"}
         # absent by default
         assert "credentials" not in _connection_from_extension({"runtime_mode": "remote_https"})
+
+
+def test_discovery_rejects_invalid_declared_setting_before_provider_call(monkeypatch):
+    from core.application.settings import llm_provider_extension_repository as store
+    from core.application.settings.llm_provider_extension_use_cases import (
+        LlmProviderExtensionError,
+        LlmProviderExtensionUseCases,
+    )
+
+    descriptor = _remote_llm_a_descriptor()
+    block = descriptor["runtime"]["extension_contract_v2"]["llm_provider"]
+    block["required_provider_secrets"] = []
+    block["optional_connection_config"] = ["tenant"]
+    block["connection_config_schema"] = {"tenant": {"type": "string", "enum": ["one", "two"]}}
+    contract = extract_llm_provider_contract(descriptor)
+    use_cases = LlmProviderExtensionUseCases(object(), get_logger_only=lambda: None)
+    monkeypatch.setattr(
+        use_cases,
+        "_resolve_install",
+        lambda *_a: (
+            {"install_id": "install-1", "release_id": "release-1", "descriptor_sha256": "a" * 64},
+            contract,
+            "install-1",
+            "fixture.remote-llm-a",
+            "Ext",
+        ),
+    )
+    monkeypatch.setattr(
+        "core.infrastructure.db.db_pool.transaction_connection",
+        lambda conn: contextlib.nullcontext(conn),
+    )
+    monkeypatch.setattr(
+        store,
+        "begin_install_discovery",
+        lambda *_a, **_k: _claimed_discovery_snapshot(
+            descriptor_jsonb=descriptor, llm_provider_connection_config={}
+        ),
+    )
+    monkeypatch.setattr(
+        svc,
+        "fetch_models_via_remote_runtime",
+        lambda *_a, **_k: pytest.fail("invalid settings reached provider"),
+    )
+    with pytest.raises(LlmProviderExtensionError) as caught:
+        use_cases.refresh_models("install-1", "acc-1", connection_config={"tenant": "invalid"})
+    assert caught.value.status_code == 422
+    assert caught.value.detail == "Tenant has an invalid value"
+
+
+def test_discovery_accepts_required_setting_with_default(monkeypatch):
+    from core.application.settings import llm_provider_extension_repository as store
+    from core.application.settings.llm_provider_extension_use_cases import (
+        LlmProviderExtensionError,
+        LlmProviderExtensionUseCases,
+    )
+
+    descriptor = _remote_llm_a_descriptor()
+    block = descriptor["runtime"]["extension_contract_v2"]["llm_provider"]
+    block["required_provider_secrets"] = []
+    block["required_connection_config"] = ["tenant"]
+    block["connection_config_defaults"] = {"tenant": "one"}
+    block["connection_config_schema"] = {"tenant": {"type": "string", "enum": ["one", "two"]}}
+    contract = extract_llm_provider_contract(descriptor)
+    use_cases = LlmProviderExtensionUseCases(object(), get_logger_only=lambda: None)
+    monkeypatch.setattr(
+        use_cases,
+        "_resolve_install",
+        lambda *_a: (
+            {"install_id": "install-1", "release_id": "release-1", "descriptor_sha256": "a" * 64},
+            contract,
+            "install-1",
+            "fixture.remote-llm-a",
+            "Ext",
+        ),
+    )
+    monkeypatch.setattr(
+        "core.infrastructure.db.db_pool.transaction_connection",
+        lambda conn: contextlib.nullcontext(conn),
+    )
+    monkeypatch.setattr(
+        store,
+        "begin_install_discovery",
+        lambda *_a, **_k: _claimed_discovery_snapshot(
+            descriptor_jsonb=descriptor, llm_provider_connection_config={"tenant": "two"}
+        ),
+    )
+    reached = []
+
+    def capture(*_a, **kwargs):
+        reached.append(kwargs["connection_config"])
+        raise RuntimeError("provider reached")
+
+    monkeypatch.setattr(svc, "fetch_models_via_remote_runtime", capture)
+    monkeypatch.setattr(use_cases, "_record_failed_check", lambda *_a: None)
+    with pytest.raises(LlmProviderExtensionError) as caught:
+        use_cases.refresh_models("install-1", "acc-1", connection_config={"tenant": ""})
+    assert caught.value.status_code == 502
+    assert reached == [{}]

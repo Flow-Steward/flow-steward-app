@@ -241,7 +241,7 @@ def test_steps_are_filled_except_the_token(world) -> None:
     assert 'url = "https://fs.example.com/mcp"' in steps["mcp_config"]["content"]
     assert steps["mcp_config"]["uses_token"] is False
     assert steps["token_environment"]["content"] == 'export FLOW_STEWARD_TOKEN="{token}"'
-    assert steps["download_package"]["values"]["archive"] == "flow-steward-operator-1.0.0.zip"
+    assert steps["download_package"]["values"]["archive"] == "flow-steward-operator-1.0.1.zip"
     assert steps["download_package"]["url"].endswith("/releases/tag/v0.9.6")
     assert steps["open_readme"]["url"].endswith(
         f"/blob/v0.9.6/docs/agent-skills/flow-steward-operator/README.md#{OPENAI_CLI_ID}"

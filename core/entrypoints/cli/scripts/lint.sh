@@ -734,6 +734,8 @@ audit_toolchain_digest() {
     requirements-runtime.lock
     requirements-audit.txt
     requirements-semgrep.txt
+    core/application/tooling/quality/semgrep_distribution.py
+    core/application/tooling/quality/semgrep_inventory.py
     requirements-cli.lock
   )
   {
@@ -1872,11 +1874,24 @@ run_pip_audit() {
     > "${cli_report}" 2> "${cli_error}"; then
     true
   fi
-  if ! "${PYTHON_BIN}" -m pip_audit -f json --timeout 60 \
-    -r "${requirements_semgrep}" \
-    > "${semgrep_report}" 2> "${semgrep_error}"; then
-    true
+  local semgrep_inventory=""
+  semgrep_inventory="$(mktemp)"
+  if ! /opt/semgrep/bin/python -m core.application.tooling.quality.semgrep_inventory \
+    inventory /opt/semgrep/provenance.json "${semgrep_inventory}"; then
+    rm -f "${semgrep_inventory}"
+    return 1
   fi
+  local semgrep_audit_status=0
+  "${PYTHON_BIN}" -m pip_audit -f json --timeout 60 --no-deps --disable-pip \
+    -r "${semgrep_inventory}" \
+    > "${semgrep_report}" 2> "${semgrep_error}" || semgrep_audit_status=$?
+  if ! /opt/semgrep/bin/python -m core.application.tooling.quality.semgrep_inventory \
+    validate "${semgrep_inventory}" "${semgrep_report}" --audit-status "${semgrep_audit_status}"; then
+    cat "${semgrep_error}" >&2
+    rm -f "${semgrep_inventory}" "${runtime_audit_report}" "${runtime_audit_error}" "${cli_report}" "${cli_error}" "${semgrep_report}" "${semgrep_error}"
+    return 1
+  fi
+  rm -f "${semgrep_inventory}"
 
   if [[ ! -s "${runtime_audit_report}" ]]; then
     echo "[lint] pip-audit (runtime+audit): no JSON report produced." >&2

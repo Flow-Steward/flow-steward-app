@@ -287,3 +287,16 @@ def test_installed_sdk_edit_invalidates_otherwise_unrelated_gate_evidence(tmp_pa
         fingerprint_check(check, FingerprintContext(root=repo, source="commit", commit_sha=commit))
         == changed
     )
+
+
+def test_scanner_packaging_policy_invalidates_unrelated_cached_checks(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    check = _check(inputs=("assets/frontend/**",))
+    context = FingerprintContext(root=repo, source="worktree")
+    for name in ("semgrep_distribution.py", "semgrep_inventory.py"):
+        source = repo / "core/application/tooling/quality" / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("POLICY = 1\n")
+        before = fingerprint_check(check, context)
+        source.write_text("POLICY = 2\n")
+        assert fingerprint_check(check, context) != before

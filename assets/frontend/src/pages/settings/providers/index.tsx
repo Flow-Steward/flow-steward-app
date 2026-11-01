@@ -23,7 +23,7 @@ import {
   stringFromUnknownValue,
 } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { DsAlert, DsDialog, DsSelect, DsTable, RowActionMenu, Search } from "@/components/shared/design-system";
+import { DsAlert, DsDialog, DsSelect, DsTable, RequiredLabel, RowActionMenu, Search } from "@/components/shared/design-system";
 import { columnsFromGridConfig, visibleRowActions } from "@/components/shared/data-grid-adapter";
 import { invalidateModelRoutingQueries, providerErrorMessage } from "@/lib/utils/model-provider-state";
 import { normalizeModelOptions, type ModelOption } from "@/lib/utils/model-options";
@@ -155,21 +155,25 @@ function ProviderDialog({
       title={editingProviderId ? t("react.settings.edit_provider", "Edit provider") : t("react.settings.add_provider", "Add provider")}
     >
       <form className="fs-dialog-form" id="provider-form" noValidate onSubmit={onSubmit}>
+        <p className="fs-field-helper">{t("react.settings.provider_verification_charges", "Saving can run model capability checks that may incur provider charges.")}</p>
         <div className="fs-field">
-          <label className="fs-field-label" htmlFor="provider-name">{t("projects.grid.column.name", "Name")}</label>
+          <label htmlFor="provider-name"><RequiredLabel>{t("projects.grid.column.name", "Name")}</RequiredLabel></label>
           <input
             className="fs-input"
             id="provider-name"
+            aria-label={t("projects.grid.column.name", "Name")}
+            required
             onChange={(event) => updateField("name", event.target.value)}
             ref={nameRef}
             value={form.name}
           />
         </div>
         <div className="fs-field">
-          <label className="fs-field-label" htmlFor="provider-type">{t("react.settings.provider_type", "Provider type")}</label>
+          <label htmlFor="provider-type"><RequiredLabel>{t("react.settings.provider_type", "Provider type")}</RequiredLabel></label>
           <DsSelect
             ariaLabel={t("react.settings.provider_type", "Provider type")}
             id="provider-type"
+            required
             onChange={(providerType) => {
               setForm((current) => ({
                 ...current,
@@ -186,10 +190,13 @@ function ProviderDialog({
         <div className="fs-form-grid">
           {!usesOfficialEndpoint ? (
             <div className="fs-field">
-              <label className="fs-field-label" htmlFor="provider-base-url">{t("settings.model_providers.fields.base_url", "Base URL")}</label>
+              <label htmlFor="provider-base-url"><RequiredLabel>{t("settings.model_providers.fields.base_url", "Base URL")}</RequiredLabel></label>
               <input
                 className="fs-input"
                 id="provider-base-url"
+                aria-label={t("settings.model_providers.fields.base_url", "Base URL")}
+                required
+                type="url"
                 onChange={(event) => updateField("base_url", event.target.value)}
                 value={form.base_url}
               />
@@ -220,19 +227,23 @@ function ProviderDialog({
         {usesAzureEndpoint ? (
           <div className="fs-form-grid">
             <div className="fs-field">
-              <label className="fs-field-label" htmlFor="provider-api-version">{t("react.settings.api_version", "API version")}</label>
+              <label htmlFor="provider-api-version"><RequiredLabel>{t("react.settings.api_version", "API version")}</RequiredLabel></label>
               <input
                 className="fs-input"
                 id="provider-api-version"
+                aria-label={t("react.settings.api_version", "API version")}
+                required
                 onChange={(event) => updateField("api_version", event.target.value)}
                 value={form.api_version}
               />
             </div>
             <div className="fs-field">
-              <label className="fs-field-label" htmlFor="provider-deployment-name">{t("react.settings.deployment_name", "Deployment name")}</label>
+              <label htmlFor="provider-deployment-name"><RequiredLabel>{t("react.settings.deployment_name", "Deployment name")}</RequiredLabel></label>
               <input
                 className="fs-input"
                 id="provider-deployment-name"
+                aria-label={t("react.settings.deployment_name", "Deployment name")}
+                required
                 onChange={(event) => updateField("deployment_name", event.target.value)}
                 value={form.deployment_name}
               />

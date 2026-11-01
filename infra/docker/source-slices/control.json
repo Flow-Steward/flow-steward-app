@@ -357,6 +357,7 @@
     "core/application/workflows/workflow_portability_common.py",
     "core/application/workflows/workflow_portability_definitions.py",
     "core/application/workflows/workflow_portability_policy.py",
+    "core/application/workflows/workflow_portability_redaction.py",
     "core/application/workflows/workflow_reaction_events.py",
     "core/application/workflows/workflow_reaction_scope_repository.py",
     "core/application/workflows/workflow_start_runtime.py",

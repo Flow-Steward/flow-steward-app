@@ -102,6 +102,74 @@ def _numbers_manifest() -> dict[str, Any]:
     )
 
 
+def _regex_functions() -> list[dict[str, Any]]:
+    functions = []
+    for name, label, description, result_type in (
+        ("regex_find", "Regex find", "Find the first full regex match, or null.", "json"),
+        (
+            "regex_find_all",
+            "Regex find all",
+            "Find all full regex matches as an ordered string array.",
+            "array",
+        ),
+        (
+            "regex_replace",
+            "Regex replace",
+            "Replace the first regex match using Python replacement syntax.",
+            "string",
+        ),
+        (
+            "regex_replace_all",
+            "Regex replace all",
+            "Replace all regex matches using Python replacement syntax.",
+            "string",
+        ),
+    ):
+        parameters = [
+            {
+                "name": "value",
+                "type": "string",
+                "required": True,
+                "description": "Input text, at most 1048576 characters.",
+            },
+            {
+                "name": "pattern",
+                "type": "string",
+                "required": True,
+                "description": "Bare Python-compatible regex, at most 4096 characters.",
+            },
+            {
+                "name": "flags",
+                "type": "string",
+                "required": False,
+                "default": "",
+                "description": "Optional i/m/s/x/a flags, each at most once (5 characters maximum); no JavaScript delimiters or g flag.",
+            },
+        ]
+        if name.startswith("regex_replace"):
+            parameters.insert(
+                2,
+                {
+                    "name": "replacement",
+                    "type": "string",
+                    "required": True,
+                    "description": "Replacement text with Python group references; at most 4096 characters.",
+                },
+            )
+        functions.append(
+            {
+                "name": name,
+                "display_name": label,
+                "description": description,
+                "label_key": f"registry.tools.standard.text.{name}.label",
+                "description_key": f"registry.tools.standard.text.{name}.description",
+                "parameters": parameters,
+                "returns": _result_return(result_type),
+            }
+        )
+    return functions
+
+
 def _text_manifest() -> dict[str, Any]:
     return _standard_manifest(
         tool_id=_TEXT_TOOL_ID,
@@ -161,6 +229,7 @@ def _text_manifest() -> dict[str, Any]:
                 "parameters": [{"name": "value", "type": "json", "required": True}],
                 "returns": _result_return("integer"),
             },
+            *_regex_functions(),
         ],
     )
 

@@ -179,8 +179,11 @@ async function openBuilderSchedules(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function createPaused(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: "New schedule" }));
-  await user.click(screen.getByRole("button", { name: "Create schedule" }));
+  const create = await screen.findByRole("button", { name: "New schedule" });
+  expect(create).toBeEnabled();
+  await user.click(create);
+  await screen.findByRole("form", { name: "Schedule editor" });
+  await user.click(within(screen.getByTestId("workflow-schedule-editor-footer")).getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
 }
 
@@ -520,24 +523,26 @@ it("creates and reopens a paused schedule with contract-derived structured input
   const user = userEvent.setup();
   const utils = renderJourney(`${builderPath}?project_id=project-a&drawer=schedules`);
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Record key 1" }), { target: { value: "code" } });
-  fireEvent.change(screen.getByRole("textbox", { name: "Record value 1" }), { target: { value: "001" } });
-  await user.click(screen.getByRole("button", { name: "Add row" }));
-  expect(screen.getByRole("textbox", { name: "Record key 2" })).toHaveValue("");
-  fireEvent.change(screen.getByRole("textbox", { name: "Record key 2" }), { target: { value: "literal" } });
-  fireEvent.change(screen.getByRole("textbox", { name: "Record value 2" }), { target: { value: "true" } });
-  await user.click(screen.getByRole("button", { name: "Add item" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Items item 1" }), { target: { value: "false" } });
-  await user.click(screen.getByRole("button", { name: "Create schedule" }));
+  const editor = within(await screen.findByRole("form", { name: "Schedule editor" }));
+  fireEvent.change(editor.getByRole("textbox", { name: "Record key 1" }), { target: { value: "code" } });
+  fireEvent.change(editor.getByRole("textbox", { name: "Record value 1" }), { target: { value: "001" } });
+  await user.click(editor.getByRole("button", { name: "Add row" }));
+  expect(editor.getByRole("textbox", { name: "Record key 2" })).toHaveValue("");
+  fireEvent.change(editor.getByRole("textbox", { name: "Record key 2" }), { target: { value: "literal" } });
+  fireEvent.change(editor.getByRole("textbox", { name: "Record value 2" }), { target: { value: "true" } });
+  await user.click(editor.getByRole("button", { name: "Add item" }));
+  fireEvent.change(editor.getByRole("textbox", { name: "Items item 1" }), { target: { value: "false" } });
+  await user.click(within(screen.getByTestId("workflow-schedule-editor-footer")).getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toHaveLength(1);
   expect(state.jobs[0]).toMatchObject({ enabled: false, inputs: { record: { code: "001", literal: "true" }, items: ["false"] } });
   const previousReads = state.reads.filter((path) => path.endsWith("/scheduled-jobs")).length;
   await utils.invalidateQueries({ queryKey: ["projects", "scheduled-jobs", "project-a"] });
   await user.click(screen.getByRole("button", { name: /^Edit schedule: / }));
-  expect(screen.getByRole("textbox", { name: "Record value 1" })).toHaveValue("001");
-  expect(screen.getByRole("textbox", { name: "Record value 2" })).toHaveValue("true");
-  expect(screen.getByRole("textbox", { name: "Items item 1" })).toHaveValue("false");
+  const reopened = within(await screen.findByRole("form", { name: "Schedule editor" }));
+  expect(reopened.getByRole("textbox", { name: "Record value 1" })).toHaveValue("001");
+  expect(reopened.getByRole("textbox", { name: "Record value 2" })).toHaveValue("true");
+  expect(reopened.getByRole("textbox", { name: "Items item 1" })).toHaveValue("false");
   expect(state.reads.filter((path) => path.endsWith("/scheduled-jobs")).length).toBeGreaterThan(previousReads);
   for (const scope of state.historyReads) expect(scope).toEqual({ page: "1", per_page: "8", project_id: expect.stringMatching(/^(?:project-[ab]|foreign-project)$/), workflow_id: workflowId, task_source: "workflow_test_run" });
   expect(state.unexpected).toEqual([]);
@@ -550,20 +555,21 @@ it("blocks invalid structured edits and preserves nested types and undeclared va
   const user = userEvent.setup();
   const utils = renderJourney(`${builderPath}?project_id=project-a&drawer=schedules`);
   await user.click(await screen.findByRole("button", { name: /^Edit schedule: / }));
-  const nested = screen.getByRole("textbox", { name: "Record value 3" });
+  const editor = within(await screen.findByRole("form", { name: "Schedule editor" }));
+  const nested = editor.getByRole("textbox", { name: "Record value 3" });
   fireEvent.change(nested, { target: { value: '{"flags":' } });
   expect(nested).toHaveValue('{"flags":');
-  await user.click(screen.getByRole("button", { name: "Save schedule" }));
+  await user.click(within(screen.getByTestId("workflow-schedule-editor-footer")).getByRole("button", { name: "Save schedule" }));
   expect(state.writes).toEqual([]);
   expect(state.jobs[0]?.inputs).toEqual(initialInputs);
   fireEvent.change(nested, { target: { value: JSON.stringify(initialInputs.record.nested) } });
-  const item = screen.getByRole("textbox", { name: "Items item 1" });
+  const item = editor.getByRole("textbox", { name: "Items item 1" });
   fireEvent.change(item, { target: { value: '{"sku":' } });
-  await user.click(screen.getByRole("button", { name: "Save schedule" }));
+  await user.click(within(screen.getByTestId("workflow-schedule-editor-footer")).getByRole("button", { name: "Save schedule" }));
   expect(state.writes).toEqual([]);
   expect(item).toHaveValue('{"sku":');
   fireEvent.change(item, { target: { value: JSON.stringify(initialInputs.items[0]) } });
-  await user.click(screen.getByRole("button", { name: "Save schedule" }));
+  await user.click(within(screen.getByTestId("workflow-schedule-editor-footer")).getByRole("button", { name: "Save schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toHaveLength(1);
   expect(state.writes[0]).toMatchObject({ method: "PUT", path: "/api/projects/project-a/scheduled-jobs/stored-1", body: { enabled: false, inputs: initialInputs } });
@@ -571,12 +577,13 @@ it("blocks invalid structured edits and preserves nested types and undeclared va
   const previousReads = state.reads.filter((path) => path.endsWith("/scheduled-jobs")).length;
   await utils.invalidateQueries({ queryKey: ["projects", "scheduled-jobs", "project-a"] });
   await user.click(screen.getByRole("button", { name: /^Edit schedule: / }));
+  const reopened = within(await screen.findByRole("form", { name: "Schedule editor" }));
   expect(state.reads.filter((path) => path.endsWith("/scheduled-jobs")).length).toBeGreaterThan(previousReads);
-  expect(screen.getByRole("textbox", { name: "Record value 1" })).toHaveValue("true");
-  expect(screen.getByRole("textbox", { name: "Record value 2" })).toHaveValue("12");
-  expect(screen.getByRole("textbox", { name: "Record value 3" })).toHaveValue(JSON.stringify(initialInputs.record.nested));
-  expect(screen.getByRole("textbox", { name: "Items item 1" })).toHaveValue(JSON.stringify(initialInputs.items[0]));
-  expect(screen.getByRole("textbox", { name: "Items item 2" })).toHaveValue("5");
+  expect(reopened.getByRole("textbox", { name: "Record value 1" })).toHaveValue("true");
+  expect(reopened.getByRole("textbox", { name: "Record value 2" })).toHaveValue("12");
+  expect(reopened.getByRole("textbox", { name: "Record value 3" })).toHaveValue(JSON.stringify(initialInputs.record.nested));
+  expect(reopened.getByRole("textbox", { name: "Items item 1" })).toHaveValue(JSON.stringify(initialInputs.items[0]));
+  expect(reopened.getByRole("textbox", { name: "Items item 2" })).toHaveValue("5");
   for (const scope of state.historyReads) expect(scope).toEqual({ page: "1", per_page: "8", project_id: expect.stringMatching(/^(?:project-[ab]|foreign-project)$/), workflow_id: workflowId, task_source: "workflow_test_run" });
   expect(state.unexpected).toEqual([]);
 });

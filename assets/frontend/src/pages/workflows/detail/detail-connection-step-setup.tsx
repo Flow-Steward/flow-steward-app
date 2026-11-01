@@ -183,9 +183,10 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
             {t("react.workflows.tool_action_section", "Tool action")}</p>
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="block text-xs text-[var(--fs-text-secondary)]">
-              {connectorSelectLabel}
+              <RequiredLabel>{connectorSelectLabel}</RequiredLabel>
               <DsSelect
                 ariaLabel={connectorSelectLabel}
+                required
                 searchable
                 className="mt-1 fs-select-constrained"
                 onChange={(nextValue) => {
@@ -214,9 +215,10 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
               />
             </label>
             <label className="block text-xs text-[var(--fs-text-secondary)]">
-              <span>{t("security_overview.columns.action", "Action")}</span>
+              <RequiredLabel>{t("security_overview.columns.action", "Action")}</RequiredLabel>
               <DsSelect
                 ariaLabel={t("security_overview.columns.action", "Action")}
+                required
                 searchable
                 className="mt-1 fs-select-constrained"
                 onChange={(nextValue) => {
@@ -297,10 +299,11 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
           {renderWhen(connectionFieldShown, (
             // One control: pick a connection, or add one in the extension (new tab) and refresh here.
             <div className="block text-xs text-[var(--fs-text-secondary)]">
-              <span>{t("react.workflows.connection", "Connection")}</span>
+              {connectorConnectionRequired ? <RequiredLabel>{t("react.workflows.connection", "Connection")}</RequiredLabel> : <span>{t("react.workflows.connection", "Connection")}</span>}
               <div className="mt-1 flex items-center gap-2">
                 <DsSelect
                   ariaLabel={t("react.workflows.connection", "Connection")}
+                  required={Boolean(connectorConnectionRequired)}
                   className="min-w-0 flex-1"
                   describedBy={connectionHelpId}
                   invalid={connectionNeedsChoice && connectionChoosableHere}

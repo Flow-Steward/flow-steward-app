@@ -1,4 +1,6 @@
 # Semgrep has a dedicated dependency environment because its CLI pins versions
 # that intentionally differ from the application runtime dependency graph.
+# ADR 0049: verified upstream code with patched dependency metadata; built locally.
+pip==26.2
 setuptools==84.1.0
-semgrep==1.179.0
+semgrep==1.183.0+fs.1

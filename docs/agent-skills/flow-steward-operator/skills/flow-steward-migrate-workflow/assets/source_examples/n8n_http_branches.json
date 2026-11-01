@@ -1,0 +1,329 @@
+[
+  {
+    "source_url": "https://raw.githubusercontent.com/n8n-io/n8n/master/packages/nodes-base/nodes/HttpRequest/test/node/workflow.get.json",
+    "source_node_index": 1,
+    "derivation": "One branch extracted; pinData and fanout removed explicitly. Public test Authorization value replaced. Not a conversion of the complete source workflow.",
+    "workflow": {
+      "nodes": [
+        {
+          "parameters": {},
+          "id": "3db51d12-a71b-4d0d-84db-1d4c46454c40",
+          "name": "When clicking \"Execute Workflow\"",
+          "type": "n8n-nodes-base.manualTrigger",
+          "typeVersion": 1,
+          "position": [
+            160,
+            720
+          ]
+        },
+        {
+          "parameters": {
+            "url": "https://dummyjson.com/todos/1",
+            "options": {}
+          },
+          "id": "96f38d87-0bdd-420c-b981-26fd55d11cb2",
+          "name": "HTTP Request",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 3,
+          "position": [
+            460,
+            460
+          ]
+        }
+      ],
+      "connections": {
+        "When clicking \"Execute Workflow\"": {
+          "main": [
+            [
+              {
+                "node": "HTTP Request",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "source_url": "https://raw.githubusercontent.com/n8n-io/n8n/master/packages/nodes-base/nodes/HttpRequest/test/node/workflow.get.json",
+    "source_node_index": 2,
+    "derivation": "One branch extracted; pinData and fanout removed explicitly. Public test Authorization value replaced. Not a conversion of the complete source workflow.",
+    "workflow": {
+      "nodes": [
+        {
+          "parameters": {},
+          "id": "3db51d12-a71b-4d0d-84db-1d4c46454c40",
+          "name": "When clicking \"Execute Workflow\"",
+          "type": "n8n-nodes-base.manualTrigger",
+          "typeVersion": 1,
+          "position": [
+            160,
+            720
+          ]
+        },
+        {
+          "parameters": {
+            "url": "https://dummyjson.com/todos/3",
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "public-fixture-placeholder"
+                }
+              ]
+            },
+            "options": {}
+          },
+          "id": "85ca0a5b-3ff4-491d-ba51-990fdf2b757f",
+          "name": "HTTP Request fake header",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 3,
+          "position": [
+            460,
+            800
+          ]
+        }
+      ],
+      "connections": {
+        "When clicking \"Execute Workflow\"": {
+          "main": [
+            [
+              {
+                "node": "HTTP Request fake header",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "source_url": "https://raw.githubusercontent.com/n8n-io/n8n/master/packages/nodes-base/nodes/HttpRequest/test/node/workflow.get.json",
+    "source_node_index": 3,
+    "derivation": "One branch extracted; pinData and fanout removed explicitly. Public test Authorization value replaced. Not a conversion of the complete source workflow.",
+    "workflow": {
+      "nodes": [
+        {
+          "parameters": {},
+          "id": "3db51d12-a71b-4d0d-84db-1d4c46454c40",
+          "name": "When clicking \"Execute Workflow\"",
+          "type": "n8n-nodes-base.manualTrigger",
+          "typeVersion": 1,
+          "position": [
+            160,
+            720
+          ]
+        },
+        {
+          "parameters": {
+            "url": "https://dummyjson.com/todos",
+            "sendQuery": true,
+            "queryParameters": {
+              "parameters": [
+                {
+                  "name": "limit",
+                  "value": "2"
+                },
+                {
+                  "name": "skip",
+                  "value": "10"
+                }
+              ]
+            },
+            "options": {}
+          },
+          "id": "68d6e51a-66ea-45bf-928c-55efd2493cf0",
+          "name": "HTTP Request with query",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 3,
+          "position": [
+            460,
+            980
+          ]
+        }
+      ],
+      "connections": {
+        "When clicking \"Execute Workflow\"": {
+          "main": [
+            [
+              {
+                "node": "HTTP Request with query",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "source_url": "https://raw.githubusercontent.com/n8n-io/n8n/master/packages/nodes-base/nodes/HttpRequest/test/node/workflow.get.json",
+    "source_node_index": 4,
+    "derivation": "One branch extracted; pinData and fanout removed explicitly. Public test Authorization value replaced. Not a conversion of the complete source workflow.",
+    "workflow": {
+      "nodes": [
+        {
+          "parameters": {},
+          "id": "3db51d12-a71b-4d0d-84db-1d4c46454c40",
+          "name": "When clicking \"Execute Workflow\"",
+          "type": "n8n-nodes-base.manualTrigger",
+          "typeVersion": 1,
+          "position": [
+            160,
+            720
+          ]
+        },
+        {
+          "parameters": {
+            "url": "https://dummyjson.com/todos/1",
+            "sendHeaders": true,
+            "options": {}
+          },
+          "id": "38ec1a50-7f0e-4749-822d-f26370b00694",
+          "name": "HTTP Request empty header",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 3,
+          "position": [
+            460,
+            640
+          ]
+        }
+      ],
+      "connections": {
+        "When clicking \"Execute Workflow\"": {
+          "main": [
+            [
+              {
+                "node": "HTTP Request empty header",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "source_url": "https://raw.githubusercontent.com/n8n-io/n8n/master/packages/nodes-base/nodes/HttpRequest/test/node/workflow.post.json",
+    "source_node_index": 1,
+    "derivation": "One branch extracted; pinData and fanout removed explicitly. Public test Authorization value replaced. Not a conversion of the complete source workflow.",
+    "workflow": {
+      "nodes": [
+        {
+          "parameters": {},
+          "id": "12433cfb-74d9-4bf1-9afd-0ab9afc9ef19",
+          "name": "When clicking \"Execute Workflow\"",
+          "type": "n8n-nodes-base.manualTrigger",
+          "typeVersion": 1,
+          "position": [
+            820,
+            360
+          ]
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "https://dummyjson.com/todos/add",
+            "sendBody": true,
+            "bodyParameters": {
+              "parameters": [
+                {
+                  "name": "todo",
+                  "value": "Use DummyJSON in the project"
+                },
+                {
+                  "name": "completed",
+                  "value": "={{ false }}"
+                },
+                {
+                  "name": "userId",
+                  "value": "5"
+                }
+              ]
+            },
+            "options": {}
+          },
+          "id": "07670093-862f-403f-96a5-ddf7fdb0d225",
+          "name": "HTTP Request",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 3,
+          "position": [
+            1140,
+            200
+          ]
+        }
+      ],
+      "connections": {
+        "When clicking \"Execute Workflow\"": {
+          "main": [
+            [
+              {
+                "node": "HTTP Request",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  {
+    "source_url": "https://raw.githubusercontent.com/n8n-io/n8n/master/packages/nodes-base/nodes/HttpRequest/test/node/workflow.post.json",
+    "source_node_index": 2,
+    "derivation": "One branch extracted; pinData and fanout removed explicitly. Public test Authorization value replaced. Not a conversion of the complete source workflow.",
+    "workflow": {
+      "nodes": [
+        {
+          "parameters": {},
+          "id": "12433cfb-74d9-4bf1-9afd-0ab9afc9ef19",
+          "name": "When clicking \"Execute Workflow\"",
+          "type": "n8n-nodes-base.manualTrigger",
+          "typeVersion": 1,
+          "position": [
+            820,
+            360
+          ]
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "https://dummyjson.com/todos/add2",
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "{\"todo\":\"Use DummyJSON in the project\",\"completed\":false,\"userId\":15}",
+            "options": {}
+          },
+          "id": "db088210-2204-422c-823a-101afa464384",
+          "name": "HTTP Request1",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 3,
+          "position": [
+            1140,
+            440
+          ]
+        }
+      ],
+      "connections": {
+        "When clicking \"Execute Workflow\"": {
+          "main": [
+            [
+              {
+                "node": "HTTP Request1",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  }
+]

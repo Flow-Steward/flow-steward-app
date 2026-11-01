@@ -77,7 +77,7 @@ function stepSaveBlockingNotice(ctx: Record<string, any>, t: I18nContextValue["t
   const missingNames = Array.isArray(ctx.connectorMissingRequiredInputNames)
     ? ctx.connectorMissingRequiredInputNames
     : [];
-  return t("react.workflows.display_required_action_inputs_save", "Complete the required action inputs before saving: {names}.", { names: missingNames.join(", ") });
+  return t("react.workflows.correct_action_inputs_before_save", "Complete or correct the action inputs before saving: {names}.", { names: missingNames.join(", ") });
 }
 
 /**

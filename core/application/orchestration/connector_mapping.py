@@ -108,6 +108,16 @@ def _parse_literal_value(raw: str) -> Any:
 
 def _split_default_filter(token: str) -> tuple[str, Any, bool]:
     text = str(token or "").strip()
+    # A complete JSON literal is atomic: its contents may include filter syntax.
+    # A real trailing filter makes the suffix invalid JSON and follows the
+    # established selector/filter path below.
+    if text.startswith("literal:"):
+        try:
+            json.loads(text[len("literal:") :])
+        except (TypeError, ValueError):
+            pass
+        else:
+            return text, None, False
     if "|" not in text:
         return text, None, False
     selector, _, filter_text = text.partition("|")

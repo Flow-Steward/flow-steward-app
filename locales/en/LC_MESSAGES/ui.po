@@ -29036,3 +29036,69 @@ msgstr "Add Flow Steward as a custom MCP connector"
 
 msgid "react.agent_access.step_chatgpt_connector_description"
 msgstr "Add a custom MCP connector with this address. ChatGPT opens Flow Steward: sign in, choose the access and approve it. You copy no token."
+
+msgid "react.extensions.hide_json_for"
+msgstr "Hide JSON for {value0}"
+
+msgid "react.extensions.json_secret_invalid"
+msgstr "Enter a valid JSON object."
+
+msgid "react.extensions.show_edit_json_for"
+msgstr "Show/edit JSON for {value0}"
+
+msgid "react.settings.provider_verification_charges"
+msgstr "Saving can run model capability checks that may incur provider charges."
+
+msgid "react.workflows.correct_action_inputs_before_save"
+msgstr "Complete or correct the action inputs before saving: {names}."
+
+msgid "react.workflows.correct_action_inputs_before_testing"
+msgstr "Complete or correct the action inputs before testing:"
+
+msgid "react.workflows.literal_artifact_error"
+msgstr "Map a file artifact using a state path."
+
+msgid "react.workflows.literal_boolean_error"
+msgstr "Choose true or false."
+
+msgid "react.workflows.literal_integer_error"
+msgstr "Enter a whole number without a decimal point or exponent."
+
+msgid "react.workflows.literal_json_error"
+msgstr "Enter valid JSON."
+
+msgid "react.workflows.literal_number_error"
+msgstr "Enter a valid number."
+
+msgid "react.workflows.literal_schema_error"
+msgstr "Enter a value matching the field's type and limits."
+
+msgid "react.workflows.map_artifact_input"
+msgstr "Map a file artifact supplied or uploaded to the workflow using a state path."
+
+msgid "registry.tools.standard.text.regex_find.label"
+msgstr "Regex find"
+
+msgid "registry.tools.standard.text.regex_find.description"
+msgstr "Find the first full regex match, or null."
+
+msgid "registry.tools.standard.text.regex_find_all.label"
+msgstr "Regex find all"
+
+msgid "registry.tools.standard.text.regex_find_all.description"
+msgstr "Find all full regex matches as an ordered string array."
+
+msgid "registry.tools.standard.text.regex_replace.label"
+msgstr "Regex replace"
+
+msgid "registry.tools.standard.text.regex_replace.description"
+msgstr "Replace the first regex match using Python replacement syntax."
+
+msgid "registry.tools.standard.text.regex_replace_all.label"
+msgstr "Regex replace all"
+
+msgid "registry.tools.standard.text.regex_replace_all.description"
+msgstr "Replace all regex matches using Python replacement syntax."
+
+msgid "react.workflows.null_value"
+msgstr "Null value"

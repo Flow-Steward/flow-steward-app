@@ -40,7 +40,7 @@ const connection = {
 };
 const response = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
-function installMappingPage(kind: "connector" | "invoke_workflow", config: Record<string, unknown>, { enabled = true, rawInput, optionalQuery = false, childContract }: { enabled?: boolean; rawInput?: Record<string, unknown>; optionalQuery?: boolean; childContract?: Record<string, unknown> } = {}) {
+function installMappingPage(kind: "connector" | "invoke_workflow", config: Record<string, unknown>, { enabled = true, rawInput, optionalQuery = false, childContract, formFields }: { enabled?: boolean; rawInput?: Record<string, unknown>; optionalQuery?: boolean; childContract?: Record<string, unknown>; formFields?: Array<Record<string, unknown>> } = {}) {
   const selectedOperation = { ...operation, parameters: acceptingParameters.map((parameter) => optionalQuery && parameter.name === "query" ? { ...parameter, required: false } : parameter) };
   let revision = 7;
   let stored: Record<string, unknown> = {
@@ -58,7 +58,7 @@ function installMappingPage(kind: "connector" | "invoke_workflow", config: Recor
     const url = String(input);
     if (url.includes("/meta/connector-catalog")) return response({ connectors: [{ connector_id: "extension.fixture.mail", connector_install_id: "install-mail", extension_install_id: "install-mail", display_name: "Mapping fixture", operations: [selectedOperation], connections: [connection] }] });
     if (url.includes("/meta/extension-install-contract")) return response({ install_id: "install-mail", install_state: "active", extension_id: "fixture.mail", operations: [selectedOperation], connections: [connection] });
-    if (url.includes("/meta/extension-form-schema")) return response({ sections: [] });
+    if (url.includes("/meta/extension-form-schema")) return response({ sections: formFields ? [{ fields: formFields }] : [] });
     if (url.includes("/meta/callable-workflows")) return response({ workflows: [{ workflow_id: "mapping_child", display_name: "Mapping child", enabled: true, callable: true, trigger_channels: ["parent_workflow"], input_mode: "fields", expected_inputs: [{ name: "request", type: "string", required: true }, { name: "city", type: "string", required: false }], expected_outputs: [{ name: "summary", type: "string", required: false }], returned_files: [], ...childContract }] });
     if (url === "/api/workflows/weekly_report/changes" && init?.method === "POST") {
       if (typeof init.body !== "string") throw new Error("Expected actual JSON change set");
@@ -316,3 +316,75 @@ describe("direct Invoke requiredness", () => {
     } finally { view.unmount(); }
   }, MAPPING_JOURNEY_TIMEOUT);
 });
+
+
+it("blocks saving a required textarea after clearing or entering only whitespace", async () => {
+  const initial = { query: 'literal:"hello"' };
+  const boundary = installMappingPage("connector", connectorConfig(initial), {
+    rawInput: initial,
+    formFields: [{ name: "query", label: "Prompt", value_type: "text", widget_type: "textarea", required: true }],
+  });
+  const view = await openMappingPage();
+  try {
+    const prompt = await screen.findByRole("textbox", { name: "Parameter value 1" });
+    expect(prompt.tagName).toBe("TEXTAREA");
+    for (const value of ["", "   ", "\n"]) {
+      fireEvent.change(prompt, { target: { value } });
+      expect(screen.getByRole("button", { name: "Save parameters" })).toBeDisabled();
+      expect(boundary.writes).toHaveLength(0);
+    }
+    fireEvent.change(prompt, { target: { value: "valid" } });
+    expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
+    fireEvent.change(prompt, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
+    expect(await screen.findByRole("button", { name: "Run step test run" })).toBeDisabled();
+  } finally { view.unmount(); }
+}, MAPPING_JOURNEY_TIMEOUT);
+
+it("blocks saving decimal and exponent spellings for an integer input", async () => {
+  const initial = { query: "state.query", zero: "literal:1" };
+  const boundary = installMappingPage("connector", connectorConfig(initial), {
+    rawInput: initial,
+    formFields: [
+      { name: "query", label: "Query", value_type: "text", widget_type: "text", required: true },
+      { name: "zero", label: "Top N", value_type: "integer", widget_type: "integer", schema: { type: "integer", minimum: 1, maximum: 10 } },
+    ],
+  });
+  const view = await openMappingPage();
+  try {
+    const count = await screen.findByRole("spinbutton", { name: "Parameter value 2" });
+    for (const value of ["1.0", "1e1"]) {
+      fireEvent.change(count, { target: { value } });
+      expect(screen.getByRole("button", { name: "Save parameters" })).toBeDisabled();
+      expect(boundary.writes).toHaveLength(0);
+    }
+    fireEvent.change(count, { target: { value: "10" } });
+    expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
+  } finally { view.unmount(); }
+}, MAPPING_JOURNEY_TIMEOUT);
+
+it("saves and reopens a required nullable parameter as null", async () => {
+  const initial = { query: "literal:null", note: 'literal:"before"' };
+  const boundary = installMappingPage("connector", connectorConfig(initial), {
+    rawInput: initial,
+    formFields: [
+      { name: "query", label: "Prompt", value_type: "text", widget_type: "text", required: true, schema: { type: ["string", "null"] } },
+      { name: "note", label: "Note", value_type: "text", widget_type: "text", required: false, schema: { type: "string" } },
+    ],
+  });
+  const view = await openMappingPage();
+  try {
+    const source = await screen.findByRole("combobox", { name: "Parameter source 1" });
+    expect(within(source).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+    const save = screen.getByRole("button", { name: "Save parameters" });
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Parameter value 2" }), { target: { value: "after" } });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await screen.findByText("Parameters saved");
+    const expected = { query: "literal:null", note: 'literal:"after"' };
+    expect(currentPatch(boundary).input_mapping_jsonb).toEqual(expected);
+    const fresh = await readFreshMapping(view, boundary);
+    expect(objectOrEmpty(fresh.connector).input_mapping).toEqual(expected);
+  } finally { view.unmount(); }
+}, MAPPING_JOURNEY_TIMEOUT);

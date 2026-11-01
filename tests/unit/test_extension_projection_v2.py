@@ -385,3 +385,16 @@ def test_human_channel_event_flow() -> None:
     )
     assert flow["canonical_event"] == "approval.requested"
     assert flow["payload"]["job_id"] == 9
+
+
+def test_render_step_form_projects_operation_input_schema_and_type() -> None:
+    contract = _contract()
+    schema = {"type": "array", "minItems": 2, "items": {"type": "string"}}
+    contract["operation_manifest"][0]["inputs"] = [
+        {"name": "summary", "value_type": "array", "schema": schema}
+    ]
+    field = render_step_form(contract=contract, operation_id="create_issue")["sections"][0][
+        "fields"
+    ][0]
+    assert field["value_type"] == "array"
+    assert field["schema"] == schema

@@ -669,6 +669,19 @@ def render_step_form(
             "errors": [f"Missing step_ui_manifest for '{op_id}'"],
         }
 
+    operation = next(
+        (
+            item
+            for item in contract.get("operation_manifest", [])
+            if str(item.get("operation_id") or "").strip() == op_id
+        ),
+        {},
+    )
+    inputs = {
+        str(item.get("name") or "").strip(): item
+        for item in operation.get("inputs", [])
+        if isinstance(item, dict)
+    }
     rendered_sections: list[dict[str, Any]] = []
     errors: list[str] = []
     for row in step_rows:
@@ -696,6 +709,8 @@ def render_step_form(
             rendered_fields.append(
                 {
                     "name": field_name,
+                    "value_type": str(inputs.get(field_name, {}).get("value_type") or ""),
+                    "schema": dict(inputs.get(field_name, {}).get("schema") or {}),
                     "label": resolve_locale_string(
                         locale_bundles,
                         locale,

@@ -279,9 +279,10 @@ async function stageHookStep() {
   fireEvent.click(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" }));
   fireEvent.click(within(screen.getByRole("dialog", { name: "Add step to Before the order is finished" })).getByRole("button", { name: "StepA step in this hook." }));
   await choosePaletteOption("Set variable");
-  fireEvent.change(await screen.findByRole("textbox", { name: "Step label" }), { target: { value: "Pending client action" } });
-  expect(screen.getByRole("combobox", { name: "Step kind" })).toHaveValue("set_variable");
-  fireEvent.click(screen.getByRole("button", { name: "Update new step" }));
+  const editor = await screen.findByRole("dialog", { name: "Step editor" });
+  fireEvent.change(await within(editor).findByRole("textbox", { name: "Step label" }), { target: { value: "Pending client action" } });
+  expect(within(editor).getByRole("combobox", { name: "Step kind" })).toHaveValue("set_variable");
+  fireEvent.click(within(editor).getByRole("button", { name: "Update new step" }));
   await screen.findByRole("group", { name: "Open step Pending client action" });
 }
 
@@ -1188,7 +1189,8 @@ it("keeps unfinished connector mapping values inside their owning hook when chil
     const [frame] = matchingFrames;
     fireEvent.contextMenu(frame);
     await userEvent.click(screen.getByRole("menuitem", { name: "Open" }));
-    await screen.findByDisplayValue(`hook:${hookId}:fix_name`);
+    const editor = await screen.findByRole("dialog", { name: "Step editor" });
+    await within(editor).findByDisplayValue(`hook:${hookId}:fix_name`);
   }
 
   // Load both client definitions before switching: a loading remount must not

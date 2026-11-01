@@ -85,8 +85,10 @@ def _inline_payload_from_bytes(payload: bytes, content_type: str) -> tuple[Any, 
             return parsed, json.dumps(parsed, ensure_ascii=False)[:RESPONSE_TEXT_EXCERPT_CHARS]
         except Exception:
             pass
-    excerpt = _decode_excerpt(payload, content_type)
-    return excerpt, excerpt
+    # The caller already enforces max_response_bytes. Only diagnostics are excerpts;
+    # downstream workflow steps need the complete bounded source, just as for JSON.
+    text = _decode_text(payload, content_type)
+    return text, text[:RESPONSE_TEXT_EXCERPT_CHARS]
 
 
 def _collect_inline_body(chunks: Iterable[bytes], max_size: int) -> tuple[bool, bytes]:

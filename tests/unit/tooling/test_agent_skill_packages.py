@@ -29,6 +29,7 @@ SHARED = {"flow-steward-report-issue"}
 PACKAGE_SKILLS = {
     "flow-steward-operator": {
         "flow-steward-workflow-authoring",
+        "flow-steward-migrate-workflow",
         "flow-steward-publish-workflow",
     }
     | SHARED,

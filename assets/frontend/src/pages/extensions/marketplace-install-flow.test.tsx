@@ -527,8 +527,16 @@ const LIST_URL = "/extensions?mk_view=list#marketplace";
 const GRID_URL = "/extensions#marketplace";
 const ARCHIVE_MISMATCH = "The downloaded archive did not match the catalog's checksum.";
 
-function quickUpdate(version: string) {
-  return screen.findByRole("button", { name: `Update to v${version}: Acme CRM` });
+async function quickUpdate(version: string) {
+  // The catalog and archive capability settle independently. Wait for both
+  // before clicking, including when the full suite delays their notifications.
+  const button = await screen.findByRole(
+    "button",
+    { name: `Update to v${version}: Acme CRM` },
+    { timeout: 5_000 },
+  );
+  await waitFor(() => expect(button).toBeEnabled(), { timeout: 5_000 });
+  return button;
 }
 
 function noticeOn(extensionId: string) {

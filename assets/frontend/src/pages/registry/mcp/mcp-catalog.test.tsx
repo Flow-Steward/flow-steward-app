@@ -556,6 +556,7 @@ describe("McpCatalogPanel", () => {
 
     await user.click(within(dialog).getByRole("combobox", { name: "Connect with" }));
     await user.click(screen.getByRole("option", { name: /monday.com API token/u }));
+    expect(within(dialog).getByLabelText("Authorization")).toBeRequired();
     await user.type(within(dialog).getByLabelText("Authorization"), "Bearer token-1");
     await user.click(within(dialog).getByRole("button", { name: "Install" }));
 
@@ -566,6 +567,21 @@ describe("McpCatalogPanel", () => {
         PROJECT,
       ),
     );
+  });
+
+  it("exposes required and optional catalog header semantics", async () => {
+    const user = userEvent.setup();
+    serve([item({ item_id: "headers", title: "Headers", remotes: [remote({
+      headers: [
+        { name: "X-Tenant", description: "", required: true, secret: false },
+        { name: "X-Region", description: "", required: false, secret: true },
+      ],
+    })] })]);
+    showPanel();
+    await user.click(within(await screen.findByRole("article", { name: "Headers" })).getByRole("button", { name: "Connect" }));
+    const dialog = screen.getByRole("dialog", { name: "Headers" });
+    expect(within(dialog).getByRole("textbox", { name: "X-Tenant" })).toBeRequired();
+    expect(within(dialog).getByLabelText("X-Region")).not.toBeRequired();
   });
 
   it("shows the catalog's sign-in settings filled in and sends them as edited", async () => {
@@ -649,6 +665,7 @@ describe("McpCatalogPanel", () => {
 
     await user.click(within(await screen.findByRole("article", { name: "Freshdesk" })).getByRole("button", { name: "Connect" }));
     const dialog = screen.getByRole("dialog", { name: "Freshdesk" });
+    expect(within(dialog).getByLabelText("API key")).toBeRequired();
     await user.type(within(dialog).getByLabelText(/Freshdesk subdomain/u), "acme");
     expect(within(dialog).getByLabelText(/Instance path/u)).toHaveValue("mcp"); // no label: the name, readable
     await user.type(within(dialog).getByLabelText(/API key/u), "key-1");

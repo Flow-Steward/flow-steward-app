@@ -255,13 +255,14 @@ def test_cli_lifecycle_dependencies_do_not_justify_product_environment_export() 
 
 
 def test_semgrep_needs_no_pyjwt_risk_acceptance() -> None:
-    """Semgrep 1.179.0 permits the patched PyJWT; its tool exception is gone, not extended."""
+    """The patched scanner graph requires no vulnerability acceptance."""
     acceptance = (ROOT / "infra/tooling/quality/pip-audit-risk-acceptance.md").read_text(
         encoding="utf-8"
     )
 
     assert "### pyjwt /" not in acceptance
-    assert "Semgrep 1.179.0" in acceptance
+    assert "### " not in acceptance
+    assert "semgrep==1.183.0+fs.1" in acceptance
 
 
 def test_cli_docker_target_is_isolated_hashed_runtime_with_docker_tools() -> None:

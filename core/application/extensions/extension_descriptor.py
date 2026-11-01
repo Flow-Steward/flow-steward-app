@@ -79,7 +79,8 @@ EXTENSION_DESCRIPTOR_SCHEMA_VERSION = "extension_descriptor_v1"
 # secret field (what to enter, in which format). A bundle that declares either
 # sets platform_min 1.3.0; an older host forbids the fields and refuses the
 # bundle as below its required minimum.
-DEFAULT_FS_RUNTIME_VERSION = "1.3.0"
+# 1.4.0: generic declared string settings and JSON-object secret format.
+DEFAULT_FS_RUNTIME_VERSION = "1.4.0"
 
 _ARTIFACT_ENTRY_ID_FIELDS = (
     "workflow_id",
@@ -809,6 +810,37 @@ def _validate_llm_provider_contract(
     except Exception as exc:
         errors.append({"path": _LLM_PROVIDER_CONTRACT_PATH, "message": str(exc)})
         return
+
+    nonlegacy_fields = set(
+        contract.required_connection_config + contract.optional_connection_config
+    ) - {"upstream_base_url"}
+    if (nonlegacy_fields or "connection_config_schema" in raw) and compare_semver(
+        descriptor.runtime.compatibility.platform_min,
+        "1.4.0",
+        field_name=RUNTIME_COMPATIBILITY_PLATFORM_MIN_VALUE,
+    ) < 0:
+        errors.append(
+            {
+                "path": RUNTIME_COMPATIBILITY_PLATFORM_MIN_VALUE,
+                "message": "LLM provider generic settings require host contract 1.4.0 or later",
+            }
+        )
+
+    if (
+        "provider_secret_formats" in raw
+        and compare_semver(
+            descriptor.runtime.compatibility.platform_min,
+            "1.4.0",
+            field_name=RUNTIME_COMPATIBILITY_PLATFORM_MIN_VALUE,
+        )
+        < 0
+    ):
+        errors.append(
+            {
+                "path": RUNTIME_COMPATIBILITY_PLATFORM_MIN_VALUE,
+                "message": "LLM provider secret formats require host contract 1.4.0 or later",
+            }
+        )
 
     required_mode = (
         ExecutionMode.remote_https

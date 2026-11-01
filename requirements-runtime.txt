@@ -69,3 +69,6 @@ pydantic-core==2.41.5
 jsonschema==4.26.0
 cryptography==50.0.0
 pyjwt[crypto]==2.15.1
+
+# Timeout-capable deterministic Standard Tools regex actions
+regex==2026.9.10

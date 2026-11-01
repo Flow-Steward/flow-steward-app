@@ -585,7 +585,7 @@ export function StepEditorSurface({
                   className="rounded-lg border border-attention fs-surface-attention px-3 py-2 text-xs fs-ink-attention"
                   role="alert"
                 >
-                  {t("react.workflows.complete_the_required_action_inputs_before_testing", "Complete the required action inputs before testing:")}{" "}{(
+                  {t("react.workflows.correct_action_inputs_before_testing", "Complete or correct the action inputs before testing:")}{" "}{(
                     Array.isArray(connectorMissingRequiredInputNames)
                       ? connectorMissingRequiredInputNames
                       : []

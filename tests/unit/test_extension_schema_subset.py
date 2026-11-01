@@ -24,7 +24,6 @@ from core.application.extensions.json_schema_subset import (
     validate_json_schema_value,
 )
 
-
 #: The two shapes the platform's validator has to execute, written here rather
 #: than read from a bundle: what is under test is the validator. That an extension's
 #: own schemas are executable is checked by `extensions validate` in its repository.
@@ -202,8 +201,6 @@ class TestAlternativeTypesAreExecuted:
         assert errors == ["config[0]: expected type string"]
 
 
-
-
 class TestTheAuthorFacingToolAnswersTheSchemaQuestion:
     """`validate_extensions` had no notion of schemas at all.
 
@@ -247,3 +244,41 @@ class TestTheAuthorFacingToolAnswersTheSchemaQuestion:
 
         assert findings
         assert "extension.yaml" in findings[0]
+
+
+class TestConnectorLiteralAuthority:
+    @pytest.mark.parametrize(
+        ("pattern", "value", "valid"),
+        [
+            (r"^(?P<id>[0-9]+)$", "123", True),
+            (r"^\d+$", "١٢٣", True),
+            (
+                r"^[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*(?:docx|doc|rtf|pptx|ppt|html|mhtml|image|pdf|asciidoc|md|csv|xlsx|xls|odt|ods|odp|xml_uspto|xml_jats|xml_xbrl|xml_doclang|dclx|mets_gbs|json_docling|audio|video|vtt|latex|email|epub|boxnote|iwork_pages|iwork_keynote|iwork_numbers|ebcdic|afp)?[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$",
+                "pdfx",
+                False,
+            ),
+        ],
+    )
+    def test_python_patterns_are_authoritative(self, pattern: str, value: str, valid: bool) -> None:
+        assert (not _errors({"type": "string", "pattern": pattern}, value)) is valid
+
+    @pytest.mark.parametrize("keyword", ["enum", "const"])
+    def test_json_equality_ignores_object_order_but_not_array_order(self, keyword: str) -> None:
+        expected = {"a": 1, "nested": {"x": True, "y": [1, {"p": "v", "q": None}]}}
+        schema = {keyword: [expected] if keyword == "enum" else expected}
+        value = {"nested": {"y": [1, {"q": None, "p": "v"}], "x": True}, "a": 1}
+        assert _errors(schema, value) == []
+        assert _errors(schema, {"nested": {"y": [{"q": None, "p": "v"}, 1], "x": True}, "a": 1})
+
+    @pytest.mark.parametrize("keyword", ["enum", "const"])
+    def test_untyped_equality_uses_python_boolean_number_semantics(self, keyword: str) -> None:
+        expected = {"items": [True, 0, None]}
+        schema = {keyword: [expected] if keyword == "enum" else expected}
+        assert _errors(schema, {"items": [1, False, None]}) == []
+        assert _errors(schema, {"items": [1, False, 0]})
+
+    @pytest.mark.parametrize(
+        "schema", [{"type": "string", "minLength": 1}, {"type": "string", "enum": ["ready"]}]
+    )
+    def test_explicit_empty_string_is_validated(self, schema: dict) -> None:
+        assert _errors(schema, "")

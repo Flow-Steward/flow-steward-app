@@ -443,9 +443,15 @@ RUN pip install --no-cache-dir --require-hashes -r requirements-cli.lock \
     && pip install --no-cache-dir -r requirements-audit.txt \
     && python -m pip check
 
+COPY core/application/tooling/quality/semgrep_distribution.py core/application/tooling/quality/semgrep_distribution.py
+COPY core/application/tooling/quality/semgrep_inventory.py core/application/tooling/quality/semgrep_inventory.py
 RUN python -m venv /opt/semgrep \
-    && /opt/semgrep/bin/pip install --no-cache-dir -r requirements-semgrep.txt \
+    && python -m pip download --no-deps --only-binary=:all: --dest /tmp/semgrep-upstream semgrep==1.183.0 \
+    && python -m core.application.tooling.quality.semgrep_distribution /tmp/semgrep-upstream /tmp/semgrep-wheels /opt/semgrep/provenance.json \
+    && /opt/semgrep/bin/pip install --no-cache-dir --find-links /tmp/semgrep-wheels -r requirements-semgrep.txt \
     && /opt/semgrep/bin/pip check \
+    && /opt/semgrep/bin/python -m core.application.tooling.quality.semgrep_inventory inventory /opt/semgrep/provenance.json /opt/semgrep/audit-inventory.txt \
+    && rm -rf /tmp/semgrep-upstream /tmp/semgrep-wheels \
     && /opt/semgrep/bin/semgrep --version \
     && printf '%s\n' \
         '#!/bin/sh' \

@@ -1026,6 +1026,7 @@
     "core/application/workflows/workflow_portability_hook_bindings.py",
     "core/application/workflows/workflow_portability_import.py",
     "core/application/workflows/workflow_portability_policy.py",
+    "core/application/workflows/workflow_portability_redaction.py",
     "core/application/workflows/workflow_portability_resolution.py",
     "core/application/workflows/workflow_portability_rewrite.py",
     "core/application/workflows/workflow_provider_trigger_repository.py",
@@ -1673,6 +1674,10 @@
     {
       "path": "core/application/orchestration/tools/standard_tools.py",
       "consumer": "core.application.registry.builtin_standard_tools:_STANDARD_TOOLS_MODULE (internal tool implementation.module)"
+    },
+    {
+      "path": "core/application/orchestration/tools/regex_actions.py",
+      "consumer": "core.application.orchestration.tools.standard_tools: imported Standard Tools regex actions"
     },
     {
       "path": "core/entrypoints/cli/lifecycle_click_app.py",

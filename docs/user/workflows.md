@@ -1547,6 +1547,14 @@ The result includes:
 - selected response headers;
 - rendered request metadata.
 
+Exports preserve credential wiring expressed as a whole state reference, such as
+`{{ state.inputs.provider_credential }}` or `{source: state.inputs.provider_credential}`.
+A standard `Bearer`, `Basic` or `Token` prefix may precede a whole reference.
+Literal credentials in sensitive fields (including authorization and API-key
+headers), mixed literal/reference values, and fallback expressions are redacted.
+Configured secret defaults and runtime secret records are not transferred;
+configure the secret input on the importing installation.
+
 ## Nested Workflows
 
 `invoke_workflow` lets a parent workflow run a callable child workflow.

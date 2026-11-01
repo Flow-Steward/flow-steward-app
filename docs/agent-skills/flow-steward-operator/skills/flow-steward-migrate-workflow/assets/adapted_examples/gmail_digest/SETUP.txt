@@ -1,0 +1,10 @@
+FULL DISABLED UNBOUND DRAFT: 2722
+Not ready to import or run. Bind all connector symbols to documented installed operations, verify provisional arguments/result projections, configure required inputs/secrets and model integrations. No network/API/provider calls or source JavaScript execution occurred.
+
+BEHAVIOR CHANGES
+- Original query is sender/address text plus after:yesterday calendar date, not a rolling 24h interval. Draft preserves after:YYYY/MM/DD using the prior calendar date in configured IANA timezone; Gmail interprets the literal date using its provider search semantics. There is no fabricated rolling 24h or upper cutoff. Subject exposes query and run-start snapshot.
+- 07:00 schedule is preserved as setup requirement; schedules are not created offline. SMTP replaces Gmail send channel; from/reply-to belong to SMTP connection.
+- At most 100 messages and 200000 supplied characters; next_cursor/truncated/oversized inputs fail before summary/send. No silent truncation.
+- Subject exposes actual query and run-start snapshot instead of claiming a precise 07:00 cutoff on delayed/manual runs. Escaped native HTML Template replaces source raw HTML insertion.
+
+See setup.json for exact dependency and query contracts. Schedule metadata is an installation instruction, not an installed schedule. All child workflows and inline agent/skill definitions are included. Unknown provider writes must be reconciled before retry.

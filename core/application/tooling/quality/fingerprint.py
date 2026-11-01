@@ -27,6 +27,8 @@ _GATE_INPUTS = (
     "infra/docker/Dockerfile",
     "requirements-audit.txt",
     "requirements-semgrep.txt",
+    "core/application/tooling/quality/semgrep_distribution.py",
+    "core/application/tooling/quality/semgrep_inventory.py",
     "requirements-cli.lock",
     # The audit image inherits the runtime packages too (runtime-dependencies stage).
     "requirements-runtime.lock",
@@ -99,6 +101,16 @@ def fingerprint_check(check: CheckDefinition, context: FingerprintContext) -> st
         runtime_identity["pip_audit_acceptance_utc_date"] = (
             pip_audit_acceptance.acceptance_evaluation_date().isoformat()
         )
+        # The scanner is audited as installed. A rebuild with the same declared
+        # requirements may resolve different transitive versions; bind reuse to
+        # that concrete graph and its verified upstream artifact receipt.
+        for artifact in ("audit-inventory.txt", "provenance.json"):
+            installed = Path("/opt/semgrep") / artifact
+            runtime_identity[f"scanner_{artifact}"] = (
+                hashlib.sha256(installed.read_bytes()).hexdigest()
+                if installed.is_file()
+                else "unavailable"
+            )
     for key, value in sorted(runtime_identity.items()):
         _feed(digest, f"runtime:{key}", value.encode("utf-8"))
     return digest.hexdigest()

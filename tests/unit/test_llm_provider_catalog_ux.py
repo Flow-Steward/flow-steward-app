@@ -402,11 +402,12 @@ def test_host_contract_1_3_0_accepts_field_help_for_declared_fields() -> None:
     )
     descriptor["runtime"]["compatibility"] = {"platform_min": "1.3.0"}
 
-    assert DEFAULT_FS_RUNTIME_VERSION == "1.3.0"
+    assert DEFAULT_FS_RUNTIME_VERSION == "1.4.0"
     contract = extract_llm_provider_contract(descriptor)
     assert contract.connection_config_help == {"upstream_base_url": _BASE_URL_HELP}
     assert contract.provider_secret_help == {"api_key": _KEY_HELP}
     assert validate_extension_descriptor(descriptor)["valid"] is True
+    assert validate_extension_descriptor(descriptor, platform_version="1.3.0")["valid"] is True
     assert (
         _platform_compatibility_error(descriptor, platform_version=_runtime_platform_version())
         == ""
@@ -526,3 +527,68 @@ def test_field_labels(name, label) -> None:
     from core.application.settings.llm_provider_extension_service import llm_field_label
 
     assert llm_field_label(name) == label
+
+
+def test_generic_setting_save_preserves_bytes_and_invalidates_changed_slash(monkeypatch):
+    use_cases, stored = _saving(monkeypatch, existing_config={"tenant_path": "tenant"})
+    _with_contract(
+        monkeypatch,
+        use_cases,
+        optional_connection_config=["tenant_path"],
+        connection_config_schema={"tenant_path": {"type": "string", "maxLength": 20}},
+    )
+    result = use_cases.save_credentials(
+        "pi_acme", "acc-1", secrets={}, connection_config={"tenant_path": "tenant/"}
+    )
+    assert stored["install"] == {"tenant_path": "tenant/"}
+    assert result["verification_invalidated"] is True
+
+
+def test_generic_setting_default_and_invalid_save(monkeypatch):
+    from core.application.settings.llm_provider_extension_use_cases import LlmProviderExtensionError
+
+    use_cases, stored = _saving(monkeypatch, existing_config={"tenant": "one"})
+    _with_contract(
+        monkeypatch,
+        use_cases,
+        optional_connection_config=["tenant"],
+        connection_config_defaults={"tenant": "one"},
+        connection_config_schema={"tenant": {"type": "string", "enum": ["one", "two"]}},
+    )
+    result = use_cases.save_credentials(
+        "pi_acme", "acc-1", secrets={}, connection_config={"tenant": ""}
+    )
+    assert stored["install"] == {}
+    assert stored["source"] == {}
+    assert result["verification_invalidated"] is False
+    with pytest.raises(LlmProviderExtensionError):
+        use_cases.save_credentials(
+            "pi_acme", "acc-1", secrets={}, connection_config={"tenant": "invalid"}
+        )
+
+
+def test_legacy_browser_manifest_does_not_gain_schema_metadata():
+    from core.application.extensions.browser_manifest_projection import project_browser_manifest
+    from tests.unit.test_llm_provider_in_process import _subprocess_descriptor
+
+    contract = project_browser_manifest(_subprocess_descriptor())["runtime"][
+        "extension_contract_v2"
+    ]["llm_provider"]
+    assert "connection_config_schema" not in contract
+
+
+def test_required_setting_may_use_declared_default(monkeypatch):
+    use_cases, stored = _saving(monkeypatch, existing_config={"tenant": "one"})
+    _with_contract(
+        monkeypatch,
+        use_cases,
+        required_connection_config=["tenant"],
+        optional_connection_config=[],
+        connection_config_defaults={"tenant": "one"},
+        connection_config_schema={"tenant": {"type": "string", "enum": ["one", "two"]}},
+    )
+    result = use_cases.save_credentials(
+        "pi_acme", "acc-1", secrets={}, connection_config={"tenant": ""}
+    )
+    assert stored["install"] == {}
+    assert result["verification_invalidated"] is False

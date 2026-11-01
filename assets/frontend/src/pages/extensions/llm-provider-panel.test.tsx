@@ -78,9 +78,99 @@ describe("LlmProviderPanel", () => {
       },
     ] as never);
     mockedRefreshModels.mockResolvedValue({} as never);
-    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [{ name: "api_key" }], last_check: null });
     mockedSaveCredentials.mockResolvedValue({} as never);
     mockedSetModelEnabled.mockResolvedValue({} as never);
+  });
+
+  it("keeps a JSON secret private until explicitly edited and preserves its exact multiline value", async () => {
+    const user = userEvent.setup();
+    renderPanel({ required_provider_secrets: ["credential"], provider_secret_formats: { credential: "json_object" } }, { installEnabled: false });
+    await waitFor(() => expect(mockedFetchStatus).toHaveBeenCalled());
+    expect(screen.getByLabelText("Credential")).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Show/edit JSON for Credential" }));
+    const value = '{\n  "payload": "first\\nsecond"\n}\n';
+    const editor = screen.getByRole("textbox", { name: "Credential" });
+    fireEvent.change(editor, { target: { value } });
+    await user.click(screen.getByRole("button", { name: "Hide JSON for Credential" }));
+    expect(screen.getByLabelText("Credential")).toHaveAttribute("type", "password");
+    await user.click(screen.getByRole("button", { name: "Show/edit JSON for Credential" }));
+    expect(screen.getByRole("textbox", { name: "Credential" })).toHaveValue(value);
+    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(mockedSaveCredentials).toHaveBeenCalledWith("install-1", expect.objectContaining({ secrets: { credential: value } })));
+    expect(mockedRefreshModels).not.toHaveBeenCalled();
+  });
+
+  it.each(["{", "null", "[]", '"text"', "42"])("rejects a non-object JSON credential without exposing it: %s", async (value) => {
+    const user = userEvent.setup();
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [{ name: "credential" }], last_check: null });
+    renderPanel({ required_provider_secrets: ["credential"], provider_secret_formats: { credential: "json_object" } });
+    await screen.findByText("Credential saved");
+    await user.click(screen.getByRole("button", { name: "Show/edit JSON for Credential" }));
+    const editor = screen.getByRole("textbox", { name: "Credential" });
+    fireEvent.change(editor, { target: { value } });
+    expect(editor).toHaveAttribute("aria-invalid", "true");
+    expect(editor).toHaveAccessibleDescription(/enter a valid JSON object/i);
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Discover models" })).toBeDisabled();
+    const verify = await screen.findByRole("button", { name: "Add owner/model" });
+    expect(verify).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(verify);
+    expect(mockedSaveCredentials).not.toHaveBeenCalled();
+    expect(mockedRefreshModels).not.toHaveBeenCalled();
+    expect(mockedSetModelEnabled).not.toHaveBeenCalled();
+  });
+
+  it("allows a blank saved JSON secret and retains ordinary password fields", async () => {
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [{ name: "credential" }, { name: "api_key" }], last_check: null });
+    renderPanel({ required_provider_secrets: ["credential", "api_key"], provider_secret_formats: { credential: "json_object" } }, { installEnabled: false });
+    await screen.findByText("Credential saved");
+    expect(screen.getByLabelText("Credential")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("API key")).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(mockedSaveCredentials).toHaveBeenCalledWith("install-1", expect.objectContaining({ secrets: {} })));
+  });
+
+  it("keeps Remove available while a JSON secret draft is invalid", async () => {
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [{ name: "credential" }], last_check: null });
+    mockedFetchSources.mockResolvedValue([{ id: "source-1", extension_install_id: "install-1", models: [
+      { id: "model-row-1", model_id: "owner/model", enabled: true, verification_status: "passed" },
+    ] }] as never);
+    const user = userEvent.setup();
+    renderPanel({ required_provider_secrets: ["credential"], provider_secret_formats: { credential: "json_object" } });
+    await screen.findByText("Credential saved");
+    await user.click(screen.getByRole("button", { name: "Show/edit JSON for Credential" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Credential" }), { target: { value: "{" } });
+    const remove = await screen.findByRole("button", { name: "Remove owner/model" });
+    expect(remove).not.toHaveAttribute("aria-disabled", "true");
+    await user.click(remove);
+    await waitFor(() => expect(mockedSetModelEnabled).toHaveBeenCalledWith("model-row-1", false));
+  });
+
+  it("requires a new unsaved API key but allows saving once it is entered", async () => {
+    const user = userEvent.setup();
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
+    renderPanel({ required_provider_secrets: ["api_key"] }, { installEnabled: false });
+    await screen.findByText("No API key saved");
+    const key = screen.getByLabelText("API key");
+    expect(key).toHaveAttribute("type", "password");
+    expect(key).toBeRequired();
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+    await user.type(key, "example-key");
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeEnabled();
+  });
+
+  it("does not assume an unknown saved secret while status is loading or unavailable", async () => {
+    mockedFetchStatus.mockRejectedValue(new Error("status unavailable"));
+    const user = userEvent.setup();
+    renderPanel({ required_provider_secrets: ["api_key"] }, { installEnabled: false });
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+    await waitFor(() => expect(mockedFetchStatus).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+    await user.type(screen.getByLabelText("API key"), "example-key");
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeEnabled();
   });
 
   it("blocks disabled discovery and every verification action while preserving Remove and historical status", async () => {
@@ -356,6 +446,7 @@ describe("LlmProviderPanel", () => {
   });
 
   it("asks an in-process provider only for its own settings", async () => {
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
     const user = userEvent.setup();
     renderPanel(
       {
@@ -758,6 +849,7 @@ describe("LlmProviderPanel", () => {
     // The product owner tried https://ollama.com, …/api/chat and …/v1 and could
     // not tell which was right: the form now says what the default is and what
     // format the extension expects, in the extension's own words.
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
     renderPanel(
       {
         optional_provider_secrets: ["api_key"],
@@ -844,6 +936,7 @@ describe("LlmProviderPanel", () => {
   });
 
   it("says when no key is saved for a key the provider needs", async () => {
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
     renderPanel({ required_provider_secrets: ["api_key"] }, { runtimeMode: "subprocess" });
 
     expect(await screen.findByText("No API key saved")).toHaveClass("fs-field-helper", "error");
@@ -851,6 +944,7 @@ describe("LlmProviderPanel", () => {
   });
 
   it("stays quiet about an optional key nobody described", async () => {
+    mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
     renderPanel({ optional_provider_secrets: ["api_key"] }, { runtimeMode: "subprocess" });
     await screen.findByText("Not checked yet.");
 
@@ -982,4 +1076,64 @@ describe("LlmProviderPanel", () => {
     await user.click(screen.getByRole("button", { name: "Try verifying owner/model again" }));
     expect(mockedSetModelEnabled).toHaveBeenCalledWith("m1", true);
   });
+
+  it("renders declared generic string metadata and blocks invalid input", async () => {
+    const user = userEvent.setup();
+    renderPanel({
+      required_connection_config: ["tenant_path", "project_id"],
+      connection_config_schema: {
+        tenant_path: { type: "string", title: "Tenant path", minLength: 3, maxLength: 8 },
+        project_id: { type: "string", title: "Workspace", enum: ["UPPER/project", "short"] },
+      },
+    });
+    await screen.findByText("owner/model");
+    await user.type(screen.getByLabelText("Tenant path"), "ab");
+    expect(screen.getByText("Tenant path must be at least 3 characters.")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Workspace" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+  });
+  it("enforces the host value bound without schema metadata", async () => {
+    const user = userEvent.setup();
+    renderPanel({ required_connection_config: ["tenant_path"] });
+    await screen.findByText("owner/model");
+    await user.click(screen.getByLabelText("Tenant path"));
+    await user.paste(" ".repeat(4097));
+    expect(screen.getByText("Tenant path must be at most 4096 characters.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+  });
+
+  it("shows a saved value removed from the enum until the user selects a replacement", async () => {
+    const user = userEvent.setup();
+    renderPanel({ optional_connection_config: ["tenant"], connection_config_schema: { tenant: { type: "string", title: "Tenant", enum: ["new"] } } }, { initialConnectionConfig: { tenant: "old" } });
+    const select = await screen.findByRole("combobox", { name: "Tenant (optional)" });
+    await waitFor(() => expect(select).toHaveValue("old"));
+    expect(screen.getByRole("option", { name: "old" })).toBeDisabled();
+    expect(screen.getByText("Review the connection configuration and correct the highlighted values.")).toBeVisible();
+    await user.selectOptions(select, "new");
+    expect(select).toHaveValue("new");
+    expect(screen.queryByText("Review the connection configuration and correct the highlighted values.")).not.toBeInTheDocument();
+  });
+
+  it("allows clearing a required value back to its declared default", async () => {
+    const user = userEvent.setup();
+    renderPanel({ required_connection_config: ["tenant"], connection_config_defaults: { tenant: "default" } }, { initialConnectionConfig: { tenant: "existing" }, installEnabled: false });
+    const field = await screen.findByLabelText("Tenant");
+    await waitFor(() => expect(field).toHaveValue("existing"));
+    await user.clear(field);
+    await user.type(field, "   ");
+    expect(screen.getByRole("button", { name: "Save connection" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(mockedSaveCredentials).toHaveBeenCalledWith("install-1", expect.objectContaining({ connection_config: { tenant: "   " } })));
+  });
+
+  it("sends cleared settings to discovery", async () => {
+    const user = userEvent.setup();
+    renderPanel({ optional_connection_config: ["tenant"], connection_config_defaults: { tenant: "default" } }, { initialConnectionConfig: { tenant: "existing" } });
+    const field = await screen.findByLabelText("Tenant (optional)");
+    await waitFor(() => expect(field).toHaveValue("existing"));
+    await user.clear(field);
+    await user.click(screen.getByRole("button", { name: "Discover models" }));
+    await waitFor(() => expect(mockedRefreshModels).toHaveBeenCalledWith("install-1", { tenant: "" }));
+  });
+
 });

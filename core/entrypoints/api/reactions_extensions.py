@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Mapping
 from typing import Annotated, Any
 
@@ -401,13 +402,17 @@ def create_reactions_extensions_router(
         request: Request, extension_id: str, action_id: str, body: ExtensionActionRequest
     ):
         try:
-            payload = extension_binding_service().execute_action(
-                extension_id,
-                action_id,
-                body,
-                scope=request_scope(request, project_id=_extension_request_project_id(body)),
-                idempotency_key=str(request.headers.get("Idempotency-Key") or ""),
-            )
+            scope = request_scope(request, project_id=_extension_request_project_id(body))
+            idempotency_key = str(request.headers.get("Idempotency-Key") or "")
+
+            def execute_action():
+                return extension_binding_service().execute_action(
+                    extension_id, action_id, body, scope=scope, idempotency_key=idempotency_key
+                )
+
+            # Artifact callbacks use the AnyIO worker pool; keep extension execution
+            # on the asyncio executor so saturated actions cannot starve uploads.
+            payload = await asyncio.to_thread(execute_action)
         except ServiceError as e:
             return service_error_response(e, request)
         except Exception as e:
@@ -419,11 +424,13 @@ def create_reactions_extensions_router(
         request: Request, extension_id: str, body: ExtensionInvokeRequest
     ):
         try:
-            payload = tool_execution_service().invoke_extension(
-                extension_id,
-                body,
-                scope=request_scope(request, project_id=_extension_request_project_id(body)),
-            )
+            scope = request_scope(request, project_id=_extension_request_project_id(body))
+
+            def invoke_extension():
+                return tool_execution_service().invoke_extension(extension_id, body, scope=scope)
+
+            # The invocation can also wait for an artifact callback.
+            payload = await asyncio.to_thread(invoke_extension)
         except ServiceError as e:
             return service_error_response(e, request)
         except Exception as e:

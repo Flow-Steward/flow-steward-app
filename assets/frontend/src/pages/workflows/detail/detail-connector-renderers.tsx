@@ -1,3 +1,4 @@
+import { connectorAllowsNull, connectorLiteralError, connectorLiteralWidget } from "./detail-connector-literal";
 import { Button } from "@/components/ui/button";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -161,6 +162,8 @@ function connectorInputValueForMode(
   nextMode: ConnectorInputMode,
 ): string {
   const stateDefault = row.key ? `state.${row.key}` : "";
+  if (nextMode === "null") return "null";
+  if (row.mode === "null") return nextMode === "state" ? stateDefault : "";
   if (nextMode === "literal" && row.mode === "state" && row.value === stateDefault) {
     return "";
   }
@@ -184,8 +187,8 @@ function connectorInputRowKey(row: ConnectorInputMappingRow): string {
 }
 
 /** Whether the input mapping keeps this row: it names a parameter and maps it to something. */
-function connectorInputRowStorable(row: ConnectorInputMappingRow): boolean {
-  return Object.keys(connectorInputMappingFromRows([row])).length > 0;
+function connectorInputRowStorable(row: ConnectorInputMappingRow, parameters: Array<Record<string, unknown>>): boolean {
+  return Object.keys(connectorInputMappingFromRows([row], parameters)).length > 0;
 }
 
 function connectorInputOptionDisabled(
@@ -241,9 +244,9 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
       <HeldMappingRows
         key={`input:${mappingEditorKey}`}
         rows={connectorInputMappingRows(stepKindConfig.input_mapping, connectorParameterRows)}
-        storable={connectorInputRowStorable}
+        storable={(row) => connectorInputRowStorable(row, connectorParameterRows)}
         store={(nextRows) =>
-          replaceStepKindConfigField("connector", "input_mapping", connectorInputMappingFromRows(nextRows))
+          replaceStepKindConfigField("connector", "input_mapping", connectorInputMappingFromRows(nextRows, connectorParameterRows))
         }
       >
         {(rows, updateRows) => renderConnectorInputMappingRows(rows, updateRows)}
@@ -287,7 +290,9 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
       const retainedValue = valueEdited ? undefined : row.retainedValue
         ? { ...row.retainedValue, key: patch.key ?? row.key }
         : undefined;
-      updateRows(patchRow(rows, index, { ...patch, retainedValue }));
+      const originalTextLiteral = valueEdited ? undefined : row.originalTextLiteral;
+      const originalTypedEmpty = valueEdited ? undefined : row.originalTypedEmpty;
+      updateRows(patchRow(rows, index, { ...patch, retainedValue, originalTextLiteral, originalTypedEmpty }));
     };
     const selectedConnectionId = textOrEmpty(
       objectOrEmpty(stepKindConfig.connection_binding).connection_id,
@@ -344,6 +349,17 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
               (candidate) => contractItemName(candidate) === row.key,
             );
             const required = parameter?.required === true;
+            const widget = connectorLiteralWidget(parameter);
+            const errorCode = row.mode === "null" ? (connectorAllowsNull(parameter) ? "" : "schema")
+              : row.mode === "literal" && (required || connectorInputRowStorable(row, connectorParameterRows)) ? connectorLiteralError(parameter, row.value) : "";
+            const literalError = errorCode ? ({
+              artifact: t("react.workflows.literal_artifact_error", "Map a file artifact using a state path."),
+              json: t("react.workflows.literal_json_error", "Enter valid JSON."),
+              boolean: t("react.workflows.literal_boolean_error", "Choose true or false."),
+              number: t("react.workflows.literal_number_error", "Enter a valid number."),
+              integer: t("react.workflows.literal_integer_error", "Enter a whole number without a decimal point or exponent."),
+              schema: t("react.workflows.literal_schema_error", "Enter a value matching the field's type and limits."),
+            })[errorCode] : "";
             const valueMissing = connectorInputValueMissing(required, row.value);
             const valueLabel = t("react.workflows.parameter_value_value0", "Parameter value {value0}", { value0: index + 1 });
             const literalOptions = collectOptionsFromUnknown(
@@ -403,7 +419,10 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                     value={row.mode}
                   >
                     <option value="state">{t("react.workflows.state_path", "State path")}</option>
-                    <option value="literal">{t("react.workflows.literal_value", "Literal value")}</option>
+                    <option value="literal" disabled={widget === "artifact_picker"}>{t("react.workflows.literal_value", "Literal value")}</option>
+                    {connectorAllowsNull(parameter) || row.mode === "null" ? (
+                      <option disabled={!connectorAllowsNull(parameter)} value="null">{t("react.workflows.null_value", "Null value")}</option>
+                    ) : null}
                     {row.mode === "expression" ? (
                       <option value="expression">{t("react.workflows.raw_string", "Raw string")}</option>
                     ) : null}
@@ -411,7 +430,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                 </label>
                 <div className="block text-xs fs-ink-secondary">
                   <label className="block">
-                    <span>{t("project_edit.fields.value", "Value")}{required ? t("react.workflows.required_variant_89db19f6", "(required)") : ""}</span>
+                    <span>{textOrEmpty(parameter?.label) || t("project_edit.fields.value", "Value")}{required ? ` ${t("react.workflows.required_variant_89db19f6", "(required)")}` : ""}</span>
                     {renderConnectorStateInput(
                       row,
                       renderWorkflowVariableInput,
@@ -432,10 +451,10 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                         value: row.value,
                       },
                     )}
-                    {row.mode !== "state" && literalOptions.length ? (
+                    {row.mode !== "state" && row.mode !== "null" && literalOptions.length ? (
                         <select
-                          aria-describedby={valueMissing ? `connector-input-error-${index}` : undefined}
-                          aria-invalid={valueMissing || undefined}
+                          aria-describedby={valueMissing || literalError ? `connector-input-error-${index}` : undefined}
+                          aria-invalid={Boolean(valueMissing || literalError) || undefined}
                           aria-label={valueLabel}
                           aria-required={required || undefined}
                           className="fs-input mt-1 w-full"
@@ -445,6 +464,9 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                           value={row.value}
                         >
                           <option value="">{t("react.workflows.choose_value", "Choose value")}</option>
+                          {row.value && !literalOptions.some((option) => option.value === row.value) ? (
+                            <option disabled value={row.value}>{row.value}</option>
+                          ) : null}
                           {literalOptions.map((option) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
@@ -452,10 +474,30 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                           ))}
                         </select>
                     ) : null}
-                    {row.mode !== "state" && !literalOptions.length ? (
+                    {row.mode === "literal" && !literalOptions.length && widget === "boolean" ? (
+                      <select aria-label={valueLabel} aria-required={required || undefined}
+                        aria-invalid={Boolean(valueMissing || literalError) || undefined}
+                        aria-describedby={valueMissing || literalError ? `connector-input-error-${index}` : undefined} className="fs-input mt-1 w-full"
+                        value={row.value} onChange={(event) => updateRow(index, { value: event.target.value })}>
+                        <option value="">{t("react.workflows.choose_value", "Choose value")}</option>
+                        <option value="true">{t("react.workflows.true", "True")}</option>
+                        <option value="false">{t("react.workflows.false", "False")}</option>
+                      </select>
+                    ) : null}
+                    {row.mode === "literal" && !literalOptions.length && ["textarea", "json"].includes(widget) ? (
+                      <textarea aria-label={valueLabel} aria-required={required || undefined}
+                        aria-invalid={Boolean(valueMissing || literalError) || undefined}
+                        aria-describedby={literalError || valueMissing ? `connector-input-error-${index}` : undefined}
+                        className="fs-input mt-1 w-full" value={row.value}
+                        placeholder={textOrEmpty(parameter?.placeholder)}
+                        onChange={(event) => updateRow(index, { value: event.target.value })} />
+                    ) : null}
+                    {row.mode !== "state" && row.mode !== "null" && !literalOptions.length && !(row.mode === "literal" && ["textarea", "json", "boolean", "artifact_picker"].includes(widget)) ? (
                         <input
-                          aria-describedby={valueMissing ? `connector-input-error-${index}` : undefined}
-                          aria-invalid={valueMissing || undefined}
+                          type={row.mode === "literal" && ["number", "integer"].includes(widget) ? "number" : "text"}
+                          step={widget === "integer" ? "1" : "any"}
+                          aria-describedby={valueMissing || literalError ? `connector-input-error-${index}` : undefined}
+                          aria-invalid={Boolean(valueMissing || literalError) || undefined}
                           aria-label={valueLabel}
                           aria-required={required || undefined}
                           className="fs-input mt-1 w-full"
@@ -471,12 +513,14 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                         />
                     ) : null}
                   </label>
-                  {valueMissing ? (
+                  {textOrEmpty(parameter?.help_text) ? <p className="mt-1 text-[11px] fs-ink-secondary">{textOrEmpty(parameter?.help_text)}</p> : null}
+                  {widget === "artifact_picker" ? <p className="mt-1 text-[11px] fs-ink-secondary">{t("react.workflows.map_artifact_input", "Map a file artifact supplied or uploaded to the workflow using a state path.")}</p> : null}
+                  {valueMissing || literalError ? (
                     <p
                       className="mt-1 text-[11px] fs-ink-attention"
                       id={`connector-input-error-${index}`}
                     >
-                      {row.key}{" "}{t("react.workflows.is_required_before_saving_or_testing_this_action", "is required before saving or testing this action.")}</p>
+                      {literalError || <>{row.key}{" "}{t("react.workflows.is_required_before_saving_or_testing_this_action", "is required before saving or testing this action.")}</>}</p>
                   ) : null}
                   {renderConnectorExternalPicker({
                     parameter,

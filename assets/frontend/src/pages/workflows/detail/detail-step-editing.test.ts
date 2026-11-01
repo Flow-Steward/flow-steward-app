@@ -195,6 +195,13 @@ describe("connector required input projection", () => {
     ]);
   });
 
+  it.each(['literal:""', 'literal:"   "', 'literal:"\\n"'])("rejects decoded blank required text %s while optional blank stays valid", (value) => {
+    expect(missingRequiredConnectorInputNames({ query: value, note: value }, [
+      { name: "query", required: true, value_type: "text", widget_type: "textarea" },
+      { name: "note", required: false, value_type: "text", widget_type: "text" },
+    ])).toEqual(["query"]);
+  });
+
   it("reports only required mappings without a usable source or literal", () => {
     expect(
       missingRequiredConnectorInputNames(
@@ -626,5 +633,67 @@ describe("Connector mapping presence and imported input alias preservation", () 
   it("migrates an Advanced alias-only mapping without exposing platform-owned input", () => {
     const result = overrideForStepSave({ connector: { input_mapping_jsonb: { query: "literal:old", connection_ref: "literal:internal" } } }, "connector");
     expect(result).toEqual({ connector: { input_mapping: { query: "literal:old" } } });
+  });
+});
+
+describe("connector typed literal validation", () => {
+  it("honors an explicit integer, number and null union", async () => {
+    const { invalidConnectorLiteralNames } = await import("./detail-connector-literal");
+    const fields = [{ name: "value", widget_type: "json", value_type: "integer", schema: { type: ["integer", "number", "null"] } }];
+    for (const value of ["1", "1.0", "1e1", "1.5", "null"]) {
+      expect(invalidConnectorLiteralNames({ value: `literal:${value}` }, fields)).toEqual([]);
+    }
+    expect(invalidConnectorLiteralNames({ value: 'literal:"wrong"' }, fields)).toEqual(["value"]);
+  });
+  it("honors nullable integer schemas while validating numeric spelling", async () => {
+    const { invalidConnectorLiteralNames } = await import("./detail-connector-literal");
+    const fields = [{ name: "count", widget_type: "json", value_type: "integer", schema: { type: ["integer", "null"] } }];
+    expect(invalidConnectorLiteralNames({ count: "literal:null" }, fields)).toEqual([]);
+    expect(invalidConnectorLiteralNames({ count: "literal:10" }, fields)).toEqual([]);
+    for (const value of ["1.0", "1e1", '"wrong"', "{}", "["]) {
+      expect(invalidConnectorLiteralNames({ count: `literal:${value}` }, fields)).toEqual(["count"]);
+    }
+    expect(invalidConnectorLiteralNames({ count: "state.count" }, fields)).toEqual([]);
+  });
+  it("rejects decimal and exponent spellings for scalar integers without changing mappings", async () => {
+    const { invalidConnectorLiteralNames } = await import("./detail-connector-literal");
+    const fields = [
+      { name: "top_n", widget_type: "integer", value_type: "integer", schema: { type: "integer", minimum: 1, maximum: 10 } },
+      { name: "typed", widget_type: "number", value_type: "integer" },
+      { name: "schema", widget_type: "number", schema: { type: "integer" } },
+      { name: "choice", widget_type: "select", value_type: "text", options: ["1e1"] },
+    ];
+    for (const value of ["1.0", "1e1"]) {
+      const mapping = { top_n: `literal:${value}`, typed: `literal:${value}`, schema: `literal:${value}`, choice: `literal:${value}` };
+      expect(invalidConnectorLiteralNames(mapping, fields)).toEqual(["top_n", "typed", "schema"]);
+      expect(mapping.top_n).toBe(`literal:${value}`);
+    }
+    expect(invalidConnectorLiteralNames({ top_n: "literal:10", typed: "literal:-2", schema: "literal:0", choice: 'literal:"1e1"' }, fields)).toEqual([]);
+    expect(invalidConnectorLiteralNames({ top_n: "literal:11" }, fields)).toEqual(["top_n"]);
+    expect(invalidConnectorLiteralNames({ top_n: "state.count" }, fields)).toEqual([]);
+  });
+  it("blocks malformed JSON, fractional integers, and literal artifacts while allowing state mappings", async () => {
+    const { invalidConnectorLiteralNames } = await import("./detail-connector-literal");
+    const fields = [
+      { name: "payload", widget_type: "json" },
+      { name: "count", widget_type: "integer" },
+      { name: "file", widget_type: "artifact_picker" },
+    ];
+    expect(invalidConnectorLiteralNames({ payload: "literal:{", count: "literal:1.5", file: "literal:artifact:1" }, fields)).toEqual(["payload", "count", "file"]);
+    expect(invalidConnectorLiteralNames({ payload: 'literal:{"ok":true}', count: "literal:2", file: "state.file" }, fields)).toEqual([]);
+  });
+});
+
+describe("connector projected input constraints", () => {
+  it("rejects wrong array shape, item type, bounds, and string length", async () => {
+    const { invalidConnectorLiteralNames } = await import("./detail-connector-literal");
+    const fields = [
+      { name: "choices", widget_type: "json", value_type: "array", schema: { type: "array", minItems: 2, maxItems: 3, items: { type: "string", minLength: 1 } } },
+      { name: "count", widget_type: "number", value_type: "number", schema: { type: "number", minimum: 1, maximum: 5 } },
+    ];
+    for (const choices of ['{}', '[1,2]', '["x"]']) {
+      expect(invalidConnectorLiteralNames({ choices: `literal:${choices}` }, fields)).toEqual(["choices"]);
+    }
+    expect(invalidConnectorLiteralNames({ choices: 'literal:["x","y"]', count: "literal:6" }, fields)).toEqual(["count"]);
   });
 });

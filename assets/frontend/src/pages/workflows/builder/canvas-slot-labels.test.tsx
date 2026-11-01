@@ -176,12 +176,14 @@ it.each([
 it("does not auto-select a delayed creation after the author selected another card", async () => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   const bbox = Object.getOwnPropertyDescriptor(SVGElement.prototype, "getBBox");
+  const hitTest = Object.getOwnPropertyDescriptor(document, "elementsFromPoint");
   Object.defineProperty(SVGElement.prototype, "getBBox", { configurable: true, value: () => ({ height: 16, width: 120, x: 0, y: 0 }) });
   try {
     const pending = { nodeId: "new_default", nonce: 1, selectionGeneration: 0 };
     const activeGraph: WorkflowCanvasGraph = { ...switchGraph, edges: [{ source: { kind: "step", id: "priority" }, outcome: { name: "case", case_id: "high" }, target: { kind: "step", id: "occupied" } }] };
     const view = render(<MemoryRouter><SlotCanvas activeGraph={activeGraph} creationSelection={pending} /></MemoryRouter>);
     const high = await screen.findByRole("group", { name: "Open step Occupied" });
+    Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [high] });
     fireEvent.click(high);
     const nodeById = (id: string) => {
       const matches = queryAllByAttribute("data-id", view.container, id);
@@ -197,6 +199,7 @@ it("does not auto-select a delayed creation after the author selected another ca
     expect(nodeById("new_default")).not.toHaveClass("selected");
     expect(nodeById("occupied")).toHaveClass("selected");
   } finally {
+    if (hitTest) Object.defineProperty(document, "elementsFromPoint", hitTest); else Reflect.deleteProperty(document, "elementsFromPoint");
     if (bbox) Object.defineProperty(SVGElement.prototype, "getBBox", bbox); else Reflect.deleteProperty(SVGElement.prototype, "getBBox");
     vi.unstubAllGlobals();
   }

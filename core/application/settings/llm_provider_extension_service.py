@@ -78,9 +78,18 @@ def require_llm_provider_connection_config(
             if str(field).strip()
         }
     )
-    missing = [field for field in required if not str(effective.get(field) or "").strip()]
+    defaults = getattr(contract, "connection_config_defaults", None) or {}
+    missing = [
+        field
+        for field in required
+        if not str(effective.get(field) or defaults.get(field) or "").strip()
+    ]
     if missing:
-        labels = ", ".join(llm_field_label(field) for field in missing)
+        schemas = getattr(contract, "connection_config_schema", None) or {}
+        labels = ", ".join(
+            (getattr(schemas.get(field), "title", None) or llm_field_label(field))
+            for field in missing
+        )
         raise ValueError(f"Fill in the required setting: {labels}")
     return effective
 

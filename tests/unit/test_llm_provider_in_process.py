@@ -109,11 +109,12 @@ class TestSubprocessContract:
         with pytest.raises(ValueError, match="must not declare provider secret fields"):
             extract_llm_provider_contract(descriptor)
 
-    def test_optional_connection_config_supports_only_host_owned_fields(self):
+    def test_generic_optional_connection_config_requires_compatible_host(self):
         descriptor = _subprocess_descriptor(optional_connection_config=["region"])
-
-        with pytest.raises(ValueError, match="unsupported fields: region"):
-            extract_llm_provider_contract(descriptor)
+        descriptor["runtime"]["compatibility"] = {"platform_min": "1.3.0"}
+        assert not validate_extension_descriptor(descriptor)["valid"]
+        descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
+        assert validate_extension_descriptor(descriptor)["valid"]
 
     def test_optional_fields_count_as_declared_connection_config(self):
         contract = extract_llm_provider_contract(_subprocess_descriptor())
@@ -521,3 +522,172 @@ class TestChatModelRouting:
         assert captured["connection_config"] == {"upstream_base_url": "https://llm.example.com"}
         assert "llm_credentials" not in captured["extension"]
         assert captured["idempotency_key"].startswith("llm-")
+
+
+def test_vertex_project_and_location_are_declared_nonsecret_settings():
+    descriptor = _subprocess_descriptor(required_connection_config=["project_id", "location"])
+    contract = extract_llm_provider_contract(descriptor)
+    assert svc.declared_connection_config_fields(contract) == {
+        "project_id",
+        "location",
+        "upstream_base_url",
+    }
+
+
+def test_cloud_settings_must_be_strings():
+    from core.application.settings.llm_provider_extension_use_cases import (
+        LlmProviderExtensionError,
+        LlmProviderExtensionUseCases,
+    )
+
+    contract = extract_llm_provider_contract(
+        _subprocess_descriptor(required_connection_config=["project_id", "location"])
+    )
+    with pytest.raises(LlmProviderExtensionError, match="Project id"):
+        LlmProviderExtensionUseCases._connection_config(contract, {"project_id": {"unsafe": 1}})
+
+
+@pytest.mark.parametrize(
+    "declaration", ["required_connection_config", "optional_connection_config"]
+)
+def test_cloud_scope_requires_contract_version_1_4(declaration):
+    descriptor = _subprocess_descriptor(**{declaration: ["project_id", "location"]})
+    descriptor["runtime"]["compatibility"] = {"platform_min": "1.3.0"}
+    result = validate_extension_descriptor(descriptor)
+    assert not result["valid"]
+    assert any("1.4.0" in error["message"] for error in result["errors"])
+
+
+def test_cloud_scope_accepts_compatible_version_and_optional_fields():
+    descriptor = _subprocess_descriptor(optional_connection_config=["project_id", "location"])
+    descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
+    assert validate_extension_descriptor(descriptor)["valid"]
+
+
+def test_generic_provider_schema_accepts_provider_owned_values_and_preserves_changes():
+    from core.application.settings.llm_provider_extension_use_cases import (
+        LlmProviderExtensionUseCases,
+        effective_connection_config,
+    )
+
+    for permitted in (["UPPER/project", "other"], ["short", "third"]):
+        descriptor = _subprocess_descriptor(
+            optional_connection_config=["project_id", "tenant_path"],
+            connection_config_schema={
+                "project_id": {"type": "string", "enum": permitted},
+                "tenant_path": {"type": "string", "minLength": 1, "maxLength": 12},
+            },
+        )
+        descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
+        assert validate_extension_descriptor(descriptor)["valid"]
+        contract = extract_llm_provider_contract(descriptor)
+        values = {"project_id": permitted[0], "tenant_path": "tenant/"}
+        assert LlmProviderExtensionUseCases._connection_config(contract, values) == values
+        assert effective_connection_config(contract, values) != effective_connection_config(
+            contract, {**values, "tenant_path": "tenant"}
+        )
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "string", "pattern": ".*"},
+        {"type": "string", "minLength": 3, "maxLength": 2},
+        {"type": "string", "enum": ["same", "same"]},
+        {"type": "string", "enum": ["allowed"], "maxLength": 3},
+        {"type": "number"},
+    ],
+)
+def test_generic_provider_schema_rejects_invalid_metadata(schema):
+    descriptor = _subprocess_descriptor(
+        optional_connection_config=["tenant_path"], connection_config_schema={"tenant_path": schema}
+    )
+    descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
+    assert not validate_extension_descriptor(descriptor)["valid"]
+
+
+@pytest.mark.parametrize(
+    "name", ["constructor", "prototype", "__proto__", "api_key", "bad-name", "x" * 65]
+)
+def test_generic_provider_rejects_unsafe_field_names(name):
+    descriptor = _subprocess_descriptor(optional_connection_config=[name])
+    descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
+    assert not validate_extension_descriptor(descriptor)["valid"]
+
+
+def test_generic_provider_rejects_unknown_schema_and_invalid_default():
+    for overrides in (
+        {"connection_config_schema": {"other": {"type": "string"}}},
+        {
+            "connection_config_schema": {"tenant": {"type": "string", "enum": ["one"]}},
+            "connection_config_defaults": {"tenant": "two"},
+        },
+    ):
+        descriptor = _subprocess_descriptor(optional_connection_config=["tenant"], **overrides)
+        descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
+        assert not validate_extension_descriptor(descriptor)["valid"]
+
+
+def test_generic_provider_validates_unicode_lengths_and_literal_values():
+    from core.application.settings.llm_provider_extension_use_cases import (
+        LlmProviderExtensionError,
+        LlmProviderExtensionUseCases,
+    )
+
+    descriptor = _subprocess_descriptor(
+        optional_connection_config=["tenant"],
+        connection_config_schema={"tenant": {"type": "string", "minLength": 2, "maxLength": 2}},
+    )
+    contract = extract_llm_provider_contract(descriptor)
+    assert LlmProviderExtensionUseCases._connection_config(contract, {"tenant": "😀x"}) == {
+        "tenant": "😀x"
+    }
+    for value in ("😀", "😀xy", 1):
+        with pytest.raises(LlmProviderExtensionError):
+            LlmProviderExtensionUseCases._connection_config(contract, {"tenant": value})
+    with pytest.raises(LlmProviderExtensionError):
+        LlmProviderExtensionUseCases._connection_config(contract, {"unknown": "x"})
+
+
+def test_schema_round_trip_and_whitespace_enum_rejection():
+    descriptor = _subprocess_descriptor(
+        optional_connection_config=["tenant"],
+        connection_config_schema={"tenant": {"type": "string", "title": "Tenant"}},
+    )
+    contract = extract_llm_provider_contract(descriptor)
+    from core.application.extensions.extension_descriptor_llm_provider import LlmProviderContractV1
+
+    assert LlmProviderContractV1.model_validate(contract.model_dump()) == contract
+    descriptor["runtime"]["extension_contract_v2"]["llm_provider"]["connection_config_schema"][
+        "tenant"
+    ]["enum"] = [" "]
+    with pytest.raises(ValueError):
+        extract_llm_provider_contract(descriptor)
+
+
+def test_required_setting_error_uses_declared_title():
+    contract = extract_llm_provider_contract(
+        _subprocess_descriptor(
+            required_connection_config=["tenant"],
+            connection_config_schema={"tenant": {"type": "string", "title": "Workspace"}},
+        )
+    )
+    with pytest.raises(ValueError, match="Workspace"):
+        svc.require_llm_provider_connection_config(contract, {})
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "signing_key",
+        "auth_header",
+        "client_certificate",
+        "provider_signing_key",
+        "provider_auth_header",
+        "provider_client_certificate",
+    ],
+)
+def test_generic_provider_rejects_sensitive_canonical_names(name):
+    descriptor = _subprocess_descriptor(optional_connection_config=[name])
+    descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
+    assert not validate_extension_descriptor(descriptor)["valid"]

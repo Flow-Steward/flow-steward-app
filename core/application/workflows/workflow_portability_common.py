@@ -7,7 +7,16 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from core.application.security.credential_redaction import token_count_key
+from core.application.workflows.workflow_portability_redaction import (
+    _DROPPED_SENSITIVE_KEYS,
+    _REDACTED,
+    _redact_sensitive,
+    _sensitive_key,
+)
+from core.application.workflows.workflow_portability_redaction import (
+    _SENSITIVE_KEY_MARKERS as _SENSITIVE_KEY_MARKERS,
+)
+from core.infrastructure.security.secret_reference import is_secret_reference
 
 logger = logging.getLogger(__name__)
 
@@ -67,21 +76,6 @@ RESOLUTION_ACTIONS = {
     "skip_optional",
     "abort",
 }
-#: Matched as substrings of the lower-cased key, so run-together keys such as
-#: `accesstoken`, `dbpassword` or `api_keys` are masked too.
-_SENSITIVE_KEY_MARKERS = (
-    "password",
-    "secret",
-    "token",
-    "bearer",
-    "credential",
-    "credentials",
-    "api_key",
-    "apikey",
-    "access_key",
-    "private_key",
-    "client_secret",
-)
 _WORKFLOW_SAVE_FIELDS = (
     "workflow_id",
     "version",
@@ -219,35 +213,6 @@ def _as_list(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _sensitive_key(key: Any) -> bool:
-    normalized = token_count_key(str(key or ""))
-    return any(marker in normalized for marker in _SENSITIVE_KEY_MARKERS)
-
-
-#: Keys that are dropped rather than masked. A pointer to a credential is not a
-#: credential, but replacing one with "[redacted]" produces a bundle that
-#: imports as configured while pointing at nothing — worse than either keeping
-#: it or leaving it out, because the workflow then looks ready and is not. The
-#: target environment holds no such secret, so absent is the truthful answer.
-#: A test-run file is dropped for the same reason: its artifact stays here.
-_DROPPED_SENSITIVE_KEYS = frozenset({"default_secret_ref", "sample_file"})
-_REDACTED = "[redacted]"
-
-
-def _redact_sensitive(value: Any, *, key: str = "") -> Any:
-    if _sensitive_key(key):
-        return _REDACTED
-    if isinstance(value, dict):
-        return {
-            str(item_key): _redact_sensitive(item_value, key=str(item_key))
-            for item_key, item_value in value.items()
-            if str(item_key) not in _DROPPED_SENSITIVE_KEYS
-        }
-    if isinstance(value, list):
-        return [_redact_sensitive(item) for item in value]
-    return value
-
-
 #: Literal values a JSON Schema property can carry; masked under a property whose
 #: name looks like a credential, while the property itself is kept.
 _SCHEMA_LITERAL_KEYS = frozenset({"default", "example", "examples", "const", "enum"})
@@ -260,7 +225,7 @@ def _redact_definitions(value: Any, *, key: str = "") -> Any:
     a `password` field, and masking it by name would replace the field's schema with
     a string. Only the literal values under such a field are masked.
     """
-    if _sensitive_key(key):
+    if is_secret_reference(value) or _sensitive_key(key):
         return _REDACTED
     if isinstance(value, dict):
         redacted: dict[str, Any] = {}

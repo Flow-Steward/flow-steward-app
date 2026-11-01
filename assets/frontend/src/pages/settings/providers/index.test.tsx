@@ -112,6 +112,7 @@ describe("SettingsProvidersPage", () => {
     expect(
       screen.getByRole("heading", { name: "Edit provider" }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/saving can run model capability checks.*charges/i)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Save provider" }));
 
@@ -123,6 +124,31 @@ describe("SettingsProvidersPage", () => {
     expect(
       await screen.findByText("Model provider updated."),
     ).toBeInTheDocument();
+  });
+
+  it("marks required fields, uses a URL control and explains verification charges", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "Add provider" }));
+    expect(screen.getByLabelText("Name")).toBeRequired();
+    expect(screen.getByRole("combobox", { name: "Provider type" })).toBeRequired();
+    expect(screen.getAllByText("*")).toHaveLength(2);
+    expect(screen.getByText(/saving can run model capability checks.*charges/i)).toBeVisible();
+    await chooseType(user, "OpenAI Compatible");
+    const url = screen.getByLabelText("Base URL");
+    expect(url).toHaveAttribute("type", "url");
+    expect(url).toBeRequired();
+    expect(screen.getByLabelText("Default model")).not.toBeRequired();
+    expect(screen.getByLabelText("API key")).not.toBeRequired();
+    expect(mockedCreateModelProvider).not.toHaveBeenCalled();
+    await chooseType(user, "Azure OpenAI");
+    expect(screen.getByLabelText("Base URL")).toBeRequired();
+    expect(screen.getByLabelText("API version")).toBeRequired();
+    expect(screen.getByLabelText("Deployment name")).toBeRequired();
+    expect(screen.getAllByText("*")).toHaveLength(5);
+    await chooseType(user, "OpenAI (official)");
+    expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("API version")).not.toBeInTheDocument();
   });
 
   it("offers official provider presets with catalog model choices and no editable endpoint", async () => {

@@ -187,7 +187,7 @@ export function fieldDraftFromContract(
   });
 }
 
-export type ConnectorInputMode = "state" | "literal" | "expression";
+export type ConnectorInputMode = "state" | "literal" | "expression" | "null";
 
 export type ConnectorInputMappingRow = {
   key: string;
@@ -195,6 +195,8 @@ export type ConnectorInputMappingRow = {
   value: string;
   // Editor-only provenance for values the string controls cannot distinguish.
   retainedValue?: { key: string; value: null | "" };
+  originalTextLiteral?: { key: string; encoded: string; display: string };
+  originalTypedEmpty?: { key: string; encoded: string };
 };
 
 export function collectOptionsFromUnknown(

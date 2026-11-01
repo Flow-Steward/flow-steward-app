@@ -1053,3 +1053,85 @@ def test_enable_expired_passed_model_repeats_capability_suite(monkeypatch) -> No
 
     assert response.status_code == 200
     assert len(suite_calls) == 1
+
+
+def test_credentials_accept_safe_declared_generic_setting_at_api_boundary(monkeypatch):
+    from core.application.extensions import extension_descriptor
+    from core.application.settings import llm_provider_extension_repository as store
+    from core.infrastructure.db import db_pool
+
+    monkeypatch.setattr(
+        extension_descriptor,
+        "extract_llm_provider_contract",
+        lambda _record: SimpleNamespace(
+            required_connection_config=[],
+            optional_connection_config=["tenant_path"],
+            required_provider_secrets=[],
+            optional_provider_secrets=[],
+        ),
+    )
+
+    @contextmanager
+    def transaction(conn):
+        yield conn
+
+    monkeypatch.setattr(db_pool, "transaction_connection", transaction)
+    monkeypatch.setattr(store, "lock_install_for_credential_rotation", lambda *_a, **_k: None)
+    response = _client().post(
+        "/api/llm-provider-extensions/install-1/credentials",
+        json={"connection_config": {"tenant_path": "value/"}},
+    )
+    # Reaching the install lock proves the generic setting passed boundary validation.
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Extension install not found"
+
+
+def test_credentials_reject_declared_secret_overlap_at_api_boundary(monkeypatch):
+    from core.application.extensions import extension_descriptor
+
+    monkeypatch.setattr(
+        extension_descriptor,
+        "extract_llm_provider_contract",
+        lambda _record: SimpleNamespace(
+            required_connection_config=["tenant"],
+            required_provider_secrets=["tenant"],
+            optional_provider_secrets=[],
+        ),
+    )
+    response = _client().post(
+        "/api/llm-provider-extensions/install-1/credentials",
+        json={"connection_config": {"tenant": "not-a-secret"}},
+    )
+    assert response.status_code == 422
+    assert "no such setting" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "signing_key",
+        "auth_header",
+        "client_certificate",
+        "provider_signing_key",
+        "provider_auth_header",
+        "provider_client_certificate",
+    ],
+)
+def test_credentials_reject_sensitive_generic_names_at_api_boundary(monkeypatch, name):
+    from core.application.extensions import extension_descriptor
+
+    monkeypatch.setattr(
+        extension_descriptor,
+        "extract_llm_provider_contract",
+        lambda _record: SimpleNamespace(
+            required_connection_config=[name],
+            required_provider_secrets=[],
+            optional_provider_secrets=[],
+        ),
+    )
+    response = _client().post(
+        "/api/llm-provider-extensions/install-1/credentials",
+        json={"connection_config": {name: "sentinel"}},
+    )
+    assert response.status_code == 422
+    assert "no such setting" in response.json()["detail"]

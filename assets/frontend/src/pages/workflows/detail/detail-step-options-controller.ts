@@ -1,3 +1,4 @@
+import { invalidConnectorLiteralNames } from "./detail-connector-literal";
 import { effectiveAgentBlockKey } from "./detail-agent-step-fields";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
@@ -567,10 +568,7 @@ export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
   );
   const connectorMissingRequiredInputNames = useMemo(
     () =>
-      missingRequiredConnectorInputNames(
-        stepKindConfig.input_mapping,
-        connectorParameterRows,
-      ),
+      [...new Set([...missingRequiredConnectorInputNames(stepKindConfig.input_mapping, connectorParameterRows), ...invalidConnectorLiteralNames(stepKindConfig.input_mapping, connectorParameterRows)])],
     [connectorParameterRows, stepKindConfig.input_mapping],
   );
   const connectorRequiredInputsMissing =

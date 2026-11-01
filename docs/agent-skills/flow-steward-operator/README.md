@@ -2,11 +2,12 @@
 
 Agent skills for people who build and run automations in Flow Steward through
 an AI agent. The agent works through your Flow Steward MCP connection; it needs
-no source checkout and no terminal.
+no source checkout. Offline workflow conversion additionally needs a terminal and Python.
 
 | Skill | Use |
 | --- | --- |
 | `flow-steward-workflow-authoring` | Find what exists, create skills and agents, compose, validate and save workflows as disabled drafts, enable and run them on request, change existing workflows, repair disabled objects, and answer questions about runs, errors, approvals and reports. |
+| `flow-steward-migrate-workflow` | Convert supported external workflows into disabled Flow Steward drafts and identify setup blockers. |
 | `flow-steward-report-issue` | Report a bug or request a feature on GitHub `Flow-Steward/flow-steward-app` with the System Diagnostics report, without changing anything. |
 | `flow-steward-publish-workflow` | Share a workflow as a template in the public catalog `Flow-Steward/workflows`. |
 
@@ -75,7 +76,7 @@ codex plugin marketplace add .
 The CLI has no install command: in an interactive session open `/plugins`,
 choose the `flow-steward-local` marketplace and install `flow-steward-operator`,
 or install it from the Plugins tab of the ChatGPT desktop app. Start a new
-session and find the three skills in its skills listing. To update, replace
+session and find the four skills in its skills listing. To update, replace
 the plugin directory, run
 `codex plugin marketplace upgrade flow-steward-local`; the client runs a cached
 copy, so compare the installed files with the new ones before relying on the
@@ -108,7 +109,7 @@ claude plugin install flow-steward-operator@flow-steward
 claude plugin details flow-steward-operator@flow-steward
 ```
 
-`details` lists the three skills. In a session they appear as
+`details` lists the four skills. In a session they appear as
 `/flow-steward-operator:flow-steward-workflow-authoring` and so on. For one
 session without installing, start the client with
 `claude --plugin-dir /absolute/path/to/flow-steward-operator`; the option also
@@ -152,7 +153,7 @@ its `references/` folder. Do not install the same skill both ways.
 
 ## Check that it works
 
-1. The client lists the three skills.
+1. The client lists the four skills.
 2. The Flow Steward MCP server is connected and its tool list contains the
    tools your token allows, for example `project_list` and `workflow_list`.
 3. Ask: "List my Flow Steward projects and their enabled workflows." The agent

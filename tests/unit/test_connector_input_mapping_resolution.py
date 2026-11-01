@@ -8,6 +8,7 @@ and the job finished green having changed nothing.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -583,3 +584,19 @@ def test_empty_canonical_connector_clear_cannot_select_a_consumed_input_alias(mo
     step["override"]["connector"]["input_mapping_jsonb"] = {"query": "literal:old"}
     connector_step_runtime.execute_connector_step(step=step, state={})
     assert observed == [{"query": "old"}]
+
+
+def test_json_literal_text_with_default_delimiter_is_atomic() -> None:
+    text = "Write |default:yes and retain spaces\nnext line"
+    mapping = {"prompt": "literal:" + json.dumps(text)}
+    payload, unresolved = _render_input_payload(mapping, {})
+    assert payload == {"prompt": text}
+    assert unresolved == {}
+
+
+def test_state_default_filter_still_resolves_when_literal_contains_delimiter() -> None:
+    payload, unresolved = _render_input_payload(
+        {"prompt": 'state.missing | default:"fallback |default:text"'}, {}
+    )
+    assert payload == {"prompt": "fallback |default:text"}
+    assert unresolved == {}

@@ -8,6 +8,12 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from core.application.orchestration.tools.regex_actions import (
+    regex_find,
+    regex_find_all,
+    regex_replace,
+    regex_replace_all,
+)
 from core.application.orchestration.tools.standard_json_actions import get, keys, omit, set, values
 from core.application.orchestration.tools.standard_number_actions import (
     add,
@@ -115,4 +121,8 @@ _ensure_resolver_compatible(
     replace,
     title_case,
     trim,
+    regex_find,
+    regex_find_all,
+    regex_replace,
+    regex_replace_all,
 )

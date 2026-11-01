@@ -287,6 +287,15 @@ runtime:
     #          non-empty plain text, at most 300 characters. A host before 1.3.0
     #          forbids both fields, so a bundle that declares either sets
     #          runtime.compatibility.platform_min 1.3.0.
+    #   1.4.0  Declared plaintext connection settings may use safe canonical
+    #          snake_case names (32 fields, 64 characters each). Optional
+    #          connection_config_schema supports only string type, title,
+    #          minLength, maxLength and enum. Values are bounded to 4096 Unicode
+    #          code points; titles to 128, enums to 32 unique nonempty values
+    #          of at most 256. Provider-specific syntax belongs to the extension.
+    #          Nonlegacy fields or schema require platform_min 1.4.0.
+    #          provider_secret_formats may map a declared secret to json_object,
+    #          enabling explicit multiline editing and strict object validation.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:
@@ -294,7 +303,7 @@ runtime:
     #   supplier_key: example_llm
     #   supplier_label: Example LLM
     #   runtime_mode: subprocess
-    #   optional_provider_secrets: [api_key]
+    #   optional_provider_secrets: [api_key, service_account_json]
     #   optional_connection_config: [upstream_base_url]
     #   connection_config_defaults:
     #     upstream_base_url: https://api.example.test
@@ -302,6 +311,9 @@ runtime:
     #     upstream_base_url: The server address only, without /v1 or other paths.
     #   provider_secret_help:
     #     api_key: Copy the whole key from your Example LLM account settings.
+    #     service_account_json: Paste the service-account JSON object.
+    #   provider_secret_formats:
+    #     service_account_json: json_object
     #   operations:
     #     list_models: {query_id: llm.list_models}
     #     chat: {action_id: llm.chat}

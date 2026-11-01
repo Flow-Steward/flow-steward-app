@@ -29458,3 +29458,69 @@ msgstr "Pridėkite Flow Steward kaip pasirinktinę MCP jungtį"
 
 msgid "react.agent_access.step_chatgpt_connector_description"
 msgstr "Pridėkite pasirinktinę MCP jungtį su šiuo adresu. ChatGPT atidarys Flow Steward: prisijunkite, pasirinkite prieigą ir patvirtinkite. Jokio prieigos rakto kopijuoti nereikia."
+
+msgid "react.extensions.hide_json_for"
+msgstr "Slėpti {value0} JSON"
+
+msgid "react.extensions.json_secret_invalid"
+msgstr "Įveskite galiojantį JSON objektą."
+
+msgid "react.extensions.show_edit_json_for"
+msgstr "Rodyti ir redaguoti {value0} JSON"
+
+msgid "react.settings.provider_verification_charges"
+msgstr "Išsaugant gali būti vykdomi modelio galimybių patikrinimai, už kuriuos paslaugos teikėjas gali taikyti mokestį."
+
+msgid "react.workflows.correct_action_inputs_before_save"
+msgstr "Prieš išsaugodami užpildykite arba pataisykite veiksmo įvestis: {names}."
+
+msgid "react.workflows.correct_action_inputs_before_testing"
+msgstr "Prieš testuodami užpildykite arba pataisykite veiksmo įvestis:"
+
+msgid "react.workflows.literal_artifact_error"
+msgstr "Susiekite failo artefaktą naudodami būsenos kelią."
+
+msgid "react.workflows.literal_boolean_error"
+msgstr "Pasirinkite true arba false."
+
+msgid "react.workflows.literal_integer_error"
+msgstr "Įveskite sveikąjį skaičių be dešimtainio skirtuko ar eksponentės."
+
+msgid "react.workflows.literal_json_error"
+msgstr "Įveskite tinkamą JSON."
+
+msgid "react.workflows.literal_number_error"
+msgstr "Įveskite tinkamą skaičių."
+
+msgid "react.workflows.literal_schema_error"
+msgstr "Įveskite lauko tipą ir ribas atitinkančią reikšmę."
+
+msgid "react.workflows.map_artifact_input"
+msgstr "Susiekite darbo eigai pateiktą arba įkeltą failo artefaktą naudodami būsenos kelią."
+
+msgid "registry.tools.standard.text.regex_find.label"
+msgstr "Regex paieška"
+
+msgid "registry.tools.standard.text.regex_find.description"
+msgstr "Randa pirmą visą regex atitikmenį arba null."
+
+msgid "registry.tools.standard.text.regex_find_all.label"
+msgstr "Rasti visus regex atitikmenis"
+
+msgid "registry.tools.standard.text.regex_find_all.description"
+msgstr "Randa visus regex atitikmenis kaip surikiuotą tekstų masyvą."
+
+msgid "registry.tools.standard.text.regex_replace.label"
+msgstr "Pakeisti pirmą regex atitikmenį"
+
+msgid "registry.tools.standard.text.regex_replace.description"
+msgstr "Pakeičia pirmą regex atitikmenį naudodamas Python keitimo sintaksę."
+
+msgid "registry.tools.standard.text.regex_replace_all.label"
+msgstr "Pakeisti visus regex atitikmenis"
+
+msgid "registry.tools.standard.text.regex_replace_all.description"
+msgstr "Pakeičia visus regex atitikmenis naudodamas Python keitimo sintaksę."
+
+msgid "react.workflows.null_value"
+msgstr "Null reikšmė"

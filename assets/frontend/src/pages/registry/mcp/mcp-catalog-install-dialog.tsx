@@ -304,6 +304,7 @@ export function McpCatalogInstallDialog({
             {header.secret ? (
               <SensitiveInput
                 ariaLabel={header.label || header.name}
+                aria-required={header.required || remote?.auth.mode === "headers" || undefined}
                 autoComplete="off"
                 className="fs-input"
                 id={`mcp-catalog-header-${header.name}`}
@@ -312,6 +313,7 @@ export function McpCatalogInstallDialog({
               />
             ) : (
               <input
+                aria-required={header.required || remote?.auth.mode === "headers" || undefined}
                 className="fs-input"
                 id={`mcp-catalog-header-${header.name}`}
                 onChange={(event) => setHeaders((values) => ({ ...values, [header.name]: event.target.value }))}

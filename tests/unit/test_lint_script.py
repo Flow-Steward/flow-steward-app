@@ -970,6 +970,8 @@ AUDIT_TOOLCHAIN_FILES = (
     "requirements-runtime.lock",
     "requirements-audit.txt",
     "requirements-semgrep.txt",
+    "core/application/tooling/quality/semgrep_distribution.py",
+    "core/application/tooling/quality/semgrep_inventory.py",
     "requirements-cli.lock",
 )
 
@@ -1094,7 +1096,7 @@ def test_audit_image_build_failure_stops_the_gate(tmp_path: Path) -> None:
 def test_audit_toolchain_digest_follows_tools_not_source(tmp_path: Path) -> None:
     _, _, original = _run_audit_image_check(tmp_path, label="current", calls=1)
     source_file = tmp_path / "repo" / "core" / "module.py"
-    source_file.parent.mkdir(parents=True)
+    source_file.parent.mkdir(parents=True, exist_ok=True)
     source_file.write_text("VALUE = 1\n", encoding="utf-8")
 
     _, _, after_source_edit = _run_audit_image_check(tmp_path, label="current", calls=1)

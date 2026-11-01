@@ -134,7 +134,7 @@ it("opens the rule a link names (from the project notification overview) and dro
   const second = await screen.findByRole("button", { name: /When job\.failed/ });
   await waitFor(() => expect(second).toHaveAttribute("aria-expanded", "true"));
   expect(screen.getByRole("button", { name: /When job\.completed/ })).toHaveAttribute("aria-expanded", "false");
-  await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent("?project_id=p1"));
+  await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent(/^\?project_id=p1$/));
   expect(screen.getByTestId("search")).not.toHaveTextContent("rule=");
 });
 

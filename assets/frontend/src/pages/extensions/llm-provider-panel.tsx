@@ -181,13 +181,13 @@ function fieldLabel(name: string, t: I18nContextValue["t"] = fallbackContext.t) 
 }
 
 /** Optional fields use the shared note; each visible name labels its control. */
-function renderFieldName(name: string, required: boolean, labelId: string, t: I18nContextValue["t"] = fallbackContext.t) {
+function renderFieldName(name: string, required: boolean, labelId: string, t: I18nContextValue["t"] = fallbackContext.t, title?: string) {
   if (!required) {
-    return <OptionalLabel id={labelId}>{fieldLabel(name, t)}</OptionalLabel>;
+    return <OptionalLabel id={labelId}>{title || fieldLabel(name, t)}</OptionalLabel>;
   }
   return (
     <span className="fs-required-label">
-      <span className="fs-field-label" id={labelId}>{fieldLabel(name, t)}</span>
+      <span className="fs-field-label" id={labelId}>{title || fieldLabel(name, t)}</span>
       <span aria-hidden="true" className="fs-required">*</span>
     </span>
   );
@@ -216,6 +216,7 @@ export function LlmProviderPanel({
   const supplier = stringFromUnknownValue(contract.supplier_label).trim();
   const client = useQueryClient();
   const [secrets, setSecrets] = useState<Record<string, string>>({});
+  const [shownJsonSecrets, setShownJsonSecrets] = useState<ReadonlySet<string>>(new Set());
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [remoteBaseUrl, setRemoteBaseUrl] = useState("");
   const [filter, setFilter] = useState("");
@@ -257,6 +258,10 @@ export function LlmProviderPanel({
     () => stringRecord(contract.connection_config_defaults),
     [contract.connection_config_defaults],
   );
+  const configSchema = useMemo(
+    () => (contract.connection_config_schema && typeof contract.connection_config_schema === "object" ? contract.connection_config_schema : {}) as Record<string, { title?: string; minLength?: number; maxLength?: number; enum?: string[] }>,
+    [contract.connection_config_schema],
+  );
   const configHelp = useMemo(
     () => stringRecord(contract.connection_config_help),
     [contract.connection_config_help],
@@ -264,6 +269,10 @@ export function LlmProviderPanel({
   const secretHelp = useMemo(
     () => stringRecord(contract.provider_secret_help),
     [contract.provider_secret_help],
+  );
+  const secretFormats = useMemo(
+    () => stringRecord(contract.provider_secret_formats),
+    [contract.provider_secret_formats],
   );
   const helpUrl = httpsUrl(documentationUrl.trim());
   const relevant = useMemo(
@@ -308,23 +317,56 @@ export function LlmProviderPanel({
       setConfigValues((current) => Object.keys(current).length ? current : restored);
     }
   }, [installId, persistedConfigKey, persistedRemoteBaseUrl]);
-  const config = useMemo(
-    () => Object.fromEntries(Object.entries(configValues).filter(([, value]) => value.trim().length > 0)),
-    [configValues],
-  );
-  // Saving sends every declared field: an emptied optional field is saved as ""
-  // so the server clears it back to the provider's default.
+  // Send clears on both save and discovery so the server restores defaults.
   const savedConfig = useMemo(
-    () => Object.fromEntries(configNames.map((name) => [name, String(configValues[name] || "").trim()])),
+    () => Object.fromEntries(configNames.map((name) => [name, String(configValues[name] || "")])),
     [configNames, configValues],
   );
+  const config = savedConfig;
   const populatedSecrets = useMemo(
     () => Object.fromEntries(Object.entries(secrets).filter(([, value]) => value.trim().length > 0)),
     [secrets],
   );
+  const invalidJsonSecrets = useMemo(() => new Set(secretNames.filter((name) => {
+    const value = secrets[name] || "";
+    if (secretFormats[name] !== "json_object" || !value.trim()) return false;
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return !parsed || typeof parsed !== "object" || Array.isArray(parsed);
+    } catch {
+      return true;
+    }
+  })), [secretFormats, secretNames, secrets]);
+  const requiredSecretsMissing = requiredSecretNames.some((name) =>
+    secretNames.includes(name) && !String(secrets[name] || "").trim()
+    && (!connection.isSuccess || !savedSecretNames.has(name)),
+  );
+  const secretInputBlocked = requiredSecretsMissing || invalidJsonSecrets.size > 0;
+  const configErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
+    for (const name of configNames) {
+      const value = configValues[name] || "";
+      const schema = configSchema[name];
+      const length = Array.from(value).length;
+      const label = schema?.title || fieldLabel(name, t);
+      const maximum = Math.min(schema?.maxLength ?? 4096, 4096);
+      if (length > 4096) {
+        errors[name] = t("react.extensions.oauth_final_field_maximum", "{label} must be at most {maximum} characters.", { label, maximum: 4096 });
+      } else if (!value.trim()) {
+        continue;
+      } else if (schema?.minLength !== undefined && length < schema.minLength) {
+        errors[name] = t("react.extensions.oauth_final_field_minimum", "{label} must be at least {minimum} characters.", { label, minimum: schema.minLength });
+      } else if (length > maximum) {
+        errors[name] = t("react.extensions.oauth_final_field_maximum", "{label} must be at most {maximum} characters.", { label, maximum });
+      } else if (schema?.enum && !schema.enum.includes(value)) {
+        errors[name] = t("react.extensions.invalid_connection_configuration", "Review the connection configuration and correct the highlighted values.");
+      }
+    }
+    return errors;
+  }, [configNames, configValues, configSchema, t]);
   const requiredConfigMissing = useMemo(
-    () => requiredConfigNames.some((name) => !String(configValues[name] || "").trim()),
-    [requiredConfigNames, configValues],
+    () => requiredConfigNames.some((name) => !String(configValues[name] || "").trim() && !String(configDefaults[name] || "").trim()) || Object.keys(configErrors).length > 0,
+    [requiredConfigNames, configValues, configDefaults, configErrors],
   );
 
   /**
@@ -355,7 +397,7 @@ export function LlmProviderPanel({
       setStatus(enableGuidance);
       return;
     }
-    if (mutationPending || requiredConfigMissing) return;
+    if (mutationPending || requiredConfigMissing || secretInputBlocked) return;
     setMutationPending(true);
     setStatus(t("react.extensions.manual_discovering_models", "Discovering models…"));
     try {
@@ -366,7 +408,7 @@ export function LlmProviderPanel({
   }
 
   async function save() {
-    if (mutationPending || requiredConfigMissing) return;
+    if (mutationPending || requiredConfigMissing || secretInputBlocked) return;
     const checkAfterSave = installEnabled;
     setMutationPending(true);
     setStatus(t("react.extensions.manual_saving_connection", "Saving connection…"));
@@ -414,6 +456,7 @@ export function LlmProviderPanel({
   }
 
   async function toggle(model: LlmProviderModel, enabled: boolean) {
+    if (enabled && secretInputBlocked) return;
     if (enabled && !latestInstallEnabled.current) {
       setStatus(enableGuidance);
       return;
@@ -466,11 +509,20 @@ export function LlmProviderPanel({
           const placeholder = configDefaults[name]
             || (required ? fieldLabel(name, t) : t("react.extensions.manual_leave_empty_for_the_provider_s_default", "Leave empty for the provider's default"));
           const helpId = configHelp[name] ? `llm-config-help-${name}` : undefined;
+          const errorId = configErrors[name] ? `llm-config-error-${name}` : undefined;
+          const describedBy = [helpId, errorId].filter(Boolean).join(" ") || undefined;
           return (
             <label className="fs-field" key={name}>
-              {renderFieldName(name, required, labelId, t)}
-              <input aria-describedby={helpId} aria-labelledby={labelId} className="fs-input" onChange={(event) => setConfigValues((current) => ({ ...current, [name]: event.target.value }))} placeholder={placeholder} required={required} value={configValues[name] || ""}/>
+              {renderFieldName(name, required, labelId, t, configSchema[name]?.title)}
+              {configSchema[name]?.enum ? (
+                <select aria-describedby={describedBy} aria-invalid={Boolean(errorId)} aria-labelledby={labelId} className="fs-input" onChange={(event) => setConfigValues((current) => ({ ...current, [name]: event.target.value }))} required={required} value={configValues[name] || ""}>
+                  <option value="">{placeholder}</option>
+                  {configValues[name] && !configSchema[name].enum?.includes(configValues[name]) ? <option disabled value={configValues[name]}>{configValues[name]}</option> : null}
+                  {configSchema[name].enum?.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              ) : <input aria-describedby={describedBy} aria-invalid={Boolean(errorId)} aria-labelledby={labelId} className="fs-input" onChange={(event) => setConfigValues((current) => ({ ...current, [name]: event.target.value }))} placeholder={placeholder} required={required} value={configValues[name] || ""}/>}
               {helpId ? <span className="fs-field-helper" id={helpId}>{configHelp[name]}</span> : null}
+              {errorId ? <span className="fs-field-helper error" id={errorId}>{configErrors[name]}</span> : null}
             </label>
           );
         })}
@@ -486,14 +538,35 @@ export function LlmProviderPanel({
               ? t("react.extensions.no_value0_saved", "No {value0} saved", { value0: fieldLabel(name, t) })
               : "";
           const savedId = connection.isSuccess && savedText ? `llm-secret-saved-${name}` : undefined;
-          const describedBy = [savedId, helpId].filter(Boolean).join(" ") || undefined;
+          const invalid = invalidJsonSecrets.has(name);
+          const errorId = invalid ? `${fieldLabelPrefix}-secret-error-${index}` : undefined;
+          const describedBy = [savedId, helpId, errorId].filter(Boolean).join(" ") || undefined;
+          const required = requiredSecretNames.includes(name) && !saved;
+          const isJson = secretFormats[name] === "json_object";
+          const shown = shownJsonSecrets.has(name);
+          const updateSecret = (value: string) => setSecrets((current) => ({ ...current, [name]: value }));
+          const placeholder = saved ? t("react.extensions.saved_enter_a_new_value0_to_replace_it", "Saved. Enter a new {value0} to replace it", { value0: secretNoun(name, t) }) : fieldLabel(name, t);
           return (
-            <label className="fs-field" key={name}>
+            <div className="fs-field" key={name}>
               {renderFieldName(name, requiredSecretNames.includes(name), labelId, t)}
-              <input aria-describedby={describedBy} aria-labelledby={labelId} autoComplete="off" className="fs-input" onChange={(event) => setSecrets((current) => ({ ...current, [name]: event.target.value }))} placeholder={saved ? t("react.extensions.saved_enter_a_new_value0_to_replace_it", "Saved. Enter a new {value0} to replace it", { value0: secretNoun(name, t) }) : fieldLabel(name, t)} type="password" value={secrets[name] || ""}/>
+              {isJson && shown ? (
+                <textarea aria-describedby={describedBy} aria-invalid={invalid || undefined} aria-labelledby={labelId} aria-required={required || undefined} autoComplete="off" className="fs-textarea" onChange={(event) => updateSecret(event.target.value)} placeholder={placeholder} rows={6} spellCheck={false} value={secrets[name] || ""} />
+              ) : (
+                <input aria-describedby={describedBy} aria-invalid={invalid || undefined} aria-labelledby={labelId} aria-required={required || undefined} autoComplete="off" className="fs-input" onChange={(event) => updateSecret(event.target.value)} placeholder={placeholder} readOnly={isJson} type="password" value={secrets[name] || ""}/>
+              )}
+              {isJson ? (
+                <button aria-expanded={shown} className="fs-button sm" onClick={() => setShownJsonSecrets((current) => {
+                  const next = new Set(current);
+                  if (next.has(name)) next.delete(name); else next.add(name);
+                  return next;
+                })} type="button">{shown
+                    ? t("react.extensions.hide_json_for", "Hide JSON for {value0}", { value0: fieldLabel(name, t) })
+                    : t("react.extensions.show_edit_json_for", "Show/edit JSON for {value0}", { value0: fieldLabel(name, t) })}</button>
+              ) : null}
               {savedId ? <span className={!saved && requiredSecretNames.includes(name) ? "fs-field-helper error" : "fs-field-helper"} id={savedId}>{savedText}</span> : null}
               {helpId ? <span className="fs-field-helper" id={helpId}>{secretHelp[name]}</span> : null}
-            </label>
+              {errorId ? <span className="fs-field-helper error" id={errorId}>{t("react.extensions.json_secret_invalid", "Enter a valid JSON object.")}</span> : null}
+            </div>
           );
         })}
         {helpUrl ? (
@@ -515,8 +588,8 @@ export function LlmProviderPanel({
         </>
       ) : null}
       <div className="fs-manifest-actions">
-        <button className="fs-button sm primary" disabled={mutationPending || requiredConfigMissing} onClick={() => ignoreAsyncResult(save())} type="button">{t("react.extensions.save_connection", "Save connection")}</button>
-        <button aria-describedby={!installEnabled ? enableGuidanceId : undefined} className="fs-button sm" disabled={!installEnabled || mutationPending || requiredConfigMissing} onClick={() => ignoreAsyncResult(refresh())} type="button">{t("react.extensions.discover_models", "Discover models")}</button>
+        <button className="fs-button sm primary" disabled={mutationPending || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(save())} type="button">{t("react.extensions.save_connection", "Save connection")}</button>
+        <button aria-describedby={!installEnabled ? enableGuidanceId : undefined} className="fs-button sm" disabled={!installEnabled || mutationPending || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(refresh())} type="button">{t("react.extensions.discover_models", "Discover models")}</button>
       </div>
       {status ? <p aria-live="polite" className="fs-manifest-description" role="status">{status}</p> : null}
       <label className="fs-search fs-llm-search">
@@ -579,11 +652,11 @@ export function LlmProviderPanel({
                   <button
                     aria-busy={checking || undefined}
                     aria-describedby={[checking ? hintId : "", verificationUnavailable ? enableGuidanceId : ""].filter(Boolean).join(" ") || undefined}
-                    aria-disabled={checking || mutationPending || verificationUnavailable || undefined}
+                    aria-disabled={checking || mutationPending || verificationUnavailable || (action.enable && secretInputBlocked) || undefined}
                     aria-label={checking ? t("react.extensions.checking_value0", "Checking {value0}", { value0: model.model_id }) : action.ariaLabel}
                     className={action.primary && !checking ? "fs-button sm primary" : "fs-button sm"}
                     onClick={() => {
-                      if (!checking && !mutationPending && !verificationUnavailable) ignoreAsyncResult(toggle(model, action.enable));
+                      if (!checking && !mutationPending && !verificationUnavailable && !(action.enable && secretInputBlocked)) ignoreAsyncResult(toggle(model, action.enable));
                     }}
                     type="button"
                   >

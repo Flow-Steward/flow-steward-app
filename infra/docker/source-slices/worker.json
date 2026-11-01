@@ -747,6 +747,7 @@
     "core/application/workflows/workflow_portability_common.py",
     "core/application/workflows/workflow_portability_definitions.py",
     "core/application/workflows/workflow_portability_policy.py",
+    "core/application/workflows/workflow_portability_redaction.py",
     "core/application/workflows/workflow_provider_trigger_repository.py",
     "core/application/workflows/workflow_reaction_events.py",
     "core/application/workflows/workflow_reaction_scope_repository.py",
@@ -1095,6 +1096,10 @@
     {
       "path": "core/application/orchestration/tools/standard_text_actions.py",
       "consumer": "core.application.registry.builtin_standard_tools: standard text connector implementation.module"
+    },
+    {
+      "path": "core/application/orchestration/tools/regex_actions.py",
+      "consumer": "core.application.orchestration.tools.standard_tools: imported Standard Tools regex actions"
     }
   ],
   "package_data_paths": [

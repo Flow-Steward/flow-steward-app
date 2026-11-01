@@ -2,8 +2,8 @@
 
 Which AI clients can use the **Flow Steward Operator** (`flow-steward-operator`)
 and **Flow Steward Developer** (`flow-steward-developer`) packages, in which
-format, with which setup and limits. Package version 1.0.0; client
-documentation checked on 2026-10-31.
+format, with which setup and limits. Operator package version 1.0.1; Developer
+package version 1.0.0. Client documentation checked on 2026-10-31.
 
 Every setup connects to **your own** Flow Steward installation. No package
 contains an address, a token or a demonstration server, and no catalog listing
@@ -36,7 +36,9 @@ rows below with the installation's own MCP address filled in, creates the
 personal token where a row uses one, and names what blocks a cloud client.
 
 **Developer** functions need a terminal and file access. They are listed only
-for clients that have both.
+for clients that have both. The Operator offline workflow converter also needs
+a terminal, Python and file access; skill discovery alone does not establish
+that a cloud client can run it.
 
 ## Clients
 
@@ -49,12 +51,15 @@ release's marketplace archive, or loaded for one session from a release zip.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All three skills; MCP tools through the server the plugin declares | Personal token as the masked plugin option `mcp_token`, kept in the system credential store and sent as `Authorization: Bearer` | Package README; set `mcp_url` and `mcp_token` with `/plugin configure flow-steward-operator@flow-steward` | The server starts only when both options are set; an existing manual server entry for the same installation should be removed | Yes | Yes, CLI 2.1.222 in an isolated profile (1) | No | No |
+| Operator | All four skills; MCP tools through the server the plugin declares | Personal token as the masked plugin option `mcp_token`, kept in the system credential store and sent as `Authorization: Bearer` | Package README; set `mcp_url` and `mcp_token` with `/plugin configure flow-steward-operator@flow-steward` | The server starts only when both options are set; an existing manual server entry for the same installation should be removed | Yes | 1.0.0 and its three skills verified with CLI 2.1.222 (1); 1.0.1 and its migration skill not verified | No | No |
 | Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Yes, CLI 2.1.222 in an isolated profile (1) | No | No |
 
-(1) `claude plugin validate` on both packages and the marketplace;
-marketplace add, install, `details` (skill inventory), update 1.0.0 to 1.0.1,
-uninstall and marketplace removal; session load of both release zips. For
+(1) Historical verification covered Operator 1.0.0 with three skills and
+Developer 1.0.0: `claude plugin validate` on both packages and the marketplace;
+marketplace add, install, `details` (skill inventory), an update exercise,
+uninstall and marketplace removal; session load of both release zips. The update
+exercise preceded the addition of the migration skill and does not verify the
+current Operator 1.0.1 package or its four-skill inventory. For
 Operator: install without options leaves the MCP server out and prints a
 reminder; with options set, the server connected to a local MCP probe at the
 configured address and sent the configured token as `Bearer`; the token stayed
@@ -71,7 +76,7 @@ directory.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | Skills only; the plugin's MCP server entry is ignored there because its address is a user option | OAuth sign-in (task 5): Flow Steward is added as a custom connector with your address | Upload the zip; add the connector with your address | MCP tools need a public HTTPS address and cloud AI apps turned on; a connector with your own address is added by you, it is not listed in the directory | Yes | Not verified: needs a claude.ai account session | No | No |
+| Operator | Skills only; the plugin's MCP server entry is ignored there because its address is a user option | OAuth sign-in (task 5): Flow Steward is added as a custom connector with your address | Upload the zip; add the connector with your address | MCP tools need a public HTTPS address and cloud AI apps turned on; the offline converter requires terminal, Python and file access, which are unverified in Cowork and unavailable in chat; a connector with your own address is added by you, it is not listed in the directory | Yes | Not verified: needs a claude.ai account session | No | No |
 | Developer | Not offered: chat has no terminal; Cowork file and terminal access for this package is unverified | — | — | — | — | — | — | — |
 
 ### Codex
@@ -84,7 +89,7 @@ claimed.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All three skills; MCP tools from a server you add yourself | Personal token from an environment variable: `bearer_token_env_var` in `config.toml` | Package README for the skills; `[mcp_servers.flow-steward]` with `url = "<your address>/mcp"` and `bearer_token_env_var = "FLOW_STEWARD_TOKEN"` | The plugin carries no MCP server | Yes | Not verified: the client is not installed on the verification machine | No | No |
+| Operator | All four skills; MCP tools from a server you add yourself | Personal token from an environment variable: `bearer_token_env_var` in `config.toml` | Package README for the skills; `[mcp_servers.flow-steward]` with `url = "<your address>/mcp"` and `bearer_token_env_var = "FLOW_STEWARD_TOKEN"` | The plugin carries no MCP server | Yes | Not verified: the client is not installed on the verification machine | No | No |
 | Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: the client is not installed on the verification machine | No | No |
 
 ### ChatGPT
@@ -95,7 +100,7 @@ zip (Agent Plugins `plugin.json` with OpenAI metadata under `extensions`).
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | Skills-only listing; MCP tools after you connect Flow Steward as a custom MCP server | OAuth sign-in (task 5) | Install from the directory; custom MCP server with your address | A listing with an MCP server needs one public address, and per-customer address templates are reserved for trusted developers, so the listing stays skills-only; an MCP server cannot be added to a skills-only listing later | Yes | Not verified: no publisher account or ChatGPT session | No | No |
+| Operator | Skills-only listing; MCP tools after you connect Flow Steward as a custom MCP server | OAuth sign-in (task 5) | Install from the directory; custom MCP server with your address | A listing with an MCP server needs one public address, and per-customer address templates are reserved for trusted developers, so the listing stays skills-only; an MCP server cannot be added to a skills-only listing later; the offline converter requires terminal, Python and file access and is not claimed for chat | Yes | Not verified: no publisher account or ChatGPT session | No | No |
 | Developer | Skills-only listing for the desktop coding agent; not for chat, which has no terminal | None | Install from the directory | Same listing rules | Yes | Not verified: no publisher account or ChatGPT session | No | No |
 
 ### Cursor
@@ -107,7 +112,7 @@ claimed.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All three skills; MCP tools from a server you add yourself | Personal token from an environment variable in the MCP headers | Package README for the skills; in `~/.cursor/mcp.json` a `flow-steward` entry with `"url": "<your address>/mcp"` and `"headers": {"Authorization": "Bearer ${env:FLOW_STEWARD_TOKEN}"}` | The plugin carries no MCP server; an organization admin may have to allow local plugin imports | Yes | Not verified: the client is not installed on the verification machine | No | No |
+| Operator | All four skills; MCP tools from a server you add yourself | Personal token from an environment variable in the MCP headers | Package README for the skills; in `~/.cursor/mcp.json` a `flow-steward` entry with `"url": "<your address>/mcp"` and `"headers": {"Authorization": "Bearer ${env:FLOW_STEWARD_TOKEN}"}` | The plugin carries no MCP server; an organization admin may have to allow local plugin imports | Yes | Not verified: the client is not installed on the verification machine | No | No |
 | Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: the client is not installed on the verification machine | No | No |
 
 ### Gemini CLI
@@ -119,7 +124,7 @@ at its root, installed from a local folder. The Gemini chat app is not claimed.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All three skills; MCP tools from a server you add yourself | Personal token in an `Authorization` header of the server entry; Gemini CLI keeps it in its settings file | Package README for the skills; `gemini mcp add --transport http --header "Authorization: Bearer <token>" flow-steward <your address>/mcp` | The extension carries no MCP server; no gallery listing | Yes | Not verified: the client is not installed on the verification machine | — | — |
+| Operator | All four skills; MCP tools from a server you add yourself | Personal token in an `Authorization` header of the server entry; Gemini CLI keeps it in its settings file | Package README for the skills; `gemini mcp add --transport http --header "Authorization: Bearer <token>" flow-steward <your address>/mcp` | The extension carries no MCP server; no gallery listing | Yes | Not verified: the client is not installed on the verification machine | — | — |
 | Developer | All four skills; terminal and files | None | Package README | No gallery listing | Yes | Not verified: the client is not installed on the verification machine | — | — |
 
 ## Catalogs and what each one indexes

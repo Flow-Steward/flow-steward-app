@@ -24,6 +24,51 @@ class LlmProviderExtensionError(Exception):
     detail: str
 
 
+def _reject_json_constant(_value: str) -> None:
+    raise ValueError("non-JSON constant")
+
+
+def validate_json_object_secrets(contract: Any, secrets: dict[str, Any]) -> dict[str, Any]:
+    """Validate new JSON secrets without changing their bytes or exposing their contents."""
+    formats = getattr(contract, "provider_secret_formats", None) or {}
+    result = dict(secrets)
+    for name, value_format in formats.items():
+        if value_format != "json_object" or name not in result:
+            continue
+        raw = result[name]
+        if isinstance(raw, str) and not raw.strip():
+            # A blank replacement keeps the existing encrypted value.
+            result.pop(name)
+            continue
+        try:
+            if not isinstance(raw, str):
+                raise ValueError("string required")
+            parsed = json.loads(raw, parse_constant=_reject_json_constant)
+            if not isinstance(parsed, dict):
+                raise ValueError("object required")
+        except (TypeError, ValueError, RecursionError):
+            raise LlmProviderExtensionError(
+                422, f"Invalid JSON object for secret: {name}"
+            ) from None
+    return result
+
+
+def require_provider_secrets(contract: Any, secrets: dict[str, Any]) -> None:
+    """Require declared credentials without including their values in errors."""
+    from core.application.settings.llm_provider_extension_service import llm_field_label
+
+    required = {
+        str(field).strip()
+        for field in (getattr(contract, "required_provider_secrets", None) or [])
+        if str(field).strip()
+    }
+    missing = [field for field in sorted(required) if not str(secrets.get(field) or "").strip()]
+    if missing:
+        raise LlmProviderExtensionError(
+            422, "Enter the required key: " + ", ".join(llm_field_label(f) for f in missing)
+        )
+
+
 def without_cleared_fields(value: dict[str, Any]) -> dict[str, Any]:
     """Drop fields saved as an empty string: clearing a field restores its default."""
     return {
@@ -42,7 +87,11 @@ def effective_connection_config(contract: Any, value: dict[str, Any]) -> dict[st
     defaults = dict(getattr(contract, "connection_config_defaults", None) or {})
     merged = {**defaults, **without_cleared_fields(dict(value or {}))}
     return {
-        str(key): (item.strip().rstrip("/") if isinstance(item, str) else item)
+        str(key): (
+            item.strip().rstrip("/")
+            if key == "upstream_base_url" and isinstance(item, str)
+            else item
+        )
         for key, item in merged.items()
     }
 
@@ -94,29 +143,54 @@ class LlmProviderExtensionUseCases:
 
     @staticmethod
     def _connection_config(contract: Any, value: dict[str, Any]) -> dict[str, Any]:
-        from core.application.extensions.extension_descriptor import (
-            LLM_PROVIDER_CONNECTION_CONFIG_FIELDS,
+        from core.application.extensions.extension_descriptor_llm_provider import (
             canonical_llm_field_name,
+            is_safe_llm_connection_config_name,
         )
-        from core.application.settings.llm_provider_extension_service import (
-            declared_connection_config_fields,
-        )
+        from core.application.settings.llm_provider_extension_service import llm_field_label
 
-        allowed = (
-            declared_connection_config_fields(contract) & LLM_PROVIDER_CONNECTION_CONFIG_FIELDS
-        )
-        supplied_raw = {str(field).strip() for field in value}
-        supplied = {canonical_llm_field_name(field) for field in supplied_raw}
-        if supplied - allowed:
+        declarations = [
+            *(getattr(contract, "required_connection_config", None) or []),
+            *(getattr(contract, "optional_connection_config", None) or []),
+        ]
+        secrets = {
+            canonical_llm_field_name(name)
+            for name in [
+                *(getattr(contract, "required_provider_secrets", None) or []),
+                *(getattr(contract, "optional_provider_secrets", None) or []),
+            ]
+        }
+        allowed = {
+            name
+            for name in declarations
+            if is_safe_llm_connection_config_name(name) and name not in secrets
+        }
+        for key in value:
+            if key in allowed:
+                continue
+            if (
+                isinstance(key, str)
+                and key not in declarations
+                and canonical_llm_field_name(key) in allowed
+            ):
+                raise LlmProviderExtensionError(
+                    422, "connection_config fields must use canonical snake_case names"
+                )
             raise LlmProviderExtensionError(
                 422, "This provider has no such setting; reload the page and try again"
             )
-        if any(field != canonical_llm_field_name(field) for field in supplied_raw):
-            raise LlmProviderExtensionError(
-                422,
-                "connection_config fields must use canonical snake_case names",
-            )
-        return {str(key).strip(): item for key, item in value.items()}
+        schemas = getattr(contract, "connection_config_schema", None) or {}
+        for field, item in value.items():
+            if not isinstance(item, str) or len(item) > 4096:
+                raise LlmProviderExtensionError(
+                    422, f"{llm_field_label(field)} must be bounded text"
+                )
+            schema = schemas.get(field)
+            if item.strip() and schema and not schema.accepts(item):
+                raise LlmProviderExtensionError(
+                    422, f"{schema.title or llm_field_label(field)} has an invalid value"
+                )
+        return dict(value)
 
     @staticmethod
     def _safe_upstream_config(value: dict[str, Any]) -> dict[str, Any]:
@@ -238,6 +312,7 @@ class LlmProviderExtensionUseCases:
         from core.infrastructure.db.db_pool import transaction_connection
 
         record, contract, canonical_id, _, _ = self._resolve_install(install_id, account_id)
+        secrets = validate_json_object_secrets(contract, secrets)
         connection_config = self._safe_upstream_config(
             self._connection_config(contract, connection_config)
         )
@@ -298,7 +373,9 @@ class LlmProviderExtensionUseCases:
             if not isinstance(existing_config, dict):
                 existing_config = {}
             # An empty field is a deliberate clear back to the provider default.
-            effective_config = without_cleared_fields({**existing_config, **connection_config})
+            effective_config = self._connection_config(
+                contract, without_cleared_fields({**existing_config, **connection_config})
+            )
             try:
                 effective_config = require_llm_provider_connection_config(
                     contract,
@@ -320,23 +397,7 @@ class LlmProviderExtensionUseCases:
                     422, "This provider has no such key; reload the page and try again"
                 )
             merged = {**existing_credentials, **secrets}
-            required = {
-                str(field).strip()
-                for field in (getattr(contract, "required_provider_secrets", None) or [])
-                if str(field).strip()
-            }
-            if any(not str(merged.get(field) or "").strip() for field in required):
-                from core.application.settings.llm_provider_extension_service import (
-                    llm_field_label,
-                )
-
-                missing = [
-                    field for field in sorted(required) if not str(merged.get(field) or "").strip()
-                ]
-                raise LlmProviderExtensionError(
-                    422,
-                    "Enter the required key: " + ", ".join(llm_field_label(f) for f in missing),
-                )
+            require_provider_secrets(contract, merged)
             credentials_changed = bool(secrets) and merged != existing_credentials
             config_changed = effective_connection_config(
                 contract, effective_config
@@ -616,7 +677,9 @@ class LlmProviderExtensionUseCases:
         effective_config.update(existing_source_config)
         previous_config = dict(effective_config)
         effective_config.update(connection_config)
-        connection_config = self._safe_upstream_config(effective_config)
+        connection_config = self._safe_upstream_config(
+            self._connection_config(contract, without_cleared_fields(effective_config))
+        )
         try:
             connection_config = service.require_llm_provider_connection_config(
                 contract,
@@ -630,6 +693,12 @@ class LlmProviderExtensionUseCases:
         config_changed = bool(supplied_config) and effective_connection_config(
             contract, connection_config
         ) != effective_connection_config(contract, previous_config)
+        try:
+            credentials = validate_json_object_secrets(contract, credentials)
+            require_provider_secrets(contract, credentials)
+        except LlmProviderExtensionError:
+            self._record_failed_check(account_id, canonical_id, "invalid_configuration")
+            raise
         try:
             models = service.fetch_models_via_remote_runtime(
                 request_record,

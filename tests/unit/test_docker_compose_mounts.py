@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import yaml
+
 from core.infrastructure.config.env_registry import registry_default_value
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -846,13 +847,18 @@ def test_audit_stage_uses_compatible_semgrep_and_verifies_the_cli() -> None:
 
     assert "semgrep==" not in audit_requirements
     assert "setuptools==84.1.0" in semgrep_requirements
-    assert "semgrep==1.179.0" in semgrep_requirements
+    assert "semgrep==1.183.0+fs.1" in semgrep_requirements
     assert "COPY requirements-cli.lock ." in audit_body
     assert "pip install --no-cache-dir --require-hashes -r requirements-cli.lock" in audit_body
     assert "pip install --no-cache-dir -r requirements-audit.txt" in audit_body
     assert "python -m pip check" in audit_body
     assert "python -m venv /opt/semgrep" in audit_body
-    assert "/opt/semgrep/bin/pip install --no-cache-dir -r requirements-semgrep.txt" in audit_body
+    assert (
+        "/opt/semgrep/bin/pip install --no-cache-dir --find-links /tmp/semgrep-wheels -r requirements-semgrep.txt"
+        in audit_body
+    )
+    assert "quality.semgrep_distribution /tmp/semgrep-upstream" in audit_body
+    assert "quality.semgrep_inventory inventory /opt/semgrep/provenance.json" in audit_body
     assert "/opt/semgrep/bin/pip check" in audit_body
     assert "/opt/semgrep/bin/semgrep --version" in audit_body
     assert "ln -s /opt/semgrep/bin/semgrep /usr/local/bin/semgrep" not in audit_body

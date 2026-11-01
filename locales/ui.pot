@@ -27982,3 +27982,69 @@ msgstr ""
 
 msgid "react.agent_access.step_chatgpt_connector_description"
 msgstr ""
+
+msgid "react.extensions.hide_json_for"
+msgstr ""
+
+msgid "react.extensions.json_secret_invalid"
+msgstr ""
+
+msgid "react.extensions.show_edit_json_for"
+msgstr ""
+
+msgid "react.settings.provider_verification_charges"
+msgstr ""
+
+msgid "react.workflows.correct_action_inputs_before_save"
+msgstr ""
+
+msgid "react.workflows.correct_action_inputs_before_testing"
+msgstr ""
+
+msgid "react.workflows.literal_artifact_error"
+msgstr ""
+
+msgid "react.workflows.literal_boolean_error"
+msgstr ""
+
+msgid "react.workflows.literal_integer_error"
+msgstr ""
+
+msgid "react.workflows.literal_json_error"
+msgstr ""
+
+msgid "react.workflows.literal_number_error"
+msgstr ""
+
+msgid "react.workflows.literal_schema_error"
+msgstr ""
+
+msgid "react.workflows.map_artifact_input"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_find.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_find.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_find_all.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_find_all.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_replace.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_replace.description"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_replace_all.label"
+msgstr ""
+
+msgid "registry.tools.standard.text.regex_replace_all.description"
+msgstr ""
+
+msgid "react.workflows.null_value"
+msgstr ""

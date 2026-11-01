@@ -2,6 +2,7 @@ import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { createWorkflowConnectorRenderers } from "@/pages/workflows/detail/detail-connector-renderers";
+import { invalidConnectorLiteralNames } from "@/pages/workflows/detail/detail-connector-literal";
 
 describe("workflow connector resource picker rendering", () => {
   it("keeps the manual resource field and shows an accessible fail-closed state", () => {
@@ -200,5 +201,342 @@ describe("an action's Parameters and Output mapping blocks", () => {
 
     expect(screen.getByText("Parameters")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Parameter 1" })).toHaveValue("legacy_filter");
+  });
+});
+
+describe("connector literal controls", () => {
+  function LiteralHarness() {
+    const [mapping, setMapping] = useState<Record<string, unknown>>({
+      query: "literal:hello", data: "literal:{}", count: "literal:2", enabled: "literal:false",
+    });
+    const utils = createWorkflowConnectorRenderers({
+      connectorOutputRows: [],
+      connectorParameterRows: [
+        { name: "query", label: "Question", widget_type: "textarea", required: true, help_text: "Write the question." },
+        { name: "data", label: "Data", widget_type: "json", required: true },
+        { name: "count", label: "Count", widget_type: "integer", required: true },
+        { name: "enabled", label: "Enabled", widget_type: "boolean", required: true },
+      ],
+      renderWorkflowVariableInput: vi.fn(),
+      replaceStepKindConfigField: (_kind: string, _field: string, value: Record<string, unknown>) => setMapping(value),
+      selectedStep: { runtimeId: "literal-step", raw: {} }, selectedConnectorId: "extension.fixture",
+      stepKindConfig: { function_name: "action", input_mapping: mapping },
+    });
+    return <>{utils.renderConnectorInputMappingEditor()}<output aria-label="Stored mapping">{JSON.stringify(mapping)}</output></>;
+  }
+
+  it("renders declared controls and preserves typed literal mappings", () => {
+    render(<LiteralHarness />);
+    expect(screen.getByRole("textbox", { name: "Parameter value 1" }).tagName).toBe("TEXTAREA");
+    expect(screen.getByText("Write the question.")).toBeInTheDocument();
+    const query = screen.getByRole("textbox", { name: "Parameter value 1" });
+    for (const value of ["Hello", "Hello ", "Hello world", "Hello world\n", "Hello world\nNext"]) {
+      fireEvent.change(query, { target: { value } });
+      expect(query).toHaveValue(value);
+    }
+    expect(storedMapping()).toMatchObject({ query: 'literal:"Hello world\\nNext"' });
+    fireEvent.change(query, { target: { value: "true" } });
+    expect(storedMapping()).toMatchObject({ query: 'literal:"true"' });
+    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue("true");
+    expect(screen.getByRole("textbox", { name: "Parameter value 2" }).tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("spinbutton", { name: "Parameter value 3" })).toHaveValue(2);
+    const enabled = screen.getByRole("combobox", { name: "Parameter value 4" });
+    expect(enabled).toHaveValue("false");
+    fireEvent.change(enabled, { target: { value: "true" } });
+    expect(storedMapping()).toMatchObject({ enabled: "literal:true" });
+    fireEvent.change(enabled, { target: { value: "" } });
+    expect(enabled).toHaveAttribute("aria-invalid", "true");
+    expect(enabled).toHaveAttribute("aria-describedby", "connector-input-error-3");
+  });
+
+  it("identifies malformed JSON and invalid integers with recoverable errors", () => {
+    render(<LiteralHarness />);
+    const data = screen.getByRole("textbox", { name: "Parameter value 2" });
+    fireEvent.change(data, { target: { value: "{" } });
+    expect(data).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/valid JSON/i)).toBeInTheDocument();
+    fireEvent.change(data, { target: { value: '{"ok":true}' } });
+    expect(data).not.toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Parameter value 3" }), { target: { value: "1.5" } });
+    expect(screen.getByText(/whole number/i)).toBeInTheDocument();
+  });
+
+  it("explains why decimal and exponent integer spellings are rejected", () => {
+    render(<LiteralHarness />);
+    const count = screen.getByRole("spinbutton", { name: "Parameter value 3" });
+    for (const value of ["1.0", "1e1"]) {
+      fireEvent.change(count, { target: { value } });
+      expect(count).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByText(/without a decimal point or exponent/i)).toBeInTheDocument();
+    }
+    fireEvent.change(count, { target: { value: "10" } });
+    expect(count).not.toHaveAttribute("aria-invalid", "true");
+    expect(storedMapping()).toMatchObject({ count: "literal:10" });
+  });
+});
+
+describe("workflow artifact inputs", () => {
+  it("uses workflow state for artifacts and explains the limitation", () => {
+    const utils = createWorkflowConnectorRenderers({
+      connectorOutputRows: [], connectorParameterRows: [{ name: "file", label: "Input file", widget_type: "artifact_picker", required: true }],
+      renderWorkflowVariableInput: ({ ariaLabel, value }: { ariaLabel: string; value: string }) => <input aria-label={ariaLabel} value={value} onChange={vi.fn()} />,
+      replaceStepKindConfigField: vi.fn(), selectedStep: { raw: {} }, selectedConnectorId: "extension.fixture",
+      stepKindConfig: { input_mapping: { file: "state.input_file" } },
+    });
+    render(utils.renderConnectorInputMappingEditor());
+    expect(screen.getByText(/map a file artifact supplied or uploaded/i)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Literal value" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue("state.input_file");
+  });
+});
+
+describe("string-valued select literals", () => {
+  const doclingFormatPattern = String.raw`^[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*(?:docx|doc|rtf|pptx|ppt|html|mhtml|image|pdf|asciidoc|md|csv|xlsx|xls|odt|ods|odp|xml_uspto|xml_jats|xml_xbrl|xml_doclang|dclx|mets_gbs|json_docling|audio|video|vtt|latex|email|epub|boxnote|iwork_pages|iwork_keynote|iwork_numbers|ebcdic|afp)?[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$`;
+  it.each([
+    { value: "  pdf\t", schema: { type: "string", pattern: doclingFormatPattern }, invalid: false },
+    { value: "pdfx", schema: { type: "string", pattern: doclingFormatPattern }, invalid: false },
+    { value: "unknown", schema: { type: "string", enum: ["pdf", "docx"] }, invalid: true },
+  ])("displays a saved value outside the declared options: $value", ({ value, schema, invalid }) => {
+    const mapping = { from_format: `literal:${JSON.stringify(value)}` };
+    const replace = vi.fn();
+    const utils = createWorkflowConnectorRenderers({
+      connectorOutputRows: [], connectorParameterRows: [{ name: "from_format", value_type: "text", widget_type: "select", schema, options: [{ value: "pdf", label: "PDF" }, { value: "docx", label: "DOCX" }] }],
+      renderWorkflowVariableInput: vi.fn(), replaceStepKindConfigField: replace,
+      selectedStep: { raw: {} }, selectedConnectorId: "extension.fixture", stepKindConfig: { input_mapping: mapping },
+    });
+    render(utils.renderConnectorInputMappingEditor());
+    const select = screen.getByRole("combobox", { name: "Parameter value 1" });
+    expect(select).toHaveValue(value);
+    expect(within(select).getByRole("option", { name: value.trim() })).toBeDisabled();
+    if (invalid) {
+      expect(select).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByText(/matching the field's type and limits/i)).toBeInTheDocument();
+    } else {
+      expect(select).not.toHaveAttribute("aria-invalid");
+    }
+    expect(replace).not.toHaveBeenCalled();
+    expect(invalidConnectorLiteralNames(mapping, [{ name: "from_format", value_type: "text", schema }])).toEqual(invalid ? ["from_format"] : []);
+    fireEvent.change(select, { target: { value: "docx" } });
+    expect(replace).toHaveBeenCalledWith("connector", "input_mapping", { from_format: 'literal:"docx"' });
+  });
+
+  it("keeps numeric-looking options as strings", () => {
+    function SelectHarness() {
+      const [mapping, setMapping] = useState<Record<string, unknown>>({ size: "literal:256" });
+      const utils = createWorkflowConnectorRenderers({
+        connectorOutputRows: [], connectorParameterRows: [{ name: "size", value_type: "text", widget_type: "select", schema: { type: "string", enum: ["256"] }, options: [{ value: "256", label: "256" }, { value: "512", label: "512" }] }],
+        renderWorkflowVariableInput: vi.fn(), replaceStepKindConfigField: (_kind: string, _field: string, value: Record<string, unknown>) => setMapping(value),
+        selectedStep: { raw: {} }, selectedConnectorId: "extension.fixture", stepKindConfig: { input_mapping: mapping },
+      });
+      return <>{utils.renderConnectorInputMappingEditor()}<output aria-label="Stored mapping">{JSON.stringify(mapping)}</output></>;
+    }
+    render(<SelectHarness />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Parameter value 1" }), { target: { value: "512" } });
+    expect(storedMapping()).toEqual({ size: 'literal:"512"' });
+    const select = screen.getByRole("combobox", { name: "Parameter value 1" });
+    expect(select).toHaveValue("512");
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAttribute("aria-describedby", "connector-input-error-0");
+  });
+});
+
+describe("optional typed literal defaults", () => {
+  function DefaultsHarness() {
+    const [mapping, setMapping] = useState<Record<string, unknown>>({
+      choice: 'literal:"256"', count: "literal:3", json: 'literal:["a"]', enabled: "literal:true", note: 'literal:"hello"', legacy: "literal:",
+    });
+    const utils = createWorkflowConnectorRenderers({
+      connectorOutputRows: [], connectorParameterRows: [
+        { name: "choice", widget_type: "select", value_type: "text", schema: { type: "string", enum: ["256"] }, options: [{ value: "256", label: "256" }] },
+        { name: "count", widget_type: "number" }, { name: "json", widget_type: "json" },
+        { name: "enabled", widget_type: "boolean" }, { name: "note", widget_type: "text", value_type: "text" },
+        { name: "legacy", widget_type: "number" },
+      ],
+      renderWorkflowVariableInput: vi.fn(),
+      replaceStepKindConfigField: (_kind: string, _field: string, value: Record<string, unknown>) => setMapping(value),
+      selectedStep: { runtimeId: "defaults", raw: {} }, selectedConnectorId: "extension.fixture",
+      stepKindConfig: { input_mapping: mapping },
+    });
+    return <>{utils.renderConnectorInputMappingEditor()}<output aria-label="Stored mapping">{JSON.stringify(mapping)}</output></>;
+  }
+  it("omits cleared optional typed values, holds their rows and preserves explicit empty text and legacy blanks", () => {
+    render(<DefaultsHarness />);
+    const choice = screen.getByRole("combobox", { name: "Parameter value 1" });
+    fireEvent.change(choice, { target: { value: "" } });
+    expect(choice).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText(/matching the field's type and limits/i)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Parameter value 2" }), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Parameter value 3" }), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Parameter value 4" }), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Parameter value 5" }), { target: { value: "" } });
+    expect(storedMapping()).toEqual({ note: 'literal:""', legacy: "literal:" });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Parameter value 2" }), { target: { value: "4" } });
+    expect(storedMapping()).toEqual({ count: "literal:4", note: 'literal:""', legacy: "literal:" });
+  });
+});
+
+describe("nullable connector literals", () => {
+  function NullableHarness({ parameter, initial }: { parameter: Record<string, unknown>; initial: string }) {
+    const [mapping, setMapping] = useState<Record<string, unknown>>({ value: initial });
+    const utils = createWorkflowConnectorRenderers({
+      connectorOutputRows: [], connectorParameterRows: [{ name: "value", required: true, ...parameter }],
+      renderWorkflowVariableInput: vi.fn(),
+      replaceStepKindConfigField: (_kind: string, _field: string, value: Record<string, unknown>) => setMapping(value),
+      selectedStep: { runtimeId: "nullable", raw: {} }, selectedConnectorId: "extension.fixture",
+      stepKindConfig: { input_mapping: mapping },
+    });
+    return <>{utils.renderConnectorInputMappingEditor()}<output aria-label="Stored mapping">{JSON.stringify(mapping)}</output></>;
+  }
+
+  it.each([
+    { widget_type: "number", value_type: "number", schema: { type: ["number", "null"] }, nonNull: "2.5" },
+    { widget_type: "integer", value_type: "integer", schema: { type: ["integer", "null"] }, nonNull: "2" },
+    { widget_type: "boolean", value_type: "boolean", schema: { type: ["boolean", "null"] }, nonNull: "false" },
+    { widget_type: "number", value_type: "number", schema: { anyOf: [{ type: "number" }, { type: "null" }] }, nonNull: "2.5" },
+    { widget_type: "integer", value_type: "integer", schema: { oneOf: [{ type: "integer" }, { type: "null" }] }, nonNull: "2" },
+  ])("displays and round-trips explicit null for $widget_type", ({ nonNull, ...parameter }) => {
+    const view = render(<NullableHarness parameter={parameter} initial="literal:null" />);
+    let source = screen.getByRole("combobox", { name: "Parameter source 1" });
+    const nullOption = within(source).getByRole("option", { name: "Null value" });
+    expect(nullOption).toBeEnabled();
+    expect(nullOption).toHaveProperty("selected", true);
+    expect(screen.queryByText(/enter a valid|matching the field|choose true or false/i)).not.toBeInTheDocument();
+    expect(storedMapping()).toEqual({ value: "literal:null" });
+
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Literal value" }) as HTMLOptionElement).value } });
+    const valueControl = screen.getByLabelText("Parameter value 1");
+    fireEvent.change(valueControl, { target: { value: nonNull } });
+    expect(storedMapping()).toEqual({ value: `literal:${nonNull}` });
+    source = screen.getByRole("combobox", { name: "Parameter source 1" });
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Null value" }) as HTMLOptionElement).value } });
+    expect(storedMapping()).toEqual({ value: "literal:null" });
+    const saved = storedMapping().value as string;
+    view.unmount();
+    render(<NullableHarness parameter={parameter} initial={saved} />);
+    expect(within(screen.getByRole("combobox", { name: "Parameter source 1" })).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+    expect(storedMapping()).toEqual({ value: "literal:null" });
+  });
+
+  it.each([
+    { widget_type: "number", value_type: "number", schema: { type: ["number", "null"] } },
+    { widget_type: "text", value_type: "text", schema: { type: ["string", "null"] } },
+  ])("hydrates whitespace around a JSON null for $widget_type", (parameter) => {
+    const view = render(<NullableHarness parameter={parameter} initial="literal: null " />);
+    const source = screen.getByRole("combobox", { name: "Parameter source 1" });
+    expect(within(source).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+    expect(screen.queryByText(/enter a valid|matching the field|choose true or false/i)).not.toBeInTheDocument();
+    expect(JSON.parse((storedMapping().value as string).slice("literal:".length))).toBeNull();
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Literal value" }) as HTMLOptionElement).value } });
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Null value" }) as HTMLOptionElement).value } });
+    const saved = storedMapping().value as string;
+    expect(JSON.parse(saved.slice("literal:".length))).toBeNull();
+    view.unmount();
+    render(<NullableHarness parameter={parameter} initial={saved} />);
+    expect(within(screen.getByRole("combobox", { name: "Parameter source 1" })).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+  });
+
+  it.each([
+    { widget_type: "number", value_type: "number", schema: { type: ["number", "null"] }, payload: "\u0085null\u0085" },
+    { widget_type: "text", value_type: "text", schema: { type: ["string", "null"] }, payload: "\u0085null\u0085" },
+    { widget_type: "number", value_type: "number", schema: { type: ["number", "null"] }, payload: "\u001cnull\u001f" },
+  ])("hydrates Python whitespace around null for $widget_type", ({ payload, ...parameter }) => {
+    const view = render(<NullableHarness parameter={parameter} initial={`literal:${payload}`} />);
+    const source = screen.getByRole("combobox", { name: "Parameter source 1" });
+    expect(within(source).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+    expect(screen.queryByText(/enter a valid|matching the field|choose true or false/i)).not.toBeInTheDocument();
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Literal value" }) as HTMLOptionElement).value } });
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Null value" }) as HTMLOptionElement).value } });
+    expect(storedMapping()).toEqual({ value: "literal:null" });
+    view.unmount();
+    render(<NullableHarness parameter={parameter} initial="literal:null" />);
+    expect(within(screen.getByRole("combobox", { name: "Parameter source 1" })).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+  });
+
+  it.each(["literal:\ufeffnull", 'literal:"\ufeffnull"'])("keeps a BOM in the text literal %s", (initial) => {
+    const parameter = { widget_type: "text", value_type: "text", schema: { type: ["string", "null"] } };
+    render(<NullableHarness parameter={parameter} initial={initial} />);
+    const source = screen.getByRole("combobox", { name: "Parameter source 1" });
+    expect(within(source).getByRole("option", { name: "Literal value" })).toHaveProperty("selected", true);
+    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue("\ufeffnull");
+    expect(storedMapping()).toEqual({ value: initial });
+  });
+
+  it("keeps a whitespace-padded quoted null as text until the author selects null", () => {
+    const parameter = { widget_type: "text", value_type: "text", schema: { type: ["string", "null"] } };
+    render(<NullableHarness parameter={parameter} initial={'literal: "null"'} />);
+    const source = screen.getByRole("combobox", { name: "Parameter source 1" });
+    expect(within(source).getByRole("option", { name: "Literal value" })).toHaveProperty("selected", true);
+    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue("null");
+    expect(JSON.parse((storedMapping().value as string).slice("literal:".length))).toBe("null");
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Null value" }) as HTMLOptionElement).value } });
+    expect(storedMapping()).toEqual({ value: "literal:null" });
+    expect(within(source).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+  });
+
+  it.each([
+    { type: ["string", "null"] },
+    { anyOf: [{ type: "string" }, { type: "null" }] },
+    { oneOf: [{ type: "string" }, { type: "null" }] },
+  ])("distinguishes null from the text 'null' for a nullable string schema %o", (schema) => {
+    const parameter = { widget_type: "text", value_type: "text", schema };
+    const view = render(<NullableHarness parameter={parameter} initial="literal:null" />);
+    const source = screen.getByRole("combobox", { name: "Parameter source 1" });
+    expect(within(source).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+    fireEvent.change(source, { target: { value: (within(source).getByRole("option", { name: "Literal value" }) as HTMLOptionElement).value } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Parameter value 1" }), { target: { value: "null" } });
+    expect(storedMapping()).toEqual({ value: 'literal:"null"' });
+    view.unmount();
+    render(<NullableHarness parameter={parameter} initial={'literal:"null"'} />);
+    expect(within(screen.getByRole("combobox", { name: "Parameter source 1" })).getByRole("option", { name: "Literal value" })).toHaveProperty("selected", true);
+    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue("null");
+    const reopenedSource = screen.getByRole("combobox", { name: "Parameter source 1" });
+    fireEvent.change(reopenedSource, { target: { value: (within(reopenedSource).getByRole("option", { name: "Null value" }) as HTMLOptionElement).value } });
+    expect(storedMapping()).toEqual({ value: "literal:null" });
+    expect(within(reopenedSource).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
+  });
+
+  it.each([
+    { schema: { type: "number" }, value: "literal:null", invalid: true },
+    { schema: { type: ["integer", "null"] }, value: "literal:1.5", invalid: true },
+    { schema: { type: ["integer", "number", "null"] }, value: "literal:1.5", invalid: false },
+    { schema: { type: ["number", "null"], enum: [1, null] }, value: "literal:2", invalid: true },
+    { schema: { type: ["number", "null"], const: 1 }, value: "literal:null", invalid: true },
+    { schema: { anyOf: [{ type: "number" }, { type: "null" }], enum: [1] }, value: "literal:null", invalid: true },
+    { schema: { oneOf: [{ type: "number" }, { type: "null" }], const: 1 }, value: "literal:null", invalid: true },
+  ])("enforces the schema for $value", ({ schema, value, invalid }) => {
+    render(<NullableHarness parameter={{ widget_type: "number", value_type: "number", schema }} initial={value} />);
+    if (invalid) {
+      expect(screen.getByText(/valid number|matching the field/i)).toBeInTheDocument();
+    } else {
+      expect(screen.getByRole("spinbutton", { name: "Parameter value 1" })).not.toHaveAttribute("aria-invalid", "true");
+    }
+  });
+});
+
+describe("optional explicit text literal validation", () => {
+  it("validates a cleared text value while preserving the saved empty string and omitting a cleared number", () => {
+    function OptionalHarness() {
+      const [mapping, setMapping] = useState<Record<string, unknown>>({ note: 'literal:"ok"', count: "literal:2" });
+      const utils = createWorkflowConnectorRenderers({
+        connectorOutputRows: [], connectorParameterRows: [
+          { name: "note", widget_type: "text", value_type: "text", schema: { type: "string", minLength: 1 } },
+          { name: "count", widget_type: "number", value_type: "number", schema: { type: "number" } },
+        ],
+        renderWorkflowVariableInput: vi.fn(),
+        replaceStepKindConfigField: (_kind: string, _field: string, value: Record<string, unknown>) => setMapping(value),
+        selectedStep: { runtimeId: "optional-validation", raw: {} }, selectedConnectorId: "extension.fixture",
+        stepKindConfig: { input_mapping: mapping },
+      });
+      return <>{utils.renderConnectorInputMappingEditor()}<output aria-label="Stored mapping">{JSON.stringify(mapping)}</output></>;
+    }
+    render(<OptionalHarness />);
+    const note = screen.getByRole("textbox", { name: "Parameter value 1" });
+    fireEvent.change(note, { target: { value: "" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Parameter value 2" }), { target: { value: "" } });
+    expect(storedMapping()).toEqual({ note: 'literal:""' });
+    expect(note).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(note, { target: { value: " " } });
+    expect(storedMapping()).toEqual({ note: 'literal:" "' });
+    expect(note).not.toHaveAttribute("aria-invalid", "true");
   });
 });

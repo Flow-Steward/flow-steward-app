@@ -10,9 +10,16 @@ re-exports everything here, so callers keep importing from it.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from core.application.extensions.semver import require_nonempty_text
 
@@ -37,8 +44,10 @@ _LLM_SECRET_FIELD_NAMES = frozenset(
         "api_key",
         "api_token",
         "authorization",
+        "auth_header",
         "bearer_token",
         "client_secret",
+        "client_certificate",
         "cookie",
         "credential",
         "credentials",
@@ -50,6 +59,7 @@ _LLM_SECRET_FIELD_NAMES = frozenset(
         "secret",
         "secret_key",
         "set_cookie",
+        "signing_key",
         "token",
     }
 )
@@ -57,12 +67,15 @@ _LLM_SECRET_FIELD_SUFFIXES = (
     "_access_key",
     "_api_key",
     "_authorization",
+    "_auth_header",
     "_credential",
     "_credentials",
+    "_client_certificate",
     "_password",
     "_private_key",
     "_secret",
     "_secret_key",
+    "_signing_key",
     "_token",
 )
 
@@ -76,6 +89,17 @@ def is_llm_secret_field_name(value: Any) -> bool:
             name in _LLM_SECRET_FIELD_NAMES
             or any(name.endswith(suffix) for suffix in _LLM_SECRET_FIELD_SUFFIXES)
         )
+    )
+
+
+def is_safe_llm_connection_config_name(value: Any) -> bool:
+    """Whether a declared plaintext setting name is safe at any boundary."""
+    return bool(
+        isinstance(value, str)
+        and re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value)
+        and value == canonical_llm_field_name(value)
+        and value not in {"prototype", "constructor", "remote_base_url", "headers"}
+        and not is_llm_secret_field_name(value)
     )
 
 
@@ -127,6 +151,48 @@ class LlmProviderModelGrouping(BaseModel):
     owner_label_field: str = "upstream_owner_label"
 
 
+class LlmConnectionStringSchema(BaseModel):
+    """The bounded string-only subset supported by the host."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    type: Literal["string"]
+    title: str | None = Field(default=None, min_length=1, max_length=128)
+    minLength: int = Field(default=0, ge=0, le=4096)
+    maxLength: int = Field(default=4096, ge=0, le=4096)
+    enum: list[str] | None = Field(default=None, min_length=1, max_length=32)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_metadata(cls, value):
+        if isinstance(value, dict) and any(item is None for item in value.values()):
+            raise ValueError("schema metadata must not be null")
+        return value
+
+    @model_validator(mode="after")
+    def validate_bounds(self):
+        if self.title is not None and not self.title.strip():
+            raise ValueError("schema title must not be blank")
+        if self.minLength > self.maxLength:
+            raise ValueError("schema minimum exceeds maximum")
+        if self.enum is not None and (
+            len(set(self.enum)) != len(self.enum)
+            or any(
+                not item.strip() or len(item) > 256 or not self.accepts(item) for item in self.enum
+            )
+        ):
+            raise ValueError("schema enum contains invalid values")
+        return self
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler):
+        return {key: value for key, value in handler(self).items() if value is not None}
+
+    def accepts(self, value: str) -> bool:
+        return self.minLength <= len(value) <= self.maxLength and (
+            self.enum is None or value in self.enum
+        )
+
+
 class LlmProviderContractV1(BaseModel):
     """``runtime.extension_contract_v2.llm_provider`` — LLM provider extension contract.
 
@@ -153,7 +219,9 @@ class LlmProviderContractV1(BaseModel):
     #: the provider settings form: what to enter and in which format. Plain
     #: text, at most LLM_PROVIDER_FIELD_HELP_MAX_CHARS characters.
     connection_config_help: dict[str, str] = Field(default_factory=dict)
+    connection_config_schema: dict[str, LlmConnectionStringSchema] = Field(default_factory=dict)
     provider_secret_help: dict[str, str] = Field(default_factory=dict)
+    provider_secret_formats: dict[str, Literal["json_object"]] = Field(default_factory=dict)
     operations: LlmProviderOperations
     model_grouping: LlmProviderModelGrouping = Field(default_factory=LlmProviderModelGrouping)
     required_capabilities_for_enablement: list[str] = Field(
@@ -186,24 +254,18 @@ class LlmProviderContractV1(BaseModel):
                 "llm_provider connection config must not declare provider secret fields: "
                 + ", ".join(rejected)
             )
-        unsupported_plaintext_fields = sorted(
-            plaintext_fields - LLM_PROVIDER_CONNECTION_CONFIG_FIELDS
-        )
-        if unsupported_plaintext_fields:
+        if len(declared_config) > 32 or len(set(declared_config)) != len(declared_config):
+            raise ValueError("llm_provider connection config has too many or duplicate fields")
+        if any(not is_safe_llm_connection_config_name(field) for field in declared_config):
             raise ValueError(
-                "llm_provider v1 connection config is host-owned and supports only "
-                "upstream_base_url; unsupported fields: " + ", ".join(unsupported_plaintext_fields)
+                "llm_provider connection config fields must use safe canonical snake_case names"
             )
-        noncanonical_fields = sorted(
-            str(field).strip()
-            for field in declared_config
-            if str(field).strip() != canonical_llm_field_name(field)
-        )
-        if noncanonical_fields:
-            raise ValueError(
-                "llm_provider connection config fields must use canonical snake_case names: "
-                + ", ".join(noncanonical_fields)
-            )
+        if set(self.connection_config_schema) - set(declared_config):
+            raise ValueError("llm_provider connection_config_schema names undeclared settings")
+        for field, default in self.connection_config_defaults.items():
+            schema = self.connection_config_schema.get(field)
+            if len(default) > 4096 or (schema and not schema.accepts(default)):
+                raise ValueError("llm_provider connection config default violates schema")
         undeclared_defaults = sorted(
             str(field) for field in self.connection_config_defaults if field not in declared_config
         )
@@ -231,6 +293,12 @@ class LlmProviderContractV1(BaseModel):
             *self.optional_connection_config,
         }
         declared_secrets = {*self.required_provider_secrets, *self.optional_provider_secrets}
+        undeclared_formats = sorted(set(self.provider_secret_formats) - declared_secrets)
+        if undeclared_formats:
+            raise ValueError(
+                "llm_provider provider_secret_formats names undeclared provider secrets: "
+                + ", ".join(undeclared_formats)
+            )
         for block, declared, what in (
             ("connection_config_help", declared_config, "settings"),
             ("provider_secret_help", declared_secrets, "provider secrets"),

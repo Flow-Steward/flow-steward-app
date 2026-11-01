@@ -1,3 +1,5 @@
+import { connectorLiteralWidget, connectorStringLiteral, isEncodedConnectorNull } from "./detail-connector-literal";
+
 import type { WorkflowStepRow } from "@/pages/workflows/detail/detail-core";
 import {
   IF_CONSTANT_OPERATORS,
@@ -167,7 +169,7 @@ export function decodeConnectorInputValue(value: unknown): {
           : JSON.stringify(value ?? ""),
     };
   }
-  const text = textOrEmpty(value);
+  const text = value;
   if (text.startsWith("literal:")) {
     return { mode: "literal", value: text.slice("literal:".length) };
   }
@@ -183,7 +185,8 @@ export function decodeConnectorInputValue(value: unknown): {
 }
 
 export function encodeConnectorInputValue(row: ConnectorInputMappingRow): string {
-  const value = textOrEmpty(row.value);
+  const value = row.value;
+  if (row.mode === "null") return "literal:null";
   if (row.mode === "literal") {
     return `literal:${value}`;
   }
@@ -238,7 +241,24 @@ export function connectorInputMappingRows(
       return;
     }
     seen.add(key);
-    rows.push(connectorInputRow(key, mappingObject[key], Object.hasOwn(mappingObject, key)));
+    const row = connectorInputRow(key, mappingObject[key], Object.hasOwn(mappingObject, key));
+    if (parameter.required !== true && ["select", "json", "number", "integer", "boolean"].includes(connectorLiteralWidget(parameter)) && mappingObject[key] === "literal:") {
+      row.originalTypedEmpty = { key, encoded: "literal:" };
+    }
+    if (isEncodedConnectorNull(mappingObject[key]) && Object.keys(objectOrEmpty(parameter.schema)).length > 0) {
+      row.mode = "null";
+      row.value = "null";
+    }
+    if (connectorStringLiteral(parameter) && row.mode === "literal") {
+      try {
+        const decoded: unknown = JSON.parse(row.value);
+        if (typeof decoded === "string") row.value = decoded;
+      } catch { /* Legacy plain text remains editable. */ }
+      if (typeof mappingObject[key] === "string" && (mappingObject[key] as string).startsWith("literal:")) {
+        row.originalTextLiteral = { key, encoded: mappingObject[key] as string, display: row.value };
+      }
+    }
+    rows.push(row);
   });
   Object.entries(mappingObject).forEach(([key, value]) => {
     if (seen.has(key) || isPlatformOwnedConnectorInput(key)) {
@@ -260,12 +280,20 @@ export function missingRequiredConnectorInputNames(
       return missing;
     }
     const value = mappingObject[key];
+    let requiredValue = value;
+    if (typeof value === "string" && value.startsWith("literal:")) {
+      requiredValue = value.slice("literal:".length);
+      if (connectorStringLiteral(parameter)) {
+        try {
+          const decoded: unknown = JSON.parse(requiredValue as string);
+          if (typeof decoded === "string") requiredValue = decoded;
+        } catch { /* Legacy plain text stays unchanged. */ }
+      }
+    }
     if (
-      value === null
-      || value === undefined
-      || (typeof value === "string"
-        && (!value.trim()
-          || (value.startsWith("literal:") && !value.slice("literal:".length).trim())))
+      requiredValue === null
+      || requiredValue === undefined
+      || (typeof requiredValue === "string" && !requiredValue.trim())
     ) {
       missing.push(key);
     }
@@ -275,6 +303,7 @@ export function missingRequiredConnectorInputNames(
 
 export function connectorInputMappingFromRows(
   rows: ConnectorInputMappingRow[],
+  parameters: Array<Record<string, unknown>> = [],
 ): Record<string, unknown> {
   const entries: Array<[string, unknown]> = [];
   rows.forEach((row) => {
@@ -286,7 +315,19 @@ export function connectorInputMappingFromRows(
       entries.push([key, retained.value]);
       return;
     }
-    const encodedValue = encodeConnectorInputValue(row);
+    let encodedValue = encodeConnectorInputValue(row);
+    if (row.originalTextLiteral?.key === key && row.originalTextLiteral.display === row.value) {
+      entries.push([key, row.originalTextLiteral.encoded]);
+      return;
+    }
+    const parameter = parameters.find((item) => contractItemName(item) === key);
+    if (row.mode === "literal" && !row.value && parameter?.required !== true && ["select", "json", "number", "integer", "boolean"].includes(connectorLiteralWidget(parameter))) {
+      if (row.originalTypedEmpty?.key === key) entries.push([key, row.originalTypedEmpty.encoded]);
+      return;
+    }
+    if (row.mode === "literal" && connectorStringLiteral(parameter)) {
+      encodedValue = `literal:${JSON.stringify(row.value)}`;
+    }
     if (encodedValue || row.mode === "literal") entries.push([key, encodedValue]);
   });
   return Object.fromEntries(entries);

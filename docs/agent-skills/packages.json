@@ -12,7 +12,7 @@
   },
   "packages": {
     "flow-steward-operator": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "display_name": "Flow Steward Operator",
       "short_description": "Build and run automations",
       "description": "Build, run and manage Flow Steward automations through your Flow Steward MCP connection: workflows, agents and skills, runs, approvals and operational reports. Also reports issues and shares workflow templates.",
