@@ -1,0 +1,32 @@
+name: Request documentation update
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    if: github.repository == 'Flow-Steward/flow-steward-app' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Mint documentation dispatch token
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.DOCS_SYNC_APP_ID }}
+          private-key: ${{ secrets.DOCS_SYNC_APP_PRIVATE_KEY }}
+          owner: Flow-Steward
+          repositories: documentation-site
+          permission-contents: write
+      - name: Request cumulative documentation reconciliation
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'Flow-Steward', repo: 'documentation-site',
+              event_type: 'product-docs-sync',
+              client_payload: {source_sha: context.sha}
+            });

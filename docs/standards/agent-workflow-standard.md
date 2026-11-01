@@ -83,7 +83,9 @@ AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `l
 - `MUST` start Tier 2 dependency audits before slower static checks and preserve their actual pass/fail evidence; deferred no-op checks are not valid evidence.
 - `MUST` require complete, current Tier 2 and Tier 3 evidence for the final SHA before declaring a candidate publishable (input-scoped checks matched through that SHA's fingerprint); `--full` succeeds only after that cumulative validation.
 - Additional deep audit checks `MAY` be requested through `lint.sh --checks`; `--audit` is a compatibility alias for the final committed gate.
-- `MUST NOT` wait for GitHub Actions or report their absence as a blocker; workflows are disabled.
+- Local handoff `MUST NOT` depend on GitHub status checks. Approved documentation
+  and tag-release workflows are enabled (ADR 0048); official automated publication
+  `MUST` wait for its exact-SHA Docker quality gate and both-registry verification.
 - `MUST` report exact commands, achieved tier, candidate provenance, and blocked or unrun verification.
 - `MUST NOT` combine results from different commits or environments into one green result, except input-scoped evidence whose fingerprint matches the final tree.
 
