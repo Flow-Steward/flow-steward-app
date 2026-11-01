@@ -3915,6 +3915,9 @@ msgstr ""
 msgid "react.extensions.change_the_filter_or_install_an_extension_from_a_zip_file"
 msgstr ""
 
+msgid "react.extensions.check_again"
+msgstr ""
+
 msgid "react.extensions.check_failed"
 msgstr ""
 
@@ -4644,6 +4647,12 @@ msgstr ""
 msgid "react.extensions.new_connection"
 msgstr ""
 
+msgid "react.extensions.new_version_available"
+msgstr ""
+
+msgid "react.extensions.new_version_incompatible"
+msgstr ""
+
 msgid "react.extensions.next"
 msgstr ""
 
@@ -5280,6 +5289,15 @@ msgstr ""
 msgid "react.extensions.updated_value0"
 msgstr ""
 
+msgid "react.extensions.updates_available_count"
+msgstr ""
+
+msgid "react.extensions.updates_check_failed"
+msgstr ""
+
+msgid "react.extensions.updates_check_failed_detail"
+msgstr ""
+
 msgid "react.extensions.updating"
 msgstr ""
 
@@ -5332,6 +5350,12 @@ msgid "react.extensions.verified_publisher"
 msgstr ""
 
 msgid "react.extensions.version"
+msgstr ""
+
+msgid "react.extensions.version_available"
+msgstr ""
+
+msgid "react.extensions.view_version_details"
 msgstr ""
 
 msgid "react.extensions.what_it_adds"

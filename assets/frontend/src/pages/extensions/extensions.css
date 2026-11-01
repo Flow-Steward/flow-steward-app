@@ -262,3 +262,24 @@ ul.fs-markdown-list { list-style-type: disc; }
   font-family: var(--ff-code);
   font-size: var(--fs-type-code-size);
 }
+
+/* WordPress's update notice under an installed extension's name. */
+.fs-extensions-update-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-025) var(--fs-space-100);
+  margin-top: var(--fs-space-050);
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-caption-size);
+}
+
+.fs-extensions-update-failure { color: var(--fs-text-danger); }
+
+.fs-extensions-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+  margin-top: var(--fs-space-100);
+}

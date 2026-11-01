@@ -82,6 +82,16 @@ def create_extension_catalog_router(
         except Exception as e:
             return api_error_response(e, request=request)
 
+    @router.get("/api/extensions/catalog/updates")
+    def api_extension_catalog_updates(request: Request, refresh: bool = False):
+        """Installed extensions with a newer catalog release; ``refresh`` checks again now."""
+        try:
+            return _service().list_updates(scope=request_scope(request), refresh=refresh)
+        except ServiceError as e:
+            return service_error_response(e, request)
+        except Exception as e:
+            return api_error_response(e, request=request)
+
     @router.get("/api/extensions/catalog/availability")
     def api_extension_catalog_availability(request: Request):
         """Report catalog availability without failing when it is unusable."""

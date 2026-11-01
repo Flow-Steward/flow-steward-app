@@ -4073,6 +4073,9 @@ msgstr "Plėtinių: {count}"
 msgid "react.extensions.change_the_filter_or_install_an_extension_from_a_zip_file"
 msgstr "Pakeiskite filtrą arba įdiekite plėtinį iš `.zip` failo."
 
+msgid "react.extensions.check_again"
+msgstr "Tikrinti dar kartą"
+
 msgid "react.extensions.check_failed"
 msgstr "Patikrinimas nepavyko"
 
@@ -4862,6 +4865,12 @@ msgstr "Naujas"
 msgid "react.extensions.new_connection"
 msgstr "Naujas ryšys"
 
+msgid "react.extensions.new_version_available"
+msgstr "Yra nauja {name} versija."
+
+msgid "react.extensions.new_version_incompatible"
+msgstr "Yra nauja {name} versija, bet ji neveikia šiame serveryje."
+
 msgid "react.extensions.next"
 msgstr "Kitas"
 
@@ -5559,6 +5568,15 @@ msgstr "Atnaujinti į v{value0}"
 msgid "react.extensions.updated_value0"
 msgstr "· Atnaujinta {value0}"
 
+msgid "react.extensions.updates_available_count"
+msgstr "Galimi atnaujinimai: {count}"
+
+msgid "react.extensions.updates_check_failed"
+msgstr "Nepavyko patikrinti plėtinių atnaujinimų."
+
+msgid "react.extensions.updates_check_failed_detail"
+msgstr "Nepavyko pasiekti katalogo. Įdiegti plėtiniai toliau veikia."
+
 msgid "react.extensions.updating"
 msgstr "Atnaujinama…"
 
@@ -5618,6 +5636,12 @@ msgstr "Patvirtintas leidėjas"
 
 msgid "react.extensions.version"
 msgstr "versija:"
+
+msgid "react.extensions.version_available"
+msgstr "Pasiekiama {version}"
+
+msgid "react.extensions.view_version_details"
+msgstr "Peržiūrėti {version} versijos informaciją"
 
 msgid "react.extensions.what_it_adds"
 msgstr "Ką prideda"

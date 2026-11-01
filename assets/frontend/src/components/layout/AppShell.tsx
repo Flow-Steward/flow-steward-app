@@ -2,6 +2,8 @@
 import type { PropsWithChildren } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useQuery } from "@tanstack/react-query";
+
 import {
   Activity,
   Bot,
@@ -65,6 +67,11 @@ import {
 } from "@/components/layout/app-shell-helpers";
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import {
+  EXTENSION_UPDATES_QUERY_KEY,
+  EXTENSION_UPDATES_STALE_TIME_MS,
+  fetchExtensionUpdates,
+} from "@/pages/extensions/catalog-api";
 
 export function AppShell({ children }: Readonly<PropsWithChildren>) {
   const auth = useAuth();
@@ -246,6 +253,16 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
 
   const isAdmin = roles.includes("admin");
   const isOperator = roles.includes("operator");
+  // WordPress's count bubble on Plugins. Only administrators see Extensions in
+  // the navigation, so only they ask; a failed check simply shows no count.
+  const extensionUpdatesQuery = useQuery({
+    queryKey: EXTENSION_UPDATES_QUERY_KEY,
+    queryFn: () => fetchExtensionUpdates(),
+    enabled: isAdmin,
+    retry: false,
+    staleTime: EXTENSION_UPDATES_STALE_TIME_MS,
+  });
+  const extensionUpdateCount = extensionUpdatesQuery.data?.count ?? 0;
   const hasRegistryAccess = isAdmin || isOperator || !auth.session?.user;
   const currentAccountId = firstStringFromUnknownValue([auth.session?.user?.account_id, auth.session?.account_memberships?.[0]?.account_id, ""]).trim();
   const canReadApprovals = Boolean(
@@ -470,6 +487,8 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
             to: "/extensions",
             label: t("shell.nav.extensions", "Extensions"),
             icon: FileCode2,
+            count: extensionUpdateCount,
+            countLabel: t("react.extensions.updates_available_count", "{count} updates available", { count: extensionUpdateCount }),
           },
           {
             key: "trash",

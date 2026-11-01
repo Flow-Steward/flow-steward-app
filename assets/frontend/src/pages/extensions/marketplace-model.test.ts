@@ -19,8 +19,10 @@ import {
   orderedCapabilities,
   orderedPermissions,
   readMarketplaceUrl,
+  releaseNotesLink,
   resolveFind,
   sizeLabel,
+  updateNoticeTitle,
   versionText,
   withoutMarketplaceParams,
   withoutStaleSelections,
@@ -346,4 +348,31 @@ test("a selected value the loaded index no longer has is dropped", () => {
   const facets = computeMarketplaceFacets(ITEMS, current, LABELS);
   expect(withoutStaleSelections(current, facets)).toEqual(filters({ category: ["crm"], capability: ["tool"] }));
   expect(withoutStaleSelections(filters({ category: ["crm"] }), facets)).toBeNull();
+});
+
+
+describe("update notices", () => {
+  it("links a GitHub-hosted release to its release notes, as WordPress links the changelog", () => {
+    const github = entry({
+      extension_id: "flowsteward.docling",
+      version: "0.3.0",
+      release_zip_url: "https://github.com/Flow-Steward/ext-document-docling/releases/download/v0.3.0/flowsteward.docling-0.3.0.zip",
+    });
+    expect(releaseNotesLink(github)).toEqual({
+      href: "https://github.com/Flow-Steward/ext-document-docling/releases/tag/v0.3.0",
+      external: true,
+    });
+  });
+
+  it("falls back to the extension's Catalog page when the archive is hosted elsewhere", () => {
+    const elsewhere = entry({ extension_id: "acme_crm", release_zip_url: "https://catalog.example.test/acme_crm-1.0.0.zip" });
+    expect(releaseNotesLink(elsewhere)).toEqual({ href: entryPath("acme_crm"), external: false });
+  });
+
+  it("says when the newer release does not run on this server", () => {
+    expect(updateNoticeTitle(entry({ extension_id: "a", name: "Docling", display_state: "update_available" })))
+      .toBe("There is a new version of Docling available.");
+    expect(updateNoticeTitle(entry({ extension_id: "a", name: "Docling", display_state: "incompatible" })))
+      .toBe("There is a new version of Docling available, but it does not work with this server.");
+  });
 });

@@ -373,4 +373,24 @@ describe("AppShellSidebar", () => {
     expect(screen.queryByRole("menu", { name: "Account menu" })).not.toBeInTheDocument();
     expect(accountTrigger).toHaveFocus();
   });
+  it("shows WordPress's count bubble on a row with waiting updates and names it for a screen reader", () => {
+    renderSidebar({
+      sidebarSections: [
+        {
+          key: "system",
+          label: "System",
+          items: [
+            { key: "extensions", label: "Extensions", to: "/extensions", icon: Workflow, count: 2, countLabel: "2 updates available" },
+            { key: "trash", label: "Trash", to: "/trash", icon: FolderKanban, count: 0, countLabel: "0 updates available" },
+          ],
+        },
+      ],
+    });
+
+    expect(screen.getByTestId("nav-count-extensions")).toHaveTextContent("2");
+    expect(screen.getByTestId("nav-count-extensions")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("link", { name: "Extensions, 2 updates available" })).toHaveAttribute("href", "/extensions");
+    expect(screen.queryByTestId("nav-count-trash")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Trash" })).toBeInTheDocument();
+  });
 });

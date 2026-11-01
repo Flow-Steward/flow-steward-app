@@ -156,3 +156,34 @@ export type ExtensionCatalogInstallState = {
   status: string;
   outcome?: ExtensionCatalogInstallOutcome;
 };
+
+/**
+ * The installed extensions the catalog has a newer release of — WordPress's
+ * update check. Each item is the listing's own entry, so Update runs the same
+ * catalog install call; `incompatible` items are announced without one.
+ * `checked` is false when the catalog could not be reached: the page says it
+ * could not check and never blocks on it.
+ */
+export type ExtensionUpdateCheck = {
+  kind: "extension_update_check";
+  checked: boolean;
+  availability: ExtensionCatalogAvailability;
+  /** Permission scope -> its name, from Core; absent when the check failed. */
+  permission_labels?: Record<string, string>;
+  count: number;
+  items: ExtensionCatalogEntry[];
+};
+
+/** Shared by the Installed page, the extension's page and the navigation count. */
+export const EXTENSION_UPDATES_QUERY_KEY = ["extensions", "updates"] as const;
+
+/**
+ * The server reuses the catalog's answer for an hour; `refresh` is "Check
+ * again", which asks the catalog now.
+ */
+export async function fetchExtensionUpdates(refresh = false) {
+  return fetchJson<ExtensionUpdateCheck>(`/api/extensions/catalog/updates${refresh ? "?refresh=true" : ""}`);
+}
+
+/** The navigation count re-reads the check at most every five minutes. */
+export const EXTENSION_UPDATES_STALE_TIME_MS = 5 * 60_000;

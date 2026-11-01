@@ -18,6 +18,12 @@ What the cache keeps is a fallback, never a substitute for asking:
 * one read at a time goes to the host. A caller that arrives while a read is in
   flight waits for it and takes its result instead of sending its own.
 
+A caller that only needs a recent answer, not the latest one, may pass
+``max_age_seconds``: the extension update check runs on every page that shows
+an update count, so it accepts an index the host confirmed, or failed to
+answer for, within that window — WordPress's update-check rule. Browsing a
+catalog keeps the default of zero and always asks.
+
 Nothing is persisted: a restart simply reads again. The cache knows nothing
 about what a catalog item is; each business area supplies the fetch (bound to
 its SSRF guard) and the parser for its own index contract.
@@ -98,14 +104,22 @@ class CatalogIndexCache(Generic[IndexT]):
             self._forget()
             self._source_url = ""
 
-    def load(self, url: str) -> IndexT:
+    def load(self, url: str, *, max_age_seconds: float = 0.0) -> IndexT:
         """Ask the host for the index at ``url`` and return the current one.
+
+        With ``max_age_seconds``, a read that reached the host within that many
+        seconds answers instead: the index it confirmed, or, when it failed,
+        the stale index or the refusal. A failure therefore waits out the
+        window too, as WordPress's update check does, rather than dialling a
+        dead host on every page.
 
         Raises :class:`CatalogIndexUnavailableError` only when there is nothing
         to serve: the read failed (or failed moments ago) with no good index.
         """
         with self._cond:
             self._adopt_url(url)
+            if self._answered_within(max_age_seconds):
+                return self._current_or_raise()
             while self._in_flight:
                 finished = self._reads_finished
                 while self._in_flight and self._reads_finished == finished:
@@ -213,6 +227,13 @@ class CatalogIndexCache(Generic[IndexT]):
         self._last_error = ""
         self._last_failure_at = 0.0
         self._epoch += 1
+
+    def _answered_within(self, max_age_seconds: float) -> bool:
+        """Whether the host answered, either way, within the window. Caller holds the lock."""
+        last_answer = max(self._fetched_at, self._last_failure_at)
+        if max_age_seconds <= 0 or not last_answer:
+            return False
+        return (self._clock() - last_answer) < max_age_seconds
 
     def _in_failure_cooldown(self) -> bool:
         if not self._last_failure_at:

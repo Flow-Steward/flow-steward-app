@@ -276,14 +276,16 @@ def _catalog_url() -> str:
     return url
 
 
-def load_extension_catalog() -> ExtensionCatalogIndex:
+def load_extension_catalog(*, max_age_seconds: float = 0.0) -> ExtensionCatalogIndex:
     """Return the current index, revalidated with the catalog host on this call.
 
+    ``max_age_seconds`` lets a caller that needs only a recent answer, such as
+    the update check, reuse what the host said within that window instead.
     Serves the last good index, marked stale, when the host fails; raises
     :class:`ExtensionCatalogError` only when there is nothing to serve.
     """
     try:
-        return _INDEX.load(_catalog_url())
+        return _INDEX.load(_catalog_url(), max_age_seconds=max_age_seconds)
     except CatalogIndexUnavailableError as exc:
         raise ExtensionCatalogError(
             "Extension catalog is unavailable.",

@@ -16,6 +16,7 @@ import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import {
   CATALOG_RELEASE_CHANGED,
   EXTENSION_CATALOG_QUERY_KEY,
+  EXTENSION_UPDATES_QUERY_KEY,
   type ExtensionCatalogInstallState,
   type ExtensionCatalogEntry,
   catalogErrorCode,
@@ -305,6 +306,11 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["extensions", "all"] }),
       queryClient.invalidateQueries({ queryKey: EXTENSION_CATALOG_QUERY_KEY }),
+      queryClient.invalidateQueries({ queryKey: EXTENSION_UPDATES_QUERY_KEY }),
+      // An update started from the extension's own page must not leave it
+      // showing the old version and manifest until a reload.
+      queryClient.invalidateQueries({ queryKey: ["extensions", "detail"] }),
+      queryClient.invalidateQueries({ queryKey: ["extensions", "compiled-manifest"] }),
       ...extensionArtifactCatalogQueryKeys.map((queryKey) =>
         queryClient.invalidateQueries({ queryKey }),
       ),
@@ -342,6 +348,9 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
     } catch {
       return undefined;
     }
+    // Reading the listing asked the catalog again, so the update notices now
+    // name the new release too.
+    ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: EXTENSION_UPDATES_QUERY_KEY }));
     if (!current) return undefined;
     if (current.version !== entry.version) {
       return {

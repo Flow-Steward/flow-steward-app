@@ -2,6 +2,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   AdvancedTableFilters,
@@ -17,7 +18,22 @@ import {
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
 import { CatalogIcon } from "@/components/shared/catalog-browse";
 import type { ExtensionRecord } from "@/pages/extensions/api";
-import { EXTENSION_CATALOG_QUERY_KEY, type ExtensionCatalogListing } from "@/pages/extensions/catalog-api";
+import {
+  EXTENSION_CATALOG_QUERY_KEY,
+  EXTENSION_UPDATES_QUERY_KEY,
+  EXTENSION_UPDATES_STALE_TIME_MS,
+  fetchExtensionUpdates,
+  type ExtensionCatalogEntry,
+  type ExtensionCatalogInstallState,
+  type ExtensionCatalogListing,
+} from "@/pages/extensions/catalog-api";
+import {
+  incompatibleReason,
+  mainAction,
+  releaseNotesLink,
+  updateLabel,
+  updateNoticeTitle,
+} from "@/pages/extensions/marketplace-model";
 import { extensionDocumentationUrl } from "@/pages/extensions/hub-support";
 
 import "@/pages/extensions/extensions.css";
@@ -58,6 +74,113 @@ import { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions"
 import { useExtensionManifestActions } from "./use-extension-manifest-actions";
 import { useExtensionConnectionActions } from "./use-extension-connection-actions";
 
+/**
+ * What the Installed page knows about available updates: WordPress's update
+ * check, joined to the rows by extension id. Update runs the Catalog's own
+ * install call, so approval, progress and failure behave exactly as there.
+ */
+type ExtensionUpdates = {
+  byId: Record<string, ExtensionCatalogEntry>;
+  installStateById: Record<string, ExtensionCatalogInstallState>;
+  canAdminister: boolean;
+  installBlockedReason: string;
+  permissionLabels: Record<string, string>;
+  onUpdate: (entry: ExtensionCatalogEntry) => void;
+};
+
+function releaseNotesAnchor(entry: ExtensionCatalogEntry, t: I18nContextValue["t"]): ReactNode {
+  const notes = releaseNotesLink(entry);
+  const label = t("react.extensions.view_version_details", "View version {version} details", { version: entry.version });
+  return notes.external
+    ? <a href={notes.href} rel="noreferrer" target="_blank">{label}</a>
+    : <Link to={notes.href}>{label}</Link>;
+}
+
+function updateActionFor(entry: ExtensionCatalogEntry, updates: ExtensionUpdates, t: I18nContextValue["t"]) {
+  return mainAction(entry, {
+    canAdminister: updates.canAdminister,
+    installBlockedReason: updates.installBlockedReason,
+    installationVersion: "",
+  }, t);
+}
+
+function updateButton(entry: ExtensionCatalogEntry, updates: ExtensionUpdates, t: I18nContextValue["t"], primary: boolean): ReactNode {
+  const phase = updates.installStateById[entry.extension_id]?.phase ?? "idle";
+  return (
+    <button
+      aria-busy={phase === "installing" || undefined}
+      className={primary ? "fs-button primary sm" : "fs-button sm"}
+      data-extension-update-action={entry.extension_id}
+      disabled={phase !== "idle"}
+      onClick={() => updates.onUpdate(entry)}
+      type="button"
+    >
+      {updateLabel(phase, entry.version, t)}
+    </button>
+  );
+}
+
+/** WordPress's notice under a plugin row: what is available, what changed, update now. */
+function extensionUpdateRowNotice(extensionId: string, updates: ExtensionUpdates, t: I18nContextValue["t"]): ReactNode {
+  const install = updates.installStateById[extensionId];
+  const entry = updates.byId[extensionId];
+  if (!entry) {
+    return install?.outcome === "updated"
+      ? <output className="fs-extensions-update-notice" data-update-outcome="updated">{install.status}</output>
+      : null;
+  }
+  const action = updateActionFor(entry, updates, t);
+  const canUpdate = action.kind === "update" && !action.disabled;
+  const failed = install?.phase === "idle" && (install.outcome === "failed" || install.outcome === "superseded") ? install.status : "";
+  const reason = entry.display_state === "incompatible" ? incompatibleReason(entry, "", t)?.short ?? "" : "";
+  return (
+    <div className="fs-extensions-update-notice" data-extension-update={extensionId}>
+      <span>{updateNoticeTitle(entry, t)}{reason ? ` ${reason}` : ""}</span>
+      {releaseNotesAnchor(entry, t)}
+      {canUpdate ? updateButton(entry, updates, t, false) : null}
+      {failed ? <span className="fs-extensions-update-failure" role="alert">{failed}</span> : null}
+    </div>
+  );
+}
+
+/** The same notice on the extension's own page, with the Catalog page's trust note. */
+function extensionUpdatePageNotice(extensionId: string, updates: ExtensionUpdates, t: I18nContextValue["t"]): ReactNode {
+  const install = updates.installStateById[extensionId];
+  const entry = updates.byId[extensionId];
+  if (!entry) {
+    return install?.outcome === "updated" ? <DsAlert title={install.status} tone="success" /> : null;
+  }
+  const action = updateActionFor(entry, updates, t);
+  const addedPermissions = action.kind === "update" ? action.addedPermissions : [];
+  const failed = install?.phase === "idle" && install.outcome === "failed" ? install.status : "";
+  const notice = install?.phase === "idle" && (install.outcome === "cancelled" || install.outcome === "superseded") ? install.status : "";
+  return (
+    <>
+      <div data-extension-update={extensionId} data-testid="extension-update-notice">
+        <DsAlert title={updateNoticeTitle(entry, t)} tone="warning">
+          {action.note ? <p>{action.note}</p> : null}
+          {addedPermissions.length ? (
+            <p>
+              {t("react.extensions.this_version_also_asks_for", "This version also asks for:")}{" "}
+              {addedPermissions.map((id) => updates.permissionLabels[id] || id).join(", ")}.
+            </p>
+          ) : null}
+          <div className="fs-extensions-update-actions">
+            {action.kind === "update" && !action.disabled ? updateButton(entry, updates, t, true) : null}
+            {releaseNotesAnchor(entry, t)}
+          </div>
+        </DsAlert>
+      </div>
+      {failed ? (
+        <DsAlert title={t("react.extensions.the_extension_was_not_updated", "The extension was not updated")} tone="danger">
+          {failed}
+        </DsAlert>
+      ) : null}
+      {notice ? <DsAlert title={notice} /> : null}
+    </>
+  );
+}
+
 function createExtensionColumns({
   rememberedProjectId,
   statusById,
@@ -71,7 +194,7 @@ function createExtensionColumns({
   handleUninstall,
 }: Pick<ReturnType<typeof useExtensionLifecycleActions>,
   "handleToggle" | "handleHealthCheck" | "handleUninstall"
->, t: I18nContextValue["t"] = fallbackContext.t): DsTableColumn<ExtensionRecord>[] {
+>, updates: ExtensionUpdates, t: I18nContextValue["t"] = fallbackContext.t): DsTableColumn<ExtensionRecord>[] {
   return [
     {
       key: "extension",
@@ -92,6 +215,7 @@ function createExtensionColumns({
               <small>{stringFromUnknownValue(extension.description)}</small>
             ))}
             <small className="fs-extensions-id">{extId}</small>
+            {extensionUpdateRowNotice(extId, updates, t)}
           </div>
           </div>
         );
@@ -112,7 +236,19 @@ function createExtensionColumns({
     {
       key: "version",
       header: t("registry.data_contracts.column.version", "Version"),
-      cell: (extension) => <span className="fs-extensions-version">{extension.version || "—"}</span>,
+      cell: (extension) => {
+        const update = updates.byId[extension.extension_id];
+        return (
+          <div className="fs-extensions-status-cell">
+            <span className="fs-extensions-version">{extension.version || "—"}</span>
+            {renderWhen(Boolean(update), (
+              <DsBadge tone={update?.display_state === "incompatible" ? "neutral" : "orange"}>
+                {t("react.extensions.version_available", "{version} available", { version: update?.version ?? "" })}
+              </DsBadge>
+            ))}
+          </div>
+        );
+      },
     },
     {
       key: "status",
@@ -341,7 +477,33 @@ export function ExtensionsHubPage() {
   else if (!archiveLifecycleAvailable) archiveInstallBlockedReason = ARCHIVE_LIFECYCLE_UNAVAILABLE;
   const detailPublisher = stringFromUnknownValue(detailExtension?.vendor_name || detailExtension?.author).trim();
 
-  const extensionColumns = createExtensionColumns(hubState, lifecycleActions, t);
+  // WordPress's update check: the server reuses the catalog's answer for an
+  // hour, and a page that cannot reach it says so without blocking anything.
+  const updatesQuery = useQuery({
+    queryKey: EXTENSION_UPDATES_QUERY_KEY,
+    queryFn: () => fetchExtensionUpdates(),
+    retry: false,
+    staleTime: EXTENSION_UPDATES_STALE_TIME_MS,
+  });
+  const extensionUpdates: ExtensionUpdates = {
+    byId: Object.fromEntries((updatesQuery.data?.items ?? []).map((entry) => [entry.extension_id, entry])),
+    installStateById: catalogInstallById,
+    canAdminister: canAdministerPlatform,
+    installBlockedReason: archiveInstallBlockedReason,
+    permissionLabels: updatesQuery.data?.permission_labels ?? {},
+    onUpdate: installCatalogExtension,
+  };
+  const updatesUnchecked = !detailMode && (
+    updatesQuery.isError
+    || Boolean(updatesQuery.data && !updatesQuery.data.checked && updatesQuery.data.availability.configured)
+  );
+  const checkForUpdatesAgain = () => ignoreAsyncResult(queryClient.fetchQuery({
+    queryKey: EXTENSION_UPDATES_QUERY_KEY,
+    queryFn: () => fetchExtensionUpdates(true),
+    staleTime: 0,
+  }));
+
+  const extensionColumns = createExtensionColumns(hubState, lifecycleActions, extensionUpdates, t);
   let tableState: ReactNode = null;
   if (extensionsQuery.isLoading) {
     tableState = (
@@ -504,6 +666,7 @@ export function ExtensionsHubPage() {
       >
         {detailExtension ? (
           <>
+            {extensionUpdatePageNotice(detailExtension.extension_id, extensionUpdates, t)}
             <ExtensionDetailPanel
             activationBlockedReason={activationBlockedReason}
             connectionCreationBlockedReason={connectionCreationBlockedReason}
@@ -592,6 +755,22 @@ export function ExtensionsHubPage() {
           <DsAlert title={t("react.extensions.extensions_could_not_be_loaded", "Extensions could not be loaded")} tone="danger">
             {errorMessage(extensionsQuery.error, t("react.extensions.failed_to_load_extensions", "Failed to load extensions."))}
           </DsAlert>
+        ))}
+
+        {renderWhen(updatesUnchecked, (
+          <div data-testid="extension-updates-unchecked">
+            <DsAlert title={t("react.extensions.updates_check_failed", "Couldn't check for extension updates.")} tone="warning">
+              <p>{t("react.extensions.updates_check_failed_detail", "The catalog could not be reached. Installed extensions keep working.")}</p>
+              <button
+                className="fs-button sm"
+                disabled={updatesQuery.isFetching}
+                onClick={checkForUpdatesAgain}
+                type="button"
+              >
+                {t("react.extensions.check_again", "Check again")}
+              </button>
+            </DsAlert>
+          </div>
         ))}
 
         {renderWhen(!detailMode, (

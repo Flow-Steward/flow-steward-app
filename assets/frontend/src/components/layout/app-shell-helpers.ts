@@ -28,6 +28,10 @@ export type NavEntry = {
   label: string;
   to: string;
   icon: LucideIcon;
+  /** WordPress's count bubble: things waiting there, such as extension updates. */
+  count?: number;
+  /** What the count means, for a screen reader; the bubble itself is hidden from it. */
+  countLabel?: string;
 };
 
 export type NavSection = {
