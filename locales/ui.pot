@@ -27982,3 +27982,42 @@ msgstr ""
 
 msgid "react.agent_access.step_chatgpt_connector_description"
 msgstr ""
+
+msgid "react.projects.secret_approval.loading"
+msgstr ""
+
+msgid "react.projects.secret_approval.title"
+msgstr ""
+
+msgid "react.projects.secret_approval.description"
+msgstr ""
+
+msgid "react.projects.secret_approval.failed"
+msgstr ""
+
+msgid "react.projects.secret_approval.required"
+msgstr ""
+
+msgid "react.projects.secret_approval.secrets"
+msgstr ""
+
+msgid "react.projects.secret_approval.destinations"
+msgstr ""
+
+msgid "react.projects.secret_approval.extension_code"
+msgstr ""
+
+msgid "react.projects.secret_approval.release"
+msgstr ""
+
+msgid "react.projects.secret_approval.changed"
+msgstr ""
+
+msgid "react.projects.secret_approval.approve_one"
+msgstr ""
+
+msgid "react.projects.secret_approval.approve_release"
+msgstr ""
+
+msgid "react.projects.secret_approval.approve_selected"
+msgstr ""

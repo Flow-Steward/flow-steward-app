@@ -29458,3 +29458,42 @@ msgstr "Pridėkite Flow Steward kaip pasirinktinę MCP jungtį"
 
 msgid "react.agent_access.step_chatgpt_connector_description"
 msgstr "Pridėkite pasirinktinę MCP jungtį su šiuo adresu. ChatGPT atidarys Flow Steward: prisijunkite, pasirinkite prieigą ir patvirtinkite. Jokio prieigos rakto kopijuoti nereikia."
+
+msgid "react.projects.secret_approval.loading"
+msgstr "Tikrinamas saugomų paslapčių naudojimas..."
+
+msgid "react.projects.secret_approval.title"
+msgstr "Saugomoms paslaptims reikia patvirtinimo"
+
+msgid "react.projects.secret_approval.description"
+msgstr "Šie ryšiai pasikeitė po to, kai žmogus patvirtino saugomų paslapčių naudojimą. Kol jų nepatvirtinsite, jie negali naudoti šių paslapčių."
+
+msgid "react.projects.secret_approval.failed"
+msgstr "Nepatvirtinta"
+
+msgid "react.projects.secret_approval.required"
+msgstr "reikia patvirtinimo"
+
+msgid "react.projects.secret_approval.secrets"
+msgstr "Paslaptys"
+
+msgid "react.projects.secret_approval.destinations"
+msgstr "Siunčiama į"
+
+msgid "react.projects.secret_approval.extension_code"
+msgstr "plėtinio kodą (šis leidimas)"
+
+msgid "react.projects.secret_approval.release"
+msgstr "Leidimas"
+
+msgid "react.projects.secret_approval.changed"
+msgstr "Pakeista"
+
+msgid "react.projects.secret_approval.approve_one"
+msgstr "Patvirtinti paslapčių naudojimą"
+
+msgid "react.projects.secret_approval.approve_release"
+msgstr "Patvirtinti leidimą {count} pasirinktiems ryšiams"
+
+msgid "react.projects.secret_approval.approve_selected"
+msgstr "Patvirtinti {count} pasirinktus ryšius"

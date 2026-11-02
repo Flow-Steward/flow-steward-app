@@ -7,6 +7,8 @@ import { fetchProjectConnectionsList } from "@/pages/projects/connections/api";
 
 vi.mock("@/pages/projects/connections/api", () => ({
   fetchProjectConnectionsList: vi.fn(),
+  fetchProjectSecretApprovals: vi.fn().mockResolvedValue([]),
+  approveProjectSecretUse: vi.fn(),
 }));
 
 const mockedFetchProjectConnectionsList = vi.mocked(fetchProjectConnectionsList);

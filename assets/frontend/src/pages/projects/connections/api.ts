@@ -159,3 +159,41 @@ export async function deleteExtensionProjectState(
     },
   );
 }
+
+export type SecretApprovalStatus = {
+  connection_id: string;
+  display_name?: string;
+  extension_install_id?: string;
+  status: "approved" | "approval_required" | "not_required";
+  fingerprint: string;
+  secrets: { field: string; secret_id: string; name: string }[];
+  destinations: { kind: string; scheme: string; host: string; port: number }[];
+  release: { release_id: string; descriptor_sha256: string };
+  previous_release?: { release_id: string; descriptor_sha256: string } | null;
+  changes: string[];
+  approved_at?: string | null;
+  approved_by?: string;
+  approved_by_kind?: string;
+};
+
+export async function fetchProjectSecretApprovals(projectId: string) {
+  const payload = await fetchJson<{ connections?: SecretApprovalStatus[] }>(
+    `/api/projects/${encodeURIComponent(projectId)}/secret-approvals`,
+  );
+  return Array.isArray(payload?.connections) ? payload.connections : [];
+}
+
+/** Approves exactly the fingerprints the person was shown; a changed configuration is a conflict. */
+export async function approveProjectSecretUse(
+  projectId: string,
+  approvals: Record<string, string>,
+  releaseId = "",
+) {
+  return fetchJson<{ connections?: SecretApprovalStatus[] }>(
+    `/api/projects/${encodeURIComponent(projectId)}/secret-approvals`,
+    {
+      method: "POST",
+      body: JSON.stringify({ approvals, release_id: releaseId }),
+    },
+  );
+}

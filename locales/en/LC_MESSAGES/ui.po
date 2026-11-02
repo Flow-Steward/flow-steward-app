@@ -29036,3 +29036,42 @@ msgstr "Add Flow Steward as a custom MCP connector"
 
 msgid "react.agent_access.step_chatgpt_connector_description"
 msgstr "Add a custom MCP connector with this address. ChatGPT opens Flow Steward: sign in, choose the access and approve it. You copy no token."
+
+msgid "react.projects.secret_approval.loading"
+msgstr "Checking the use of stored secrets..."
+
+msgid "react.projects.secret_approval.title"
+msgstr "Stored secrets need approval"
+
+msgid "react.projects.secret_approval.description"
+msgstr "These connections changed since a person approved their use of stored secrets. Until you approve them, they cannot use those secrets."
+
+msgid "react.projects.secret_approval.failed"
+msgstr "Not approved"
+
+msgid "react.projects.secret_approval.required"
+msgstr "approval required"
+
+msgid "react.projects.secret_approval.secrets"
+msgstr "Secrets"
+
+msgid "react.projects.secret_approval.destinations"
+msgstr "Sent to"
+
+msgid "react.projects.secret_approval.extension_code"
+msgstr "the extension's code (this release)"
+
+msgid "react.projects.secret_approval.release"
+msgstr "Release"
+
+msgid "react.projects.secret_approval.changed"
+msgstr "Changed"
+
+msgid "react.projects.secret_approval.approve_one"
+msgstr "Approve use of secrets"
+
+msgid "react.projects.secret_approval.approve_release"
+msgstr "Approve release for {count} selected connections"
+
+msgid "react.projects.secret_approval.approve_selected"
+msgstr "Approve {count} selected connections"
