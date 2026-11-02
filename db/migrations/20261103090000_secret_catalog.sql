@@ -166,3 +166,22 @@ SELECT m.account_id, cs.id, 'project_connection', m.connection_id, m.field_name,
     ON cs.account_id = m.account_id AND cs.storage_ref_key = m.storage_ref_key
  WHERE cs.project_id = m.project_id
 ON CONFLICT (project_connection_id, field_name) DO NOTHING;
+
+-- The connection's refs map is the projection of its bindings (ADR 0055): record
+-- which fields the catalog now owns, so the use check and connection updates see them.
+UPDATE public.project_connections AS pc
+   SET secret_refs = jsonb_set(
+           CASE WHEN jsonb_typeof(pc.secret_refs) = 'object' THEN pc.secret_refs
+                ELSE '{}'::jsonb END,
+           '{catalog}',
+           bound.catalog,
+           true)
+  FROM (
+       SELECT project_connection_id,
+              jsonb_object_agg(field_name, secret_id::text ORDER BY field_name) AS catalog
+         FROM public.catalog_secret_bindings
+        WHERE consumer_kind = 'project_connection'
+        GROUP BY project_connection_id
+  ) AS bound
+ WHERE pc.connection_id = bound.project_connection_id
+   AND pc.secret_refs -> 'catalog' IS DISTINCT FROM bound.catalog;

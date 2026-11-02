@@ -17,7 +17,7 @@ import pytest
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
-from core.application.tooling.db import migration_runner, upgrade_db
+from core.application.tooling.db import migration_runner, upgrade_db, upgrade_phases
 from core.application.tooling.db.init_db import bootstrap_canonical_schema_if_empty
 from core.application.tooling.db.models import DatabaseStatusRequest
 from core.application.tooling.db.service import DatabaseToolingService
@@ -135,9 +135,17 @@ def _ledger(dsn: str) -> list[tuple[str, str]]:
         return [(str(row[0]), str(row[1])) for row in cur.fetchall()]
 
 
-def _released_checksum() -> str:
+def _released_checksum(migration: str = MIGRATION) -> str:
     payload = json.loads((ROOT / "db" / "released_migrations.json").read_text(encoding="utf-8"))
-    return str(payload["migrations"][MIGRATION])
+    return str(payload["migrations"][migration])
+
+
+#: Every migration this tree ships; a later one (the secret catalog) is pending too.
+ALL_MIGRATIONS = sorted(path.name for path in (ROOT / "db" / "migrations").glob("*.sql"))
+
+
+def _full_ledger() -> list[tuple[str, str]]:
+    return [(name, _released_checksum(name)) for name in ALL_MIGRATIONS]
 
 
 def _shape_as_installed_by_096(dsn: str) -> None:
@@ -173,7 +181,13 @@ def _apply(dsn: str) -> dict:
     """The migration step `database upgrade` runs on a database that has a ledger."""
     conn = psycopg_runtime.connect(dsn)
     try:
-        return migration_runner.apply_pending_migrations(conn)
+        applied = migration_runner.apply_pending_migrations(conn)
+        conn.autocommit = True
+        # database upgrade runs the data phases after the migrations (ADR 0054).
+        upgrade_phases.run_pending_phases(
+            conn, applied_migrations=set(migration_runner.fetch_applied_migrations(conn))
+        )
+        return applied
     finally:
         conn.close()
 
@@ -187,7 +201,7 @@ def test_an_upgraded_096_database_gets_the_tables_a_fresh_install_has(
 
     before = _status(dsn)
     assert before.status == "needs_upgrade"
-    assert before.details["pending_migrations"] == [MIGRATION]
+    assert before.details["pending_migrations"] == ALL_MIGRATIONS
     # The defect: the stamped fingerprint alone reported this database as current.
     assert before.details["schema_needs_reconcile"] is False
     with pytest.raises(RuntimeError, match="does not match this release"):
@@ -195,16 +209,16 @@ def test_an_upgraded_096_database_gets_the_tables_a_fresh_install_has(
 
     first = _apply(dsn)
 
-    assert first["applied"] == [MIGRATION]
+    assert first["applied"] == ALL_MIGRATIONS
     assert _catalog(dsn) == _catalog(fresh_dsn)
     assert len(_catalog(dsn)["tables"]) == len(OAUTH_TABLES)
-    assert _ledger(dsn) == [(MIGRATION, _released_checksum())]
+    assert _ledger(dsn) == _full_ledger()
 
     again = _apply(dsn)
 
     assert again["applied"] == []
-    assert again["skipped"] == [MIGRATION]
-    assert _ledger(dsn) == [(MIGRATION, _released_checksum())]
+    assert again["skipped"] == ALL_MIGRATIONS
+    assert _ledger(dsn) == _full_ledger()
     after = _status(dsn)
     assert after.status == "ok"
     assert after.details["pending_migrations"] == []
@@ -218,12 +232,12 @@ def test_a_fresh_install_records_the_migration_once_and_changes_nothing(fresh_ds
     # The installer's schema step on a fresh database: no ledger yet, so it verifies the
     # baseline, creates the ledger and applies every migration -- here, a no-op.
     stamped = upgrade_db.baseline_migration_history(dsn=fresh_dsn, author="installer")
-    assert stamped["applied"] == [MIGRATION]
+    assert stamped["applied"] == ALL_MIGRATIONS
     assert _catalog(fresh_dsn) == baseline
 
     # init_db.initialize_database runs the same runner on every start.
     rerun = migration_runner.run_pending_migrations(dsn=fresh_dsn)
     assert rerun["applied"] == []
-    assert rerun["skipped"] == [MIGRATION]
+    assert rerun["skipped"] == ALL_MIGRATIONS
     assert _catalog(fresh_dsn) == baseline
-    assert _ledger(fresh_dsn) == [(MIGRATION, _released_checksum())]
+    assert _ledger(fresh_dsn) == _full_ledger()
