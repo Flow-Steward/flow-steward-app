@@ -494,23 +494,20 @@ def _http_retry_facts(
     return facts
 
 
-def _read_http_input_ciphertext(account_id: str, ref_key: str) -> str | None:
-    from core.infrastructure.db.model_provider_store import get_secret_ref_ciphertext
-
-    store = _get_shared_logger()
-    if store is None:
-        return None
-    return get_secret_ref_ciphertext(store.conn, account_id=account_id, ref_key=ref_key)
-
-
-def _secret_failure(reason: str, boundary: HttpSecretBoundary) -> dict[str, Any]:
+def _secret_failure(
+    reason: str,
+    boundary: HttpSecretBoundary,
+    *,
+    retryable: bool = False,
+    failure_class: str = "validation",
+) -> dict[str, Any]:
     uncertain_mutation = (
         boundary.request_dispatched and boundary.request_method not in _SAFE_READ_METHODS
     )
     return {
         "ok": False,
         "status_code": None,
-        "retryable": False,
+        "retryable": retryable and not boundary.request_dispatched,
         "failure_reason": reason,
         "response_excerpt": "",
         "request": {},
@@ -519,25 +516,41 @@ def _secret_failure(reason: str, boundary: HttpSecretBoundary) -> dict[str, Any]
         else "safe_read",
         "external_effect_status": "timeout_unknown" if uncertain_mutation else "failed",
         "definitely_no_external_effect": not uncertain_mutation,
-        "failure_class": "validation",
+        "failure_class": failure_class,
     }
 
 
 def execute_http_request_step(
-    *, config: dict[str, Any], state: dict[str, Any] | None = None
+    *,
+    config: dict[str, Any],
+    state: dict[str, Any] | None = None,
+    secret_reader: Any = None,
 ) -> dict[str, Any]:
+    """Run one HTTP step; `secret_reader` replaces the host-selected reader in tests."""
     from core.infrastructure.security.secret_reference import (
         SecretReferenceUnauthorized,
         SecretReferenceUnresolved,
     )
+    from core.infrastructure.security.stored_secrets import (
+        StoredSecretError,
+        deferred_stored_secret_reader,
+    )
 
-    boundary = HttpSecretBoundary(dict(state or {}), _read_http_input_ciphertext)
+    boundary = HttpSecretBoundary(
+        dict(state or {}),
+        secret_reader
+        or deferred_stored_secret_reader(lambda: getattr(_get_shared_logger(), "conn", None)),
+    )
     try:
         return boundary.safe_result(
             _execute_http_request_step(config=config, state=state, secret_boundary=boundary)
         )
     except (HttpSecretInputError, SecretReferenceUnauthorized, SecretReferenceUnresolved):
         return _secret_failure("unresolved_secret_input", boundary)
+    except StoredSecretError as exc:
+        return _secret_failure(
+            exc.code, boundary, retryable=exc.retryable, failure_class=exc.failure_class
+        )
     except HttpSecretExposureError:
         return _secret_failure("secret_exposure_blocked", boundary)
     except Exception as exc:

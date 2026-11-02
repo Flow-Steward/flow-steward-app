@@ -417,9 +417,13 @@ def _direct_action_connection_target(
                 secret_refs=secret_refs,
             )
         except Exception as exc:
+            from core.application.management.project_connection_secrets import (
+                connection_secret_failure,
+            )
+
             raise ServiceValidationError(
-                f"connection_secret_resolution_failed:{connection_id}:{exc}"
-            ) from exc
+                connection_secret_failure(connection_id, exc).detail
+            ) from None
     for name, value in provider_secrets_for_connection(bl, connection, secret_refs).items():
         secrets.setdefault(name, value)
     if callable(getattr(bl, "cursor", None)):

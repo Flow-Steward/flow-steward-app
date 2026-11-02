@@ -7,10 +7,9 @@ from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from tests._step_run_state import step_run_state
 
 from core.application.orchestration import (
     connector_events,
@@ -18,6 +17,7 @@ from core.application.orchestration import (
     connector_tool_runtime,
 )
 from core.application.orchestration.run_cursor import ForEachFrame
+from tests._step_run_state import step_run_state
 
 
 def _run_state(steps, *, active=0, **state):
@@ -1018,8 +1018,9 @@ def test_execute_connector_step_blocks_reflected_workflow_secrets_from_tools(
             return_value=registry,
         ),
         patch.object(connector_tool_runtime, "_shared_logger", return_value=bl),
-        patch.object(runtime, "_read_secret_ciphertext", return_value="encrypted-value"),
-        patch.object(runtime, "_decrypt_secret_value", return_value=secret_value),
+        patch.object(
+            runtime, "_secret_reader", return_value=Mock(read=Mock(return_value=secret_value))
+        ),
         patch(
             "core.application.orchestration.tools.tool_resolver.invoke_manifest_tool",
             side_effect=invoke_tool,
@@ -2076,8 +2077,9 @@ def test_execute_connector_step_blocks_reflected_workflow_secret_inputs(
                 None,
             ),
         ),
-        patch.object(runtime, "_read_secret_ciphertext", return_value="encrypted-value"),
-        patch.object(runtime, "_decrypt_secret_value", return_value=secret_value),
+        patch.object(
+            runtime, "_secret_reader", return_value=Mock(read=Mock(return_value=secret_value))
+        ),
         patch(
             "core.infrastructure.extension_runtime.extension_runtime.run_extension_action",
             return_value=extension_invocation,
@@ -2341,10 +2343,9 @@ def test_workflow_test_run_suppresses_external_mutation_without_secrets(
         ) as resolve_connection_secrets,
         patch.object(
             runtime,
-            "_read_secret_ciphertext",
-            return_value="WORKFLOW_SECRET_HYDRATION_BOUNDARY_REACHED",
-        ) as read_workflow_secret,
-        patch.object(runtime, "_decrypt_secret_value", return_value="decrypted-title"),
+            "_secret_reader",
+            return_value=Mock(read=Mock(return_value="WORKFLOW_SECRET_HYDRATION_BOUNDARY_REACHED")),
+        ) as workflow_secret_reader,
         patch(
             "core.infrastructure.extension_runtime.extension_invocation_audit.log_host_extension_invocation"
         ),
@@ -2386,7 +2387,7 @@ def test_workflow_test_run_suppresses_external_mutation_without_secrets(
         )
 
     assert result["ok"] is expected_ok, result
-    read_workflow_secret.assert_not_called()
+    workflow_secret_reader.return_value.read.assert_not_called()
     resolve_connection_secrets.assert_not_called()
     assert "WORKFLOW_SECRET_HYDRATION_BOUNDARY_REACHED" not in repr(result)
     assert "CONNECTION_SECRET_HYDRATION_BOUNDARY_REACHED" not in repr(result)
@@ -3004,8 +3005,9 @@ def test_execute_connector_step_fails_closed_when_connection_secrets_fail():
     assert result["runtime"] == "extension_action"
     assert (
         result["detail"]
-        == "connection_resolution_failed:connection_secret_resolution_failed:conn_provider_dev:decrypt failed"
+        == "connection_resolution_failed:connection_secret_resolution_failed:conn_provider_dev:secret_value_unavailable"
     )
+    assert "decrypt failed" not in repr(result)
     run_action.assert_not_called()
 
 

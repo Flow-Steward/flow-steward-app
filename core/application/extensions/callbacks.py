@@ -7,6 +7,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -95,6 +96,8 @@ from core.application.management.scope import ScopeContext
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.config.size_limits import clamp_size_limit_bytes
 from core.infrastructure.db.extension_response import normalize_extension_response
+
+_logger = logging.getLogger(__name__)
 
 _MESSAGE_INVALID_CALLBACK_SIGNATURE = "Invalid callback signature"
 _MAX_HUB_CHALLENGE_LENGTH = 512
@@ -313,15 +316,22 @@ class ExtensionCallbackDispatchService:
         from core.application.management.project_connection_secrets import (
             resolve_connection_secrets,
         )
+        from core.infrastructure.security.stored_secrets import StoredSecretError
 
         secret_refs = _as_dict(connection.get("secret_refs"))
         secrets: dict[str, str] = {}
         if secret_refs.get("refs") and hasattr(self.bl, "cursor"):
-            secrets = resolve_connection_secrets(
-                self.bl,
-                account_id=_normalize_text(connection.get("account_id")),
-                secret_refs={"refs": _as_dict(secret_refs.get("refs"))},
-            )
+            try:
+                secrets = resolve_connection_secrets(
+                    self.bl,
+                    account_id=_normalize_text(connection.get("account_id")),
+                    secret_refs={"refs": _as_dict(secret_refs.get("refs"))},
+                )
+            except StoredSecretError as exc:
+                # No key means no signature can match: the callback is refused,
+                # never accepted unauthenticated.
+                _logger.warning("callback connection value unavailable: %s", exc.code)
+                return ""
         for name, value in provider_secrets_for_connection(
             self.bl, connection, secret_refs
         ).items():

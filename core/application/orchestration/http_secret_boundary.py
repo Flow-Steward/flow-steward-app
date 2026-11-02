@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import codecs
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,6 +29,7 @@ from core.infrastructure.security.secret_reference import (
     as_secret_reference,
     resolve_secret_reference,
 )
+from core.infrastructure.security.stored_secrets import SecretReadContext, StoredSecretReader
 
 
 class HttpSecretInputError(ValueError):
@@ -108,9 +109,9 @@ def _public_copy(value: Any) -> Any:
 class HttpSecretBoundary:
     """Resolve only the outgoing copy under the immutable connector launch grant."""
 
-    def __init__(self, state: dict[str, Any], read_ciphertext: Callable[[str, str], str | None]):
+    def __init__(self, state: dict[str, Any], secret_reader: StoredSecretReader):
         self._state = state
-        self._read_ciphertext = read_ciphertext
+        self._secret_reader = secret_reader
         self._values: list[str] = []
         self.protected_values: frozenset[str] = frozenset()
         self.has_references = False
@@ -127,8 +128,6 @@ class HttpSecretBoundary:
         return redact_sensitive_structure(_public_copy(value)) if self.has_references else value
 
     def _resolve_reference(self, value: Any) -> str:
-        from core.infrastructure.security.secret_codec import decrypt_secret
-
         reference = as_secret_reference(value)
         assert reference is not None
         self.has_references = True
@@ -146,11 +145,10 @@ class HttpSecretBoundary:
         self._values.extend((reference.ref_key, reference.ciphertext))
         resolved = resolve_secret_reference(
             reference,
-            account_id=str(context.get("account_id") or "").strip(),
+            context=SecretReadContext.for_account(context.get("account_id")),
             authorized_ref_keys=authorized,
             authorized_inline_ref_fingerprints=snapshot,
-            read_ciphertext=self._read_ciphertext,
-            decrypt=decrypt_secret,
+            reader=self._secret_reader,
         )
         self._values.append(resolved)
         self.protected_values, exceeded = collect_secret_values(self._values)

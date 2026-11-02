@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 
 def test_launch_snapshot_contains_only_fingerprints_for_configured_secret_refs() -> None:
     from core.application.registry.workflow_secret_defaults import (
@@ -111,7 +113,6 @@ def test_child_launch_delegates_only_parent_authorized_presented_refs() -> None:
 
 def test_scheduled_launch_refreshes_defaults_and_secret_authority() -> None:
     from datetime import UTC, datetime
-    from types import SimpleNamespace
     from unittest.mock import patch
 
     from core.application.registry.workflow_secret_defaults import secret_ref_fingerprint
@@ -206,7 +207,6 @@ def test_scheduled_launch_refreshes_defaults_and_secret_authority() -> None:
 
 
 def test_compiled_graph_preserves_secret_authority_and_logs_only_opaque_input() -> None:
-    from types import SimpleNamespace
     from unittest.mock import patch
 
     from langgraph.graph import END, START, StateGraph
@@ -271,11 +271,11 @@ def test_compiled_graph_preserves_secret_authority_and_logs_only_opaque_input() 
             return_value=event_store,
         ),
         patch(
-            "core.application.orchestration.connector_step_runtime._read_secret_ciphertext",
-            return_value="encrypted-value",
+            "core.application.orchestration.connector_step_runtime._secret_reader",
+            return_value=SimpleNamespace(read=lambda _context, _ref_key: secret_value),
         ),
         patch(
-            "core.application.orchestration.connector_step_runtime._decrypt_secret_value",
+            "core.infrastructure.security.secret_codec.decrypt_secret",
             return_value=secret_value,
         ),
         patch(

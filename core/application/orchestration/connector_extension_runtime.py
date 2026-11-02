@@ -23,6 +23,7 @@ from core.application.orchestration.connector_connection import (
     _persist_connection_session_update,
     _strip_connection_session_updates,
     _test_mode_connection_failure,
+    connection_resolution_retry_facts,
 )
 from core.application.orchestration.connector_effects import (
     _claim_external_effect_for_action,
@@ -402,6 +403,7 @@ def _dispatch_extension_runtime(
             "action_id": op_id,
             "invocation": {},
             "detail": f"connection_resolution_failed:{exc}",
+            **connection_resolution_retry_facts(exc),
         }
     target = {"connection_binding": dict(connection_binding or {})} if connection_binding else {}
     logged_target = (

@@ -17,6 +17,11 @@ from core.infrastructure.security.secret_reference import (
     SecretReference,
     inline_secret_ref_fingerprint,
 )
+from core.infrastructure.security.stored_secrets import (
+    StoredSecretMissing,
+    StoredSecretUnavailable,
+    StoredSecretUndecryptable,
+)
 
 _FIXTURE_VALUE = "fixture-credential-for-http"
 _FIXTURE_KEY = "fixture-http-reference"
@@ -433,3 +438,87 @@ def test_artifact_raw_utf8_reflection_is_blocked_despite_declared_charset(bounda
     else:
         assert result["ok"] is True
         assert b"".join(stored) == payload
+
+
+class _ExternalReader:
+    """A stored-secret reader that is not the local store: no ciphertext, no local key."""
+
+    def __init__(self, *, value: str = "", error: Exception | None = None) -> None:
+        self.value = value
+        self.error = error
+        self.reads: list[tuple[str, str]] = []
+
+    def read(self, context, ref_key):
+        self.reads.append((context.account_id, ref_key))
+        if self.error is not None:
+            raise self.error
+        return self.value
+
+
+def test_an_external_reader_resolves_a_stored_reference_without_local_decryption(boundary_io):
+    reader = _ExternalReader(value=_FIXTURE_VALUE)
+    reference = SecretReference(name="login", ref_key=_FIXTURE_KEY)
+
+    result = runtime.execute_http_request_step(
+        config=_config(), state=_state(reference), secret_reader=reader
+    )
+
+    assert result["ok"] is True, result
+    assert set(reader.reads) == {("fixture-account", _FIXTURE_KEY)}
+    boundary_io.read.assert_not_called()
+    boundary_io.decrypt.assert_not_called()
+    assert boundary_io.captured[0]["headers"]["X-Login"] == f"Bearer {_FIXTURE_VALUE}"
+    assert _FIXTURE_VALUE not in json.dumps(result)
+
+
+def test_an_inline_reference_is_decrypted_locally_and_never_reaches_the_reader(boundary_io):
+    reader = _ExternalReader(error=AssertionError("inline value asked of the stored reader"))
+    reference = SecretReference(name="login", ciphertext=_FIXTURE_ENVELOPE)
+
+    result = runtime.execute_http_request_step(
+        config=_config(), state=_state(reference), secret_reader=reader
+    )
+
+    assert result["ok"] is True, result
+    assert reader.reads == []
+    boundary_io.decrypt.assert_called_with(_FIXTURE_ENVELOPE)
+
+
+def test_an_undeclared_reference_is_refused_before_the_reader_is_asked(boundary_io):
+    reader = _ExternalReader(value=_FIXTURE_VALUE)
+    state = _state(SecretReference(name="login", ref_key=_FIXTURE_KEY))
+    state["_workflow_secret_ref_fingerprints"] = []
+
+    result = runtime.execute_http_request_step(config=_config(), state=state, secret_reader=reader)
+
+    assert result["failure_reason"] == "unresolved_secret_input"
+    assert reader.reads == []
+    assert boundary_io.captured == []
+
+
+@pytest.mark.parametrize(
+    ("error", "reason", "retryable", "failure_class"),
+    [
+        (StoredSecretMissing, "unresolved_secret_input", False, "validation"),
+        (StoredSecretUndecryptable, "secret_value_undecryptable", False, "platform_blocker"),
+        (StoredSecretUnavailable, "secret_store_unavailable", True, "transient"),
+    ],
+)
+def test_store_failures_are_classified_and_stop_before_the_request(
+    boundary_io, error, reason, retryable, failure_class
+):
+    reader = _ExternalReader(error=error(_FIXTURE_KEY))
+
+    result = runtime.execute_http_request_step(
+        config=_config(),
+        state=_state(SecretReference(name="login", ref_key=_FIXTURE_KEY)),
+        secret_reader=reader,
+    )
+
+    assert result["ok"] is False
+    assert result["failure_reason"] == reason
+    assert result["retryable"] is retryable
+    assert result["failure_class"] == failure_class
+    assert result["definitely_no_external_effect"] is True
+    assert boundary_io.captured == []
+    assert _FIXTURE_KEY not in json.dumps(result)

@@ -27,20 +27,11 @@ from core.application.orchestration.step_activity import step_activity_heartbeat
 _MESSAGE_UNNAMED_STEP = "<unnamed step>"
 
 
-def _read_secret_ciphertext(account_id: str, ref_key: str) -> str | None:
-    """Read one encrypted value from the account-scoped secret store."""
-    from core.infrastructure.db.model_provider_store import get_secret_ref_ciphertext
+def _secret_reader() -> Any:
+    """The host-selected reader over the run's own database connection."""
+    from core.infrastructure.security.stored_secrets import deferred_stored_secret_reader
 
-    store = _shared_logger()
-    if store is None:
-        return None
-    return get_secret_ref_ciphertext(store.conn, account_id=account_id, ref_key=ref_key)
-
-
-def _decrypt_secret_value(ciphertext: str) -> str:
-    from core.infrastructure.security.secret_codec import decrypt_secret
-
-    return decrypt_secret(ciphertext)
+    return deferred_stored_secret_reader(lambda: getattr(_shared_logger(), "conn", None))
 
 
 def _presented_secret_ref_keys(value: Any) -> set[str]:
@@ -75,7 +66,9 @@ def _authorized_secret_ref_keys(
 
 
 def _payload_for_dispatch(
-    input_payload: dict[str, Any], runtime_state: dict[str, Any]
+    input_payload: dict[str, Any],
+    runtime_state: dict[str, Any],
+    secret_reader: Any = None,
 ) -> tuple[Any, frozenset[str], bool]:
     """Exchange secret references for values, for the call only.
 
@@ -85,14 +78,14 @@ def _payload_for_dispatch(
     that exists to say what was sent.
     """
     from core.infrastructure.security.secret_reference import resolve_secret_references_in
+    from core.infrastructure.security.stored_secrets import SecretReadContext
 
     runtime_context = dict(runtime_state.get("runtime_context") or {})
     resolved_payload = resolve_secret_references_in(
         input_payload,
-        account_id=str(runtime_context.get("account_id") or "").strip(),
+        context=SecretReadContext.for_account(runtime_context.get("account_id")),
         authorized_ref_keys=_authorized_secret_ref_keys(runtime_state, input_payload),
-        read_ciphertext=_read_secret_ciphertext,
-        decrypt=_decrypt_secret_value,
+        reader=secret_reader or _secret_reader(),
         authorized_inline_ref_fingerprints=frozenset(
             str(item or "").strip()
             for item in (runtime_state.get("_workflow_secret_ref_fingerprints") or [])
@@ -129,8 +122,13 @@ def execute_connector_step(
     *,
     step: dict[str, Any],
     state: dict[str, Any] | None = None,
+    secret_reader: Any = None,
 ) -> dict[str, Any]:
-    """Execute connector step through tool or extension runtimes."""
+    """Execute connector step through tool or extension runtimes.
+
+    `secret_reader` replaces the host-selected stored-secret reader; tests pass
+    one, production callers leave it unset.
+    """
     step_payload = dict(step or {})
     runtime_state = dict(state or {})
     connector_id = str(step_payload.get("connector_id") or "").strip()
@@ -267,13 +265,14 @@ def execute_connector_step(
         SecretReferenceUnauthorized,
         SecretReferenceUnresolved,
     )
+    from core.infrastructure.security.stored_secrets import StoredSecretError
 
     try:
         (
             dispatch_payload,
             protected_input_secrets,
             protected_input_secret_budget_exceeded,
-        ) = _payload_for_dispatch(input_payload, runtime_state)
+        ) = _payload_for_dispatch(input_payload, runtime_state, secret_reader)
     except (SecretReferenceUnauthorized, SecretReferenceUnresolved) as exc:
         # A configured secret with nothing behind it. Calling anyway would send a
         # credential that is not one, and the failure would come back as
@@ -286,6 +285,29 @@ def execute_connector_step(
             "error": "unresolved_secret_input",
             "detail": f"Step '{step_id}' could not resolve a secret input. {exc}",
             "input_payload": input_payload,
+            "retryable": False,
+            "failure_class": "validation",
+            "external_effect_status": "failed",
+            "definitely_no_external_effect": True,
+        }
+    except StoredSecretError as exc:
+        # The store, not the configuration, failed. Its message is fixed text;
+        # the reason the store gave stays out of the step result and the log.
+        # The operation kind is not known yet, so it is treated as a mutation;
+        # a retry is still allowed because the connector was provably not called.
+        step_id = str(step_payload.get("step_id") or "").strip() or _MESSAGE_UNNAMED_STEP
+        return {
+            "ok": False,
+            "runtime": "unresolved",
+            "connector_id": connector_id,
+            "error": exc.code,
+            "detail": f"Step '{step_id}' could not resolve a secret input. {exc}",
+            "input_payload": input_payload,
+            "retryable": exc.retryable,
+            "failure_class": exc.failure_class,
+            "request_semantics": "mutation",
+            "external_effect_status": "failed",
+            "definitely_no_external_effect": True,
         }
     activity_ids = _runtime_ids_from_state(runtime_state)
     activity_job_id = activity_ids.get("job_id")

@@ -32,7 +32,33 @@ def _operation_declares_connection_ref(extension: dict[str, Any], operation_id: 
 
 
 class ConnectionResolutionError(RuntimeError):
-    """Raised when an explicit workflow connection binding cannot be resolved."""
+    """Raised when an explicit workflow connection binding cannot be resolved.
+
+    `retryable` and `failure_class` are closed retry facts; resolution happens
+    before the connector is called, so a failure here never had an external effect.
+    """
+
+    retryable = False
+    failure_class = "validation"
+
+    @classmethod
+    def from_secret_failure(cls, failure: Any) -> ConnectionResolutionError:
+        error = cls(failure.detail)
+        error.retryable = failure.retryable
+        error.failure_class = failure.failure_class
+        return error
+
+
+def connection_resolution_retry_facts(exc: BaseException) -> dict[str, Any]:
+    """Closed retry facts for a failed resolution; none for an unclassified error."""
+    if not isinstance(exc, ConnectionResolutionError):
+        return {}
+    return {
+        "retryable": exc.retryable,
+        "failure_class": exc.failure_class,
+        "external_effect_status": "failed",
+        "definitely_no_external_effect": True,
+    }
 
 
 def _load_runtime_connection(
@@ -163,9 +189,13 @@ def _build_runtime_connection_target(
             ).items():
                 secrets.setdefault(name, value)
         except Exception as exc:
-            raise ConnectionResolutionError(
-                f"connection_secret_resolution_failed:{connection_id}:{exc}"
-            ) from exc
+            from core.application.management.project_connection_secrets import (
+                connection_secret_failure,
+            )
+
+            raise ConnectionResolutionError.from_secret_failure(
+                connection_secret_failure(connection_id, exc)
+            ) from None
         try:
             if (
                 str(connection.get("oauth_configuration_id") or "").strip()

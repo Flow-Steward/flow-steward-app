@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
+from core.infrastructure.security.stored_secrets import StoredSecretError
 
 logger = logging.getLogger(__name__)
 DEFAULT_MIME_TYPE = "application/octet-stream"
@@ -472,6 +473,10 @@ def _inject_project_connection_secrets(
                     account_id=str(account_id or "").strip(),
                     secret_refs=secret_refs,
                 )
+            except StoredSecretError:
+                # A configured credential that cannot be produced must not turn
+                # into a provider call without it.
+                raise
             except Exception:
                 values = {}
             for secret_key, secret_value in values.items():
