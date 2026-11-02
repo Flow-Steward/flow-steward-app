@@ -62,27 +62,50 @@ jobs:
     runs-on: ${{ vars.RELEASE_GATE_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 180
     env:
-      FS_COMPOSE_PROJECT_NAME: fs-release-gate-${{ github.run_id }}-${{ github.run_attempt }}
+      FS_STACK_ENV_FILE: /dev/null
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Prepare disposable Docker gate
-        run: |
-          cp .env.example .env
-          docker compose -p "$FS_COMPOSE_PROJECT_NAME" -f infra/docker/docker-compose.yaml build pg-fs
+      - uses: ./.github/actions/prepare-quality
+      - name: Build the canonical disposable PostgreSQL image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/docker/postgres-extended/Dockerfile
+          load: true
+          push: false
+          tags: fs-postgres-extended:0.1.0-pgvector-0.8.5
+          cache-from: type=gha,scope=quality-postgres-amd64
+          cache-to: type=gha,scope=quality-postgres-amd64,mode=min
       - name: Complete exact-SHA Tier 2 and Tier 3 gate
         env:
           RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
-        run: ./core/entrypoints/cli/scripts/lint.sh --full --fingerprint-source commit --commit-sha "$RELEASE_REVISION"
+        run: |
+          set -o pipefail
+          ./core/entrypoints/cli/scripts/lint.sh --full --fingerprint-source commit --commit-sha "$RELEASE_REVISION" \
+            2>&1 | tee logs/quality/hosted/full.log
+      - name: Collect bounded diagnostics
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh diagnostics
+      - name: Remove this job's disposable stack
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
+      - name: Return generated reports to the artifact uploader
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain quality evidence even on failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-quality-${{ github.run_attempt }}
-          path: logs/quality/evidence
+          path: |
+            logs/quality/evidence
+            logs/quality/hosted
+            logs/coverage
           retention-days: 30
           if-no-files-found: warn
   native:
@@ -137,8 +160,8 @@ jobs:
     env:
       FS_RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
       FS_RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
-      FS_RELEASE_GHCR_NAMESPACE: ${{ vars.RELEASE_GHCR_NAMESPACE }}
-      FS_RELEASE_DOCKERHUB_NAMESPACE: ${{ vars.RELEASE_DOCKERHUB_NAMESPACE }}
+      FS_RELEASE_GHCR_NAMESPACE: ${{ vars.RELEASE_GHCR_NAMESPACE || 'ghcr.io/flow-steward' }}
+      FS_RELEASE_DOCKERHUB_NAMESPACE: ${{ vars.RELEASE_DOCKERHUB_NAMESPACE || 'docker.io/flowsteward' }}
       RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -188,7 +211,7 @@ jobs:
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: docker.io
-          username: ${{ vars.DOCKERHUB_USERNAME }}
+          username: ${{ vars.DOCKERHUB_USERNAME || 'flowsteward' }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Validate archives and protect immutable registry versions
         run: |

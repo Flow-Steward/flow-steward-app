@@ -21,6 +21,83 @@ REVISION = "a" * 40
 NAMESPACES = ("ghcr.io/flow-steward", "docker.io/flowsteward")
 
 
+def test_release_quality_prepares_hosted_uids_and_hands_back_artifacts_after_cleanup() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    quality = workflow["jobs"]["quality"]
+    steps = quality["steps"]
+    prepare = next(
+        (
+            index
+            for index, step in enumerate(steps)
+            if step.get("uses") == "./.github/actions/prepare-quality"
+        ),
+        None,
+    )
+    assert prepare is not None, "Release quality must prepare hosted checkout/cache permissions"
+    gate = next(
+        index for index, step in enumerate(steps) if "lint.sh --full" in step.get("run", "")
+    )
+    commands = {step.get("run"): index for index, step in enumerate(steps) if "run" in step}
+    adapter = "./core/entrypoints/cli/scripts/hosted-quality.sh "
+    diagnostics = commands[adapter + "diagnostics"]
+    cleanup = commands[adapter + "cleanup"]
+    ownership = commands[adapter + "prepare-artifacts"]
+    upload = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    assert prepare < gate < diagnostics < cleanup < ownership < upload
+    for index in (diagnostics, cleanup, ownership):
+        assert steps[index]["if"] == "always() && env.FS_QUALITY_CACHE_ROOT != ''"
+    assert steps[upload]["if"] == "always()"
+    assert "logs/quality/evidence" in steps[upload]["with"]["path"]
+    postgres = next(
+        step
+        for step in steps
+        if step.get("with", {}).get("file") == "infra/docker/postgres-extended/Dockerfile"
+    )
+    assert postgres["with"]["load"] is True
+    assert postgres["with"]["push"] is False
+    assert "scope=quality-postgres-amd64" in postgres["with"]["cache-from"]
+
+
+def test_release_quality_keeps_resolved_tag_identity_for_dispatch_retries() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    quality = workflow["jobs"]["quality"]
+    assert quality["needs"] == "resolve"
+    assert "if" not in quality  # Archive reuse must not bypass the tag's gate.
+    checkout = quality["steps"][0]
+    assert checkout["with"]["ref"] == "${{ needs.resolve.outputs.revision }}"
+    gate = next(step for step in quality["steps"] if "lint.sh --full" in step.get("run", ""))
+    assert gate["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
+    assert '--commit-sha "$RELEASE_REVISION"' in gate["run"]
+    assert all("check-candidate" not in step.get("run", "") for step in quality["steps"])
+    assert "needs.quality.result == 'success'" in workflow["jobs"]["publish"]["if"]
+
+
+def test_release_defaults_to_existing_registries_without_extra_variables() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    publish = workflow["jobs"]["publish"]
+    assert publish["env"]["FS_RELEASE_GHCR_NAMESPACE"] == (
+        "${{ vars.RELEASE_GHCR_NAMESPACE || 'ghcr.io/flow-steward' }}"
+    )
+    assert publish["env"]["FS_RELEASE_DOCKERHUB_NAMESPACE"] == (
+        "${{ vars.RELEASE_DOCKERHUB_NAMESPACE || 'docker.io/flowsteward' }}"
+    )
+    logins = {
+        step["with"]["registry"]: step["with"]
+        for step in publish["steps"]
+        if step.get("uses", "").startswith("docker/login-action@")
+    }
+    assert logins["docker.io"]["username"] == ("${{ vars.DOCKERHUB_USERNAME || 'flowsteward' }}")
+    assert logins["docker.io"]["password"] == "${{ secrets.DOCKERHUB_TOKEN }}"
+    assert logins["ghcr.io"]["password"] == "${{ github.token }}"
+
+
 def evidence() -> dict:
     return {
         "version": "1.2.3",

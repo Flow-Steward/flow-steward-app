@@ -92,13 +92,16 @@ Packages: write. Ensure organization package settings allow publication from thi
 repository. Protect stable tags against replacement/deletion through repository
 rules. Do not create a tag during setup just to exercise the pipeline.
 
-Set repository variables:
+The official workflow uses the existing registries and account by default. These
+repository variables are optional overrides:
 
-- `RELEASE_GHCR_NAMESPACE`: for example `ghcr.io/flow-steward`.
-- `RELEASE_DOCKERHUB_NAMESPACE`: for example `docker.io/flowsteward`.
-- `DOCKERHUB_USERNAME`: the account authorized to push to the configured namespace.
-- Optional `RELEASE_GATE_RUNNER`: a dedicated Linux runner label if the default
-  `ubuntu-24.04` runner lacks resources for the complete Docker gate.
+- `RELEASE_GHCR_NAMESPACE`: defaults to `ghcr.io/flow-steward`.
+- `RELEASE_DOCKERHUB_NAMESPACE`: defaults to `docker.io/flowsteward`.
+- `DOCKERHUB_USERNAME`: defaults to `flowsteward`; an override must authorize
+  publication to the configured namespace.
+- `RELEASE_GATE_RUNNER`: a GitHub-hosted Linux runner override; the default is
+  `ubuntu-24.04`. The hosted quality adapter does not support persistent
+  self-hosted runners.
 
 Store `DOCKERHUB_TOKEN` as a repository secret with write access to all release
 repositories. GHCR uses the job's scoped `GITHUB_TOKEN`; an existing package must
