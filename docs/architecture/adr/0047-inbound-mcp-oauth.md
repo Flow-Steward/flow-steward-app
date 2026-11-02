@@ -585,14 +585,18 @@ No new variable exists for lifetimes, the CIMD allowlist or the switch.
 
 ### 20. Database artifacts
 
-The release line is pre-1.0 (0.9.6). Per `AGENTS.md` and ADR 0012 the five
-tables, their constraints and indexes go into the `db/schema/` baseline; no file
-is added to `db/migrations/`, and no seed is needed. The tables are not added to
-`REQUIRED_RUNTIME_TABLES` (`schema_contract_catalog.py`), so an existing 0.9.x
-database still passes the startup contract and reports `storage_missing`
-instead of refusing to start. Existing installations get the tables by the
-owner's pre-1.0 procedure (row 14). Schema registry tests that cover the
-baseline are updated with the tables.
+The five tables, their constraints and indexes are in the `db/schema/` baseline,
+which fresh installations load, and no seed is needed. 0.9.7 shipped them in the
+baseline only, so an installation updated from 0.9.6 did not get them (ADR 0012,
+2026-11-01 amendment). From 0.9.8 the migration
+`db/migrations/20261101153533_inbound_oauth_tables.sql` carries the same DDL with
+`IF NOT EXISTS`: an update stops at the release's migration check, and
+`flow-steward database upgrade --maintenance-confirmed --confirm` creates the
+tables; on a fresh installation the migration is a recorded no-op. The tables are
+not added to `REQUIRED_RUNTIME_TABLES` (`schema_contract_catalog.py`): the startup
+contract already refuses a database with a pending migration, and a database
+without the tables still reports `storage_missing` rather than refusing to start.
+Schema registry tests that cover the baseline are updated with the tables.
 
 ### 21. Logging and audit
 

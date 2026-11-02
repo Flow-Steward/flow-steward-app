@@ -152,7 +152,7 @@ storage readiness. Do not hand-edit or commit either generated credential.
 Initial schema and canonical seed setup are owned by `./install.sh` on both
 Compact and Scalable. Compact also bootstraps schema/seed before starting its
 role processes. The database container loads the `db/schema/` 1.0 baseline;
-`db/migrations/` holds post-1.0 SQL migrations and is empty at 1.0. After
+`db/migrations/` holds SQL migrations for changes made after a released baseline. After
 installation, inspect the schema with the management launcher:
 
 ```bash
@@ -1050,8 +1050,8 @@ Existing top-level buckets such as `routes/`, `services/`, `models/`, `schemas/`
 structure. Root `serve.py` remains the convenience launcher that re-exports the
 canonical HTTP app composition.
 Canonical database artifacts live in `db/schema/` (the 1.0 baseline) and
-`db/seeds/`. There are no historical migrations: post-1.0 schema changes are
-ordered SQL files under `db/migrations/`, which is empty at 1.0, applied by
+`db/seeds/`. There are no historical migrations: schema changes after a released
+baseline are ordered SQL files under `db/migrations/`, applied by
 `database upgrade` (see ADR 0012); a root-level migration directory is not used.
 
 ---

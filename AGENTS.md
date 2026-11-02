@@ -75,10 +75,14 @@ The canonical end-state database artifact homes are:
 
 - `db/schema/` — canonical SQL schema; this is the 1.0 baseline
 - `db/seeds/` — canonical seed data
-- `db/migrations/` — post-1.0 SQL migrations (`YYYYMMDDHHMMSS_slug.sql`); empty at 1.0
+- `db/migrations/` — SQL migrations (`YYYYMMDDHHMMSS_slug.sql`) for changes after a released baseline
 
 There are no historical migrations: the final 1.0 structure lives in
-`db/schema/`. Post-1.0 database changes `MUST` be SQL files under `db/migrations/` (no
+`db/schema/`. Installed databases never re-read `db/schema/`, so once a baseline has
+shipped (the 0.9.x line included) a schema change `MUST` also add an idempotent
+migration that makes the same change, and update `baseline_schema_fingerprint` in
+`db/released_migrations.json` (ADR 0012, 2026-11-01 amendment).
+Post-1.0 database changes `MUST` be SQL files under `db/migrations/` (no
 per-migration Python files), applied by `flow-steward database upgrade --maintenance-confirmed --confirm` and tracked in
 `public.platform_schema_migrations`. A root-level `migrations` directory stays
 forbidden, and there is still no second DB source of truth (see ADR 0012).

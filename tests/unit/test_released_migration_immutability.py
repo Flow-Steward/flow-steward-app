@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from core.application.tooling.db import migration_runner
+from core.infrastructure.db.schema_state import canonical_schema_fingerprint
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "db" / "released_migrations.json"
@@ -71,6 +72,25 @@ def test_a_database_that_recorded_the_released_checksums_needs_no_ledger_edit() 
 
     assert result["applied"] == []
     assert sorted(result["skipped"]) == sorted(released)
+
+
+def test_the_released_baseline_changes_only_together_with_a_migration() -> None:
+    """0.9.7 added five OAuth tables to db/schema/ alone; no installed database got them.
+
+    db/schema/ is loaded once, into an empty database. Every later step -- the
+    installer's schema check, the bootstrap seed, `database upgrade` -- records the
+    baseline's fingerprint without running its DDL, so an upgraded installation reported
+    a clean schema while missing the tables. A baseline edit has to arrive with a
+    migration that makes the same change; this pin makes the edit visible in review.
+    """
+    payload = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+    assert canonical_schema_fingerprint(ROOT) == payload["baseline_schema_fingerprint"], (
+        "db/schema/ differs from the released baseline. Installed databases never re-read "
+        "db/schema/: add a db/migrations/ file that makes the same change idempotently "
+        "(IF NOT EXISTS), then record the new baseline_schema_fingerprint in "
+        f"{MANIFEST.name} in the same commit."
+    )
 
 
 def test_editing_a_released_migration_still_fails_the_upgrade_closed(tmp_path: Path) -> None:
