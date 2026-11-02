@@ -115,14 +115,19 @@ another base); add what the import graph cannot see by path:
 ./core/entrypoints/cli/scripts/lint.sh --checks frontend-targeted-tests --test-paths auto
 ```
 
-Before an intermediate commit, run:
+Tier 1 runs locally. After every public branch push, including point changes,
+the Remote quality pilot workflow runs:
 
 ```bash
 ./core/entrypoints/cli/scripts/lint.sh --fast
 ```
 
-Before handing off, opening a pull request, or merging a coherent change batch,
-run one clean full gate from the final committed state:
+Local pre-commit hooks select the current commit's delta with `auto:HEAD`.
+Manual `auto` remains branch-wide against `main`; add explicit regression paths
+when needed. Incremental hook results do not replace the remote full gate.
+
+Before merging to main, fetch and integrate current origin/main, resolve
+conflicts and push the final committed candidate. Run one clean remote full gate:
 
 ```bash
 ./core/entrypoints/cli/scripts/lint.sh --full
@@ -135,15 +140,18 @@ be fixed before the next full run.
 
 AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `lint.sh --checks …`. Tier 1 is no exception: being focused does not mean running on the host. A host interpreter makes the result depend on the machine — Tier 1 could not run at all where `python3` is 3.14, and a host run of a suite passed while the same suite failed in the gate, because the gate substitutes the tree through `run-core-only-tests.sh`. `infra/tooling/quality/check-registry.json` is the single list of commands, and `tests/unit/tooling/quality/test_check_registry.py` fails if any check escapes the container.
 
-Quality tiers 1–3 are local Docker gates with one registry owner per check.
+All tiers use Docker with one registry owner per check. Tier 1 stays local;
+Tier 2 and Tier 3 run on disposable standard GitHub-hosted Linux runners in the
+public source repository (ADR 0053). Recheck main after verification and
+immediately before merge; an updated candidate requires new matching evidence.
 Reuse is fingerprint-bound; input-scoped Tier 2 checks reuse a pass across commits
 and worktrees through the `flow-steward-quality-cache` volume (ADR 0036). Final handoff and release evidence must describe the
 final commit SHA. Candidate publication requires complete green Tier 2 and Tier 3
 evidence for that same SHA; `--full` refreshes or reuses exact-SHA Tier 2 before
-the Tier 3 delta and succeeds only after cumulative validation. GitHub Actions
-may orchestrate documentation updates/deployment and official tag releases
-(ADR 0048), using the same canonical Docker checks. Local contributor handoff
-does not require a remote check. Additional audit checks remain available through `--checks`.
+the Tier 3 delta and succeeds only after cumulative validation. Documentation
+and tag-release Actions remain enabled (ADR 0048). An intermediate handoff/PR
+reports Tier 3 as pending when not yet run. Public results never verify a
+different private commit. Additional audit checks remain available through `--checks`.
 
 For a focused fix/verify cycle, selected checks remain available:
 
@@ -153,5 +161,8 @@ For a focused fix/verify cycle, selected checks remain available:
 ```
 
 Install hooks once per clone with `pre-commit install --hook-type pre-commit`.
-The hook runs the fast gate. Full gates and SonarQube run locally in Docker;
-all modes use the on-demand `fs-audit` container by default.
+The hook runs affected Tier 1 checks. Tier 2 runs after push, and Tier 3 before
+merge. Substantial core changes also require full Sonar analysis; the disposable
+remote Sonar pilot does not replace the existing baseline until reconciled.
+See `docs/operations/remote-quality.md`. Local Docker gates remain available for
+diagnosis; all test tiers use the on-demand `fs-audit` container.

@@ -128,13 +128,13 @@ def test_env_artifact_fingerprint_covers_every_scanned_source() -> None:
     } <= set(check["inputs"])
 
 
-def test_pre_commit_runs_sync_before_fast_gate() -> None:
+def test_pre_commit_runs_sync_before_targeted_gate() -> None:
     config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
     hooks = config["repos"][0]["hooks"]
     ids = [hook["id"] for hook in hooks]
     sync = next(hook for hook in hooks if hook["id"] == "fs-env-artifacts-sync")
 
-    assert ids.index("fs-env-artifacts-sync") < ids.index("fs-quality-fast")
+    assert ids.index("fs-env-artifacts-sync") < ids.index("fs-quality-targeted")
     assert sync["entry"] == "core/entrypoints/cli/scripts/sync_env_artifacts.sh"
 
 

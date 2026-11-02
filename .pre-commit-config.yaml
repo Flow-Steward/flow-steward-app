@@ -17,9 +17,16 @@ repos:
         pass_filenames: false
         stages: [pre-commit, manual]
 
-      - id: fs-quality-fast
-        name: Flow Steward quality gate (Tier 2)
-        entry: core/entrypoints/cli/scripts/lint.sh --fast --evidence-mode reuse --fingerprint-source index
+      - id: fs-quality-targeted
+        name: Flow Steward affected backend tests (Tier 1)
+        entry: core/entrypoints/cli/scripts/lint.sh --checks targeted-tests --test-paths auto:HEAD
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: fs-quality-frontend-targeted
+        name: Flow Steward affected frontend tests (Tier 1)
+        entry: core/entrypoints/cli/scripts/lint.sh --checks frontend-targeted-tests --test-paths auto:HEAD
         language: system
         pass_filenames: false
         stages: [pre-commit]

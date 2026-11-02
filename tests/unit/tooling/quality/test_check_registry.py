@@ -195,6 +195,7 @@ def test_tier_three_keeps_only_long_suites_and_required_acceptance_checks() -> N
         "backend-tests",
         "extension-oauth-browser",
         "clone-volume-disposable",
+        "quality-evidence-mixed-uid",
         "runtime-heartbeat-cross-profile",
     }
     oauth_index = tier_three_order.index("extension-oauth-browser")
@@ -211,6 +212,7 @@ def test_candidate_runtime_checks_are_externally_owned() -> None:
         "compact-p1-routing",
         "compact-p3-extension-invocation",
         "clone-volume-disposable",
+        "quality-evidence-mixed-uid",
     }
 
 
@@ -223,6 +225,22 @@ def test_clone_volume_disposable_is_selected_by_external_tier_three() -> None:
     }
 
     assert "clone-volume-disposable" in selected
+
+
+def test_mixed_uid_evidence_acceptance_has_a_mandatory_external_owner() -> None:
+    registry = load_check_registry(REGISTRY_PATH)
+    selected = next(check for check in registry.checks if check.id == "quality-evidence-mixed-uid")
+    assert selected.owner_tier == 3
+    assert selected.execution == "external"
+    assert selected.command == (
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "targeted-tests",
+        "--test-paths",
+        "tests/integration/test_quality_evidence_uid_contract.py",
+    )
+    assert "tests/integration/test_quality_evidence_uid_contract.py" in selected.inputs
 
 
 def test_duplicate_check_ids_are_rejected() -> None:

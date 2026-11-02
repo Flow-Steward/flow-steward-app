@@ -110,6 +110,9 @@ Report security vulnerabilities privately as described in [SECURITY.md](SECURITY
 
 ## Documentation
 
+Contributors: [remote quality checks](docs/operations/remote-quality.md) describes
+local Tier 1, hosted Tier 2/Tier 3 and the full SonarQube pilot.
+
 [Project documentation index](docs/README.md) lists the maintained guides,
 contracts, engineering standards and architectural decisions.
 

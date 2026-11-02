@@ -507,8 +507,10 @@ JSON `title` and `description` inputs; this fixture no longer uploads a task
 attachment. It must reach its configured human approval gate and publish the
 expected output artifact after approval.
 
-Release evidence is produced by the local Docker gates, with audit approval
-before SonarQube and Tier 3. GitHub Actions are disabled. When this live fixture
+Release evidence is produced by the canonical Docker gates, with Tier 1 local
+and Tier 2/Tier 3 on hosted runners in the public source repository. See the
+[remote quality runbook](operations/remote-quality.md) for the Sonar baseline
+transition and exact-SHA requirements. When this live fixture
 is configured, the candidate deployment must expose its immutable image revision
 as `FS_BUILD_SHA`, matching the final tested commit SHA, so a stale deployment
 cannot satisfy the gate.
@@ -2730,8 +2732,11 @@ for the same SHA. Other checks retain ordinary input-bound reuse.
 
 For diagnosis, `--evidence-mode off` forces execution without writing reusable
 evidence. Diagnostic runs do not produce retained reusable release evidence.
-Tiers 1–3 and SonarQube run locally in Docker. GitHub Actions are disabled;
-final release verification requires local Tier 2 and Tier 3 evidence for the same
+Tier 1 stays local; Tier 2 runs after each public branch push and Tier 3 before
+merge on disposable GitHub-hosted runners. The full Sonar pilot runs on a second
+runner; its fresh baseline does not yet replace the existing Sonar release check.
+See [remote quality checks](operations/remote-quality.md).
+Final release verification requires Tier 2 and Tier 3 evidence for the same
 exact commit SHA. The canonical `--full` command validates or refreshes Tier 2
 before the long Tier 3 delta and succeeds only after cumulative evidence validation.
 Additional audit checks are available through `lint.sh --checks` when needed.

@@ -4878,6 +4878,23 @@
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },
     {
+      "name": "FS_QUALITY_CACHE_ROOT",
+      "groups": [
+        "quality_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "quality",
+      "notes": "Derived per-job package-cache bind directory for disposable hosted quality runners; not a product or persisted installation setting."
+    },
+    {
       "name": "FS_QUALITY_EVIDENCE_MODE",
       "groups": [
         "quality_tools"

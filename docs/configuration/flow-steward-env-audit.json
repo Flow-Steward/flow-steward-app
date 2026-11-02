@@ -8914,6 +8914,26 @@
     "variable_name": "FS_PYTHON_CACHE_DIR"
   },
   {
+    "canonical_name": "FS_QUALITY_CACHE_ROOT",
+    "code_read_locations": [
+      "infra/docker/docker-compose.quality-hosted.yaml"
+    ],
+    "conditional_groups": [
+      "quality_tools"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "local_development"
+    ],
+    "notes": "Derived per-job package-cache bind directory for disposable hosted quality runners; not a product or persisted installation setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "quality",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_QUALITY_CACHE_ROOT"
+  },
+  {
     "canonical_name": "FS_QUALITY_EVIDENCE_MODE",
     "code_read_locations": [
       "core/entrypoints/cli/scripts/lint.sh"
@@ -12179,6 +12199,7 @@
     "canonical_name": "GITHUB_ACTIONS",
     "code_read_locations": [
       "core/application/tooling/quality/verify.py",
+      "core/entrypoints/cli/scripts/hosted-quality.sh",
       "core/entrypoints/cli/scripts/lint.sh"
     ],
     "conditional_groups": [],
@@ -12196,9 +12217,124 @@
     "variable_name": "GITHUB_ACTIONS"
   },
   {
+    "canonical_name": "GITHUB_ENV",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "GITHUB_ENV"
+  },
+  {
+    "canonical_name": "GITHUB_JOB",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "GITHUB_JOB"
+  },
+  {
+    "canonical_name": "GITHUB_OUTPUT",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "GITHUB_OUTPUT"
+  },
+  {
+    "canonical_name": "GITHUB_REPOSITORY",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "GITHUB_REPOSITORY"
+  },
+  {
+    "canonical_name": "GITHUB_RUN_ATTEMPT",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "GITHUB_RUN_ATTEMPT"
+  },
+  {
+    "canonical_name": "GITHUB_RUN_ID",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "GITHUB_RUN_ID"
+  },
+  {
     "canonical_name": "GITHUB_SHA",
     "code_read_locations": [
       "core/application/tooling/quality/verify.py",
+      "core/entrypoints/cli/scripts/hosted-quality.sh",
       "core/entrypoints/cli/scripts/lint.sh"
     ],
     "conditional_groups": [],
@@ -12214,6 +12350,25 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "GITHUB_SHA"
+  },
+  {
+    "canonical_name": "GITHUB_WORKSPACE",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "GITHUB_WORKSPACE"
   },
   {
     "canonical_name": "GREEN",
@@ -15211,6 +15366,7 @@
       "tests/unit/test_repository_binary_hygiene.py",
       "tests/unit/test_retired_executor_absence.py",
       "tests/unit/test_retry_architecture.py",
+      "tests/unit/tooling/quality/test_hosted_quality.py",
       "tests/unit/tooling/quality/test_release_gate.py"
     ],
     "conditional_groups": [],
@@ -15676,6 +15832,44 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "ROOT_DIR"
+  },
+  {
+    "canonical_name": "RUNNER_ENVIRONMENT",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "RUNNER_ENVIRONMENT"
+  },
+  {
+    "canonical_name": "RUNNER_TEMP",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "RUNNER_TEMP"
   },
   {
     "canonical_name": "RUNTIME_ENV_ADAPTER_MISSING",

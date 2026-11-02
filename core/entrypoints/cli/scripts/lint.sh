@@ -112,6 +112,7 @@ Modes:
   --fingerprint-source  worktree, index, or commit (default: worktree).
   --trust  local or trusted_ci; trusted_ci is accepted only in exact-SHA GitHub Actions.
   --commit-sha  Commit identity required with trusted_ci commit fingerprints.
+  --audit-toolchain-digest  Print the canonical audit image toolchain digest; no Docker execution.
 
 Notes:
   - When started on host machine, all modes run in on-demand `fs-audit`.
@@ -141,6 +142,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --fast)
       MODE="fast"
+      ;;
+    --audit-toolchain-digest)
+      MODE="audit-toolchain-digest"
       ;;
     --full)
       MODE="full"
@@ -316,7 +320,7 @@ fi
 
 cd "${ROOT_DIR}"
 
-if [[ -x "${ROOT_DIR}/core/entrypoints/cli/scripts/check_no_enterprise_leak.sh" ]]; then
+if [[ "${MODE}" != audit-toolchain-digest && -x "${ROOT_DIR}/core/entrypoints/cli/scripts/check_no_enterprise_leak.sh" ]]; then
   "${ROOT_DIR}/core/entrypoints/cli/scripts/check_no_enterprise_leak.sh"
 fi
 
@@ -787,6 +791,13 @@ ensure_audit_image_current() {
   audit_image_checked=1
 }
 
+# Hosted builds use the same toolchain identity as the canonical image guard.
+# This metadata operation neither builds nor starts a container.
+if [[ "${MODE:-}" == "audit-toolchain-digest" ]]; then
+  audit_toolchain_digest "${ROOT_DIR}"
+  exit 0
+fi
+
 # Nested test helpers must use this run's validated image even when an inner
 # dispatcher changes Compose projects. An inherited selector is never trusted.
 resolve_audit_test_image() {
@@ -1019,7 +1030,8 @@ run_host_sonar_scan() {
   local normalized_coverage_report_container=""
   local js_coverage_report_host=""
   local js_coverage_report_container=""
-  local sonar_args=()
+  # Keep generated scanner state outside the immutable candidate's tracked tree.
+  local sonar_args=("-Dsonar.working.directory=/usr/src/logs/quality/sonar/work")
   local scanner_run_args=(--rm -T)
   local attempt=0
   local status_line=""
@@ -1535,7 +1547,9 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
         || audit_exit_code=$?
     fi
     if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
-      fs_compose run --no-deps --rm -T "${lint_container_volume_args[@]}" fs-audit \
+      # External checks write 0600 evidence as root; the final reader must be
+      # able to validate both those records and the ordinary fs-owned records.
+      fs_compose run --no-deps --rm -T --user 0:0 "${lint_container_volume_args[@]}" fs-audit \
         python -m core.application.tooling.quality.release_gate \
         || audit_exit_code=$?
     fi

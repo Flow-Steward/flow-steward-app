@@ -111,6 +111,23 @@ _EXTERNAL_CODE_CLIENT = "Clau" + "de Code"
 # install lifecycle for the same local clients in its own README.
 _AGENT_SKILL_PACKAGES = ("flow-steward-operator", "flow-steward-developer")
 ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
+    # Reviewed source-control request refs, not a bundled product executor.
+    # Only these exact operator/ADR lines are allowed; runtime references remain banned.
+    Path("docs/operations/remote-quality.md"): {
+        line.lower().encode("utf-8")
+        for line in (
+            f"git push origin HEAD:refs/heads/{_EXTERNAL_AGENT_RUNTIME}/verify-release/my-task",
+            f"git push origin HEAD:refs/heads/{_EXTERNAL_AGENT_RUNTIME}/verify-sonar/my-task",
+            f"the dedicated `{_EXTERNAL_AGENT_RUNTIME}/remote-quality-pilot` branch: its push runs `release-sonar`",
+        )
+    },
+    Path("docs/architecture/adr/0053-hosted-quality-gates.md"): {
+        line.lower().encode("utf-8")
+        for line in (
+            f"normal branches run Tier 2. Task-specific `{_EXTERNAL_AGENT_RUNTIME}/verify-release/` and",
+            f"`{_EXTERNAL_AGENT_RUNTIME}/verify-sonar/` refs request the full modes through ordinary Git write",
+        )
+    },
     Path("docs/GUIDE.md"): {
         f"Follow the package README's supported {_EXTERNAL_AGENT_RUNTIME.title()} local marketplace, Cursor local".lower().encode(
             "utf-8"

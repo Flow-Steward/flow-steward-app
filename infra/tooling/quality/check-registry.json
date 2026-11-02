@@ -71,6 +71,26 @@
       "execution": "external"
     },
     {
+      "id": "quality-evidence-mixed-uid",
+      "owner_tier": 3,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "targeted-tests",
+        "--test-paths",
+        "tests/integration/test_quality_evidence_uid_contract.py"
+      ],
+      "inputs": [
+        "core/entrypoints/cli/scripts/lint.sh",
+        "core/entrypoints/cli/scripts/run-external-tier-three.sh",
+        "core/application/tooling/quality/evidence.py",
+        "core/application/tooling/quality/release_gate.py",
+        "tests/integration/test_quality_evidence_uid_contract.py"
+      ],
+      "execution": "external"
+    },
+    {
       "id": "clone-volume-disposable",
       "owner_tier": 3,
       "command": [

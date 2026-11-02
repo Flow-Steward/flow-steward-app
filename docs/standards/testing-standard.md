@@ -102,11 +102,13 @@ def test_policy_update_role_matrix(client, role, expected_status):
 Each executable quality check has one owning tier in
 `infra/tooling/quality/check-registry.json`. Higher tiers execute their delta;
 they do not rerun checks owned by lower tiers. A matching fingerprint may reuse
-checksummed evidence. Contributor tiers 1–3 run in local Docker through the canonical registry;
+checksummed evidence. All tiers run in Docker through the canonical registry;
 final verification must identify the exact commit SHA and candidate environment.
-Local contributor gates remain required. GitHub Actions may orchestrate the same
-Docker gates for official tag publication (ADR 0048); automation is not a substitute
-for local handoff evidence. Documentation PR/build/deploy workflows are also enabled.
+Tier 1 stays in local Docker. In the public source repository, Tier 2 runs after every
+branch push on a disposable GitHub-hosted runner; Tier 3 runs before merge to
+main (ADR 0053). Official tag publication still runs its exact-SHA gate (ADR 0048).
+Remote evidence proves only the public commit it executed, never a different
+private development commit. Documentation workflows remain independent.
 
 Evidence has one of two reuse scopes, set per check in the registry (ADR 0036):
 
@@ -132,6 +134,13 @@ not rerun mypy, a later commit that leaves `core/` alone does not rerun Semgrep.
 
 Tier 1 proves local progress; it does not prove that the complete change is ready for handoff.
 
+Local pre-commit hooks use `auto:HEAD` for the current commit's delta. Normal
+pre-commit stashing isolates tracked changes; untracked files can also broaden
+selection. Add explicit regression paths when the import graph cannot infer them.
+The ordinary manual `auto` selection remains branch-wide against `main`.
+`auto:HEAD` on an already clean committed tree is not branch or release evidence;
+the exact-SHA remote cumulative gate still runs the complete required suites.
+
 AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `lint.sh --checks …`. Tier 1 is no exception: being focused does not mean running on the host. A host interpreter makes the result depend on the machine — Tier 1 could not run at all where `python3` is 3.14, and a host run of a suite passed while the same suite failed in the gate, because the gate substitutes the tree through `run-core-only-tests.sh`. `infra/tooling/quality/check-registry.json` is the single list of commands, and `tests/unit/tooling/quality/test_check_registry.py` fails if any check escapes the container.
 
 ### External extension checkouts
@@ -151,23 +160,23 @@ interpreter and never by a core-only result:
 - The checkout is never bind-mounted: the host streams it into `fs-audit` as a tar archive (without `.git` and tool caches), because Docker Desktop serves stale files through a bind mount once a mounted file changes. The container cannot write back. The log names the checkout's commit and its count of uncommitted paths; extension evidence `MUST` cite that commit and a clean tree.
 - Both checks are owned by Tier 1 with `selection_required`: they need an input no tier run has, so `--fast` and `--full` never select them, and a green core gate is not extension evidence.
 
-### Tier 2: Intermediate Commit
+### Tier 2: Every Pushed Change
 
-- `MUST` run `./core/entrypoints/cli/scripts/lint.sh --fast` before an intermediate commit.
+- `MUST` run `./core/entrypoints/cli/scripts/lint.sh --fast` on the committed public candidate after every branch push, including point changes. A push may precede its remote check; failed or pending verification blocks claiming the change verified. The local pre-commit hook runs Tier 1 instead of Tier 2.
 - `MUST` start checks in registry order: `pip-audit` and the frontend dependency audit, then `detect-secrets` and Semgrep, then the remaining static checks. Up to four checks run at once, each in its own temporary workspace, and each check's log is printed as one block.
 - `MUST` start no further Tier 2 check after the first failure; checks already running finish, and every completed check retains real fingerprinted evidence. A deferred or skipped implementation `MUST NOT` record a pass.
 - A scanner that judges each file on its own (detect-secrets) `MAY` skip file contents it already passed under the same tool version and configuration. A cache that cannot answer `MUST` fall back to scanning every file.
 - `MAY` omit the full suite when Tier 1 covers the affected behavior and the fast gate passes.
 - `MUST` review and stage regenerated tracked artifacts explicitly; hooks `MUST NOT` run hidden `git add` operations.
 
-### Tier 3: Handoff, Pull Request, or Merge
+### Tier 3: Before Merge to Main
 
-- `MUST` run one clean `./core/entrypoints/cli/scripts/lint.sh --full` after a coherent change batch is complete.
+- `MUST` run one clean `./core/entrypoints/cli/scripts/lint.sh --full` from the final committed public candidate before merge to main. An intermediate handoff or PR may carry Tier 1 and Tier 2 evidence with Tier 3 explicitly pending.
 - The canonical `--full` wrapper `MUST` validate or refresh commit-bound Tier 2 evidence before starting long Tier 3 test infrastructure, then execute only the Tier 3-owned delta.
 - `--full` `MUST` finish by validating complete Tier 2 and Tier 3 evidence against the same final SHA; it `MUST NOT` report success when either tier is missing, failed, corrupt, stale, or bound to another command or fingerprint.
 - The backend unit suite `MUST` run without `-x` or `--maxfail=1`, retain the complete failure list, and report failures grouped by root cause before one coherent in-scope fix batch.
 - `MUST` bind the result to the final commit being handed off: commit-scoped checks through that SHA, input-scoped checks through a fingerprint computed from that SHA's tree. Any later change to a check's inputs invalidates that check.
-- `MUST` run Tier 3 before handoff for database schema, authentication or authorization, security boundary, shared store or port, worker/runtime, extension framework, or deployment configuration changes regardless of diff size.
+- `MUST` run Tier 3 before merging database schema, authentication or authorization, security boundary, shared store or port, worker/runtime, extension framework, or deployment configuration changes regardless of diff size.
 
 ### Release verification
 
@@ -198,12 +207,13 @@ A small diff `MUST NOT` be treated as low risk solely because it is small.
 - A quarantined flaky test `MUST` have a tracked issue, owner, removal deadline, and explicit exclusion from release-coverage claims.
 - Results produced after shared test state or the environment becomes invalid `MUST NOT` be counted.
 
-## Local Execution Policy
+## Execution Policy
 
-- `MUST` run contributor quality gates and SonarQube locally in Docker. Official
-  release Actions `MUST` run the same canonical Docker gate before publishing; no
-  host-only or reduced test command may replace it.
-- `MUST NOT` require GitHub Actions, GitHub artifacts, or remote check status for handoff or merge.
+- `MUST` keep Tier 1 local and run Tier 2/Tier 3 through the same canonical Docker gate on disposable standard GitHub-hosted Linux runners in the public source repository. Local Docker execution remains an explicit diagnostic/fallback option, not a duplicate requirement.
+- `MUST` fetch origin/main and include it in the candidate before expensive checks; stale or dirty candidates fail before building. Recheck main after verification and immediately before merge. If main advances beyond the candidate, integrate it and verify the new SHA again.
+- `MUST` inspect the run's repository, workflow, event, exact head SHA and conclusion before accepting remote evidence. A cached artifact or green result for another SHA is not evidence. Remote execution does not itself enforce GitHub branch protection or perform merges.
+- `MUST` run full frontend/backend Sonar analysis before merging substantial core changes. The disposable Sonar pilot has a fresh baseline and does not replace the existing Sonar server's release decision until profiles, gates and baseline behavior are reconciled. Keep the existing Sonar check during that transition.
+- `MUST` retain diagnostic artifacts for bounded periods and clean the exact owned Compose project on success, failure or cancellation; never globally prune the developer's Docker daemon. Hosted VM disposal is the backstop for forced cancellation.
 - Critical skipped or excluded tests `MUST` remain visible as temporary debt.
 - Deterministic configuration and generated-artifact checks `SHOULD` run before expensive tests.
 - Coverage `SHOULD` be collected once by the full gate, not during Tier 1.

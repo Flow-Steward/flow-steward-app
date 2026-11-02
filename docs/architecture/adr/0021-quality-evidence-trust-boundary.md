@@ -2,6 +2,10 @@
 
 ## Status
 
+Execution location and contributor gate timing are amended by
+[ADR 0053](0053-hosted-quality-gates.md); its hosted pilot replaces the local-only
+restriction below. Check ownership and cumulative exact-candidate validation remain.
+
 Accepted — 2026-08-13; amended 2026-09-28 for local Docker verification; evidence reuse scope amended by
 [ADR 0036](0036-content-scoped-quality-evidence.md) on 2026-10-14
 
