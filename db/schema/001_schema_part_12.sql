@@ -201,32 +201,46 @@ CREATE TABLE public.catalog_secret_bindings (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     account_id uuid NOT NULL,
     secret_id uuid NOT NULL,
-    consumer_kind text NOT NULL CHECK (consumer_kind = 'project_connection'),
+    consumer_kind text NOT NULL
+        CHECK (consumer_kind = ANY (ARRAY['project_connection'::text, 'workflow_input'::text])),
     project_connection_id text REFERENCES public.project_connections(connection_id) ON DELETE CASCADE,
+    workflow_id text REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE,
+    consumer_project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
     field_name text NOT NULL
         CHECK (char_length(btrim(field_name)) BETWEEN 1 AND 200 AND field_name NOT LIKE '\_oauth\_%'),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by text DEFAULT ''::text NOT NULL,
     CONSTRAINT catalog_secret_bindings_secret_fkey FOREIGN KEY (secret_id, account_id)
         REFERENCES public.catalog_secrets(id, account_id) ON DELETE RESTRICT,
-    CONSTRAINT catalog_secret_bindings_consumer_check
-        CHECK ((consumer_kind = 'project_connection') = (project_connection_id IS NOT NULL)),
-    CONSTRAINT catalog_secret_bindings_connection_field_key UNIQUE (project_connection_id, field_name)
+    CONSTRAINT catalog_secret_bindings_consumer_check CHECK (
+        (consumer_kind = 'project_connection'
+            AND project_connection_id IS NOT NULL AND workflow_id IS NULL)
+        OR (consumer_kind = 'workflow_input'
+            AND workflow_id IS NOT NULL AND consumer_project_id IS NOT NULL
+            AND project_connection_id IS NULL)),
+    CONSTRAINT catalog_secret_bindings_connection_field_key UNIQUE (project_connection_id, field_name),
+    CONSTRAINT catalog_secret_bindings_workflow_field_key UNIQUE (workflow_id, field_name)
 );
 
 CREATE TABLE public.catalog_secret_approvals (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE RESTRICT,
-    consumer_kind text NOT NULL CHECK (consumer_kind = 'project_connection'),
+    consumer_kind text NOT NULL
+        CHECK (consumer_kind = ANY (ARRAY['project_connection'::text, 'workflow'::text])),
     project_connection_id text REFERENCES public.project_connections(connection_id) ON DELETE CASCADE,
+    workflow_id text REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE,
     fingerprint text NOT NULL CHECK (fingerprint ~ '^sha256:[0-9a-f]{64}$'),
     projection_jsonb jsonb NOT NULL CHECK (jsonb_typeof(projection_jsonb) = 'object'),
     approved_by text NOT NULL CHECK (char_length(btrim(approved_by)) > 0),
     approved_by_kind text NOT NULL CHECK (approved_by_kind = ANY (ARRAY['human'::text, 'upgrade'::text])),
     approved_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT catalog_secret_approvals_consumer_check
-        CHECK ((consumer_kind = 'project_connection') = (project_connection_id IS NOT NULL)),
-    CONSTRAINT catalog_secret_approvals_connection_key UNIQUE (project_connection_id)
+    CONSTRAINT catalog_secret_approvals_consumer_check CHECK (
+        (consumer_kind = 'project_connection'
+            AND project_connection_id IS NOT NULL AND workflow_id IS NULL)
+        OR (consumer_kind = 'workflow' AND workflow_id IS NOT NULL
+            AND project_connection_id IS NULL)),
+    CONSTRAINT catalog_secret_approvals_connection_key UNIQUE (project_connection_id),
+    CONSTRAINT catalog_secret_approvals_workflow_key UNIQUE (workflow_id)
 );
 
 CREATE TABLE public.platform_upgrade_phases (

@@ -271,6 +271,9 @@ def submit_test_run(
         "workflow_test_run_execution_id": execution_id,
         "_workflow_secret_ref_fingerprints": secret_snapshot,
     }
+    from core.application.secrets.workflow_gate import AUTHORITY_STATE_KEY, launch_authority_for
+
+    extra_state[AUTHORITY_STATE_KEY] = launch_authority_for(project_id, normalized_workflow_id)
     if isinstance(envelope.get("files"), list) and envelope["files"]:
         extra_state["files"] = list(envelope["files"])
     normalized_mode = _text(mode)

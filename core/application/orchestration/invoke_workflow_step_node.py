@@ -549,6 +549,33 @@ def _invoke_workflow_step(
         child_inputs=child_inputs,
     )
     child_extra_state["_workflow_secret_ref_fingerprints"] = child_secret_ref_snapshot
+    from core.application.secrets.workflow_gate import (
+        AUTHORITY_STATE_KEY,
+        launch_authority_for,
+        storage_ref_fingerprint,
+    )
+    from core.infrastructure.security.secret_reference import as_secret_reference
+
+    # A catalog secret the parent passes on reaches the child only when a person
+    # approved the child's own definition too; each level is checked (ADR 0055).
+    parent_authority = state.get(AUTHORITY_STATE_KEY) if isinstance(state, dict) else None
+    parent_authority = parent_authority if isinstance(parent_authority, dict) else {}
+    received = tuple(
+        sorted(
+            {
+                reference.ref_key
+                for value in (child_inputs or {}).values()
+                if (reference := as_secret_reference(value)) is not None
+                and reference.ref_key
+                and storage_ref_fingerprint(reference.ref_key) in parent_authority
+            }
+        )
+    )
+    child_extra_state[AUTHORITY_STATE_KEY] = launch_authority_for(
+        state.get("project_id") if isinstance(state, dict) else "",
+        child_workflow_id,
+        received_storage_keys=received,
+    )
     if _to_bool(state.get("test_mode"), False):
         child_extra_state["test_mode"] = True
         child_meta["test_mode"] = True

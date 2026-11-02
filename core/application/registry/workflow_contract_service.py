@@ -71,7 +71,11 @@ class WorkflowInterfaceService:
         workflow = get_workflow_row(db, normalized)
         if not isinstance(workflow, dict):
             raise WorkflowInterfaceLookupError(f"Workflow '{normalized}' was not found")
-        return self.interface_from_definition(workflow)
+        from core.application.secrets.workflow_gate import overlay_workflow_row
+
+        # A secret input bound to a catalog secret defaults to that secret; whether
+        # this launch may use it is decided by the launch authority (ADR 0055).
+        return self.interface_from_definition(overlay_workflow_row(db, workflow))
 
     def input_json_schema(self, interface: WorkflowInterface) -> dict[str, Any]:
         if interface.input_mode == "passthrough":

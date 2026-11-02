@@ -26,6 +26,19 @@ class ConnectionSecretApprovalsRequest(BaseModel):
     approvals: dict[str, str] = Field(min_length=1, max_length=500)
 
 
+class WorkflowSecretApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fingerprint: str = Field(min_length=1, max_length=128)
+    destinations: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+
+
+class SecretBindingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    secret_id: str = Field(min_length=1, max_length=64)
+
+
 def register_secret_approval_routes(
     *,
     api_error_response: Callable[..., JSONResponse],
@@ -108,6 +121,104 @@ def register_secret_approval_routes(
                     project_id=project_id,
                 )
             }
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.get("/api/projects/{project_id}/workflows/{workflow_id}/secret-approval")
+    async def api_workflow_secret_approval(request: Request, project_id: str, workflow_id: str):
+        if not _valid_project_id(project_id):
+            return JSONResponse({"error": err_not_found}, status_code=404)
+        try:
+            scope = request_scope(request, project_id=project_id)
+            return _service().workflow_approval_status(workflow_id, scope, project_id=project_id)
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.post("/api/projects/{project_id}/workflows/{workflow_id}/secret-approval")
+    async def api_workflow_secret_approve(
+        request: Request, project_id: str, workflow_id: str, body: WorkflowSecretApprovalRequest
+    ):
+        if not _valid_project_id(project_id):
+            return JSONResponse({"error": err_not_found}, status_code=404)
+        try:
+            scope = request_scope(request, project_id=project_id)
+            return _service().approve_workflow(
+                workflow_id,
+                scope,
+                project_id=project_id,
+                fingerprint=body.fingerprint,
+                destinations=list(body.destinations),
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.put("/api/projects/{project_id}/workflows/{workflow_id}/secret-bindings/{field}")
+    async def api_workflow_secret_bind(
+        request: Request, project_id: str, workflow_id: str, field: str, body: SecretBindingRequest
+    ):
+        if not _valid_project_id(project_id):
+            return JSONResponse({"error": err_not_found}, status_code=404)
+        try:
+            scope = request_scope(request, project_id=project_id)
+            return _service().bind_workflow_input(
+                workflow_id, scope, project_id=project_id, field=field, secret_id=body.secret_id
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.delete("/api/projects/{project_id}/workflows/{workflow_id}/secret-bindings/{field}")
+    async def api_workflow_secret_unbind(
+        request: Request, project_id: str, workflow_id: str, field: str
+    ):
+        if not _valid_project_id(project_id):
+            return JSONResponse({"error": err_not_found}, status_code=404)
+        try:
+            scope = request_scope(request, project_id=project_id)
+            return _service().unbind_workflow_input(
+                workflow_id, scope, project_id=project_id, field=field
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.put("/api/projects/{project_id}/connections/{connection_id}/secret-bindings/{field}")
+    async def api_connection_secret_bind(
+        request: Request,
+        project_id: str,
+        connection_id: str,
+        field: str,
+        body: SecretBindingRequest,
+    ):
+        if not _valid_project_id(project_id):
+            return JSONResponse({"error": err_not_found}, status_code=404)
+        try:
+            scope = request_scope(request, project_id=project_id)
+            return _service().bind_connection_field(
+                connection_id, scope, field=field, secret_id=body.secret_id
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.delete("/api/projects/{project_id}/connections/{connection_id}/secret-bindings/{field}")
+    async def api_connection_secret_unbind(
+        request: Request, project_id: str, connection_id: str, field: str
+    ):
+        if not _valid_project_id(project_id):
+            return JSONResponse({"error": err_not_found}, status_code=404)
+        try:
+            scope = request_scope(request, project_id=project_id)
+            return _service().unbind_connection_field(connection_id, scope, field=field)
         except ServiceError as e:
             return service_error_response(e)
         except Exception as e:

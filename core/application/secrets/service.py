@@ -9,6 +9,7 @@ or logs one.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -692,6 +693,231 @@ class SecretCatalogService:
                 )
                 results.append(self._status_view(cur, connection))
         return results
+
+    # -- workflow inputs -----------------------------------------------------
+
+    def _workflow_in_project(
+        self, cur: Any, scope: ScopeContext, workflow_id: Any, project_id: Any
+    ) -> dict[str, Any]:
+        from core.application.secrets.workflow_gate import _workflow_row
+
+        _workspace, owner_project = self._owner_scope(
+            cur, scope, project_id=project_id, workspace_id=None
+        )
+        cur.execute(
+            """
+            SELECT 1 FROM project_workflows
+             WHERE project_id::text = %s AND workflow_id = %s AND deleted_at IS NULL
+            """,
+            (owner_project, _text(workflow_id)),
+        )
+        linked = cur.fetchone() is not None
+        workflow = _workflow_row(cur, account_id=scope.account_id, workflow_id=_text(workflow_id))
+        if not linked or workflow is None:
+            raise ServiceNotFoundError("Workflow not found")
+        return {"workflow": workflow, "project_id": owner_project}
+
+    @staticmethod
+    def _secret_input_names(workflow: dict[str, Any]) -> set[str]:
+        settings = workflow.get("settings") if isinstance(workflow.get("settings"), dict) else {}
+        callable_block = (
+            settings.get("callable") if isinstance(settings.get("callable"), dict) else {}
+        )
+        rows = callable_block.get("expected_inputs") if isinstance(callable_block, dict) else []
+        return {
+            _text(row.get("name"))
+            for row in rows or []
+            if isinstance(row, dict) and _text(row.get("type")).lower() == "secret"
+        }
+
+    def bind_workflow_input(
+        self, workflow_id: Any, scope: ScopeContext, *, project_id: Any, field: Any, secret_id: Any
+    ) -> dict[str, Any]:
+        """Choose a catalog secret for one secret input; only this operation sets a binding."""
+        require_secret_bind(scope)
+        validated_field = _validated_field(field)
+        _kind, actor = actor_identity(scope)
+        with self._transaction() as (_conn, cur):
+            found = self._workflow_in_project(cur, scope, workflow_id, project_id)
+            if validated_field not in self._secret_input_names(found["workflow"]):
+                raise ServiceValidationError(
+                    f"'{validated_field}' is not a secret input of this workflow"
+                )
+            secret = self._secret_in_scope(cur, scope, secret_id, lock=True)
+            project = repository.project_scope(
+                cur, account_id=scope.account_id, project_id=found["project_id"]
+            )
+            if not project or not secret_available_to(
+                secret, project_id=project["project_id"], workspace_id=project["workspace_id"]
+            ):
+                raise ServiceValidationError(
+                    "This secret is not available to the workflow's project"
+                )
+            cur.execute(
+                """
+                INSERT INTO catalog_secret_bindings (
+                    account_id, secret_id, consumer_kind, workflow_id, consumer_project_id,
+                    field_name, created_by
+                ) VALUES (%s, %s, 'workflow_input', %s, %s, %s, %s)
+                ON CONFLICT (workflow_id, field_name)
+                DO UPDATE SET secret_id = EXCLUDED.secret_id,
+                              consumer_project_id = EXCLUDED.consumer_project_id,
+                              created_at = now(), created_by = EXCLUDED.created_by
+                """,
+                (
+                    scope.account_id,
+                    secret["id"],
+                    _text(workflow_id),
+                    found["project_id"],
+                    validated_field,
+                    actor,
+                ),
+            )
+            self._audit(
+                cur,
+                scope,
+                "bind",
+                {
+                    "secret_id": secret["id"],
+                    "workflow_id": _text(workflow_id),
+                    "field": validated_field,
+                },
+            )
+        return self.workflow_approval_status(workflow_id, scope, project_id=project_id)
+
+    def unbind_workflow_input(
+        self, workflow_id: Any, scope: ScopeContext, *, project_id: Any, field: Any
+    ) -> dict[str, Any]:
+        require_secret_bind(scope)
+        validated_field = _validated_field(field)
+        with self._transaction() as (_conn, cur):
+            self._workflow_in_project(cur, scope, workflow_id, project_id)
+            cur.execute(
+                """
+                DELETE FROM catalog_secret_bindings
+                 WHERE consumer_kind = 'workflow_input' AND workflow_id = %s
+                   AND field_name = %s AND account_id::text = %s
+                """,
+                (_text(workflow_id), validated_field, scope.account_id),
+            )
+            if not getattr(cur, "rowcount", 0):
+                raise ServiceNotFoundError("No secret is bound to this input")
+            self._audit(
+                cur, scope, "unbind", {"workflow_id": _text(workflow_id), "field": validated_field}
+            )
+        return self.workflow_approval_status(workflow_id, scope, project_id=project_id)
+
+    @staticmethod
+    def _workflow_status_view(
+        cur: Any, scope: ScopeContext, workflow: dict[str, Any]
+    ) -> dict[str, Any]:
+        from core.application.secrets import workflow_gate
+
+        workflow_id = _text(workflow.get("workflow_id"))
+        bindings = workflow_gate.workflow_bindings(
+            cur, account_id=scope.account_id, workflow_id=workflow_id
+        )
+        projection = workflow_gate.workflow_projection(
+            workflow, bindings={row["field"]: row["secret_id"] for row in bindings}
+        )
+        fingerprint = workflow_gate.workflow_fingerprint(projection)
+        approval = workflow_gate.workflow_approval(
+            cur, account_id=scope.account_id, workflow_id=workflow_id
+        )
+        static_rules, dynamic_steps = workflow_gate.http_destinations(workflow.get("settings"))
+        approved = bool(approval) and approval.get("fingerprint") == fingerprint
+        return {
+            "workflow_id": workflow_id,
+            "status": "approved"
+            if approved
+            else ("approval_required" if bindings else "not_required"),
+            "fingerprint": fingerprint,
+            "secrets": [{"field": row["field"], "secret_id": row["secret_id"]} for row in bindings],
+            "destinations": static_rules,
+            "dynamic_http_steps": dynamic_steps,
+            "approved_destinations": workflow_gate.approved_rules(approval) if approved else [],
+        }
+
+    def workflow_approval_status(
+        self, workflow_id: Any, scope: ScopeContext, *, project_id: Any
+    ) -> dict[str, Any]:
+        require_secret_read_metadata(scope)
+        with self._transaction() as (_conn, cur):
+            found = self._workflow_in_project(cur, scope, workflow_id, project_id)
+            return self._workflow_status_view(cur, scope, found["workflow"])
+
+    def approve_workflow(
+        self,
+        workflow_id: Any,
+        scope: ScopeContext,
+        *,
+        project_id: Any,
+        fingerprint: Any,
+        destinations: list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """Approve the definition shown, with the destinations a person allowed for it.
+
+        Literal HTTP step URLs are allowed automatically; a step whose URL is computed
+        needs explicit rules, and without them the definition cannot be approved.
+        """
+        from core.application.secrets import workflow_gate
+
+        require_approval_authority(scope)
+        try:
+            explicit = [workflow_gate.normalize_rule(rule) for rule in destinations or []]
+        except ValueError as exc:
+            raise ServiceValidationError(str(exc)) from None
+        _kind, actor = actor_identity(scope)
+        with self._transaction() as (_conn, cur):
+            found = self._workflow_in_project(cur, scope, workflow_id, project_id)
+            workflow = found["workflow"]
+            bindings = workflow_gate.workflow_bindings(
+                cur, account_id=scope.account_id, workflow_id=_text(workflow_id)
+            )
+            projection = workflow_gate.workflow_projection(
+                workflow, bindings={row["field"]: row["secret_id"] for row in bindings}
+            )
+            current = workflow_gate.workflow_fingerprint(projection)
+            if current != _text(fingerprint):
+                raise ServiceConflictError(
+                    "The workflow changed after it was shown; review it again"
+                )
+            static_rules, dynamic_steps = workflow_gate.http_destinations(workflow.get("settings"))
+            if dynamic_steps and not explicit:
+                raise ServiceValidationError(
+                    "HTTP steps with a computed URL need explicit destinations: "
+                    + ", ".join(dynamic_steps)
+                )
+            rules = [*static_rules, *(rule for rule in explicit if rule not in static_rules)]
+            cur.execute(
+                """
+                INSERT INTO catalog_secret_approvals (
+                    account_id, consumer_kind, workflow_id, fingerprint, projection_jsonb,
+                    approved_by, approved_by_kind
+                ) VALUES (%s, 'workflow', %s, %s, %s::jsonb, %s, 'human')
+                ON CONFLICT (workflow_id)
+                DO UPDATE SET fingerprint = EXCLUDED.fingerprint,
+                              projection_jsonb = EXCLUDED.projection_jsonb,
+                              approved_by = EXCLUDED.approved_by,
+                              approved_by_kind = 'human', approved_at = now()
+                """,
+                (
+                    scope.account_id,
+                    _text(workflow_id),
+                    current,
+                    json.dumps({**projection, "approved_destinations": rules}, sort_keys=True),
+                    actor,
+                ),
+            )
+            self._audit(
+                cur,
+                scope,
+                "approve",
+                {"workflow_id": _text(workflow_id)},
+                fingerprint=current,
+                destinations=rules,
+            )
+            return self._workflow_status_view(cur, scope, workflow)
 
 
 __all__ = [

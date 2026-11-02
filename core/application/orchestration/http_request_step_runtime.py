@@ -527,6 +527,7 @@ def execute_http_request_step(
     secret_reader: Any = None,
 ) -> dict[str, Any]:
     """Run one HTTP step; `secret_reader` replaces the host-selected reader in tests."""
+    from core.application.secrets.workflow_gate import CatalogAuthorityReader
     from core.infrastructure.security.secret_reference import (
         SecretReferenceUnauthorized,
         SecretReferenceUnresolved,
@@ -536,11 +537,20 @@ def execute_http_request_step(
         deferred_stored_secret_reader,
     )
 
-    boundary = HttpSecretBoundary(
-        dict(state or {}),
-        secret_reader
-        or deferred_stored_secret_reader(lambda: getattr(_get_shared_logger(), "conn", None)),
+    runtime_state = dict(state or {})
+
+    def _run_conn():
+        return getattr(_get_shared_logger(), "conn", None)
+
+    boundary: HttpSecretBoundary
+    checked_reader = CatalogAuthorityReader(
+        secret_reader or deferred_stored_secret_reader(_run_conn),
+        conn_provider=_run_conn,
+        runtime_state=runtime_state,
+        # A catalog secret goes only where a person approved (ADR 0055).
+        url_provider=lambda: boundary.request_url,
     )
+    boundary = HttpSecretBoundary(runtime_state, checked_reader)
     try:
         return boundary.safe_result(
             _execute_http_request_step(config=config, state=state, secret_boundary=boundary)
@@ -597,6 +607,7 @@ def _execute_http_request_step(
     if not rendered_url:
         raise ValueError("http_request url is required")
     rendered_url = _validate_http_request_url(rendered_url)
+    secret_boundary.request_url = rendered_url
     auth_mode = str(config.get("auth_mode") or "none").strip().lower()
     if auth_mode in {"basic", "bearer"}:
         _validate_static_https_auth_origin(url_template, rendered_url)

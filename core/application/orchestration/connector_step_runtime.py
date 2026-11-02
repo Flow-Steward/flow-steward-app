@@ -77,6 +77,7 @@ def _payload_for_dispatch(
     keeps them. Resolving in place would put the credential into the very field
     that exists to say what was sent.
     """
+    from core.application.secrets.workflow_gate import CatalogAuthorityReader
     from core.infrastructure.security.secret_reference import resolve_secret_references_in
     from core.infrastructure.security.stored_secrets import SecretReadContext
 
@@ -85,7 +86,11 @@ def _payload_for_dispatch(
         input_payload,
         context=SecretReadContext.for_account(runtime_context.get("account_id")),
         authorized_ref_keys=_authorized_secret_ref_keys(runtime_state, input_payload),
-        reader=secret_reader or _secret_reader(),
+        reader=CatalogAuthorityReader(
+            secret_reader or _secret_reader(),
+            conn_provider=lambda: getattr(_shared_logger(), "conn", None),
+            runtime_state=runtime_state,
+        ),
         authorized_inline_ref_fingerprints=frozenset(
             str(item or "").strip()
             for item in (runtime_state.get("_workflow_secret_ref_fingerprints") or [])

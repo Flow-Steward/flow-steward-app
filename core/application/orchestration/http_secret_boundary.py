@@ -116,6 +116,7 @@ class HttpSecretBoundary:
         self.protected_values: frozenset[str] = frozenset()
         self.has_references = False
         self.request_method = "GET"
+        self.request_url: str | None = None
         self.request_dispatched = False
 
     def public_control(self, value: Any) -> Any:

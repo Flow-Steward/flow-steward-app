@@ -529,6 +529,16 @@ def enqueue_workflow_start(
         except Exception:
             # Missing launch authority fails closed at the connector boundary.
             effective_extra_state["_workflow_secret_ref_fingerprints"] = []
+    if clean_selected_workflow_id:
+        from core.application.secrets.workflow_gate import (
+            AUTHORITY_STATE_KEY,
+            launch_authority_for,
+        )
+
+        effective_meta.pop(AUTHORITY_STATE_KEY, None)
+        effective_extra_state[AUTHORITY_STATE_KEY] = launch_authority_for(
+            project_id, clean_selected_workflow_id
+        )
     if clean_entry_path:
         effective_meta["entry_path"] = clean_entry_path
     effective_meta["input_contract"] = clean_input_contract
@@ -595,6 +605,9 @@ def enqueue_workflow_start(
         "task_envelope": dict(effective_extra_state.get("task_envelope") or {}),
         "_workflow_secret_ref_fingerprints": list(
             effective_extra_state.get("_workflow_secret_ref_fingerprints") or []
+        ),
+        "_workflow_catalog_secret_authority": dict(
+            effective_extra_state.get("_workflow_catalog_secret_authority") or {}
         ),
     }
 

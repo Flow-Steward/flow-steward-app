@@ -15,6 +15,7 @@ RESERVED_STATE_ROOTS: frozenset[str] = frozenset(
         "_test_mode_suppressed_outputs",
         "_trusted_runtime_context",
         "_workflow_secret_ref_fingerprints",
+        "_workflow_catalog_secret_authority",
         "trusted_runtime_context",
         "external_effect_resolution_ref",
         "account_id",

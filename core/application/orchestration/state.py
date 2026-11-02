@@ -227,6 +227,8 @@ class OrchestratorState(TypedDict):
     # Immutable, non-revealing capability snapshot minted by the launch boundary.
     # It must be a declared LangGraph channel or graph compilation drops it.
     _workflow_secret_ref_fingerprints: Annotated[list[str] | None, lambda a, b: b]
+    # Catalog secrets this launch may use and where (ADR 0055), decided at launch.
+    _workflow_catalog_secret_authority: Annotated[dict | None, lambda a, b: b]
     # Host-authored proof that an output is absent because its producing
     # connector mutation was deliberately suppressed in Test Mode.
     _test_mode_suppressed_outputs: Annotated[dict[str, dict[str, str]] | None, lambda a, b: b]
@@ -409,6 +411,10 @@ class OrchestratorStateModel(BaseModel):
     workflow_secret_ref_fingerprints: list[str] = Field(
         default_factory=list,
         alias="_workflow_secret_ref_fingerprints",
+    )
+    workflow_catalog_secret_authority: dict = Field(
+        default_factory=dict,
+        alias="_workflow_catalog_secret_authority",
     )
     test_mode_suppressed_outputs: dict[str, dict[str, str]] = Field(
         default_factory=dict,
