@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -142,15 +143,20 @@ class AgentFileRuntime:
     """File authorization bound to an independently verified durable job owner."""
 
     def __init__(self, *, plane: Any, account_id: str, project_id: str, job_id: str) -> None:
-        self._plane = plane
+        self._plane_provider = plane if callable(plane) else None
+        self._plane = None if self._plane_provider is not None else plane
+        self._plane_pid: int | None = None
         self.account_id = str(account_id or "").strip()
         self.project_id = str(project_id or "").strip()
         self.job_id = str(job_id or "").strip()
 
     @property
     def plane(self) -> Any:
-        if callable(self._plane):
-            self._plane = self._plane()
+        if self._plane_provider is not None:
+            pid = os.getpid()
+            if self._plane_pid != pid:
+                self._plane = self._plane_provider()
+                self._plane_pid = pid
         return self._plane
 
     def _authorize(self, name: str, artifact_id: str) -> _AuthorizedFile:

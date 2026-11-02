@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -766,8 +767,12 @@ def _persist_awaiting_approval_state(
         )
 
 
-@lru_cache(maxsize=1)
 def _artifact_plane() -> Any:
+    return _artifact_plane_for_process(os.getpid())
+
+
+@lru_cache(maxsize=1)
+def _artifact_plane_for_process(_pid: int) -> Any:
     from core.application.extensions.artifact_dataset_plane_v2 import ArtifactDatasetPlane
     from core.application.extensions.artifact_storage import create_storage_adapter
     from core.infrastructure.runtime.artifact_storage_factory import build_artifact_storage
