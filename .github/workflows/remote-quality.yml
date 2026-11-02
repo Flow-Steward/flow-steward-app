@@ -38,6 +38,12 @@ jobs:
       - name: Require a clean exact-SHA candidate including current main
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - uses: ./.github/actions/prepare-quality
+      - name: Run canonical Tier 2
+        run: |
+          set -o pipefail
+          ./core/entrypoints/cli/scripts/lint.sh --fast \
+            --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
+            2>&1 | tee logs/quality/hosted/tier2.log
       - name: Build the canonical disposable PostgreSQL image
         if: env.QUALITY_MODE != 'tier2'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -49,14 +55,13 @@ jobs:
           tags: fs-postgres-extended:0.1.0-pgvector-0.8.5
           cache-from: type=gha,scope=quality-postgres-amd64
           cache-to: type=gha,scope=quality-postgres-amd64,mode=min
-      - name: Run canonical Tier 2 or cumulative Tier 2 plus Tier 3
+      - name: Run cumulative gate with Tier 3
+        if: env.QUALITY_MODE != 'tier2'
         run: |
           set -o pipefail
-          mode=--fast
-          if [[ "$QUALITY_MODE" != tier2 ]]; then mode=--full; fi
-          ./core/entrypoints/cli/scripts/lint.sh "$mode" \
+          ./core/entrypoints/cli/scripts/lint.sh --full \
             --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
-            2>&1 | tee logs/quality/hosted/gate.log
+            2>&1 | tee logs/quality/hosted/full.log
       - name: Reject results if main advanced beyond the candidate
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Collect bounded diagnostics
