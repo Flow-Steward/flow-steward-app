@@ -121,9 +121,12 @@ def _classify_with_llm(
     if kb_context:
         task_text += f"\nRelevant project context:\n{kb_context[:1000]}"
 
-    response = llm.invoke(
-        [SystemMessage(content=_CLASSIFICATION_PROMPT), HumanMessage(content=task_text)]
-    )
+    from core.application.observability.model_call_telemetry import model_call_scope
+
+    with model_call_scope("classification"):
+        response = llm.invoke(
+            [SystemMessage(content=_CLASSIFICATION_PROMPT), HumanMessage(content=task_text)]
+        )
     content = response_text(response)
     match = re.search(r"\{[\s\S]+\}", content)
     if not match:

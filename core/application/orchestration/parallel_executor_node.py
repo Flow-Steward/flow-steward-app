@@ -261,22 +261,27 @@ def _execute_lane_step(
             ),
             {},
         )
-    try:
-        raw_update = node_fn(lane_state)
-    except Exception as exc:
-        logger.exception("parallel_executor lane step '%s' failed", current.step_id)
-        return (
-            _failed_message(
-                current,
-                agent_id=agent_id,
-                error_text=f"parallel_executor: {exc}\n{traceback.format_exc()[:1200]}",
-            ),
-            {},
-        )
-    update = dict(raw_update or {}) if isinstance(raw_update, dict) else {}
-    return _accepted(
-        update.get("agent_messages", lane_state.get("agent_messages")), current
-    ), update
+    from core.application.observability.workflow_telemetry import lane_step_attempt
+
+    with lane_step_attempt(current.step_kind, current.attempt) as attempt:
+        try:
+            raw_update = node_fn(lane_state)
+        except Exception as exc:
+            attempt.failed(exc)
+            logger.exception("parallel_executor lane step '%s' failed", current.step_id)
+            return (
+                _failed_message(
+                    current,
+                    agent_id=agent_id,
+                    error_text=f"parallel_executor: {exc}\n{traceback.format_exc()[:1200]}",
+                ),
+                {},
+            )
+        update = dict(raw_update or {}) if isinstance(raw_update, dict) else {}
+        message = _accepted(update.get("agent_messages", lane_state.get("agent_messages")), current)
+        if message is None or str(message.get("status") or "").lower() in {"fail", "failed"}:
+            attempt.failed()
+        return message, update
 
 
 def _publish_lane_decision(

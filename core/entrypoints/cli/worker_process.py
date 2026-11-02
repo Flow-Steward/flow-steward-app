@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# Must stay the first import: fixes the OTEL_* environment before libraries read it.
+import core.infrastructure.observability.otel_bootstrap  # noqa: F401  # isort: split
 from core.application.jobs.submission_admission import public_submission_pause_active
 from core.application.management.command_services import (  # type: ignore[attr-defined]
     _process_extension_response_envelope,

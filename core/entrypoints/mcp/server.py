@@ -8,7 +8,10 @@ import core.entrypoints.mcp.server_registry_authoring_tools
 import core.entrypoints.mcp.server_report_notification_tools
 import core.entrypoints.mcp.server_workflow_authoring_tools
 import core.entrypoints.mcp.server_workflow_hook_tools
-import core.entrypoints.mcp.server_workflow_portability_tools  # noqa: F401
+import core.entrypoints.mcp.server_workflow_portability_tools
+
+# Must stay the first import: fixes the OTEL_* environment before libraries read it.
+import core.infrastructure.observability.otel_bootstrap  # noqa: F401  # isort: split
 from core.entrypoints.mcp.server_main import main
 from core.entrypoints.mcp.server_runtime import mcp
 

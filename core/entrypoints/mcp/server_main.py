@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+# Must stay the first import: fixes the OTEL_* environment before libraries read it.
+import core.infrastructure.observability.otel_bootstrap  # noqa: F401  # isort: split
 from core.entrypoints.mcp import server_runtime
 from core.entrypoints.mcp.server_build_revision import verify_embedded_build_revision
 from core.entrypoints.mcp.server_oauth_discovery import OAuthDiscoveryAdapter
@@ -120,13 +122,22 @@ def _serve_streamable_http(*, host: str, port: int) -> None:
 
 
 def main() -> None:
+    from core.infrastructure.observability.otel_runtime import (
+        init_telemetry,
+        shutdown_telemetry,
+    )
+
     args = _build_argument_parser().parse_args()
     verify_embedded_build_revision()
     logger.info("Starting Flow Steward MCP server — transport=%s", args.transport)
-    if args.transport == "stdio":
-        mcp.run(transport="stdio")
-        return
-    _serve_streamable_http(host=args.host, port=args.port)
+    init_telemetry(role="mcp")
+    try:
+        if args.transport == "stdio":
+            mcp.run(transport="stdio")
+            return
+        _serve_streamable_http(host=args.host, port=args.port)
+    finally:
+        shutdown_telemetry()
 
 
 __all__ = [

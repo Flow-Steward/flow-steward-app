@@ -7056,6 +7056,533 @@
       "owner": "observability"
     },
     {
+      "name": "OTEL_BLRP_EXPORT_TIMEOUT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "30000",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_BLRP_MAX_EXPORT_BATCH_SIZE",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "512",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_BLRP_MAX_QUEUE_SIZE",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "2048",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_BLRP_SCHEDULE_DELAY",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "5000",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_BSP_EXPORT_TIMEOUT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "30000",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_BSP_MAX_EXPORT_BATCH_SIZE",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "512",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_BSP_MAX_QUEUE_SIZE",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "2048",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_BSP_SCHEDULE_DELAY",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "5000",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_CERTIFICATE",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_CLIENT_KEY",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_COMPRESSION",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "none",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_HEADERS",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": true,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": true,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": true,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "http/protobuf",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "10000",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": true,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_LOGS_EXPORTER",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "none",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_METRICS_EXPORTER",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "none",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_METRIC_EXPORT_INTERVAL",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "60000",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_METRIC_EXPORT_TIMEOUT",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "30000",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_RESOURCE_ATTRIBUTES",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_SDK_DISABLED",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "false",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_TRACES_EXPORTER",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "none",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_TRACES_SAMPLER",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "parentbased_always_on",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
+      "name": "OTEL_TRACES_SAMPLER_ARG",
+      "groups": [
+        "ops_observability"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "1.0",
+      "owner": "observability",
+      "notes": "OpenTelemetry export (optional, off by default); see docs/operations/telemetry.md."
+    },
+    {
       "name": "SONAR_ENABLED",
       "groups": [
         "quality_tools"

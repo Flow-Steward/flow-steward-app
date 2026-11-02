@@ -95,6 +95,7 @@ from core.application.orchestration.graph.nodes_step_dispatch import (
     execute_step_node as _execute_step_node,
 )
 from core.application.orchestration.models import is_pass_phase_status, normalize_phase_status
+from core.infrastructure.observability import otel_instruments
 
 if TYPE_CHECKING:
     from core.application.orchestration.agents.base import BaseAgent
@@ -612,6 +613,8 @@ def _execute_agent_with_timeout(
                 )
             raise RuntimeError(f"Agent '{agent_id}' exited without returning a result")
 
+        # Measurements of the child's model and tool calls, recorded here once.
+        otel_instruments.record_captured(payload.get("telemetry"))
         if payload.get("ok"):
             output_raw = payload.get("output")
             output = output_raw if isinstance(output_raw, dict) else {}

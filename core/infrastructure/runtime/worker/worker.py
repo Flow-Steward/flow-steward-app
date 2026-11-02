@@ -209,6 +209,7 @@ def main(
 
     try:
         from core.infrastructure.config.runtime_config import CONFIG
+        from core.infrastructure.observability.otel_runtime import init_telemetry
         from core.infrastructure.observability.process_metrics_runtime import (
             start_process_metrics_server,
         )
@@ -217,6 +218,7 @@ def main(
 
         configure_runtime_logging(component="worker", config=CONFIG)
         init_sentry(config=CONFIG, component="worker")
+        init_telemetry(role="worker")
         metrics_server = start_process_metrics_server(
             component="worker",
             config=CONFIG,
@@ -331,6 +333,9 @@ def main(
             thread.join(timeout=2)
         if metrics_server is not None:
             metrics_server.close()
+        from core.infrastructure.observability.otel_runtime import shutdown_telemetry
+
+        shutdown_telemetry()
 
 
 if __name__ == "__main__":

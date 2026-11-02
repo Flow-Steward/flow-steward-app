@@ -74,7 +74,7 @@ def test_graph_run_keeps_checkpointer_open_through_pending_state_read(
         ),
     )
     monkeypatch.setattr(adapter, "_build_initial_state", lambda _request: {})
-    monkeypatch.setattr(adapter, "_build_callback", lambda *_args: None)
+    monkeypatch.setattr(adapter, "_build_callback", lambda *_args, **_kwargs: None)
 
     from core.application.orchestration.agents import common as graph_common
 
@@ -111,7 +111,7 @@ def test_graph_run_binds_and_resets_child_execution_runtime(
     )
     monkeypatch.setattr(adapter, "_build_graph", lambda *_args, **_kwargs: SimpleNamespace())
     monkeypatch.setattr(adapter, "_build_initial_state", lambda _request: {})
-    monkeypatch.setattr(adapter, "_build_callback", lambda *_args: None)
+    monkeypatch.setattr(adapter, "_build_callback", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(adapter, "_pending_interrupt_state", lambda *_args: None)
 
     from core.application.orchestration.agents import common as graph_common
@@ -762,7 +762,7 @@ def test_graph_run_binds_the_step_event_sink_outside_test_mode(
     adapter = WorkerGraphExecutionAdapter(config={}, bl=SimpleNamespace())
     monkeypatch.setattr(adapter, "_build_graph", lambda *_args, **_kwargs: SimpleNamespace())
     monkeypatch.setattr(adapter, "_build_initial_state", lambda _request: {})
-    monkeypatch.setattr(adapter, "_build_callback", lambda *_args: None)
+    monkeypatch.setattr(adapter, "_build_callback", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(adapter, "_pending_interrupt_state", lambda *_args: None)
 
     from core.application.orchestration.agents import common as graph_common
@@ -903,7 +903,7 @@ def test_parent_fence_worker_outcome_preserves_cancellation_or_infrastructure_er
     adapter = WorkerGraphExecutionAdapter(config={}, bl=bl)
     monkeypatch.setattr(adapter, "_build_graph", lambda *_args, **_kwargs: Graph())
     monkeypatch.setattr(adapter, "_build_initial_state", lambda _request: {})
-    monkeypatch.setattr(adapter, "_build_callback", lambda *_args: None)
+    monkeypatch.setattr(adapter, "_build_callback", lambda *_args, **_kwargs: None)
     request = SimpleNamespace(thread_id="t", job_id="child", test_mode=True)
     outcome = adapter.run(request, job_row=child, project_id="p")
     assert actions == []

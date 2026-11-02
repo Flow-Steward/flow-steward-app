@@ -864,7 +864,10 @@ class LlmProviderExtensionUseCases:
             verification_generation=generation,
         )
         try:
-            capabilities = run_capability_suite(adapter)
+            from core.application.observability.model_call_telemetry import model_call_scope
+
+            with model_call_scope("verification"):
+                capabilities = run_capability_suite(adapter)
         except Exception as exc:
             persisted = store.set_model_verification_if_current(
                 self.conn,

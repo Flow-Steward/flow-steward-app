@@ -10,6 +10,10 @@ from pathlib import Path
 import pytest
 import yaml
 
+from core.infrastructure.observability.otel_environment import (
+    SEMCONV_STABILITY_ENV,
+    SUPPORTED_ENV_NAMES,
+)
 from tests.support.source_index import whole_words_in
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -97,6 +101,8 @@ COMMON_ROLE_ENV_KEYS = {
     "SENTRY_DSN",
     "SENTRY_ENVIRONMENT",
 }
+# Optional OpenTelemetry export settings ride the common role anchor.
+COMMON_ROLE_ENV_KEYS = COMMON_ROLE_ENV_KEYS | (SUPPORTED_ENV_NAMES - {SEMCONV_STABILITY_ENV})
 APP_WORKER_ENV_KEYS = {
     "ENCRYPTION_KEY",
     "FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED",

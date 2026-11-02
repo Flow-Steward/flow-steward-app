@@ -88,7 +88,10 @@ def _summarize_with_llm(state: OrchestratorState) -> str:
         ),
     ]
 
-    response = llm.invoke(messages)
+    from core.application.observability.model_call_telemetry import model_call_scope
+
+    with model_call_scope("summarization"):
+        response = llm.invoke(messages)
     from core.application.orchestration.model_response_text import model_response_text
 
     return model_response_text(response)

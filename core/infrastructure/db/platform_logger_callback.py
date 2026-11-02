@@ -11,7 +11,21 @@ from core.application.jobs.workflow_wait_contract import (
     STATUS_AWAITING_APPROVAL,
     WAIT_STATUS_BY_KIND,
 )
+from core.application.observability.job_trace_context import (
+    TRACE_CONTEXT_KEY,
+    job_trace_carriers,
+)
 from core.application.observability.llm_costs import estimate_llm_cost_usd
+from core.application.observability.llm_usage import usage_from_llm_result
+from core.application.observability.workflow_telemetry import (
+    OUTCOME_CANCELLED,
+    OUTCOME_ERROR,
+    OUTCOME_PAUSED,
+    RunTelemetry,
+    dispatched_step,
+    segment_outcome,
+    step_outcome,
+)
 from core.infrastructure.db.platform_logger import (
     BaseCallbackHandler,
     _trace_id_for_job,
@@ -44,7 +58,14 @@ class PlatformLoggerCallback(BaseCallbackHandler):
         }
     )
 
-    def __init__(self, logger: Any, project_id: str, job_id: str):
+    def __init__(
+        self,
+        logger: Any,
+        project_id: str,
+        job_id: str,
+        *,
+        job_meta: Any = None,
+    ):
         super().__init__()
         self.logger = logger
         self.project_id = project_id
@@ -59,6 +80,8 @@ class PlatformLoggerCallback(BaseCallbackHandler):
         self._llm_providers: dict[str, str] = {}
         self._llm_provider_types: dict[str, str] = {}
         self._llm_models: dict[str, str] = {}
+        # Model runs already recorded, so a repeated on_llm_end counts once.
+        self._recorded_llm_runs: set[str] = set()
         # The very first run_id seen is the root graph run.
         self._root_run_id: str | None = None
         # Track most-recent active node name for associating LLM calls
@@ -69,6 +92,25 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             job_id=str(job_id),
         )
         self._last_public_error_context: dict[str, object] = {}
+        trace_parent, trace_links = job_trace_carriers(job_meta)
+        self._telemetry = RunTelemetry(
+            job_id=str(job_id), parent_carrier=trace_parent, link_carriers=trace_links
+        )
+        # A job with no stored trace keeps the one its first segment starts.
+        self._store_segment_trace = trace_parent is None
+
+    def _store_job_trace_context(self) -> None:
+        if not self._store_segment_trace:
+            return
+        self._store_segment_trace = False
+        carrier = self._telemetry.segment_carrier()
+        merge = getattr(self.logger, "merge_job_meta", None)
+        if carrier is None or not callable(merge):
+            return
+        try:
+            merge(str(self.job_id), {TRACE_CONTEXT_KEY: carrier})
+        except Exception as exc:
+            logger.debug("job trace context not stored: %s", type(exc).__name__)
 
     def on_chat_model_start(
         self,
@@ -85,6 +127,12 @@ class PlatformLoggerCallback(BaseCallbackHandler):
         provider = str((metadata or {}).get("flow_steward_provider") or "").strip()
         provider_type = str((metadata or {}).get("flow_steward_provider_policy") or "").strip()
         model = str((metadata or {}).get("flow_steward_model") or "").strip()
+        self._telemetry.model_started(
+            run_key,
+            _kwargs.get("parent_run_id"),
+            provider_type=provider_type or provider,
+            model=model,
+        )
         if run_key and provider:
             self._llm_providers[run_key] = provider
         if run_key and provider_type:
@@ -219,20 +267,6 @@ class PlatformLoggerCallback(BaseCallbackHandler):
                     return status
         return STATUS_AWAITING_APPROVAL
 
-    @staticmethod
-    def _llm_usage_from_output(llm_output: dict) -> dict:
-        usage = llm_output.get("token_usage") or llm_output.get("usage")
-        return usage if isinstance(usage, dict) else {}
-
-    @staticmethod
-    def _response_generations(response) -> list:
-        generations = getattr(response, "generations", [[]])
-        return generations if isinstance(generations, list) else [generations]
-
-    @staticmethod
-    def _generation_items(gen_list) -> list:
-        return gen_list if isinstance(gen_list, list) else [gen_list]
-
     def _tracked_node_context(
         self, run_id, name: str | None
     ) -> tuple[str | None, str | None, str, int | None]:
@@ -330,73 +364,6 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             },
         )
 
-    def _extract_usage_from_generations(self, response) -> tuple[dict, dict]:
-        usage: dict = {}
-        input_token_details: dict = {}
-        for gen_list in self._response_generations(response):
-            for gen in self._generation_items(gen_list):
-                msg = getattr(gen, "message", None)
-                usage_metadata = getattr(msg, "usage_metadata", None) or {}
-                response_metadata = getattr(msg, "response_metadata", None) or {}
-                meta = usage_metadata if usage_metadata else response_metadata
-                if not isinstance(meta, dict) or not meta:
-                    continue
-                usage = meta
-                details = meta.get("input_token_details")
-                if isinstance(details, dict):
-                    input_token_details = details
-                if not input_token_details and isinstance(response_metadata, dict):
-                    raw_usage = response_metadata.get("usage", {})
-                    if isinstance(raw_usage, dict):
-                        input_token_details = {
-                            "cache_creation": raw_usage.get("cache_creation_input_tokens", 0),
-                            "cache_read": raw_usage.get("cache_read_input_tokens", 0),
-                        }
-                return usage, input_token_details
-        return usage, input_token_details
-
-    def _extract_llm_usage(self, response) -> tuple[dict, dict, dict]:
-        llm_output = getattr(response, "llm_output", None) or {}
-        llm_output_dict = llm_output if isinstance(llm_output, dict) else {}
-        usage = self._llm_usage_from_output(llm_output_dict)
-        if usage:
-            raw_details = usage.get("prompt_tokens_details") or usage.get("input_token_details")
-            return usage, raw_details if isinstance(raw_details, dict) else {}, llm_output_dict
-        usage_from_gens, input_token_details = self._extract_usage_from_generations(response)
-        return usage_from_gens, input_token_details, llm_output_dict
-
-    @staticmethod
-    def _usage_token_counts(usage: dict) -> tuple[int, int]:
-        prompt_tokens = (
-            usage.get("prompt_tokens")
-            or usage.get("input_tokens")
-            or usage.get("prompt_token_count")
-            or 0
-        )
-        completion_tokens = (
-            usage.get("completion_tokens")
-            or usage.get("output_tokens")
-            or usage.get("candidates_token_count")
-            or 0
-        )
-        return int(prompt_tokens or 0), int(completion_tokens or 0)
-
-    @staticmethod
-    def _cache_token_counts(usage: dict, input_token_details: dict) -> tuple[int, int]:
-        details = input_token_details
-        if not details:
-            inline_details = usage.get("input_token_details")
-            details = inline_details if isinstance(inline_details, dict) else {}
-        cache_creation = int(
-            details.get("cache_creation", 0) or details.get("cache_write_tokens", 0) or 0
-        )
-        cache_read = int(details.get("cache_read", 0) or details.get("cached_tokens", 0) or 0)
-        if not cache_creation:
-            cache_creation = int(usage.get("cache_creation_input_tokens", 0) or 0)
-        if not cache_read:
-            cache_read = int(usage.get("cache_read_input_tokens", 0) or 0)
-        return cache_creation, cache_read
-
     @staticmethod
     def _reported_cost_usd(llm_output: dict) -> float | None:
         value = llm_output.get("cost_usd")
@@ -424,8 +391,18 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             self._nested_runs.add(run_id_str)
 
         # The first call is the root graph invocation — capture its run_id
+        self._telemetry.run_started(run_id_str, parent_run_id)
         if run_id_str and self._root_run_id is None:
             self._root_run_id = run_id_str
+            self._telemetry.segment_started(run_id_str)
+            self._store_job_trace_context()
+        elif run_id_str and graph_node and node_name == graph_node:
+            self._telemetry.bind_node(run_id_str)
+            step = dispatched_step(payload)
+            if step is not None:
+                self._telemetry.step_started(
+                    run_id_str, parent_run_id, kind=step[0], attempt=step[1], execution_id=step[2]
+                )
 
         if run_id_str:
             self._node_starts[run_id_str] = (time.perf_counter(), node_name)
@@ -535,6 +512,17 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             payload=public_payload,
             status=public_status,
         )
+        if run_id_str and run_id_str == self._root_run_id:
+            self._telemetry.segment_finished(
+                run_id_str, outcome=segment_outcome(outputs_dict.get("status"))
+            )
+        else:
+            # A state-based approval pauses through its update, not an interrupt.
+            paused = str(public_payload.get("status") or "").startswith(("awaiting", "waiting"))
+            self._telemetry.step_finished(
+                run_id_str, outcome=OUTCOME_PAUSED if paused else step_outcome(public_status)
+            )
+        self._telemetry.run_forgotten(run_id_str)
 
     def on_chain_error(self, error=None, *, run_id=None, name=None, **kwargs):
         """Called when a LangGraph node errors."""
@@ -580,7 +568,16 @@ class PlatformLoggerCallback(BaseCallbackHandler):
                 payload={},
                 status=pause_status,
             )
+            self._finish_run_telemetry(run_id_str, outcome=OUTCOME_PAUSED)
             return
+
+        self._finish_run_telemetry(
+            run_id_str,
+            outcome=OUTCOME_CANCELLED
+            if "cancel" in type(error).__name__.lower()
+            else OUTCOME_ERROR,
+            error=error,
+        )
 
         public_error_context = self._record_public_step(
             run_id=run_id,
@@ -656,27 +653,34 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             logger.debug("on_chain_error runtime update failed (non-fatal): %s", e)
 
     def on_llm_end(self, response=None, *, run_id=None, name=None, **kwargs):
-        """Called when an LLM call completes. Captures token usage and estimates cost.
+        """Record one completed model call with its normalized usage and cost.
 
-        Extracts cache_creation and cache_read tokens from Anthropic prompt caching
-        for accurate cost estimation. These tokens are billed at different rates
-        (1.25x and 0.1x base input rate respectively) and were previously untracked.
+        A repeated callback for the same run is the same call and is recorded
+        once; a retry is a new run and is recorded on its own.
         """
         try:
             if response is None:
                 return
             run_id_str = self._run_id_str(run_id)
+            if run_id_str and run_id_str in self._recorded_llm_runs:
+                return
             started_provider = self._llm_providers.pop(run_id_str, "") if run_id_str else ""
             started_provider_type = (
                 self._llm_provider_types.pop(run_id_str, "") if run_id_str else ""
             )
             started_model = self._llm_models.pop(run_id_str, "") if run_id_str else ""
-            usage, input_token_details, llm_output = self._extract_llm_usage(response)
-            if not usage:
+            llm_output = getattr(response, "llm_output", None)
+            llm_output = llm_output if isinstance(llm_output, dict) else {}
+            usage = usage_from_llm_result(response)
+            self._telemetry.model_finished(
+                run_id_str,
+                usage=usage,
+                response_model=llm_output.get("model_name") or llm_output.get("model"),
+            )
+            if usage is None and not llm_output and not getattr(response, "generations", None):
                 return
-
-            pt, ct = self._usage_token_counts(usage)
-            cache_creation, cache_read = self._cache_token_counts(usage, input_token_details)
+            if run_id_str:
+                self._recorded_llm_runs.add(run_id_str)
 
             # Model name from response metadata
             model = (
@@ -694,38 +698,20 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             )
             provider_type = started_provider_type or provider_identity
 
-            # OpenAI prompt/input tokens are aggregate counts and cached tokens
-            # are a billed subset. Anthropic input_tokens excludes its separate
-            # cache creation/read buckets, so those remain additive.
-            pricing_prompt_tokens = pt
-            if provider_type == "openai":
-                pricing_prompt_tokens = max(pt - cache_creation - cache_read, 0)
-            total = usage.get("total_tokens")
-            if not total:
-                total = (
-                    pt + ct if provider_type == "openai" else pt + ct + cache_creation + cache_read
-                )
-
             cost = self._reported_cost_usd(llm_output)
-            if cost is None:
+            if (
+                cost is None
+                and usage is not None
+                and usage.input_tokens is not None
+                and usage.output_tokens is not None
+            ):
                 cost = estimate_llm_cost_usd(
                     model,
-                    pricing_prompt_tokens,
-                    ct,
-                    cache_creation,
-                    cache_read,
+                    usage.uncached_input_tokens or 0,
+                    usage.output_tokens,
+                    usage.cache_write_tokens or 0,
+                    usage.cache_read_tokens or 0,
                     provider=provider_type,
-                )
-
-            if cache_creation or cache_read:
-                logger.debug(
-                    "on_llm_end[%s]: cache tokens — create=%d read=%d (input=%d output=%d cost=$%.4f)",
-                    self._current_node,
-                    cache_creation,
-                    cache_read,
-                    pt,
-                    ct,
-                    cost or 0,
                 )
 
             parent_run_id = self._run_id_str(kwargs.get("parent_run_id"))
@@ -747,9 +733,9 @@ class PlatformLoggerCallback(BaseCallbackHandler):
                     },
                 ),
                 job_id=self.job_id,
-                tokens_prompt=pt or None,
-                tokens_completion=ct or None,
-                tokens_total=total or None,
+                tokens_prompt=usage.input_tokens if usage else None,
+                tokens_completion=usage.output_tokens if usage else None,
+                tokens_total=usage.total_tokens if usage else None,
                 cost_usd=cost,
                 model_used=model or None,
             )
@@ -758,9 +744,29 @@ class PlatformLoggerCallback(BaseCallbackHandler):
 
     def on_llm_error(self, error=None, *, run_id=None, **_kwargs) -> None:
         """Release provider correlation state for failed LLM runs."""
-        del error
         run_id_str = self._run_id_str(run_id)
+        self._telemetry.model_finished(run_id_str, error=error if error is not None else True)
         if run_id_str:
             self._llm_providers.pop(run_id_str, None)
             self._llm_provider_types.pop(run_id_str, None)
             self._llm_models.pop(run_id_str, None)
+
+    def on_tool_start(self, serialized=None, input_str=None, *, run_id=None, **kwargs) -> None:
+        """Open the tool's span; its input never reaches telemetry."""
+        del input_str
+        name = kwargs.get("name") or (serialized or {}).get("name")
+        self._telemetry.tool_started(run_id, kwargs.get("parent_run_id"), tool_name=name)
+
+    def on_tool_end(self, output=None, *, run_id=None, **_kwargs) -> None:
+        del output
+        self._telemetry.tool_finished(run_id)
+
+    def on_tool_error(self, error=None, *, run_id=None, **_kwargs) -> None:
+        self._telemetry.tool_finished(run_id, error=error if error is not None else True)
+
+    def _finish_run_telemetry(self, run_id_str: str | None, *, outcome: str, error=None) -> None:
+        if run_id_str and run_id_str == self._root_run_id:
+            self._telemetry.segment_finished(run_id_str, outcome=outcome, error=error)
+        else:
+            self._telemetry.step_finished(run_id_str, outcome=outcome, error=error)
+        self._telemetry.run_forgotten(run_id_str)

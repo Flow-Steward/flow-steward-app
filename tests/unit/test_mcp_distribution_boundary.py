@@ -5,6 +5,11 @@ from pathlib import Path
 
 import yaml
 
+from core.infrastructure.observability.otel_environment import (
+    SEMCONV_STABILITY_ENV,
+    SUPPORTED_ENV_NAMES,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 MCP_ROOT = ROOT / "core/entrypoints/mcp"
 MCP_DOCKERFILE = ROOT / "infra/mcp/Dockerfile"
@@ -13,6 +18,10 @@ MCP_LOCK = ROOT / "requirements-mcp.lock"
 BASE_COMPOSE = ROOT / "infra/docker/docker-compose.yaml"
 PROD_COMPOSE = ROOT / "infra/docker/docker-compose.prod.yaml"
 DEV_COMPOSE = ROOT / "infra/docker/docker-compose.dev.yaml"
+
+# The optional OpenTelemetry export settings reach fs-mcp like every other role;
+# the conventions mode is pinned in-process and never delivered.
+OTEL_EXPORT_ENV_NAMES = SUPPORTED_ENV_NAMES - {SEMCONV_STABILITY_ENV}
 
 FORBIDDEN_IMPORT_PREFIXES = (
     "core.infrastructure.db",
@@ -152,7 +161,7 @@ def test_mcp_compose_environment_is_a_closed_transport_allowlist() -> None:
 
     assert "env_file" not in base
     assert "env_file" not in production
-    assert set(base.get("environment") or {}) == {
+    assert set(base.get("environment") or {}) == OTEL_EXPORT_ENV_NAMES | {
         "ENVIRONMENT",
         "FS_APP_INTERNAL_URL",
         "FS_DEPLOYMENT_REVISION",
@@ -162,7 +171,7 @@ def test_mcp_compose_environment_is_a_closed_transport_allowlist() -> None:
         "FS_STACK_ENVIRONMENT",
         "PYTHONPYCACHEPREFIX",
     }
-    assert set(production.get("environment") or {}) == {
+    assert set(production.get("environment") or {}) == OTEL_EXPORT_ENV_NAMES | {
         "ENVIRONMENT",
         "FS_APP_INTERNAL_URL",
         "FS_DEPLOYMENT_REVISION",

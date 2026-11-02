@@ -2627,25 +2627,6 @@ class TestExtensionChatModel:
         assert extension["handshake_status"] == "ok"
         assert extension["health_status"] == "ok"
 
-    def test_usage_metadata_preserves_cache_accounting(self):
-        from core.application.orchestration.extension_chat_model import _usage_metadata
-
-        assert _usage_metadata(
-            {
-                "input_tokens": 10,
-                "output_tokens": 3,
-                "cache_creation_input_tokens": 4,
-                "cache_read_input_tokens": 2,
-            }
-        ) == {
-            "input_tokens": 10,
-            "output_tokens": 3,
-            "total_tokens": 13,
-            "cache_creation_input_tokens": 4,
-            "cache_read_input_tokens": 2,
-            "input_token_details": {"cache_creation": 4, "cache_read": 2},
-        }
-
     def test_wire_messages_preserve_structured_tool_round_trip_fields(self):
         from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -2852,19 +2833,17 @@ class TestExtensionChatModel:
 
         assert isinstance(parsed, _IntentSpec)
         assert len(handler.responses) == 1
-        assert handler.responses[0].llm_output == {
-            "model_name": "deepseek/deepseek-chat",
-            "provider_key": "llmext_remote_llm_a_deepseek_abc123",
-            "cost_usd": 0.0042,
-        }
+        llm_output = handler.responses[0].llm_output
+        assert llm_output["model_name"] == "deepseek/deepseek-chat"
+        assert llm_output["provider_key"] == "llmext_remote_llm_a_deepseek_abc123"
+        assert llm_output["cost_usd"] == 0.0042
+        assert llm_output["flow_steward_usage"]["cache_write_tokens"] is None
         message = handler.responses[0].generations[0][0].message
         assert message.usage_metadata == {
             "input_tokens": 13,
             "output_tokens": 5,
             "total_tokens": 18,
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 3,
-            "input_token_details": {"cache_creation": 0, "cache_read": 3},
+            "input_token_details": {"cache_read": 3},
         }
 
     def test_structured_output_include_raw_returns_accounted_ai_message(self, monkeypatch):
