@@ -28,6 +28,7 @@ from core.application.release.installed_origin import (
 _MAINTENANCE_ENABLE_COMMAND = "flow-steward maintenance enable --confirm"
 _MAINTENANCE_DISABLE_COMMAND = "flow-steward maintenance disable --confirm"
 _BACKUP_CREATE_COMMAND = "flow-steward backup create"
+_DATABASE_PREFLIGHT_COMMAND = "flow-steward database preflight"
 _DATABASE_UPGRADE_COMMAND = "flow-steward database upgrade --maintenance-confirmed --confirm"
 _LINUX_AMD64 = "linux/amd64"
 _LINUX_ARM64 = "linux/arm64"
@@ -696,6 +697,7 @@ class ReleaseService:
         if not next_steps and result.status == "migration_required":
             next_steps = (
                 _BACKUP_CREATE_COMMAND,
+                _DATABASE_PREFLIGHT_COMMAND,
                 _DATABASE_UPGRADE_COMMAND,
                 f"flow-steward release upgrade --target-version {target.version} --confirm",
             )
