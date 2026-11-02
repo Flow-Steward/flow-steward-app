@@ -185,3 +185,13 @@ def test_artifact_ownership_handoff_is_limited_to_owned_outputs(
         ["chown", "-R", identity, "logs/coverage"],
         ["chown", "-R", identity, str(root / "runner-temp/fs-quality-packages")],
     ]
+
+
+def test_sonar_bootstrap_does_not_trip_the_secret_scanner() -> None:
+    from detect_secrets import SecretsCollection
+    from detect_secrets.settings import default_settings
+
+    secrets = SecretsCollection()
+    with default_settings():
+        secrets.scan_file(str(ROOT / ".github/workflows/remote-quality.yml"))
+    assert not secrets.json(), secrets.json()

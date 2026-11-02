@@ -44,6 +44,9 @@ jobs:
           ./core/entrypoints/cli/scripts/lint.sh --fast \
             --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
             2>&1 | tee logs/quality/hosted/tier2.log
+      - name: Recheck current main before starting Tier 3
+        if: env.QUALITY_MODE != 'tier2'
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Build the canonical disposable PostgreSQL image
         if: env.QUALITY_MODE != 'tier2'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -121,10 +124,12 @@ jobs:
           [[ "$ready" == 1 ]] || exit 1
           password="$(openssl rand -hex 24)"
           printf '::add-mask::%s\n' "$password"
-          curl -fsS -u admin:admin -X POST http://127.0.0.1:9000/api/users/change_password \
-            --data-urlencode login=admin --data-urlencode previousPassword=admin \
+          # A fresh Sonar server initially uses its username as the password.
+          bootstrap_user=admin
+          curl -fsS -u "$bootstrap_user:$bootstrap_user" -X POST http://127.0.0.1:9000/api/users/change_password \
+            --data-urlencode "login=$bootstrap_user" --data-urlencode "previousPassword=$bootstrap_user" \
             --data-urlencode "password=$password"
-          token="$(curl -fsS -u "admin:$password" -X POST http://127.0.0.1:9000/api/user_tokens/generate \
+          token="$(curl -fsS -u "$bootstrap_user:$password" -X POST http://127.0.0.1:9000/api/user_tokens/generate \
             --data-urlencode "name=quality-$GITHUB_RUN_ID" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
           [[ -n "$token" ]] || exit 1
           printf '::add-mask::%s\n' "$token"
