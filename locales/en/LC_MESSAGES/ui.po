@@ -29075,3 +29075,78 @@ msgstr "Approve release for {count} selected connections"
 
 msgid "react.projects.secret_approval.approve_selected"
 msgstr "Approve {count} selected connections"
+
+msgid "shell.nav.secrets"
+msgstr "Secrets"
+
+msgid "react.registry.secrets.title"
+msgstr "Secrets"
+
+msgid "react.registry.secrets.page_description"
+msgstr "Create a secret once, choose it in connections and workflow inputs, and replace it in one place. Stored values are never shown again."
+
+msgid "react.registry.secrets.project"
+msgstr "Project"
+
+msgid "react.registry.secrets.project_description"
+msgstr "Secrets of the project and of its workspace."
+
+msgid "react.registry.secrets.choose_project"
+msgstr "Choose a project"
+
+msgid "react.registry.secrets.create_title"
+msgstr "New secret"
+
+msgid "react.registry.secrets.failed"
+msgstr "Not saved"
+
+msgid "react.registry.secrets.name"
+msgstr "Name"
+
+msgid "react.registry.secrets.description_label"
+msgstr "Description"
+
+msgid "react.registry.secrets.value"
+msgstr "Value"
+
+msgid "react.registry.secrets.owner"
+msgstr "Owner"
+
+msgid "react.registry.secrets.owner_project_long"
+msgstr "This project"
+
+msgid "react.registry.secrets.owner_workspace_long"
+msgstr "Every project of this workspace"
+
+msgid "react.registry.secrets.create"
+msgstr "Create secret"
+
+msgid "react.registry.secrets.owner_project"
+msgstr "project"
+
+msgid "react.registry.secrets.owner_workspace"
+msgstr "workspace"
+
+msgid "react.registry.secrets.configured"
+msgstr "configured"
+
+msgid "react.registry.secrets.save"
+msgstr "Save"
+
+msgid "react.registry.secrets.new_value"
+msgstr "New value"
+
+msgid "react.registry.secrets.replace"
+msgstr "Replace value"
+
+msgid "react.registry.secrets.used_by"
+msgstr "Used by"
+
+msgid "react.registry.secrets.unused"
+msgstr "nothing yet"
+
+msgid "react.registry.secrets.delete_blocked"
+msgstr "In use — remove its bindings to delete it"
+
+msgid "react.registry.secrets.delete"
+msgstr "Delete"

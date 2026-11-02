@@ -28021,3 +28021,78 @@ msgstr ""
 
 msgid "react.projects.secret_approval.approve_selected"
 msgstr ""
+
+msgid "shell.nav.secrets"
+msgstr ""
+
+msgid "react.registry.secrets.title"
+msgstr ""
+
+msgid "react.registry.secrets.page_description"
+msgstr ""
+
+msgid "react.registry.secrets.project"
+msgstr ""
+
+msgid "react.registry.secrets.project_description"
+msgstr ""
+
+msgid "react.registry.secrets.choose_project"
+msgstr ""
+
+msgid "react.registry.secrets.create_title"
+msgstr ""
+
+msgid "react.registry.secrets.failed"
+msgstr ""
+
+msgid "react.registry.secrets.name"
+msgstr ""
+
+msgid "react.registry.secrets.description_label"
+msgstr ""
+
+msgid "react.registry.secrets.value"
+msgstr ""
+
+msgid "react.registry.secrets.owner"
+msgstr ""
+
+msgid "react.registry.secrets.owner_project_long"
+msgstr ""
+
+msgid "react.registry.secrets.owner_workspace_long"
+msgstr ""
+
+msgid "react.registry.secrets.create"
+msgstr ""
+
+msgid "react.registry.secrets.owner_project"
+msgstr ""
+
+msgid "react.registry.secrets.owner_workspace"
+msgstr ""
+
+msgid "react.registry.secrets.configured"
+msgstr ""
+
+msgid "react.registry.secrets.save"
+msgstr ""
+
+msgid "react.registry.secrets.new_value"
+msgstr ""
+
+msgid "react.registry.secrets.replace"
+msgstr ""
+
+msgid "react.registry.secrets.used_by"
+msgstr ""
+
+msgid "react.registry.secrets.unused"
+msgstr ""
+
+msgid "react.registry.secrets.delete_blocked"
+msgstr ""
+
+msgid "react.registry.secrets.delete"
+msgstr ""

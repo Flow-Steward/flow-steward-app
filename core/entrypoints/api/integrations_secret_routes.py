@@ -33,6 +33,29 @@ class WorkflowSecretApprovalRequest(BaseModel):
     destinations: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
 
 
+class SecretCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    value: str = Field(max_length=65536)
+    project_id: str = Field(default="", max_length=64)
+    workspace_id: str = Field(default="", max_length=64)
+
+
+class SecretMetadataRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+
+class SecretValueRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    value: str = Field(max_length=65536)
+
+
 class SecretBindingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -219,6 +242,78 @@ def register_secret_approval_routes(
         try:
             scope = request_scope(request, project_id=project_id)
             return _service().unbind_connection_field(connection_id, scope, field=field)
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    def _catalog_scope(request: Request, project_id: str = "") -> Any:
+        return request_scope(request, project_id=project_id or None)
+
+    @router.get("/api/secrets")
+    async def api_secrets_list(request: Request, project_id: str = "", workspace_id: str = ""):
+        try:
+            return {
+                "secrets": _service().list_secrets(
+                    _catalog_scope(request, project_id),
+                    project_id=project_id or None,
+                    workspace_id=workspace_id or None,
+                )
+            }
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.post("/api/secrets")
+    async def api_secret_create(request: Request, body: SecretCreateRequest):
+        try:
+            return _service().create_secret(
+                _catalog_scope(request, body.project_id),
+                name=body.name,
+                value=body.value,
+                description=body.description,
+                project_id=body.project_id or None,
+                workspace_id=body.workspace_id or None,
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.get("/api/secrets/{secret_id}")
+    async def api_secret_get(request: Request, secret_id: str):
+        try:
+            return _service().get_secret(secret_id, _catalog_scope(request))
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.patch("/api/secrets/{secret_id}")
+    async def api_secret_update(request: Request, secret_id: str, body: SecretMetadataRequest):
+        try:
+            return _service().update_metadata(
+                secret_id, _catalog_scope(request), name=body.name, description=body.description
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.put("/api/secrets/{secret_id}/value")
+    async def api_secret_replace_value(request: Request, secret_id: str, body: SecretValueRequest):
+        try:
+            return _service().replace_value(secret_id, _catalog_scope(request), value=body.value)
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.delete("/api/secrets/{secret_id}")
+    async def api_secret_delete(request: Request, secret_id: str):
+        try:
+            return _service().delete_secret(secret_id, _catalog_scope(request))
         except ServiceError as e:
             return service_error_response(e)
         except Exception as e:
