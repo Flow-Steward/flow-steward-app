@@ -38,6 +38,7 @@ class IOResolverTemplateMixin:
         available_type_map = self._build_available_type_map(workflow_id, resolved_step_id)
         merged: dict[str, dict] = {}
 
+        workflow_account_id = str(workflow.get("account_id") or "").strip()
         agent_id = str(step.get("agent_id") or "").strip()
         cap_id = str(step.get("skill_id") or "").strip()
         step_block_key = self._resolve_step_block_key(step)
@@ -45,6 +46,7 @@ class IOResolverTemplateMixin:
             agent_id=agent_id,
             skill_id=cap_id,
             block_key=step_block_key,
+            account_id=workflow_account_id,
         )
         if isinstance(block_contract, dict):
             step_block_key = str(block_contract.get("block_key") or step_block_key).strip()
@@ -64,6 +66,7 @@ class IOResolverTemplateMixin:
                 skill_id=cap_id,
                 block_key=step_block_key,
                 include_runtime_io=False,
+                account_id=workflow_account_id,
             )
             if step_block_key or agent_id or cap_id
             else []

@@ -45,3 +45,20 @@ it("shows the selected Agent skill label in normal setup", async () => {
   const view = await open();
   try { expect(await screen.findByText("Compose report")).toBeVisible(); } finally { view.unmount(); }
 }, AGENT_JOURNEY_TIMEOUT);
+it("adds an agent file in the mounted drawer, saves it, and reopens it", async () => {
+  const boundary = install();
+  vi.mocked(fetchWorkflowStepContractPreview).mockResolvedValue({ workflow_id: "weekly_report", skill: { id: "compose", label: "Compose report" }, locked_required: [], unresolved_required: [], optional: [], custom: [], outputs: [] });
+  const view = await open(); let fresh: ReturnType<typeof renderPage> | undefined;
+  try {
+    await userEvent.click(screen.getByRole("button", { name: "Add file" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "File label 1" }), { target: { value: "document" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "File source 1" }), { target: { value: "state.document_file" } });
+    await userEvent.click(screen.getByRole("button", { name: "Save parameters" }));
+    await screen.findByText("Parameters saved");
+    expect(lastPatch()).toMatchObject({ override: { extra_prompt: "Keep me", agent: { file_bindings: [{ name: "document", source: "state.document_file" }] } } });
+    expect(boundary.row().override).toMatchObject({ agent: { file_bindings: [{ name: "document", source: "state.document_file" }] } });
+    view.unmount(); fresh = await open();
+    expect(screen.getByRole("textbox", { name: "File label 1" })).toHaveValue("document");
+    expect(screen.getByRole("textbox", { name: "File source 1" })).toHaveValue("state.document_file");
+  } finally { fresh?.unmount(); view.unmount(); }
+}, AGENT_JOURNEY_TIMEOUT);

@@ -540,12 +540,14 @@ class IOResolverPreviewMixin:
                 skill_id = str(resolved_step.get("skill_id") or "").strip()
             if not block_key and block_binding_mode is None:
                 block_key = str(resolved_step.get("block_key") or "").strip()
+        workflow_account_id = str((workflow or {}).get("account_id") or "").strip()
         resolved_agent_id = str(agent_id or "").strip()
         resolved_skill_id = str(skill_id or "").strip()
         resolved_block = self._resolve_published_block_contract(
             agent_id=resolved_agent_id,
             skill_id=resolved_skill_id,
             block_key=block_key,
+            account_id=workflow_account_id,
         )
         resolved_block_key = str((resolved_block or {}).get("block_key") or block_key).strip()
         if isinstance(resolved_block, dict):
@@ -576,12 +578,14 @@ class IOResolverPreviewMixin:
             skill_id=resolved_skill_id,
             block_key=resolved_block_key,
             include_runtime_io=False,
+            account_id=workflow_account_id,
         )
         merged_outputs = self._merge_step_output_contract(
             agent_id=resolved_agent_id,
             skill_id=resolved_skill_id,
             block_key=resolved_block_key,
             include_runtime_io=False,
+            account_id=workflow_account_id,
         )
 
         locked_required: list[dict] = []

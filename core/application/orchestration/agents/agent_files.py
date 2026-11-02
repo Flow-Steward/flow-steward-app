@@ -9,49 +9,16 @@ from typing import Any
 from langchain_core.tools import StructuredTool
 
 _TEXT_TYPES = frozenset({"text/plain", "text/markdown", "application/json"})
-_IMAGE_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
-_AUDIO_TYPES = frozenset({"audio/wav", "audio/mpeg"})
-_VIDEO_TYPES = frozenset({"video/mp4", "video/webm"})
 _READ_CHARS = 4000
 _MAX_NATIVE_FILE_BYTES = 5 * 1024 * 1024
 _MAX_NATIVE_TOTAL_BYTES = 10 * 1024 * 1024
 
 
 def _native_kind(model: Any, provider: str, content_type: str) -> str:
-    """Require both a documented adapter transport and its explicit model profile."""
-    profile = getattr(model, "profile", None)
-    if not isinstance(profile, dict):
-        return ""
-    if provider == "openai":
-        from langchain_openai import ChatOpenAI
+    """Delegate SDK capability classification to the canonical model factory."""
+    from core.application.orchestration.model_provider import native_media_kind
 
-        if type(model) is not ChatOpenAI:
-            return ""
-        allowed = {"image", "audio"}
-    elif provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic
-
-        if type(model) is not ChatAnthropic:
-            return ""
-        allowed = {"image"}
-    elif provider == "google":
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        from core.application.orchestration.model_provider import _pinned_google_chat_model_class
-
-        if type(model) is not _pinned_google_chat_model_class(ChatGoogleGenerativeAI):
-            return ""
-        allowed = {"image", "audio", "video"}
-    else:
-        return ""
-    for kind, mime_types in (
-        ("image", _IMAGE_TYPES),
-        ("audio", _AUDIO_TYPES),
-        ("video", _VIDEO_TYPES),
-    ):
-        if kind in allowed and content_type in mime_types and profile.get(f"{kind}_inputs") is True:
-            return kind
-    return ""
+    return native_media_kind(model, provider, content_type)
 
 
 def prepare_agent_files(

@@ -437,6 +437,7 @@ class IOResolverPreviewHelpersMixin:
         skill_id: str,
         block_key: str = "",
         include_runtime_io: bool = True,
+        account_id: str | None = None,
     ) -> list[dict]:
         """Build step input contract.
 
@@ -448,6 +449,7 @@ class IOResolverPreviewHelpersMixin:
             agent_id=agent_id,
             skill_id=skill_id,
             block_key=block_key,
+            account_id=account_id,
         )
         resolved_block_key = str((resolved_block or {}).get("block_key") or block_key).strip()
 

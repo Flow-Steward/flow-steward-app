@@ -189,3 +189,73 @@ def test_disabled_block_and_scope_refusal_are_not_bypassed_by_new_mode(agent_pre
     )
     assert response.status_code == 403
     assert agent_preview.context == []
+
+
+@pytest.mark.parametrize("mode", ["auto", "explicit"])
+@pytest.mark.parametrize("owner", ["account-a", ""])
+def test_preview_uses_workflow_account_for_published_block_contract(
+    agent_preview, monkeypatch, mode, owner
+):
+    from core.application.registry.io_resolver_preview_helpers import IOResolverPreviewHelpersMixin
+
+    resolver = agent_preview.resolver
+    monkeypatch.setattr(
+        resolver,
+        "_merge_step_input_contract",
+        IOResolverPreviewHelpersMixin._merge_step_input_contract.__get__(resolver),
+    )
+    monkeypatch.setattr(
+        resolver,
+        "_merge_step_output_contract",
+        IOResolverPreviewHelpersMixin._merge_step_output_contract.__get__(resolver),
+    )
+    own = {
+        "block_key": "block.own",
+        "enabled": True,
+        "account_id": owner,
+        "source_kind": "agent",
+        "source_ref": "writer::draft",
+        "inputs": [{"field_key": "own_input", "value_type": "text", "required": True}],
+        "outputs": [{"field_key": "own_output", "value_type": "text", "exposed_by_default": True}],
+    }
+    foreign = {
+        **own,
+        "block_key": "block.foreign",
+        "account_id": "account-b",
+        "inputs": [{"field_key": "foreign_input"}],
+        "outputs": [{"field_key": "foreign_output", "exposed_by_default": True}],
+    }
+    agent_preview.blocks.update({"block.own": own, "block.foreign": foreign})
+    resolver.db.list_published_block_contracts = lambda **_k: [foreign, own]
+    resolver.db.get_skill = lambda _id: {"skill_id": "draft", "enabled": True, "output_schema": {}}
+    resolver.db.get_skill_outputs = lambda _id: []
+    resolver.db.get_agent_own_outputs = lambda _id: []
+    resolver.db.get_agent = lambda _id: {"agent_id": "writer", "outputs": []}
+    params = {"step_id": "agent_a", "agent_id": "writer", "block_binding_mode": mode}
+    if mode == "explicit":
+        params["block_key"] = "block.own"
+    response = agent_preview.client.get("/api/workflows/wf/step-contract-preview", params=params)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["block_key"] == "block.own"
+    assert [item["name"] for item in result["unresolved_required"]] == ["own_input"]
+    assert [item["name"] for item in result["outputs"]] == ["own_output"]
+    agent_preview.row["block_key"] = ""
+    agent_preview.row["override"] = {}
+    resolver._workflow_cache.clear()
+    defaults = resolver.get_step_input_defaults("wf", "agent_a")
+    assert [item["name"] for item in defaults["required_inputs"]] == ["own_input"]
+
+
+def test_explicit_foreign_block_is_not_visible_in_authorized_workflow(agent_preview):
+    agent_preview.blocks["block.b"]["account_id"] = "account-b"
+    response = agent_preview.client.get(
+        "/api/workflows/wf/step-contract-preview",
+        params={
+            "step_id": "agent_a",
+            "agent_id": "writer",
+            "block_binding_mode": "explicit",
+            "block_key": "block.b",
+        },
+    )
+    assert response.status_code == 404

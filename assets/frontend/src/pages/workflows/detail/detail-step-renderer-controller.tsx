@@ -310,6 +310,7 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
   const stepSmartSetupContext = {
     stepContractPreviewQuery: ctx.stepContractPreviewQuery,
     agentDrafts: ctx.agentDrafts, agentWorkflowRecord: ctx.agentWorkflowRecord,
+    stepOverrideDraft, setStepOverrideDraft,
     agentBlockCatalogQuery: ctx.agentBlockCatalogQuery, agentBlockOptions: ctx.agentBlockOptions,
     httpIntent: ctx.httpIntent,
     httpFieldFeedback: ctx.httpFieldFeedback,

@@ -63,6 +63,46 @@ def _pinned_google_chat_model_class(base_class: type[Any]) -> type[Any]:
     return _PinnedGoogleChatModel
 
 
+_IMAGE_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
+_AUDIO_TYPES = frozenset({"audio/wav", "audio/mpeg"})
+_VIDEO_TYPES = frozenset({"video/mp4", "video/webm"})
+
+
+def native_media_kind(model: Any, provider: str, content_type: str) -> str:
+    """Require both a documented adapter transport and its explicit model profile."""
+    profile = getattr(model, "profile", None)
+    if not isinstance(profile, dict):
+        return ""
+    if provider == "openai":
+        from langchain_openai import ChatOpenAI
+
+        if type(model) is not ChatOpenAI:
+            return ""
+        allowed = {"image", "audio"}
+    elif provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        if type(model) is not ChatAnthropic:
+            return ""
+        allowed = {"image"}
+    elif provider == "google":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        if type(model) is not _pinned_google_chat_model_class(ChatGoogleGenerativeAI):
+            return ""
+        allowed = {"image", "audio", "video"}
+    else:
+        return ""
+    for kind, mime_types in (
+        ("image", _IMAGE_TYPES),
+        ("audio", _AUDIO_TYPES),
+        ("video", _VIDEO_TYPES),
+    ):
+        if kind in allowed and content_type in mime_types and profile.get(f"{kind}_inputs") is True:
+            return kind
+    return ""
+
+
 def _build_pinned_google_chat_model(chat_model_class: Any, **kwargs: Any) -> Any:
     """Build a Google chat facade around one explicitly non-Vertex SDK client."""
 

@@ -384,9 +384,15 @@ def create_workflow_definition_router(
             # A step that is not saved yet is previewed by its agent or block.
             raise HTTPException(status_code=404, detail=f"Step '{normalized_step_id}' not found")
 
+        # Resolve explicit blocks within the same account as the authorized workflow.
+        catalog_account_id = _workflow_account_id(workflow)
         if normalized_block_key:
+            from core.application.registry.published_block_selection import in_account_scope
+
             block_row = db.get_published_block_contract(normalized_block_key)
-            if not isinstance(block_row, dict):
+            if not isinstance(block_row, dict) or not in_account_scope(
+                block_row, catalog_account_id
+            ):
                 raise HTTPException(
                     status_code=404, detail=f"Published block '{normalized_block_key}' not found"
                 )
@@ -398,8 +404,6 @@ def create_workflow_definition_router(
         # Capabilities resolve in the workflow's own account, not the default
         # one: a projected agent installed for a non-default account is invisible
         # otherwise, and authoring answers 404 for something the operator sees.
-        catalog_account_id = _workflow_account_id(workflow)
-
         if normalized_agent_id:
             # An extension's agent is advertised through the same catalog as the
             # host's own and must author the same way; a host-only lookup answers
