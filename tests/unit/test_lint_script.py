@@ -353,6 +353,7 @@ def test_host_sonar_workflow_uses_audit_runtime_and_current_quality_cli(
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     invocations = invocation_log.read_text(encoding="utf-8")
+    assert "-Dsonar.working.directory=/usr/src/logs/quality/sonar/work" in invocations
     if sonar_local == "1":
         assert (
             "fs-audit python -m core.entrypoints.cli quality sonar-ensure-rules "

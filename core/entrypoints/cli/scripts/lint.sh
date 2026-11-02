@@ -1028,7 +1028,8 @@ run_host_sonar_scan() {
   local normalized_coverage_report_container=""
   local js_coverage_report_host=""
   local js_coverage_report_container=""
-  local sonar_args=()
+  # Keep generated scanner state outside the immutable candidate's tracked tree.
+  local sonar_args=("-Dsonar.working.directory=/usr/src/logs/quality/sonar/work")
   local scanner_run_args=(--rm -T)
   local attempt=0
   local status_line=""
