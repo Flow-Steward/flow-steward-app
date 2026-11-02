@@ -7,6 +7,7 @@ Write targets remain under their existing target/reserved-path validators.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -191,6 +192,15 @@ def discover_step_state_selectors(
     references: list[StateSelectorReference] = []
 
     if kind in {STEP_KIND_AGENT, STEP_KIND_CONNECTOR}:
+        if kind == STEP_KIND_AGENT and isinstance(config.get("file_bindings"), list):
+            for index, binding in enumerate(config["file_bindings"]):
+                if isinstance(binding, Mapping):
+                    references.extend(
+                        _selector_reference(
+                            binding.get("source"),
+                            f"{step_path}.override.agent.file_bindings[{index}].source",
+                        )
+                    )
         split_default = kind == STEP_KIND_CONNECTOR
         for field in ("input_mapping", "input_mapping_jsonb"):
             if field in step:
@@ -580,10 +590,46 @@ def _closed_shape_selector_issues(
     return issues
 
 
+def _file_binding_selector_issues(step: Mapping[str, Any], step_path: str) -> list[dict[str, str]]:
+    override = _object(step.get("override"))
+    bindings = _object(override.get("agent")).get("file_bindings")
+    if bindings is None:
+        return []
+    issues: list[dict[str, str]] = []
+
+    def issue(path: str, message: str, value: str = "") -> None:
+        issues.append(
+            {
+                "code": AUTHORING_ERROR_CODE,
+                "message": message,
+                "path": path,
+                "severity": "error",
+                "selector": value,
+            }
+        )
+
+    path = f"{step_path}.override.agent.file_bindings"
+    if not isinstance(bindings, list) or len(bindings) > 10:
+        issue(path, "File bindings must be a list of at most 10 entries.")
+        return issues
+    names: set[str] = set()
+    for index, row in enumerate(bindings):
+        name = _text(row.get("name")) if isinstance(row, Mapping) else ""
+        source = _text(row.get("source")) if isinstance(row, Mapping) else ""
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", name) or name in names:
+            issue(f"{path}[{index}].name", "File binding names must be unique and valid.", name)
+        names.add(name)
+        if not source.startswith("state.") or len(source) <= 6:
+            issue(f"{path}[{index}].source", "File bindings require a state selector.", source)
+    return issues
+
+
 def validate_step_state_selectors(
     step: Mapping[str, Any], *, step_path: str = "step"
 ) -> list[dict[str, str]]:
-    return validate_selector_references(discover_step_state_selectors(step, step_path=step_path))
+    return _file_binding_selector_issues(step, step_path) + validate_selector_references(
+        discover_step_state_selectors(step, step_path=step_path)
+    )
 
 
 PHASE_MESSAGE_SELECTOR_CODE = "workflow.selector.phase_scope_removed"
@@ -677,6 +723,7 @@ def validate_workflow_state_selectors(
     for step in steps if isinstance(steps, list) else []:
         if isinstance(step, Mapping):
             step_path = f"{workflow_path}.steps.{str(step.get('step_id') or '').strip()}"
+            phase_scope_issues.extend(_file_binding_selector_issues(step, step_path))
             references.extend(discover_step_state_selectors(step, step_path=step_path))
             references.extend(_boundary_entry_selectors(step, step_path))
     return (

@@ -43,3 +43,23 @@ it("associates raw map errors and never carries raw invalid draft to a different
   view.rerender(<Harness owner="B" />);
   expect(screen.getByRole("textbox", { name: "Agent input mapping JSON" })).not.toHaveValue('{"value":');
 });
+it("adds and removes named upstream files without changing agent mappings", async () => {
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Add file" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "File label 1" }), { target: { value: "document" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "File source 1" }), { target: { value: "state.document_file" } });
+  expect(JSON.parse(screen.getByLabelText("Override").textContent || "{}")).toEqual({ block_key: "block.old", extra_prompt: "Keep", agent: { file_bindings: [{ name: "document", source: "state.document_file" }] } });
+  await userEvent.click(screen.getByRole("button", { name: "Remove file 1" }));
+  expect(JSON.parse(screen.getByLabelText("Override").textContent || "{}").agent.file_bindings).toEqual([]);
+  await userEvent.click(screen.getByRole("button", { name: "Capture" }));
+  expect(JSON.parse(screen.getByLabelText("Captured").textContent || "{}")).toEqual({ agent_id: "writer" });
+});
+it("marks malformed file state selectors invalid", async () => {
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Add file" }));
+  const source = screen.getByRole("textbox", { name: "File source 1" });
+  fireEvent.change(source, { target: { value: "state.a..b" } });
+  expect(source).toHaveAttribute("aria-invalid", "true");
+  fireEvent.change(source, { target: { value: "state.files[0].handle" } });
+  expect(source).not.toHaveAttribute("aria-invalid");
+});

@@ -735,3 +735,22 @@ it("publishes local parameter feedback through its typed journal owner instead o
   expect(setStagedStepSaveNotice).toHaveBeenCalledWith("The new step's parameters are kept with the unapplied structure.", noticeOwner);
   expect(instance.ctx.setSaveNotice).not.toHaveBeenCalled();
 });
+it.each([
+  { name: "blank label", file_bindings: [{ name: "", source: "state.file" }] },
+  { name: "raw handle", file_bindings: [{ name: "file", source: "artifact:raw" }] },
+  { name: "malformed path", file_bindings: [{ name: "file", source: "state.a..b" }] },
+  { name: "duplicate labels", file_bindings: [{ name: "same", source: "state.a" }, { name: "same", source: "state.b" }] },
+])("refuses $name agent file bindings before staging", async ({ file_bindings }) => {
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected request"));
+  const { ctx, staged, view } = setup({ selectedStep: { local: true, raw: { step_id: "check_order", step_kind: "agent" }, runtimeId: "check_order", stepKind: "agent" }, stepKindDraft: "agent", stepOverrideDraft: JSON.stringify({ agent: { file_bindings } }) });
+  await act(async () => { await view.result.current.handleSaveStep(); });
+  expect(staged).toEqual([]);
+  expect(ctx.setSaveError).toHaveBeenCalledWith("Give each file a unique name and a state source before saving.");
+});
+it("stages a valid agent file binding", async () => {
+  const file_bindings = [{ name: "document", source: "state.files[0]" }];
+  const { changeSet, ctx, view } = setup({ selectedStep: { local: true, raw: { step_id: "check_order", step_kind: "agent" }, runtimeId: "check_order", stepKind: "agent" }, stepKindDraft: "agent", stepOverrideDraft: JSON.stringify({ agent: { file_bindings } }) });
+  await act(async () => { await view.result.current.handleSaveStep(); });
+  expect(ctx.setSaveError).not.toHaveBeenCalled();
+  expect(changeSet.updateStagedStep).toHaveBeenCalledWith("check_order", expect.objectContaining({ override: { agent: { file_bindings } } }));
+});

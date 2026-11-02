@@ -51,6 +51,7 @@ class PromptAgentExecutionMixin:
             output_contract=input.output_contract,
         )
         # Resolve tools from registry to LangChain tool objects
+        file_context = getattr(input, "file_context", None)
         lc_tools = self._resolve_tools(merged_state, skill, tool_ids=effective_tool_ids)
         step_override = (
             step.get("override") if isinstance(step, dict) else getattr(step, "override", None)
@@ -181,6 +182,7 @@ class PromptAgentExecutionMixin:
                 context_sections=context_sections,
                 max_tool_rounds=max_rounds,
                 timeout_seconds=timeout_seconds,
+                file_context=file_context,
                 final_response_schema=self._resolve_final_response_schema(
                     skill, step=step, state=merged_state, output_contract=input.output_contract
                 ),

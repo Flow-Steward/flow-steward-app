@@ -29,6 +29,7 @@ class AgentInput:
         None  # Immutable host capture; never model-authored.
     )
     selected_skill: SkillManifest | None = None  # Authorized skill selected with that capture.
+    file_context: Any | None = None  # Host-owned, invocation-scoped file access.
 
 
 @dataclass

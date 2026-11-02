@@ -29524,3 +29524,36 @@ msgstr "Pakeičia visus regex atitikmenis naudodamas Python keitimo sintaksę."
 
 msgid "react.workflows.null_value"
 msgstr "Null reikšmė"
+
+msgid "react.workflows.agent_files"
+msgstr "Failai"
+
+msgid "react.workflows.agent_files_uneditable"
+msgstr "Išsaugotų failų susiejimų čia redaguoti negalima. Pataisykite juos Override JSON lauke."
+
+msgid "react.workflows.agent_files_help"
+msgstr "Pasirinkite ankstesnių darbo eigos žingsnių failus. Tekstiniai failai skaitomi dalimis. Vaizdams, garsui ir vaizdo įrašams reikia suderinamo modelio ir teikėjo. Suderinami integruoti Google Gemini modeliai palaiko vaizdo įrašus. Nepalaikomą mediją apdorokite ankstesniame jungties žingsnyje ir perduokite jos tekstinį rezultatą agentui."
+
+msgid "react.workflows.agent_file_name"
+msgstr "Failo žyma {number}"
+
+msgid "react.workflows.agent_file_source"
+msgstr "Failo šaltinis {number}"
+
+msgid "react.workflows.agent_file_remove"
+msgstr "Pašalinti failą {number}"
+
+msgid "react.workflows.agent_file_add"
+msgstr "Pridėti failą"
+
+msgid "react.workflows.agent_files_limits"
+msgstr "Iki 10 failų, po 50 MiB ir iš viso 100 MiB. Tiesioginės medijos riba yra 5 MiB failui ir 10 MiB iš viso. Tekstas skaitomas riboto dydžio dalimis."
+
+msgid "react.workflows.agent_file_name_help"
+msgstr "Agento naudojamas vardas: pradėkite raide, tada naudokite iki 63 raidžių, skaitmenų, pabraukimų arba brūkšnelių. Kiekviena žyma turi būti unikali."
+
+msgid "react.workflows.agent_file_source_help"
+msgstr "Pasirinkite ankstesnį failą arba įveskite jo būsenos kelią, pavyzdžiui, state.document_file."
+
+msgid "react.workflows.agent_files_invalid"
+msgstr "Prieš išsaugodami kiekvienam failui nurodykite unikalią žymą ir būsenos šaltinį."

@@ -85,7 +85,13 @@ TABULAR_FEED_PICKER_OUTPUT_FIELDS_BY_OPERATION: dict[str, tuple[tuple[str, str],
 
 STEP_CONFIG_ALLOWED_KEYS: dict[str, frozenset[str]] = {
     STEP_KIND_AGENT: frozenset(
-        {"input_mapping", "input_mapping_jsonb", "output_mapping", "output_mapping_jsonb"}
+        {
+            "file_bindings",
+            "input_mapping",
+            "input_mapping_jsonb",
+            "output_mapping",
+            "output_mapping_jsonb",
+        }
     ),
     STEP_KIND_CONNECTOR: frozenset(
         {
@@ -220,6 +226,35 @@ def validate_step_config_keys(
             }
             for key in sorted(set(config) - config_allowed)
         )
+    if normalized_step_kind == STEP_KIND_AGENT:
+        config = override.get(STEP_KIND_AGENT)
+        if isinstance(config, Mapping) and "file_bindings" in config:
+            bindings = config["file_bindings"]
+            path = f"{step_path}.override.agent.file_bindings"
+            if not isinstance(bindings, list):
+                issues.append(
+                    {
+                        "code": "workflow.agent_file_bindings_invalid",
+                        "message": "Agent file bindings must be a list.",
+                        "path": path,
+                        "severity": "error",
+                    }
+                )
+            else:
+                for index, binding in enumerate(bindings):
+                    if (
+                        not isinstance(binding, Mapping)
+                        or set(binding) != {"name", "source"}
+                        or not all(isinstance(binding[key], str) for key in ("name", "source"))
+                    ):
+                        issues.append(
+                            {
+                                "code": "workflow.agent_file_binding_invalid",
+                                "message": "Each file binding requires only string name and source fields.",
+                                "path": f"{path}[{index}]",
+                                "severity": "error",
+                            }
+                        )
     return issues
 
 

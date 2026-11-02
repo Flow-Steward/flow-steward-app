@@ -152,6 +152,7 @@ export type WorkflowVariableSuggestionOption = {
   description: string;
   label?: string;
   meta: string;
+  valueType?: string;
   stepId: string;
   value: string;
   variant: "global" | "workflow" | "state_alias" | "step_artifact";
@@ -265,6 +266,7 @@ export function normalizeAvailableWorkflowVariableSuggestions(
         [textOrEmpty(item.type), textOrEmpty(item.source)]
           .filter(isTruthy)
           .join(" · "),
+      valueType: textOrEmpty(item.type),
       stepId: textOrEmpty(item.step_id),
       value: normalizedValue,
       variant,

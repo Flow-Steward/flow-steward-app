@@ -20,6 +20,7 @@ _RESEARCH_TOOLS: frozenset[str] = frozenset(
         # Platform reads
         "project_list",
         "project_jobs",
+        "read_agent_file",
     }
 )
 

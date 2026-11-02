@@ -55,14 +55,31 @@ class WorkerGraphExecutionAdapter:
         job_row: Mapping[str, Any] | None,
         project_id: str | None,
     ) -> TaskGraphOutcome:
+        from core.application.orchestration.agent_file_runtime import (
+            bind_agent_file_runtime,
+            runtime_from_durable_job,
+        )
         from core.application.orchestration.agents.common import (
             JobCancelledException,
             run_graph_with_cancel_check,
         )
 
+        def file_runtime():
+            return runtime_from_durable_job(
+                store=self._bl,
+                job=job_row,
+                job_id=request.job_id,
+                plane_provider=(
+                    self._child_execution_runtime.artifact_plane_provider
+                    if self._child_execution_runtime is not None
+                    else None
+                ),
+            )
+
         callback = None
         try:
             with (
+                bind_agent_file_runtime(file_runtime),
                 self._build_checkpointer() as checkpointer,
                 bind_child_execution_runtime(self._child_execution_runtime),
                 bind_workflow_event_sink(

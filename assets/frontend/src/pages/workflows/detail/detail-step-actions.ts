@@ -1,3 +1,4 @@
+import { isAgentFileStatePath } from "./detail-agent-file-path";
 import { agentParticipants } from "./detail-agent-step-fields";
 import { httpIssueField } from "./detail-http-request-fields";
 import type { HttpFieldFeedback } from "./detail-http-request-intent";
@@ -350,6 +351,24 @@ export function useWorkflowStepActions(ctx: Record<string, any>) {
         error instanceof Error ? error.message : t("react.workflows.invalid_override_json", "Invalid override JSON."),
       );
       return;
+    }
+    if (ctx.stepKindDraft === "agent") {
+      const bindings = objectOrEmpty(override.agent).file_bindings;
+      if (bindings !== undefined) {
+        const names = new Set<string>();
+        const valid = Array.isArray(bindings) && bindings.length <= 10 && bindings.every((item) => {
+          const row = objectOrEmpty(item);
+          const name = typeof row.name === "string" ? row.name : "";
+          const source = typeof row.source === "string" ? row.source : "";
+          if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(name) || names.has(name) || !isAgentFileStatePath(source)) return false;
+          names.add(name);
+          return true;
+        });
+        if (!valid) {
+          setSaveError(t("react.workflows.agent_files_invalid", "Give each file a unique name and a state source before saving."));
+          return;
+        }
+      }
     }
     const numericErrors = stepNumericFieldErrors(ctx.stepKindDraft, objectOrEmpty(override[ctx.stepKindDraft]), t);
     const numericError = Object.values(numericErrors)[0];

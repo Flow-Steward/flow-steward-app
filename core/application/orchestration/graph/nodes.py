@@ -269,6 +269,21 @@ def wrap_agent_as_node(agent: BaseAgent, manifest: AgentManifest):
         captured_contract = None
         producer_context = None
         try:
+            from core.application.orchestration.agent_file_runtime import (
+                AgentFileAccessError,
+                current_agent_file_runtime,
+            )
+
+            override = active_step.get("override")
+            agent_override = override.get("agent") if isinstance(override, dict) else None
+            bindings = (
+                agent_override.get("file_bindings") if isinstance(agent_override, dict) else None
+            )
+            if bindings is not None and bindings != []:
+                runtime = current_agent_file_runtime()
+                if runtime is None:
+                    raise AgentFileAccessError("File access is unavailable")
+                agent_input.file_context = runtime.bind_files(bindings, state_ref)
             if state.get("workflow_definition_ref"):
                 from core.application.orchestration.output_contract_receipt import (
                     OutputProducerContext,

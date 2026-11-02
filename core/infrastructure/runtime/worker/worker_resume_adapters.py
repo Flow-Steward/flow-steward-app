@@ -50,6 +50,10 @@ class WorkerWorkflowResumeGraphAdapter:
     ) -> WorkflowResumeGraphOutcome:
         runner = self._runner or self._build_runner()
         self._runner = runner
+        from core.application.orchestration.agent_file_runtime import (
+            bind_agent_file_runtime,
+            runtime_from_durable_job,
+        )
         from core.application.workflows.workflow_lifecycle_event_sink import (
             bind_workflow_event_sink,
         )
@@ -57,7 +61,24 @@ class WorkerWorkflowResumeGraphAdapter:
             lifecycle_event_sink,
         )
 
+        def file_runtime():
+            try:
+                job_row = self._bl.get_job(getattr(request, "job_id", ""))
+            except Exception:
+                return None
+            return runtime_from_durable_job(
+                store=self._bl,
+                job=job_row,
+                job_id=getattr(request, "job_id", ""),
+                plane_provider=(
+                    self._child_execution_runtime.artifact_plane_provider
+                    if self._child_execution_runtime is not None
+                    else None
+                ),
+            )
+
         with (
+            bind_agent_file_runtime(file_runtime),
             bind_child_execution_runtime(self._child_execution_runtime),
             bind_workflow_event_sink(
                 lifecycle_event_sink(self._bl, self._notification_store_provider)

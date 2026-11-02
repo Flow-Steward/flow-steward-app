@@ -29102,3 +29102,36 @@ msgstr "Replace all regex matches using Python replacement syntax."
 
 msgid "react.workflows.null_value"
 msgstr "Null value"
+
+msgid "react.workflows.agent_files"
+msgstr "Files"
+
+msgid "react.workflows.agent_files_uneditable"
+msgstr "The saved file bindings cannot be edited here. Repair them in Override JSON."
+
+msgid "react.workflows.agent_files_help"
+msgstr "Choose files from earlier workflow steps. Text files are read in pages. Images, audio and video require a compatible model and provider. Compatible built-in Google Gemini models support video. Process unsupported media in a preceding connector step and pass its text output to the agent."
+
+msgid "react.workflows.agent_file_name"
+msgstr "File label {number}"
+
+msgid "react.workflows.agent_file_source"
+msgstr "File source {number}"
+
+msgid "react.workflows.agent_file_remove"
+msgstr "Remove file {number}"
+
+msgid "react.workflows.agent_file_add"
+msgstr "Add file"
+
+msgid "react.workflows.agent_files_limits"
+msgstr "Up to 10 files, 50 MiB each and 100 MiB total. Native media is limited to 5 MiB per file and 10 MiB total. Text is read in bounded pages."
+
+msgid "react.workflows.agent_file_name_help"
+msgstr "Name used by the agent: start with a letter, then use up to 63 letters, numbers, underscores or hyphens. Each label must be unique."
+
+msgid "react.workflows.agent_file_source_help"
+msgstr "Choose an earlier file or enter its state path, such as state.document_file."
+
+msgid "react.workflows.agent_files_invalid"
+msgstr "Give each file a unique name and a state source before saving."

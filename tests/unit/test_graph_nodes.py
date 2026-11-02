@@ -1805,3 +1805,104 @@ def test_agent_mapping_replaces_nested_equal_python_boolean_with_authored_number
     preview = update["agent_messages"][-1]["artifacts"]["input_payload"]
     assert preview["typed"][leaf] == 0
     assert type(preview["typed"][leaf]) is int
+
+
+@pytest.mark.usefixtures("captured_output_contract")
+@pytest.mark.parametrize("bindings", [[], None])
+def test_empty_agent_file_bindings_do_not_require_file_runtime(bindings):
+    from core.application.orchestration.agents.base import AgentOutput
+    from core.application.orchestration.graph.nodes import wrap_agent_as_node
+
+    observed = []
+
+    class Agent:
+        def execute(self, agent_input):
+            observed.append(agent_input.file_context)
+            assert "_agent_file_context" not in agent_input.state_ref
+            return AgentOutput(status="fail", artifacts={}, summary="done")
+
+    manifest = SimpleNamespace(
+        agent_id="writer", display_name="Writer", config={}, timeout_minutes=0, skills=["write"]
+    )
+    step = {
+        "step_kind": "agent",
+        "skill": "write",
+        "override": {"agent": {"file_bindings": bindings}},
+    }
+    with patch.dict(
+        sys.modules, {"core.application.orchestration.agents.common": _stub_agents_common_module()}
+    ):
+        node = wrap_agent_as_node(Agent(), manifest)
+        with patch(
+            "core.application.orchestration.graph.nodes._validate_skill_input_contract",
+            return_value=[],
+        ):
+            node(_run_state([step], workflow_id="wf-1", agent_messages=[]))
+    assert observed == [None]
+
+
+@pytest.mark.usefixtures("captured_output_contract")
+def test_agent_file_context_is_host_owned_and_not_written_to_graph_state():
+    import hashlib
+
+    from core.application.orchestration.agent_file_runtime import (
+        AgentFileRuntime,
+        bind_agent_file_runtime,
+    )
+    from core.application.orchestration.agents.base import AgentOutput
+    from core.application.orchestration.graph.nodes import wrap_agent_as_node
+
+    class Plane:
+        def get_artifact(self, artifact_id):
+            assert artifact_id == "art_one"
+            return {
+                "artifact_id": artifact_id,
+                "object_key": "artifacts/art_one/file.txt",
+                "persistence_status": "available",
+                "filename": "file.txt",
+                "content_type": "text/plain",
+                "size_bytes": 5,
+                "sha256": hashlib.sha256(b"hello").hexdigest(),
+                "owner_scope": {"account_id": "a", "project_id": "p", "job_id": "j"},
+            }
+
+        def read_artifact_bytes(self, artifact_id, *, max_size_bytes):
+            return b"hello"
+
+    observed = []
+
+    class Agent:
+        def execute(self, agent_input):
+            observed.append(agent_input.file_context.read_text("file", 0, 20)["text"])
+            assert "_agent_file_context" not in agent_input.state_ref
+            return AgentOutput(status="fail", artifacts={}, summary="done")
+
+    manifest = SimpleNamespace(
+        agent_id="writer", display_name="Writer", config={}, timeout_minutes=0, skills=["write"]
+    )
+    step = {
+        "step_kind": "agent",
+        "skill": "write",
+        "override": {
+            "agent": {"file_bindings": [{"name": "file", "source": "state.outputs.file"}]}
+        },
+    }
+    state = _run_state(
+        [step], workflow_id="wf-1", agent_messages=[], outputs={"file": "artifact:art_one"}
+    )
+    runtime = AgentFileRuntime(plane=Plane(), account_id="a", project_id="p", job_id="j")
+    with patch.dict(
+        sys.modules, {"core.application.orchestration.agents.common": _stub_agents_common_module()}
+    ):
+        node = wrap_agent_as_node(Agent(), manifest)
+        with (
+            patch(
+                "core.application.orchestration.graph.nodes._validate_skill_input_contract",
+                return_value=[],
+            ),
+            bind_agent_file_runtime(runtime),
+        ):
+            update = node(state)
+    assert observed == ["hello"]
+    assert "_agent_file_context" not in state
+    assert "_agent_file_context" not in update

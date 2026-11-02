@@ -28048,3 +28048,36 @@ msgstr ""
 
 msgid "react.workflows.null_value"
 msgstr ""
+
+msgid "react.workflows.agent_files"
+msgstr ""
+
+msgid "react.workflows.agent_files_uneditable"
+msgstr ""
+
+msgid "react.workflows.agent_files_help"
+msgstr ""
+
+msgid "react.workflows.agent_file_name"
+msgstr ""
+
+msgid "react.workflows.agent_file_source"
+msgstr ""
+
+msgid "react.workflows.agent_file_remove"
+msgstr ""
+
+msgid "react.workflows.agent_file_add"
+msgstr ""
+
+msgid "react.workflows.agent_files_limits"
+msgstr ""
+
+msgid "react.workflows.agent_file_name_help"
+msgstr ""
+
+msgid "react.workflows.agent_file_source_help"
+msgstr ""
+
+msgid "react.workflows.agent_files_invalid"
+msgstr ""

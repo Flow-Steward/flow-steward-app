@@ -116,6 +116,47 @@ explicit decision instead of being silently replaced. The builder does not add
 a retry mechanism. An unhandled step error fails the run; it does not follow
 the success connection. Stop nodes have no outgoing ports.
 
+### Giving files to an agent
+
+In the agent step's **Files** section, add a name and select the state variable
+that contains an uploaded or upstream file. For example, save Docling's
+`markdown_artifact_handle` to `state.document_file`, then select that variable
+and name it `document`. Select the full artifact output rather than an inline
+Markdown preview. Ordinary input mappings continue to carry values and summaries.
+
+Files can be text, JSON, Markdown, images, audio or video. The agent can read
+UTF-8 text files in pages; each result includes the next offset and whether it
+reached the end. The file is available beyond the ordinary prompt summary's
+length limit. This does not guarantee that a model reads every page: its context
+window and the agent's maximum iterations still apply. Older tool results are
+removed from the model's working history as it reads more pages. Split large files
+into smaller chunks or summarize them in an earlier step. If the agent reaches
+its tool-call limit before a requested file read can run, the step fails with
+`file_read_budget_exceeded`.
+
+Images, audio and video can be sent directly only when both the selected model's
+explicit SDK profile and its provider adapter support that input type. Unknown
+capabilities are rejected before a provider request. Current native file
+transports support images and audio with compatible OpenAI models, images with
+compatible Anthropic models, and images, audio and video with compatible built-in
+Google Gemini models. Model profiles can further restrict this. File selection does not add media support to a text-only model.
+
+For unsupported media on the selected transport, process the file in
+a preceding workflow connector step and pass its resulting text to the agent.
+For example, OpenAI Tools image editing and transcription remain connector
+actions with their own connection and operation settings. They are not exposed
+as agent tools by selecting a file. A video transcription or editing operation
+also requires an installed connector that actually provides that operation.
+
+A step may select at most 10 files, each up to 50 MiB, with 100 MiB selected in
+total. Text pages are at most 8,192 characters and the cumulative text read budget
+is 52,428,800 characters per invocation; tools can impose smaller file limits.
+Native media inputs have a smaller limit of 5 MiB per file and 10 MiB
+in total, checked before encoding and sending.
+Files must be available, unexpired, intact and owned by the current job, project
+and account. A handle copied from another job does not provide access. Files
+returned from a child workflow must first be mapped and adopted by its parent.
+
 ## Steps, Groups And The Execution Graph
 
 A workflow definition has three parts, and nothing else decides what runs:

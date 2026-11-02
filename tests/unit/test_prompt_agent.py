@@ -266,7 +266,9 @@ class TestPromptAgentExecutionTimeouts:
         manifest.max_iterations = 3
 
         agent = _authorized_prompt_agent(manifest)
+        file_context = object()
         agent_input = AgentInput(
+            file_context=file_context,
             task_context={},
             step_context={},
             agent_config={},
@@ -305,6 +307,7 @@ class TestPromptAgentExecutionTimeouts:
             output = agent.execute(agent_input)
 
         assert output.status == "pass"
+        assert invoke_mock.call_args.kwargs["file_context"] is file_context
         assert invoke_mock.call_args.kwargs["timeout_seconds"] == 30
         final_schema = invoke_mock.call_args.kwargs["final_response_schema"]
         assert isinstance(final_schema, dict)

@@ -373,6 +373,7 @@ def invoke_agent(
     max_tool_rounds: int = 8,
     timeout_seconds: int = 0,
     final_response_schema=None,
+    file_context=None,
 ):
     """Build prompt, bind tools, invoke LLM with ReAct tool-call loop, return final response.
 
@@ -431,6 +432,15 @@ def invoke_agent(
             "invoke_agent[%s]: merged %d provider tool(s)", agent_name, len(provider_tools)
         )
 
+    from .agent_files import prepare_agent_files
+
+    file_instructions, file_tools, file_blocks = prepare_agent_files(
+        file_context, resolved_llm, provider_key
+    )
+    all_tools.extend(file_tools)
+    if file_instructions:
+        task_input = f"{task_input}\n\n{file_instructions}"
+
     # Build name→callable lookup for tool execution.
     tool_map = build_tool_map(agent_name, all_tools)
 
@@ -438,6 +448,21 @@ def invoke_agent(
         llm = llm.bind_tools(all_tools)
 
     messages = prompt.format_messages(context_block=context_block, task_input=task_input)
+    if file_blocks:
+        from langchain_core.messages import HumanMessage
+
+        for index, message in enumerate(messages):
+            if isinstance(message, HumanMessage):
+                content = message.content
+                blocks: list[str | dict[Any, Any]] = (
+                    [{"type": "text", "text": content}]
+                    if isinstance(content, str)
+                    else list(content)
+                )
+                messages[index] = message.model_copy(update={"content": blocks + file_blocks})
+                break
+        else:
+            raise ValueError("Cannot attach media: the agent prompt has no user message")
     logger.debug("invoke_agent[%s]: starting with %d context chars", agent_name, len(context_block))
 
     # ── Anthropic prompt caching ──────────────────────────────────────────────
@@ -478,6 +503,7 @@ def invoke_agent(
     action_rounds = 0
     total_rounds = 0
     consecutive_research = 0
+    pending_file_read = False
     tool_call_timeout_seconds = _agent_tool_call_timeout_seconds(timeout_seconds)
     from core.infrastructure.runtime.test_mode import (
         is_test_mode_state,
@@ -536,6 +562,9 @@ def invoke_agent(
         else:
             consecutive_research += 1
             if consecutive_research >= _max_consecutive_research:
+                pending_file_read = any(
+                    tc.get("name") == "read_agent_file" for tc in response.tool_calls
+                )
                 if _budget_logs_as_info:
                     logger.info(
                         "invoke_agent[%s]: finalizing after configured research budget "
@@ -689,7 +718,7 @@ def invoke_agent(
             }
             if is_projected_mcp and canonical_tool_id:
                 result_detail["canonical_tool_id"] = canonical_tool_id
-            if not is_projected_mcp:
+            if not is_projected_mcp and tool_name != "read_agent_file":
                 result_detail["result_excerpt"] = str(tool_result)[:1200]
             with contextlib.suppress(Exception):
                 emit_event(
@@ -724,6 +753,13 @@ def invoke_agent(
 
         # ── Prune oldest rounds to keep history bounded ───────────────────────
         messages = _prune_message_history(messages, _MAX_HISTORY_ROUNDS)
+
+    if pending_file_read:
+        raise RuntimeError(
+            "file_read_budget_exceeded: The agent exhausted its tool-call budget before "
+            "a requested file read could run. Split the file into smaller chunks or process it in an "
+            "earlier workflow step, then retry."
+        )
 
     # Safety: exhausted tool rounds — do one final call without tools to force a text response
     if _budget_logs_as_info:
