@@ -104,7 +104,7 @@ Each executable quality check has one owning tier in
 they do not rerun checks owned by lower tiers. A matching fingerprint may reuse
 checksummed evidence. All tiers run in Docker through the canonical registry;
 final verification must identify the exact commit SHA and candidate environment.
-Tier 1 stays local. In the public source repository, Tier 2 runs after every
+Tier 1 stays in local Docker. In the public source repository, Tier 2 runs after every
 branch push on a disposable GitHub-hosted runner; Tier 3 runs before merge to
 main (ADR 0049). Official tag publication still runs its exact-SHA gate (ADR 0048).
 Remote evidence proves only the public commit it executed, never a different

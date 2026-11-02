@@ -8894,15 +8894,16 @@
     "code_read_locations": [
       "infra/docker/docker-compose.quality-hosted.yaml"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "quality_tools"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
-      "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Derived per-job package-cache bind directory for disposable hosted quality runners; not a product or persisted installation setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "quality",
     "required": false,
     "retired_alias_names": [],
     "secret": false,

@@ -1,5 +1,5 @@
 name: Remote quality pilot
-run-name: Quality ${{ inputs.mode || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
+run-name: Quality ${{ inputs.mode || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
         type: choice
         required: true
         default: tier2
-        options: [tier2, release, release-sonar]
+        options: [tier2, release, release-sonar, sonar-diagnostic]
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ concurrency:
 env:
   DOCKER_BUILD_RECORD_UPLOAD: 'false'
   FS_STACK_ENV_FILE: /dev/null
-  QUALITY_MODE: ${{ inputs.mode || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
+  QUALITY_MODE: ${{ inputs.mode || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
 
 jobs:
   quality:
@@ -45,10 +45,10 @@ jobs:
             --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
             2>&1 | tee logs/quality/hosted/tier2.log
       - name: Recheck current main before starting Tier 3
-        if: env.QUALITY_MODE != 'tier2'
+        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Build the canonical disposable PostgreSQL image
-        if: env.QUALITY_MODE != 'tier2'
+        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -59,7 +59,7 @@ jobs:
           cache-from: type=gha,scope=quality-postgres-amd64
           cache-to: type=gha,scope=quality-postgres-amd64,mode=min
       - name: Run cumulative gate with Tier 3
-        if: env.QUALITY_MODE != 'tier2'
+        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'
         run: |
           set -o pipefail
           ./core/entrypoints/cli/scripts/lint.sh --full \
@@ -92,9 +92,11 @@ jobs:
     name: Full SonarQube pilot (fresh baseline)
     needs: quality
     if: >-
-      inputs.mode == 'release-sonar' ||
-      (github.event_name == 'push' &&
-       (github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')))
+      always() && !cancelled() &&
+      (needs.quality.result == 'success' || needs.quality.result == 'failure') &&
+      (inputs.mode == 'release-sonar' || inputs.mode == 'sonar-diagnostic' ||
+       (github.event_name == 'push' &&
+        (github.ref_name == 'codex/sonar-runtime-pilot' || github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/'))))
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -109,6 +111,16 @@ jobs:
         with:
           name: quality-${{ github.sha }}-${{ github.run_attempt }}
           path: logs
+      - name: Identify diagnostic analysis after failed tests
+        if: needs.quality.result == 'failure'
+        run: |
+          echo '::warning::Diagnostic Sonar analysis: preceding quality gate failed; coverage may be incomplete. This run cannot qualify a release.'
+          echo 'Sonar runs diagnostically after a failed quality gate. Coverage may be incomplete. The failed gate remains failed; this run is not release evidence.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Identify runtime-only diagnostic without test coverage
+        if: env.QUALITY_MODE == 'sonar-diagnostic'
+        run: |
+          echo '::warning::Runtime diagnostic only: full source analysis without Tier 3 coverage. Not release evidence.'
+          echo 'Sonar runtime diagnostic: Tier 3 was not selected, and test coverage is unavailable. This measures analysis runtime only and cannot qualify a release.' >> "$GITHUB_STEP_SUMMARY"
       - name: Initialize an isolated SonarQube pilot server
         run: |
           source core/entrypoints/cli/scripts/docker_compose_env.sh

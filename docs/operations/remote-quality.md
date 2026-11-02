@@ -48,10 +48,21 @@ The manual full hook and direct lint.sh commands remain available for diagnosis.
 
 ## Sonar pilot and rollout
 
+The `sonar-diagnostic` dispatch mode measures the Sonar runtime independently:
+Tier 2 runs first, Tier 3 is not selected, and Sonar analyzes all canonical sources
+without test coverage. The bootstrap runtime-pilot branch selects this mode.
+It cannot qualify a release; use `release-sonar` for cumulative release evidence.
+
 The Sonar job starts a fresh, disposable SonarQube server, rotates the bootstrap
 admin password and creates a masked per-run token. It runs `lint.sh --sonar-full`
 with the existing profile and that same run's coverage. The backend and frontend
 scope/exclusions are unchanged. Findings are exported before teardown.
+
+For this pilot, Sonar also runs diagnostically after a completed failed quality
+job, using only that same run/SHA's artifact. Failed-test coverage may be
+incomplete. Missing artifacts stop analysis; cancelled or skipped quality jobs
+do not launch it. The quality failure remains failed, so a successful diagnostic
+scan cannot qualify the candidate for release.
 
 An empty server does not have the existing server's project history or new-code
 baseline. Keep the existing Sonar release check until quality-profile/gate parity

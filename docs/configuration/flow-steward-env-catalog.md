@@ -43,7 +43,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `provider_defaults` | Provider-neutral model defaults and AI chunk sizing. | `9` |
 | `provider_google` | Google provider credentials. | `0` |
 | `provider_openai` | OpenAI provider credentials. | `0` |
-| `quality_tools` | Quality and SonarQube helpers. | `14` |
+| `quality_tools` | Quality and SonarQube helpers. | `15` |
 | `release_discovery` | Official GitHub repository used for stable release discovery. | `2` |
 | `release_publication` | CI and manual tooling for publishing official release images. | `2` |
 | `static_catalogs` | Read-only Git-hosted static catalogs for workflow templates and extensions. | `3` |
@@ -52,10 +52,10 @@ python -m core.application.tooling.ops.generate_env_catalog
 
 ## Summary
 - Raw env-like names discovered by audit: `782`
-- Cataloged variables from `.env.example*` or manifest: `560`
-- Raw audit-only names outside examples/manifest: `222`
+- Cataloged variables from `.env.example*` or manifest: `561`
+- Raw audit-only names outside examples/manifest: `221`
 - Unique variables in shipped `.env.example*` files: `346`
-- Variables in canonical manifest: `470`
+- Variables in canonical manifest: `471`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
@@ -63,10 +63,10 @@ Cataloged variables by scope:
 - Public / Operator: `299`
 - Test Config: `33`
 - Test Only: `16`
-- Tooling Internal: `75`
+- Tooling Internal: `76`
 
 Raw audit-only names by scope:
-- Internal Runtime: `4`
+- Internal Runtime: `3`
 - Script Internal: `124`
 - Test Only: `44`
 - Tooling Internal: `8`
@@ -877,6 +877,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
 | `FS_EXTERNAL_TIER_GIT_COMMON_DIR` | quality_tools | local_development | no | no | - | - | CLI scripts (1) | Optional exact Git common directory mounted read-only into the external Tier 3 verifier. | `core/entrypoints/cli/scripts/run-external-tier-three.sh` |
+| `FS_QUALITY_CACHE_ROOT` | quality_tools | local_development | no | no | - | - | Docker Compose (1) | Derived per-job package-cache bind directory for disposable hosted quality runners; not a product or persisted installation setting. | `infra/docker/docker-compose.quality-hosted.yaml` |
 | `FS_QUALITY_EVIDENCE_MODE` | quality_tools | local_development | no | no | `reuse` | - | CLI scripts (1) | Controls local quality evidence behavior: reuse, report, or off. CLI flags take precedence. | `core/entrypoints/cli/scripts/lint.sh` |
 | `SONAR_BACKLOG` | - | local_development | no | no | `0` | .env.example.quality | CLI scripts (1) | SonarQube (optional quality profile) | `core/entrypoints/cli/scripts/lint.sh` |
 | `SONAR_BACKLOG_INPUT_CSV` | - | local_development | no | no | - | .env.example.quality | CLI scripts (1), Tooling (1) | SonarQube (optional quality profile) | `core/application/tooling/quality/sonar_generate_backlog.py`<br>`core/entrypoints/cli/scripts/lint.sh` |
@@ -926,7 +927,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 
 | Scope | Count | Common Usage Areas |
 |---|---|---|
-| Internal Runtime | `4` | CLI scripts (3), Tests (1), Docker Compose (1) |
+| Internal Runtime | `3` | CLI scripts (3), Tests (1) |
 | Script Internal | `124` | CLI scripts (190), CLI (12), Tests (7), Tooling (5), Database (3) |
 | Test Only | `44` | Tests (75), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |

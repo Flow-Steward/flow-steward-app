@@ -50,3 +50,7 @@ normal branches run Tier 2. Task-specific `codex/verify-release/` and
 access, preserving the candidate SHA and avoiding a shared-ref race between
 agents. Manual release modes become selectable after the workflow reaches main.
 No successful hosted run is assumed until measured.
+
+These source-control refs are external tooling metadata. The retired-executor
+guard admits only their exact reviewed documentation lines; its runtime and
+product-surface prohibition remains in force.
