@@ -26,6 +26,7 @@ _AUTHENTICATION_FIELDS = frozenset({"authorization", "proxy_authorization", "coo
 _AUTHENTICATION_SCHEMES = ("Bearer ", "Basic ", "Token ")
 _DROPPED_SENSITIVE_KEYS = frozenset({"default_secret_ref", "sample_file"})
 _REDACTED = "[redacted]"
+_STATE_PREFIX = "state."
 # Limit unquoted segments to names; quoted mapping keys retain their canonical
 # spelling. The runtime parser below remains authoritative for path validity.
 _PORTABLE_NAME = re.compile(r"[\w-]+")
@@ -35,9 +36,9 @@ _PORTABLE_DOUBLE_KEY = re.compile(r'\[\s*"(?:[^"\\]|\\.)*"\s*\]')
 
 
 def _portable_path_syntax(selector: str) -> bool:
-    if not selector.startswith("state."):
+    if not selector.startswith(_STATE_PREFIX):
         return False
-    match = _PORTABLE_NAME.match(selector, len("state."))
+    match = _PORTABLE_NAME.match(selector, len(_STATE_PREFIX))
     if match is None:
         return False
     position = match.end()
@@ -70,7 +71,7 @@ def _sensitive_key(key: Any) -> bool:
 
 
 def _portable_state_read(value: Any) -> bool:
-    if not isinstance(value, str) or not value.strip().startswith("state."):
+    if not isinstance(value, str) or not value.strip().startswith(_STATE_PREFIX):
         return False
     selector = value.strip()
     if not _portable_path_syntax(selector):

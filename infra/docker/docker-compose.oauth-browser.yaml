@@ -176,6 +176,7 @@ services:
     restart: "no"
 
   traefik:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.3@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f}
     # This lane has no host port publishing and uses a fixed internal listener because
     # the seed URL and app port are fixed independently of the outer gate environment.
     command: !override

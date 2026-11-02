@@ -17749,6 +17749,7 @@
     "canonical_name": "TRAEFIK_IMAGE",
     "code_read_locations": [
       "infra/docker/compact/ingress-bundled_traefik.yaml",
+      "infra/docker/docker-compose.oauth-browser.yaml",
       "infra/docker/docker-compose.prod.yaml",
       "infra/docker/docker-compose.yaml"
     ],

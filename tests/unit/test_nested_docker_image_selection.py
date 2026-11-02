@@ -40,6 +40,7 @@ def _record_docker(monkeypatch, module):
 def clone_docker(monkeypatch, tmp_path: Path):
     source = tmp_path / "candidate-core"
     source.mkdir()
+    source.chmod(0o775)  # Hosted preparation grants the audit group write access.
     (source / "candidate.py").write_text("CANDIDATE = True\n")
     derived = tmp_path / "derived-core"
     derived.mkdir()
@@ -49,6 +50,7 @@ def clone_docker(monkeypatch, tmp_path: Path):
         "container": False,
         "tag": False,
         "corrupt_copy": False,
+        "corrupt_mode": False,
         "bad_commit": False,
         "copy_failure": False,
         "commit_failure": False,
@@ -77,13 +79,20 @@ def clone_docker(monkeypatch, tmp_path: Path):
                 check=True,
             )
         elif command[:2] == ("docker", "cp"):
+            destination_mode = derived.stat().st_mode if derived.exists() else None
             shutil.copytree(source, derived, dirs_exist_ok=True)
+            if command[2].endswith("/.") and destination_mode is not None:
+                # Docker skips the '.' extraction-root metadata for an existing
+                # destination. copytree's copystat would otherwise hide this bug.
+                derived.chmod(destination_mode)
             if state["copy_failure"]:
                 raise subprocess.CalledProcessError(23, command, stderr="copy failed")
             if state["mutate_source"]:
                 (source / "candidate.py").write_text("CHANGED = True\n")
             if state["corrupt_copy"]:
                 (derived / "candidate.py").write_text("WRONG = True\n")
+            if state["corrupt_mode"]:
+                derived.chmod(0o755)
         elif command[:2] == ("docker", "commit"):
             state["tag"] = True
             if state["commit_failure"]:
@@ -131,6 +140,7 @@ def test_clone_image_replaces_core_before_copy_and_yields_commit_id(clone_docker
 
     try:
         selected = next(fixture)
+        assert derived.stat().st_mode & 0o777 == 0o775
         create = next(command for command in calls if command[:2] == ("docker", "create"))
         assert "rm -rf /app/core" in create[-1]
         assert create[create.index("sh") + 1] == IMAGE_ID
@@ -221,7 +231,7 @@ def test_invalid_identity_fails_before_docker_mutation(monkeypatch, value, consu
         consume()
 
 
-@pytest.mark.parametrize("fault", ("corrupt_copy", "bad_commit", "mutate_source"))
+@pytest.mark.parametrize("fault", ("corrupt_copy", "corrupt_mode", "bad_commit", "mutate_source"))
 def test_clone_image_refuses_unproven_content_and_cleans_construction(clone_docker, fault) -> None:
     _, state, _ = clone_docker
     state[fault] = True

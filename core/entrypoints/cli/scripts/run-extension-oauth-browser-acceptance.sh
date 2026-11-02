@@ -142,6 +142,7 @@ rendered_compose="$(mktemp -t flow-steward-oauth-compose.XXXXXX)"
 "${compose[@]}" config --format json >"${rendered_compose}"
 if ! python3 - "${rendered_compose}" <<'PY'
 import json
+import os
 import sys
 
 config = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -179,14 +180,41 @@ if offenders:
     print(chr(10).join(offenders), file=sys.stderr)
     raise SystemExit(1)
 print(f"isolation verified across {len(closure)} reachable services", file=sys.stderr)
+candidate_images = {
+    os.environ[name]
+    for name in (
+        "FS_OAUTH_ACCEPTANCE_APP_IMAGE",
+        "FS_OAUTH_ACCEPTANCE_AUDIT_IMAGE",
+        "FS_OAUTH_ACCEPTANCE_FRONTEND_IMAGE",
+    )
+}
+external_images = {
+    service["image"]
+    for name in closure
+    if (service := services[name]).get("image")
+    and not service.get("build")
+    and service["image"] not in candidate_images
+}
+with open(sys.argv[1], "w", encoding="utf-8") as output:
+    output.write("\n".join(sorted(external_images)))
 PY
 then
   rm -f "${rendered_compose}"
   echo "OAuth browser Compose rendered a host bind mount or published port." >&2
   exit 1
 fi
+dependency_images="$(cat "${rendered_compose}")"
 rm -f "${rendered_compose}"
 rendered_compose=""
+
+# BuildKit's FROM cache does not populate the daemon's Compose image store.
+# Prepare only missing shared dependencies; locally built candidates stay local.
+while IFS= read -r dependency_image; do
+  [[ -n "${dependency_image}" ]] || continue
+  if ! docker image inspect "${dependency_image}" >/dev/null 2>&1; then
+    docker pull "${dependency_image}"
+  fi
+done <<< "${dependency_images}"
 
 docker build --pull=false --target app-runtime \
   --build-arg "BUILD_SHA=${candidate_fingerprint}" \

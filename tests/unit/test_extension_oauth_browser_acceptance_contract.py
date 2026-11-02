@@ -30,6 +30,14 @@ MANUAL_RUNNER = ROOT / "core/entrypoints/cli/scripts/run-extension-oauth-browser
 REGISTRY_PATH = ROOT / "infra/tooling/quality/check-registry.json"
 
 
+def _canonical_traefik_image() -> str:
+    return next(
+        line.split()[1]
+        for line in DOCKERFILE.read_text().splitlines()
+        if line.startswith("FROM traefik:")
+    )
+
+
 # Execute the real runner with a closed fake Docker: unknown commands fail rather
 # than falling through to a daemon. State distinguishes pre-existing resources
 # from images/containers created after the startup preflight.
@@ -64,7 +72,13 @@ if args[:2] == ["image", "ls"]:
     assert args[2:4] == ["--quiet", "--filter"], args
     inventory("image", args[4].removeprefix("reference="))
 if args[:2] == ["image", "inspect"]:
-    done(0 if args[2] in state["image"] else 1)
+    present = json.loads(os.environ.get("OAUTH_PRESENT_IMAGES", "[]"))
+    done(0 if args[2] in state["image"] or args[2] in present else 1)
+if args[:1] == ["pull"]:
+    status = int(os.environ.get("OAUTH_PULL_STATUS", "0"))
+    if not status:
+        state["image"].append(args[1])
+    done(status)
 if args[:2] == ["image", "rm"]:
     for image in args[2:]:
         if os.environ.get("OAUTH_IMAGE_RESIDUE") != "1" and image in state["image"]:
@@ -77,13 +91,18 @@ if args[:1] == ["compose"]:
     assert args[1:3] == ["--project-name", project], args
     action = args[7]
     if action == "config":
-        done(output=json.dumps({"services": {"oauth-browser": {}}}))
+        done(output=os.environ.get("OAUTH_RENDERED_COMPOSE", json.dumps({"services": {"oauth-browser": {}}})))
     if action == "down":
         for kind in ("container", "network", "volume"):
             if os.environ.get("OAUTH_RESOURCE_RESIDUE") != "1" and project in state[kind]:
                 state[kind].remove(project)
         done()
     if action == "up":
+        present = json.loads(os.environ.get("OAUTH_PRESENT_IMAGES", "[]"))
+        required = json.loads(os.environ.get("OAUTH_REQUIRED_IMAGES", "[]"))
+        if any(image not in state["image"] and image not in present for image in required):
+            print("Dependency image missing with --pull never", file=sys.stderr)
+            done(17)
         for kind in ("container", "network", "volume"):
             state[kind].append(project)
         done(int(os.environ.get("OAUTH_UP_STATUS", "0")))
@@ -286,6 +305,51 @@ def test_runner_preserves_failure_and_cleanup_contracts(
         assert state["container"] == state["network"] == state["volume"] == []
     if "OAUTH_IMAGE_RESIDUE" not in overrides:
         assert state["image"] == []
+
+
+@pytest.mark.parametrize(("pull_status", "ingress_present"), ((0, False), (37, False), (0, True)))
+def test_runner_fetches_only_missing_reachable_shared_images_before_no_pull_startup(
+    tmp_path: Path, pull_status: int, ingress_present: bool
+) -> None:
+    ingress = _canonical_traefik_image()
+    cached = ["rabbitmq:fixture"]
+    project = "fs-oauth-generic-contract-oauth-browser"
+    rendered = {
+        "services": {
+            "oauth-browser": {
+                "image": f"{project}-audit:{'a' * 16}",
+                "depends_on": {name: {} for name in ("traefik", "rabbitmq-fs", "pg-fs")},
+            },
+            "traefik": {"image": ingress},
+            "rabbitmq-fs": {"image": cached[0]},
+            "pg-fs": {"image": "local/postgres:fixture", "build": {"context": "."}},
+            "unreachable": {"image": "unrelated:unused"},
+        }
+    }
+    result, commands, state = _run_recorded_oauth_lane(
+        tmp_path,
+        overrides={
+            "OAUTH_RENDERED_COMPOSE": json.dumps(rendered),
+            "OAUTH_PRESENT_IMAGES": json.dumps([*cached, *([ingress] if ingress_present else [])]),
+            "OAUTH_REQUIRED_IMAGES": json.dumps([ingress, *cached]),
+            "OAUTH_PULL_STATUS": str(pull_status),
+        },
+    )
+    pulls = [args for args in commands if args[0] == "pull"]
+    assert pulls == ([] if ingress_present else [["pull", ingress]])
+    if pull_status:
+        assert result.returncode == pull_status
+        assert not any(args[0] == "build" for args in commands)
+        assert not any(args[0] == "compose" and args[7] == "up" for args in commands)
+        assert state["image"] == []
+    else:
+        assert result.returncode == 0, result.stderr
+        build_at = next(index for index, args in enumerate(commands) if args[0] == "build")
+        if pulls:
+            assert commands.index(pulls[0]) < build_at
+        # Shared bases are not owned candidate images.
+        assert state["image"] == ([] if ingress_present else [ingress])
+    assert state["container"] == state["network"] == state["volume"] == []
 
 
 def test_consumer_seed_discovery_accepts_an_empty_core_extensions_root(tmp_path: Path) -> None:
@@ -548,6 +612,7 @@ def test_rendered_compose_has_no_host_bind_or_published_port() -> None:
         "FS_HOST_GID": "20",
         "APP_PORT": "18443",
         "HTTP_PORT": "18080",
+        "TRAEFIK_IMAGE": "",  # Exercise the acceptance overlay's canonical default.
     }
     result = subprocess.run(
         [
@@ -570,6 +635,7 @@ def test_rendered_compose_has_no_host_bind_or_published_port() -> None:
         text=True,
     )
     rendered = json.loads(result.stdout)
+    assert rendered["services"]["traefik"]["image"] == _canonical_traefik_image()
     seed_command = rendered["services"]["oauth-browser-seed"]["command"]
     seed_base_url = urlsplit(seed_command[seed_command.index("--base-url") + 1])
     traefik_command = rendered["services"]["traefik"]["command"]

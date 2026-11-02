@@ -197,13 +197,15 @@ def clone_tool_image() -> Iterator[str]:
         "sh",
         base_image,
         "-c",
-        "rm -rf /app/core && mkdir -p /app/core",
+        "rm -rf /app/core",
     ).stdout.strip()
     image_attempted = False
     try:
         try:
             _run("docker", "start", "--attach", container)
-            _run("docker", "cp", str(_CANDIDATE_CORE) + "/.", f"{container}:/app/core")
+            # Copy the directory itself: copying core/. into an existing directory
+            # leaves its root mode unchanged, losing hosted group-write permissions.
+            _run("docker", "cp", str(_CANDIDATE_CORE), f"{container}:/app")
             image_attempted = True
             committed = _run("docker", "commit", container, image).stdout.strip()
             if _IMAGE_ID.fullmatch(committed) is None:
