@@ -197,6 +197,27 @@ def test_sonar_bootstrap_does_not_trip_the_secret_scanner() -> None:
     assert not secrets.json(), secrets.json()
 
 
+def test_sonar_bootstrap_generated_password_satisfies_server_policy() -> None:
+    source = (ROOT / ".github/workflows/remote-quality.yml").read_text()
+    assignment = next(
+        line.strip() for line in source.splitlines() if line.strip().startswith("password=")
+    )
+    result = subprocess.run(
+        ["bash", "-euc", assignment + '\n printf "%s" "$password"'],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    # Sonar's bootstrap API rejects a long hexadecimal password: length alone
+    # is insufficient; all four character classes are mandatory.
+    value = result.stdout
+    assert len(value) >= 12
+    assert any(char.islower() for char in value)
+    assert any(char.isupper() for char in value)
+    assert any(char.isdigit() for char in value)
+    assert any(not char.isalnum() for char in value)
+
+
 @pytest.mark.skipif(
     os.geteuid() != 0, reason="mixed-UID file-access regression needs root in fs-audit"
 )

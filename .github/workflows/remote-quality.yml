@@ -202,7 +202,8 @@ jobs:
             sleep 5
           done
           [[ "$ready" == 1 ]] || exit 1
-          password="$(openssl rand -hex 24)"
+          # Keep 192 random bits and satisfy Sonar's required character classes.
+          password="$(openssl rand -hex 24)Aa1!"
           printf '::add-mask::%s\n' "$password"
           # A fresh Sonar server initially uses its username as the password.
           bootstrap_user=admin
