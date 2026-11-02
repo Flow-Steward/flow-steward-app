@@ -2,6 +2,10 @@
 # development installation: its filesystem and volumes belong to one job VM.
 services:
   fs-audit:
+    environment:
+      # Hosted VMs have a dedicated memory budget. Reuse each TypeScript
+      # program across more files instead of restarting ESLint every 32 files.
+      ESLINT_BATCH_SIZE: "128"
     volumes:
       - ${FS_QUALITY_CACHE_ROOT:?hosted quality cache directory required}:/home/fs/.cache/flow-steward-quality
   sonarqube:

@@ -41,6 +41,19 @@ jobs:
       - name: Run canonical Tier 2
         run: |
           set -o pipefail
+          # Sample only this disposable job's containers, including a failed gate.
+          (
+            while true; do
+              date --utc --iso-8601=seconds
+              mapfile -t owned_ids < <(docker ps -q --filter "label=com.docker.compose.project=$FS_COMPOSE_PROJECT_NAME")
+              if (( ${#owned_ids[@]} )); then
+                docker stats --no-stream --format '{{json .}}' "${owned_ids[@]}" || true
+              fi
+              sleep 15
+            done
+          ) > logs/quality/hosted/tier2-resources.log 2>&1 &
+          quality_monitor_pid=$!
+          trap 'kill "$quality_monitor_pid" 2>/dev/null || true' EXIT
           ./core/entrypoints/cli/scripts/lint.sh --fast \
             --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
             2>&1 | tee logs/quality/hosted/tier2.log

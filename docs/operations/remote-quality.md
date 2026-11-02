@@ -99,3 +99,9 @@ only the minimal reports needed for diagnosis or release evidence elsewhere.
 The workflow records gate output, evidence, coverage and Docker/disk diagnostics.
 Compare cold versus warm runs and separate preparation, Tier 2, Tier 3 and Sonar
 time before changing worker counts or buying a larger machine.
+
+The hosted overlay groups 128 files per ESLint invocation (the local default
+remains 32). This keeps the same rules and complete source selection while
+avoiding repeated TypeScript-program startup. Tier 2 records container CPU and
+memory samples every 15 seconds to check the hosted memory budget. This grouping
+is a performance pilot; compare its timings and peak samples before rollout.
