@@ -19,6 +19,14 @@ _InMemory = (
 _JOB_LOGGER = "core.application.jobs.task_execution_service"
 
 
+def test_safe_numeric_values_preserve_large_int_and_infinities() -> None:
+    huge = 10**1000
+    assert otel_logs._safe_value(huge) == huge
+    assert otel_logs._safe_value(float("inf")) == float("inf")
+    assert otel_logs._safe_value(float("-inf")) == float("-inf")
+    assert otel_logs._safe_value(float("nan")) is None
+
+
 class _Capture(logging.Handler):
     def __init__(self) -> None:
         super().__init__()

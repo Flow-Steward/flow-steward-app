@@ -9,6 +9,7 @@ from core.infrastructure.config.runtime_env import runtime_env
 
 _ENV_NAME = "FS_AGENT_TEXT_FILE_EXTENSIONS"
 _SUFFIX = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+_YAML_EXTENSIONS = frozenset({".yaml", ".yml"})
 _MIME_EXTENSIONS = {
     "text/markdown": frozenset({".md", ".markdown"}),
     "application/json": frozenset({".json"}),
@@ -16,9 +17,9 @@ _MIME_EXTENSIONS = {
     "text/xml": frozenset({".xml"}),
     "text/csv": frozenset({".csv"}),
     "text/tab-separated-values": frozenset({".tsv"}),
-    "application/yaml": frozenset({".yaml", ".yml"}),
-    "application/x-yaml": frozenset({".yaml", ".yml"}),
-    "text/yaml": frozenset({".yaml", ".yml"}),
+    "application/yaml": _YAML_EXTENSIONS,
+    "application/x-yaml": _YAML_EXTENSIONS,
+    "text/yaml": _YAML_EXTENSIONS,
     "application/rtf": frozenset({".rtf"}),
     "text/rtf": frozenset({".rtf"}),
 }

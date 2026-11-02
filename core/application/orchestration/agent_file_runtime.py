@@ -23,6 +23,7 @@ _MAX_TOTAL_TEXT_CHARS = 50 * 1024 * 1024
 _NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _ARTIFACT = re.compile(r"^art_[A-Za-z0-9_-]+$")
 _BINARY_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+_FILE_UNAVAILABLE = "File is unavailable"
 
 
 class AgentFileAccessError(ValueError):
@@ -76,9 +77,9 @@ class AgentFileContext:
     def _selected(self, name: str) -> _AuthorizedFile:
         selected = self._files.get(name)
         if selected is None:
-            raise AgentFileAccessError("File is unavailable")
+            raise AgentFileAccessError(_FILE_UNAVAILABLE)
         if self._runtime._authorize(selected.name, selected.artifact_id) != selected:
-            raise AgentFileAccessError("File is unavailable")
+            raise AgentFileAccessError(_FILE_UNAVAILABLE)
         return selected
 
     def authorized_artifact_id(self, name: str) -> str:
@@ -103,7 +104,7 @@ class AgentFileContext:
                 selected.artifact_id, max_size_bytes=limit
             )
         except Exception as exc:
-            raise AgentFileAccessError("File is unavailable") from exc
+            raise AgentFileAccessError(_FILE_UNAVAILABLE) from exc
         if (
             not isinstance(body, bytes)
             or len(body) != selected.size_bytes
@@ -174,7 +175,7 @@ class AgentFileRuntime:
         if not all(
             (self.plane, self.account_id, self.project_id, self.job_id)
         ) or not _ARTIFACT.fullmatch(artifact_id):
-            raise AgentFileAccessError("File is unavailable")
+            raise AgentFileAccessError(_FILE_UNAVAILABLE)
         try:
             meta = self.plane.get_artifact(artifact_id)
             from core.application.jobs.job_artifact_access import artifact_metadata_is_downloadable
@@ -184,22 +185,22 @@ class AgentFileRuntime:
                 or str(meta.get("artifact_id") or "").strip() != artifact_id
                 or not artifact_metadata_is_downloadable(meta)
             ):
-                raise AgentFileAccessError("File is unavailable")
+                raise AgentFileAccessError(_FILE_UNAVAILABLE)
             owner = meta.get("owner_scope")
             if not isinstance(owner, Mapping) or any(
                 str(owner.get(k) or "").strip() != value
                 for k, value in (("project_id", self.project_id), ("job_id", self.job_id))
             ):
-                raise AgentFileAccessError("File is unavailable")
+                raise AgentFileAccessError(_FILE_UNAVAILABLE)
             # Webhook intake predates a project/job; normal replay adoption adds
             # those owners but not an account. The worker already derived this
             # account from that exact durable project. A present account must agree.
             owner_account = str(owner.get("account_id") or "").strip()
             if owner_account and owner_account != self.account_id:
-                raise AgentFileAccessError("File is unavailable")
+                raise AgentFileAccessError(_FILE_UNAVAILABLE)
             expiry = meta.get("expires_at")
             if meta.get("expired") or (expiry is not None and float(expiry) <= time.time()):
-                raise AgentFileAccessError("File is unavailable")
+                raise AgentFileAccessError(_FILE_UNAVAILABLE)
             size = meta.get("size_bytes")
             digest = str(meta.get("sha256") or "").lower()
             if (
@@ -208,7 +209,7 @@ class AgentFileRuntime:
                 or not 0 <= size <= _MAX_FILE_BYTES
                 or not re.fullmatch(r"[0-9a-f]{64}", digest)
             ):
-                raise AgentFileAccessError("File is unavailable")
+                raise AgentFileAccessError(_FILE_UNAVAILABLE)
             return _AuthorizedFile(
                 name,
                 artifact_id,
@@ -220,7 +221,7 @@ class AgentFileRuntime:
         except AgentFileAccessError:
             raise
         except Exception as exc:
-            raise AgentFileAccessError("File is unavailable") from exc
+            raise AgentFileAccessError(_FILE_UNAVAILABLE) from exc
 
     def bind_files(self, bindings: list[dict[str, str]], state: dict[str, Any]) -> AgentFileContext:
         if not isinstance(bindings, list) or len(bindings) > _MAX_FILES:

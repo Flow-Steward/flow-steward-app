@@ -50,6 +50,15 @@ def test_replace_no_match_preserves_input():
     }
 
 
+def test_counted_repeat_rejects_unicode_digits():
+    with pytest.raises(ValueError, match="regex_compile_limit"):
+        invoke("regex_find", value="aa", pattern="a{٢}")
+
+
+def test_replacement_backreference_keeps_following_unicode_digit_literal():
+    assert invoke("regex_replace", value="a", pattern="(a)", replacement="\\1٢") == {"result": "a٢"}
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

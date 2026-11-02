@@ -117,14 +117,16 @@ def _run_recorded_oauth_lane(
     fake_bin.mkdir()
     docker = fake_bin / "docker"
     # env python3 would enter the snapshot wrapper below, then exec this interpreter again.
-    docker_source = _FAKE_OAUTH_DOCKER.replace("#!/usr/bin/env python3", f"#!{sys.executable}", 1)
+    docker_source = _FAKE_OAUTH_DOCKER.replace(
+        "#!/usr/bin/env python3", f"#!{sys.executable} -S", 1
+    )
     docker.write_text(docker_source, encoding="utf-8")
     docker.chmod(0o755)
     # Snapshot generation itself has separate contract tests; control its result
     # here while running the actual runner, Compose isolation check and exit parser.
     python = fake_bin / "python3"
     python.write_text(
-        f"#!{sys.executable}\n"
+        f"#!{sys.executable} -S\n"
         "import os,pathlib,sys\n"
         "if sys.argv[1:3] == ['-m', 'core.application.tooling.quality.repository_snapshot']:\n"
         " p=pathlib.Path(os.environ['OAUTH_FAKE_ROOT'])/'snapshot-count'\n"
@@ -132,7 +134,7 @@ def _run_recorded_oauth_lane(
         " p.write_text(str(count+1))\n"
         " print(('b' if count and os.environ.get('OAUTH_DIRTY_SOURCE') else 'a')*64)\n"
         "else:\n"
-        f" os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])\n",
+        f" os.execv({sys.executable!r}, [{sys.executable!r}, '-S', *sys.argv[1:]])\n",
         encoding="utf-8",
     )
     python.chmod(0o755)

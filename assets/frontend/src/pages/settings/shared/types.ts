@@ -148,7 +148,7 @@ export type OAuthConsentPreset = {
   /** The scopes this preset would actually grant: the preset ∩ the request. */
   scopes: string[];
   available: boolean;
-  reason: "" | "exceeds_authority" | "not_requested" | string;
+  reason: string;
   /** The client asked for fewer scopes than the preset holds. */
   subset_of_preset: boolean;
 };

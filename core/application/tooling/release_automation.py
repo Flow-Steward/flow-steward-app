@@ -11,7 +11,7 @@ from pathlib import Path
 
 from core.application.release.images import all_release_roles
 
-_TAG = re.compile(r"v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))")
+_TAG = re.compile(r"v((?:0|[1-9](?a:\d*))\.(?:0|[1-9](?a:\d*))\.(?:0|[1-9](?a:\d*)))")
 _SHA = re.compile(r"[a-f0-9]{40}")
 _DIGEST = re.compile(r"sha256:[a-f0-9]{64}")
 _PLATFORMS = ("linux/amd64", "linux/arm64")

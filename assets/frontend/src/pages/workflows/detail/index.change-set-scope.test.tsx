@@ -44,7 +44,7 @@ it("discards source-only structure when the author confirms navigation to anothe
   fireEvent.click(within(await screen.findByRole("dialog", { name: "Leave the builder?" })).getByRole("button", { name: "Leave and discard" }));
   await waitFor(() => expect(router.state.location.pathname).toBe("/registry/workflows/destination/builder"));
   await screen.findAllByText("Destination workflow");
-  expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied");
+  await waitFor(() => expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied"));
   expect(screen.queryByRole("group", { name: "Open step Source only draft" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
 
@@ -67,7 +67,7 @@ it("discards source-only structure when the author confirms navigation to anothe
       operations: [{ op: "create_step", step: { step_id: "stop_success", display_name: "Destination only draft" } }],
     });
   });
-}, 10_000);
+});
 
 it.each(["Apply changes", "Discard changes"])("retires the owned new-step parameter notice after %s", async (action) => {
   let applied = false;

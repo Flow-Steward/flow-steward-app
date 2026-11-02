@@ -20,6 +20,7 @@ The handler is attached to the allowlisted loggers only: no root handler, no
 from __future__ import annotations
 
 import logging
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -54,7 +55,7 @@ def safe_event(code: str, fields: Mapping[str, Any] | None = None) -> dict[str, 
 
 
 def _safe_value(value: Any) -> Any | None:
-    if isinstance(value, bool) or (isinstance(value, (int, float)) and value == value):
+    if isinstance(value, (bool, int)) or (isinstance(value, float) and not math.isnan(value)):
         return value
     if isinstance(value, str) and _SAFE_TEXT.fullmatch(value):
         return value

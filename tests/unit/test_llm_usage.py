@@ -50,6 +50,16 @@ def test_malformed_counts_are_unknown(value) -> None:
     assert usage_from_mapping({"input_tokens": value, "output_tokens": 2}).input_tokens is None
 
 
+def test_count_preserves_large_integer_and_infinity_behavior() -> None:
+    from core.application.observability.llm_usage import _count
+
+    huge = 10**1000
+    assert _count(huge) == huge
+    with pytest.raises(OverflowError):
+        _count(float("inf"))
+    assert _count(float("-inf")) is None
+
+
 def test_total_is_derived_only_from_known_components() -> None:
     usage = usage_from_mapping({"input_tokens": 7, "output_tokens": 3})
 

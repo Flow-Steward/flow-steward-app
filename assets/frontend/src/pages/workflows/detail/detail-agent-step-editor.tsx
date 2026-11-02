@@ -14,8 +14,8 @@ export type AgentStepEditorContext = {
   agentCatalogQuery: { isLoading?: boolean; isError?: boolean };
   agentBlockCatalogQuery: { isLoading?: boolean; isError?: boolean };
   agentBlockOptions: Array<{ value: string; label: string; disabled?: boolean }>;
-  availableWorkflowVariableSuggestions?: Parameters<typeof AgentFiles>[0]["suggestions"];
-  renderWorkflowVariableInput?: Parameters<typeof AgentFiles>[0]["renderVariableInput"];
+  availableWorkflowVariableSuggestions?: NonNullable<Parameters<typeof AgentFiles>[0]["suggestions"]>;
+  renderWorkflowVariableInput?: NonNullable<Parameters<typeof AgentFiles>[0]["renderVariableInput"]>;
   stepOverrideDraft: string; setStepOverrideDraft: (value: string) => void; setStepBlockKey: (value: string) => void;
 };
 export function AgentBindingFields({ ctx }: Readonly<{ ctx: AgentStepEditorContext }>) {
@@ -42,7 +42,7 @@ export function AgentBindingFields({ ctx }: Readonly<{ ctx: AgentStepEditorConte
     {ctx.agentCatalogQuery.isError ? <p className="fs-field-helper">{t("react.workflows.agent_catalog_could_not_be_loaded_reopen_this_step_to_retry", "Agent catalog could not be loaded. Reopen this step to retry.")}</p> : null}
     {!ctx.agentCatalogQuery.isLoading && !ctx.agentCatalogQuery.isError && !ctx.stepAgentOptions.length ? <p className="fs-field-helper">{t("react.workflows.no_agents_are_available_create_or_enable_an_agent_in_registry_before_saving_this_step", "No agents are available. Create or enable an agent in Registry before saving this step.")}</p> : null}
     <AgentContractMappingFields ctx={ctx} />
-    <AgentFiles suggestions={ctx.availableWorkflowVariableSuggestions} value={ctx.stepOverrideDraft} renderVariableInput={ctx.renderWorkflowVariableInput} onChange={(value) => { draft.touchOverride(); ctx.setStepOverrideDraft(value); }} />
+    <AgentFiles {...(ctx.availableWorkflowVariableSuggestions === undefined ? {} : { suggestions: ctx.availableWorkflowVariableSuggestions })} {...(ctx.renderWorkflowVariableInput === undefined ? {} : { renderVariableInput: ctx.renderWorkflowVariableInput })} value={ctx.stepOverrideDraft} onChange={(value) => { draft.touchOverride(); ctx.setStepOverrideDraft(value); }} />
   </div>;
 }
 

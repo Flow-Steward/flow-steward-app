@@ -3,11 +3,14 @@
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+function primitiveText(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" ? String(value) : "";
+}
 export function connectorLiteralWidget(parameter: Record<string, unknown> | undefined): string {
-  return String(parameter?.widget_type || parameter?.widget || parameter?.type || "").toLowerCase();
+  return primitiveText(parameter?.widget_type || parameter?.widget || parameter?.type || "").toLowerCase();
 }
 export function connectorStringLiteral(parameter: Record<string, unknown> | undefined): boolean {
-  const type = String(parameter?.value_type || record(parameter?.schema).type || "");
+  const type = primitiveText(parameter?.value_type || record(parameter?.schema).type || "");
   return type === "text" || type === "string" || (!type && ["text", "textarea"].includes(connectorLiteralWidget(parameter)));
 }
 type SchemaMatch = "match" | "mismatch" | "deferred";
@@ -73,8 +76,8 @@ function schemaMatches(value: unknown, schema: Record<string, unknown>): SchemaM
   }
   if (Array.isArray(schema.allOf)) schema.allOf.forEach((item) => include(schemaMatches(value, record(item))));
   if (Array.isArray(schema.anyOf)) {
-    const matches = schema.anyOf.map((item) => schemaMatches(value, record(item)));
-    include(matches.includes("match") ? "match" : matches.includes("deferred") ? "deferred" : "mismatch");
+    const matches = new Set(schema.anyOf.map((item) => schemaMatches(value, record(item))));
+    include(matches.has("match") ? "match" : matches.has("deferred") ? "deferred" : "mismatch");
   }
   if (Array.isArray(schema.oneOf)) {
     const matches = schema.oneOf.map((item) => schemaMatches(value, record(item)));
@@ -108,8 +111,8 @@ export function isEncodedConnectorNull(value: unknown): boolean {
   if (typeof value !== "string" || !value.startsWith("literal:")) return false;
   const payload = value.slice("literal:".length);
   const isPythonWhitespace = (character: string) => {
-    const code = character.charCodeAt(0);
-    return (code >= 0x1c && code <= 0x1f) || /\p{White_Space}/u.test(character);
+    const code = character.codePointAt(0);
+    return (code !== undefined && code >= 0x1c && code <= 0x1f) || /\p{White_Space}/u.test(character);
   };
   let start = 0;
   let end = payload.length;
@@ -142,9 +145,9 @@ export function connectorLiteralError(parameter: Record<string, unknown> | undef
   }
   if (widget === "boolean" && typeof value !== "boolean") return "boolean";
   if (["number", "integer"].includes(widget) && (typeof value !== "number" || !Number.isFinite(value))) return "number";
-  if (integer && typeof value === "number" && !/^-?(?:0|[1-9][0-9]*)$/.test(text.trim())) return "integer";
+  if (integer && typeof value === "number" && !/^-?(?:0|[1-9]\d*)$/.test(text.trim())) return "integer";
   if (widget === "integer" && typeof value === "number" && !Number.isInteger(value)) return "integer";
-  const declaredType = String(parameter?.value_type || "");
+  const declaredType = primitiveText(parameter?.value_type || "");
   const inferredType = declaredType === "text" ? "string" : ["string", "number", "integer", "boolean", "array", "object", "null"].includes(declaredType) ? declaredType : "";
   if (schemaMatches(value, { ...(inferredType ? { type: inferredType } : {}), ...schema }) === "mismatch") return "schema";
   return "";
@@ -152,7 +155,8 @@ export function connectorLiteralError(parameter: Record<string, unknown> | undef
 export function invalidConnectorLiteralNames(mapping: unknown, parameters: Array<Record<string, unknown>>): string[] {
   const values = record(mapping);
   return parameters.flatMap((parameter) => {
-    const name = String(parameter.name || parameter.key || parameter.id || parameter.field || "").trim();
+    const name = primitiveText(parameter.name || parameter.key || parameter.id || parameter.field || "").trim();
+    if (!name) return [];
     const value = values[name];
     if (typeof value !== "string" || !value.startsWith("literal:")) return [];
     let text = value.slice(8);

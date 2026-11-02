@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { isAgentFileStatePath } from "./detail-agent-file-path";
 import { AgentFiles } from "./detail-agent-files";
 import { normalizeAvailableWorkflowVariableSuggestions } from "./detail-core";
@@ -11,6 +12,23 @@ function formats(extensions: string[]) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ text_extensions: extensions, text_encoding: "utf-8", rtf_mode: "source" }), { status: 200, headers: { "content-type": "application/json" } }));
 }
 afterEach(() => vi.restoreAllMocks());
+it("retains the remaining file control and focus when an earlier row is removed", () => {
+  formats([".txt"]);
+  function Editor() {
+    const [value, setValue] = useState(JSON.stringify({ agent: { file_bindings: [{ name: "first", source: "state.first" }, { name: "second", source: "state.second" }] }, extra: true }));
+    return <><AgentFiles value={value} onChange={setValue} /><output aria-label="override">{value}</output></>;
+  }
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><Editor /></QueryClientProvider>);
+  const second = screen.getByRole("textbox", { name: "File label 2" });
+  second.focus();
+  fireEvent.change(second, { target: { value: "updated" } });
+  expect(screen.getByRole("textbox", { name: "File label 2" })).toBe(second);
+  fireEvent.click(screen.getByRole("button", { name: "Remove file 1" }));
+  expect(screen.getByRole("textbox", { name: "File label 1" })).toBe(second);
+  expect(second).toHaveFocus();
+  expect(second).toHaveValue("updated");
+  expect(JSON.parse(screen.getByLabelText("override").textContent || "{}")).toEqual({ agent: { file_bindings: [{ name: "updated", source: "state.second" }] }, extra: true });
+});
 it.each([
   { name: "default", extensions: [".txt", ".md", ".json", ".xml", ".rtf"] },
   { name: "custom", extensions: [".custom"] },

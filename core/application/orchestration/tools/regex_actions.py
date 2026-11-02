@@ -14,8 +14,8 @@ _MAX_PATTERN = 4096
 _MAX_MATCHES = 1000
 _MAX_FLAGS = 5
 _TIMEOUT_SECONDS = 0.1
-_REPLACEMENT_TOKENS = re.compile(r"\\(?:g<([^>]+)>|[0-7]{3}|([1-9][0-9]?)|.)", re.DOTALL)
-_COUNTED_REPEAT = re.compile(r"([0-9]+)(?:,([0-9]*))?")
+_REPLACEMENT_TOKENS = re.compile(r"\\(?:g<([^>]+)>|[0-7]{3}|([1-9](?a:\d)?)|.)", re.DOTALL)
+_COUNTED_REPEAT = re.compile(r"((?a:\d+))(?:,((?a:\d*)))?")
 _MAX_COMPILE_EXPANSION = 65_536
 _FLAGS = {"i": regex.I, "m": regex.M, "s": regex.S, "x": regex.X, "a": regex.A}
 

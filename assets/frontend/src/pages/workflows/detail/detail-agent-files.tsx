@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAgentFileFormats } from "@/pages/workflows/shared/api";
 import { isAgentFileStatePath } from "./detail-agent-file-path";
@@ -19,6 +19,7 @@ function AgentFileFormats() {
 
 export function AgentFiles({ value, onChange, renderVariableInput, suggestions = [] }: Readonly<{ value: string; onChange: (value: string) => void; renderVariableInput?: VariableInput; suggestions?: Array<{ options: Array<{ value: string; valueType?: string }> }> }>) {
   const { t } = useI18n();
+  const [identityState, setIdentityState] = useState<{ ids: number[]; next: number }>({ ids: [], next: 0 });
   let override: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(value || "{}");
@@ -34,6 +35,13 @@ export function AgentFiles({ value, onChange, renderVariableInput, suggestions =
     return <p className="fs-field-helper" role="alert">{t("react.workflows.agent_files_uneditable", "The saved file bindings cannot be edited here. Repair them in Override JSON.")}</p>;
   }
   const files = (raw || []) as FileBinding[];
+  let identities = identityState.ids;
+  if (identities.length !== files.length) {
+    identities = identities.slice(0, files.length);
+    let next = identityState.next;
+    while (identities.length < files.length) identities.push(next++);
+    setIdentityState({ ids: identities, next });
+  }
   const filePaths = new Set(suggestions.flatMap((group) => group.options.filter((option) => /^(file|artifact|artifact_handle)$/i.test(option.valueType || "") && isAgentFileStatePath(option.value)).map((option) => option.value)));
   const nameValid = (file: FileBinding) => /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(file.name) && files.filter((item) => item.name === file.name).length === 1;
   const save = (next: FileBinding[]) => onChange(JSON.stringify({ ...override, agent: { ...agent, file_bindings: next } }, null, 2));
@@ -47,10 +55,10 @@ export function AgentFiles({ value, onChange, renderVariableInput, suggestions =
       const number = index + 1;
       const sourceLabel = t("react.workflows.agent_file_source", "File source {number}", { number });
       const sourceArgs = { ariaLabel: sourceLabel, ariaRequired: true, ariaInvalid: Boolean(file.source && !isAgentFileStatePath(file.source)), ariaDescribedBy: `agent-file-source-help-${index}`, className: "fs-input", onChange: (source: string) => update(index, { source }), panelId: `agent-file-source-${index}`, placeholder: "state.document_file", value: file.source, accept: (path: string) => filePaths.has(path) };
-      return <div key={index} className="space-y-2 rounded-lg border border-[var(--fs-border-default)] p-3">
+      return <div key={identities[index]} className="space-y-2 rounded-lg border border-[var(--fs-border-default)] p-3">
         <label className="block"><RequiredLabel>{t("react.workflows.agent_file_name", "File label {number}", { number })}</RequiredLabel><input className="fs-input" aria-label={t("react.workflows.agent_file_name", "File label {number}", { number })} aria-invalid={file.name !== "" && !nameValid(file) || undefined} aria-describedby={`agent-file-name-help-${index}`} required value={file.name} onChange={(event) => update(index, { name: event.target.value })} /></label><p id={`agent-file-name-help-${index}`} className="fs-field-helper">{t("react.workflows.agent_file_name_help", "Name used by the agent: start with a letter, then use up to 63 letters, numbers, underscores or hyphens. Each label must be unique.")}</p>
         <label className="block"><RequiredLabel>{sourceLabel}</RequiredLabel>{renderVariableInput ? renderVariableInput(sourceArgs) : <input className="fs-input" aria-label={sourceLabel} aria-invalid={sourceArgs.ariaInvalid || undefined} aria-describedby={sourceArgs.ariaDescribedBy} required value={file.source} placeholder={sourceArgs.placeholder} onChange={(event) => update(index, { source: event.target.value })} />}</label><p id={sourceArgs.ariaDescribedBy} className="fs-field-helper">{t("react.workflows.agent_file_source_help", "Choose an earlier file or enter its state path, such as state.document_file.")}</p>
-        <button type="button" className="fs-btn fs-btn-secondary" onClick={() => save(files.filter((_, i) => i !== index))}>{t("react.workflows.agent_file_remove", "Remove file {number}", { number })}</button>
+        <button type="button" className="fs-btn fs-btn-secondary" onClick={() => { setIdentityState((current) => ({ ...current, ids: current.ids.filter((_, i) => i !== index) })); save(files.filter((_, i) => i !== index)); }}>{t("react.workflows.agent_file_remove", "Remove file {number}", { number })}</button>
       </div>;
     })}
     <button type="button" className="fs-btn fs-btn-secondary" disabled={files.length >= 10} onClick={() => save([...files, { name: "", source: "" }])}>{t("react.workflows.agent_file_add", "Add file")}</button>

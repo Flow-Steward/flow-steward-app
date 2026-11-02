@@ -18,6 +18,12 @@ from core.infrastructure.observability.otel_export_guards import (
     SanitizingSpanExporter,
 )
 
+
+def test_status_error_code_accepts_only_ascii_digits() -> None:
+    assert otel_http._STATUS_ERROR.fullmatch("500")
+    assert not otel_http._STATUS_ERROR.fullmatch("5\u0660\u0660")
+
+
 _ENABLED = {
     "OTEL_TRACES_EXPORTER": "otlp",
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://collector:4318/v1/traces",

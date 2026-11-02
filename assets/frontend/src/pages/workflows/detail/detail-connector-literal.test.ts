@@ -1,4 +1,12 @@
-import { connectorLiteralError, invalidConnectorLiteralNames } from "./detail-connector-literal";
+import { connectorLiteralError, connectorLiteralWidget, connectorStringLiteral, invalidConnectorLiteralNames } from "./detail-connector-literal";
+
+it("does not coerce structured metadata to string identifiers", () => {
+  expect(connectorLiteralWidget({ widget_type: { name: "text" } })).toBe("");
+  expect(connectorStringLiteral({ value_type: { name: "string" } })).toBe(false);
+  expect(invalidConnectorLiteralNames({ "[object Object]": "literal:1" }, [{ name: {} , widget_type: "boolean" }])).toEqual([]);
+  expect(connectorLiteralWidget({ widget_type: 42 })).toBe("42");
+  expect(connectorStringLiteral({ value_type: null, widget_type: "text" })).toBe(true);
+});
 
 describe("connector literal schema validation", () => {
   it.each([

@@ -36,6 +36,8 @@ OUTCOME_PAUSED = "paused"
 OUTCOME_CANCELLED = "cancelled"
 OUTCOME_SKIPPED = "skipped"
 OTHER = "other"
+_ERROR_TYPE = "error.type"
+_OPERATION_NAME = "gen_ai.operation.name"
 # The semantic conventions' fallback for an error with no bounded type.
 ERROR_TYPE_OTHER = "_OTHER"
 
@@ -361,9 +363,9 @@ class RunTelemetry:
         error: Any,
     ) -> None:
         failed = outcome == OUTCOME_ERROR
-        kind_of_error = (
-            (error_type(error) if error is not None else ERROR_TYPE_OTHER) if failed else None
-        )
+        kind_of_error = None
+        if failed:
+            kind_of_error = error_type(error) if error is not None else ERROR_TYPE_OTHER
         instruments.end_span(
             entry.span,
             error_type=kind_of_error,
@@ -371,7 +373,7 @@ class RunTelemetry:
         )
         measurement = {**entry.measurement, "fs.outcome": outcome}
         if kind_of_error:
-            measurement["error.type"] = kind_of_error
+            measurement[_ERROR_TYPE] = kind_of_error
         instruments.record(instrument, duration, measurement)
 
     # -- model and tool --------------------------------------------------------
@@ -389,7 +391,7 @@ class RunTelemetry:
         purpose_value = purpose if purpose in LLM_PURPOSES else current_llm_purpose()
         model_name = _safe_name(model)
         attributes: dict[str, Any] = {
-            "gen_ai.operation.name": "chat",
+            _OPERATION_NAME: "chat",
             "gen_ai.provider.name": provider,
             "fs.llm.purpose": purpose_value,
         }
@@ -402,7 +404,7 @@ class RunTelemetry:
             name=f"chat {model_name}" if model_name else "chat",
             span_attributes=attributes,
             measurement={
-                "gen_ai.operation.name": "chat",
+                _OPERATION_NAME: "chat",
                 "gen_ai.provider.name": provider,
                 "fs.llm.purpose": purpose_value,
             },
@@ -438,7 +440,7 @@ class RunTelemetry:
         instruments.end_span(entry.span, error_type=kind_of_error, attributes=attributes)
         measurement = dict(entry.measurement)
         if kind_of_error:
-            measurement["error.type"] = kind_of_error
+            measurement[_ERROR_TYPE] = kind_of_error
         instruments.record(instruments.OPERATION_DURATION, duration, measurement)
         if usage is None:
             return
@@ -452,7 +454,7 @@ class RunTelemetry:
 
     def tool_started(self, run_id: Any, parent_run_id: Any, *, tool_name: Any) -> None:
         name = _safe_name(tool_name)
-        attributes: dict[str, Any] = {"gen_ai.operation.name": "execute_tool"}
+        attributes: dict[str, Any] = {_OPERATION_NAME: "execute_tool"}
         if name:
             attributes["gen_ai.tool.name"] = name
         self._start(
@@ -461,7 +463,7 @@ class RunTelemetry:
             kind="tool",
             name=f"execute_tool {name}" if name else "execute_tool",
             span_attributes=attributes,
-            measurement={"gen_ai.operation.name": "execute_tool"},
+            measurement={_OPERATION_NAME: "execute_tool"},
         )
 
     def tool_finished(self, run_id: Any, *, error: Any = None) -> None:
@@ -474,7 +476,7 @@ class RunTelemetry:
         instruments.end_span(entry.span, error_type=kind_of_error)
         measurement = dict(entry.measurement)
         if kind_of_error:
-            measurement["error.type"] = kind_of_error
+            measurement[_ERROR_TYPE] = kind_of_error
         instruments.record(instruments.OPERATION_DURATION, duration, measurement)
 
 

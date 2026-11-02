@@ -21,6 +21,12 @@ REVISION = "a" * 40
 NAMESPACES = ("ghcr.io/flow-steward", "docker.io/flowsteward")
 
 
+@pytest.mark.parametrize("tag", ["v1٢.2.3", "v1.2٣.3", "v1.2.3٤"])
+def test_stable_version_rejects_unicode_digits(tag: str) -> None:
+    with pytest.raises(ValueError, match="release tag"):
+        stable_version(tag)
+
+
 def test_release_quality_prepares_hosted_uids_and_hands_back_artifacts_after_cleanup() -> None:
     root = Path(__file__).resolve().parents[2]
     workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())

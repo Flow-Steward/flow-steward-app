@@ -25,12 +25,15 @@ from typing import Any
 
 from core.infrastructure.observability import otel_instruments as instruments
 
+_ERROR_TYPE = "error.type"
+_METHOD_NAME = "mcp.method.name"
+
 MCP_SDK_SCOPE = "mcp-python-sdk"
-MCP_CLIENT_ATTRIBUTES = frozenset({"error.type", "jsonrpc.request.id", "mcp.method.name"})
+MCP_CLIENT_ATTRIBUTES = frozenset({_ERROR_TYPE, "jsonrpc.request.id", _METHOD_NAME})
 _SDK_MIDDLEWARE = "OpenTelemetryMiddleware"
 _METHOD = re.compile(r"[a-z]+(?:/[A-Za-z]+){0,2}")
 _TOOL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
-_ERROR_CODE = re.compile(r"-?[0-9]{1,6}")
+_ERROR_CODE = re.compile(r"-?(?a:\d{1,6})")
 _ERROR_TYPE_OTHER = "_OTHER"
 _INVALID_PARAMS = "-32602"
 
@@ -80,7 +83,7 @@ class McpTraceMiddleware:
             return await call_next(ctx)
         method = method_label(getattr(ctx, "method", None))
         tool = _tool_name(method, getattr(ctx, "params", None))
-        attributes = {"mcp.method.name": method}
+        attributes = {_METHOD_NAME: method}
         if tool is not None:
             attributes["gen_ai.tool.name"] = tool
         span = instruments.start_span(
@@ -117,13 +120,13 @@ def install_mcp_tracing(server: Any) -> None:
 
 def normalize_client_span(span: Any, attributes: MutableMapping[str, Any]) -> str:
     """Keep the SDK's span name; a failure becomes a bounded category."""
-    attributes.pop("error.type", None)
+    attributes.pop(_ERROR_TYPE, None)
     status = getattr(span, "status", None)
     if status is not None and getattr(status.status_code, "name", "") == "ERROR":
-        attributes["error.type"] = _ERROR_TYPE_OTHER
-    method = attributes.get("mcp.method.name")
+        attributes[_ERROR_TYPE] = _ERROR_TYPE_OTHER
+    method = attributes.get(_METHOD_NAME)
     if method is not None:
-        attributes["mcp.method.name"] = method_label(method)
+        attributes[_METHOD_NAME] = method_label(method)
     return str(getattr(span, "name", "") or "MCP send")
 
 

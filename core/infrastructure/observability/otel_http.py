@@ -24,13 +24,17 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_ERROR_TYPE = "error.type"
+_HTTP_METHOD = "http.request.method"
+_HTTP_ROUTE = "http.route"
+
 FASTAPI_SCOPE = "opentelemetry.instrumentation.fastapi"
 HTTP_SERVER_ATTRIBUTES = frozenset(
     {
-        "error.type",
-        "http.request.method",
+        _ERROR_TYPE,
+        _HTTP_METHOD,
         "http.response.status_code",
-        "http.route",
+        _HTTP_ROUTE,
         "network.protocol.version",
         "url.scheme",
     }
@@ -46,7 +50,7 @@ EXCLUDED_URLS = ",".join(
 _METHODS = frozenset(
     {"CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "TRACE"}
 )
-_STATUS_ERROR = re.compile(r"[1-5][0-9]{2}")
+_STATUS_ERROR = re.compile(r"[1-5](?a:\d{2})")
 _ERROR_TYPE_OTHER = "_OTHER"
 
 _lock = threading.Lock()
@@ -94,21 +98,21 @@ def _refresh_routes(span: Any, scope: Any) -> None:
 def normalize_server_span(span: Any, attributes: MutableMapping[str, Any]) -> str:
     """The public name of an HTTP server span; reduces *attributes* in place."""
     del span  # FastAPI names it from the same raw route this rebuilds safely.
-    method = attributes.get("http.request.method")
+    method = attributes.get(_HTTP_METHOD)
     if method not in _METHODS:
         method = "HTTP"
-        attributes.pop("http.request.method", None)
-    route = attributes.get("http.route")
+        attributes.pop(_HTTP_METHOD, None)
+    route = attributes.get(_HTTP_ROUTE)
     with _lock:
         known = isinstance(route, str) and route in _routes
     if not known:
-        attributes.pop("http.route", None)
-    error_type = attributes.get("error.type")
+        attributes.pop(_HTTP_ROUTE, None)
+    error_type = attributes.get(_ERROR_TYPE)
     if error_type is not None and not (
         isinstance(error_type, str) and _STATUS_ERROR.fullmatch(error_type)
     ):
         # Exception class names are not a bounded set.
-        attributes["error.type"] = _ERROR_TYPE_OTHER
+        attributes[_ERROR_TYPE] = _ERROR_TYPE_OTHER
     return f"{method} {route}" if known else method
 
 

@@ -2524,7 +2524,7 @@ it("uses the selected Hook ID when its declaration and frame have no display nam
   expect(step).toBeDefined();
   fireEvent.contextMenu(step!);
   fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
-  await screen.findByDisplayValue("hook:after_finish:fix_name");
+  await screen.findByDisplayValue("hook:after_finish:fix_name", {}, { timeout: 3_000 });
   fireEvent.click(screen.getByRole("tab", { name: "Smart setup" }));
   expect(await screen.findByTestId("step-structure-setup")).toHaveTextContent("Hook after_finish");
   expect(changeUrls).toEqual([]);

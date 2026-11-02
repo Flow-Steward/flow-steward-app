@@ -6,6 +6,7 @@ import { jobPayload, mockedFetchJobDetail, mockedUseAuth, primeApi, renderPage }
 import { acknowledgeJob, unacknowledgeJob } from "@/pages/jobs/detail/api";
 import { DashboardPage } from "@/pages/dashboard";
 import { fetchDashboardSummary } from "@/pages/dashboard/api";
+import { queryKeys } from "@/lib/query/keys";
 
 vi.mock("@/pages/dashboard/api", () => ({ fetchDashboardSummary: vi.fn() }));
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: () => true }));
@@ -104,11 +105,14 @@ describe("JobsDetailPage acknowledge", () => {
         <MemoryRouter><DashboardPage /></MemoryRouter>
       </QueryClientProvider>,
     );
-    await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 0 : 1}. Show failed and stuck jobs` });
+    await waitFor(() => expect(view.queryClient.getQueryData(queryKeys.dashboardSummary("24h"))).toMatchObject({
+      groups: { needs_attention: initiallyAcknowledged ? [] : [{ id: "42", status: "failed" }] },
+    }), { timeout: 3_000 });
+    await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 0 : 1}. Show failed and stuck jobs` }, { timeout: 3_000 });
 
     fireEvent.click(await screen.findByTestId("job-acknowledge-button"));
 
-    expect(await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 1 : 0}. Show failed and stuck jobs` })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 1 : 0}. Show failed and stuck jobs` }, { timeout: 3_000 })).toBeInTheDocument();
     await waitFor(() => expect(Boolean(screen.queryByTestId("job-acknowledged-badge"))).toBe(!initiallyAcknowledged));
   });
 

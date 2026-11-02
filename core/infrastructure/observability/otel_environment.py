@@ -113,7 +113,7 @@ def apply_environment_policy(
     removed: list[str] = []
     rewritten: list[str] = []
 
-    for name in sorted(key for key in list(env) if key.startswith(OTEL_PREFIX)):
+    for name in sorted(key for key in env if key.startswith(OTEL_PREFIX)):
         if name not in SUPPORTED_ENV_NAMES:
             del env[name]
             removed.append(name)

@@ -15,6 +15,7 @@ derived from reported components.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -99,7 +100,7 @@ class TokenUsage:
 def _count(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    if value != value or value < 0:  # NaN or negative
+    if (isinstance(value, float) and math.isnan(value)) or value < 0:
         return None
     return int(value)
 

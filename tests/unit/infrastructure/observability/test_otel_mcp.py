@@ -21,6 +21,11 @@ _SPAN = "2" * 16
 _CARRIER = {"traceparent": f"00-{_TRACE}-{_SPAN}-01"}
 
 
+def test_error_code_accepts_only_ascii_digits() -> None:
+    assert otel_mcp._ERROR_CODE.fullmatch("-32602")
+    assert not otel_mcp._ERROR_CODE.fullmatch("-٣٢٦٠٢")
+
+
 def _ctx(method="tools/call", params=None, meta=None, request_id=7):
     return SimpleNamespace(
         method=method,

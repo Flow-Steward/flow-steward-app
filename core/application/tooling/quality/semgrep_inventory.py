@@ -108,7 +108,10 @@ def main() -> None:
             "".join(f"{name}=={version}\n" for name, version in inventory.items()), encoding="utf-8"
         )
     else:
-        inventory = dict(line.split("==", 1) for line in args.source.read_text().splitlines())
+        inventory = {}
+        for line in args.source.read_text().splitlines():
+            key, value = line.split("==", 1)
+            inventory[key] = value
         validate_report(args.target, inventory, audit_status=args.audit_status)
 
 

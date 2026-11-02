@@ -28,9 +28,35 @@ _DROPPED_SENSITIVE_KEYS = frozenset({"default_secret_ref", "sample_file"})
 _REDACTED = "[redacted]"
 # Limit unquoted segments to names; quoted mapping keys retain their canonical
 # spelling. The runtime parser below remains authoritative for path validity.
-_PORTABLE_PATH = re.compile(
-    r"""state\.[\w-]+(?:\.[\w-]+|\[\s*(?:\d+|'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*\])*"""
-)
+_PORTABLE_NAME = re.compile(r"[\w-]+")
+_PORTABLE_INDEX = re.compile(r"\[\s*\d+\s*\]")
+_PORTABLE_SINGLE_KEY = re.compile(r"\[\s*'(?:[^'\\]|\\.)*'\s*\]")
+_PORTABLE_DOUBLE_KEY = re.compile(r'\[\s*"(?:[^"\\]|\\.)*"\s*\]')
+
+
+def _portable_path_syntax(selector: str) -> bool:
+    if not selector.startswith("state."):
+        return False
+    match = _PORTABLE_NAME.match(selector, len("state."))
+    if match is None:
+        return False
+    position = match.end()
+    while position < len(selector):
+        if selector[position] == ".":
+            match = _PORTABLE_NAME.match(selector, position + 1)
+        else:
+            match = next(
+                (
+                    m
+                    for pattern in (_PORTABLE_INDEX, _PORTABLE_SINGLE_KEY, _PORTABLE_DOUBLE_KEY)
+                    if (m := pattern.match(selector, position))
+                ),
+                None,
+            )
+        if match is None:
+            return False
+        position = match.end()
+    return True
 
 
 def _sensitive_key(key: Any) -> bool:
@@ -47,7 +73,7 @@ def _portable_state_read(value: Any) -> bool:
     if not isinstance(value, str) or not value.strip().startswith("state."):
         return False
     selector = value.strip()
-    if _PORTABLE_PATH.fullmatch(selector) is None:
+    if not _portable_path_syntax(selector):
         return False
     try:
         return bool(parse_state_path(selector))

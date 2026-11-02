@@ -15,6 +15,7 @@ from core.application.orchestration.state_paths import (
 from core.application.orchestration.step_templating import set_state_path
 
 _TOKEN_EXTENSION = "extension."
+_LITERAL_PREFIX = "literal:"
 
 CONNECTOR_PREFIX = "connector."
 
@@ -111,9 +112,9 @@ def _split_default_filter(token: str) -> tuple[str, Any, bool]:
     # A complete JSON literal is atomic: its contents may include filter syntax.
     # A real trailing filter makes the suffix invalid JSON and follows the
     # established selector/filter path below.
-    if text.startswith("literal:"):
+    if text.startswith(_LITERAL_PREFIX):
         try:
-            json.loads(text[len("literal:") :])
+            json.loads(text[len(_LITERAL_PREFIX) :])
         except (TypeError, ValueError):
             pass
         else:
@@ -143,8 +144,8 @@ def _resolve_mapping_value(value: Any, state: dict[str, Any]) -> Any:
         return default_value if has_default and resolved in (None, "") else resolved
     if token == "state":
         return state
-    if token.startswith("literal:"):
-        return _parse_literal_value(token[len("literal:") :])
+    if token.startswith(_LITERAL_PREFIX):
+        return _parse_literal_value(token[len(_LITERAL_PREFIX) :])
     return value
 
 

@@ -17,14 +17,17 @@ export function isAgentFileStatePath(value: string): boolean {
         const current = path[i];
         if (escaped) { escaped = false; continue; }
         if (current === "\\") { escaped = true; continue; }
-        if (quote) { if (current === quote) quote = ""; continue; }
+        if (quote) {
+          if (current === quote) { quote = ""; }
+          continue;
+        }
         if (current === "'" || current === '"') { quote = current; continue; }
         if (current === "]") { close = i; break; }
       }
       if (close < 0) return false;
       const raw = path.slice(index + 1, close).trim();
       if (raw.startsWith('"')) {
-        try { if (typeof JSON.parse(raw) !== "string" || !JSON.parse(raw)) return false; } catch { return false; }
+        try { const parsed: unknown = JSON.parse(raw); if (typeof parsed !== "string" || !parsed) return false; } catch { return false; }
       } else if (raw.startsWith("'")) {
         if (raw.length < 3 || !raw.endsWith("'")) return false;
       } else if (!/^\p{Decimal_Number}+$/u.test(raw)) return false;

@@ -19,6 +19,15 @@ LITERAL = "fixture-credential-value-never-export"
 
 @pytest.mark.parametrize(
     "value",
+    ["{{ state.inputs.ключ }}", "{{ state.inputs['a.b'] }}", "{{ state.inputs['unterminated] }}"],
+)
+def test_portable_reference_preserves_only_valid_unicode_or_quoted_paths(value: str) -> None:
+    expected = "[redacted]" if "unterminated" in value else value
+    assert _redact_sensitive({"api_key": value}) == {"api_key": expected}
+
+
+@pytest.mark.parametrize(
+    "value",
     [
         REFERENCE,
         {"source": "state.inputs.provider_credential"},
