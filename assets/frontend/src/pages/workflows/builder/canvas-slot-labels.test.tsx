@@ -81,11 +81,13 @@ it.each([
     Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [source] });
     fireEvent.click(source);
     const slot = await screen.findByRole("button", { name: `${label}: add step` });
-    for (const name of ["High", "Low", "Default", "On error"]) {
+    for (const name of ["High", "Low", "Default"]) {
       const occupiedLabel = occupied?.name === "default" ? "Default" : occupied ? "High" : undefined;
       if (name === occupiedLabel) expect(screen.queryByRole("button", { name: `${name}: add step` })).not.toBeInTheDocument();
       else expect(screen.getByRole("button", { name: `${name}: add step` })).toBeVisible();
     }
+    // The red On error handle on the card adds the failure path; no ghost card repeats it.
+    expect(screen.queryByRole("button", { name: "On error: add step" })).not.toBeInTheDocument();
     const point = { x: Number.parseFloat(slot.style.left), y: Number.parseFloat(slot.style.top) };
     expect(Number.isFinite(point.x) && Number.isFinite(point.y)).toBe(true);
     fireEvent.click(slot);
@@ -141,7 +143,8 @@ it.each([
         const handle = anchor.key === "default" ? "default" : `case:${anchor.key}`;
         const wrapper = occupied.includes(anchor.key)
           ? queryAllByAttribute("data-id", canvas, `edge:step:route_priority:${handle}`)[0]
-          : screen.getByText((_content, element) => element?.textContent === `${anchor.label}: add step`, { selector: "div" });
+          // The slot's own wrapper is the innermost match; with one ghost left its container reads the same.
+          : screen.getAllByText((_content, element) => element?.textContent === `${anchor.label}: add step`, { selector: "div" }).at(-1);
         expect(wrapper).toBeDefined();
         const paths = occupied.includes(anchor.key)
           ? queryAllByAttribute("class", wrapper!, /(?:^|\s)react-flow__edge-path(?:\s|$)/)

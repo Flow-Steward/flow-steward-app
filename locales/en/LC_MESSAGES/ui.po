@@ -9862,6 +9862,39 @@ msgstr "Moved to Trash on {date} by {actor}"
 msgid "react.registry.mcp_final_view_in_trash"
 msgstr "View in Trash"
 
+msgid "react.registry.mcp_json.fill"
+msgstr "Fill the form"
+
+msgid "react.registry.mcp_json.filled"
+msgstr "Filled from the JSON: {name}. Check the fields before saving."
+
+msgid "react.registry.mcp_json.headers_to_fill"
+msgstr "Enter the value of: {headers}."
+
+msgid "react.registry.mcp_json.helper"
+msgstr "Optional. The config from a server's docs or from Claude, Cursor or VS Code fills the fields below."
+
+msgid "react.registry.mcp_json.invalid"
+msgstr "This text is not valid JSON."
+
+msgid "react.registry.mcp_json.label"
+msgstr "Paste JSON configuration"
+
+msgid "react.registry.mcp_json.no_servers"
+msgstr "No MCP server was found in this JSON."
+
+msgid "react.registry.mcp_json.server"
+msgstr "Server from the JSON"
+
+msgid "react.registry.mcp_json.skipped_no_url"
+msgstr "{name} has no URL."
+
+msgid "react.registry.mcp_json.skipped_sse"
+msgstr "{name} uses the SSE transport. Use the server's streamable HTTP URL instead (it often ends in /mcp)."
+
+msgid "react.registry.mcp_json.skipped_stdio"
+msgstr "{name} runs as a local program (command). Only remote MCP servers reached over HTTP can be connected."
+
 msgid "react.registry.mcp_sync_failed"
 msgstr "MCP sync failed."
 

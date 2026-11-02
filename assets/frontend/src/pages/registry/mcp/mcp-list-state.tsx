@@ -30,6 +30,7 @@ import { mcpFormErrorField } from "@/pages/registry/mcp/form-errors";
 
 import { RESERVED_OAUTH_PARAMETER_IDENTITIES, keyValueObject } from "./key-value-rows";
 import { mcpStatusLabel } from "./mcp-status-label";
+import { type McpJsonServer } from "./mcp-json-import";
 
 import {
   type FormSubmitEvent,
@@ -43,6 +44,7 @@ import {
   fetchAllActiveProjects,
   projectCanManage,
   mcpTableState,
+  rowsFromRecord,
 } from "./mcp-list-page-helpers";
 
 export function useMcpListState() {
@@ -302,6 +304,21 @@ export function useMcpListState() {
     setCreateOpen(true);
   }
 
+  /** A server read from pasted JSON replaces the connection fields; project and OAuth settings stay. */
+  function applyJsonServer(server: McpJsonServer) {
+    setDraft((current) => ({
+      ...current,
+      display_name: server.name || current.display_name,
+      base_url: server.url,
+      transport: "streamable_http",
+      auth_mode: server.authMode,
+      headers: rowsFromRecord(server.headers),
+      description: server.description || current.description,
+    }));
+    setModalError("");
+    setModalErrorField("");
+  }
+
   function setCreateValidationError(
     field: "project" | "name" | "endpoint" | "headers" | "requested_scopes" | "authorization_parameters" | "refresh_token_required",
     error: string,
@@ -481,6 +498,7 @@ export function useMcpListState() {
     createNameRef,
     createProjectRef,
     submit,
+    applyJsonServer,
     setDraft,
     draft,
     modalErrorField,

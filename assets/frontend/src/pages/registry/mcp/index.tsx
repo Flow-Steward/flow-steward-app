@@ -30,6 +30,7 @@ import {
   renderWhen,
  localizedAUTH_MODE_OPTIONS} from "./mcp-list-page-helpers";
 import { KeyValueRepeater } from "./mcp-list-page-components";
+import { McpJsonImportField } from "./mcp-json-import-field";
 import { useMcpListState } from "./mcp-list-state";
 
 export function RegistryMcpPage() {
@@ -72,6 +73,7 @@ export function RegistryMcpPage() {
     createNameRef,
     createProjectRef,
     submit,
+    applyJsonServer,
     setDraft,
     draft,
     modalErrorField,
@@ -259,6 +261,7 @@ export function RegistryMcpPage() {
             />
             <span className="fs-field-helper">{t("react.registry.mcp_connectors_and_oauth_credentials_are_isolated_to_the_selected_project", "MCP connectors and OAuth credentials are isolated to the selected project.")}</span>
           </div>
+          {renderWhen(createOpen, <McpJsonImportField onApply={applyJsonServer} />)}
           <div className="fs-field">
             <label className="fs-field-label" htmlFor="mcp-create-name">{t("settings.mcp.fields.name", "Name")}<span aria-hidden="true" className="fs-required"> *</span></label>
             <input

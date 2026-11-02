@@ -8,6 +8,7 @@ import { placeCanvasNode } from "./canvas-placement";
 import { portEdge } from "./change-set";
 import { type canvasConnectionDefinition, connectionPlacement, connectionRefusal } from "./canvas-connection-policy";
 import { routeCanvasEdges, type CanvasEdgeRouteInput } from "./canvas-edge-routing";
+import { canvasEdgeLabelPoint } from "./canvas-edge-label-placement";
 import { createWrappedRootRouteHints } from "./canvas-wrap-routing";
 import {
   canvasMotionDuration,
@@ -252,7 +253,15 @@ export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdge
       routedIds.push(edge.id);
     }
     const routes = new Map(routeCanvasEdges(inputs).map((route, index) => [routedIds[index], route]));
-    return edges.map((edge) => edge.data ? { ...edge, data: { ...edge.data, route: routes.get(edge.id) } } : edge);
+    // Every card, the connection's own ends included: a label must not hide under any of them.
+    // Group and For each frames enclose their connections, so a label inside one is fine.
+    const cards = nodesWithCanvasState.filter((node) => node.type !== "canvasNote" && node.type !== "groupContainer" && node.type !== "forEachContainer").map(rectangle);
+    return edges.map((edge) => {
+      if (!edge.data) return edge;
+      const route = routes.get(edge.id);
+      const labelAt = route ? canvasEdgeLabelPoint(route, typeof edge.label === "string" ? edge.label : "", cards) : undefined;
+      return { ...edge, data: { ...edge.data, route, labelAt } };
+    });
   }, [edges, nodes, nodesWithCanvasState, rootRows]);
 
   const visibleEdges = useMemo(() => routedEdges.filter((edge) => showFailurePaths || !edge.data?.failurePath).map((edge) => {

@@ -181,10 +181,10 @@ function actualSlotTemplate(): Node {
 }
 const nextSlots = (source: Node, nodes: Node[], edges: readonly Edge[] = []) => canvasNextStepSlots(source, nodes, actualSlotTemplate(), edges);
 
-it("offers slots for every free applicable outcome using actual source handle centers", () => {
+it("offers slots for every free outcome except On error, which keeps only its own handle", () => {
   const source: Node = { id: "branch", type: "ifStep", position: { x: 320, y: 160 }, width: 240, height: 206, handles: [{ id: "true", type: "source", position: Position.Right, x: 235, y: 79, width: 10, height: 10 }, { id: "false", type: "source", position: Position.Right, x: 235, y: 139, width: 10, height: 10 }, { id: "error", type: "source", position: Position.Bottom, x: 210, y: 201, width: 10, height: 10 }], data: { freeOutcomes: ["true", "error"], step: { id: "branch", step_id: "branch", kind: "if", ports: [{ outcome: { name: "true" }, label: "True" }, { outcome: { name: "false" }, label: "False" }, { outcome: { name: "error" }, label: "On error" }] } } };
   const slots = nextSlots(source, [source]);
-  expect(slots).toEqual([expect.objectContaining({ outcome: { name: "true" }, label: "True", sourcePoint: { x: 560, y: 244 } }), expect.objectContaining({ outcome: { name: "error" }, label: "On error", sourcePoint: { x: 535, y: 366 } })]);
+  expect(slots).toEqual([expect.objectContaining({ outcome: { name: "true" }, label: "True", sourcePoint: { x: 560, y: 244 } })]);
   expect(slots?.some((slot) => slot.outcome.name === "false")).toBe(false);
   // Preferred port-line placement is resolved through the accepted grid helper.
   // The curve previews the actual four-pixel bend, rather than an off-grid card.
@@ -273,7 +273,7 @@ it.each([64, 256])("keeps all named Switch ghosts and their actual curves ordere
   const slots = nextSlots(source, nodes);
   const branches = branchSlots(slots);
   expect(slots.map(({ outcome }) => outcome)).toEqual([
-    { name: "case", case_id: "high" }, { name: "case", case_id: "low" }, { name: "default" }, { name: "error" },
+    { name: "case", case_id: "high" }, { name: "case", case_id: "low" }, { name: "default" },
   ]);
   expect(branches.map(({ sourcePoint }) => sourcePoint)).toEqual([{ x: 1040, y: 196 }, { x: 1040, y: 228 }, { x: 1040, y: 260 }]);
   expect(branches.map(({ rect }) => rect.x)).toEqual([1136, 1136, 1136]);
@@ -298,8 +298,8 @@ it.each([
   const slots = nextSlots(source, nodes);
   const branches = branchSlots(slots);
   expect(branches.map(({ outcome }) => outcome)).toEqual(outcomes);
-  expect(slots.at(-1)?.outcome).toEqual({ name: "error" });
-  expect(slots).toHaveLength(outcomes.length + 1);
+  expect(slots.some(({ outcome }) => outcome.name === "error")).toBe(false);
+  expect(slots).toHaveLength(outcomes.length);
   branches.forEach((slot, i) => {
     expect(slot.rect.x).toBe(1136);
     if (i) expect(slot.rect.y).toBeGreaterThanOrEqual(branches[i - 1].rect.y + branches[i - 1].rect.height);
@@ -345,7 +345,7 @@ it("keeps free Default below its real connected High and Low targets and their n
   const before = nodes.map(({ id, position }) => ({ id, position: { ...position } }));
   expect(edges.filter((edge) => edge.source === "priority").map(({ sourceHandle, target }) => [sourceHandle, target])).toEqual([["case:high", "set_variable"], ["case:low", "set_variable_2"]]);
   const slots = nextSlots(source, nodes, edges);
-  expect(slots.map(({ outcome }) => outcome)).toEqual([{ name: "default" }, { name: "error" }]);
+  expect(slots.map(({ outcome }) => outcome)).toEqual([{ name: "default" }]);
   expect(slots[0].rect).toEqual({ x: 1136, y: 576, width: 224, height: 144 });
   expect(slots[0].inputPoint).toEqual({ x: 1136, y: 600 });
   // Root's actual native Low solid has these M/L/C/L controls, from y=228 to y=456.

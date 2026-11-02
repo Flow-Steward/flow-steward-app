@@ -340,6 +340,64 @@ describe("RegistryMcpPage", () => {
     );
   });
 
+  it("fills the create form from pasted JSON configuration and saves it", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New MCP" }));
+    const dialog = screen.getByRole("dialog", { name: "Create MCP connector" });
+    const json = within(dialog).getByRole("textbox", { name: "Paste JSON configuration" });
+    await user.click(json);
+    await user.paste(JSON.stringify({
+      mcpServers: {
+        local: { command: "npx", args: ["-y", "some-stdio-server"] },
+        github: { type: "http", url: "https://api.githubcopilot.com/mcp/", headers: { Authorization: "Bearer ghp-test" } },
+        linear: { url: "https://mcp.linear.app/mcp", headers: { "X-Api-Key": "${input:linear}" } },
+      },
+    }));
+
+    expect(await within(dialog).findByText("Filled from the JSON: github. Check the fields before saving.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("github");
+    expect(within(dialog).getByRole("textbox", { name: "Endpoint" })).toHaveValue("https://api.githubcopilot.com/mcp/");
+    expect(within(dialog).getByRole("combobox", { name: "Auth Mode" })).toHaveTextContent("bearer");
+    expect(within(dialog).getByRole("textbox", { name: "Headers key" })).toHaveValue("Authorization");
+
+    // A config listing several remote servers lets the operator pick one.
+    await user.click(within(dialog).getByRole("combobox", { name: "Server from the JSON" }));
+    await user.click(screen.getByRole("option", { name: "linear" }));
+    expect(within(dialog).getByRole("textbox", { name: "Endpoint" })).toHaveValue("https://mcp.linear.app/mcp");
+    expect(within(dialog).getByText(/Enter the value of: X-Api-Key\./u)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText("Headers value"), "lin-test");
+    await user.click(within(dialog).getByRole("button", { name: "Save MCP" }));
+
+    await waitFor(() => {
+      expect(mockedCreateMcpConnector).toHaveBeenCalled();
+    });
+    expect(mockedCreateMcpConnector.mock.calls[0]).toEqual([{
+      display_name: "linear",
+      base_url: "https://mcp.linear.app/mcp",
+      transport: "streamable_http",
+      auth_mode: "api_key",
+      headers: { "X-Api-Key": "lin-test" },
+      namespace_prefix: "",
+      description: "",
+      enabled: true,
+    }, "project-1"]);
+  });
+
+  it("explains why a pasted stdio-only config fills nothing", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New MCP" }));
+    const dialog = screen.getByRole("dialog", { name: "Create MCP connector" });
+    await user.click(within(dialog).getByRole("textbox", { name: "Paste JSON configuration" }));
+    await user.paste('{"mcpServers": {"files": {"command": "npx", "args": ["server-filesystem"]}}}');
+
+    expect(await within(dialog).findByText(/files runs as a local program/u)).toBeInTheDocument();
+    expect(within(dialog).getByRole("textbox", { name: "Endpoint" })).toHaveValue("");
+  });
+
   it("opens the custom form on Name with empty generic defaults and no template picker", async () => {
     const user = userEvent.setup();
     renderPage();

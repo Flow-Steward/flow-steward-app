@@ -9786,6 +9786,39 @@ msgstr ""
 msgid "react.registry.mcp_final_view_in_trash"
 msgstr ""
 
+msgid "react.registry.mcp_json.fill"
+msgstr ""
+
+msgid "react.registry.mcp_json.filled"
+msgstr ""
+
+msgid "react.registry.mcp_json.headers_to_fill"
+msgstr ""
+
+msgid "react.registry.mcp_json.helper"
+msgstr ""
+
+msgid "react.registry.mcp_json.invalid"
+msgstr ""
+
+msgid "react.registry.mcp_json.label"
+msgstr ""
+
+msgid "react.registry.mcp_json.no_servers"
+msgstr ""
+
+msgid "react.registry.mcp_json.server"
+msgstr ""
+
+msgid "react.registry.mcp_json.skipped_no_url"
+msgstr ""
+
+msgid "react.registry.mcp_json.skipped_sse"
+msgstr ""
+
+msgid "react.registry.mcp_json.skipped_stdio"
+msgstr ""
+
 msgid "react.registry.mcp_sync_failed"
 msgstr ""
 

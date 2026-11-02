@@ -214,7 +214,9 @@ export type CanvasNextStepSlot = {
   path: string;
 };
 
-/** Actual output centers seed the existing nearest-free 16px placement helper. */
+/** Actual output centers seed the existing nearest-free 16px placement helper.
+ *  On error gets no slot: its red handle on the card's bottom edge already adds
+ *  the failure path, and a second ghost card only crowded the next column. */
 export function canvasNextStepSlots(source: Node, nodes: readonly Node[], template: Node, edges: readonly Edge[] = []): CanvasNextStepSlot[] {
   const data = source.data as { freeOutcomes?: string[]; step?: { kind?: string; ports?: WorkflowCanvasPort[] }; ports?: WorkflowCanvasPort[] };
   const ports = data.step?.ports ?? data.ports;
@@ -242,6 +244,7 @@ export function canvasNextStepSlots(source: Node, nodes: readonly Node[], templa
   const routes: CanvasEdgeRouteInput[] = [];
   let previousBranchBottom: number | undefined;
   for (const port of ports) {
+    if (port.outcome.name === "error") continue;
     const key = outcomeHandleId(port.outcome);
     const handle = source.handles?.find((item) => item.type === "source" && item.id === key);
     if (!handle) continue;
@@ -266,7 +269,7 @@ export function canvasNextStepSlots(source: Node, nodes: readonly Node[], templa
     const rect = { x: resolved.x + parentOffset.x, y: resolved.y + parentOffset.y, ...size };
     const sourcePoint = { x: localSource.x + parentOffset.x, y: localSource.y + parentOffset.y };
     const inputPoint = { x: rect.x + inputOffset.x, y: rect.y + inputOffset.y };
-    routes.push({ source: sourcePoint, target: inputPoint, sourceSide: handle.position === "bottom" ? "bottom" : "right", targetSide: input.position === "bottom" ? "bottom" : "left", obstacles: nodes.filter((node) => node.id !== source.id && node.type !== "canvasNote" && !visited.has(node.id)).map(absoluteRect), endCards: [absoluteRect(source), rect], backward: rect.x <= sourcePoint.x, failure: port.outcome.name === "error", repeat: false, ...(orderedBranch ? { shapeGroupKey: `next-switch:${source.id}` } : {}) });
+    routes.push({ source: sourcePoint, target: inputPoint, sourceSide: handle.position === "bottom" ? "bottom" : "right", targetSide: input.position === "bottom" ? "bottom" : "left", obstacles: nodes.filter((node) => node.id !== source.id && node.type !== "canvasNote" && !visited.has(node.id)).map(absoluteRect), endCards: [absoluteRect(source), rect], backward: rect.x <= sourcePoint.x, failure: false, repeat: false, ...(orderedBranch ? { shapeGroupKey: `next-switch:${source.id}` } : {}) });
     slots.push({ outcome: port.outcome, label: port.label, sourcePoint, preferredPosition: { x: preferred.x + parentOffset.x, y: preferred.y + parentOffset.y }, inputPoint, rect, path: "" });
     occupied.push({ ...target, id: `visual:next-slot:${key}`, position: resolved });
     if (orderedBranch) previousBranchBottom = resolved.y + size.height;
