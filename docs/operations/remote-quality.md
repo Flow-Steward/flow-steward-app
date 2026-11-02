@@ -12,16 +12,34 @@ Docker gate on standard hosted Linux runners. It neither publishes nor merges.
    candidate. Do not push private repository history or secrets to the public repo.
 3. Every branch push runs Tier 2. Read the run for that exact SHA and wait for its
    conclusion; a pending, skipped or failed run is not verification.
-4. Before merge, select `release` in Remote quality pilot's Run workflow menu on
-   the candidate branch. It runs cumulative Tier 2 + Tier 3. For substantial core
-   changes select `release-sonar` for the full gate followed by the Sonar pilot.
+4. Before merge, push the same clean candidate SHA to a task-specific verification
+   ref (commands below). `verify-release` runs cumulative Tier 2 + Tier 3;
+   `verify-sonar` additionally runs the Sonar pilot for substantial core changes.
+   The Run workflow menu's `release` / `release-sonar` modes are also available
+   once the workflow exists on main.
 5. Recheck origin/main immediately before merge. If it is no longer an ancestor
    of the verified candidate, integrate it and repeat verification on the new SHA.
 
+From the **public source checkout**, using an existing Git write connection:
+
+```bash
+# Replace my-task with the task's own stable name; use one verification ref per task.
+git push origin HEAD:refs/heads/codex/verify-release/my-task
+# Or, for the full gate plus the Sonar pilot:
+git push origin HEAD:refs/heads/codex/verify-sonar/my-task
+```
+
+These refs preserve the candidate SHA; the workflow checks that SHA and current
+main before proceeding. Updating the same task ref cancels its obsolete run;
+separate task refs run independently. No GitHub CLI token is needed for this
+route. The agent must read the resulting exact-SHA run and await its conclusion.
+Remove owned verification refs after merging while retaining the merged commit.
+
 Manual dispatch requires the workflow to exist on main. Bootstrap is handled by
 the dedicated `codex/remote-quality-pilot` branch: its push runs `release-sonar`
-without merging unverified workflow changes into main. Other branch pushes run
-Tier 2 only. Latest pushes cancel obsolete work on that same branch; different
+without merging unverified workflow changes into main. Ordinary branch pushes run
+Tier 2 only; the two verification prefixes request the full modes. Latest pushes
+cancel obsolete work on that same branch; different
 branches get independent VMs. No pull_request_target or self-hosted runner is used.
 
 The local pre-commit hook keeps environment-artifact synchronization and the

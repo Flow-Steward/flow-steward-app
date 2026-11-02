@@ -45,5 +45,8 @@ diagnostic/fallback route. An intermediate PR does not require the full suite;
 merge/publication does. Branch protection and automatic merging are not changed.
 
 The first pilot branch push runs the full gate and disposable Sonar experiment;
-normal branches run Tier 2. Manual release modes become selectable after the
-workflow reaches main. No successful hosted run is assumed until measured.
+normal branches run Tier 2. Task-specific `codex/verify-release/` and
+`codex/verify-sonar/` refs request the full modes through ordinary Git write
+access, preserving the candidate SHA and avoiding a shared-ref race between
+agents. Manual release modes become selectable after the workflow reaches main.
+No successful hosted run is assumed until measured.
