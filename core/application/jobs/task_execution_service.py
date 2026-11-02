@@ -34,7 +34,6 @@ from core.application.jobs.workflow_wait_projection import (
     wait_status,
 )
 from core.application.management.mcp_connector_client import mcp_execution_scope
-from core.infrastructure.observability.otel_logs import safe_event
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +63,16 @@ class TaskExecutionService:
         terminal: TaskTerminalEffectsPort,
         runtime_mode: RuntimeModePort,
         worker_id: Callable[[], str],
+        safe_event_extra: Callable[[str, Mapping[str, Any]], dict[str, Any]] | None = None,
     ) -> None:
         self._repository = repository
         self._graph = graph
         self._terminal = terminal
         self._runtime_mode = runtime_mode
         self._worker_id = worker_id
+        self._safe_event_extra = (
+            safe_event_extra if safe_event_extra is not None else (lambda _code, _fields: {})
+        )
 
     def execute(self, raw_message: Mapping[str, Any] | None) -> dict[str, object]:
         message = dict(raw_message or {}) if isinstance(raw_message, Mapping) else {}
@@ -547,7 +550,9 @@ class TaskExecutionService:
             worker_id,
             root_run_id,
             exc_info=(RuntimeError, redacted_error, error.__traceback__),
-            extra=safe_event("fs.job.execution_failed", {"fs.job.id": str(request.job_id)}),
+            extra=self._safe_event_extra(
+                "fs.job.execution_failed", {"fs.job.id": str(request.job_id)}
+            ),
         )
         repository = self._repository
         if repository is None or not repository.available or not request.job_id:
@@ -582,7 +587,7 @@ class TaskExecutionService:
             self._worker_id(),
             root_run_id,
             status,
-            extra=safe_event(
+            extra=self._safe_event_extra(
                 "fs.job.execution_failure_status",
                 {"fs.job.id": str(request.job_id), "fs.job.status": str(status)},
             ),

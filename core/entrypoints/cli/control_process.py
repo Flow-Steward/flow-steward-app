@@ -224,14 +224,14 @@ def main() -> None:
 def _register_installation_metrics(dsn: str) -> None:
     """Export installation metrics over OTLP; the control plane is their only owner."""
     try:
-        from core.infrastructure.db.platform_stores import PlatformObservabilityStore
         from core.infrastructure.observability.otel_installation_metrics import (
             register_installation_metrics,
         )
+        from core.infrastructure.runtime.entrypoint_db_adapters import create_observability_store
         from core.infrastructure.runtime.worker.queue_broker import get_ready_queue_depth
 
         register_installation_metrics(
-            store_factory=lambda: PlatformObservabilityStore(dsn),
+            store_factory=lambda: create_observability_store(dsn),
             get_ready_queue_depth=get_ready_queue_depth,
         )
     except Exception as exc:

@@ -10,12 +10,12 @@ from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
-from tests.fixtures import preprovision_extension_oauth_browser, seed_extension_oauth_browser
 
 from core.application.auth.config import AUTH_BOOTSTRAP_TOKEN_HEADER
 from core.application.tooling.quality.check_registry import load_check_registry
 from core.application.tooling.quality.fingerprint import FingerprintContext, fingerprint_check
 from core.infrastructure.extension_runtime.extension_runtime import scan_extensions
+from tests.fixtures import preprovision_extension_oauth_browser, seed_extension_oauth_browser
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_ROOT = Path(os.environ.get("PYTEST_SOURCE_REPO_ROOT", ROOT)).resolve()
@@ -104,6 +104,7 @@ def _run_recorded_oauth_lane(
     requested: str = "fs-oauth-generic-contract",
     overrides: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], list[list[str]], dict[str, list[str]]]:
+    import shlex
     import shutil
     import sys
 
@@ -138,6 +139,19 @@ def _run_recorded_oauth_lane(
     sleep = fake_bin / "sleep"
     sleep.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     sleep.chmod(0o755)
+    # The persistent-residue case checks retry and fail-closed behavior, not ten
+    # process-start latencies. Keep two attempts without changing the real runner.
+    real_seq = shutil.which("seq")
+    assert real_seq is not None
+    seq = fake_bin / "seq"
+    seq.write_text(
+        "#!/bin/sh\n"
+        'if [ "${OAUTH_RESOURCE_RESIDUE:-}" = 1 ] && [ "$#" = 2 ] '
+        '&& [ "$1" = 1 ] && [ "$2" = 10 ]; then printf \'1\\n2\\n\'; '
+        f'else exec {shlex.quote(real_seq)} "$@"; fi\n',
+        encoding="utf-8",
+    )
+    seq.chmod(0o755)
     project = requested.removesuffix("-oauth-browser") + "-oauth-browser"
     state: dict[str, list[str]] = {kind: [] for kind in ("container", "network", "volume", "image")}
     if existing in ("container", "network", "volume"):
@@ -247,7 +261,10 @@ def test_runner_probes_derived_namespace_and_exact_tags_then_cleans_own_lane(
         ({"OAUTH_WAIT_OUTPUT": "malformed"}, "OAuth browser service failed"),
         ({"OAUTH_DIRTY_SOURCE": "1"}, "changed the repository worktree"),
         ({"OAUTH_UP_STATUS": "1"}, "dependencies failed"),
-        ({"OAUTH_RESOURCE_RESIDUE": "1"}, ""),
+        (
+            {"OAUTH_RESOURCE_RESIDUE": "1"},
+            "Isolated OAuth browser resources were not fully removed.",
+        ),
         ({"OAUTH_IMAGE_RESIDUE": "1"}, "Candidate image remains"),
     ),
 )
@@ -260,7 +277,10 @@ def test_runner_preserves_failure_and_cleanup_contracts(
     assert diagnostic in result.stderr
     assert any(args[0] == "compose" and args[7] == "down" for args in commands)
     assert any(args[:2] == ["image", "rm"] for args in commands)
-    if "OAUTH_RESOURCE_RESIDUE" not in overrides:
+    if "OAUTH_RESOURCE_RESIDUE" in overrides:
+        assert len([args for args in commands if args[0] == "compose" and args[7] == "down"]) == 2
+        assert all(state[kind] for kind in ("container", "network", "volume"))
+    else:
         assert state["container"] == state["network"] == state["volume"] == []
     if "OAUTH_IMAGE_RESIDUE" not in overrides:
         assert state["image"] == []
@@ -417,6 +437,7 @@ def test_browser_fingerprint_covers_ui_consumer_schema_toolchain_and_helpers(
 def test_runner_builds_exact_local_candidates_and_verifies_cleanup() -> None:
     source = RUNNER.read_text(encoding="utf-8")
 
+    assert "for attempt in $(seq 1 10); do" in source
     assert source.count("docker build --pull=false") == 3
     assert "--network=none" not in source
     assert source.count('--file "${ROOT_DIR}/infra/docker/Dockerfile" "${ROOT_DIR}"') == 3

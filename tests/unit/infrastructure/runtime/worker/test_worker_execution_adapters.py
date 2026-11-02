@@ -702,6 +702,47 @@ def test_task_service_composes_child_runtime_from_same_worker_delivery(
     assert calls == [({"job_id": "child-1"}, dependencies)]
 
 
+def test_task_service_marks_failure_logs_for_safe_telemetry(caplog, monkeypatch) -> None:
+    from core.infrastructure.observability.otel_logs import safe_event, sanitized_record
+    from core.infrastructure.runtime.worker import worker_task_execution as task_execution
+
+    calls = []
+
+    def marker(code, fields):
+        calls.append(code)
+        return safe_event(code, fields)
+
+    monkeypatch.setattr(task_execution, "safe_event", marker, raising=False)
+    dependencies = task_execution.compose_worker_execution_dependencies(
+        worker_id=lambda: "worker-1"
+    )
+    service = task_execution._task_service(bl=None, config={}, dependencies=dependencies)
+    request = TaskExecutionRequest(
+        message={},
+        job_id="job-1",
+        task_id="task-1",
+        thread_id="thread-1",
+        task_summary="",
+        task_source="",
+        project_name="",
+        project_config={},
+        extra_state={},
+        workflow_id="",
+        test_mode=False,
+    )
+    service._log_graph_error(request, RuntimeError("private detail"), None)
+    service._log_graph_failure_outcome(request, "failed", None)
+    exported = [sanitized_record(record) for record in caplog.records]
+    exported = [record for record in exported if record is not None]
+    assert [record.msg for record in exported] == [
+        "fs.job.execution_failed",
+        "fs.job.execution_failure_status",
+    ]
+    assert calls == ["fs.job.execution_failed", "fs.job.execution_failure_status"]
+    assert all("private detail" not in str(record.__dict__) for record in exported)
+    assert [record.__dict__["fs.job.id"] for record in exported] == ["job-1", "job-1"]
+
+
 @pytest.mark.parametrize("raise_inside", [False, True])
 def test_postgres_checkpointer_context_is_closed_on_every_exit(
     monkeypatch: pytest.MonkeyPatch,

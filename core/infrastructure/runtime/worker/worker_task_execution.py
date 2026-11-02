@@ -16,6 +16,7 @@ from core.infrastructure.db.worker import (
     JobExecutionRepositoryDependencies,
     WorkflowResumeRepositoryAdapter,
 )
+from core.infrastructure.observability.otel_logs import safe_event
 
 from .worker_bootstrap import _worker_id
 from .worker_delivery import (
@@ -171,6 +172,7 @@ def _task_service(
         ),
         runtime_mode=WorkerRuntimeModeAdapter(),
         worker_id=dependencies.worker_id,
+        safe_event_extra=safe_event,
     )
 
 
