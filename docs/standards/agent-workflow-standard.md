@@ -68,7 +68,7 @@ This standard applies to:
 
 ## Verification
 
-- `MUST` follow the three local verification tiers defined in `testing-standard.md`.
+- `MUST` follow the three Docker verification tiers defined in `testing-standard.md`: Tier 1 locally, Tier 2 after every public branch push, Tier 3 before merge to main on hosted runners.
 - `MUST` identify whether reported evidence is Tier 1, 2, or 3, or an additional audit check.
 
 AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `lint.sh --checks …`. Tier 1 is no exception: being focused does not mean running on the host. A host interpreter makes the result depend on the machine — Tier 1 could not run at all where `python3` is 3.14, and a host run of a suite passed while the same suite failed in the gate, because the gate substitutes the tree through `run-core-only-tests.sh`. `infra/tooling/quality/check-registry.json` is the single list of commands, and `tests/unit/tooling/quality/test_check_registry.py` fails if any check escapes the container.
@@ -76,15 +76,16 @@ AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `l
 - `MUST` select targeted tests from changed behavior, owning tests, direct consumers, blast radius, and change-type requirements; start from `--test-paths auto` and add what the import graph cannot see.
 - `MUST` use fail-fast execution during sequential iteration and diagnose a failure before retrying it.
 - `MUST` keep Tier 1 focused cycles narrow and fail-fast, while the Tier 3 backend unit suite runs without `-x` or `--maxfail=1`, retains the complete failure list, and reports failures grouped by root cause for one coherent in-scope fix batch.
-- `MUST` run `./core/entrypoints/cli/scripts/lint.sh --fast` before each intermediate commit.
-- `MUST` run one clean `./core/entrypoints/cli/scripts/lint.sh --full` from the final committed state before handoff, pull request, or merge.
-- `MUST` treat quality evidence as valid only for its recorded fingerprint and, for commit-scoped checks, its exact commit SHA; input-scoped checks are valid for any commit with the same fingerprint (`testing-standard.md`, ADR 0036). Local Docker evidence is sufficient; GitHub CI evidence is not required.
+- `MUST` obtain passing remote `lint.sh --fast` evidence after every pushed change, including point changes; intermediate commits may precede that remote result.
+- `MUST` obtain one clean `lint.sh --full` result from the final committed public candidate before merge to main. Intermediate handoff/PR reports explicitly identify Tier 3 when pending. Full Sonar remains required for substantial core changes, with the baseline transition described in the testing standard.
+- `MUST` treat quality evidence as valid only for its recorded fingerprint and, for commit-scoped checks, its exact commit SHA; input-scoped checks are valid for any commit with the same fingerprint (`testing-standard.md`, ADR 0036). Inspect remote run provenance; do not claim a public run checked a different private SHA.
+- `MUST` fetch and integrate current origin/main before expensive verification, recheck it afterward and immediately before merge; integrate and reverify if main advances beyond the candidate.
 - `MUST` let each internal tier verifier execute only its registry-owned delta; the final `--full` wrapper validates or refreshes exact-SHA Tier 2 before Tier 3 and then validates their cumulative evidence.
 - `MUST` start Tier 2 dependency audits before slower static checks and preserve their actual pass/fail evidence; deferred no-op checks are not valid evidence.
 - `MUST` require complete, current Tier 2 and Tier 3 evidence for the final SHA before declaring a candidate publishable (input-scoped checks matched through that SHA's fingerprint); `--full` succeeds only after that cumulative validation.
 - Additional deep audit checks `MAY` be requested through `lint.sh --checks`; `--audit` is a compatibility alias for the final committed gate.
-- Local handoff `MUST NOT` depend on GitHub status checks. Approved documentation
-  and tag-release workflows are enabled (ADR 0048); official automated publication
+- Remote quality workflows are enabled for the public source (ADR 0049), alongside
+  documentation and tag-release workflows (ADR 0048). Official automated publication
   `MUST` wait for its exact-SHA Docker quality gate and both-registry verification.
 - `MUST` report exact commands, achieved tier, candidate provenance, and blocked or unrun verification.
 - `MUST NOT` combine results from different commits or environments into one green result, except input-scoped evidence whose fingerprint matches the final tree.

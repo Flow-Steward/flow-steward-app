@@ -1,0 +1,149 @@
+name: Remote quality pilot
+run-name: Quality ${{ inputs.mode || (github.ref_name == 'codex/remote-quality-pilot' && 'release-sonar') || 'tier2' }} · ${{ github.ref_name }}
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Tier 2, cumulative pre-merge gate, or pre-merge gate plus disposable Sonar pilot
+        type: choice
+        required: true
+        default: tier2
+        options: [tier2, release, release-sonar]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remote-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: 'false'
+  FS_STACK_ENV_FILE: /dev/null
+  QUALITY_MODE: ${{ inputs.mode || (github.ref_name == 'codex/remote-quality-pilot' && 'release-sonar') || 'tier2' }}
+
+jobs:
+  quality:
+    if: github.repository == 'Flow-Steward/flow-steward-app' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a clean exact-SHA candidate including current main
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - uses: ./.github/actions/prepare-quality
+      - name: Build the canonical disposable PostgreSQL image
+        if: env.QUALITY_MODE != 'tier2'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/docker/postgres-extended/Dockerfile
+          load: true
+          push: false
+          tags: fs-postgres-extended:0.1.0-pgvector-0.8.5
+          cache-from: type=gha,scope=quality-postgres-amd64
+          cache-to: type=gha,scope=quality-postgres-amd64,mode=min
+      - name: Run canonical Tier 2 or cumulative Tier 2 plus Tier 3
+        run: |
+          set -o pipefail
+          mode=--fast
+          if [[ "$QUALITY_MODE" != tier2 ]]; then mode=--full; fi
+          ./core/entrypoints/cli/scripts/lint.sh "$mode" \
+            --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
+            2>&1 | tee logs/quality/hosted/gate.log
+      - name: Reject results if main advanced beyond the candidate
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - name: Collect bounded diagnostics
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh diagnostics
+      - name: Remove this job's disposable stack
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
+      - name: Retain evidence and this run's coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: quality-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            logs/quality/evidence
+            logs/quality/hosted
+            logs/coverage
+          retention-days: 3
+          if-no-files-found: warn
+
+  sonar:
+    name: Full SonarQube pilot (fresh baseline)
+    needs: quality
+    if: >-
+      inputs.mode == 'release-sonar' ||
+      (github.event_name == 'push' && github.ref_name == 'codex/remote-quality-pilot')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck candidate before expensive analysis
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - uses: ./.github/actions/prepare-quality
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: quality-${{ github.sha }}-${{ github.run_attempt }}
+          path: logs
+      - name: Initialize an isolated SonarQube pilot server
+        run: |
+          source core/entrypoints/cli/scripts/docker_compose_env.sh
+          sudo sysctl -w vm.max_map_count=524288
+          fs_compose --profile quality up -d sonarqube
+          ready=0
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:9000/api/system/status | python3 -c 'import json,sys; sys.exit(json.load(sys.stdin).get("status") != "UP")'; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          [[ "$ready" == 1 ]] || exit 1
+          password="$(openssl rand -hex 24)"
+          printf '::add-mask::%s\n' "$password"
+          curl -fsS -u admin:admin -X POST http://127.0.0.1:9000/api/users/change_password \
+            --data-urlencode login=admin --data-urlencode previousPassword=admin \
+            --data-urlencode "password=$password"
+          token="$(curl -fsS -u "admin:$password" -X POST http://127.0.0.1:9000/api/user_tokens/generate \
+            --data-urlencode "name=quality-$GITHUB_RUN_ID" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+          [[ -n "$token" ]] || exit 1
+          printf '::add-mask::%s\n' "$token"
+          printf 'SONAR_TOKEN=%s\n' "$token" >> "$GITHUB_ENV"
+      - name: Full frontend and backend analysis with the canonical profile
+        run: |
+          set -o pipefail
+          ./core/entrypoints/cli/scripts/lint.sh --sonar-full \
+            2>&1 | tee logs/quality/hosted/sonar.log
+      - name: Reject stale candidate after analysis
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - name: Export findings before deleting the pilot server
+        if: always() && env.SONAR_TOKEN != ''
+        run: ./core/entrypoints/cli/scripts/lint.sh --sonar-issues
+      - name: Collect diagnostics before teardown
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh diagnostics
+      - name: Remove this job's disposable stack and Sonar data
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
+      - name: Retain pilot diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sonar-pilot-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            logs/quality/hosted
+            logs/quality/sonar
+          retention-days: 3
+          if-no-files-found: warn

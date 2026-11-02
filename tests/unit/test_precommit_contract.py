@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PRE_COMMIT = ROOT / ".pre-commit-config.yaml"
 
 
-def test_precommit_sync_precedes_tier_two_reuse_and_never_stages() -> None:
+def test_precommit_sync_precedes_local_tier_one_and_never_stages() -> None:
     source = PRE_COMMIT.read_text(encoding="utf-8")
     config = yaml.safe_load(source)
     hooks = config["repos"][0]["hooks"]
@@ -16,8 +16,10 @@ def test_precommit_sync_precedes_tier_two_reuse_and_never_stages() -> None:
     assert [hook["id"] for hook in hooks[:3]] == [
         "fs-env-artifacts-sync",
         "fs-repository-boundary",
-        "fs-quality-fast",
+        "fs-quality-targeted",
     ]
-    assert "--evidence-mode reuse" in hooks[2]["entry"]
-    assert "--fingerprint-source index" in hooks[2]["entry"]
+    assert hooks[2]["entry"] == (
+        "core/entrypoints/cli/scripts/lint.sh --checks targeted-tests --test-paths auto"
+    )
+    assert not any("--fast" in hook["entry"] for hook in hooks if "pre-commit" in hook["stages"])
     assert "git add" not in source

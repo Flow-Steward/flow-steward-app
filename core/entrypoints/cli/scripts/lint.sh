@@ -112,6 +112,7 @@ Modes:
   --fingerprint-source  worktree, index, or commit (default: worktree).
   --trust  local or trusted_ci; trusted_ci is accepted only in exact-SHA GitHub Actions.
   --commit-sha  Commit identity required with trusted_ci commit fingerprints.
+  --audit-toolchain-digest  Print the canonical audit image toolchain digest; no Docker execution.
 
 Notes:
   - When started on host machine, all modes run in on-demand `fs-audit`.
@@ -141,6 +142,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --fast)
       MODE="fast"
+      ;;
+    --audit-toolchain-digest)
+      MODE="audit-toolchain-digest"
       ;;
     --full)
       MODE="full"
@@ -316,7 +320,7 @@ fi
 
 cd "${ROOT_DIR}"
 
-if [[ -x "${ROOT_DIR}/core/entrypoints/cli/scripts/check_no_enterprise_leak.sh" ]]; then
+if [[ "${MODE}" != audit-toolchain-digest && -x "${ROOT_DIR}/core/entrypoints/cli/scripts/check_no_enterprise_leak.sh" ]]; then
   "${ROOT_DIR}/core/entrypoints/cli/scripts/check_no_enterprise_leak.sh"
 fi
 
@@ -784,6 +788,13 @@ ensure_audit_image_current() {
   fi
   audit_image_checked=1
 }
+
+# Hosted builds use the same toolchain identity as the canonical image guard.
+# This metadata operation neither builds nor starts a container.
+if [[ "${MODE:-}" == "audit-toolchain-digest" ]]; then
+  audit_toolchain_digest "${ROOT_DIR}"
+  exit 0
+fi
 
 # Nested test helpers must use this run's validated image even when an inner
 # dispatcher changes Compose projects. An inherited selector is never trusted.

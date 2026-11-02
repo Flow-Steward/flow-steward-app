@@ -2,6 +2,9 @@
 
 Status: Accepted (owner approved the design on 2026-11-01).
 
+Contributor verification location and timing are amended by
+[ADR 0049](0049-hosted-quality-gates.md). Documentation and publication contracts remain.
+
 ## Context
 
 Public documentation is maintained in a separate repository and can lag behind
