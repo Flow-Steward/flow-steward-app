@@ -157,7 +157,8 @@ def _attach_resume_callback(
                 resume_test_mode = parse_test_mode(row_meta.get("test_mode"), False)
             from core.infrastructure.db.platform_logger import PlatformLoggerCallback
 
-            config["callbacks"] = [PlatformLoggerCallback(bl, project_id, job_id)]
+            callback = PlatformLoggerCallback(bl, project_id, job_id, job_meta=row_meta)
+            config["callbacks"] = [callback]
     except Exception as exc:
         logger.warning("run_graph_resume: could not attach logger callback: %s", exc)
     return bl, job_id, resume_test_mode

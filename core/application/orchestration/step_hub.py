@@ -385,6 +385,7 @@ class _StepHub:
                 "step_id": current.step_id,
                 "step_execution_id": current.step_execution_id,
                 "attempt": current.attempt,
+                "step_kind": current.step_kind,
             },
             "user_approved": None,
             "review_feedback": carry_forward_review_feedback(self.state),

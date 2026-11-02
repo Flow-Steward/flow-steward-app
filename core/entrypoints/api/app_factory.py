@@ -559,6 +559,9 @@ def create_app(
         current_app,
         public_openapi_policy=PUBLIC_OPENAPI_POLICY,
     )
+    from core.infrastructure.observability.otel_http import instrument_fastapi
+
+    instrument_fastapi(current_app)
 
     return current_app
 

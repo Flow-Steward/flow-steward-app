@@ -6,6 +6,7 @@ from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.project_policy_validation import project_policy_numbers_from_form
+from core.application.observability.job_trace_context import TRACE_LINK_KEY, retry_link
 from core.application.settings.timezone_service import resolve_effective_project_tz
 from core.application.workflows.workflow_hook_contract import is_hook_storage
 
@@ -774,6 +775,9 @@ def build_rerun_workflow_selection(
     raw_job_id = job.get("id") if isinstance(job, dict) else None
     if raw_job_id is not None:
         rerun_meta["rerun_from_job_id"] = str(raw_job_id).strip() or raw_job_id
+    previous_trace = retry_link(meta)
+    if previous_trace is not None:
+        rerun_meta[TRACE_LINK_KEY] = previous_trace
     prior_invocation = (
         to_json_obj(meta.get("invocation")) if isinstance(meta.get("invocation"), dict) else {}
     )

@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any
 
 from core.application.orchestration.models import normalize_phase_status
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+from core.infrastructure.observability import otel_instruments
+from core.infrastructure.observability.otel_runtime import flush_child_telemetry
 
 if TYPE_CHECKING:
     from core.application.orchestration.agents.base import BaseAgent
@@ -36,20 +38,36 @@ def _agent_process_entry(agent: BaseAgent, agent_input, result_queue) -> None:
     """Child-process entrypoint for hard-killable agent execution."""
     # Fork inherits the worker's shutdown-only handler, which cannot stop a blocked agent.
     signal.signal(signal.SIGTERM, _cancel_agent_process)
+    otel_instruments.begin_child_capture()
     try:
         output = agent.execute(agent_input)
-        result_queue.put({"ok": True, "output": _serialize_agent_output(output)})
+        result: dict[str, Any] = {"ok": True, "output": _serialize_agent_output(output)}
     except _AgentProcessCancellation:
         return
     except Exception as exc:
-        result_queue.put(
-            {
-                "ok": False,
-                "error": str(exc),
-                "traceback": traceback.format_exc(),
-                "stderr": str(getattr(exc, "stderr", "") or ""),
-            }
-        )
+        result = {
+            "ok": False,
+            "error": str(exc),
+            "traceback": traceback.format_exc(),
+            "stderr": str(getattr(exc, "stderr", "") or ""),
+        }
+    _hand_over_child_telemetry(result)
+    result_queue.put(result)
+
+
+def _hand_over_child_telemetry(result: dict[str, Any]) -> None:
+    """Attach this child's measurements to its result and flush its spans.
+
+    The flush is bounded and runs before the result is sent: once the parent has
+    the result it may terminate this process.
+    """
+    try:
+        measurements = otel_instruments.drain_child_capture()
+        if measurements:
+            result["telemetry"] = measurements
+        flush_child_telemetry()
+    except Exception as exc:
+        logger.debug("agent child telemetry hand-over skipped: %s", type(exc).__name__)
 
 
 def _serialize_agent_output(output: Any) -> dict:

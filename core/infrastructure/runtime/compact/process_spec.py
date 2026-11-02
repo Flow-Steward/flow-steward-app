@@ -11,6 +11,10 @@ from core.infrastructure.config.compact_runtime import (
     CompactPortMap,
     CompactRuntimeSettings,
 )
+from core.infrastructure.observability.otel_environment import (
+    SEMCONV_STABILITY_ENV,
+    SUPPORTED_ENV_NAMES,
+)
 
 _COMMON_ENV = frozenset(
     {
@@ -141,6 +145,10 @@ _MONITORING_ENV = frozenset(
 _SECURITY_ENV = frozenset(
     {"FS_SECRET_KEY", "ENCRYPTION_KEY", "SECURITY_PII_SALT", "FS_MCP_AUTH_DISABLED"}
 )
+# Optional OpenTelemetry export: the operator-supported names only. Each process
+# pins the conventions mode itself, so that variable is not delivered.
+_TELEMETRY_ENV = SUPPORTED_ENV_NAMES - {SEMCONV_STABILITY_ENV}
+
 _RUNTIME_ENV = frozenset(
     {
         "ENVIRONMENT",
@@ -351,6 +359,7 @@ def delivered_environment_names() -> frozenset[str]:
         | _CONTROL_LOOP_ENV
         | _MONITORING_ENV
         | _RETENTION_ENV
+        | _TELEMETRY_ENV
     )
 
 
@@ -381,14 +390,22 @@ def build_process_specs(
         | _AUTH_BOOTSTRAP_ENV
         | _MONITORING_ENV
         | _RETENTION_POLICY_ENV
+        | _TELEMETRY_ENV
     )
     worker_env = (
-        _COMMON_ENV | _DATABASE_ENV | _BROKER_ENV | _SECURITY_ENV | _RUNTIME_ENV | _MONITORING_ENV
+        _COMMON_ENV
+        | _DATABASE_ENV
+        | _BROKER_ENV
+        | _SECURITY_ENV
+        | _RUNTIME_ENV
+        | _MONITORING_ENV
+        | _TELEMETRY_ENV
     )
     control_env = worker_env | _CONTROL_LOOP_ENV | _RETENTION_ENV
     # Installer owns a process reporter too; it needs the same broker projection,
     # but still must not inherit app auth bootstrap or worker bearer credentials.
-    installer_env = worker_env
+    # It is not instrumented, so it gets no telemetry export settings either.
+    installer_env = worker_env - _TELEMETRY_ENV
 
     specs = [
         ProcessSpec(

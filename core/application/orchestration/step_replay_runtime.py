@@ -170,15 +170,17 @@ def invoke_step_replay_llm(
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    from core.application.observability.model_call_telemetry import model_call_scope
     from core.application.orchestration.model_provider import get_chat_model
 
     llm = get_chat_model(replay_config, agent_name=agent_name)
-    response = llm.invoke(
-        [
-            SystemMessage(content=str(system_prompt or "")),
-            HumanMessage(content=str(user_prompt or "")),
-        ]
-    )
+    with model_call_scope("replay"):
+        response = llm.invoke(
+            [
+                SystemMessage(content=str(system_prompt or "")),
+                HumanMessage(content=str(user_prompt or "")),
+            ]
+        )
 
     from core.application.orchestration.model_response_text import model_response_text
 
@@ -187,9 +189,9 @@ def invoke_step_replay_llm(
     response_meta = getattr(response, "response_metadata", None)
     if not isinstance(response_meta, dict):
         response_meta = {}
-    usage_meta = getattr(response, "usage_metadata", None)
-    if not isinstance(usage_meta, dict):
-        usage_meta = {}
+    from core.application.observability.llm_usage import usage_from_message
+
+    usage = usage_from_message(response)
 
     model_used = (
         str(response_meta.get("model_name") or "").strip()
@@ -205,7 +207,7 @@ def invoke_step_replay_llm(
         "prompt_version": clean_prompt_version or None,
         "policy_snapshot_hash": policy_hash,
         "response_metadata": response_meta,
-        "usage": usage_meta,
+        "usage": usage.as_dict() if usage else {},
     }
 
 

@@ -168,7 +168,10 @@ Reply with ONLY a JSON object:
             SystemMessage(content="You are a precise quality checker. Return only valid JSON."),
             HumanMessage(content=prompt),
         ]
-        response = llm.invoke(messages)
+        from core.application.observability.model_call_telemetry import model_call_scope
+
+        with model_call_scope("guardrail"):
+            response = llm.invoke(messages)
         from core.application.orchestration.model_response_text import model_response_text
 
         content = model_response_text(response)

@@ -26,6 +26,11 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable, RunnableLambda
 from pydantic import Field
 
+from core.application.observability.llm_usage import (
+    LLM_OUTPUT_USAGE_KEY,
+    usage_from_extension_payload,
+)
+
 _DEFAULT_MAX_TOKENS = 4096
 _MAX_CONTINUATION_METADATA_BYTES = 16 * 1024
 _RETRYABLE_FAILURES = frozenset({"rate_limited", "timeout", "upstream_error"})
@@ -263,6 +268,7 @@ class ExtensionChatModel(BaseChatModel):
             )
         message = result.get("message") if isinstance(result, dict) else None
         message = message if isinstance(message, dict) else {}
+        usage = usage_from_extension_payload((result or {}).get("usage"))
         response_metadata = {
             "finish_reason": str((result or {}).get("finish_reason") or ""),
             "model_name": self.model_id,
@@ -280,12 +286,15 @@ class ExtensionChatModel(BaseChatModel):
                 else {}
             ),
             response_metadata=response_metadata,
-            usage_metadata=_usage_metadata((result or {}).get("usage")),
+            usage_metadata=usage.to_langchain_usage_metadata() if usage else None,
         )
         llm_output: dict[str, Any] = {
             "model_name": self.model_id,
             "provider_key": self.provider_key,
         }
+        if usage is not None:
+            # usage_metadata cannot hold an unknown count; this keeps it unknown.
+            llm_output[LLM_OUTPUT_USAGE_KEY] = usage.as_dict()
         reported_cost = _reported_cost_usd((result or {}).get("usage"))
         if reported_cost is not None:
             llm_output["cost_usd"] = reported_cost
@@ -480,37 +489,6 @@ class ExtensionChatModel(BaseChatModel):
         raise ExtensionLLMError(
             f"extension provider '{self.provider_key}' call to '{op_id}' failed: {last_detail}"
         )
-
-
-def _usage_metadata(usage: Any) -> dict[str, Any] | None:
-    if not isinstance(usage, dict):
-        return None
-    try:
-        input_tokens = int(usage.get("input_tokens") or 0)
-        output_tokens = int(usage.get("output_tokens") or 0)
-        total_tokens = int(usage.get("total_tokens") or (input_tokens + output_tokens))
-    except (TypeError, ValueError):
-        return None
-    cache_creation = usage.get("cache_creation_input_tokens", usage.get("cache_creation_tokens", 0))
-    cache_read = usage.get("cache_read_input_tokens", usage.get("cache_read_tokens", 0))
-    try:
-        cache_creation = int(cache_creation or 0)
-        cache_read = int(cache_read or 0)
-    except (TypeError, ValueError):
-        cache_creation = cache_read = 0
-    metadata: dict[str, Any] = {
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": total_tokens,
-    }
-    if cache_creation or cache_read:
-        metadata["cache_creation_input_tokens"] = cache_creation
-        metadata["cache_read_input_tokens"] = cache_read
-        metadata["input_token_details"] = {
-            "cache_creation": cache_creation,
-            "cache_read": cache_read,
-        }
-    return metadata
 
 
 def _reported_cost_usd(usage: Any) -> float | None:

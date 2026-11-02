@@ -214,8 +214,20 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/management/scope.py \
     core/application/management/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
+    core/application/observability/job_trace_context.py \
     core/application/observability/llm_costs.py \
+    core/application/observability/llm_usage.py \
+    core/application/observability/workflow_telemetry.py \
     core/application/observability/
+# The logger callback's telemetry facade; the OpenTelemetry API itself stays
+# out of this image and every call is a no-op without it.
+COPY --chmod=u=rwX,go=rX --chown=fs:fs \
+    core/infrastructure/observability/otel_config.py \
+    core/infrastructure/observability/otel_environment.py \
+    core/infrastructure/observability/otel_instruments.py \
+    core/infrastructure/observability/otel_logs.py \
+    core/infrastructure/observability/otel_runtime.py \
+    core/infrastructure/observability/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/orchestration/models.py \
     core/application/orchestration/task_envelope.py \

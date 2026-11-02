@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 _METRIC_NAMESPACE = "platform"
@@ -48,6 +49,63 @@ def active_lease_count(bl) -> int:
     return 0
 
 
+@dataclass(frozen=True)
+class InstallationSnapshot:
+    """Installation-level state shared by ``/metrics`` and the OTLP export."""
+
+    project_count: int = 0
+    job_status_counts: dict[str, int] = field(default_factory=dict)
+    active_leases: int = 0
+    # -1 when the broker could not be asked.
+    ready_queue_depth: int = -1
+    # ``None`` when the SLO source returned something other than a mapping.
+    slo: dict[str, Any] | None = field(default_factory=dict)
+
+
+def collect_installation_snapshot(
+    bl, *, get_ready_queue_depth: Callable[[], int]
+) -> InstallationSnapshot:
+    project_count = 0
+    active_leases = 0
+    ready_queue_depth = -1
+    job_status_counts: dict[str, int] = {}
+    try:
+        with bl.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM projects")
+            project_count = int((cur.fetchone() or [0])[0] or 0)
+            cur.execute(
+                """
+                SELECT status, COUNT(*) AS c
+                FROM jobs
+                GROUP BY status
+                """
+            )
+            for row in cur.fetchall() or []:
+                status_value = str(row[0] or "").strip() or "unknown"
+                job_status_counts[status_value] = int(row[1] or 0)
+            active_leases = active_lease_count(bl)
+    except Exception:
+        pass
+    try:
+        ready_queue_depth = get_ready_queue_depth()
+    except Exception:
+        ready_queue_depth = -1
+
+    slo_payload: dict[str, Any] = {}
+    if hasattr(bl, "get_core_slo_metrics"):
+        try:
+            slo_payload = bl.get_core_slo_metrics(window_hours=24) or {}
+        except Exception:
+            slo_payload = {}
+    return InstallationSnapshot(
+        project_count=project_count,
+        job_status_counts=job_status_counts,
+        active_leases=active_leases,
+        ready_queue_depth=ready_queue_depth,
+        slo=slo_payload if isinstance(slo_payload, dict) else None,
+    )
+
+
 def build_prometheus_metrics_payload(
     bl,
     *,
@@ -86,31 +144,11 @@ def build_prometheus_metrics_payload(
             )
         )
 
-    project_count = 0
-    active_leases = 0
-    ready_queue_depth = -1
-    job_status_counts: dict[str, int] = {}
-    try:
-        with bl.conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM projects")
-            project_count = int((cur.fetchone() or [0])[0] or 0)
-            cur.execute(
-                """
-                SELECT status, COUNT(*) AS c
-                FROM jobs
-                GROUP BY status
-                """
-            )
-            for row in cur.fetchall() or []:
-                status_value = str(row[0] or "").strip() or "unknown"
-                job_status_counts[status_value] = int(row[1] or 0)
-            active_leases = active_lease_count(bl)
-    except Exception:
-        pass
-    try:
-        ready_queue_depth = get_ready_queue_depth()
-    except Exception:
-        ready_queue_depth = -1
+    snapshot = collect_installation_snapshot(bl, get_ready_queue_depth=get_ready_queue_depth)
+    project_count = snapshot.project_count
+    active_leases = snapshot.active_leases
+    ready_queue_depth = snapshot.ready_queue_depth
+    job_status_counts = snapshot.job_status_counts
 
     lines.extend(
         metric_header_lines(
@@ -148,14 +186,8 @@ def build_prometheus_metrics_payload(
     )
     lines.append(metrics_line(_metric_name("ready_queue_depth"), ready_queue_depth))
 
-    slo_payload: dict[str, Any] = {}
-    if hasattr(bl, "get_core_slo_metrics"):
-        try:
-            slo_payload = bl.get_core_slo_metrics(window_hours=24) or {}
-        except Exception:
-            slo_payload = {}
-
-    if isinstance(slo_payload, dict):
+    slo_payload = snapshot.slo
+    if slo_payload is not None:
         p95_latency = slo_payload.get("p95_latency_seconds")
         retry_rate = slo_payload.get("retry_rate")
         dead_letter_rate = slo_payload.get("dead_letter_rate")
@@ -232,8 +264,10 @@ def build_prometheus_metrics_payload(
 
 
 __all__ = [
+    "InstallationSnapshot",
     "active_lease_count",
     "build_prometheus_metrics_payload",
+    "collect_installation_snapshot",
     "metric_header_lines",
     "metrics_line",
 ]

@@ -34,6 +34,7 @@ from core.application.jobs.workflow_wait_projection import (
     wait_status,
 )
 from core.application.management.mcp_connector_client import mcp_execution_scope
+from core.infrastructure.observability.otel_logs import safe_event
 
 logger = logging.getLogger(__name__)
 
@@ -546,6 +547,7 @@ class TaskExecutionService:
             worker_id,
             root_run_id,
             exc_info=(RuntimeError, redacted_error, error.__traceback__),
+            extra=safe_event("fs.job.execution_failed", {"fs.job.id": str(request.job_id)}),
         )
         repository = self._repository
         if repository is None or not repository.available or not request.job_id:
@@ -580,6 +582,10 @@ class TaskExecutionService:
             self._worker_id(),
             root_run_id,
             status,
+            extra=safe_event(
+                "fs.job.execution_failure_status",
+                {"fs.job.id": str(request.job_id), "fs.job.status": str(status)},
+            ),
         )
 
     def _record_terminal_delivery(

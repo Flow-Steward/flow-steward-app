@@ -16,6 +16,7 @@ from core.application.jobs.queue_delivery_runtime import (
     build_initial_queue_delivery_state,
     queue_dead_letter_queue_name,
 )
+from core.application.observability.job_trace_context import stamp_job_meta
 
 
 class QueueTransportUnavailableError(RuntimeError):
@@ -284,6 +285,7 @@ def prepare_enqueue_inputs(
         effective_extra_state["test_mode"] = True
         effective_meta["test_mode"] = True
 
+    stamp_job_meta(effective_meta)
     _copy_lineage_values(effective_meta, effective_extra_state)
     _copy_workflow_selection_source(effective_meta, effective_extra_state)
     _copy_project_config_snapshots(

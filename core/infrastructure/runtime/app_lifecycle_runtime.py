@@ -161,6 +161,10 @@ async def startup_app(
 
     init_sentry(config=config, component="serve", framework="fastapi")
 
+    from core.infrastructure.observability.otel_runtime import init_telemetry
+
+    init_telemetry(role="app")
+
     bl = get_logger_only()
 
     if not bl:
@@ -329,3 +333,7 @@ def shutdown_app(
             resume_join_timeout_seconds,
         )
     stop_control_threads(control_threads)
+
+    from core.infrastructure.observability.otel_runtime import shutdown_telemetry
+
+    shutdown_telemetry()

@@ -91,7 +91,9 @@ class WorkerGraphExecutionAdapter:
                 from core.application.orchestration.graph_runtime import graph_run_config
 
                 invoke_config: dict[str, Any] = graph_run_config(request.thread_id)
-                callback = self._build_callback(project_id, request.job_id)
+                callback = self._build_callback(
+                    project_id, request.job_id, job_meta=(job_row or {}).get("meta")
+                )
                 if callback is not None:
                     invoke_config["callbacks"] = [callback]
                 result = run_graph_with_cancel_check(
@@ -197,13 +199,18 @@ class WorkerGraphExecutionAdapter:
             extra_state=dict(request.extra_state),
         )
 
-    def _build_callback(self, project_id: str | None, job_id: str) -> Any:
+    def _build_callback(self, project_id: str | None, job_id: str, *, job_meta: Any = None) -> Any:
         if not self._bl or not project_id or not job_id:
             return None
         from core.infrastructure.db.platform_logger import PlatformLoggerCallback
 
         try:
-            return PlatformLoggerCallback(self._bl, project_id, job_id)
+            return PlatformLoggerCallback(
+                self._bl,
+                project_id,
+                job_id,
+                job_meta=job_meta,
+            )
         except TypeError:
             logger.debug(
                 "PlatformLoggerCallback constructor rejected worker context; continuing without it"

@@ -14,7 +14,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.application.extensions import url_safety
+from core.application.observability.workflow_telemetry import current_workflow_span, error_type
 from core.infrastructure.config.version import APP_VERSION
+from core.infrastructure.observability import otel_instruments
+from core.infrastructure.observability.otel_mcp import method_label
 
 from .errors import (
     ServiceUnavailableError,
@@ -461,6 +464,40 @@ class StreamableHttpMcpClient:
         self._modern_discovery = response, latency_ms
 
     def request(
+        self,
+        method: str,
+        params: dict[str, Any] | None,
+        *,
+        name: str = "",
+        generated_transport_headers: dict[str, str] | None = None,
+    ) -> tuple[dict[str, Any], int]:
+        # An own span around the third-party call; the call itself runs with an
+        # empty trace context, so nothing of Flow Steward's trace reaches it.
+        label = method_label(str(method or "").strip())
+        span = otel_instruments.start_span(
+            f"mcp {label}",
+            parent=current_workflow_span(),
+            attributes={"mcp.method.name": label},
+            client=True,
+        )
+        failure: BaseException | None = None
+        try:
+            with otel_instruments.detached_context():
+                return self._request(
+                    method,
+                    params,
+                    name=name,
+                    generated_transport_headers=generated_transport_headers,
+                )
+        except BaseException as exc:
+            failure = exc
+            raise
+        finally:
+            otel_instruments.end_span(
+                span, error_type=error_type(failure) if failure is not None else None
+            )
+
+    def _request(
         self,
         method: str,
         params: dict[str, Any] | None,

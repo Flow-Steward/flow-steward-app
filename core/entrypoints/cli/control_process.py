@@ -10,6 +10,8 @@ import signal
 import sys
 import threading
 
+# Must stay the first import: fixes the OTEL_* environment before libraries read it.
+import core.infrastructure.observability.otel_bootstrap  # noqa: F401  # isort: split
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
 logger = logging.getLogger("core.entrypoints.cli.control_process")
@@ -74,12 +76,14 @@ def main() -> None:
     status_publisher = None
     try:
         from core.infrastructure.config.runtime_config import CONFIG
+        from core.infrastructure.observability.otel_runtime import init_telemetry
         from core.infrastructure.observability.runtime_logging import configure_runtime_logging
         from core.infrastructure.observability.sentry import init_sentry
 
         config = CONFIG
         configure_runtime_logging(component="control", config=CONFIG)
         init_sentry(config=CONFIG, component="control")
+        init_telemetry(role="control")
     except Exception as exc:
         logger.warning("Control-plane logging bootstrap failed (non-fatal): %s", exc)
 
@@ -139,6 +143,7 @@ def main() -> None:
             metrics_server.close()
         sys.exit(1)
     _repair_canonical_guardrails(bl=stores["projects"])
+    _register_installation_metrics(dsn)
 
     from core.application.monitoring.runtime_composition import start_configured_status_consumer
 
@@ -210,7 +215,27 @@ def main() -> None:
         status_publisher.close()
     if metrics_server is not None:
         metrics_server.close()
+    from core.infrastructure.observability.otel_runtime import shutdown_telemetry
+
+    shutdown_telemetry()
     logger.info("Control-plane stopped")
+
+
+def _register_installation_metrics(dsn: str) -> None:
+    """Export installation metrics over OTLP; the control plane is their only owner."""
+    try:
+        from core.infrastructure.db.platform_stores import PlatformObservabilityStore
+        from core.infrastructure.observability.otel_installation_metrics import (
+            register_installation_metrics,
+        )
+        from core.infrastructure.runtime.worker.queue_broker import get_ready_queue_depth
+
+        register_installation_metrics(
+            store_factory=lambda: PlatformObservabilityStore(dsn),
+            get_ready_queue_depth=get_ready_queue_depth,
+        )
+    except Exception as exc:
+        logger.warning("Installation metrics unavailable: %s", type(exc).__name__)
 
 
 def _create_stores(dsn: str | None = None):

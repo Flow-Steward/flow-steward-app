@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import re
@@ -21,7 +22,9 @@ import httpx2
 from mcp import Client, MCPError
 from mcp.client.streamable_http import streamable_http_client
 
+from core.application.observability.workflow_telemetry import current_workflow_span
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+from core.infrastructure.observability import otel_instruments
 
 logger = logging.getLogger(__name__)
 
@@ -498,10 +501,13 @@ def _run_mcp_coro_sync(coro: Any) -> str:
         return str(asyncio.run(coro))
 
     result: Future[Any] = Future()
+    # The new thread starts with an empty context; the request (and its SDK
+    # client span) must keep the caller's trace and request-scoped bindings.
+    context = contextvars.copy_context()
 
     def worker() -> None:
         with _McpResultHandoff(result):
-            result.set_result(asyncio.run(coro))
+            result.set_result(context.run(asyncio.run, coro))
 
     # A caller interrupt must not register an executor atexit join for a blocked
     # network operation. The daemon's outcome belongs to the waiting caller.
@@ -552,14 +558,16 @@ def _call_mcp_endpoint(
                     "Flow Steward MCP auth token unavailable for authenticated MCP request"
                 )
             try:
-                result_text = _run_mcp_coro_sync(
-                    _call_modern_mcp_endpoint(
-                        normalized_url,
-                        tool_name,
-                        arguments,
-                        headers=headers,
+                # The SDK's client span nests under the calling workflow step.
+                with otel_instruments.current_span(current_workflow_span()):
+                    result_text = _run_mcp_coro_sync(
+                        _call_modern_mcp_endpoint(
+                            normalized_url,
+                            tool_name,
+                            arguments,
+                            headers=headers,
+                        )
                     )
-                )
                 break
             except Exception as exc:
                 status_error = _find_nested_exception(exc, httpx2.HTTPStatusError)

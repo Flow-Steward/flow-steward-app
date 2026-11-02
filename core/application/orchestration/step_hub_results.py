@@ -536,6 +536,7 @@ def retry_operation(
                 "step_id": current.step_id,
                 "step_execution_id": current.step_execution_id,
                 "attempt": cursor.attempt,
+                "step_kind": current.step_kind,
             },
             "operation_retry_state": rows,
             "operation_retry_dispatch": {

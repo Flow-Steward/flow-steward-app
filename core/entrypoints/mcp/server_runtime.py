@@ -11,6 +11,7 @@ from core.entrypoints.mcp.server_caller_identity import McpCallerIdentityMiddlew
 from core.entrypoints.mcp.server_discovery import McpToolDiscoveryMiddleware
 from core.entrypoints.mcp.server_maintenance import McpMaintenanceMiddleware
 from core.entrypoints.mcp.server_public_identity import mcp_auth_urls
+from core.infrastructure.observability.otel_mcp import install_mcp_tracing
 from core.infrastructure.runtime_env import runtime_env
 from mcp.server import MCPServer
 
@@ -97,6 +98,7 @@ mcp = MCPServer(
     token_verifier=token_verifier,
     auth=auth_settings,
 )
+install_mcp_tracing(mcp)
 
 
 __all__ = ["MCP_AUTH_ENABLED", "MCP_ISSUER_URL", "MCP_RESOURCE_URL", "logger", "mcp"]

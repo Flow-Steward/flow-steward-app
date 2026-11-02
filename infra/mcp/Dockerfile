@@ -23,6 +23,8 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/__init__.py core/infr
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/mcp_dev_proxy.py core/infrastructure/mcp_dev_proxy.py
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/public_identity.py core/infrastructure/public_identity.py
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/runtime_env.py core/infrastructure/runtime_env.py
+COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/observability/otel_*.py core/infrastructure/observability/
+COPY --chmod=u=rwX,go=rX --chown=fs:fs VERSION VERSION
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/entrypoints/mcp/ core/entrypoints/mcp/
 
 ARG FS_BUILD_REVISION=unknown

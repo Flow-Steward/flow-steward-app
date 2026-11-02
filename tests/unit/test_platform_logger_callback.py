@@ -375,7 +375,8 @@ def test_on_llm_end_reads_cache_tokens_from_response_metadata_fallback():
     fake_logger.log_action.assert_called_once()
     _, kwargs = fake_logger.log_action.call_args
     assert kwargs["action_type"] == "llm_call"
-    assert kwargs["tokens_prompt"] == 10
+    # Raw Anthropic cache buckets are added to the input they were left out of.
+    assert kwargs["tokens_prompt"] == 17
     assert kwargs["tokens_completion"] == 5
     assert kwargs["tokens_total"] == 22
     assert kwargs["model_used"] == "chat"
