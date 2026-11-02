@@ -21,6 +21,7 @@ import type * as CanvasModule from "@/pages/workflows/builder/canvas";
 
 vi.mock("@/pages/workflows/shared/api", () => {
   return {
+    fetchAgentFileFormats: vi.fn(async () => ({ text_extensions: [".txt", ".md"], text_encoding: "utf-8", rtf_mode: "source" })),
     fetchWorkflowCanvasGraph: vi.fn(),
     fetchWorkflowContract: vi.fn(),
     fetchWorkflowDag: vi.fn(),
