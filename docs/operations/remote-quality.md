@@ -53,6 +53,14 @@ Tier 2 runs first, Tier 3 is not selected, and Sonar analyzes all canonical sour
 without test coverage. The bootstrap runtime-pilot branch selects this mode.
 It cannot qualify a release; use `release-sonar` for cumulative release evidence.
 
+The `parallel-diagnostic` mode measures frontend-tests and backend-tests on
+separate standard VMs after Tier 2. Each VM reads its actual command from the
+canonical check registry and runs it through lint.sh and fs-audit. Worker counts,
+timeouts, and test scope are unchanged. Both jobs finish even if one fails.
+This runtime comparison does not replace cumulative `--full`: cross-profile and
+external acceptance checks, and final evidence validation still belong to the
+release route. The bootstrap parallel-pilot branch selects this measurement mode.
+
 The Sonar job starts a fresh, disposable SonarQube server, rotates the bootstrap
 admin password and creates a masked per-run token. It runs `lint.sh --sonar-full`
 with the existing profile and that same run's coverage. The backend and frontend
