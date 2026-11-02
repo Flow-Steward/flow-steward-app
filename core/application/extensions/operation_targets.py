@@ -415,6 +415,7 @@ def _direct_action_connection_target(
                 bl,
                 account_id=str(connection.get("account_id") or "").strip(),
                 secret_refs=secret_refs,
+                connection=connection,
             )
         except Exception as exc:
             from core.application.management.project_connection_secrets import (

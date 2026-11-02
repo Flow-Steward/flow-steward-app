@@ -166,6 +166,11 @@ def delete_connection_secret_refs(
             DELETE FROM secret_refs
              WHERE account_id::text = %s
                AND left(ref_key, length(%s)) = %s
+               AND NOT EXISTS (
+                   SELECT 1 FROM catalog_secrets AS catalog
+                    WHERE catalog.account_id = secret_refs.account_id
+                      AND catalog.storage_ref_key = secret_refs.ref_key
+               )
             """,
             (normalized_account_id, ref_prefix, ref_prefix),
         )

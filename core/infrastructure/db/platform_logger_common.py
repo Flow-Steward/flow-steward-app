@@ -367,10 +367,17 @@ def _normalize_int_list(value) -> list[str]:
     return normalized
 
 
+#: Must equal core.application.auth.scope_contracts.EXACT_ONLY_SCOPES; a unit test
+#: compares them. A delegated token never receives these through a wildcard.
+_EXACT_ONLY_SCOPES = frozenset({"secrets:bind", "secrets:write"})
+
+
 def _scope_granted(scope_set: set[str], required_scope: str) -> bool:
     required = str(required_scope or "").strip().lower()
     if not required:
         return True
+    if required in _EXACT_ONLY_SCOPES:
+        return required in scope_set
     if required in scope_set or "admin:all" in scope_set:
         return True
     separator = ":" if ":" in required else ""

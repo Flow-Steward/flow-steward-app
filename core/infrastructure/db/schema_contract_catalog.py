@@ -8,6 +8,11 @@ _MESSAGE_TIMESTAMP_WITH_TIME_ZONE = "timestamp with time zone"
 
 _TOKEN_NOW = "now()"
 
+#: Data phases of `database upgrade` (ADR 0054) every database of this release has
+#: completed. The registry in core/application/tooling/db/upgrade_phases.py must name
+#: exactly these, in order; a unit test compares them.
+REQUIRED_UPGRADE_PHASES: tuple[str, ...] = ("catalog_secret_initial_approvals",)
+
 REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "generated_extension_jobs",
     "provider_types",
@@ -61,6 +66,10 @@ REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "auth_password_resets",
     "auth_rate_limits",
     "platform_schema_migrations",
+    "platform_upgrade_phases",
+    "catalog_secrets",
+    "catalog_secret_bindings",
+    "catalog_secret_approvals",
     "fs_runtime_status_current",
     "fs_runtime_status_history",
     "fs_tabular_snapshot_heads",

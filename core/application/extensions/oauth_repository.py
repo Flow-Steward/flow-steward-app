@@ -360,7 +360,21 @@ class ExtensionOAuthRepository(OAuthConfigurationRepositoryMixin, OAuthStateRepo
                 """UPDATE project_connections
                       SET enabled = true,
                           oauth_granted_scopes = '[]'::jsonb,
-                          secret_refs = '{}'::jsonb,
+                          -- Static credentials bound to catalog secrets survive the
+                          -- disconnect (ADR 0055); everything else is cleared.
+                          secret_refs = CASE
+                              WHEN jsonb_typeof(secret_refs -> 'catalog') = 'object'
+                                   AND secret_refs -> 'catalog' <> '{}'::jsonb
+                              THEN jsonb_build_object(
+                                  'refs', COALESCE((
+                                      SELECT jsonb_object_agg(
+                                                 bound.key, secret_refs -> 'refs' -> bound.key)
+                                        FROM jsonb_object_keys(secret_refs -> 'catalog')
+                                             AS bound(key)
+                                       WHERE secret_refs -> 'refs' ? bound.key
+                                  ), '{}'::jsonb),
+                                  'catalog', secret_refs -> 'catalog')
+                              ELSE '{}'::jsonb END,
                           connection_config = COALESCE(connection_config, '{}'::jsonb)
                               || jsonb_build_object(
                                   'oauth',

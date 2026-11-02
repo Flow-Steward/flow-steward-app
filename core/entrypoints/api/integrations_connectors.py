@@ -37,6 +37,7 @@ from core.entrypoints.api.integrations_request_helpers import (
     _require_extension_state_connection_owner,
     _valid_project_id,
 )
+from core.entrypoints.api.integrations_secret_routes import register_secret_approval_routes
 
 
 def create_integrations_connectors_router(
@@ -720,6 +721,15 @@ def create_integrations_connectors_router(
         err_not_found=err_not_found,
         get_logger=get_logger,
         project_query_service=project_query_service,
+        request_scope=request_scope,
+        router=router,
+        service_error_response=service_error_response,
+    )
+
+    register_secret_approval_routes(
+        api_error_response=api_error_response,
+        err_not_found=err_not_found,
+        get_logger=integration_store,
         request_scope=request_scope,
         router=router,
         service_error_response=service_error_response,

@@ -9,6 +9,7 @@ from core.application.tooling.db.models import (
     DatabaseBootstrapSeedRequest,
     DatabaseGenerateMigrationRequest,
     DatabaseOperationResult,
+    DatabasePreflightRequest,
     DatabaseQueryDiagnosticsRequest,
     DatabaseRestoreParityCaptureRequest,
     DatabaseRestoreParityVerifyRequest,
@@ -53,6 +54,26 @@ class DatabaseToolingService:
             details=dict(status),
         )
 
+    def preflight(self, request: DatabasePreflightRequest) -> DatabaseOperationResult:
+        from core.application.tooling.db import upgrade_db
+
+        report = upgrade_db.preflight_database_upgrade(
+            dsn=self._dsn(request.dsn),
+            allow_unlabeled_sessions=request.allow_unlabeled_sessions,
+        )
+        blocked = bool(report["blocking"])
+        return DatabaseOperationResult(
+            operation="database.preflight",
+            status="blocked" if blocked else "ok",
+            changed=False,
+            message=(
+                f"database upgrade is blocked by {len(report['blocking'])} issue(s)"
+                if blocked
+                else "database upgrade can proceed"
+            ),
+            details=dict(report),
+        )
+
     def upgrade(self, request: DatabaseUpgradeRequest) -> DatabaseOperationResult:
         from core.application.tooling.db import upgrade_db
 
@@ -60,6 +81,7 @@ class DatabaseToolingService:
             dsn=self._dsn(request.dsn),
             author=request.author,
             maintenance_confirmed=request.maintenance_confirmed,
+            allow_unlabeled_sessions=request.allow_unlabeled_sessions,
         )
         return DatabaseOperationResult(
             operation="database.upgrade",

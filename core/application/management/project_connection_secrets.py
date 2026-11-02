@@ -34,8 +34,24 @@ def resolve_connection_secrets(
     account_id: str,
     secret_refs: Any,
     reader: StoredSecretReader | None = None,
+    connection: dict[str, Any] | None = None,
 ) -> dict[str, str]:
-    """A connection's static credentials; OAuth grant values are never included."""
+    """A connection's static credentials; OAuth grant values are never included.
+
+    Credentials bound to catalog secrets are read only while the connection's
+    configuration matches its approval (ADR 0055). Callers pass the `connection`
+    they are resolving; refs that carry catalog bindings without one are refused.
+    """
+    from core.application.secrets.approval_gate import (
+        SecretConfigurationUnapproved,
+        catalog_marker,
+        require_approved_connection_use,
+    )
+
+    if connection is not None:
+        require_approved_connection_use(conn, connection, secret_refs=secret_refs)
+    elif catalog_marker(secret_refs):
+        raise SecretConfigurationUnapproved()
     return _secret_store.resolve_connection_secrets(
         conn,
         account_id=account_id,

@@ -174,3 +174,67 @@ CREATE INDEX idx_oauth_grants_user_revoked ON public.oauth_grants (user_id, revo
 CREATE INDEX idx_oauth_access_tokens_grant ON public.oauth_access_tokens (grant_id);
 CREATE INDEX idx_oauth_refresh_tokens_grant ON public.oauth_refresh_tokens (grant_id);
 CREATE INDEX idx_oauth_authorizations_expires ON public.oauth_authorizations (expires_at);
+
+-- Secret catalog (ADR 0055): identity, metadata, bindings and approved use of shared
+-- secrets. Values stay in secret_refs under storage_ref_key. platform_upgrade_phases
+-- records the data phases of database upgrade (ADR 0054). Keep this block and
+-- db/migrations/20261103090000_secret_catalog.sql identical apart from IF NOT EXISTS.
+CREATE TABLE public.catalog_secrets (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE RESTRICT,
+    workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE RESTRICT,
+    project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
+    name text NOT NULL CHECK (char_length(btrim(name)) BETWEEN 1 AND 200),
+    description text DEFAULT ''::text NOT NULL CHECK (char_length(description) <= 2000),
+    storage_ref_key text NOT NULL CHECK (char_length(storage_ref_key) BETWEEN 1 AND 512),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text DEFAULT ''::text NOT NULL,
+    metadata_updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    metadata_updated_by text DEFAULT ''::text NOT NULL,
+    value_updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    value_updated_by text DEFAULT ''::text NOT NULL,
+    CONSTRAINT catalog_secrets_storage_ref_key UNIQUE (account_id, storage_ref_key),
+    CONSTRAINT catalog_secrets_id_account_key UNIQUE (id, account_id)
+);
+
+CREATE TABLE public.catalog_secret_bindings (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL,
+    secret_id uuid NOT NULL,
+    consumer_kind text NOT NULL CHECK (consumer_kind = 'project_connection'),
+    project_connection_id text REFERENCES public.project_connections(connection_id) ON DELETE CASCADE,
+    field_name text NOT NULL
+        CHECK (char_length(btrim(field_name)) BETWEEN 1 AND 200 AND field_name NOT LIKE '\_oauth\_%'),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text DEFAULT ''::text NOT NULL,
+    CONSTRAINT catalog_secret_bindings_secret_fkey FOREIGN KEY (secret_id, account_id)
+        REFERENCES public.catalog_secrets(id, account_id) ON DELETE RESTRICT,
+    CONSTRAINT catalog_secret_bindings_consumer_check
+        CHECK ((consumer_kind = 'project_connection') = (project_connection_id IS NOT NULL)),
+    CONSTRAINT catalog_secret_bindings_connection_field_key UNIQUE (project_connection_id, field_name)
+);
+
+CREATE TABLE public.catalog_secret_approvals (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE RESTRICT,
+    consumer_kind text NOT NULL CHECK (consumer_kind = 'project_connection'),
+    project_connection_id text REFERENCES public.project_connections(connection_id) ON DELETE CASCADE,
+    fingerprint text NOT NULL CHECK (fingerprint ~ '^sha256:[0-9a-f]{64}$'),
+    projection_jsonb jsonb NOT NULL CHECK (jsonb_typeof(projection_jsonb) = 'object'),
+    approved_by text NOT NULL CHECK (char_length(btrim(approved_by)) > 0),
+    approved_by_kind text NOT NULL CHECK (approved_by_kind = ANY (ARRAY['human'::text, 'upgrade'::text])),
+    approved_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT catalog_secret_approvals_consumer_check
+        CHECK ((consumer_kind = 'project_connection') = (project_connection_id IS NOT NULL)),
+    CONSTRAINT catalog_secret_approvals_connection_key UNIQUE (project_connection_id)
+);
+
+CREATE TABLE public.platform_upgrade_phases (
+    phase_id text PRIMARY KEY CHECK (phase_id ~ '^[a-z][a-z0-9_]{2,127}$'),
+    release_version text NOT NULL,
+    summary_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL CHECK (jsonb_typeof(summary_jsonb) = 'object'),
+    completed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX idx_catalog_secrets_scope ON public.catalog_secrets (account_id, workspace_id, project_id);
+CREATE INDEX idx_catalog_secret_bindings_secret ON public.catalog_secret_bindings (secret_id);

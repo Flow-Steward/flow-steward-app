@@ -96,6 +96,7 @@ ADR takes the next unused number; never reuse a retired number.
 
 | [0048](0048-documentation-and-tag-release-actions.md) | Documentation and Tag-Release Actions | Accepted |
 | [0054](0054-pre-1.0-released-database-upgrades.md) | Database Upgrades of Released Installations Before 1.0 | Accepted |
+| [0055](0055-secret-catalog.md) | Secret Catalog, Bindings and Approved Use | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

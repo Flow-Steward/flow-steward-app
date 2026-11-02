@@ -326,6 +326,7 @@ class ExtensionCallbackDispatchService:
                     self.bl,
                     account_id=_normalize_text(connection.get("account_id")),
                     secret_refs={"refs": _as_dict(secret_refs.get("refs"))},
+                    connection=connection,
                 )
             except StoredSecretError as exc:
                 # No key means no signature can match: the callback is refused,

@@ -179,6 +179,7 @@ def _build_runtime_connection_target(
                 bl,
                 account_id=str(connection.get("account_id") or "").strip(),
                 secret_refs=connection.get("secret_refs"),
+                connection=connection,
             )
             from core.application.extensions.operation_targets import (
                 provider_secrets_for_connection,

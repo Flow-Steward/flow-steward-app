@@ -458,6 +458,7 @@ def _inject_project_connection_secrets(
     bl=None,
     project_id: int | str | None = None,
     account_id: str = "",
+    connection: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     merged = dict(config)
     if isinstance(secret_refs, dict):
@@ -472,6 +473,7 @@ def _inject_project_connection_secrets(
                     bl,
                     account_id=str(account_id or "").strip(),
                     secret_refs=secret_refs,
+                    connection=connection,
                 )
             except StoredSecretError:
                 # A configured credential that cannot be produced must not turn
@@ -571,6 +573,14 @@ def resolve_extension_runtime_config(
         bl=bl,
         project_id=resolved_project_id,
         account_id=str(connection_row.get("account_id") or extension_account_id).strip(),
+        connection=(
+            {
+                **connection_row,
+                "account_id": str(connection_row.get("account_id") or extension_account_id).strip(),
+            }
+            if connection_row
+            else None
+        ),
     )
 
     config_enabled = _coerce_bool(merged_cfg.get("enabled"), True)

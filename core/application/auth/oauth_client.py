@@ -790,6 +790,8 @@ def disconnect_connection_oauth(conn: Any, *, connection: dict[str, Any]) -> dic
             transaction_conn,
             connection_id=connection_id,
         )
+        from core.application.secrets.approval_gate import catalog_projection_only
+
         project_connection_secrets.delete_connection_secret_refs(
             transaction_conn,
             account_id=account_id,
@@ -803,7 +805,9 @@ def disconnect_connection_oauth(conn: Any, *, connection: dict[str, Any]) -> dic
             transaction_conn,
             connection_id,
             {
-                "secret_refs": {},
+                # Static credentials bound to catalog secrets are not part of the
+                # OAuth grant and survive the disconnect (ADR 0055).
+                "secret_refs": catalog_projection_only(connection.get("secret_refs")),
                 "connection_config": config,
                 "health_status": "unknown",
                 "runtime_status": "unavailable",

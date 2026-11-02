@@ -57,13 +57,21 @@ def cleanup_project_connection_owned_data(
             "DELETE FROM project_connection_sessions WHERE connection_id = %s",
             (connection_id,),
         )
+        # Values the catalog owns outlive the connection: only its bindings go,
+        # through the foreign key, when the connection row is deleted (ADR 0055).
+        ref_prefix = f"project_connection:{connection_id}:"
         cursor.execute(
             """
             DELETE FROM secret_refs
              WHERE account_id::text = %s
-               AND ref_key LIKE %s
+               AND left(ref_key, length(%s)) = %s
+               AND NOT EXISTS (
+                   SELECT 1 FROM catalog_secrets AS catalog
+                    WHERE catalog.account_id = secret_refs.account_id
+                      AND catalog.storage_ref_key = secret_refs.ref_key
+               )
             """,
-            (account_id, f"project_connection:{connection_id}:%"),
+            (account_id, ref_prefix, ref_prefix),
         )
         cursor.execute(
             "DELETE FROM extension_project_state WHERE connection_id = %s",
@@ -716,8 +724,6 @@ class ProjectConnectionService(ProjectConnectionContract):
             },
         )
 
-        from core.application.management import project_connection_secrets
-
         platform_secret_ref_names = self._oauth_platform_secret_ref_names(
             bl=bl,
             extension_id=existing.get("extension_id"),
@@ -744,28 +750,17 @@ class ProjectConnectionService(ProjectConnectionContract):
             secret_refs=candidate_secret_refs,
         )
 
-        saved_refs = project_connection_secrets.save_connection_secrets(
-            bl,
-            account_id=self._normalize_text(existing.get("account_id")),
-            connection_id=self._normalize_text(existing.get("connection_id")),
-            secrets=sanitized_secrets,
-        )
-        merged_secret_refs = self._normalize_secret_refs(existing.get("secret_refs"))
-        refs = dict(merged_secret_refs.get("refs") or {})
-        refs.update(dict(saved_refs.get("refs") or {}))
-        merged_secret_refs["refs"] = refs
-        try:
-            current_revision = int(existing.get("credential_revision") or 1)
-        except (TypeError, ValueError):
-            current_revision = 1
-        self._update_connection_row(
-            bl,
-            connection_id,
-            {
-                "secret_refs": merged_secret_refs,
-                "credential_revision": max(1, current_revision) + 1,
-            },
-        )
+        # Each typed value becomes, or replaces, a catalog secret bound to this
+        # field (ADR 0055); the catalog writes the refs projection and bumps the
+        # credential revision in the same transaction.
+        from core.application.secrets.service import SecretCatalogService
+
+        if sanitized_secrets:
+            SecretCatalogService(lambda: bl).save_connection_values(
+                self._normalize_text(existing.get("connection_id")),
+                scope,
+                values={name: str(value) for name, value in sanitized_secrets.items()},
+            )
         self._invalidate_connection_sessions(bl, connection_id)
         updated = self._get_connection_row(bl, connection_id) or existing
         return ProjectConnectionView(**self._normalize_connection_view_row(updated))

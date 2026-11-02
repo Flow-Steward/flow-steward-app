@@ -7,7 +7,13 @@ import contextlib
 import sys
 from typing import Any
 
-from core.application.tooling.db import init_db, migration_runner, vector_lifecycle
+from core.application.tooling.db import (
+    init_db,
+    migration_runner,
+    upgrade_phases,
+    upgrade_preflight,
+    vector_lifecycle,
+)
 from core.infrastructure.db import psycopg_runtime
 from core.infrastructure.db.schema_contract import (
     enforce_canonical_baseline_contract_connection,
@@ -17,6 +23,7 @@ from core.infrastructure.db.schema_state import (
     inspect_canonical_schema_state,
     record_canonical_schema_state,
 )
+from core.infrastructure.db.session_identity import set_session_role
 
 UPGRADE_ADVISORY_LOCK_KEY = migration_runner.MIGRATION_ADVISORY_LOCK_KEY
 
@@ -95,10 +102,16 @@ def _stamp_verified_canonical_baseline(conn, *, component: str) -> dict[str, Any
     # db/schema is the 1.0 baseline and every db/migrations/ file is a post-1.0
     # change, so a verified baseline applies all of them rather than stamping any.
     post_baseline = migration_runner.apply_pending_migrations(conn, acquire_lock=False)
+    # A fresh database runs every data phase too; on an empty database each is a
+    # no-op, and the runtime contract then finds them all recorded (ADR 0054).
+    phases = upgrade_phases.run_pending_phases(
+        conn, applied_migrations=set(migration_runner.fetch_applied_migrations(conn))
+    )
     return {
         **post_baseline,
         "stamped": [],
         "pending": [],
+        "upgrade_phases": phases,
     }
 
 
@@ -130,22 +143,59 @@ def inspect_database_upgrade(*, dsn: str | None = None) -> dict[str, Any]:
     return state
 
 
+def preflight_database_upgrade(
+    *, dsn: str | None = None, allow_unlabeled_sessions: bool = False
+) -> dict[str, Any]:
+    """Read-only check of everything that would stop the upgrade (ADR 0054)."""
+    set_session_role("upgrade")
+    dsn = _resolved_dsn(dsn)
+    conn = psycopg_runtime.connect(dsn)
+    try:
+        conn.autocommit = False
+        with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION READ ONLY")
+        return upgrade_preflight.preflight(conn, allow_unlabeled_sessions=allow_unlabeled_sessions)
+    finally:
+        with contextlib.suppress(Exception):
+            conn.rollback()
+        conn.close()
+
+
+def _refuse_blocked_preflight(conn, *, allow_unlabeled_sessions: bool) -> None:
+    report = upgrade_preflight.preflight(conn, allow_unlabeled_sessions=allow_unlabeled_sessions)
+    if report["blocking"]:
+        first = report["blocking"][0]
+        raise RuntimeError(
+            f"Database upgrade preflight is blocked ({len(report['blocking'])} issue(s)); "
+            f"first: {first['code']}: {first['message']} "
+            "Run flow-steward database preflight for the full report."
+        )
+
+
 def upgrade_database(
     *,
     dsn: str | None = None,
     author: str = "system",
     maintenance_confirmed: bool = False,
+    allow_unlabeled_sessions: bool = False,
 ) -> dict[str, Any]:
+    set_session_role("upgrade")
     dsn = _resolved_dsn(dsn)
     init_db.validate_bootstrap_layout()
     conn = psycopg_runtime.connect(dsn)
     conn.autocommit = True
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT pg_advisory_lock(%s)",
-            (UPGRADE_ADVISORY_LOCK_KEY,),
+        cur.execute("SELECT pg_try_advisory_lock(%s)", (UPGRADE_ADVISORY_LOCK_KEY,))
+        row = cur.fetchone()
+    if not row or not row[0]:
+        conn.close()
+        raise RuntimeError(
+            "Another database upgrade is running against this database; "
+            "wait for it to finish, then run this one again."
         )
     try:
+        # Repeated under the lock: what preflight reported may have changed since.
+        _refuse_blocked_preflight(conn, allow_unlabeled_sessions=allow_unlabeled_sessions)
         vector_lifecycle.require_pgvector_image(conn)
         tracking_exists = migration_runner.migrations_table_exists(conn)
         if tracking_exists:
@@ -157,6 +207,10 @@ def upgrade_database(
             schema_migrations = migration_runner.apply_pending_migrations(
                 conn,
                 acquire_lock=False,
+            )
+            schema_migrations["upgrade_phases"] = upgrade_phases.run_pending_phases(
+                conn,
+                applied_migrations=set(migration_runner.fetch_applied_migrations(conn)),
             )
         else:
             schema_migrations = _stamp_verified_canonical_baseline(
@@ -233,6 +287,7 @@ def baseline_migration_history(
 ) -> dict[str, Any]:
     """Create a migration ledger only for a proven canonical clean baseline."""
     del author  # Reserved for the operator audit envelope printed by the caller.
+    set_session_role("upgrade")
     dsn = _resolved_dsn(dsn)
     init_db.validate_bootstrap_layout()
     conn = psycopg_runtime.connect(dsn)
@@ -244,6 +299,7 @@ def baseline_migration_history(
             _refuse_pre_release_database(conn)
             state = migration_runner.inspect_migrations(conn)
             unknown = migration_runner.applied_unknown_migrations(conn)
+            unknown += upgrade_phases.unknown_recorded_phases(conn)
             if unknown:
                 raise RuntimeError(
                     "The database carries migrations this release does not know: "
@@ -252,7 +308,12 @@ def baseline_migration_history(
                     "a schema it has never seen. Restore the backup taken before that "
                     "release's migration, or install the newer release again."
                 )
-            if state["pending"] or state["drifted"]:
+            missing_phases = [
+                phase.phase_id
+                for phase in upgrade_phases.UPGRADE_PHASES
+                if phase.phase_id not in upgrade_phases.recorded_phases(conn)
+            ]
+            if state["pending"] or state["drifted"] or missing_phases:
                 raise RuntimeError(
                     "Migration history already exists but does not match this release; "
                     "use flow-steward database upgrade after verifying a backup."
@@ -301,6 +362,19 @@ if __name__ == "__main__":
         help="Report whether the current database fingerprint matches the checked-in canonical state.",
     )
     parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Report, without changing anything, what would stop the upgrade (JSON).",
+    )
+    parser.add_argument(
+        "--allow-unlabeled-sessions",
+        action="store_true",
+        help=(
+            "Proceed although sessions of this database user carry no Flow Steward "
+            "session name; only after confirming they are not runtime processes."
+        ),
+    )
+    parser.add_argument(
         "--maintenance-confirmed",
         action="store_true",
         help=(
@@ -324,6 +398,15 @@ if __name__ == "__main__":
         print("Migration history baseline complete.")
         raise SystemExit(0)
 
+    if args.preflight:
+        import json
+
+        report = preflight_database_upgrade(
+            allow_unlabeled_sessions=bool(args.allow_unlabeled_sessions)
+        )
+        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+        raise SystemExit(2 if report["blocking"] else 0)
+
     if args.check:
         status = inspect_database_upgrade()
         current = status.get("current") or {}
@@ -340,6 +423,7 @@ if __name__ == "__main__":
         upgrade_database(
             author=str(args.author or "system"),
             maintenance_confirmed=bool(args.maintenance_confirmed),
+            allow_unlabeled_sessions=bool(args.allow_unlabeled_sessions),
         )
     )
     print("Database upgrade complete.")
