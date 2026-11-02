@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -118,3 +119,41 @@ def test_toolchain_metadata_does_not_need_docker() -> None:
     digest = result.stdout.strip()
     assert len(digest) == 40
     assert all(char in "0123456789abcdef" for char in digest)
+
+
+@pytest.mark.parametrize(("owned", "auto_removed"), [(True, False), (True, True), (False, False)])
+def test_cleanup_checks_identity_before_removing_a_leftover_one_off(
+    candidate: tuple[Path, dict[str, str]], owned: bool, auto_removed: bool
+) -> None:
+    _, env = candidate
+    root = Path(env["GITHUB_WORKSPACE"])
+    fake_bin = root / "bin"
+    fake_bin.mkdir()
+    calls = root / "docker-calls.jsonl"
+    removed = root / "removed"
+    project = "fs-quality-123-1-quality" if owned else "another-project"
+    docker = fake_bin / "docker"
+    docker.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, pathlib, sys\n"
+        f"calls = pathlib.Path({str(calls)!r})\n"
+        f"removed = pathlib.Path({str(removed)!r})\n"
+        "args = sys.argv[1:]\n"
+        "with calls.open('a') as out: out.write(json.dumps(args) + '\\n')\n"
+        "if args[0] == 'ps' and not removed.exists(): print('abc123')\n"
+        f"if args[0] == 'inspect': print({project!r})\n"
+        "if args[:2] == ['rm', '-f']:\n"
+        "    removed.touch()\n"
+        f"    sys.exit({1 if auto_removed else 0})\n"
+    )
+    docker.chmod(0o755)
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    result = _run(env, "cleanup")
+    recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+    if owned:
+        assert result.returncode == 0, result.stderr
+        assert ["rm", "-f", "abc123"] in recorded
+    else:
+        assert result.returncode != 0
+        assert not any(call[0] == "rm" for call in recorded)
+    assert not any("prune" in call for call in recorded)

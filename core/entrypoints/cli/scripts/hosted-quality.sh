@@ -56,8 +56,27 @@ case "${1:-}" in
     # Exact run identity; no prune, no prefix matching, no shared cache volume.
     "${compose[@]}" --profile audit --profile quality down --volumes --remove-orphans
     remaining="$(docker ps -aq --filter "label=com.docker.compose.project=${project}")"
+    # Interrupted `compose run --rm` one-offs can outlive `down`. Record exact
+    # IDs and recheck ownership before removing each, including on cancellation.
+    while IFS= read -r container_id; do
+      [[ -n "${container_id}" ]] || continue
+      if ! owner="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "${container_id}")"; then
+        continue # Auto-removal may have completed since the inventory.
+      fi
+      if [[ "${owner}" != "${project}" ]]; then
+        echo "Refusing cleanup of foreign container ${container_id}." >&2
+        exit 1
+      fi
+      printf 'Removing owned leftover container %s (%s)\n' "${container_id}" "${owner}"
+      if ! docker rm -f "${container_id}"; then
+        # Auto-removal can race this call too. The final inventory, including
+        # daemon errors, is authoritative; a retained container still fails.
+        echo "Rechecking removal of ${container_id}." >&2
+      fi
+    done <<< "${remaining}"
+    remaining="$(docker ps -aq --filter "label=com.docker.compose.project=${project}")"
     if [[ -n "${remaining}" ]]; then
-      echo 'Owned quality containers remain after cleanup.' >&2
+      printf 'Owned quality containers remain after cleanup:\n%s\n' "${remaining}" >&2
       exit 1
     fi
     ;;
