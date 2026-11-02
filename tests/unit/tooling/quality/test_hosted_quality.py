@@ -157,3 +157,31 @@ def test_cleanup_checks_identity_before_removing_a_leftover_one_off(
         assert result.returncode != 0
         assert not any(call[0] == "rm" for call in recorded)
     assert not any("prune" in call for call in recorded)
+
+
+def test_artifact_ownership_handoff_is_limited_to_owned_outputs(
+    candidate: tuple[Path, dict[str, str]],
+) -> None:
+    _, env = candidate
+    root = Path(env["GITHUB_WORKSPACE"])
+    for path in ("logs/quality", "logs/coverage", "runner-temp/fs-quality-packages", "bin"):
+        (root / path).mkdir(parents=True)
+    env["RUNNER_TEMP"] = str(root / "runner-temp")
+    calls = root / "ownership.jsonl"
+    sudo = root / "bin/sudo"
+    sudo.write_text(
+        "#!/usr/bin/env python3\nimport json, pathlib, sys\n"
+        f"with pathlib.Path({str(calls)!r}).open('a') as out:\n"
+        "    out.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+    )
+    sudo.chmod(0o755)
+    env["PATH"] = f"{root / 'bin'}:{env['PATH']}"
+    result = _run(env, "prepare-artifacts")
+    assert result.returncode == 0, result.stderr
+    recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+    identity = f"{os.getuid()}:{os.getgid()}"
+    assert recorded == [
+        ["chown", "-R", identity, "logs/quality"],
+        ["chown", "-R", identity, "logs/coverage"],
+        ["chown", "-R", identity, str(root / "runner-temp/fs-quality-packages")],
+    ]

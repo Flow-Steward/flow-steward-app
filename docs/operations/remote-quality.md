@@ -49,6 +49,9 @@ an Actions cache. Cache misses are allowed and cannot produce a synthetic pass.
 GitHub's cache quota/eviction applies; do not increase paid storage limits for
 this pilot. Docker's duplicate local cache export is unused when the prebuilt
 validated audit image is present.
+The audit cache retains intermediate frontend stages so a backend-only change
+does not reinstall frontend dependencies and recompile TypeScript. Output
+ownership is returned to the host before uploading private-mode evidence files.
 
 Each job removes its exact Compose project and disposable volumes with an always
 step. Its VM, images and BuildKit state are discarded after the job, including

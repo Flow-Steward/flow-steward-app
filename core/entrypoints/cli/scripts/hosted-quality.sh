@@ -80,8 +80,17 @@ case "${1:-}" in
       exit 1
     fi
     ;;
+  prepare-artifacts)
+    # Atomic evidence files are deliberately 0600. Hand only this job's
+    # generated outputs back to the host UID after container work has stopped.
+    for output in logs/quality logs/coverage "${RUNNER_TEMP:?}/fs-quality-packages"; do
+      if [[ -d "${output}" ]]; then
+        sudo chown -R "$(id -u):$(id -g)" "${output}"
+      fi
+    done
+    ;;
   *)
-    echo 'Usage: hosted-quality.sh check-candidate|prepare|diagnostics|cleanup' >&2
+    echo 'Usage: hosted-quality.sh check-candidate|prepare|diagnostics|cleanup|prepare-artifacts' >&2
     exit 2
     ;;
 esac

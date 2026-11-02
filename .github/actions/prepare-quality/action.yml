@@ -31,4 +31,6 @@ runs:
         tags: ${{ steps.runtime.outputs.audit_image }}
         build-args: AUDIT_TOOLCHAIN_DIGEST=${{ steps.runtime.outputs.audit_digest }}
         cache-from: type=gha,scope=quality-audit-amd64
-        cache-to: type=gha,scope=quality-audit-amd64,mode=min
+        # Keep frontend intermediate stages too: mode=min rebuilt npm/TypeScript
+        # even when only backend/tooling source changed in the measured pilot.
+        cache-to: type=gha,scope=quality-audit-amd64,mode=max

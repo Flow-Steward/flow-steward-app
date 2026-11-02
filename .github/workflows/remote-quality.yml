@@ -70,6 +70,9 @@ jobs:
       - name: Remove this job's disposable stack
         if: always() && env.FS_QUALITY_CACHE_ROOT != ''
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
+      - name: Return generated reports to the artifact uploader
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain evidence and this run's coverage
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -142,6 +145,9 @@ jobs:
       - name: Remove this job's disposable stack and Sonar data
         if: always() && env.FS_QUALITY_CACHE_ROOT != ''
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
+      - name: Return generated reports to the artifact uploader
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain pilot diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
