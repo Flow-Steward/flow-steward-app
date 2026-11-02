@@ -1545,7 +1545,9 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
         || audit_exit_code=$?
     fi
     if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
-      fs_compose run --no-deps --rm -T "${lint_container_volume_args[@]}" fs-audit \
+      # External checks write 0600 evidence as root; the final reader must be
+      # able to validate both those records and the ordinary fs-owned records.
+      fs_compose run --no-deps --rm -T --user 0:0 "${lint_container_volume_args[@]}" fs-audit \
         python -m core.application.tooling.quality.release_gate \
         || audit_exit_code=$?
     fi

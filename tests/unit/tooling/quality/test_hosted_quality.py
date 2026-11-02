@@ -195,3 +195,41 @@ def test_sonar_bootstrap_does_not_trip_the_secret_scanner() -> None:
     with default_settings():
         secrets.scan_file(str(ROOT / ".github/workflows/remote-quality.yml"))
     assert not secrets.json(), secrets.json()
+
+
+@pytest.mark.skipif(
+    os.geteuid() != 0, reason="mixed-UID file-access regression needs root in fs-audit"
+)
+def test_cumulative_reader_can_read_both_container_writers() -> None:
+    import pwd
+    import sys
+    import tempfile
+
+    fs = pwd.getpwnam("fs")
+    source = (ROOT / "core/entrypoints/cli/scripts/lint.sh").read_text()
+    dispatch = source.split("python -m core.application.tooling.quality.release_gate", 1)[0]
+    dispatch = dispatch.rsplit("fs_compose run", 1)[1]
+    reader_uid = 0 if "--user 0:0" in dispatch else fs.pw_uid
+    reader_gid = 0 if reader_uid == 0 else fs.pw_gid
+    with tempfile.TemporaryDirectory(prefix="fs-mixed-evidence-") as directory:
+        root = Path(directory)
+        root.chmod(0o755)
+        for name, uid, gid in (("root.json", 0, 0), ("fs.json", fs.pw_uid, fs.pw_gid)):
+            record = root / name
+            record.write_text('{"status":"passed"}\n')
+            record.chmod(0o600)
+            os.chown(record, uid, gid)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import pathlib,sys; [p.read_bytes() for p in pathlib.Path(sys.argv[1]).iterdir()]",
+                str(root),
+            ],
+            user=reader_uid,
+            group=reader_gid,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    assert result.returncode == 0, result.stderr
