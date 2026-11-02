@@ -74,6 +74,9 @@ General attachment policy is deployment-level:
 | `FS_ATTACHMENT_MAX_FILES` | Maximum files per request. | `10` |
 | `FS_ALLOWED_ATTACHMENT_MIMES` | Comma-separated MIME allowlist. | Images, PDF, Office, text, CSV, octet-stream. |
 | `FS_ALLOWED_ATTACHMENT_EXTENSIONS` | Comma-separated extension allowlist. | `.png,.jpg,.jpeg,.webp,.gif,.pdf,.xlsx,.xls,.docx,.txt,.md,.csv` |
+| `FS_AGENT_TEXT_FILE_EXTENSIONS` | Comma-separated suffixes agents may read as UTF-8 text; an empty environment value uses the default. | `txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf` |
+
+Agent text recognition is separate from upload permission: to upload another file type directly, also configure `FS_ALLOWED_ATTACHMENT_EXTENSIONS` and `FS_ALLOWED_ATTACHMENT_MIMES` as appropriate. For example, adding `xml` to the agent list does not itself permit XML uploads.
 
 Incoming workflow webhooks also have per-entrypoint limits:
 

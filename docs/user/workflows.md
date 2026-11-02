@@ -124,6 +124,23 @@ that contains an uploaded or upstream file. For example, save Docling's
 and name it `document`. Select the full artifact output rather than an inline
 Markdown preview. Ordinary input mappings continue to carry values and summaries.
 
+The editor shows the effective text-format list from the server. Set the installation
+setting `FS_AGENT_TEXT_FILE_EXTENSIONS` to replace that list, for example:
+
+```dotenv
+FS_AGENT_TEXT_FILE_EXTENSIONS=txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf,custom
+```
+
+An unset or empty value restores the default. Apply the setting to both app and
+worker using the deployment's normal configuration commands. RTF is read as raw
+UTF-8 source; this does not extract rendered text or convert legacy encodings.
+Use a preceding parser when that conversion is needed.
+
+The configured agent text-file formats control reading, not uploads. Direct uploads
+also require the relevant extensions and MIME types in `FS_ALLOWED_ATTACHMENT_EXTENSIONS`
+and `FS_ALLOWED_ATTACHMENT_MIMES`; changing the agent text formats does not extend those
+upload policies.
+
 Files can be text, JSON, Markdown, images, audio or video. The agent can read
 UTF-8 text files in pages; each result includes the next offset and whether it
 reached the end. The file is available beyond the ordinary prompt summary's

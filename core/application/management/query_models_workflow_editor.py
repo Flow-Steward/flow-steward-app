@@ -11,6 +11,14 @@ from .query_models_workflows import *  # noqa: F403,F401  # NOSONAR
 _MALFORMED_ENTRY_INPUTS_DESCRIPTION = "Original malformed boundary entry rows, retained for repair."
 
 
+class AgentFileFormatsView(ViewModel):
+    """Effective installation-level text formats for agent file inputs."""
+
+    text_extensions: list[str]
+    text_encoding: Literal["utf-8"] = "utf-8"
+    rtf_mode: Literal["source"] = "source"
+
+
 class WorkflowEditorStepView(ViewModel):
     model_config = ConfigDict(
         title="Workflow Editor Step",

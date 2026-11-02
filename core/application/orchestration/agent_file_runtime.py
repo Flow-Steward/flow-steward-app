@@ -12,6 +12,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
+from core.application.orchestration.agent_file_policy import is_agent_text_file
 from core.application.orchestration.expected_input_sources import resolve_expected_input_source
 
 _MAX_FILES = 10
@@ -21,7 +22,7 @@ _MAX_TEXT_CHARS = 8192
 _MAX_TOTAL_TEXT_CHARS = 50 * 1024 * 1024
 _NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _ARTIFACT = re.compile(r"^art_[A-Za-z0-9_-]+$")
-_TEXT_TYPES = frozenset({"text/plain", "text/markdown", "application/json"})
+_BINARY_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
 
 class AgentFileAccessError(ValueError):
@@ -67,6 +68,7 @@ class AgentFileContext:
                 "filename": f.filename,
                 "content_type": f.content_type,
                 "size_bytes": f.size_bytes,
+                "text_readable": is_agent_text_file(f.filename, f.content_type),
             }
             for f in self._files.values()
         ]
@@ -112,7 +114,7 @@ class AgentFileContext:
 
     def read_text(self, name: str, offset: int, max_chars: int) -> dict[str, Any]:
         selected = self._selected(name)
-        if selected.content_type.split(";", 1)[0].lower() not in _TEXT_TYPES:
+        if not is_agent_text_file(selected.filename, selected.content_type):
             raise AgentFileAccessError("File is not supported text")
         if (
             not isinstance(offset, int)
@@ -129,6 +131,15 @@ class AgentFileContext:
             )
         except UnicodeDecodeError as exc:
             raise AgentFileAccessError("File is not valid UTF-8") from exc
+        if (
+            _BINARY_CONTROL.search(text)
+            or text.startswith(("%PDF-", "PK\x03\x04", "\x89PNG"))
+            or (
+                text.lstrip().lower().startswith("{\\rtf")
+                and re.search(r"\\bin\d+", text, re.IGNORECASE)
+            )
+        ):
+            raise AgentFileAccessError("File contains unsupported binary data")
         if offset > len(text):
             raise AgentFileAccessError("Invalid text range")
         part = text[offset : offset + max_chars]

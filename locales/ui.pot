@@ -28081,3 +28081,18 @@ msgstr ""
 
 msgid "react.workflows.agent_files_invalid"
 msgstr ""
+
+msgid "react.workflows.agent_file_formats_loading"
+msgstr ""
+
+msgid "react.workflows.agent_file_formats_unavailable"
+msgstr ""
+
+msgid "react.workflows.agent_file_formats_disabled"
+msgstr ""
+
+msgid "react.workflows.agent_file_formats_list"
+msgstr ""
+
+msgid "react.workflows.agent_file_formats_encoding"
+msgstr ""

@@ -31,7 +31,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `169` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `170` |
 | `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `36` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
@@ -51,15 +51,15 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `772`
-- Cataloged variables from `.env.example*` or manifest: `560`
+- Raw env-like names discovered by audit: `773`
+- Cataloged variables from `.env.example*` or manifest: `561`
 - Raw audit-only names outside examples/manifest: `212`
 - Unique variables in shipped `.env.example*` files: `346`
-- Variables in canonical manifest: `470`
+- Variables in canonical manifest: `471`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `132`
+- Internal Runtime: `133`
 - Public / Operator: `299`
 - Test Config: `33`
 - Test Only: `16`
@@ -615,6 +615,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### ai-runtime
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
+| `FS_AGENT_TEXT_FILE_EXTENSIONS` | core_runtime | production, local_development | no | no | `txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf` | - | Application (1), Docker Compose (3) | Comma-separated agent text-file suffixes; an empty value uses the default. Upload extension and MIME allowlists are configured separately. | `core/application/orchestration/agent_file_policy.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_MODEL_PROVIDER_VERIFY_MAX_ATTEMPTS` | provider_defaults | production, local_development | no | no | `3` | - | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 | `FS_MODEL_PROVIDER_VERIFY_RATE_WINDOW_SECONDS` | provider_defaults | production, local_development | no | no | `300` | - | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 #### api

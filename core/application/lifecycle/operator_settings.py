@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 HOST_SETTINGS_DOCS_URL = "https://docs.flowsteward.org/docs/reference/host-settings"
 
 _NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_ASSIGNMENT_BOUNDARY = re.compile(r",(?=\s*[A-Z][A-Z0-9_]*\s*=)")
 
 
 class OperatorSettingError(ValueError):
@@ -46,7 +47,9 @@ def operator_setting_specs() -> dict[str, EnvVarSpec]:
 def parse_operator_settings(raw: object) -> dict[str, str]:
     """Host-setting ``NAME=VALUE`` pairs (comma-separated text, or a mapping) as a dict.
 
-    An empty value resets the setting to its default. Only the shape is checked here;
+    A comma starts a new assignment only when followed by an uppercase NAME=.
+    Other commas remain in the value, so CSV and URLs are preserved. An empty value
+    resets the setting to its default. Only the shape is checked here;
     ``setting_names.check_operator_settings`` checks names and values against the manifest.
     """
     if raw is None:
@@ -54,7 +57,7 @@ def parse_operator_settings(raw: object) -> dict[str, str]:
     if isinstance(raw, Mapping):
         pairs = [(str(name).strip(), str(value).strip()) for name, value in raw.items()]
     else:
-        pairs = [_pair(item) for item in str(raw).split(",") if item.strip()]
+        pairs = [_pair(item) for item in _ASSIGNMENT_BOUNDARY.split(str(raw)) if item.strip()]
     settings: dict[str, str] = {}
     for name, value in pairs:
         if not _NAME.match(name):

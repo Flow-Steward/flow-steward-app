@@ -9,6 +9,7 @@ from core.entrypoints.admin.workflows_scope import *  # NOSONAR
 from core.entrypoints.admin.workflows_connector_catalog import *  # NOSONAR
 from core.entrypoints.admin.workflows_models import *  # NOSONAR
 from core.application.management.errors import ServiceNotFoundError
+from core.application.management.query_models_workflow_editor import AgentFileFormatsView
 from core.application.workflows.execution_graph import EXECUTION_GRAPH_SETTING
 from core.application.workflows.workflow_hook_contract import is_hook_storage
 from core.application.registry.boundary_contracts import (
@@ -347,6 +348,15 @@ def get_workflow_suggestions(workflow_id: str, request: Request):
         account_id=scope.account_id,
     )
     return {"workflow_id": workflow_id, "suggestions": payload.get("suggestions", [])}
+
+
+@router.get("/meta/agent-file-formats", response_model=AgentFileFormatsView)
+def get_agent_file_formats(request: Request) -> AgentFileFormatsView:
+    """Expose the effective text-file policy to the workflow editor."""
+    from core.application.orchestration.agent_file_policy import get_agent_text_file_extensions
+
+    _request_scope(request)
+    return AgentFileFormatsView(text_extensions=list(get_agent_text_file_extensions()))
 
 
 @router.get(

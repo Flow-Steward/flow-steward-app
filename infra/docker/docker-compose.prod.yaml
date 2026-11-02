@@ -59,6 +59,7 @@ x-app-worker-environment: &app-worker-environment
   FS_BASE64_FILE_MAX_BYTES: ${FS_BASE64_FILE_MAX_BYTES:-52428800}
   FS_WORKFLOW_TEST_FILE_MAX_BYTES: ${FS_WORKFLOW_TEST_FILE_MAX_BYTES:-52428800}
   FS_FILE_PREVIEW_MAX_BYTES: ${FS_FILE_PREVIEW_MAX_BYTES:-20971520}
+  FS_AGENT_TEXT_FILE_EXTENSIONS: ${FS_AGENT_TEXT_FILE_EXTENSIONS:-txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf}
   FS_EXTENSION_OPERATION_TIMEOUT_SECONDS: ${FS_EXTENSION_OPERATION_TIMEOUT_SECONDS:-300}
   FS_EXTENSION_CATALOG_URL: ${FS_EXTENSION_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/extensions/main/index.json}
   FS_MCP_CATALOG_URL: ${FS_MCP_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/mcps/main/index.json}

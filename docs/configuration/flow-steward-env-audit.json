@@ -2536,6 +2536,30 @@
     "variable_name": "FS_AGENT_KILL_GRACE_SEC"
   },
   {
+    "canonical_name": "FS_AGENT_TEXT_FILE_EXTENSIONS",
+    "code_read_locations": [
+      "core/application/orchestration/agent_file_policy.py",
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Comma-separated agent text-file suffixes; an empty value uses the default. Upload extension and MIME allowlists are configured separately.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "ai-runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_AGENT_TEXT_FILE_EXTENSIONS"
+  },
+  {
     "canonical_name": "FS_AGENT_TOOL_CALL_TIMEOUT_SECONDS",
     "code_read_locations": [
       "core/application/orchestration/agents/common_tool_runtime.py"

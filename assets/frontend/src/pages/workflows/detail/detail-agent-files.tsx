@@ -1,10 +1,21 @@
 import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchAgentFileFormats } from "@/pages/workflows/shared/api";
 import { isAgentFileStatePath } from "./detail-agent-file-path";
 import { RequiredLabel } from "@/components/shared/design-system";
 import { useI18n } from "@/lib/i18n/useI18n";
 
 type FileBinding = { name: string; source: string };
 type VariableInput = (args: { ariaLabel: string; ariaRequired: boolean; ariaInvalid: boolean; ariaDescribedBy: string; className: string; onChange: (value: string) => void; panelId: string; placeholder: string; value: string; accept: (path: string) => boolean }) => ReactNode;
+
+function AgentFileFormats() {
+  const { t } = useI18n();
+  const formats = useQuery({ queryKey: ["workflows", "meta", "agent-file-formats"], queryFn: fetchAgentFileFormats, retry: false });
+  if (formats.isPending) return <p className="fs-field-helper" role="status">{t("react.workflows.agent_file_formats_loading", "Loading text file formats…")}</p>;
+  if (formats.isError || !formats.data) return <p className="fs-field-helper" role="status">{t("react.workflows.agent_file_formats_unavailable", "Text file formats are unavailable.")}</p>;
+  if (!formats.data.text_extensions.length) return <p className="fs-field-helper" role="status">{t("react.workflows.agent_file_formats_disabled", "Text file reading is disabled.")}</p>;
+  return <div className="fs-field-helper"><p>{t("react.workflows.agent_file_formats_list", "Text file formats: {formats}", { formats: formats.data.text_extensions.join(", ") })}</p><p>{t("react.workflows.agent_file_formats_encoding", "Text must be UTF-8. RTF is read as source, not converted.")}</p></div>;
+}
 
 export function AgentFiles({ value, onChange, renderVariableInput, suggestions = [] }: Readonly<{ value: string; onChange: (value: string) => void; renderVariableInput?: VariableInput; suggestions?: Array<{ options: Array<{ value: string; valueType?: string }> }> }>) {
   const { t } = useI18n();
@@ -30,6 +41,7 @@ export function AgentFiles({ value, onChange, renderVariableInput, suggestions =
   return <section className="space-y-3" aria-label={t("react.workflows.agent_files", "Files")}>
     <p className="fs-field-label">{t("react.workflows.agent_files", "Files")}</p>
     <p className="fs-field-helper">{t("react.workflows.agent_files_help", "Choose files from earlier workflow steps. Text files are read in pages. Images, audio and video require a compatible model and provider. Compatible built-in Google Gemini models support video. Process unsupported media in a preceding connector step and pass its text output to the agent.")}</p>
+    <AgentFileFormats />
     <p className="fs-field-helper">{t("react.workflows.agent_files_limits", "Up to 10 files, 50 MiB each and 100 MiB total. Native media is limited to 5 MiB per file and 10 MiB total. Text is read in bounded pages.")}</p>
     {files.map((file, index) => {
       const number = index + 1;

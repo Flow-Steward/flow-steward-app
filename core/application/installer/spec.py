@@ -216,7 +216,8 @@ INSTALLER_SPEC = CommandSpec(
             examples=("FS_ALLOW_PRIVATE_REMOTE_URLS=1",),
             description=(
                 "NAME=VALUE for a host setting an error message names, such as "
-                "FS_ALLOW_PRIVATE_REMOTE_URLS=1; separate several with commas, and leave "
+                "FS_ALLOW_PRIVATE_REMOTE_URLS=1; a comma followed by NAME= starts another "
+                "setting, while other commas remain in the value. Leave "
                 "VALUE empty to reset one to its default. On an existing installation it "
                 "changes only those settings and restarts the runtime."
             ),

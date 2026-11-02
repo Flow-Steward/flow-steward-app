@@ -681,6 +681,24 @@
       "owner": "runtime"
     },
     {
+      "name": "FS_AGENT_TEXT_FILE_EXTENSIONS",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf",
+      "owner": "ai-runtime",
+      "operator_settable": true,
+      "notes": "Comma-separated agent text-file suffixes; an empty value uses the default. Upload extension and MIME allowlists are configured separately."
+    },
+    {
       "name": "FS_AGENT_HEARTBEAT_SEC",
       "groups": [
         "core_runtime"

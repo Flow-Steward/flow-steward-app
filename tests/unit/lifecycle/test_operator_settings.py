@@ -181,3 +181,51 @@ def test_a_reset_setting_overrides_an_assignment_outside_the_managed_block(
     assert environment[PRIVATE] == "0"
     assert f"{PRIVATE}=1" not in rewritten
     assert f"{PRIVATE}=0" in rewritten
+
+
+def test_compact_setting_accepts_csv_and_legacy_multiple_assignments() -> None:
+    from core.application.installer.contracts import InstallConfig
+    from core.entrypoints.cli.installer import installer_command
+
+    with installer_command.make_context(
+        "install",
+        ["--setting", "FS_AGENT_TEXT_FILE_EXTENSIONS=txt,xml,foo,FS_ALLOW_PRIVATE_REMOTE_URLS=1"],
+    ) as context:
+        config = InstallConfig(operator_settings=context.params["operator_settings"])
+    assert config.operator_settings == {
+        "FS_AGENT_TEXT_FILE_EXTENSIONS": "txt,xml,foo",
+        PRIVATE: "1",
+    }
+
+
+def test_scalable_config_positional_csv_and_reset_remain_intact() -> None:
+    from core.application.lifecycle.operator_settings import split_assignments
+
+    assert split_assignments(["FS_AGENT_TEXT_FILE_EXTENSIONS=txt,xml,foo", f"{PRIVATE}="]) == [
+        ("FS_AGENT_TEXT_FILE_EXTENSIONS", "txt,xml,foo"),
+        (PRIVATE, ""),
+    ]
+    assert ConfigSetRequest.model_validate(
+        {"assignments": ["FS_AGENT_TEXT_FILE_EXTENSIONS=txt,xml,foo", f"{PRIVATE}="]}
+    ).operator_settings == {"FS_AGENT_TEXT_FILE_EXTENSIONS": "txt,xml,foo", PRIVATE: ""}
+
+
+def test_csv_assignment_boundary_preserves_values_and_validates_names() -> None:
+    assert parse_operator_settings("FS_AGENT_TEXT_FILE_EXTENSIONS=txt, xml,foo, OTHER_NAME=2") == {
+        "FS_AGENT_TEXT_FILE_EXTENSIONS": "txt, xml,foo",
+        "OTHER_NAME": "2",
+    }
+    assert parse_operator_settings("FS_CUSTOM_URL=https://example.test/?a=1,b=2") == {
+        "FS_CUSTOM_URL": "https://example.test/?a=1,b=2"
+    }
+    assert parse_operator_settings("OTHER_NAME=first,OTHER_NAME=last") == {"OTHER_NAME": "last"}
+    assert parse_operator_settings("OTHER_NAME=, NEXT_NAME=2") == {
+        "OTHER_NAME": "",
+        "NEXT_NAME": "2",
+    }
+    with pytest.raises(OperatorSettingError, match="not a host setting name"):
+        parse_operator_settings("invalid-name=value")
+    with pytest.raises(OperatorSettingError, match="not a setting you can change"):
+        check_operator_settings(
+            parse_operator_settings("FS_AGENT_TEXT_FILE_EXTENSIONS=txt,UNKNOWN_HOST_SETTING=1")
+        )

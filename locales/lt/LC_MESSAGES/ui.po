@@ -29557,3 +29557,18 @@ msgstr "Pasirinkite ankstesnį failą arba įveskite jo būsenos kelią, pavyzd�
 
 msgid "react.workflows.agent_files_invalid"
 msgstr "Prieš išsaugodami kiekvienam failui nurodykite unikalią žymą ir būsenos šaltinį."
+
+msgid "react.workflows.agent_file_formats_loading"
+msgstr "Įkeliami tekstinių failų formatai…"
+
+msgid "react.workflows.agent_file_formats_unavailable"
+msgstr "Tekstinių failų formatai nepasiekiami."
+
+msgid "react.workflows.agent_file_formats_disabled"
+msgstr "Tekstinių failų skaitymas išjungtas."
+
+msgid "react.workflows.agent_file_formats_list"
+msgstr "Tekstinių failų formatai: {formats}"
+
+msgid "react.workflows.agent_file_formats_encoding"
+msgstr "Tekstas turi būti UTF-8. RTF skaitomas kaip pradinis tekstas, nekonvertuojamas."

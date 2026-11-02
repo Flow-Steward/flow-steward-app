@@ -1,3 +1,5 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -5,6 +7,10 @@ import { AgentAdvancedFields, AgentBindingFields } from "./detail-agent-step-edi
 import { agentParticipants } from "./detail-agent-step-fields";
 import { useAgentStepDrafts } from "./detail-agent-step-drafts";
 
+function renderEditor(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(ui, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+}
 const workflow = { settings: { participants: [{ participant_key: "author", agent_id: "writer" }] } };
 function Harness({ owner = "A" }: { owner?: string }) {
   const [agent, setAgent] = useState("writer"); const [override, setOverride] = useState('{"block_key":"block.old","extra_prompt":"Keep"}');
@@ -15,7 +21,7 @@ function Harness({ owner = "A" }: { owner?: string }) {
 }
 async function choose(label: string, option: string) { await userEvent.click(screen.getByRole("combobox", { name: label })); await userEvent.click(within(screen.getByRole("listbox", { name: `${label} options` })).getByRole("option", { name: option })); }
 it("uses real controls to preserve typed map data and explicit participant/direct intention", async () => {
-  render(<Harness />);
+  renderEditor(<Harness />);
   fireEvent.change(screen.getByRole("textbox", { name: "Agent input mapping JSON" }), { target: { value: '{"value":null,"flag":false,"text":"false"}' } });
   await choose("Agent binding", "Workflow participant"); await choose("Workflow participant", "author");
   expect(screen.getByRole("combobox", { name: "Agent" })).toBeDisabled();
@@ -25,7 +31,7 @@ it("uses real controls to preserve typed map data and explicit participant/direc
   expect(JSON.parse(screen.getByLabelText("Captured").textContent || "{}").participant_key).toBe("");
 });
 it("uses effective alias and explicit Auto while preserving unrelated override data", async () => {
-  render(<Harness />);
+  renderEditor(<Harness />);
   expect(screen.getByRole("combobox", { name: "Agent contract" })).toHaveTextContent("Old block");
   await choose("Agent contract", "New block");
   expect(JSON.parse(screen.getByLabelText("Override").textContent || "{}")).toEqual({ published_block_key: "block.new", extra_prompt: "Keep" });
@@ -33,7 +39,7 @@ it("uses effective alias and explicit Auto while preserving unrelated override d
   expect(JSON.parse(screen.getByLabelText("Override").textContent || "{}")).toEqual({ extra_prompt: "Keep" });
 });
 it("associates raw map errors and never carries raw invalid draft to a different owner", () => {
-  const view = render(<Harness />); const input = screen.getByRole("textbox", { name: "Agent input mapping JSON" });
+  const view = renderEditor(<Harness />); const input = screen.getByRole("textbox", { name: "Agent input mapping JSON" });
   fireEvent.change(input, { target: { value: '{"value":' } });
   expect(input).toHaveAttribute("aria-invalid", "true");
   const error = screen.getByText("Enter a JSON object", { exact: false });
@@ -44,7 +50,7 @@ it("associates raw map errors and never carries raw invalid draft to a different
   expect(screen.getByRole("textbox", { name: "Agent input mapping JSON" })).not.toHaveValue('{"value":');
 });
 it("adds and removes named upstream files without changing agent mappings", async () => {
-  render(<Harness />);
+  renderEditor(<Harness />);
   await userEvent.click(screen.getByRole("button", { name: "Add file" }));
   fireEvent.change(screen.getByRole("textbox", { name: "File label 1" }), { target: { value: "document" } });
   fireEvent.change(screen.getByRole("textbox", { name: "File source 1" }), { target: { value: "state.document_file" } });
@@ -55,7 +61,7 @@ it("adds and removes named upstream files without changing agent mappings", asyn
   expect(JSON.parse(screen.getByLabelText("Captured").textContent || "{}")).toEqual({ agent_id: "writer" });
 });
 it("marks malformed file state selectors invalid", async () => {
-  render(<Harness />);
+  renderEditor(<Harness />);
   await userEvent.click(screen.getByRole("button", { name: "Add file" }));
   const source = screen.getByRole("textbox", { name: "File source 1" });
   fireEvent.change(source, { target: { value: "state.a..b" } });

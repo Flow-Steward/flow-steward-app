@@ -8,7 +8,6 @@ from typing import Any
 
 from langchain_core.tools import StructuredTool
 
-_TEXT_TYPES = frozenset({"text/plain", "text/markdown", "application/json"})
 _READ_CHARS = 4000
 _MAX_NATIVE_FILE_BYTES = 5 * 1024 * 1024
 _MAX_NATIVE_TOTAL_BYTES = 10 * 1024 * 1024
@@ -32,7 +31,7 @@ def prepare_agent_files(
     total_bytes = 0
     for item in files:
         content_type = str(item.get("content_type") or "").split(";", 1)[0].strip().lower()
-        if content_type in _TEXT_TYPES:
+        if item.get("text_readable") is True:
             continue
         kind = _native_kind(model, provider, content_type)
         if not kind:
@@ -65,10 +64,7 @@ def prepare_agent_files(
             }
         )
     extra_tools: list[Any] = []
-    if any(
-        str(item.get("content_type") or "").split(";", 1)[0].strip().lower() in _TEXT_TYPES
-        for item in files
-    ):
+    if any(item.get("text_readable") is True for item in files):
 
         def read_agent_file(name: str, offset: int = 0) -> str:
             """Read a page of an authorized text file by name and character offset."""

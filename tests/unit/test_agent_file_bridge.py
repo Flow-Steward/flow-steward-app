@@ -23,6 +23,7 @@ class FileContext:
                 "name": "file_1",
                 "filename": "notes.md",
                 "content_type": "text/markdown",
+                "text_readable": True,
                 "size_bytes": 6,
             }
         ]
@@ -303,6 +304,7 @@ def test_agent_model_receives_all_three_text_pages_without_clipping(monkeypatch)
                     "name": "file_1",
                     "filename": "notes.md",
                     "content_type": "text/markdown",
+                    "text_readable": True,
                     "size_bytes": len(content),
                 }
             ]
@@ -487,6 +489,7 @@ def test_file_read_budget_exhaustion_fails_without_forced_final_response(monkeyp
                     "name": "file_1",
                     "filename": "long.txt",
                     "content_type": "text/plain",
+                    "text_readable": True,
                     "size_bytes": 100000,
                 }
             ]
@@ -546,6 +549,7 @@ def test_agent_can_request_later_page_after_history_pruning(monkeypatch):
                     "name": "file_1",
                     "filename": "long.txt",
                     "content_type": "text/plain",
+                    "text_readable": True,
                     "size_bytes": len(content),
                 }
             ]

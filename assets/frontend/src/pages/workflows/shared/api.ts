@@ -529,6 +529,20 @@ export async function fetchWorkflowStepAvailableOutputs(workflowId: string, step
  * `position: "after"` what a step placed right after it reads. Without a step the
  * position is unknown: every saved step's outputs (and a For each's item names).
  */
+export type AgentFileFormats = {
+  text_extensions: string[];
+  text_encoding: "utf-8";
+  rtf_mode: "source";
+};
+
+export async function fetchAgentFileFormats(): Promise<AgentFileFormats> {
+  const data = await fetchJson<unknown>("/api/workflows/meta/agent-file-formats", { cache: "no-store" });
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid file formats response");
+  const row = data as Record<string, unknown>;
+  if (!Array.isArray(row.text_extensions) || !row.text_extensions.every((value) => typeof value === "string") || row.text_encoding !== "utf-8" || row.rtf_mode !== "source") throw new Error("Invalid file formats response");
+  return { text_extensions: row.text_extensions, text_encoding: "utf-8", rtf_mode: "source" };
+}
+
 export async function fetchWorkflowStepAvailableVariables(
   workflowId: string,
   stepId: string,

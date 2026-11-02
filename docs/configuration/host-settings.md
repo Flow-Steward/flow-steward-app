@@ -38,6 +38,16 @@ Then save the Docling connection again and run the workflow.
 Environment settings an operator may set by name. Secrets and values the
 installer manages are never set this way.
 
+### `FS_AGENT_TEXT_FILE_EXTENSIONS`
+
+Comma-separated agent text-file suffixes; an empty value uses the default. Upload extension and MIME allowlists are configured separately.
+
+- Default: `txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf`
+- Accepts: text
+- Scalable: `flow-steward config set FS_AGENT_TEXT_FILE_EXTENSIONS=VALUE`, then `flow-steward config apply`
+- Compact: `./install.sh --setting FS_AGENT_TEXT_FILE_EXTENSIONS=VALUE` from the installation folder; it keeps the installation and restarts the runtime
+- Reset to the default: `FS_AGENT_TEXT_FILE_EXTENSIONS=` (an empty value)
+
 ### `FS_ALLOW_PRIVATE_REMOTE_URLS`
 
 Optional override to permit private remote extension URLs, private MCP connector base URLs and private or loopback LLM provider base URLs (link-local and metadata addresses stay refused for LLM providers).

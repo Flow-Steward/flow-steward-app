@@ -31,6 +31,7 @@ vi.mock("@/pages/workflows/shared/api", async (importOriginal) => {
   return {
     // Step I/O helpers use the real API with mocked transport.
     fetchWorkflowStepAvailableVariables: original.fetchWorkflowStepAvailableVariables,
+    fetchAgentFileFormats: original.fetchAgentFileFormats,
     fetchWorkflowStepIOValidation: original.fetchWorkflowStepIOValidation,
     fetchWorkflowCanvasGraph: vi.fn(),
     fetchWorkflowDag: vi.fn(),

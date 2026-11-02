@@ -150,6 +150,11 @@ export function createWorkflowVariableSuggestionRenderers(
           onSelect(option.value);
           setActiveWorkflowSuggestionPanelId("");
         }}
+        onClick={(event) => {
+          if (event.detail !== 0) return;
+          onSelect(option.value);
+          setActiveWorkflowSuggestionPanelId("");
+        }}
         role="option"
         type="button"
       >

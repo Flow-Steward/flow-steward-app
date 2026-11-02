@@ -52,6 +52,7 @@ def test_bound_markdown_read_is_paginated_without_silent_truncation():
             "filename": "input.md",
             "content_type": "text/markdown",
             "size_bytes": len(content.encode()),
+            "text_readable": True,
         }
     ]
     first = files.read_text("document", 0, 900)

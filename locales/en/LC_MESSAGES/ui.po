@@ -29135,3 +29135,18 @@ msgstr "Choose an earlier file or enter its state path, such as state.document_f
 
 msgid "react.workflows.agent_files_invalid"
 msgstr "Give each file a unique name and a state source before saving."
+
+msgid "react.workflows.agent_file_formats_loading"
+msgstr "Loading text file formats…"
+
+msgid "react.workflows.agent_file_formats_unavailable"
+msgstr "Text file formats are unavailable."
+
+msgid "react.workflows.agent_file_formats_disabled"
+msgstr "Text file reading is disabled."
+
+msgid "react.workflows.agent_file_formats_list"
+msgstr "Text file formats: {formats}"
+
+msgid "react.workflows.agent_file_formats_encoding"
+msgstr "Text must be UTF-8. RTF is read as source, not converted."
