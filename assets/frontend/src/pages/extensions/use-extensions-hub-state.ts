@@ -313,7 +313,7 @@ export function useExtensionsHubState() {
     ? stringFrom(detailExtension?.install_id || detailExtension?.extension_install_id || detailExtension?.extension_id)
     : "", [detailExtension, llmProviderContract]);
   const llmProviderConnectionConfig = useMemo(() => {
-    const installConfig = objectOrEmpty(detailExtension?.config_jsonb);
+    const installConfig = objectOrEmpty(detailExtension?.config);
     return objectOrEmpty(installConfig.llm_provider_connection_config);
   }, [detailExtension]);
   const activationBlockedReason = useMemo(

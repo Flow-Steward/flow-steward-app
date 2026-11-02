@@ -2887,6 +2887,43 @@ describe("ExtensionsHubPage", () => {
     expect(mockedSetLlmProviderModelEnabled).not.toHaveBeenCalled();
   });
 
+  it("restores saved provider settings after reload before model discovery", async () => {
+    const user = userEvent.setup();
+    let extension = {
+      extension_id: "acme.llm", install_id: "install-acme-llm", display_name: "Acme LLM Provider",
+      version: "1.0.0", state: "disabled", active: false, runtime_mode: "subprocess",
+      config: { llm_provider_connection_config: {} as Record<string, string> },
+    };
+    mockedFetchExtension.mockImplementation(async () => extension);
+    mockedFetchLlmProviderSources.mockResolvedValue([]);
+    mockedFetchExtensionCompiledManifest.mockResolvedValue({ runtime: { extension_contract_v2: {
+      llm_provider: {
+        schema_version: "llm_provider_extension_v1",
+        required_connection_config: ["project_id", "location"],
+        connection_config_schema: { project_id: { title: "Project" }, location: { title: "Location" } },
+      },
+    } } });
+    mockedSaveLlmProviderCredentials.mockImplementation(async (_id, payload) => {
+      extension = { ...extension, config: { llm_provider_connection_config: payload.connection_config || {} } };
+      return { changed: true };
+    });
+
+    const view = renderPage("/extensions/acme.llm");
+    fireEvent.change(await screen.findByLabelText("Project"), { target: { value: "review-project" } });
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "us-central1" } });
+    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await screen.findByText(/Settings saved without checking the connection/);
+    expect(mockedSaveLlmProviderCredentials).toHaveBeenCalledWith("install-acme-llm", {
+      secrets: {}, connection_config: { project_id: "review-project", location: "us-central1" },
+    });
+    view.unmount();
+
+    renderPage("/extensions/acme.llm");
+    await waitFor(() => expect(screen.getByLabelText("Project")).toHaveValue("review-project"));
+    expect(screen.getByLabelText("Location")).toHaveValue("us-central1");
+    expect(mockedRefreshLlmProviderModels).not.toHaveBeenCalled();
+  });
+
   it("keeps an unconfigured remote LLM extension disabled while exposing configuration", async () => {
     const user = userEvent.setup();
     const extension = {
