@@ -110,6 +110,7 @@ _SYSTEM_EXECUTABLE_DIRS = frozenset(
 _CONFIGURATION_PATH_NAME = re.compile(
     r"(?:^|_)(?:CONFIG|CONFIGURATION|FILE|FILES|PATH|DIR|DIRECTORY|ROOT)$"
 )
+_NON_PATH_CONFIGURATION_NAMES = frozenset({"FS_ATTACHMENT_MAX_FILES"})
 # These exact resource paths are established by the gate, either as isolated
 # write locations or as repository paths already covered by backend inputs.
 # An unknown configuration path can refer to mutable files outside that graph.
@@ -199,6 +200,7 @@ def _has_external_inputs(environment: Mapping[str, str]) -> bool:
     return any(
         value.strip()
         and key not in _OPERATIONAL_NAMES
+        and key not in _NON_PATH_CONFIGURATION_NAMES
         and key != "PATH"
         and _CONFIGURATION_PATH_NAME.search(key.upper()) is not None
         and value not in _CANONICAL_CONFIGURATION_PATHS.get(key, ())
