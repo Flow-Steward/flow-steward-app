@@ -28088,6 +28088,9 @@ msgstr ""
 msgid "react.registry.secrets.used_by"
 msgstr ""
 
+msgid "react.projects.workflow_secrets.failed"
+msgstr ""
+
 msgid "react.workflows.secret_approval.delegation_badge"
 msgstr ""
 

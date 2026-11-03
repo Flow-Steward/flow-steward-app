@@ -889,6 +889,48 @@ class SecretCatalogService:
             "approved_destinations": workflow_gate.approved_rules(approval) if approved else [],
         }
 
+    def project_workflow_statuses(
+        self, project_id: Any, scope: ScopeContext
+    ) -> list[dict[str, Any]]:
+        """Every linked workflow of a project that declares a secret input, with its status.
+
+        Readable from viewer up: it is the operator's path to bind and approve without
+        the builder or the project's admin settings.
+        """
+        require_secret_read_metadata(scope)
+        with self._transaction() as (conn, cur):
+            _workspace, owner_project = self._owner_scope(
+                cur, scope, project_id=project_id, workspace_id=None
+            )
+            cur.execute(
+                """
+                SELECT pw.workflow_id, COALESCE(w.display_name, pw.workflow_id) AS display_name
+                  FROM project_workflows AS pw
+                  JOIN registry_workflows AS w ON w.workflow_id = pw.workflow_id
+                 WHERE pw.project_id::text = %s AND pw.deleted_at IS NULL
+                   AND w.deleted_at IS NULL
+                   AND (w.account_id IS NULL OR w.account_id::text = %s)
+                 ORDER BY 2, 1
+                """,
+                (owner_project, scope.account_id),
+            )
+            linked = [
+                (str(row[0]), str(row[1]))
+                if not isinstance(row, dict)
+                else (str(row["workflow_id"]), str(row["display_name"]))
+                for row in cur.fetchall() or []
+            ]
+            views = []
+            for workflow_id, display_name in linked:
+                try:
+                    found = self._workflow_in_project(conn, cur, scope, workflow_id, owner_project)
+                except (ServiceNotFoundError, ServiceValidationError):
+                    continue
+                view = self._workflow_status_view(cur, scope, found)
+                if view["secret_inputs"]:
+                    views.append({**view, "display_name": display_name})
+            return views
+
     def workflow_approval_status(
         self, workflow_id: Any, scope: ScopeContext, *, project_id: Any
     ) -> dict[str, Any]:

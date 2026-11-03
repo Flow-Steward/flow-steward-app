@@ -29142,6 +29142,9 @@ msgstr "Replace value"
 msgid "react.registry.secrets.used_by"
 msgstr "Used by"
 
+msgid "react.projects.workflow_secrets.failed"
+msgstr "Workflow secrets could not be loaded"
+
 msgid "react.workflows.secret_approval.delegation_badge"
 msgstr "not approved for passed-in secrets"
 

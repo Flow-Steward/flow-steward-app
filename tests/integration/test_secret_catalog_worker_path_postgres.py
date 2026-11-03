@@ -961,3 +961,38 @@ def test_the_operator_contract_of_a_projected_manifest_shows_the_binding(stand) 
     [row] = contract["interface"]["expected_inputs"]
     assert (row["name"], row["default_configured"]) == ("api_key", True)
     assert key not in json.dumps(contract)
+
+
+@pytest.mark.parametrize("role", ["operator", "viewer"])
+def test_the_project_workflow_secrets_route_serves_operators_and_viewers(stand, role) -> None:
+    """The operator's panel reads its own list: linked workflows with secret inputs."""
+    from fastapi import APIRouter, FastAPI
+    from fastapi.responses import JSONResponse
+    from fastapi.testclient import TestClient
+
+    from core.entrypoints.api.integrations_secret_routes import register_secret_approval_routes
+
+    stand.save("wf_route")
+    _secret, key = _catalog_input(stand, "wf_route")
+    stand.save("wf_route_plain", step=_http_step())
+    router = APIRouter()
+    register_secret_approval_routes(
+        api_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=500),
+        err_not_found="not found",
+        get_logger=lambda: stand.conn,
+        request_scope=lambda _request, project_id=None: _human(role),
+        router=router,
+        service_error_response=lambda exc: JSONResponse(
+            {"error": str(exc)}, status_code=getattr(exc, "status_code", 400)
+        ),
+    )
+    app = FastAPI()
+    app.include_router(router)
+    response = TestClient(app).get(f"/api/projects/{stand.project_id}/workflow-secret-approvals")
+
+    assert response.status_code == 200, response.text
+    rows = {row["workflow_id"]: row for row in response.json()["workflows"]}
+    assert rows["wf_route"]["status"] == "approved"
+    assert rows["wf_route"]["secret_inputs"] == ["api_key"]
+    assert rows["wf_route"]["display_name"] == "wf_route"
+    assert key not in response.text

@@ -17,6 +17,7 @@ import { interpolate } from "@/lib/i18n/interpolate";
 import { ProjectsDetailPage } from "@/pages/projects/detail";
 import { fetchWorkspaces } from "@/pages/registry/workspaces/api";
 import { fetchProjectWorkflowBindings } from "@/pages/projects/workflows/api";
+import { fetchProjectWorkflowSecretApprovals } from "@/pages/workflows/shared/workflow-secret-catalog-api";
 import {
   fetchWorkflowDetail,
   fetchWorkflows,
@@ -40,6 +41,28 @@ vi.mock("@/pages/registry/workspaces/api", () => ({
 vi.mock("@/pages/workflows/shared/api", () => ({
   fetchWorkflowDetail: vi.fn(),
   fetchWorkflows: vi.fn(),
+}));
+
+vi.mock("@/pages/workflows/shared/workflow-secret-catalog-api", () => ({
+  fetchProjectWorkflowSecretApprovals: vi.fn(),
+  projectWorkflowSecretsQueryKey: (projectId: string) => ["workflows", "project-secret-approvals", projectId],
+  workflowSecretApprovalQueryKey: (projectId: string, workflowId: string, revision?: number | null) => [
+    "workflows",
+    workflowId,
+    "secret-approval",
+    projectId,
+    revision ?? null,
+  ],
+  fetchWorkflowSecretApproval: vi.fn(),
+  approveWorkflowSecretUse: vi.fn(),
+  bindWorkflowInputSecret: vi.fn(),
+  unbindWorkflowInputSecret: vi.fn(),
+}));
+
+vi.mock("@/pages/registry/secrets/api", () => ({
+  catalogSecretsQueryKey: (projectId: string) => ["secrets", "project", projectId],
+  fetchCatalogSecrets: vi.fn().mockResolvedValue([]),
+  createCatalogSecret: vi.fn(),
 }));
 
 vi.mock("@/pages/projects/history", () => ({
@@ -132,6 +155,8 @@ describe("ProjectsDetailPage", () => {
     mockedFetchWorkspaces.mockReset();
     mockedFetchWorkflows.mockReset();
     mockedFetchWorkflowDetail.mockReset();
+    vi.mocked(fetchProjectWorkflowSecretApprovals).mockReset();
+    vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([]);
 
     mockedFetchProjectDetail.mockResolvedValue({
       id: "project-123",
@@ -259,6 +284,31 @@ describe("ProjectsDetailPage", () => {
     renderProjectPage(`/projects/project-123?tab=${tab}`, "lt");
     expect(await screen.findByText(translated)).toBeInTheDocument();
     expect(screen.queryByText(english)).not.toBeInTheDocument();
+  });
+
+  it("shows an operator the workflow secrets panel when the admin project settings fail", async () => {
+    // An operator: the admin-only workflow links cannot be read.
+    mockedUseHasCapability.mockReturnValue(false);
+    mockedFetchProjectWorkflowBindings.mockRejectedValue(new Error("Admin role required"));
+    mockedFetchWorkflows.mockRejectedValue(new Error("Admin role required"));
+    vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([
+      {
+        workflow_id: "qa_wf_two",
+        display_name: "qa-wf-two",
+        secret_inputs: ["api_key"],
+        status: "approval_required",
+        fingerprint: "sha256:token",
+        secrets: [{ field: "api_key", secret_id: "s1" }],
+        destinations: [],
+        dynamic_http_steps: [],
+        approved_destinations: [],
+      },
+    ]);
+    renderProjectPage("/projects/project-123?tab=workflows");
+
+    expect(await screen.findByText("Workflow secrets")).toBeInTheDocument();
+    expect(await screen.findByTestId("project-workflow-secrets-qa_wf_two")).toHaveTextContent("qa-wf-two");
+    expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("project-123");
   });
 
   it("is the project itself: no Configuration screen to open and no way back to leave for", async () => {

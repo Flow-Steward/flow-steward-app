@@ -29564,6 +29564,9 @@ msgstr "Pakeisti reikšmę"
 msgid "react.registry.secrets.used_by"
 msgstr "Naudoja"
 
+msgid "react.projects.workflow_secrets.failed"
+msgstr "Darbo eigų paslapčių nepavyko įkelti"
+
 msgid "react.workflows.secret_approval.delegation_badge"
 msgstr "nepatvirtinta perduotoms paslaptims"
 

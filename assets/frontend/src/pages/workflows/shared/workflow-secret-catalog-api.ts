@@ -52,6 +52,21 @@ export function workflowSecretApprovalQueryKey(projectId: string, workflowId: st
   return ["workflows", workflowId, "secret-approval", projectId, revision ?? null];
 }
 
+/** A linked workflow of a project that declares a secret input, as an operator may see it. */
+export type ProjectWorkflowSecretStatus = WorkflowSecretApprovalStatus & { display_name: string };
+
+export function projectWorkflowSecretsQueryKey(projectId: string) {
+  return ["workflows", "project-secret-approvals", projectId];
+}
+
+/** Every linked workflow with a secret input, readable from viewer up (no admin settings). */
+export async function fetchProjectWorkflowSecretApprovals(projectId: string) {
+  const payload = await fetchJson<{ workflows?: ProjectWorkflowSecretStatus[] }>(
+    `/api/projects/${encodeURIComponent(projectId)}/workflow-secret-approvals`,
+  );
+  return Array.isArray(payload?.workflows) ? payload.workflows : [];
+}
+
 function workflowPath(projectId: string, workflowId: string) {
   return `/api/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}`;
 }

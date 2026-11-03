@@ -128,6 +128,19 @@ def register_secret_approval_routes(
         except Exception as e:
             return api_error_response(e)
 
+    @router.get("/api/projects/{project_id}/workflow-secret-approvals")
+    async def api_project_workflow_secret_approvals(request: Request, project_id: str):
+        """Linked workflows with secret inputs and their approval status (viewer and up)."""
+        if not _valid_project_id(project_id):
+            return JSONResponse({"error": err_not_found}, status_code=404)
+        try:
+            scope = request_scope(request, project_id=project_id)
+            return {"workflows": _service().project_workflow_statuses(project_id, scope)}
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
     @router.post("/api/projects/{project_id}/secret-approvals")
     async def api_project_secret_approve_release(
         request: Request, project_id: str, body: ConnectionSecretApprovalsRequest

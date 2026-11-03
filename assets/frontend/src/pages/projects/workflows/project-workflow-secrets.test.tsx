@@ -6,6 +6,7 @@ import { fetchCatalogSecrets } from "@/pages/registry/secrets/api";
 import {
   approveWorkflowSecretUse,
   bindWorkflowInputSecret,
+  fetchProjectWorkflowSecretApprovals,
   fetchWorkflowSecretApproval,
   type WorkflowSecretApprovalStatus,
 } from "@/pages/workflows/shared/workflow-secret-catalog-api";
@@ -13,6 +14,8 @@ import {
 import { ProjectWorkflowSecrets } from "./project-workflow-secrets";
 
 vi.mock("@/pages/workflows/shared/workflow-secret-catalog-api", () => ({
+  fetchProjectWorkflowSecretApprovals: vi.fn(),
+  projectWorkflowSecretsQueryKey: (projectId: string) => ["workflows", "project-secret-approvals", projectId],
   fetchWorkflowSecretApproval: vi.fn(),
   approveWorkflowSecretUse: vi.fn(),
   bindWorkflowInputSecret: vi.fn(),
@@ -47,16 +50,11 @@ function status(overrides: Partial<WorkflowSecretApprovalStatus> = {}): Workflow
 
 function renderPanel() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // Only the project id: the panel loads the linked workflows itself, so an operator
+  // whose admin-only project settings failed to load still gets it.
   return render(
     <QueryClientProvider client={queryClient}>
-      <ProjectWorkflowSecrets
-        projectId="p1"
-        workflows={[
-          { workflowId: "wf_one", displayName: "Send order" },
-          { workflowId: "wf_plain", displayName: "No secrets" },
-          { workflowId: "wf_unlinked", displayName: "Not saved yet" },
-        ]}
-      />
+      <ProjectWorkflowSecrets projectId="p1" />
     </QueryClientProvider>,
   );
 }
@@ -67,6 +65,7 @@ describe("ProjectWorkflowSecrets", () => {
     vi.mocked(fetchCatalogSecrets).mockResolvedValue([
       { id: "s1", name: "Partner key", description: "", owner: "project", workspace_id: "w1", project_id: "p1" },
     ]);
+    vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([{ ...status(), display_name: "Send order" }]);
     vi.mocked(fetchWorkflowSecretApproval).mockImplementation(async (_projectId, workflowId) => {
       if (workflowId === "wf_one") return status();
       if (workflowId === "wf_plain") return status({ workflow_id: "wf_plain", secret_inputs: [] });
@@ -85,9 +84,7 @@ describe("ProjectWorkflowSecrets", () => {
 
     const row = await screen.findByTestId("project-workflow-secrets-wf_one");
     expect(row).toHaveTextContent("Send order");
-    // Only workflows with a saved secret input get a row.
-    expect(screen.queryByTestId("project-workflow-secrets-wf_plain")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("project-workflow-secrets-wf_unlinked")).not.toBeInTheDocument();
+    expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("p1");
     expect(await screen.findByText(/api\.partner\.test/)).toBeInTheDocument();
 
     expect(await screen.findByTestId("workflow-input-secret-binding-api_key")).toBeInTheDocument();
@@ -97,4 +94,11 @@ describe("ProjectWorkflowSecrets", () => {
       expect(approveWorkflowSecretUse).toHaveBeenCalledWith("p1", "wf_one", "sha256:abc", []),
     );
   });
+});
+
+it("renders nothing when no linked workflow has a secret input", async () => {
+  vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([]);
+  const { container } = renderPanel();
+  await waitFor(() => expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalled());
+  expect(container).toBeEmptyDOMElement();
 });

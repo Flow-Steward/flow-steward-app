@@ -1,35 +1,35 @@
 import { useI18n } from "@/lib/i18n/useI18n";
+import { useEffect } from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { DsAlert } from "@/components/shared/design-system-primitives";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   WorkflowInputSecretBinding,
   WorkflowSecretApprovalPanel,
 } from "@/pages/workflows/detail/detail-workflow-secret-catalog";
 import {
-  fetchWorkflowSecretApproval,
+  fetchProjectWorkflowSecretApprovals,
+  type ProjectWorkflowSecretStatus,
+  projectWorkflowSecretsQueryKey,
   workflowSecretApprovalQueryKey,
 } from "@/pages/workflows/shared/workflow-secret-catalog-api";
 
-type LinkedWorkflow = Readonly<{ workflowId: string; displayName: string }>;
-
-function ProjectWorkflowSecretsRow({ projectId, workflow }: Readonly<{ projectId: string; workflow: LinkedWorkflow }>) {
-  const status = useQuery({
-    queryKey: workflowSecretApprovalQueryKey(projectId, workflow.workflowId, null),
-    queryFn: () => fetchWorkflowSecretApproval(projectId, workflow.workflowId),
-    retry: false,
-  });
-  const inputs = status.data?.secret_inputs ?? [];
-  // Not linked yet, or nothing secret to bind: this workflow has no row here.
-  if (status.isError || !inputs.length) return null;
+function ProjectWorkflowSecretsRow({ projectId, workflow }: Readonly<{ projectId: string; workflow: ProjectWorkflowSecretStatus }>) {
+  const queryClient = useQueryClient();
+  // The list already carries each workflow's status: seed the per-workflow query
+  // the binding and approval controls read, so they need no request of their own.
+  useEffect(() => {
+    queryClient.setQueryData(workflowSecretApprovalQueryKey(projectId, workflow.workflow_id, null), workflow);
+  }, [projectId, queryClient, workflow]);
   return (
-    <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-3 text-sm space-y-2" data-testid={`project-workflow-secrets-${workflow.workflowId}`}>
-      <p className="font-medium fs-ink-brand">{workflow.displayName || workflow.workflowId}</p>
-      {inputs.map((field) => (
-        <WorkflowInputSecretBinding field={field} key={field} projectId={projectId} revision={null} saved workflowId={workflow.workflowId} />
+    <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-3 text-sm space-y-2" data-testid={`project-workflow-secrets-${workflow.workflow_id}`}>
+      <p className="font-medium fs-ink-brand">{workflow.display_name || workflow.workflow_id}</p>
+      {(workflow.secret_inputs ?? []).map((field) => (
+        <WorkflowInputSecretBinding field={field} key={field} projectId={projectId} revision={null} saved workflowId={workflow.workflow_id} />
       ))}
-      <WorkflowSecretApprovalPanel hasSecretInputs projectId={projectId} revision={null} workflowId={workflow.workflowId} />
+      <WorkflowSecretApprovalPanel hasSecretInputs projectId={projectId} revision={null} workflowId={workflow.workflow_id} />
     </div>
   );
 }
@@ -37,13 +37,20 @@ function ProjectWorkflowSecretsRow({ projectId, workflow }: Readonly<{ projectId
 /**
  * Stored secrets of the project's workflows (ADR 0055), for operators.
  *
- * Choosing a secret for a secret input and approving its use are their own server
- * operations, checked for role and an interactive session there. Neither edits the
- * workflow, so this needs no access to the builder.
+ * The list comes from its own endpoint, readable from viewer up, not from the
+ * project's admin settings. Choosing a secret and approving its use are their own
+ * server operations, checked for role and an interactive session there; neither
+ * edits the workflow, so this needs no access to the builder.
  */
-export function ProjectWorkflowSecrets({ projectId, workflows }: Readonly<{ projectId: string; workflows: LinkedWorkflow[] }>) {
+export function ProjectWorkflowSecrets({ projectId }: Readonly<{ projectId: string }>) {
   const { t } = useI18n();
-  if (!projectId || !workflows.length) return null;
+  const workflows = useQuery({
+    queryKey: projectWorkflowSecretsQueryKey(projectId),
+    queryFn: () => fetchProjectWorkflowSecretApprovals(projectId),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+  if (!projectId || (workflows.isSuccess && !(workflows.data ?? []).length)) return null;
   return (
     <Card className="fs-card">
       <CardHeader>
@@ -53,8 +60,13 @@ export function ProjectWorkflowSecrets({ projectId, workflows }: Readonly<{ proj
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {workflows.map((workflow) => (
-          <ProjectWorkflowSecretsRow key={workflow.workflowId} projectId={projectId} workflow={workflow} />
+        {workflows.isError ? (
+          <DsAlert tone="danger" title={t("react.projects.workflow_secrets.failed", "Workflow secrets could not be loaded")}>
+            {workflows.error instanceof Error ? workflows.error.message : ""}
+          </DsAlert>
+        ) : null}
+        {(workflows.data ?? []).map((workflow) => (
+          <ProjectWorkflowSecretsRow key={workflow.workflow_id} projectId={projectId} workflow={workflow} />
         ))}
       </CardContent>
     </Card>
