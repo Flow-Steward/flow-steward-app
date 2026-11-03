@@ -402,7 +402,9 @@ def test_host_contract_1_3_0_accepts_field_help_for_declared_fields() -> None:
     )
     descriptor["runtime"]["compatibility"] = {"platform_min": "1.3.0"}
 
-    assert DEFAULT_FS_RUNTIME_VERSION == "1.4.0"
+    from core.application.extensions.semver import compare_semver
+
+    assert compare_semver(DEFAULT_FS_RUNTIME_VERSION, "1.3.0", field_name="host") >= 0
     contract = extract_llm_provider_contract(descriptor)
     assert contract.connection_config_help == {"upstream_base_url": _BASE_URL_HELP}
     assert contract.provider_secret_help == {"api_key": _KEY_HELP}

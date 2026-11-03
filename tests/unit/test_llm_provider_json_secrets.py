@@ -33,6 +33,7 @@ def test_declared_json_secret_format_is_projected_and_requires_host_14():
     from core.application.extensions.browser_manifest_projection import project_browser_manifest
 
     descriptor = _descriptor(provider_secret_formats={_FIELD_NAME: _OBJECT_FORMAT})
+    descriptor["runtime"]["compatibility"] = {"platform_min": "1.4.0"}
     contract = extract_llm_provider_contract(descriptor)
     assert contract.provider_secret_formats == {_FIELD_NAME: _OBJECT_FORMAT}
     assert contract.model_dump()["provider_secret_formats"] == {_FIELD_NAME: _OBJECT_FORMAT}

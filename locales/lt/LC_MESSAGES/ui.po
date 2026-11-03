@@ -29605,3 +29605,42 @@ msgstr "Tekstinių failų formatai: {formats}"
 
 msgid "react.workflows.agent_file_formats_encoding"
 msgstr "Tekstas turi būti UTF-8. RTF skaitomas kaip pradinis tekstas, nekonvertuojamas."
+
+msgid "react.registry.json_add_parameter"
+msgstr "Norėdami sukurti įvesties parametrą, į arguments įtraukite {\"$param\":\"name\"}."
+
+msgid "react.registry.json_array"
+msgstr "Masyvas"
+
+msgid "react.registry.json_null"
+msgstr "Null reikšmė"
+
+msgid "react.registry.json_object"
+msgstr "Objektas"
+
+msgid "react.registry.json_parameter_help"
+msgstr "Tipizuotam parametrui arguments viduje naudokite {\"$param\":\"name\"}."
+
+msgid "react.registry.json_parameters_help"
+msgstr "Parametrai sukuriami pagal {\"$param\":\"name\"} žymeklius arguments viduje. Pasirinkite kiekvienos reikšmės tipą."
+
+msgid "react.registry.json_query_definition"
+msgstr "JSON užklausos aprašas"
+
+msgid "react.registry.loading_query_connection"
+msgstr "Įkeliama ryšio informacija…"
+
+msgid "react.registry.queries_saved_on_dataset"
+msgstr "Užklausos išsaugomos šiame duomenų rinkinyje ir gali būti naudojamos dataset_query darbo eigos žingsniuose."
+
+msgid "react.registry.query_connector_unavailable"
+msgstr "Ryšio informacija nepasiekiama. Bandykite dar kartą arba patikrinkite duomenų rinkinio ryšį."
+
+msgid "react.registry.query_name_definition_required"
+msgstr "Būtina nurodyti išsaugotos užklausos pavadinimą ir aprašą."
+
+msgid "react.registry.retry_query_connection"
+msgstr "Iš naujo įkelti ryšio informaciją"
+
+msgid "react.registry.typed_json_value"
+msgstr "Naudojama kaip tipizuota JSON reikšmė."

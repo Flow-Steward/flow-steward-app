@@ -76,7 +76,7 @@ def test_projection_bridge_is_namespaced_install_owned_and_collision_safe() -> N
                 "projection": {
                     "dataset_id": "orders",
                     "display_name": "Projected orders",
-                    "connector_id": "toolbox_postgres",
+                    "connector_id": "runtime_records",
                     "metadata_jsonb": {"connection_resolution": "project_scope"},
                 },
             },
@@ -563,3 +563,223 @@ def test_ordinary_mutation_keeps_user_owned_rows_writable(method):
     assert store.write_contexts == 1
     assert len(store.cursor.statements) == 1
     assert "UPDATE" in store.cursor.statements[0][0]
+
+
+class _ValidatingBridgeStore(_RegistryStore):
+    """Real saved-query store with only the database cursor replaced."""
+
+    def __init__(self, catalog):
+        super().__init__()
+        self.catalog = catalog
+        self.persisted_queries = []
+
+    def list_dataset_connectors(self):
+        return copy.deepcopy(self.catalog)
+
+    @staticmethod
+    def _table_exists(_table):
+        return True
+
+    @staticmethod
+    def _column_exists(_table, _column):
+        return True
+
+    @contextmanager
+    def _transaction(self):
+        store = self
+
+        class Cursor:
+            def execute(self, _statement, params):
+                self.params = copy.deepcopy(params)
+                store.persisted_queries.append(self.params)
+
+            def fetchone(self):
+                return self.params
+
+        yield Cursor()
+
+    def save_dataset_query_template(self, payload, author="admin"):
+        from core.application.registry.db_store_dataset_catalog_mixin import (
+            RegistryDBStoreDatasetCatalogMixin,
+        )
+
+        row = RegistryDBStoreDatasetCatalogMixin.save_dataset_query_template(
+            self, payload, author=author
+        )
+        self.templates[row["query_template_id"]] = copy.deepcopy(row)
+        return row
+
+    @staticmethod
+    def _normalize_dataset_query_template_row(row):
+        from core.application.registry.db_store_dataset_catalog_mixin import (
+            RegistryDBStoreDatasetCatalogMixin,
+        )
+
+        return RegistryDBStoreDatasetCatalogMixin._normalize_dataset_query_template_row(row)
+
+
+def _installed_bridge_connector(
+    *, language, install_id="install-1", account_id="account-1", local_id="runtime_records"
+):
+    from core.application.registry.db_store_datasets_mixin import RegistryDBStoreDatasetsMixin
+
+    return RegistryDBStoreDatasetsMixin._dataset_connectors_from_descriptor_row(
+        {
+            "install_id": install_id,
+            "release_id": "release-1",
+            "account_id": account_id,
+            "extension_id": "provider",
+            "descriptor_jsonb": {
+                "extension_contract_v2_normalized": {
+                    "dataset_connectors": [{"connector_id": local_id, "query_language": language}]
+                }
+            },
+        }
+    )
+
+
+def _materialize_validated_bridge(store, language):
+    from core.application.extensions.projected_dataset_bridge import (
+        materialize_projected_dataset_bridges,
+    )
+
+    definition = (
+        {"sql": "SELECT id FROM Orders LIMIT 1"}
+        if language == "sql"
+        else {
+            "resource_id": "Orders",
+            "operation": "find",
+            "arguments": {"active": {"$param": "active"}},
+        }
+    )
+    return materialize_projected_dataset_bridges(
+        store,
+        account_id="account-1",
+        install_id="install-1",
+        release_id="release-1",
+        projections=[
+            {
+                "artifact_kind": "dataset",
+                "artifact_id": "orders",
+                "projection": {
+                    "dataset_id": "orders",
+                    "connector_id": "runtime_records",
+                    "query_language": language,
+                    "resource_scope_jsonb": {"resources": [{"resource_id": "Orders"}]},
+                    "metadata_jsonb": {"connection_resolution": "project_scope"},
+                },
+            },
+            {
+                "artifact_kind": "saved_query",
+                "artifact_id": "open_orders",
+                "projection": {
+                    "dataset_id": "orders",
+                    "query_template_id": "open_orders",
+                    "query_language": language,
+                    "query_definition_jsonb": definition,
+                    "params_schema_jsonb": {"properties": {"active": {"type": "boolean"}}},
+                },
+            },
+        ],
+    )
+
+
+@pytest.mark.parametrize("language", ["sql", "json"])
+def test_projection_materialization_validates_real_store_against_namespaced_connector(language):
+    import json
+
+    store = _ValidatingBridgeStore(_installed_bridge_connector(language=language))
+    result = _materialize_validated_bridge(store, language)
+    assert result["saved_queries"] == ["extension.install-1.open_orders"]
+    assert store.datasets["extension.install-1.orders"]["connector_id"] == "runtime_records"
+    assert store.persisted_queries[0]["query_language"] == language
+    definition = json.loads(store.persisted_queries[0]["query_definition_jsonb"])
+    if language == "sql":
+        assert definition == {"sql": "SELECT id FROM Orders LIMIT 1"}
+    else:
+        assert definition == {
+            "resource_id": "Orders",
+            "operation": "find",
+            "arguments": {"active": {"$param": "active"}},
+        }
+
+
+@pytest.mark.parametrize("language", ["sql", "json"])
+@pytest.mark.parametrize("catalog_case", ["other_install", "other_account", "unknown", "ambiguous"])
+def test_projection_local_connector_scope_rejects_foreign_unknown_or_ambiguous_catalog(
+    language, catalog_case
+):
+    if catalog_case == "other_install":
+        catalog = _installed_bridge_connector(language=language, install_id="install-2")
+    elif catalog_case == "other_account":
+        catalog = _installed_bridge_connector(language=language, account_id="account-2")
+    elif catalog_case == "unknown":
+        catalog = _installed_bridge_connector(language=language, local_id="another")
+    else:
+        catalog = _installed_bridge_connector(language=language) * 2
+    store = _ValidatingBridgeStore(catalog)
+    with pytest.raises(ValueError, match="connector binding is unavailable"):
+        _materialize_validated_bridge(store, language)
+    assert store.persisted_queries == []
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        "mutable",
+        "foreign_account",
+        "missing_account",
+        "wrong_kind",
+        "wrong_handle",
+        "foreign_connector",
+    ],
+)
+def test_projected_binding_requires_valid_immutable_owner_before_using_local_alias(tamper):
+    from core.application.datasets.saved_query_binding import validate_saved_query_connector_binding
+    from core.application.extensions.projected_dataset_bridge import projection_bridge_metadata
+
+    catalog = _installed_bridge_connector(language="sql") + _installed_bridge_connector(
+        language="sql", install_id="install-2"
+    )
+    store = _ValidatingBridgeStore(catalog)
+    dataset = {
+        "dataset_id": "extension.install-1.orders",
+        "connector_id": "runtime_records",
+        "metadata_jsonb": {
+            "account_id": "account-1",
+            "projection_bridge": projection_bridge_metadata(
+                install_id="install-1",
+                release_id="release-1",
+                artifact_kind="dataset",
+                artifact_id="orders",
+            ),
+        },
+    }
+    if tamper == "mutable":
+        dataset["metadata_jsonb"]["projection_bridge"]["immutable"] = False
+    elif tamper == "foreign_account":
+        dataset["account_id"] = "account-2"
+    elif tamper == "missing_account":
+        del dataset["metadata_jsonb"]["account_id"]
+    elif tamper == "wrong_kind":
+        dataset["metadata_jsonb"]["projection_bridge"]["artifact_kind"] = "saved_query"
+    elif tamper == "wrong_handle":
+        dataset["dataset_id"] = "extension.install-2.orders"
+    else:
+        dataset["connector_id"] = "extension.install-2.runtime_records"
+    with pytest.raises(ValueError, match="connector binding is unavailable"):
+        validate_saved_query_connector_binding(
+            {"query_language": "sql", "account_id": "account-1"}, dataset=dataset, db=store
+        )
+
+
+def test_local_connector_alias_without_bridge_ownership_is_rejected():
+    from core.application.datasets.saved_query_binding import validate_saved_query_connector_binding
+
+    store = _ValidatingBridgeStore(_installed_bridge_connector(language="sql"))
+    with pytest.raises(ValueError, match="connector binding is unavailable"):
+        validate_saved_query_connector_binding(
+            {"query_language": "sql"},
+            dataset={"connector_id": "runtime_records", "account_id": "account-1"},
+            db=store,
+        )

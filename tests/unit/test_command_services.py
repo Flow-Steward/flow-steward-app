@@ -6851,6 +6851,204 @@ class TestExtensionCommandServices:
         }
         assert projection_pairs == {("workflow", "wf_v2"), ("agent", "agent_v2")}
 
+    @classmethod
+    def _runtime_only_extension_zip_bytes(
+        cls, *, extension_id="acme.runtime-source", version="1.0.1", minimum="1.5.0"
+    ):
+        """An in-memory Python fixture implementing only the abstract host contract."""
+        import yaml
+
+        from tests.unit.test_extension_contract_v2 import _base_descriptor
+
+        connector = {
+            "connector_id": "records",
+            "display_name": "Records",
+            "connection_schema": {"type": "object"},
+            "secret_schema": {"type": "object"},
+            "query_language": "json",
+            "capabilities": {"preview_query": True, "execute_template": True},
+            "safety_profile": {"read_only": True},
+            "preview_support": True,
+            "schema_refresh_support": True,
+            "runtime_adapter_ref": "main.py",
+        }
+        descriptor = _base_descriptor({"dataset_connectors": [connector]})
+        descriptor.pop("artifacts")
+        descriptor.update(extension_id=extension_id, release_version=version)
+        descriptor["runtime"]["compatibility"] = {"platform_min": minimum}
+        folder = extension_folder_name(extension_id)
+        with zipfile.ZipFile(
+            io.BytesIO(cls._extension_zip_bytes(extension_id=extension_id, version=version))
+        ) as archive:
+            files = {name: archive.read(name) for name in archive.namelist()}
+        manifest_path = f"{folder}/extension.yaml"
+        manifest = yaml.safe_load(files[manifest_path])
+        manifest["features"].append("dataset_connector")
+        manifest["runtime"] = descriptor["runtime"]
+        files[manifest_path] = yaml.safe_dump(manifest).encode()
+        files[f"{folder}/extension-descriptor.yaml"] = json.dumps(descriptor).encode()
+        result = io.BytesIO()
+        with zipfile.ZipFile(result, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for name, content in files.items():
+                archive.writestr(name, content)
+        return result.getvalue()
+
+    @staticmethod
+    def _restore_runtime_only_install(
+        *, content, extensions_root, extension_id, install_store, runtime_store
+    ):
+        """Restore generic persisted state without admitting its old minimum as a new upload."""
+        import shutil
+
+        import yaml
+
+        from core.application.extensions.archive_extraction_service import (
+            ExtensionArchiveExtractionService,
+            safe_extension_archive_file_mode,
+        )
+        from core.application.extensions.archive_validation_service import ValidatedArchiveUpload
+        from core.application.extensions.extension_contract_v2 import validate_extension_contract_v2
+        from core.application.extensions.lifecycle import validate_extension_descriptor_file
+        from core.infrastructure.extension_runtime.extension_runtime_common import (
+            EXTENSION_INSTALL_METADATA_FILENAME,
+        )
+
+        folder = extension_folder_name(extension_id)
+        bundle_root = extensions_root / folder
+        extractor = ExtensionArchiveExtractionService(file_mode=safe_extension_archive_file_mode)
+        upload = ValidatedArchiveUpload(
+            filename="historical.zip", safe_name="historical.zip", content=content
+        )
+        with extractor.extract(upload=upload, max_uncompressed_bytes=300_000_000) as extracted:
+            shutil.copytree(extracted / folder, bundle_root)
+        descriptor_path = bundle_root / "extension-descriptor.yaml"
+        raw = yaml.safe_load(descriptor_path.read_text(encoding="utf-8"))
+        assert raw["extension_id"] == extension_id
+        assert raw["release_version"] == "1.0.0"
+        assert raw["runtime"]["compatibility"]["platform_min"] == "1.4.0"
+        assert "artifacts" not in raw
+        current_admission = validate_extension_descriptor_file(descriptor_path)
+        assert current_admission["valid"] is False
+        assert any("1.5.0" in error["message"] for error in current_admission["errors"])
+        interfaces = validate_extension_contract_v2(raw, bundle_root=bundle_root)
+        assert interfaces["valid"] is False
+        assert {error["code"] for error in interfaces["errors"]} == {"native_dataset_host_minimum"}
+        release = runtime_store.create_release(
+            {
+                "extension_id": extension_id,
+                "release_version": "1.0.0",
+                "descriptor": {
+                    **raw,
+                    "bundle_root": str(bundle_root),
+                    "extension_contract_v2_normalized": interfaces["normalized_contract"],
+                },
+                "contract_version": raw["runtime"]["contract_version"],
+                "execution_modes": ["local"],
+                "source_kind": "extension_scan",
+                "source_ref": extension_id,
+                "account_id": DEFAULT_ACCOUNT_ID,
+            }
+        )
+        installed = install_store.install(
+            extension_id=extension_id,
+            version="1.0.0",
+            account_id=DEFAULT_ACCOUNT_ID,
+            release_id=release.release_id,
+            descriptor_source="extension_scan",
+            runtime_mode="local",
+            config={"retained_operator_setting": True},
+        )
+        (bundle_root / EXTENSION_INSTALL_METADATA_FILENAME).write_text(
+            yaml.safe_dump({"install_id": installed.install_id}), encoding="utf-8"
+        )
+        return installed
+
+    @pytest.mark.parametrize("historical", [False, True], ids=["fresh_install", "legacy_upgrade"])
+    def test_runtime_only_extension_installs_updates_and_scans(self, tmp_path, historical):
+        from core.application.extensions.install import ExtensionInstallStore
+        from core.application.extensions.runtime_store import ExtensionRuntimeStore
+
+        extension_id = "acme.runtime-source"
+        install_store = ExtensionInstallStore()
+        runtime_store = ExtensionRuntimeStore()
+        bl = MagicMock()
+        bl.conn = None
+        self._persist_scanned_extension_rows(bl)
+        extensions_root = tmp_path / "extensions"
+        bl.list_extensions.side_effect = lambda *args, **kwargs: self._managed_scan_rows(
+            extensions_root, extension_id
+        )
+        service = ExtensionBindingService(
+            get_logger=lambda: bl,
+            get_operation_store=lambda: bl,
+            resolve_extension_runtime_record=lambda _: (None, None),
+            extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
+            extension_operation_handler_mode=lambda *args, **kwargs: "extension",
+            extension_operation_failure_status=lambda _: 502,
+            get_extension_install_store=lambda: install_store,
+            get_extension_runtime_store=lambda: runtime_store,
+        )
+        initial_id = None
+        retained_config = {}
+        if historical:
+            restored = self._restore_runtime_only_install(
+                content=self._runtime_only_extension_zip_bytes(version="1.0.0", minimum="1.4.0"),
+                extensions_root=extensions_root,
+                extension_id=extension_id,
+                install_store=install_store,
+                runtime_store=runtime_store,
+            )
+            initial_id = restored.install_id
+            retained_config = dict(restored.config)
+            bl.sync_extension_scan(self._managed_scan_rows(extensions_root, extension_id))
+        scope = ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID, actor_id="admin", principal_type="admin"
+        )
+        with patch(
+            "core.infrastructure.extension_runtime.extension_runtime.default_extensions_root",
+            return_value=str(extensions_root),
+        ):
+            result = service.install_extension_archive(
+                filename="runtime-only.zip",
+                content=self._runtime_only_extension_zip_bytes(),
+                scope=scope,
+            ).dump()
+            assert result["extension"]["lifecycle_operation"] == (
+                "updated" if historical else "installed"
+            )
+            if historical:
+                assert result["extension"]["from_version"] == "1.0.0"
+                assert result["extension"]["to_version"] == "1.0.1"
+            current = install_store.get(extension_id=extension_id, account_id=DEFAULT_ACCOUNT_ID)
+            assert current is not None
+            if historical:
+                assert current.install_id == initial_id
+            initial_id = current.install_id
+            assert current.config == retained_config
+            service.scan_extensions(scope=scope)
+        installed = install_store.get(extension_id=extension_id, account_id=DEFAULT_ACCOUNT_ID)
+        assert installed.install_id == initial_id
+        assert installed.version == "1.0.1"
+        assert installed.account_id == DEFAULT_ACCOUNT_ID
+        assert installed.config == retained_config
+        release = runtime_store.get_release(installed.release_id)
+        assert release.descriptor["extension_id"] == extension_id
+        assert release.descriptor["runtime"]["compatibility"]["platform_min"] == "1.5.0"
+        assert (
+            release.descriptor["extension_contract_v2_normalized"]["dataset_connectors"][0][
+                "connector_id"
+            ]
+            == "records"
+        )
+        assert (
+            release.descriptor["extension_contract_v2_normalized"]["dataset_connectors"][0][
+                "query_language"
+            ]
+            == "json"
+        )
+        assert "artifacts" not in release.descriptor
+        assert runtime_store.list_artifact_snapshots(release.release_id) == []
+
     def test_install_extension_archive_updates_simple_extension_and_preserves_disabled_state(
         self, tmp_path
     ):

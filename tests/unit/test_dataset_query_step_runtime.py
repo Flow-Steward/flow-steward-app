@@ -61,7 +61,7 @@ class _DB:
                 "connector_ref_jsonb": {
                     "extension_id": "fixture.dataset-query-provider",
                     "install_id": "install-dataset-query-provider",
-                    "local_connector_id": "toolbox_postgres",
+                    "local_connector_id": "runtime_records",
                 },
             }
         }
@@ -794,7 +794,7 @@ def test_projected_saved_query_resolves_through_owning_install_and_project_conne
     db.datasets = {
         dataset_bridge_id: {
             "dataset_id": dataset_bridge_id,
-            "connector_id": "toolbox_postgres",
+            "connector_id": "runtime_records",
             "project_ids": ["project-1"],
             "metadata_jsonb": {
                 "connection_resolution": "project_scope",
@@ -1124,4 +1124,61 @@ def test_dataset_timeout_current_unparseable_string_raises_before_extension_disp
             },
             state={"job_id": "job-1"},
         )
+    assert "kwargs" not in captured
+
+
+def test_structured_query_runtime_preserves_definition_and_typed_params(monkeypatch):
+    from core.application.orchestration.dataset_query_step_runtime import execute_dataset_query_step
+
+    captured = _patch_runtime(monkeypatch)
+    db = captured["registry"].db_store
+    definition = {
+        "resource_id": "Users",
+        "operation": "find",
+        "arguments": {"filter": {"active": {"$param": "active"}}},
+    }
+    db.templates["query-1"].update(
+        query_language="json",
+        query_definition_jsonb=definition,
+        params_schema_jsonb={"properties": {"active": {"type": "boolean"}}},
+    )
+    db.datasets["dataset-1"].update(
+        query_language="json", resource_scope_jsonb={"resources": [{"resource_id": "Users"}]}
+    )
+    result = execute_dataset_query_step(
+        step={
+            "override": {
+                "dataset_query": {
+                    "query_template_id": "query-1",
+                    "params": {"active": "state.inputs.active"},
+                }
+            }
+        },
+        state={"job_id": "job-1", "inputs": {"active": False}},
+    )
+    assert result["ok"] is True
+    payload = captured["kwargs"]["input_payload"]
+    assert payload["query_template"]["query_definition_jsonb"] == definition
+    assert payload["params"] == {"active": False}
+
+
+def test_query_runtime_rejects_installed_connector_language_mismatch(monkeypatch):
+    from core.application.orchestration.dataset_query_step_runtime import execute_dataset_query_step
+
+    captured = _patch_runtime(monkeypatch)
+    db = captured["registry"].db_store
+    db.connections["connection-1"]["connector_ref_jsonb"]["connector_id"] = "json-provider"
+    db.list_dataset_connectors = lambda: [
+        {
+            "connector_id": "json-provider",
+            "source_install_id": "install-dataset-query-provider",
+            "query_language": "json",
+        }
+    ]
+    result = execute_dataset_query_step(
+        step={"override": {"dataset_query": {"query_template_id": "query-1"}}},
+        state={"job_id": "job-1"},
+    )
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "saved_query_definition_invalid"
     assert "kwargs" not in captured

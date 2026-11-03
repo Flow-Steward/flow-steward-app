@@ -11,7 +11,6 @@ from typing import Literal, cast
 
 from core.infrastructure.security.models import ScanFinding, meets_severity_threshold
 from core.infrastructure.security.policy import ScannerConfig
-
 from core.infrastructure.security.secret_detection import (
     SECRET_PATTERNS,
     SecretPattern,

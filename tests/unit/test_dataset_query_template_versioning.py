@@ -97,3 +97,50 @@ def test_invalid_saved_query_never_enters_persistence_transaction() -> None:
         store.save_dataset_query_template(payload)
 
     assert store.cursor.params == {}
+
+
+def test_structured_saved_query_persists_definition_and_parameter_schema(monkeypatch):
+    import json
+
+    store = _Store(existing=None)
+    monkeypatch.setattr(
+        store,
+        "get_dataset",
+        lambda *_args, **_kwargs: {
+            "query_language": "json",
+            "connector_id": "json-connection",
+            "resource_scope_jsonb": {"resources": [{"resource_id": "Orders"}]},
+        },
+    )
+    monkeypatch.setattr(
+        store,
+        "list_dataset_connectors",
+        lambda: [
+            {"connector_id": "json-connection", "query_language": "json"},
+        ],
+        raising=False,
+    )
+    definition = {
+        "resource_id": "Orders",
+        "operation": "find",
+        "arguments": {"active": {"$param": "active"}},
+    }
+    schema = {"properties": {"active": {"type": "boolean"}}}
+    payload = {
+        **_payload(version=1),
+        "query_language": "json",
+        "query_definition_jsonb": definition,
+        "params_schema_jsonb": schema,
+    }
+    result = store.save_dataset_query_template(payload)
+    assert result["query_language"] == "json"
+    assert json.loads(store.cursor.params["query_definition_jsonb"]) == definition
+    assert json.loads(store.cursor.params["params_schema_jsonb"]) == schema
+
+
+def test_present_catalog_with_unknown_connector_rejects_before_persistence(monkeypatch):
+    store = _Store(existing=None)
+    monkeypatch.setattr(store, "list_dataset_connectors", list, raising=False)
+    with pytest.raises(ValueError, match="connector binding is unavailable"):
+        store.save_dataset_query_template(_payload(version=1))
+    assert store.cursor.params == {}

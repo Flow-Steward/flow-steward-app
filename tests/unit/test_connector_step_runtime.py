@@ -10,7 +10,6 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from tests._step_run_state import step_run_state
 
 from core.application.orchestration import (
     connector_events,
@@ -18,6 +17,7 @@ from core.application.orchestration import (
     connector_tool_runtime,
 )
 from core.application.orchestration.run_cursor import ForEachFrame
+from tests._step_run_state import step_run_state
 
 
 def _run_state(steps, *, active=0, **state):
@@ -2126,8 +2126,10 @@ def test_execute_connector_step_blocks_reflected_workflow_secret_inputs(
     assert secret_value not in repr(log_invocation.call_args.kwargs)
 
 
+@pytest.mark.parametrize("serialized", [False, True])
 def test_execute_connector_step_invokes_a_real_extension_process_with_connection_ref_only(
     tmp_path,
+    serialized,
 ):
     """The connector contract, against a bundle built here rather than a shipped one.
 
@@ -2157,12 +2159,25 @@ def test_execute_connector_step_invokes_a_real_extension_process_with_connection
     extension = {
         "runtime": {"contract_version": "extension_host_v2"},
         "extension_key": extension_id,
+        "extension_install_id": "install-primary",
         "bundle_root": str(bundle_root),
         "entrypoint": {"command": [sys.executable, "main.py"]},
         "action_definitions": [
             {
                 "action_id": "discover_settings",
                 "handler": {"mode": "extension"},
+                **(
+                    {
+                        "contract": {
+                            "serialization": {
+                                "resource": "record",
+                                "key_fields": ["connection_ref"],
+                            }
+                        }
+                    }
+                    if serialized
+                    else {}
+                ),
                 "parameters": [
                     {"name": "connection_ref", "type": "connection_ref", "required": True}
                 ],
@@ -2182,6 +2197,8 @@ def test_execute_connector_step_invokes_a_real_extension_process_with_connection
     }
     registry = SimpleNamespace(tools=SimpleNamespace(get_tool=lambda _tool_id: None))
     bl = MagicMock()
+    lock_cursor = bl.conn.cursor.return_value.__enter__.return_value
+    lock_cursor.fetchone.return_value = (True,)
     bl.get_project_connection.return_value = {
         "connection_id": "conn-primary",
         "account_id": "acc-alpha",
@@ -2244,10 +2261,12 @@ def test_execute_connector_step_invokes_a_real_extension_process_with_connection
                 "account_id": "acc-alpha",
                 "project_id": "project-alpha",
                 "_operation_deadline_epoch_seconds": 105.0,
+                "extension_install_id": "install-untrusted",
+                "connection_id": "conn-untrusted",
             },
         )
 
-    assert result["ok"] is True
+    assert result["ok"] is True, result
     assert result["operation_kind"] == "source"
     assert result["request_semantics"] == "safe_read"
     # The bundle really ran as a subprocess and saw exactly the declared input.
@@ -2257,6 +2276,10 @@ def test_execute_connector_step_invokes_a_real_extension_process_with_connection
     runtime_kwargs = captured_runtime_call["kwargs"]
     assert runtime_kwargs["input_payload"] == {"connection_ref": "conn-primary"}
     assert runtime_kwargs["timeout_seconds"] == 5.0
+    assert runtime_kwargs["runtime_context"].get("extension_install_id") == "install-primary", (
+        runtime_kwargs["runtime_context"]
+    )
+    assert runtime_kwargs["runtime_context"]["connection_id"] == "conn-primary"
     target = runtime_kwargs["target"]
     assert target["connection"]["secrets"] == {"password": password}
     assert "password" not in runtime_kwargs["input_payload"]
@@ -2264,6 +2287,16 @@ def test_execute_connector_step_invokes_a_real_extension_process_with_connection
     assert logged_request["input_payload"] == {"connection_ref": "conn-primary"}
     assert logged_request["target"]["connection"]["secrets"] == {"password": "<redacted>"}
     assert password not in repr(logged_request)
+
+    if serialized:
+        lock_calls = lock_cursor.execute.call_args_list
+        assert "pg_try_advisory_lock" in lock_calls[0].args[0]
+        assert "pg_advisory_unlock" in lock_calls[-1].args[0]
+        lock_key = lock_calls[0].args[1][0]
+        assert "install-primary:record:" in lock_key
+        assert "connection_id=conn-primary" in lock_key
+        assert "untrusted" not in lock_key
+        assert lock_calls[-1].args[1][0] == lock_key
 
 
 @pytest.mark.parametrize(

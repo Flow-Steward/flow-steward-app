@@ -6,6 +6,14 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from core.application.datasets.saved_query_errors import (
+    SavedQueryContractError as SavedQueryContractError,
+)
+from core.application.datasets.saved_query_errors import (
+    invalid_saved_query as _invalid,
+)
+from core.application.datasets.structured_query_contract import validate_structured_query_definition
+
 _TOKEN_QUERY_DEFINITION_JSONB_SQL = "query_definition_jsonb.sql"
 
 _PARAMETER = re.compile(r"(?<!:):([A-Za-z_](?a:\w)*)")
@@ -208,34 +216,6 @@ _JSON_SCHEMA_TYPES = frozenset(
 )
 
 
-@dataclass
-class SavedQueryContractError(ValueError):
-    """A safe, transport-independent saved-query validation failure."""
-
-    code: str
-    path: str
-    message: str
-
-    def __str__(self) -> str:
-        return self.message
-
-    def as_detail(self) -> dict[str, str]:
-        return {
-            "code": self.code,
-            "field": self.path.split(".", 1)[0],
-            "path": self.path,
-            "message": self.message,
-        }
-
-
-def _invalid(path: str, message: str) -> SavedQueryContractError:
-    return SavedQueryContractError(
-        code="saved_query_definition_invalid",
-        path=path,
-        message=message,
-    )
-
-
 def _sql_without_comments_or_literals(sql: str) -> str:
     result: list[str] = []
     index = 0
@@ -379,14 +359,25 @@ def validate_saved_query_contract(
     """Reject a saved query that cannot safely execute against its dataset."""
 
     language = str(payload.get("query_language") or "sql").strip().lower()
-    if language != "sql":
-        raise _invalid("query_language", "Only the sql query language is supported")
+    if language not in {"sql", "json"}:
+        raise _invalid("query_language", "Only sql and json query languages are supported")
+    dataset_language = str(dataset.get("query_language") or "").strip().lower()
+    if dataset_language and language != dataset_language:
+        raise _invalid("query_language", "Query language must match the dataset connector")
 
     if "query_definition" in payload:
         raise _invalid(
             "query_definition",
             "Legacy query_definition is unsupported; use query_definition_jsonb",
         )
+    if language == "json":
+        declared_params = _validate_params_schema(
+            payload.get("params_schema_jsonb") or payload.get("param_schema_jsonb") or {}
+        )
+        validate_structured_query_definition(
+            payload.get("query_definition_jsonb"), dataset=dataset, declared_params=declared_params
+        )
+        return
     definition = payload.get("query_definition_jsonb") or {}
     if not isinstance(definition, dict):
         raise _invalid("query_definition_jsonb", "Query definition must be an object")

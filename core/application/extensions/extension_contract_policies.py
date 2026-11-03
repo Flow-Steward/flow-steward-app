@@ -14,6 +14,24 @@ from core.application.extensions.extension_contract_v2_common import (
 )
 from core.application.extensions.json_schema_subset import unsupported_schema_keywords
 
+NATIVE_DATASET_PLATFORM_MIN = "1.5.0"
+
+ARTIFACT_ENTRY_ID_FIELDS = (
+    "workflow_id",
+    "agent_id",
+    "skill_id",
+    "skill_id",
+    "tool_id",
+    "contract_id",
+    "data_contract_id",
+    "dataset_id",
+    "query_template_id",
+    "saved_query_id",
+    "guardrail_id",
+    "extension_id",
+    "id",
+)
+
 ALLOWED_WIDGET_TYPES: set[str] = {
     "text",
     "textarea",

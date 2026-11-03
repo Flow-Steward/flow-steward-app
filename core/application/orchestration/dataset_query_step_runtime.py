@@ -779,6 +779,15 @@ def execute_dataset_query_step(*, step: dict[str, Any], state: dict[str, Any]) -
             "This extension is disabled—ask an admin to enable it.",
         )
 
+    from core.application.datasets.saved_query_binding import validate_saved_query_connector_binding
+
+    try:
+        validate_saved_query_connector_binding(
+            template, dataset=dataset, db=db, connection=connection
+        )
+    except SavedQueryContractError as exc:
+        return _failure(exc.code, exc.message, detail=exc.path)
+
     timeout_seconds = int(config.get("timeout_seconds") or step.get("timeout_seconds") or 30)
     context = _jsonable(
         {

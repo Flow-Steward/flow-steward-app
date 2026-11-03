@@ -136,6 +136,17 @@ def _descriptor_with_bundle_runtime(
     if identity_errors:
         return descriptor, identity_errors
 
+    if "artifact_bundle" in (compiled_manifest.get("features") or []) and not descriptor.get(
+        "artifacts"
+    ):
+        return descriptor, [
+            {
+                "path": "extension.yaml.features",
+                "code": "artifact_bundle_missing_artifacts",
+                "message": "artifact_bundle requires nonempty descriptor artifacts",
+            }
+        ]
+
     compiled_runtime = compiled_manifest.get("runtime")
     descriptor_runtime = descriptor.get("runtime")
     merged_runtime = {

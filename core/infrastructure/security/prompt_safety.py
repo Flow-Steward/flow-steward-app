@@ -6,9 +6,8 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from core.infrastructure.security.secret_reference import is_secret_reference
-
 from core.infrastructure.security.secret_detection import GITHUB_INSTALLATION_TOKEN_RE
+from core.infrastructure.security.secret_reference import is_secret_reference
 
 # Project config paths that are explicitly safe to expose in prompt templates.
 _ALLOWED_PROJECT_CONFIG_PREFIXES = (

@@ -507,6 +507,14 @@ def _invoke_saved_query_action(
         raise HTTPException(status_code=exc.status_code, detail=exc.payload) from exc
     if not connection:
         raise HTTPException(status_code=404, detail="Dataset data connection not found")
+    from core.application.datasets.saved_query_binding import validate_saved_query_connector_binding
+
+    try:
+        validate_saved_query_connector_binding(
+            template, dataset=dataset, db=db, connection=connection
+        )
+    except SavedQueryContractError as exc:
+        raise HTTPException(status_code=422, detail=exc.as_detail()) from exc
     row_limit = max(1, min(int(body.row_limit or 100), 1000))
     extension = _connection_extension(db, connection)
     invocation = run_extension_action(

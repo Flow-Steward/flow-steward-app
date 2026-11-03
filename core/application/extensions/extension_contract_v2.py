@@ -44,6 +44,7 @@ from core.application.extensions.extension_contract_policies import (
 from core.application.extensions.extension_contract_policies import (
     ARTIFACT_POLICY_GRANT_GROUPS as ARTIFACT_POLICY_GRANT_GROUPS,
 )
+from core.application.extensions.extension_contract_policies import NATIVE_DATASET_PLATFORM_MIN
 from core.application.extensions.extension_contract_policies import (
     RESERVED_ARTIFACT_POLICY_BINDING_KEYS as RESERVED_ARTIFACT_POLICY_BINDING_KEYS,
 )
@@ -60,6 +61,8 @@ from core.application.extensions.extension_contract_v2_common import (
     _normalize_lower,
     _positive_int,
 )
+from core.application.extensions.extension_descriptor import RUNTIME_INTERFACE_SECTIONS
+from core.application.extensions.extension_descriptor_llm_provider import LlmProviderContractV1
 from core.application.extensions.extension_locales import (
     load_locale_bundles,
     ui_manifest_locale_keys,
@@ -70,6 +73,7 @@ from core.application.extensions.oauth_contract import (
     normalize_oauth_providers,
     oauth_locale_copy_limits,
 )
+from core.application.extensions.semver import compare_semver
 
 ROOT_SECTIONS: tuple[str, ...] = (
     "oauth_providers",
@@ -198,6 +202,13 @@ def validate_extension_contract_v2(
         normalized_contract,
         errors=errors,
     )
+    _validate_native_dataset_minimum(descriptor, normalized_contract, errors=errors)
+    _validate_runtime_only_interface(
+        descriptor,
+        contract_root=contract_root,
+        normalized_contract=normalized_contract,
+        errors=errors,
+    )
 
     locale_bundles = _load_locale_bundles(
         bundle_root=root_path,
@@ -228,6 +239,66 @@ def validate_extension_contract_v2(
         "warnings": warnings,
         "preview": preview,
     }
+
+
+def _validate_native_dataset_minimum(
+    descriptor: dict[str, Any],
+    normalized_contract: dict[str, list[dict[str, Any]]],
+    *,
+    errors: list[dict[str, str]],
+) -> None:
+    runtime_only = (
+        descriptor.get("extension_type") == "service_extension" and "artifacts" not in descriptor
+    )
+    json_dataset = any(
+        _normalize_lower(row.get("query_language")) == "json"
+        for row in normalized_contract.get("dataset_connectors", [])
+    )
+    if not (runtime_only or json_dataset):
+        return
+    runtime = descriptor.get("runtime")
+    compatibility = runtime.get("compatibility") if isinstance(runtime, dict) else None
+    minimum = _as_text(compatibility.get("platform_min")) if isinstance(compatibility, dict) else ""
+    try:
+        supported = (
+            compare_semver(minimum, NATIVE_DATASET_PLATFORM_MIN, field_name="platform_min") >= 0
+        )
+    except ValueError:
+        supported = False
+    if not supported:
+        _error(
+            errors,
+            path="runtime.compatibility.platform_min",
+            code="native_dataset_host_minimum",
+            message="JSON Dataset and artifact-free services require host contract 1.5.0 or later",
+        )
+
+
+def _validate_runtime_only_interface(
+    descriptor: dict[str, Any],
+    *,
+    contract_root: dict[str, Any],
+    normalized_contract: dict[str, list[dict[str, Any]]],
+    errors: list[dict[str, str]],
+) -> None:
+    if descriptor.get("extension_type") != "service_extension" or "artifacts" in descriptor:
+        return
+    if any(normalized_contract.get(section) for section in RUNTIME_INTERFACE_SECTIONS):
+        return
+    # LLM declarations have their own typed contract, outside the loaded row sections.
+    if "llm_provider" in contract_root:
+        try:
+            LlmProviderContractV1.model_validate(contract_root["llm_provider"])
+        except ValueError:
+            pass
+        else:
+            return
+    _error(
+        errors,
+        path="extension_contract_v2",
+        code="missing_runtime_interface",
+        message="An artifact-free service extension requires a nonempty resolved runtime interface",
+    )
 
 
 def _build_preview(

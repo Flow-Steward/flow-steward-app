@@ -1,4 +1,5 @@
 import { isInstallOwned } from "../dataset-ownership";
+import { projectedQueryConnector } from "./projected-query-connector";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -169,7 +170,17 @@ export function useDatasetDetailState() {
   const effectiveConnectorId = selectedConnection
     ? resolveConnectorIdForConnection(selectedConnection)
     : "";
-  const selectedConnector = connectorById.get(effectiveConnectorId);
+  const projectScopedDataset = dataset?.metadata_jsonb?.connection_resolution === "project_scope";
+  const selectedConnector = projectScopedDataset
+    ? projectedQueryConnector(dataset, connectors)
+    : connectorById.get(effectiveConnectorId);
+  const queryConnectorLoading = detailQuery.isLoading || connectorsQuery.isLoading || (!projectScopedDataset && dataConnectionsQuery.isLoading);
+  const queryCreationReady = detailQuery.isSuccess && connectorsQuery.isSuccess &&
+    (projectScopedDataset || dataConnectionsQuery.isSuccess) && Boolean(selectedConnector?.query_language);
+  function retryQueryConnectionDetails() {
+    void connectorsQuery.refetch();
+    void dataConnectionsQuery.refetch();
+  }
   useLayoutEffect(() => {
     if (lastDatasetIdRef.current !== datasetId) {
       lastDatasetIdRef.current = datasetId;
@@ -487,8 +498,9 @@ export function useDatasetDetailState() {
   }
 
   function openCreateQueryModal() {
+    if (!queryCreationReady || !selectedConnector) return;
     setEditingQueryId("");
-    setQueryDraft(EMPTY_QUERY_DRAFT);
+    setQueryDraft({ ...EMPTY_QUERY_DRAFT, query_language: selectedConnector.query_language, definition_json: "{}" });
     setQueryFormError("");
     setQueryModalOpen(true);
     goToTab("saved-queries");
@@ -563,8 +575,8 @@ export function useDatasetDetailState() {
       setQueryFormError(detail);
       return;
     }
-    if (!queryDraft.display_name.trim() || !queryDraft.sql.trim()) {
-      const detail = t("react.registry.display_query_name_sql_required", "Saved query name and SQL are required.");
+    if (!queryDraft.display_name.trim() || !(queryDraft.query_language === "json" ? queryDraft.definition_json : queryDraft.sql)?.trim()) {
+      const detail = t("react.registry.query_name_definition_required", "Saved query name and query definition are required.");
       setMessage(detail);
       setQueryFormError(detail);
       return;
@@ -579,10 +591,13 @@ export function useDatasetDetailState() {
         display_name: queryDraft.display_name.trim(),
         description: queryDraft.description.trim(),
         query_language: queryDraft.query_language || "sql",
-        query_definition_jsonb: { sql: queryDraft.sql.trim() },
+        query_definition_jsonb: queryDraft.query_language === "json"
+          ? parseObjectJson(queryDraft.definition_json || "", t("react.registry.json_query_definition", "JSON query definition"), t)
+          : { sql: queryDraft.sql.trim() },
         params_schema_jsonb: paramsSchemaForSql(
-          queryDraft.sql,
+          queryDraft.query_language === "json" ? queryDraft.definition_json || "" : queryDraft.sql,
           parseObjectJson(queryDraft.params_json, t("react.registry.display_params_schema", "Params schema"), t),
+          queryDraft.query_language,
         ),
         output_schema_jsonb: parseObjectJson(queryDraft.output_json, t("react.registry.display_output_schema", "Output schema"), t),
         validation_result_jsonb: existingQuery?.validation_result_jsonb || {},
@@ -733,6 +748,9 @@ export function useDatasetDetailState() {
     selectDetailConnection,
     introspectDetailConnection,
     openCreateQueryModal,
+    queryCreationReady,
+    queryConnectorLoading,
+    retryQueryConnectionDetails,
     savedQueriesQuery,
     savedQueryColumns,
     savedQueries,

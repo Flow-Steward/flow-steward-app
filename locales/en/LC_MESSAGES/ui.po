@@ -29183,3 +29183,42 @@ msgstr "Text file formats: {formats}"
 
 msgid "react.workflows.agent_file_formats_encoding"
 msgstr "Text must be UTF-8. RTF is read as source, not converted."
+
+msgid "react.registry.json_add_parameter"
+msgstr "Add {\"$param\":\"name\"} inside arguments to create an input parameter."
+
+msgid "react.registry.json_array"
+msgstr "Array"
+
+msgid "react.registry.json_null"
+msgstr "Null"
+
+msgid "react.registry.json_object"
+msgstr "Object"
+
+msgid "react.registry.json_parameter_help"
+msgstr "Use {\"$param\":\"name\"} inside arguments for a typed parameter."
+
+msgid "react.registry.json_parameters_help"
+msgstr "Parameters appear from {\"$param\":\"name\"} in arguments. Choose each value type."
+
+msgid "react.registry.json_query_definition"
+msgstr "JSON query definition"
+
+msgid "react.registry.loading_query_connection"
+msgstr "Loading connection details…"
+
+msgid "react.registry.queries_saved_on_dataset"
+msgstr "Queries are saved on this dataset and can be referenced by dataset_query workflow steps."
+
+msgid "react.registry.query_connector_unavailable"
+msgstr "Connection details are unavailable. Retry or check the dataset connection."
+
+msgid "react.registry.query_name_definition_required"
+msgstr "Saved query name and query definition are required."
+
+msgid "react.registry.retry_query_connection"
+msgstr "Retry connection details"
+
+msgid "react.registry.typed_json_value"
+msgstr "Used as a typed JSON value."
