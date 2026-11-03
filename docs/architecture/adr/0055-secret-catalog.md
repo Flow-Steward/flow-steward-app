@@ -103,8 +103,7 @@ with the list of conflicts, when one would break.
 - **Destinations.** For a remote connection they are the normalized origin of
   `remote_base_url`: scheme, host, effective port. For an extension that runs
   locally, approval means trusting that exact release; the code it runs is not
-  confined. The `subdomains` rule type and the Public Suffix List snapshot arrive with
-  dynamic HTTP destinations in 2b. 2a needs only exact origins.
+  confined. Only exact origins are approved; see the workflow destinations below.
 - **What does not change the fingerprint:** replacing a secret's value, or editing a
   secret's metadata. Those are protected by `secrets:write` instead.
 - **What makes the configuration unapproved:** any change to the projection, including
@@ -118,6 +117,36 @@ with the list of conflicts, when one would break.
   way.
 - **Where it shows.** The consumer reports its approval status, and the status appears
   in the consumer's card and list.
+
+### Workflow inputs (2b)
+
+- **A secret input is bound only in `catalog_secret_bindings`** (`consumer_kind`
+  `workflow_input`, with the launching project). The workflow definition never carries
+  the binding, so saving, AI Builder, import, export, clone and revision restore cannot
+  move or forge it. A clone or an imported copy starts unbound.
+- **Existing secret-input defaults stay workflow-local.** A `default_secret_ref` belongs
+  to its workflow and versions with it, as before. The upgrade does not move them into
+  the catalog, so no existing workflow falls under approval at upgrade time. Only a
+  catalog binding needs approval.
+- **The workflow fingerprint** covers the executable settings, the trigger and the
+  bindings. Canvas position, labels, notes and layout are excluded; any other change,
+  including a changed HTTP URL, makes the workflow unapproved.
+- **Destinations.** A literal HTTP step URL contributes its exact origin. A step whose
+  URL is computed needs destinations that the approving person enters: `exact_host`
+  rules of scheme, host, effective port and an optional path prefix matched on segment
+  boundaries (`/api` admits `/api/x`, never `/api-x`). The `subdomains` rule type is
+  refused, because a correct match needs a pinned Public Suffix List snapshot, which
+  this release does not ship.
+- **Launch.** Each launch, child launch and test run checks the approval of the
+  definition being launched and the secret's availability to the launching project. It
+  records the result in protected run state (`_workflow_catalog_secret_authority`),
+  which steps cannot write and the replay snapshot does not carry. The HTTP and connector
+  boundaries check that state before every stored read and refuse an unapproved
+  destination.
+- **Child workflows.** A catalog secret a parent passes on reaches a child only when a
+  person approved the child's own definition too; every level is checked.
+- **Structure-locked workflows** (installed from a catalog) keep their approval panel,
+  but their binding controls are disabled with the rest of the locked definition.
 
 ### OAuth stays outside
 
@@ -162,5 +191,9 @@ provider responses.
   before use. That includes connections a person creates.
 - Machine tokens that used to save connection credentials now need the two explicit
   scopes.
-- Workflow inputs, import/export, clone, restore and AI Builder join the model in 2b.
-  The registry UI follows in 3.
+- A workflow that sends a catalog secret to a computed URL cannot be approved until a
+  person lists its destinations, and a destination under a whole domain must be listed
+  host by host until a Public Suffix List snapshot ships.
+- Dynamic HTTP destinations in existing installations and the template catalog were
+  not inventoried, and the session rule of ADR 0054 was not exercised on running
+  Compact and Scalable installations. Both are follow-ups.
