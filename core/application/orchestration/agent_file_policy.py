@@ -8,6 +8,8 @@ from core.infrastructure.config.env_registry import registry_default_value
 from core.infrastructure.config.runtime_env import runtime_env
 
 _ENV_NAME = "FS_AGENT_TEXT_FILE_EXTENSIONS"
+# The most text one read may return: the ceiling of both operator limits below.
+AGENT_TEXT_READ_MAX_CHARS = 2_000_000
 _SUFFIX = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 _YAML_EXTENSIONS = frozenset({".yaml", ".yml"})
 _MIME_EXTENSIONS = {
@@ -108,3 +110,36 @@ def is_agent_text_file(filename: str, content_type: str) -> bool:
     # Unknown MIME is not authority by itself. The configured suffix selects a
     # bounded read, whose strict UTF-8 and binary checks still decide exposure.
     return True
+
+
+def _bounded_chars(name: str, *, fallback: int, minimum: int, maximum: int) -> int:
+    try:
+        default = int(registry_default_value(name))
+    except (KeyError, TypeError, ValueError):
+        default = fallback
+    try:
+        value = int(str(runtime_env.get(name) or default).strip())
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def agent_file_inline_max_chars() -> int:
+    """Text an agent receives in full in its task message, summed over its files.
+
+    Files that fit are attached whole, so the model sees all of them on every
+    round; zero sends every text file through ``read_agent_file`` instead.
+    """
+    return _bounded_chars(
+        "FS_AGENT_FILE_INLINE_MAX_CHARS",
+        fallback=AGENT_TEXT_READ_MAX_CHARS,
+        minimum=0,
+        maximum=AGENT_TEXT_READ_MAX_CHARS,
+    )
+
+
+def agent_file_page_chars() -> int:
+    """Characters one ``read_agent_file`` call returns for a file not attached in full."""
+    return _bounded_chars(
+        "FS_AGENT_FILE_PAGE_CHARS", fallback=20_000, minimum=1_000, maximum=200_000
+    )

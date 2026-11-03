@@ -2490,6 +2490,52 @@
     "variable_name": "FS_ACME_DIRECTORY_URL"
   },
   {
+    "canonical_name": "FS_AGENT_FILE_INLINE_MAX_CHARS",
+    "code_read_locations": [
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Characters of text files an agent receives whole in its task message, summed over the step's files; a file that does not fit is read in pages, and 0 pages every file (range 0 .. 2000000).; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "ai-runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_AGENT_FILE_INLINE_MAX_CHARS"
+  },
+  {
+    "canonical_name": "FS_AGENT_FILE_PAGE_CHARS",
+    "code_read_locations": [
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Characters one read_agent_file page returns for a text file too large to attach whole (range 1000 .. 200000).; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "ai-runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_AGENT_FILE_PAGE_CHARS"
+  },
+  {
     "canonical_name": "FS_AGENT_HEARTBEAT_SEC",
     "code_read_locations": [
       "core/application/orchestration/graph/nodes_agent_runtime.py"
@@ -2579,6 +2625,30 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "FS_AGENT_TOOL_CALL_TIMEOUT_SECONDS"
+  },
+  {
+    "canonical_name": "FS_AGENT_TOOL_RESULT_MAX_CHARS",
+    "code_read_locations": [
+      "core/application/orchestration/agents/common_runtime_tool_classifiers.py",
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Characters of one agent tool result the model receives; longer results are cut. File pages use FS_AGENT_FILE_PAGE_CHARS instead (range 1000 .. 200000).; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "ai-runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_AGENT_TOOL_RESULT_MAX_CHARS"
   },
   {
     "canonical_name": "FS_ALLOWED_ATTACHMENT_EXTENSIONS",

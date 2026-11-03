@@ -872,6 +872,7 @@
     "core/application/tooling/ops/rebuild_workflow_knowledge_graph.py",
     "core/application/tooling/ops/sync_workflow_knowledge.py",
     "core/application/tooling/quality/__init__.py",
+    "core/application/tooling/quality/backend_runtime.py",
     "core/application/tooling/quality/check_ci_excludes.py",
     "core/application/tooling/quality/check_naming.py",
     "core/application/tooling/quality/check_registry.py",

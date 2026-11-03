@@ -6,6 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from core.application.orchestration.agents.common import invoke_agent
+from core.infrastructure.config.runtime_env import runtime_env
 
 _PNG_BASE64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
@@ -14,6 +15,16 @@ _PNG_BYTES = base64.b64decode(_PNG_BASE64)
 _OFFLINE_API_KEY = (
     "not-real"  # pragma: allowlist secret - synthetic offline SDK fixture, never a credential
 )
+
+
+@pytest.fixture(autouse=True)
+def _page_every_text_file(monkeypatch):
+    """These tests drive the read_agent_file fallback, in 4,000-character pages.
+
+    Text that fits is attached whole instead: tests/unit/test_agent_file_inline.py.
+    """
+    monkeypatch.setitem(runtime_env, "FS_AGENT_FILE_INLINE_MAX_CHARS", "0")
+    monkeypatch.setitem(runtime_env, "FS_AGENT_FILE_PAGE_CHARS", "4000")
 
 
 class FileContext:

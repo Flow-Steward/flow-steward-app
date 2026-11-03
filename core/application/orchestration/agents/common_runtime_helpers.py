@@ -23,8 +23,8 @@ from core.application.orchestration.agents.common_runtime_structured_utils impor
 )
 from core.application.orchestration.agents.common_runtime_tool_classifiers import (
     _MAX_HISTORY_ROUNDS,
-    _MAX_TOOL_RESULT_CHARS,
     _RESEARCH_TOOLS,
+    _max_tool_result_chars,
 )
 from core.application.orchestration.input_sanitization import (
     resolve_security_scope as _resolve_security_scope,
@@ -73,11 +73,11 @@ def _invoke_with_hard_deadline(llm, messages, invoke_kwargs, timeout_seconds):
 
 __all__ = [
     "_MAX_HISTORY_ROUNDS",
-    "_MAX_TOOL_RESULT_CHARS",
     "_RESEARCH_TOOLS",
     "_artifact_value_is_publishable",
     "_draft_response_satisfies_phase_result_schema",
     "_iter_json_object_candidates",
+    "_max_tool_result_chars",
     "_prepare_openai_json_schema",
     "_required_artifact_fields",
     "_schema_allows_null",

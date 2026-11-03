@@ -31,7 +31,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `170` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `173` |
 | `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `36` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
@@ -51,15 +51,15 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `817`
-- Cataloged variables from `.env.example*` or manifest: `595`
+- Raw env-like names discovered by audit: `820`
+- Cataloged variables from `.env.example*` or manifest: `598`
 - Raw audit-only names outside examples/manifest: `222`
 - Unique variables in shipped `.env.example*` files: `377`
-- Variables in canonical manifest: `505`
+- Variables in canonical manifest: `508`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `133`
+- Internal Runtime: `136`
 - Public / Operator: `330`
 - Test Config: `34`
 - Test Only: `16`
@@ -282,11 +282,11 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### images
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.8` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.8` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.8` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
-| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.8` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.8` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
+| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.10` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.10` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.10` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
+| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.10` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.10` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
 | `POSTGRES_IMAGE` | production_images | production | no | no | `fs-postgres-extended:0.1.0-pgvector-0.8.5` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins; Official installs and upgrades pin the release's flow-steward-postgres digest (0.9.2+); Source installs build this versioned tag locally. Do not use a floating pg17/latest tag. | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.postgres-extended.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `RABBITMQ_IMAGE` | production_images | production | no | no | `rabbitmq:3.13-management` | .env.example.prod | Docker Compose (3) | Official release discovery and third-party infrastructure pins | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `TRAEFIK_IMAGE` | production_images | production | no | no | `traefik:v3.3` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins | `infra/docker/compact/ingress-bundled_traefik.yaml`<br>`infra/docker/docker-compose.oauth-browser.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
@@ -647,7 +647,10 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### ai-runtime
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
+| `FS_AGENT_FILE_INLINE_MAX_CHARS` | core_runtime | production, local_development | no | no | `2000000` | - | Docker Compose (3) | Characters of text files an agent receives whole in its task message, summed over the step's files; a file that does not fit is read in pages, and 0 pages every file (range 0 .. 2000000). | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_AGENT_FILE_PAGE_CHARS` | core_runtime | production, local_development | no | no | `20000` | - | Docker Compose (3) | Characters one read_agent_file page returns for a text file too large to attach whole (range 1000 .. 200000). | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_AGENT_TEXT_FILE_EXTENSIONS` | core_runtime | production, local_development | no | no | `txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf` | - | Application (1), Docker Compose (3) | Comma-separated agent text-file suffixes; an empty value uses the default. Upload extension and MIME allowlists are configured separately. | `core/application/orchestration/agent_file_policy.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_AGENT_TOOL_RESULT_MAX_CHARS` | core_runtime | production, local_development | no | no | `6000` | - | Application (1), Docker Compose (3) | Characters of one agent tool result the model receives; longer results are cut. File pages use FS_AGENT_FILE_PAGE_CHARS instead (range 1000 .. 200000). | `core/application/orchestration/agents/common_runtime_tool_classifiers.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_MODEL_PROVIDER_VERIFY_MAX_ATTEMPTS` | provider_defaults | production, local_development | no | no | `3` | - | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 | `FS_MODEL_PROVIDER_VERIFY_RATE_WINDOW_SECONDS` | provider_defaults | production, local_development | no | no | `300` | - | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 #### api

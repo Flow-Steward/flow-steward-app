@@ -21,7 +21,7 @@ from core.infrastructure.lifecycle import docker_gateway
 from core.infrastructure.lifecycle.docker_gateway import DockerLifecycleGateway
 
 # A host path this process cannot see, as the host project is from a CLI container.
-_HOST_STATE = "/Users/operator/flow-steward/.flow-steward"
+_HOST_STATE = "/srv/operator/flow-steward/.flow-steward"
 
 
 class _Process:

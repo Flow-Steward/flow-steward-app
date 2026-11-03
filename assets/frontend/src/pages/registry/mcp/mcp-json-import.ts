@@ -1,6 +1,6 @@
 /* Reads the MCP server configuration people copy from a server's README or
    another client, so the New MCP form fills itself. Accepted shapes:
-   - `{"mcpServers": {name: server}}` (Claude Desktop, Claude Code, Cursor, Windsurf)
+   - `{"mcpServers": {name: server}}` (Claude Desktop, Cursor, Windsurf and similar clients)
    - `{"servers": {name: server}}` and `{"mcp": {"servers": …}}` (VS Code)
    - `{name: server}` or one bare server object, also without the outer braces
    - an MCP Registry `server.json` with `remotes`, or a registry list entry

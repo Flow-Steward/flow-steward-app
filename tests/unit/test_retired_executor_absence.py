@@ -119,6 +119,16 @@ ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
             f"git push origin HEAD:refs/heads/{_EXTERNAL_AGENT_RUNTIME}/verify-release/my-task",
             f"git push origin HEAD:refs/heads/{_EXTERNAL_AGENT_RUNTIME}/verify-sonar/my-task",
             f"the dedicated `{_EXTERNAL_AGENT_RUNTIME}/remote-quality-pilot` branch: its push runs `release-sonar`",
+            f"`{_EXTERNAL_AGENT_RUNTIME}/verify-release/` or `{_EXTERNAL_AGENT_RUNTIME}/verify-sonar/` ref: those refs request a full run.",
+            f"the bootstrap ref `{_EXTERNAL_AGENT_RUNTIME}/quality-reuse-live` forces this diagnostic even on push;",
+        )
+    },
+    # The hosted reuse-smoke bootstrap ref the workflow condition names.
+    Path("tests/unit/tooling/quality/test_reuse_smoke.py"): {
+        line.lower().encode("utf-8")
+        for line in (
+            f'assert "github.ref_name == \'{_EXTERNAL_AGENT_RUNTIME}/quality-reuse-live\'" in workflow["env"]["QUALITY_MODE"]',
+            f"assert \"github.ref_name != '{_EXTERNAL_AGENT_RUNTIME}/quality-reuse-live'\" in condition",
         )
     },
     Path("docs/architecture/adr/0053-hosted-quality-gates.md"): {

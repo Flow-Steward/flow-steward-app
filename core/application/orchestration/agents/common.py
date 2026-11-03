@@ -22,12 +22,12 @@ from core.infrastructure.security.prompt_safety import assert_prompt_payload_saf
 from . import common_runtime_helpers as _runtime_helpers
 from .common_runtime_helpers import (
     _MAX_HISTORY_ROUNDS,
-    _MAX_TOOL_RESULT_CHARS,
     _RESEARCH_TOOLS,
     JobCancelledException,
     _apply_prompt_cache,
     _finalize_response_if_supported,
     _llm_invoke_with_retry,
+    _max_tool_result_chars,
     _provider_policy_from_model,
     _prune_message_history,
     _resolve_provider,
@@ -385,7 +385,8 @@ def invoke_agent(
     model returns a content-bearing response (no further tool calls).
 
     Token controls applied every round:
-    - Tool results truncated to _MAX_TOOL_RESULT_CHARS chars before appending.
+    - Tool results truncated to FS_AGENT_TOOL_RESULT_MAX_CHARS chars before appending;
+      a read_agent_file page is already bounded by FS_AGENT_FILE_PAGE_CHARS.
     - Message history pruned to _MAX_HISTORY_ROUNDS rounds after each round.
     - Model request timeout forwarded to the provider-specific chat client.
 
@@ -434,8 +435,23 @@ def invoke_agent(
 
     from .agent_files import prepare_agent_files
 
+    def _scan_file_text(text: str) -> str:
+        # The same output scan a read_agent_file page passes through.
+        try:
+            from core.infrastructure.security.integration import scan_tool_output
+
+            decision = scan_tool_output(
+                text,
+                tool_name="read_agent_file",
+                project_id=state.get("project_config", {}).get("project_id"),
+                job_id=state.get("job_id"),
+            )
+        except Exception:
+            return text
+        return text if decision.redacted_text is None else decision.redacted_text
+
     file_instructions, file_tools, file_blocks = prepare_agent_files(
-        file_context, resolved_llm, provider_key
+        file_context, resolved_llm, provider_key, _scan_file_text
     )
     all_tools.extend(file_tools)
     if file_instructions:
@@ -730,17 +746,20 @@ def invoke_agent(
                 )
 
             # ── Truncate large tool results before adding to history ──────────
-            if len(tool_result) > _MAX_TOOL_RESULT_CHARS:
+            # A file page is not cut: its next_offset already points past the
+            # whole page, so a cut would drop text the agent never sees again.
+            max_result_chars = _max_tool_result_chars()
+            if tool_name != "read_agent_file" and len(tool_result) > max_result_chars:
                 logger.debug(
                     "invoke_agent[%s]: truncating tool '%s' result %d→%d chars",
                     agent_name,
                     tool_name,
                     len(tool_result),
-                    _MAX_TOOL_RESULT_CHARS,
+                    max_result_chars,
                 )
                 tool_result = (
-                    tool_result[:_MAX_TOOL_RESULT_CHARS]
-                    + f"\n\n[...truncated — {len(tool_result) - _MAX_TOOL_RESULT_CHARS} chars omitted]"
+                    tool_result[:max_result_chars]
+                    + f"\n\n[...truncated — {len(tool_result) - max_result_chars} chars omitted]"
                 )
 
             messages.append(
@@ -757,7 +776,8 @@ def invoke_agent(
     if pending_file_read:
         raise RuntimeError(
             "file_read_budget_exceeded: The agent exhausted its tool-call budget before "
-            "a requested file read could run. Split the file into smaller chunks or process it in an "
+            "a requested file read could run. The file was too large to attach in full: raise "
+            "FS_AGENT_FILE_INLINE_MAX_CHARS or FS_AGENT_FILE_PAGE_CHARS, or split the file in an "
             "earlier workflow step, then retry."
         )
 
