@@ -1305,7 +1305,7 @@ _CATALOG_WRITES = [
 ]
 
 
-def _pat(*scopes: str) -> ResolvedPrincipal:
+def _catalog_pat(*scopes: str) -> ResolvedPrincipal:
     return ResolvedPrincipal(
         id="pat-1", username="pat", roles=["operator"], auth_source="pat", scopes=list(scopes)
     )
@@ -1318,7 +1318,10 @@ def test_one_exact_catalog_scope_is_enough_for_its_write(
     # ADR 0055: create, replace, edit and delete need exact secrets:write; bind and
     # unbind need exact secrets:bind. Nothing else rides along.
     response = _run_middleware_with_principal(
-        path=path, method=method, principal=_pat(scope), admin_only=is_admin_only_route(path)
+        path=path,
+        method=method,
+        principal=_catalog_pat(scope),
+        admin_only=is_admin_only_route(path),
     )
     assert response.status_code == 204
 
@@ -1338,7 +1341,10 @@ def test_no_wildcard_or_admin_scope_stands_in_for_an_exact_catalog_scope(
     method: str, path: str, scope: str, held: tuple[str, ...]
 ) -> None:
     response = _run_middleware_with_principal(
-        path=path, method=method, principal=_pat(*held), admin_only=is_admin_only_route(path)
+        path=path,
+        method=method,
+        principal=_catalog_pat(*held),
+        admin_only=is_admin_only_route(path),
     )
     assert response.status_code == 403
     assert b"Missing required token scope" in response.body
@@ -1348,6 +1354,9 @@ def test_no_wildcard_or_admin_scope_stands_in_for_an_exact_catalog_scope(
 def test_the_other_catalog_scope_does_not_stand_in(method: str, path: str, scope: str) -> None:
     other = "secrets:bind" if scope == "secrets:write" else "secrets:write"
     response = _run_middleware_with_principal(
-        path=path, method=method, principal=_pat(other), admin_only=is_admin_only_route(path)
+        path=path,
+        method=method,
+        principal=_catalog_pat(other),
+        admin_only=is_admin_only_route(path),
     )
     assert response.status_code == 403
