@@ -209,7 +209,15 @@ def test_database_mutation_commands_delegate_only_after_review_confirmation(
     cases = [
         (
             ["database", "upgrade", "--author", "operator", "--maintenance-confirmed", "--plain"],
-            ("upgrade", {"dsn": "", "author": "operator", "maintenance_confirmed": True, "allow_unlabeled_sessions": False}),
+            (
+                "upgrade",
+                {
+                    "dsn": "",
+                    "author": "operator",
+                    "maintenance_confirmed": True,
+                    "allow_unlabeled_sessions": False,
+                },
+            ),
         ),
         (
             ["database", "bootstrap-seed", "--author", "operator", "--plain"],

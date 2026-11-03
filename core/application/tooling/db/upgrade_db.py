@@ -14,6 +14,7 @@ from core.application.tooling.db import (
     upgrade_preflight,
     vector_lifecycle,
 )
+from core.infrastructure.config.session_identity import set_session_role
 from core.infrastructure.db import psycopg_runtime
 from core.infrastructure.db.schema_contract import (
     enforce_canonical_baseline_contract_connection,
@@ -23,7 +24,6 @@ from core.infrastructure.db.schema_state import (
     inspect_canonical_schema_state,
     record_canonical_schema_state,
 )
-from core.infrastructure.config.session_identity import set_session_role
 
 UPGRADE_ADVISORY_LOCK_KEY = migration_runner.MIGRATION_ADVISORY_LOCK_KEY
 

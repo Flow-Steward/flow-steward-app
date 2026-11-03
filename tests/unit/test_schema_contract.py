@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from core.infrastructure.db.schema_contract_catalog import REQUIRED_UPGRADE_PHASES
-
 import sys
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+from core.infrastructure.db.schema_contract_catalog import REQUIRED_UPGRADE_PHASES
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
