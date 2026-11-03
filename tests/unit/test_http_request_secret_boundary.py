@@ -36,7 +36,7 @@ def _state(reference):
     )
     return {
         "inputs": {"login": reference},
-        "runtime_context": {"account_id": "fixture-account"},
+        "trusted_runtime_context": {"account_id": "fixture-account"},
         "_workflow_secret_ref_fingerprints": [fingerprint],
     }
 
@@ -188,7 +188,7 @@ def test_unavailable_authority_fails_closed_before_network(boundary_io, failure)
         reference = SecretReference(name="login", ciphertext=_FIXTURE_ENVELOPE)
     state = _state(reference)
     if failure == "wrong-account":
-        state["runtime_context"]["account_id"] = "another-fixture-account"
+        state["trusted_runtime_context"]["account_id"] = "another-fixture-account"
     else:
         state["_workflow_secret_ref_fingerprints"] = []
 

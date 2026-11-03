@@ -192,7 +192,7 @@ def test_the_connector_receives_the_value_and_the_result_keeps_the_reference() -
 
     state = {
         "inputs": {"login": reference},
-        "runtime_context": {"account_id": "acct-1"},
+        "trusted_runtime_context": {"account_id": "acct-1"},
         "_workflow_secret_ref_fingerprints": [secret_ref_fingerprint("wf:orders:login")],
     }
     step_payload = {
@@ -311,7 +311,7 @@ def test_the_connector_authorizes_against_the_running_workflow_contract() -> Non
 
     state = {
         "workflow_id": "orders",
-        "runtime_context": {"account_id": "acct-1"},
+        "trusted_runtime_context": {"account_id": "acct-1"},
         # Authored literal: the author never had this key legitimately.
         "inputs": {},
     }

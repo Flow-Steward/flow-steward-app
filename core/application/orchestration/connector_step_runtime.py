@@ -83,7 +83,9 @@ def _payload_for_dispatch(
     from core.infrastructure.security.secret_reference import resolve_secret_references_in
     from core.infrastructure.security.stored_secrets import SecretReadContext
 
-    runtime_context = dict(runtime_state.get("runtime_context") or {})
+    # The run's trusted identity, as the worker built it (graph state has no
+    # "runtime_context" key).
+    runtime_context = _runtime_ids_from_state(runtime_state)
     resolved_payload = resolve_secret_references_in(
         input_payload,
         context=SecretReadContext.for_account(runtime_context.get("account_id")),

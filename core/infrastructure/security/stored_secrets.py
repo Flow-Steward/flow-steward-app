@@ -110,6 +110,10 @@ class LocalStoredSecretReader:
             raise StoredSecretMissing(key)
         if context.remaining_seconds() == 0.0 or self._conn is None:
             raise StoredSecretUnavailable(key)
+        if not context.account_id:
+            # No trusted account: nothing to look up, and the query would fail
+            # on the empty uuid with an error that names no store fact.
+            raise StoredSecretMissing(key)
         try:
             ciphertext = get_secret_ref_ciphertext(
                 self._conn, account_id=context.account_id, ref_key=key

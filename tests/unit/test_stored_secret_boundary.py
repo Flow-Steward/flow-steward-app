@@ -201,7 +201,7 @@ def test_a_forged_inline_reference_is_refused_before_decryption() -> None:
 def _connector_state(ref_key: str) -> dict:
     return {
         "workflow_id": "orders",
-        "runtime_context": {"account_id": "acct-1"},
+        "trusted_runtime_context": {"account_id": "acct-1"},
         "inputs": {"login": SecretReference(name="login", ref_key=ref_key).to_wire()},
         "_workflow_secret_ref_fingerprints": [secret_ref_fingerprint(ref_key)],
     }

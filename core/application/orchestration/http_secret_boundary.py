@@ -137,7 +137,11 @@ class HttpSecretBoundary:
             for item in (self._state.get("_workflow_secret_ref_fingerprints") or [])
             if str(item or "").strip()
         )
-        context = dict(self._state.get("runtime_context") or {})
+        from core.application.orchestration.runtime_identity import runtime_identity_from_state
+
+        # The run's trusted identity, as the worker built it; graph state has no
+        # "runtime_context" key, and an empty account reads nothing.
+        context = runtime_identity_from_state(self._state).as_context()
         authorized = frozenset(
             {reference.ref_key}
             if reference.ref_key and secret_ref_fingerprint(reference.ref_key) in snapshot

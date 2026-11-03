@@ -18,10 +18,11 @@ import pytest
 from core.application.auth.secrets import encrypt_secret
 from core.application.jobs.task_dispatch_common import _read_dispatch_envelope
 from core.application.jobs.task_enqueue_runtime import enqueue_job
-from core.application.jobs.task_execution_request import _build_request
+from core.application.jobs.task_execution_request import _build_request, _with_project_scope
 from core.application.jobs.task_execution_service import TaskExecutionService
 from core.application.management.errors import ServiceForbiddenError, ServiceValidationError
 from core.application.orchestration import http_request_step_runtime as runtime
+from core.application.orchestration.state import build_initial_orchestrator_state
 from core.application.registry.db_store import RegistryDBStore
 from core.application.registry.workflow_secret_defaults import secret_default_ref_owner_prefix
 from core.application.secrets.approval_gate import SecretConfigurationUnapproved
@@ -148,7 +149,7 @@ class Stand(SimpleNamespace):
             # A forged message cannot add authority: the worker never reads it.
             "extra_state": {**envelope["extra_state"], **(message_extra or {})},
         }
-        repository = JobExecutionRepositoryAdapter(SimpleNamespace(conn=self.conn), None)
+        repository = JobExecutionRepositoryAdapter(self.store, None)
         service = TaskExecutionService(
             repository=repository,
             graph=None,
@@ -156,13 +157,22 @@ class Stand(SimpleNamespace):
             runtime_mode=None,
             worker_id=lambda: "w",
         )
-        request = _build_request(message, self.store.get_job(job_id))
+        job_row = self.store.get_job(job_id)
+        request = _build_request(message, job_row)
         service._restore_secret_authority(request)
-        return {
-            **request.extra_state,
-            "job_id": job_id,
-            "runtime_context": {"account_id": ACCOUNT},
-        }
+        request = _with_project_scope(request, job_row, service._load_project(job_row))
+        # The state the graph starts from, built as the worker builds it: the run's
+        # identity is its trusted_runtime_context, never a hand-made runtime_context.
+        return build_initial_orchestrator_state(
+            task_id=request.task_id,
+            task_summary=request.task_summary,
+            task_source=request.task_source,
+            project_name=request.project_name,
+            project_config=dict(request.project_config),
+            test_mode=request.test_mode,
+            status="in_progress",
+            extra_state=dict(request.extra_state),
+        )
 
     def run_http(self, state: dict, job_id: str) -> dict:
         """The pinned HTTP step of the job, executed with the network captured."""

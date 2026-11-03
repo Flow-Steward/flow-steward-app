@@ -1031,7 +1031,7 @@ def test_execute_connector_step_blocks_reflected_workflow_secrets_from_tools(
             "workflow_id": "wf.notify",
             "account_id": "acc_alpha",
             "project_id": "project_alpha",
-            "runtime_context": {"account_id": "acc_alpha"},
+            "trusted_runtime_context": {"account_id": "acc_alpha"},
             "_workflow_secret_ref_fingerprints": [secret_ref_fingerprint(secret_ref)],
         }
         result = runtime.execute_connector_step(
@@ -2112,7 +2112,7 @@ def test_execute_connector_step_blocks_reflected_workflow_secret_inputs(
                 "workflow_id": "wf.notify",
                 "account_id": "acc_alpha",
                 "project_id": "project_alpha",
-                "runtime_context": {"account_id": "acc_alpha"},
+                "trusted_runtime_context": {"account_id": "acc_alpha"},
                 "_workflow_secret_ref_fingerprints": [secret_ref_fingerprint(secret_ref)],
             },
         )
