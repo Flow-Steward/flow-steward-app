@@ -46,6 +46,77 @@ The local pre-commit hook keeps environment-artifact synchronization and the
 repository boundary guard, then runs affected backend/frontend Tier 1 checks.
 The manual full hook and direct lint.sh commands remain available for diagnosis.
 
+## Focused recovery after a failed gate
+
+Save the completed failed run's URL, candidate SHA, full failure list and logs.
+Group failures by cause, make one fix batch, then run the failed and affected
+tests through the canonical wrappers. Compare the fixes with that failed SHA,
+so a long feature branch does not broaden the fix cycle to every earlier edit:
+
+```bash
+# Substitute the actual failed commit and regression node IDs/paths.
+./core/entrypoints/cli/scripts/lint.sh --checks targeted-tests \
+  --test-paths "auto:<failed-sha> tests/unit/test_regression.py"
+# Use the explicit union of failed and affected frontend test files.
+./core/entrypoints/cli/scripts/lint.sh --checks frontend-targeted-tests \
+  --test-paths "src/feature/failed.test.tsx src/consumer/affected.test.tsx"
+```
+
+Frontend `auto:<failed-sha>` is available on its own; it cannot be combined with
+explicit paths in the current frontend wrapper. Add consumers outside the import
+graph manually. These checks stop at the first failure and collect no coverage.
+They neither run Tier 2/Tier 3 nor certify a release. Do not push each fix to a
+`codex/verify-release/` or `codex/verify-sonar/` ref: those refs request a full run.
+Do not use **Re-run failed jobs** for this cycle: one failed `quality` job owns
+the whole cumulative gate, not just its failed test cases.
+
+A later rerun of the same GitHub run/SHA can restore its previous attempt's
+evidence and coverage artifact. The gate validates fingerprints and checksums;
+only proven successful checks are reused. A missing artifact falls back to
+execution. A failed frontend or backend check still reruns that check's whole
+suite in full mode; this is not per-test recovery. A new commit does not inherit
+commit-scoped backend passes from an older commit. An unchanged core frontend
+can reuse its input-scoped pass across commits: all copied assets, lockfile,
+gate/toolchain and relevant environment must match. Custom extension manifests
+remain bound to the producing commit.
+
+The optional dispatch `reuse_run_id` imports retained evidence from an explicitly
+selected, completed official remote-quality run, including successful checks
+within a failed run. Wrong provenance, missing/expired artifacts, or an invalid
+explicit request stops the job before expensive preparation. Restoring an
+artifact does not make any check pass: fingerprints, statuses, checksums and
+scope still decide. Coverage is eligible for import only for the same SHA;
+results from another candidate must not become current candidate coverage.
+Changes to the registry, fingerprint implementation or common gate/toolchain
+invalidate old fingerprints too. Importing evidence produced before such a
+change is not a way to certify the new harness; expect cache misses. Establish
+a new baseline separately from the current focused release exception.
+
+### Hosted evidence reuse diagnostic
+
+Dispatch `reuse-smoke` to prove the artifact/evidence path with one existing pure
+evidence-policy regression in `fs-audit`. It creates only a separate diagnostic
+check record, never a frontend/backend suite pass. Pass the producer run ID in
+`reuse_run_id` for a second candidate with unchanged check inputs: the consumer
+must reuse that record with zero runner calls and retain its original SHA. It
+also compares the real frontend input fingerprint and assets digest across VMs
+without executing the frontend suite. Missing evidence or a changed fingerprint
+fails the diagnostic instead of silently running extra tests.
+
+The bootstrap ref `codex/quality-reuse-live` forces this diagnostic even on push;
+Tier 2, Tier 3, PostgreSQL image preparation and Sonar are excluded. Before the
+dispatch mode is on main, a temporary `.github/quality-reuse-smoke-source.json`
+containing `{"source_run_id":"<producer-id>"}` can select its consumer source.
+That control file belongs only on the temporary proof ref and must not be merged
+to main. The uploaded `reuse-smoke.json` explicitly records that this is not a
+complete gate and no official suite result is claimed.
+
+Official image publication can reuse an already successful cumulative remote
+gate for the exact tagged SHA (ADR 0054), avoiding a second full run. A failed
+gate cannot satisfy this route. An explicitly approved focused release exception
+must be recorded separately with its final SHA, failed source run, actual test
+selection/results and remaining coverage; it is not a full green gate.
+
 ## Sonar pilot and rollout
 
 The `sonar-diagnostic` dispatch mode measures the Sonar runtime independently:

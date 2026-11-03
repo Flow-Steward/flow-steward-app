@@ -18,7 +18,20 @@ fi
 
 for path in .github core tests assets db docs examples infra locales scripts; do
   if [[ -e "${repo_root}/${path}" ]]; then
-    cp -R "${repo_root}/${path}" "${workspace}/${path}"
+    if [[ "${path}" == assets ]]; then
+      # Dependency and build trees are deleted below; do not copy potentially
+      # gigabytes of them just to discard them. The frontend shell is restored
+      # explicitly after pruning, as it was before.
+      (
+        cd "${repo_root}"
+        find assets -type d \( \
+          -name .mypy_cache -o -name .pytest_cache -o -name .ruff_cache -o \
+          -name __pycache__ -o -name build -o -name dist -o -name node_modules \
+        \) -prune -o -print0 | tar --null --no-recursion -cf - -T -
+      ) | tar -C "${workspace}" -xf -
+    else
+      cp -R "${repo_root}/${path}" "${workspace}/${path}"
+    fi
   fi
 done
 # Core ships no extensions. The workspace gets the empty install root a fresh

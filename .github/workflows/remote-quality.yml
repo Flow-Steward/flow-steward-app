@@ -1,5 +1,5 @@
 name: Remote quality pilot
-run-name: Quality ${{ inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
+run-name: Quality ${{ (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
 
 on:
   push:
@@ -11,7 +11,12 @@ on:
         type: choice
         required: true
         default: tier2
-        options: [tier2, release, release-sonar, sonar-diagnostic, parallel-diagnostic]
+        options: [tier2, release, release-sonar, sonar-diagnostic, parallel-diagnostic, reuse-smoke]
+      reuse_run_id:
+        description: Optional completed official remote-quality run whose evidence and coverage will be fingerprint-validated
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -23,7 +28,7 @@ concurrency:
 env:
   DOCKER_BUILD_RECORD_UPLOAD: 'false'
   FS_STACK_ENV_FILE: /dev/null
-  QUALITY_MODE: ${{ inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
+  QUALITY_MODE: ${{ (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
 
 jobs:
   quality:
@@ -35,6 +40,11 @@ jobs:
         contains(github.event.head_commit.message, '[focused-release-v0.9.9]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      evidence_imported: ${{ steps.copy-restored-evidence.outcome == 'success' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -42,8 +52,152 @@ jobs:
           persist-credentials: false
       - name: Require a clean exact-SHA candidate including current main
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - name: Resolve the diagnostic smoke source without bypassing provenance validation
+        id: smoke-source
+        if: env.QUALITY_MODE == 'reuse-smoke'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REQUESTED_RUN_ID: ${{ inputs.reuse_run_id }}
+        with:
+          script: |
+            const fs = require('fs');
+            let requested = process.env.REQUESTED_RUN_ID || '';
+            const control = '.github/quality-reuse-smoke-source.json';
+            if (!requested && fs.existsSync(control)) {
+              const source = JSON.parse(fs.readFileSync(control, 'utf8'));
+              if (typeof source.source_run_id !== 'string' || !/^[1-9][0-9]*$/.test(source.source_run_id)) {
+                throw new Error('Smoke source control requires a positive decimal source_run_id string');
+              }
+              requested = source.source_run_id;
+            }
+            core.setOutput('run_id', requested);
+            core.info(requested ? 'Consumer: validate and import the requested official source.' : 'Producer: execute one real targeted regression.');
+      - name: Validate explicitly requested source run and exact evidence artifact
+        id: validate-reuse-source
+        if: (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '') || (env.QUALITY_MODE == 'reuse-smoke' && steps.smoke-source.outputs.run_id != '')
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id || steps.smoke-source.outputs.run_id }}
+        with:
+          script: |
+            const requested = process.env.REUSE_RUN_ID;
+            const runId = Number(requested);
+            if (!/^[1-9][0-9]*$/.test(requested) || !Number.isSafeInteger(runId)) {
+              throw new Error('reuse_run_id must be an explicit positive decimal run ID');
+            }
+            const repositoryId = Number(process.env.GITHUB_REPOSITORY_ID);
+            if (process.env.GITHUB_REPOSITORY !== 'Flow-Steward/flow-steward-app' ||
+                !Number.isSafeInteger(repositoryId) || repositoryId <= 0) {
+              throw new Error('Evidence import requires the official source repository identity');
+            }
+            const {data: workflow} = await github.rest.actions.getWorkflow({
+              ...context.repo, workflow_id: 'remote-quality.yml',
+            });
+            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: runId});
+            if (run.id !== runId || run.workflow_id !== workflow.id ||
+                run.repository?.id !== repositoryId || run.head_repository?.id !== repositoryId ||
+                !['push', 'workflow_dispatch'].includes(run.event) ||
+                run.status !== 'completed' || !['success', 'failure'].includes(run.conclusion)) {
+              throw new Error('Requested run is not a completed official remote-quality push/dispatch run');
+            }
+            if (!/^[0-9a-f]{40}$/.test(run.head_sha) ||
+                !Number.isSafeInteger(run.run_attempt) || run.run_attempt <= 0) {
+              throw new Error('Requested run has invalid source SHA or attempt provenance');
+            }
+            const artifactName = `quality-${run.head_sha}-${run.run_attempt}`;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo, run_id: runId, per_page: 100,
+            });
+            const matching = artifacts.filter(artifact => artifact.name === artifactName);
+            if (matching.length !== 1 || matching[0].expired !== false) {
+              throw new Error('Requested source has no unique retained exact-SHA/attempt quality artifact');
+            }
+            core.setOutput('run_id', requested);
+            core.setOutput('artifact_name', artifactName);
+            core.setOutput('source_sha', run.head_sha);
+            core.info(`Importing ${artifactName} from official run ${runId}; every check still requires fingerprint validation.`);
+      - name: Download explicitly requested source evidence and coverage
+        id: restore-source-evidence
+        if: steps.validate-reuse-source.outcome == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ steps.validate-reuse-source.outputs.artifact_name }}
+          path: ${{ runner.temp }}/source-quality
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.validate-reuse-source.outputs.run_id }}
+      - name: Identify the previous attempt of this run
+        id: previous-attempt
+        if: fromJSON(github.run_attempt) > 1
+        run: echo "number=$((GITHUB_RUN_ATTEMPT - 1))" >> "$GITHUB_OUTPUT"
+      - name: Restore prior evidence from this same run and SHA
+        id: restore-prior-evidence
+        if: fromJSON(github.run_attempt) > 1
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: quality-${{ github.sha }}-${{ steps.previous-attempt.outputs.number }}
+          path: ${{ runner.temp }}/previous-quality
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+      - name: Restore owned evidence and coverage for fingerprint validation
+        id: copy-restored-evidence
+        if: steps.restore-source-evidence.outcome == 'success' || steps.restore-prior-evidence.outcome == 'success'
+        env:
+          SOURCE_RESTORED: ${{ steps.restore-source-evidence.outcome == 'success' }}
+          SOURCE_SHA: ${{ steps.validate-reuse-source.outputs.source_sha }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$SOURCE_RESTORED" == true ]]; then
+            source_evidence="$RUNNER_TEMP/source-quality/quality/evidence"
+            if [[ ! -d "$source_evidence" ]] || [[ -z "$(find "$source_evidence" -type f -name evidence.json -print -quit)" ]]; then
+              echo '::error::Requested quality source artifact contains no check evidence; refusing an implicit full run.'
+              exit 1
+            fi
+          fi
+          # Copy intact records: fingerprint and commit-scope policy decide reuse.
+          # A newer attempt of this run takes precedence over the explicit source.
+          for previous in "$RUNNER_TEMP/source-quality" "$RUNNER_TEMP/previous-quality"; do
+            if [[ -d "$previous/quality/evidence" ]]; then
+              mkdir -p logs/quality/evidence
+              cp -R "$previous/quality/evidence/." logs/quality/evidence/
+            fi
+            # Coverage describes its exact source SHA even when passed check
+            # evidence can be reused across SHAs by input fingerprint.
+            if [[ -d "$previous/coverage" ]] && [[ "$previous" == "$RUNNER_TEMP/previous-quality" || "$SOURCE_SHA" == "$GITHUB_SHA" ]]; then
+              mkdir -p logs/coverage
+              cp -R "$previous/coverage/." logs/coverage/
+            fi
+          done
+          for output in logs/quality/evidence logs/coverage; do
+            if [[ -d "$output" ]]; then
+              sudo chgrp -R 1000 "$output"
+              sudo chmod -R g+rwX "$output"
+            fi
+          done
       - uses: ./.github/actions/prepare-quality
+      - name: Prove scoped diagnostic reuse without running any full gate or product suite
+        if: env.QUALITY_MODE == 'reuse-smoke'
+        env:
+          SOURCE_SHA: ${{ steps.validate-reuse-source.outputs.source_sha }}
+          SOURCE_RUN_ID: ${{ steps.validate-reuse-source.outputs.run_id }}
+        run: |
+          set -o pipefail
+          source core/entrypoints/cli/scripts/docker_compose_env.sh
+          smoke_args=(--repository-root /app --commit-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID")
+          if [[ -n "$SOURCE_RUN_ID" ]]; then
+            source_report="$RUNNER_TEMP/source-quality/quality/hosted/reuse-smoke.json"
+            [[ -f "$source_report" ]] || { echo '::error::Requested source has no diagnostic smoke report.'; exit 1; }
+            cp "$source_report" logs/quality/hosted/reuse-smoke-source.json
+            smoke_args+=(--source-sha "$SOURCE_SHA" --source-run-id "$SOURCE_RUN_ID"
+              --previous-report /app/logs/quality/hosted/reuse-smoke-source.json)
+          fi
+          fs_compose run --no-deps --rm -T \
+            -e GITHUB_ACTIONS -e GITHUB_SHA -e GITHUB_RUN_ID \
+            fs-audit python -m core.application.tooling.quality.reuse_smoke "${smoke_args[@]}" \
+            2>&1 | tee logs/quality/hosted/reuse-smoke.log
       - name: Run canonical Tier 2
+        if: env.QUALITY_MODE != 'reuse-smoke'
         run: |
           set -o pipefail
           # Sample only this disposable job's containers, including a failed gate.
@@ -109,7 +263,7 @@ jobs:
   parallel_tier_three:
     name: Tier 3 runtime pilot / ${{ matrix.check }}
     needs: quality
-    if: inputs.mode == 'parallel-diagnostic' || (github.event_name == 'push' && github.ref_name == 'codex/parallel-quality-pilot')
+    if: github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' && (inputs.mode == 'parallel-diagnostic' || (github.event_name == 'push' && github.ref_name == 'codex/parallel-quality-pilot'))
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -178,6 +332,8 @@ jobs:
     needs: quality
     if: >-
       always() && !cancelled() &&
+      github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' &&
+      (inputs.reuse_run_id == '' || needs.quality.outputs.evidence_imported == 'true') &&
       (needs.quality.result == 'success' || needs.quality.result == 'failure') &&
       (inputs.mode == 'release-sonar' || inputs.mode == 'sonar-diagnostic' ||
        (github.event_name == 'push' &&

@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 UNIT_TESTS = Path("tests/unit")
+STRESS_TESTS = UNIT_TESTS / "stress"
 SCANNED_ROOTS = (Path("core"), Path("tests"))
 # Names too common to identify one file when a test mentions them.
 GENERIC_NAMES = frozenset(
@@ -126,7 +127,10 @@ class ImportGraph:
 
 def _is_unit_test(path: Path) -> bool:
     return (
-        path.is_relative_to(UNIT_TESTS) and path.name.startswith("test_") and path.suffix == ".py"
+        path.is_relative_to(UNIT_TESTS)
+        and not path.is_relative_to(STRESS_TESTS)
+        and path.name.startswith("test_")
+        and path.suffix == ".py"
     )
 
 

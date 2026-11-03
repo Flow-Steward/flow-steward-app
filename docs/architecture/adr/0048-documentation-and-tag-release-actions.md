@@ -3,7 +3,8 @@
 Status: Accepted (owner approved the design on 2026-11-01).
 
 Contributor verification location and timing are amended by
-[ADR 0053](0053-hosted-quality-gates.md). Documentation and publication contracts remain.
+[ADR 0053](0053-hosted-quality-gates.md). Exact-SHA publication gate reuse is
+amended by [ADR 0054](0054-reuse-exact-sha-release-gate.md).
 
 ## Context
 
@@ -34,7 +35,8 @@ Existing differing version artifacts may not be overwritten.
 
 Product verification continues through `lint.sh`, its single check registry and
 disposable `fs-audit` containers. The release workflow runs the full gate for the
-exact tagged SHA. Local contributor verification and handoff requirements remain;
+exact tagged SHA or reuses a verified prior exact-SHA hosted gate per ADR 0054.
+Local contributor verification and handoff requirements remain;
 remote Actions status is not a substitute for local evidence.
 
 ## Consequences

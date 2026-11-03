@@ -2870,6 +2870,7 @@
   {
     "canonical_name": "FS_AUDIT_ISOLATED",
     "code_read_locations": [
+      "core/application/tooling/quality/reuse_smoke.py",
       "tests/_disposable_db.py",
       "tests/_xdist_isolation.py",
       "tests/integration/test_rs5_003_external_effect_rework.py",
@@ -12198,6 +12199,7 @@
   {
     "canonical_name": "GITHUB_ACTIONS",
     "code_read_locations": [
+      "core/application/tooling/quality/reuse_smoke.py",
       "core/application/tooling/quality/verify.py",
       "core/entrypoints/cli/scripts/hosted-quality.sh",
       "core/entrypoints/cli/scripts/lint.sh"
@@ -14206,7 +14208,8 @@
       "tests/unit/test_release_candidate_operations.py",
       "tests/unit/test_release_smoke_gate.py",
       "tests/unit/test_release_stabilization_ledger_validator.py",
-      "tests/unit/test_start_server_trusted_proxies.py"
+      "tests/unit/test_start_server_trusted_proxies.py",
+      "tests/unit/tooling/quality/test_hosted_quality.py"
     ],
     "conditional_groups": [],
     "default_example_value": "",
@@ -15367,7 +15370,8 @@
       "tests/unit/test_retired_executor_absence.py",
       "tests/unit/test_retry_architecture.py",
       "tests/unit/tooling/quality/test_hosted_quality.py",
-      "tests/unit/tooling/quality/test_release_gate.py"
+      "tests/unit/tooling/quality/test_release_gate.py",
+      "tests/unit/tooling/quality/test_reuse_smoke.py"
     ],
     "conditional_groups": [],
     "default_example_value": "",
@@ -17828,6 +17832,25 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "VERIFY_SSL"
+  },
+  {
+    "canonical_name": "VITE_FRONTEND_EXTENSION_MANIFEST",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/lint.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "VITE_FRONTEND_EXTENSION_MANIFEST"
   },
   {
     "canonical_name": "VITE_HOST",

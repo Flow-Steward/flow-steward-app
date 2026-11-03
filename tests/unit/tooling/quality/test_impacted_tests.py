@@ -40,6 +40,14 @@ def test_a_changed_module_selects_its_tests_and_its_direct_importers_tests(
     ]
 
 
+def test_stress_checks_are_not_selected_by_tier_one_auto(tmp_path: Path) -> None:
+    root = _tree(tmp_path)
+    _write(root, "tests/unit/stress/test_scale.py", "from core.store import VALUE\n")
+    _write(root, "tests/unit/conftest.py")
+    for changed in ("core/store.py", "tests/unit/stress/test_scale.py", "tests/unit/conftest.py"):
+        assert "tests/unit/stress/test_scale.py" not in select_unit_tests(root, [changed])
+
+
 def test_from_package_import_module_counts_as_importing_that_module(tmp_path: Path) -> None:
     root = _tree(tmp_path)
 

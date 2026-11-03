@@ -5,14 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Literal, Protocol
 
-from core.application.tooling.quality import pip_audit_acceptance
 from core.application.tooling.quality.check_registry import CheckDefinition
+
+from core.application.tooling.quality import pip_audit_acceptance
 
 FingerprintSource = Literal["worktree", "index", "commit"]
 _GATE_INPUTS = (
@@ -22,6 +25,7 @@ _GATE_INPUTS = (
     "core/application/tooling/quality/evidence.py",
     "core/application/tooling/quality/verify.py",
     "core/entrypoints/cli/scripts/lint.sh",
+    "core/entrypoints/cli/scripts/run-core-only-tests.sh",
     # The audit image pins the tool versions. Evidence reused across commits
     # (reuse_scope "inputs") must not outlive a ruff, mypy or semgrep upgrade.
     "infra/docker/Dockerfile",
@@ -95,6 +99,66 @@ def fingerprint_check(check: CheckDefinition, context: FingerprintContext) -> st
     for path, content in context.iter_matching_content(check.inputs):
         _feed(digest, path.as_posix(), content if check.input_mode == "content" else b"")
     runtime_identity = dict(context.runtime_identity)
+    if check.id == "frontend-tests":
+        # The frontend workspace copies all assets, including shared JS/CSS.
+        # Bind cross-commit reuse to the effective build/test environment too.
+        runtime_identity["frontend_environment"] = json.dumps(
+            {
+                key: value
+                for key, value in os.environ.items()
+                if key.startswith(("VITE_", "NODE_", "LC_", "npm_config_", "NPM_CONFIG_"))
+                or key in {"CI", "TZ", "LANG"}
+            },
+            sort_keys=True,
+        )
+        runtime_identity["frontend_platform"] = platform.system() + ":" + platform.machine()
+        for tool in ("node", "npm"):
+            try:
+                runtime_identity[f"frontend_{tool}"] = subprocess.check_output(
+                    (tool, "--version"), text=True, stderr=subprocess.DEVNULL
+                ).strip()
+            except (OSError, subprocess.SubprocessError):
+                runtime_identity[f"frontend_{tool}"] = "unavailable"
+        native_runtime = hashlib.sha256()
+        try:
+            libraries = json.loads(
+                subprocess.check_output(
+                    (
+                        "node",
+                        "-p",
+                        "JSON.stringify(process.report.getReport().sharedObjects)",
+                    ),
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                )
+            )
+            for filename in sorted({shutil.which("node") or "", *libraries}):
+                binary = Path(filename)
+                if binary.is_file():
+                    with binary.open("rb") as stream:
+                        _feed(
+                            native_runtime,
+                            binary.name,
+                            hashlib.file_digest(stream, "sha256").digest(),
+                        )
+            runtime_identity["frontend_native_runtime"] = native_runtime.hexdigest()
+        except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+            runtime_identity["frontend_native_runtime"] = "unavailable"
+        if any(
+            os.environ.get(key, "").strip()
+            for key in (
+                "VITE_FRONTEND_EXTENSION_MANIFEST",
+                "NODE_OPTIONS",
+                "NODE_PATH",
+                "npm_config_userconfig",
+                "NPM_CONFIG_USERCONFIG",
+                "npm_config_globalconfig",
+                "NPM_CONFIG_GLOBALCONFIG",
+            )
+        ):
+            # Custom manifests/preloads/config may read outside assets. Their
+            # complete graph is unknown, so do not grant cross-commit reuse.
+            runtime_identity["frontend_custom_input_candidate"] = context.commit_sha
     if check.id == "pip-audit":
         # Expiring acceptances cannot reuse yesterday's green evidence. Own this
         # key here so both verify and release_gate agree, regardless of callers.

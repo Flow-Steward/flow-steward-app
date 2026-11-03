@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import threading
 from datetime import UTC, datetime
@@ -7,22 +8,26 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
-
-from core.application.tooling.quality import verify as verify_module
 from core.application.tooling.quality.check_registry import (
     CheckDefinition,
     CheckRegistry,
+    load_check_registry,
 )
 from core.application.tooling.quality.evidence import (
     EvidenceRecord,
     EvidenceStore,
 )
-from core.application.tooling.quality.fingerprint import FingerprintContext, fingerprint_check
 from core.application.tooling.quality.verify import (
     SubprocessCheckRunner,
     VerificationRequest,
     main,
     verify,
+)
+
+from core.application.tooling.quality import verify as verify_module
+from core.application.tooling.quality.fingerprint import (
+    FingerprintContext,
+    fingerprint_check,
 )
 
 
@@ -75,7 +80,8 @@ def test_tier3_defaults_to_clean_committed_head(tmp_path: Path) -> None:
         runner=FakeCheckRunner({"backend-tests": 0}),
     )
     expected = fingerprint_check(
-        registry.checks[0], FingerprintContext(root=repo, source="commit", commit_sha=sha)
+        registry.checks[0],
+        FingerprintContext(root=repo, source="commit", commit_sha=sha),
     )
     record = EvidenceStore(evidence_root).read("backend-tests", expected)
     assert summary.status == "passed"
@@ -169,7 +175,9 @@ def _request(
     )
 
 
-def test_report_only_executes_all_owned_checks_and_records_results(tmp_path: Path) -> None:
+def test_report_only_executes_all_owned_checks_and_records_results(
+    tmp_path: Path,
+) -> None:
     runner = FakeCheckRunner({"ruff": 0, "mypy": 0, "frontend-lint": 0})
 
     summary = verify(
@@ -237,7 +245,135 @@ def test_reuse_mode_skips_valid_hits(tmp_path: Path) -> None:
     assert summary.status == "passed"
 
 
-def test_tier2_failure_stops_before_dependent_or_independent_checks(tmp_path: Path) -> None:
+def test_restored_same_commit_reuses_frontend_and_retries_failed_backend(
+    tmp_path: Path,
+) -> None:
+    repo, sha = _committed_repo(tmp_path / "repo")
+    registry = CheckRegistry(
+        schema_version=1,
+        checks=(
+            CheckDefinition(
+                id="frontend-tests",
+                owner_tier=3,
+                command=("frontend",),
+                inputs=("assets/**",),
+            ),
+            CheckDefinition(
+                id="backend-tests",
+                owner_tier=3,
+                command=("backend",),
+                inputs=("core/**",),
+            ),
+        ),
+    )
+    first = tmp_path / "first"
+    request = VerificationRequest(
+        tier=3,
+        repository_root=repo,
+        evidence_root=first,
+        commit_sha=sha,
+        evidence_mode="reuse",
+    )
+    initial = verify(
+        request,
+        registry=registry,
+        runner=FakeCheckRunner({"frontend-tests": 0, "backend-tests": 1}),
+    )
+    assert initial.status == "failed"
+
+    restored = tmp_path / "restored"
+    shutil.copytree(first, restored)
+    runner = FakeCheckRunner({"frontend-tests": 1, "backend-tests": 0})
+    result = verify(
+        request.model_copy(update={"evidence_root": restored}),
+        registry=registry,
+        runner=runner,
+    )
+
+    assert result.status == "passed"
+    assert result.reused == ("frontend-tests",)
+    assert runner.calls == ["backend-tests"]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "backend",
+        "shared_asset",
+        "lockfile",
+        "environment",
+        "npm_config",
+        "toolchain",
+        "custom_manifest",
+    ],
+)
+def test_real_frontend_check_reuses_only_unchanged_inputs_across_commits(
+    tmp_path: Path, monkeypatch, change: str
+) -> None:
+    source_registry = load_check_registry(
+        Path(__file__).resolve().parents[4] / "infra/tooling/quality/check-registry.json"
+    )
+    frontend = next(check for check in source_registry.checks if check.id == "frontend-tests")
+    registry = CheckRegistry(schema_version=1, checks=(frontend,))
+    repo, sha = _committed_repo(tmp_path / "repo")
+    monkeypatch.delenv("VITE_FRONTEND_EXTENSION_MANIFEST", raising=False)
+    monkeypatch.delenv("NODE_OPTIONS", raising=False)
+    monkeypatch.delenv("npm_config_ignore_scripts", raising=False)
+    if change == "custom_manifest":
+        monkeypatch.setenv("VITE_FRONTEND_EXTENSION_MANIFEST", "/external/manifest.tsx")
+    request = VerificationRequest(
+        tier=3,
+        repository_root=repo,
+        evidence_root=tmp_path / "evidence",
+        commit_sha=sha,
+        evidence_mode="reuse",
+    )
+    assert (
+        verify(request, registry=registry, runner=FakeCheckRunner({"frontend-tests": 0})).status
+        == "passed"
+    )
+    (repo / "core/value.py").write_text("VALUE = 2\n")
+    if change == "shared_asset":
+        (repo / "assets/platform-renderer.js").write_text("export const updated = true;\n")
+    elif change == "lockfile":
+        (repo / "assets/frontend/package-lock.json").write_text('{"lockfileVersion": 3}\n')
+    elif change == "environment":
+        monkeypatch.setenv("NODE_OPTIONS", "--max-old-space-size=4096")
+    elif change == "npm_config":
+        monkeypatch.setenv("npm_config_ignore_scripts", "true")
+    elif change == "toolchain":
+        (repo / "requirements-audit.txt").write_text("changed-toolchain==1\n")
+    subprocess.run(("git", "add", "."), cwd=repo, check=True)
+    subprocess.run(
+        (
+            "git",
+            "-c",
+            "user.name=Quality test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "fix backend",
+        ),
+        cwd=repo,
+        check=True,
+    )
+    new_sha = subprocess.check_output(("git", "rev-parse", "HEAD"), cwd=repo, text=True).strip()
+    assert new_sha != sha
+    runner = FakeCheckRunner({"frontend-tests": 0})
+    result = verify(
+        request.model_copy(update={"commit_sha": new_sha}),
+        registry=registry,
+        runner=runner,
+    )
+    assert result.status == "passed"
+    assert result.reused == (("frontend-tests",) if change == "backend" else ())
+    assert runner.calls == ([] if change == "backend" else ["frontend-tests"])
+
+
+def test_tier2_failure_stops_before_dependent_or_independent_checks(
+    tmp_path: Path,
+) -> None:
     runner = FakeCheckRunner({"ruff": 1, "mypy": 0, "frontend-lint": 0})
 
     summary = verify(
@@ -251,7 +387,9 @@ def test_tier2_failure_stops_before_dependent_or_independent_checks(tmp_path: Pa
     assert summary.blocked == {}
 
 
-def test_tier3_failure_runs_independent_checks_and_blocks_dependents(tmp_path: Path) -> None:
+def test_tier3_failure_runs_independent_checks_and_blocks_dependents(
+    tmp_path: Path,
+) -> None:
     registry = CheckRegistry(
         schema_version=1,
         checks=tuple(check.model_copy(update={"owner_tier": 3}) for check in _registry().checks),
@@ -384,7 +522,9 @@ def test_parallel_tier2_failure_lets_running_checks_finish_and_starts_nothing_ne
     assert summary.blocked == {}
 
 
-def test_parallel_tier3_blocks_dependents_of_a_failed_prerequisite(tmp_path: Path) -> None:
+def test_parallel_tier3_blocks_dependents_of_a_failed_prerequisite(
+    tmp_path: Path,
+) -> None:
     registry = CheckRegistry(
         schema_version=1,
         checks=tuple(check.model_copy(update={"owner_tier": 3}) for check in _registry().checks),
