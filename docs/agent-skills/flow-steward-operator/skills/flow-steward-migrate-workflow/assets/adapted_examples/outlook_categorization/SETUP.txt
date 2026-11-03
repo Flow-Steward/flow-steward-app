@@ -1,0 +1,25 @@
+Full adapted n8n #2454 template, exported with its child and definitions from Flow Steward 0.9.9.
+Source: https://n8n.io/workflows/2454-auto-categorise-outlook-emails-with-ai/
+
+The root, message-processing child, classifier agent and skill are disabled.
+Import preflight and actual disabled import succeeded. Saved root validation
+requires enabling the child; child validation requires enabling its classifier
+and skill after selecting a project model. No provider/model API or mailbox write
+was performed. This is not a live-tested or enabled automation.
+
+Configure a Microsoft Graph delegated Mail.ReadWrite token through the required
+graph_credential secret input, and supply inbox_id, junk_id, receipt_id, saas_id,
+community_id and actioned_id folder IDs. No token default is included. The child
+graph_auth_ref input is also typed secret; its parent mapping selects
+state.inputs.graph_credential. That reference survives export without a key.
+
+The source selects at most one unflagged, uncategorized inbox message per manual
+run. It classifies into action, junk, receipt, saas, community, business or other,
+replaces its categories and may move it. These writes are not automatically
+retried; reconcile an uncertain write before re-running. Configure all inputs
+and enable reviewed objects before setting setup_confirmed=true.
+
+The adapted classifier returns typed data instead of regex-parsing malformed
+model JSON. Original HTML is supplied as untrusted classification evidence;
+the adaptation does not claim byte-for-byte HTML cleanup parity. Invalid model
+output stops the workflow rather than continuing silently.

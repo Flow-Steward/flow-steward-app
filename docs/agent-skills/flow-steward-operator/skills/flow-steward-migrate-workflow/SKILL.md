@@ -149,6 +149,14 @@ source format that has not been implemented.
 
 ## Validate and deliver
 
+For a batch or catalog publication, read
+[catalog delivery and round-trip checks](references/catalog-delivery.md).
+Keep one row per selected source, including blocked sources; a reusable child
+does not count as the converted parent. Import preflight, saved-definition
+validation, export round-trip, synthetic replay and provider execution are
+different checks. Do not promote an old offline report into evidence for an
+updated installation.
+
 The local converter does not replace target validation. Validate a complete draft with `workflow_draft_validate(project_name,
 bundle_yaml, resolutions)`. Repair returned structural and contract issues;
 use only live dependency identities and supported resolutions for actual import/save.
@@ -159,6 +167,13 @@ When the authoring MCP connection is unavailable, use the existing browser
 draft/import preview and validation controls instead. Do not save or launch just
 to inspect validation. Report which checks that interface actually performed;
 catalog inspection alone does not validate the workflow.
+
+Check the current validation endpoint's accepted scope. If the authoring draft
+validator accepts one workflow definition only, do not feed it a multi-workflow
+bundle and report `single_definition_required` as a migration blocker. Use the
+bundle import preview for the closure, then validate each saved definition (or
+each isolated definition with its children already available). Keep unresolved
+dependencies and disabled child/agent/model setup explicit.
 
 Return:
 
