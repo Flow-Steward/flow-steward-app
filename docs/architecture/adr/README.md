@@ -107,3 +107,11 @@ ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;
 an older note that says "ADR 0036" about the RabbitMQ transport, or "ADR 0039"
 about the browser edit session, means these.
+
+ADR 0056 (database upgrades before 1.0) and ADR 0057 (secret catalog) were first
+filed as 0054 and 0055 and renumbered on 2026-11-03, when the public line already
+had its own 0054 and reserved 0055. Comments in
+`db/migrations/20261103090000_secret_catalog.sql` and `db/schema/001_schema_part_12.sql`
+still say "ADR 0054" and "ADR 0055" for these two: the migration's checksum and the
+baseline fingerprint are recorded in `db/released_migrations.json`, so those bytes are
+not edited for a renumbering.

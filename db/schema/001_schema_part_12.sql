@@ -175,9 +175,9 @@ CREATE INDEX idx_oauth_access_tokens_grant ON public.oauth_access_tokens (grant_
 CREATE INDEX idx_oauth_refresh_tokens_grant ON public.oauth_refresh_tokens (grant_id);
 CREATE INDEX idx_oauth_authorizations_expires ON public.oauth_authorizations (expires_at);
 
--- Secret catalog (ADR 0057): identity, metadata, bindings and approved use of shared
+-- Secret catalog (ADR 0055): identity, metadata, bindings and approved use of shared
 -- secrets. Values stay in secret_refs under storage_ref_key. platform_upgrade_phases
--- records the data phases of database upgrade (ADR 0056). Keep this block and
+-- records the data phases of database upgrade (ADR 0054). Keep this block and
 -- db/migrations/20261103090000_secret_catalog.sql identical apart from IF NOT EXISTS.
 CREATE TABLE public.catalog_secrets (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
