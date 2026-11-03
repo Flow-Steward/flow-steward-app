@@ -1,5 +1,5 @@
 name: Remote quality pilot
-run-name: Quality ${{ (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
+run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
 
 on:
   push:
@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Tier 2, cumulative pre-merge gate, or pre-merge gate plus disposable Sonar pilot
+        description: Quality gate or an isolated diagnostic (secret-scan-only never runs a full tier)
         type: choice
         required: true
         default: tier2
-        options: [tier2, release, release-sonar, sonar-diagnostic, parallel-diagnostic, reuse-smoke]
+        options: [tier2, release, release-sonar, sonar-diagnostic, parallel-diagnostic, reuse-smoke, secret-scan-only]
       reuse_run_id:
-        description: Optional completed official remote-quality run whose evidence and coverage will be fingerprint-validated
+        description: Optional official source run; secret-scan-only imports only its per-file scanner manifest
         type: string
         required: false
         default: ''
@@ -28,7 +28,7 @@ concurrency:
 env:
   DOCKER_BUILD_RECORD_UPLOAD: 'false'
   FS_STACK_ENV_FILE: /dev/null
-  QUALITY_MODE: ${{ (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
+  QUALITY_MODE: ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
 
 jobs:
   quality:
@@ -36,6 +36,7 @@ jobs:
     # Skip this duplicate branch gate only for its explicitly marked main commit.
     if: >-
       github.repository == 'Flow-Steward/flow-steward-app' && github.event.repository.private == false &&
+      github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
       !(github.event_name == 'push' && github.ref == 'refs/heads/main' &&
         contains(github.event.head_commit.message, '[focused-release-v0.9.9]'))
     runs-on: ubuntu-24.04
@@ -175,6 +176,53 @@ jobs:
               sudo chmod -R g+rwX "$output"
             fi
           done
+      - name: Find a bounded official per-file scanner cache for this push
+        id: scanner-cache-source
+        if: github.event_name == 'push' && env.QUALITY_MODE != 'reuse-smoke' && steps.restore-source-evidence.outcome != 'success'
+        continue-on-error: true
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const select = require(`${process.env.GITHUB_WORKSPACE}/core/application/tooling/quality/hosted_cache_source.cjs`);
+            const {data: workflow} = await github.rest.actions.getWorkflow({
+              ...context.repo, workflow_id: 'remote-quality.yml',
+            });
+            const source = await select({github, ...context.repo,
+              repositoryId: Number(process.env.GITHUB_REPOSITORY_ID),
+              workflowId: workflow.id, branch: context.ref.replace(/^refs\/heads\//, ''),
+              currentRunId: Number(process.env.GITHUB_RUN_ID)});
+            if (source) {
+              core.setOutput('run_id', String(source.run_id));
+              core.setOutput('artifact_name', source.artifact_name);
+              core.info(`Optional per-file scanner proofs from official run ${source.run_id}; no whole-gate evidence is imported.`);
+            } else {
+              core.info('No retained validated scanner cache; scan all unproven files.');
+            }
+      - name: Download only the selected per-file scanner manifest
+        id: restore-scanner-cache
+        if: steps.scanner-cache-source.outputs.run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ steps.scanner-cache-source.outputs.artifact_name }}
+          path: ${{ runner.temp }}/scanner-cache
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.scanner-cache-source.outputs.run_id }}
+      - name: Import bounded scanner proofs without accepting a gate result
+        if: steps.restore-source-evidence.outcome == 'success' || steps.restore-prior-evidence.outcome == 'success' || steps.restore-scanner-cache.outcome == 'success'
+        run: |
+          # Explicit source wins; prior-attempt and automatic caches are fallbacks.
+          for manifest in "$RUNNER_TEMP/source-quality/quality/file-results/detect-secrets.json" \
+              "$RUNNER_TEMP/previous-quality/quality/file-results/detect-secrets.json" \
+              "$RUNNER_TEMP/scanner-cache/detect-secrets.json"; do
+            if [[ -f "$manifest" ]]; then
+              python3 -m core.application.tooling.quality.file_scan_cache import \
+                --cache-root "$RUNNER_TEMP/fs-quality-packages/file-results" --source "$manifest" \
+                || echo '::warning::Scanner cache unavailable or invalid; unproven files will be scanned.'
+              break
+            fi
+          done
       - uses: ./.github/actions/prepare-quality
       - name: Prove scoped diagnostic reuse without running any full gate or product suite
         if: env.QUALITY_MODE == 'reuse-smoke'
@@ -256,14 +304,146 @@ jobs:
           path: |
             logs/quality/evidence
             logs/quality/hosted
+            logs/quality/file-results
             logs/coverage
           retention-days: 3
           if-no-files-found: warn
+      - name: Retain only current per-file scanner proofs for later pushes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: secret-scan-files-${{ github.sha }}-${{ github.run_attempt }}
+          path: logs/quality/file-results/detect-secrets.json
+          retention-days: 3
+          if-no-files-found: ignore
+
+  secret_scan:
+    name: Secret scanner only / per-file reuse measurement
+    if: >-
+      github.repository == 'Flow-Steward/flow-steward-app' && github.event.repository.private == false &&
+      (github.ref_name == 'codex/secret-scan-live' ||
+       (github.event_name == 'workflow_dispatch' && inputs.mode == 'secret-scan-only'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a clean exact-SHA scanner candidate including current main
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - name: Validate the explicitly requested scanner source
+        id: scanner-source
+        if: inputs.reuse_run_id != ''
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          SCANNER_SOURCE_RUN_ID: ${{ inputs.reuse_run_id }}
+        with:
+          script: |
+            const select = require(`${process.env.GITHUB_WORKSPACE}/core/application/tooling/quality/hosted_cache_source.cjs`);
+            const {data: workflow} = await github.rest.actions.getWorkflow({
+              ...context.repo, workflow_id: 'remote-quality.yml',
+            });
+            const source = await select({github, ...context.repo,
+              repositoryId: Number(process.env.GITHUB_REPOSITORY_ID),
+              workflowId: workflow.id, branch: context.ref.replace(/^refs\/heads\//, ''),
+              currentRunId: Number(process.env.GITHUB_RUN_ID),
+              requestedRunId: process.env.SCANNER_SOURCE_RUN_ID});
+            if (!source) throw new Error('Explicit scanner source was not validated');
+            core.setOutput('run_id', String(source.run_id));
+            core.setOutput('artifact_name', source.artifact_name);
+            core.info(`Importing only per-file scanner proofs from official run ${source.run_id}.`);
+      - name: Download only the validated scanner manifest
+        if: steps.scanner-source.outcome == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ steps.scanner-source.outputs.artifact_name }}
+          path: ${{ runner.temp }}/scanner-source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.scanner-source.outputs.run_id }}
+      - name: Import the requested per-file passes; otherwise start cold
+        run: |
+          mkdir -p "$RUNNER_TEMP/fs-quality-packages/file-results"
+          if [[ -n '${{ steps.scanner-source.outputs.run_id }}' ]]; then
+            python3 -m core.application.tooling.quality.file_scan_cache import \
+              --cache-root "$RUNNER_TEMP/fs-quality-packages/file-results" \
+              --source "$RUNNER_TEMP/scanner-source/detect-secrets.json"
+          else
+            echo 'Cold producer: no scanner cache or prior gate evidence is restored.'
+          fi
+      - uses: ./.github/actions/prepare-quality
+      - name: Measure only the canonical file detector
+        env:
+          SCANNER_SOURCE_RUN_ID: ${{ steps.scanner-source.outputs.run_id }}
+        run: |
+          set -o pipefail
+          python3 - <<'PYCODE' 2>&1 | tee logs/quality/hosted/secret-scan.log
+          import json, os, re, subprocess, time
+          from pathlib import Path
+          command = ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "detect-secrets",
+                     "--fingerprint-source", "commit", "--commit-sha", os.environ["GITHUB_SHA"]]
+          started = time.monotonic()
+          scanned = total = None
+          process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+          for line in process.stdout:
+              print(line, end="", flush=True)
+              match = re.search(r"detect-sec" r"rets: scanning (\d+) of (\d+) files", line)
+              cached = re.search(r"detect-sec" r"rets: all (\d+) files already passed", line)
+              if match:
+                  scanned, total = map(int, match.groups())
+              elif cached:
+                  scanned, total = 0, int(cached[1])
+          result = process.wait()
+          report = {"sha": os.environ["GITHUB_SHA"], "run_id": os.environ["GITHUB_RUN_ID"],
+                    "source_run_id": os.environ.get("SCANNER_SOURCE_RUN_ID", ""),
+                    "scanned_files": scanned, "total_files": total,
+                    "reused_files": total - scanned if total is not None else None,
+                    "command_seconds": time.monotonic() - started, "exit_code": result,
+                    "command": command, "release_evidence": False}
+          Path("logs/quality/hosted/secret-scan.json").write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report), flush=True)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write("Scanner-only diagnostic; no full quality tier was run.\n\n")
+              summary.write(f"Scanned {scanned}/{total} files; reused {report['reused_files']}; "
+                            f"command {report['command_seconds']:.3f}s; exit {result}.\n")
+          raise SystemExit(result or (0 if scanned is not None else 2))
+          PYCODE
+      - name: Reject results if main advanced beyond this scanner candidate
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - name: Collect bounded scanner diagnostics
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh diagnostics
+      - name: Remove this scanner job's disposable stack
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
+      - name: Return scanner reports to the artifact uploader
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
+      - name: Retain this scanner measurement
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: secret-scan-measurement-${{ github.sha }}-${{ github.run_attempt }}
+          path: logs/quality/hosted
+          retention-days: 3
+          if-no-files-found: warn
+      - name: Retain current per-file scanner proofs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: secret-scan-files-${{ github.sha }}-${{ github.run_attempt }}
+          path: logs/quality/file-results/detect-secrets.json
+          retention-days: 3
+          if-no-files-found: ignore
 
   parallel_tier_three:
     name: Tier 3 runtime pilot / ${{ matrix.check }}
     needs: quality
-    if: github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' && (inputs.mode == 'parallel-diagnostic' || (github.event_name == 'push' && github.ref_name == 'codex/parallel-quality-pilot'))
+    if: github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' && github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' && (inputs.mode == 'parallel-diagnostic' || (github.event_name == 'push' && github.ref_name == 'codex/parallel-quality-pilot'))
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -332,6 +512,7 @@ jobs:
     needs: quality
     if: >-
       always() && !cancelled() &&
+      github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
       github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' &&
       (inputs.reuse_run_id == '' || needs.quality.outputs.evidence_imported == 'true') &&
       (needs.quality.result == 'success' || needs.quality.result == 'failure') &&

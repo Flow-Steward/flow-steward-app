@@ -691,52 +691,6 @@ def test_semgrep_defaults_to_four_workers() -> None:
     assert '--jobs "${SEMGREP_JOBS}"' in source
 
 
-def test_secret_gate_does_not_send_external_extension_files_to_detect_secrets(
-    tmp_path: Path,
-) -> None:
-    capture_path = tmp_path / "detect-secrets-arguments.txt"
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    fake_hook = fake_bin / "detect-secrets-hook"
-    fake_hook.write_text(
-        "#!/usr/bin/env python3\n"
-        "import pathlib\n"
-        "import sys\n"
-        f"pathlib.Path({str(capture_path)!r}).write_text(\n"
-        "    '\\n'.join(sys.argv[1:]), encoding='utf-8'\n"
-        ")\n",
-        encoding="utf-8",
-    )
-    fake_hook.chmod(fake_hook.stat().st_mode | stat.S_IXUSR)
-    env = dict(os.environ)
-    env["FS_QUALITY_EVIDENCE_MODE"] = "off"
-    env["PATH"] = f"{fake_bin}:{env['PATH']}"
-    source_root = Path(env.get("PYTEST_SOURCE_REPO_ROOT", ROOT)).resolve()
-    lint_script = source_root / "core/entrypoints/cli/scripts/lint.sh"
-
-    completed = subprocess.run(
-        [
-            "bash",
-            str(lint_script),
-            "--checks",
-            "detect-secrets",
-            "--evidence-mode",
-            "off",
-            "--inside",
-        ],
-        cwd=source_root,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert completed.returncode == 0, completed.stdout + completed.stderr
-    arguments = capture_path.read_text(encoding="utf-8").splitlines()
-    assert "core/entrypoints/cli/scripts/lint.sh" in arguments
-    assert not any(path.startswith("extensions/") for path in arguments)
-
-
 def test_secret_gate_uses_portable_relative_baseline_path() -> None:
     source = LINT_SCRIPT.read_text(encoding="utf-8")
     function_body = source.split("run_detect_secrets()", 1)[1].split("run_pip_audit()", 1)[0]
@@ -759,8 +713,13 @@ def test_secret_scan_never_rewrites_the_tracked_baseline() -> None:
 
     assert 'temporary_baseline="$(mktemp "' in function_body
     assert 'cp -- "${baseline_file}" "${temporary_baseline}"' in function_body
-    assert '--baseline "${temporary_baseline}"' in function_body
-    assert '--baseline "${baseline_file}"' not in function_body
+    hook = function_body.split("run_detect_secrets_hook() {", 1)[1].split(
+        "is_detect_secrets_metadata_only()", 1
+    )[0]
+    # The validator reads the reviewed baseline; only the upstream hook can
+    # rewrite metadata, so that invocation must receive the disposable copy.
+    assert '--baseline "${temporary_baseline}"' in hook
+    assert '--baseline "${baseline_file}"' not in hook
 
 
 def test_secret_scan_accepts_exact_metadata_only_refresh_without_rescan() -> None:

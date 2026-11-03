@@ -14318,7 +14318,8 @@
       "tests/unit/test_release_smoke_gate.py",
       "tests/unit/test_release_stabilization_ledger_validator.py",
       "tests/unit/test_start_server_trusted_proxies.py",
-      "tests/unit/tooling/quality/test_hosted_quality.py"
+      "tests/unit/tooling/quality/test_hosted_quality.py",
+      "tests/unit/tooling/quality/test_secret_scan_workflow.py"
     ],
     "conditional_groups": [],
     "default_example_value": "",

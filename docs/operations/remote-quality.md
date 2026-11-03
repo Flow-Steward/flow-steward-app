@@ -151,6 +151,19 @@ measured before declaring the transition complete.
 
 ## Disk and retained data
 
+For a secret-scanner measurement without a full quality tier, dispatch mode
+`secret-scan-only`. The dedicated `codex/secret-scan-live` measurement ref always
+selects only that scanner job, including when an older dispatch form still shows
+`tier2`. It cannot select the normal quality, parallel Tier 3 or Sonar jobs.
+The first run with an empty `reuse_run_id` starts with no per-file passes. After
+it completes, dispatch the same ref with its run ID in `reuse_run_id`; this mode
+validates and imports only the exact source's dedicated scanner manifest.
+An invalid explicit source fails rather than silently starting cold. Read
+`secret-scan.json` for scanned/reused file counts, source identity and elapsed
+scanner-command time; image preparation is separate. These measurements create
+no whole-tier or release evidence. A changed scanner, baseline or toolchain
+requires new file results; changing a commit SHA alone does not.
+
 Audit/PostgreSQL image layers use separate BuildKit GitHub cache scopes. Only npm
 downloads are restored as package cache; passed evidence is never imported from
 an Actions cache. Cache misses are allowed and cannot produce a synthetic pass.

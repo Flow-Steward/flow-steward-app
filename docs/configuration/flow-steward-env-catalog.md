@@ -966,6 +966,6 @@ These names were found by broad env-read scanning, but they are not in shipped `
 |---|---|---|
 | Internal Runtime | `3` | CLI scripts (3), Tests (1) |
 | Script Internal | `125` | CLI scripts (191), CLI (12), Tests (7), Tooling (6), Database (3) |
-| Test Only | `44` | Tests (77), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
+| Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |
 | Uncategorized | `42` | Docker Compose (36), Tooling (9), Infrastructure (4), Database (4), Security (3) |

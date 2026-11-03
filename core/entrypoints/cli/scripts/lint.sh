@@ -1667,10 +1667,13 @@ run_detect_secrets() {
   local temporary_baseline=""
   local temporary_output=""
   local scan_list=""
+  local all_scan_list=""
+  local scan_snapshot=""
   local pending_file=""
   local pending_list=""
   local pending_files=()
   local secret_cache_args=()
+  local scanner_toolchain=""
 
   if [[ ! -s "${baseline_file}" ]]; then
     echo "[lint] Missing non-empty .secrets.baseline for repository-wide secret gate." >&2
@@ -1703,12 +1706,25 @@ run_detect_secrets() {
   # exclusions (this script) passes again. Only the rest is scanned.
   scan_list="$(mktemp "${TMPDIR:-/tmp}/flow-steward-secrets-files.XXXXXX")"
   printf '%s\n' "${secret_scan_files[@]}" > "${scan_list}"
+  all_scan_list="${scan_list}"
+  if ! scanner_toolchain="$(audit_toolchain_digest "${ROOT_DIR}")"; then
+    rm -f -- "${scan_list}"
+    return 2
+  fi
   secret_cache_args=(
     --tool detect-secrets
     --key "$(detect-secrets --version 2>/dev/null || echo unknown)"
+    --key "${scanner_toolchain}"
     --key-file "${baseline_file}"
-    --key-file "${SCRIPT_DIR}/lint.sh"
+    --key-file "core/entrypoints/cli/scripts/lint.sh"
+    --key-file "core/application/tooling/quality/file_scan_cache.py"
+    --key-file "core/application/tooling/quality/secret_scan.py"
+    --key-file "infra/docker/sitecustomize.py"
   )
+  if [[ "${EVIDENCE_MODE}" == off ]]; then
+    secret_cache_args+=(--no-cache)
+    rm -f -- "${ROOT_DIR}/logs/quality/file-results/detect-secrets.json"
+  fi
   pending_list="$(mktemp "${TMPDIR:-/tmp}/flow-steward-secrets-pending.XXXXXX")"
   if [[ "${EVIDENCE_MODE}" == off ]]; then
     # Diagnostic mode reuses nothing, including earlier per-file passes.
@@ -1725,20 +1741,30 @@ run_detect_secrets() {
   fi
   rm -f -- "${pending_list}"
   if [[ ${#pending_files[@]} -eq 0 ]]; then
+    "${PYTHON_BIN}" -m core.application.tooling.quality.file_scan_cache export \
+      "${secret_cache_args[@]}" --files-from "${all_scan_list}" \
+      --output "${ROOT_DIR}/logs/quality/file-results/detect-secrets.json" || true
     rm -f -- "${scan_list}"
     echo "[lint] detect-secrets: all ${#secret_scan_files[@]} files already passed with this content; nothing to rescan."
     return 0
   fi
   echo "[lint] detect-secrets: scanning ${#pending_files[@]} of ${#secret_scan_files[@]} files; the rest already passed with this content."
   secret_scan_files=("${pending_files[@]}")
+  scan_list="$(mktemp "${TMPDIR:-/tmp}/flow-steward-secrets-pending-files.XXXXXX")"
   printf '%s\n' "${secret_scan_files[@]}" > "${scan_list}"
+  scan_snapshot="$(mktemp "${TMPDIR:-/tmp}/flow-steward-secrets-snapshot.XXXXXX")"
+  if ! "${PYTHON_BIN}" -m core.application.tooling.quality.file_scan_cache snapshot \
+    "${secret_cache_args[@]}" --files-from "${scan_list}" --output "${scan_snapshot}"; then
+    rm -f -- "${scan_list}" "${all_scan_list}" "${scan_snapshot}"
+    return 2
+  fi
 
   temporary_baseline="$(mktemp "${TMPDIR:-/tmp}/flow-steward-secrets-baseline.XXXXXX")"
   temporary_output="$(mktemp "${TMPDIR:-/tmp}/flow-steward-secrets-output.XXXXXX")"
   cp -- "${baseline_file}" "${temporary_baseline}"
 
   run_detect_secrets_hook() {
-    detect-secrets-hook \
+    "${PYTHON_BIN}" -m core.application.tooling.quality.secret_scan hook \
       --json \
       --baseline "${temporary_baseline}" \
       --exclude-files '(^|/)(node_modules|dist|vendor|\.ruff_cache|\.pytest_cache|logs)(/|$)|^\.secrets\.baseline$' \
@@ -1813,15 +1839,27 @@ PY
     # found no new secret. Avoid repeating the same repository-wide scan.
     echo "[lint] detect-secrets: temporary baseline metadata refreshed; no rescan required."
     scan_rc=0
+    : > "${temporary_output}"
+  fi
+  if [[ "${scan_rc}" -eq 0 || "${scan_rc}" -eq 1 ]]; then
+    if ! "${PYTHON_BIN}" -m core.application.tooling.quality.file_scan_cache record-scan \
+      "${secret_cache_args[@]}" --files-from "${scan_list}" --snapshot "${scan_snapshot}" \
+      --report "${temporary_output}" --baseline "${baseline_file}" --exit-code "${scan_rc}"; then
+      # A zero exit accompanied by unreadable-file diagnostics is not a complete
+      # successful scan. A real finding keeps its original failing exit code.
+      if [[ "${scan_rc}" -eq 0 ]]; then scan_rc=2; fi
+    fi
+  fi
+  if [[ "${EVIDENCE_MODE}" != off ]]; then
+    "${PYTHON_BIN}" -m core.application.tooling.quality.file_scan_cache export \
+      "${secret_cache_args[@]}" --files-from "${all_scan_list}" \
+      --output "${ROOT_DIR}/logs/quality/file-results/detect-secrets.json" || true
   fi
   rm -f -- "${temporary_baseline}" "${temporary_output}"
+  rm -f -- "${all_scan_list}" "${scan_snapshot}"
   if [[ "${scan_rc}" -ne 0 ]]; then
     rm -f -- "${scan_list}"
     return "${scan_rc}"
-  fi
-  if [[ "${EVIDENCE_MODE}" != off ]]; then
-    "${PYTHON_BIN}" -m core.application.tooling.quality.file_scan_cache record \
-      "${secret_cache_args[@]}" --files-from "${scan_list}" || true
   fi
   rm -f -- "${scan_list}"
   echo "[lint] detect-secrets: no new potential secrets outside the reviewed baseline."

@@ -121,7 +121,11 @@ ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
             f"the dedicated `{_EXTERNAL_AGENT_RUNTIME}/remote-quality-pilot` branch: its push runs `release-sonar`",
             f"`{_EXTERNAL_AGENT_RUNTIME}/verify-release/` or `{_EXTERNAL_AGENT_RUNTIME}/verify-sonar/` ref: those refs request a full run.",
             f"the bootstrap ref `{_EXTERNAL_AGENT_RUNTIME}/quality-reuse-live` forces this diagnostic even on push;",
+            f"`secret-scan-only`. The dedicated `{_EXTERNAL_AGENT_RUNTIME}/secret-scan-live` measurement ref always",
         )
+    },
+    Path("tests/unit/tooling/quality/test_secret_scan_workflow.py"): {
+        f'MEASUREMENT_REF = "{_EXTERNAL_AGENT_RUNTIME}/secret-scan-live"'.lower().encode("utf-8"),
     },
     # The hosted reuse-smoke bootstrap ref the workflow condition names.
     Path("tests/unit/tooling/quality/test_reuse_smoke.py"): {
@@ -361,6 +365,32 @@ def test_surviving_provider_and_protocol_contracts_remain_present() -> None:
     assert {"openai", "anthropic"} <= set(PROVIDER_CATALOG)
     assert (ROOT / "core" / "entrypoints" / "mcp" / "server.py").is_file()
     assert LLM_PROVIDER_CONTRACT_SCHEMA_VERSION == "llm_provider_extension_v1"
+
+
+def test_scanner_ref_metadata_allowance_remains_exact_and_outside_product(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    documentation = Path("docs/operations/remote-quality.md")
+    product = Path("core/application/example.py")
+    reference = Path("tests/unit/tooling/quality/test_secret_scan_workflow.py")
+    allowed_doc_line = next(
+        line
+        for line in ALLOWED_TOOLKIT_DOCUMENTATION_LINES[documentation]
+        if b"secret-scan-live" in line
+    )
+    allowed_ref_line = next(iter(ALLOWED_TOOLKIT_DOCUMENTATION_LINES[reference]))
+    for relative, content in (
+        (documentation, allowed_doc_line + f"\n{_EXTERNAL_AGENT_RUNTIME} exec\n".encode()),
+        (product, allowed_ref_line + b"\n"),
+    ):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", tmp_path)
+    monkeypatch.setattr(
+        sys.modules[__name__], "_git_tracked_files", lambda: ([documentation, product], "")
+    )
+    assert _surface_offenders() == {documentation.as_posix(): [2], product.as_posix(): [1]}
 
 
 def test_guard_enumerates_the_git_index_not_the_working_tree() -> None:
