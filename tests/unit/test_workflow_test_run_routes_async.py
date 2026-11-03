@@ -508,6 +508,50 @@ def test_workflow_dry_run_materializes_and_redacts_neutral_secret_input(monkeypa
     enqueue.assert_not_called()
 
 
+@pytest.mark.parametrize("bound", [True, False], ids=["catalog-bound", "unbound"])
+def test_a_catalog_bound_secret_input_is_not_asked_for_again_in_a_test_run(
+    monkeypatch, bound: bool
+) -> None:
+    """Browser acceptance on 817a31e: Run workflow used the approved catalog secret, while
+    Start test run refused "Workflow input 'api_key' is required". The test run built its
+    interface from the raw settings, without the catalog overlay a normal launch uses."""
+    from core.application.secrets import workflow_gate
+
+    monkeypatch.setattr(
+        workflow_gate,
+        "overlay_storage_keys",
+        lambda _cur, **_kwargs: {"api_key": "catalog_secret:s-1"} if bound else {},
+    )
+    enqueue = MagicMock()
+    client, _project_store, _job_store = _client(
+        enqueue=enqueue,
+        workflow_settings={
+            "callable": {
+                "enabled": True,
+                "trigger_channels": ["api"],
+                "expected_inputs": [{"name": "api_key", "type": "secret", "required": True}],
+                "output_mode": "none",
+            }
+        },
+    )
+    try:
+        response = client.post(
+            "/api/workflows/wf-demo/test-run",
+            json={"project_id": "project-1", "task_summary": "Validate", "dry_run": True},
+        )
+    finally:
+        _close(client)
+
+    if bound:
+        assert response.status_code == 200, response.text
+        assert "catalog_secret:s-1" not in response.text
+    else:
+        # An input nobody bound is still required: the overlay adds nothing else.
+        assert response.status_code == 422, response.text
+        assert "Workflow input 'api_key' is required" in response.text
+    enqueue.assert_not_called()
+
+
 def test_a_disabled_workflow_can_be_test_run() -> None:
     """Disabling stops scheduled and triggered runs, not the author's test run.
 

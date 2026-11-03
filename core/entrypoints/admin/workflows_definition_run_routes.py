@@ -286,8 +286,13 @@ def register_run_routes(router, ctx) -> None:
             body.task_envelope,
         )
         from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+        from core.application.secrets.workflow_gate import overlay_workflow_row
 
-        workflow_interface = WorkflowInterfaceService().interface_from_settings(wf.get("settings"))
+        # The same interface a normal launch builds: a secret input bound to a catalog
+        # secret defaults to it, so the test run does not ask for it again (ADR 0057).
+        workflow_interface = WorkflowInterfaceService().interface_from_settings(
+            overlay_workflow_row(db, wf).get("settings")
+        )
 
         if body.dry_run:
             from core.application.workflows.test_run_submission_service import (
