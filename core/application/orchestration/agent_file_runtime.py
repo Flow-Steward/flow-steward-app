@@ -12,13 +12,15 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
-from core.application.orchestration.agent_file_policy import is_agent_text_file
+from core.application.orchestration.agent_file_policy import (
+    AGENT_TEXT_READ_MAX_CHARS,
+    is_agent_text_file,
+)
 from core.application.orchestration.expected_input_sources import resolve_expected_input_source
 
 _MAX_FILES = 10
 _MAX_FILE_BYTES = 50 * 1024 * 1024
 _MAX_TOTAL_FILE_BYTES = 100 * 1024 * 1024
-_MAX_TEXT_CHARS = 8192
 _MAX_TOTAL_TEXT_CHARS = 50 * 1024 * 1024
 _NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _ARTIFACT = re.compile(r"^art_[A-Za-z0-9_-]+$")
@@ -123,7 +125,7 @@ class AgentFileContext:
             or offset < 0
             or not isinstance(max_chars, int)
             or isinstance(max_chars, bool)
-            or not 1 <= max_chars <= _MAX_TEXT_CHARS
+            or not 1 <= max_chars <= AGENT_TEXT_READ_MAX_CHARS
         ):
             raise AgentFileAccessError("Invalid text range")
         try:

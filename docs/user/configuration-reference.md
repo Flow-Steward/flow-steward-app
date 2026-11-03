@@ -75,6 +75,9 @@ General attachment policy is deployment-level:
 | `FS_ALLOWED_ATTACHMENT_MIMES` | Comma-separated MIME allowlist. | Images, PDF, Office, text, CSV, octet-stream. |
 | `FS_ALLOWED_ATTACHMENT_EXTENSIONS` | Comma-separated extension allowlist. | `.png,.jpg,.jpeg,.webp,.gif,.pdf,.xlsx,.xls,.docx,.txt,.md,.csv` |
 | `FS_AGENT_TEXT_FILE_EXTENSIONS` | Comma-separated suffixes agents may read as UTF-8 text; an empty environment value uses the default. | `txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf` |
+| `FS_AGENT_FILE_INLINE_MAX_CHARS` | Characters of text files an agent receives whole in its task message, summed over a step's files; the rest are read in pages, and `0` pages every file. | `2000000` |
+| `FS_AGENT_FILE_PAGE_CHARS` | Characters one `read_agent_file` page returns for a text file too large to attach whole. | `20000` |
+| `FS_AGENT_TOOL_RESULT_MAX_CHARS` | Characters of one agent tool result the model receives; file pages use the page size instead. | `6000` |
 
 Agent text recognition is separate from upload permission: to upload another file type directly, also configure `FS_ALLOWED_ATTACHMENT_EXTENSIONS` and `FS_ALLOWED_ATTACHMENT_MIMES` as appropriate. For example, adding `xml` to the agent list does not itself permit XML uploads.
 

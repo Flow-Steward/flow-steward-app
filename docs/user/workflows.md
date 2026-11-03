@@ -141,15 +141,25 @@ also require the relevant extensions and MIME types in `FS_ALLOWED_ATTACHMENT_EX
 and `FS_ALLOWED_ATTACHMENT_MIMES`; changing the agent text formats does not extend those
 upload policies.
 
-Files can be text, JSON, Markdown, images, audio or video. The agent can read
-UTF-8 text files in pages; each result includes the next offset and whether it
-reached the end. The file is available beyond the ordinary prompt summary's
-length limit. This does not guarantee that a model reads every page: its context
-window and the agent's maximum iterations still apply. Older tool results are
-removed from the model's working history as it reads more pages. Split large files
-into smaller chunks or summarize them in an earlier step. If the agent reaches
-its tool-call limit before a requested file read can run, the step fails with
-`file_read_budget_exceeded`.
+Files can be text, JSON, Markdown, images, audio or video. UTF-8 text files are
+given to the agent whole, in its task message, so the model sees the entire file
+on every round and nothing drops out of its working history. Together they may
+take up to `FS_AGENT_FILE_INLINE_MAX_CHARS` characters (default `2000000`); the
+selected model's context window must hold them as well, or the provider rejects
+the request. Lower the setting to page large files instead.
+
+A text file that does not fit that budget is read in pages of
+`FS_AGENT_FILE_PAGE_CHARS` characters (default `20000`) with `read_agent_file`;
+each result includes the next offset and whether it reached the end. Older pages
+leave the model's working history as it reads more, and if the agent reaches its
+tool-call limit before a requested read can run, the step fails with
+`file_read_budget_exceeded`. Raise the budget, or split or summarize the file in
+an earlier step. Setting `FS_AGENT_FILE_INLINE_MAX_CHARS=0` sends every text file
+through `read_agent_file`.
+
+The result of any other agent tool is cut to `FS_AGENT_TOOL_RESULT_MAX_CHARS`
+characters (default `6000`) before it reaches the model; file pages are bounded by
+their own page size instead.
 
 Images, audio and video can be sent directly only when both the selected model's
 explicit SDK profile and its provider adapter support that input type. Unknown
@@ -166,8 +176,9 @@ as agent tools by selecting a file. A video transcription or editing operation
 also requires an installed connector that actually provides that operation.
 
 A step may select at most 10 files, each up to 50 MiB, with 100 MiB selected in
-total. Text pages are at most 8,192 characters and the cumulative text read budget
-is 52,428,800 characters per invocation; tools can impose smaller file limits.
+total. One text read returns at most 2,000,000 characters and the cumulative text
+read budget is 52,428,800 characters per invocation; tools can impose smaller file
+limits.
 Native media inputs have a smaller limit of 5 MiB per file and 10 MiB
 in total, checked before encoding and sending.
 Files must be available, unexpired, intact and owned by the current job, project

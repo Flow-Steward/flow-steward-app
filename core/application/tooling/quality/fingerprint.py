@@ -16,6 +16,7 @@ from typing import Literal, Protocol
 from core.application.tooling.quality import pip_audit_acceptance
 from core.application.tooling.quality.backend_runtime import backend_runtime_identity
 from core.application.tooling.quality.check_registry import CheckDefinition
+from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
 FingerprintSource = Literal["worktree", "index", "commit"]
 _GATE_INPUTS = (
@@ -154,7 +155,7 @@ def fingerprint_check(check: CheckDefinition, context: FingerprintContext) -> st
         except (OSError, subprocess.SubprocessError, ValueError, TypeError):
             runtime_identity["frontend_native_runtime"] = "unavailable"
         if any(
-            os.environ.get(key, "").strip()
+            _runtime_env.get(key, "").strip()
             for key in (
                 "VITE_FRONTEND_EXTENSION_MANIFEST",
                 "NODE_OPTIONS",

@@ -699,6 +699,60 @@
       "notes": "Comma-separated agent text-file suffixes; an empty value uses the default. Upload extension and MIME allowlists are configured separately."
     },
     {
+      "name": "FS_AGENT_FILE_INLINE_MAX_CHARS",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "2000000",
+      "owner": "ai-runtime",
+      "operator_settable": true,
+      "notes": "Characters of text files an agent receives whole in its task message, summed over the step's files; a file that does not fit is read in pages, and 0 pages every file (range 0 .. 2000000)."
+    },
+    {
+      "name": "FS_AGENT_FILE_PAGE_CHARS",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "20000",
+      "owner": "ai-runtime",
+      "operator_settable": true,
+      "notes": "Characters one read_agent_file page returns for a text file too large to attach whole (range 1000 .. 200000)."
+    },
+    {
+      "name": "FS_AGENT_TOOL_RESULT_MAX_CHARS",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "6000",
+      "owner": "ai-runtime",
+      "operator_settable": true,
+      "notes": "Characters of one agent tool result the model receives; longer results are cut. File pages use FS_AGENT_FILE_PAGE_CHARS instead (range 1000 .. 200000)."
+    },
+    {
       "name": "FS_AGENT_HEARTBEAT_SEC",
       "groups": [
         "core_runtime"
@@ -835,7 +889,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-app:0.9.8",
+      "default": "flow-steward-app:0.9.10",
       "owner": "images"
     },
     {
@@ -2172,7 +2226,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-control:0.9.8",
+      "default": "flow-steward-control:0.9.10",
       "owner": "images"
     },
     {
@@ -3305,7 +3359,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-frontend:0.9.8",
+      "default": "flow-steward-frontend:0.9.10",
       "owner": "images",
       "notes": "Optional development frontend image; production application images already contain the built frontend shell."
     },
@@ -6487,7 +6541,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-worker:0.9.8",
+      "default": "flow-steward-worker:0.9.10",
       "owner": "images"
     },
     {
@@ -6882,7 +6936,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-mcp:0.9.8",
+      "default": "flow-steward-mcp:0.9.10",
       "owner": "images"
     },
     {

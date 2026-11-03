@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from dataclasses import asdict
 from pathlib import Path
 
@@ -26,6 +25,7 @@ from core.application.tooling.quality.verify import (
     VerificationRequest,
     verify,
 )
+from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
 CHECK_ID = "quality-reuse-smoke"
 REGRESSION = (
@@ -195,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-run-id", default="")
     parser.add_argument("--previous-report", type=Path)
     args = parser.parse_args(argv)
-    if os.environ.get("FS_AUDIT_ISOLATED") != "1" or os.environ.get("GITHUB_ACTIONS") != "true":
+    if _runtime_env.get("FS_AUDIT_ISOLATED") != "1" or _runtime_env.get("GITHUB_ACTIONS") != "true":
         parser.error("Hosted reuse smoke must run inside the canonical isolated fs-audit container")
     report = run_smoke(
         args.repository_root,

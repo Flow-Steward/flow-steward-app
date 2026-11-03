@@ -38,6 +38,26 @@ Then save the Docling connection again and run the workflow.
 Environment settings an operator may set by name. Secrets and values the
 installer manages are never set this way.
 
+### `FS_AGENT_FILE_INLINE_MAX_CHARS`
+
+Characters of text files an agent receives whole in its task message, summed over the step's files; a file that does not fit is read in pages, and 0 pages every file (range 0 .. 2000000).
+
+- Default: `2000000`
+- Accepts: text
+- Scalable: `flow-steward config set FS_AGENT_FILE_INLINE_MAX_CHARS=VALUE`, then `flow-steward config apply`
+- Compact: `./install.sh --setting FS_AGENT_FILE_INLINE_MAX_CHARS=VALUE` from the installation folder; it keeps the installation and restarts the runtime
+- Reset to the default: `FS_AGENT_FILE_INLINE_MAX_CHARS=` (an empty value)
+
+### `FS_AGENT_FILE_PAGE_CHARS`
+
+Characters one read_agent_file page returns for a text file too large to attach whole (range 1000 .. 200000).
+
+- Default: `20000`
+- Accepts: text
+- Scalable: `flow-steward config set FS_AGENT_FILE_PAGE_CHARS=VALUE`, then `flow-steward config apply`
+- Compact: `./install.sh --setting FS_AGENT_FILE_PAGE_CHARS=VALUE` from the installation folder; it keeps the installation and restarts the runtime
+- Reset to the default: `FS_AGENT_FILE_PAGE_CHARS=` (an empty value)
+
 ### `FS_AGENT_TEXT_FILE_EXTENSIONS`
 
 Comma-separated agent text-file suffixes; an empty value uses the default. Upload extension and MIME allowlists are configured separately.
@@ -47,6 +67,16 @@ Comma-separated agent text-file suffixes; an empty value uses the default. Uploa
 - Scalable: `flow-steward config set FS_AGENT_TEXT_FILE_EXTENSIONS=VALUE`, then `flow-steward config apply`
 - Compact: `./install.sh --setting FS_AGENT_TEXT_FILE_EXTENSIONS=VALUE` from the installation folder; it keeps the installation and restarts the runtime
 - Reset to the default: `FS_AGENT_TEXT_FILE_EXTENSIONS=` (an empty value)
+
+### `FS_AGENT_TOOL_RESULT_MAX_CHARS`
+
+Characters of one agent tool result the model receives; longer results are cut. File pages use FS_AGENT_FILE_PAGE_CHARS instead (range 1000 .. 200000).
+
+- Default: `6000`
+- Accepts: text
+- Scalable: `flow-steward config set FS_AGENT_TOOL_RESULT_MAX_CHARS=VALUE`, then `flow-steward config apply`
+- Compact: `./install.sh --setting FS_AGENT_TOOL_RESULT_MAX_CHARS=VALUE` from the installation folder; it keeps the installation and restarts the runtime
+- Reset to the default: `FS_AGENT_TOOL_RESULT_MAX_CHARS=` (an empty value)
 
 ### `FS_ALLOW_PRIVATE_REMOTE_URLS`
 

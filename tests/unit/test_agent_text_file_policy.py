@@ -126,7 +126,8 @@ def test_model_bridge_uses_runtime_classification_for_custom_text(monkeypatch):
     plane.meta["filename"] = "document.foo"
     listing, tools, blocks = prepare_agent_files(context(plane), model=object(), provider="")
     assert '"text_readable": true' in listing
-    assert [tool.name for tool in tools] == ["read_agent_file"]
+    assert '<file name="document">\nhello\n</file>' in listing
+    assert tools == []
     assert blocks == []
 
 

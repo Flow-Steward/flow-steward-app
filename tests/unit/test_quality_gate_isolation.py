@@ -51,7 +51,7 @@ def test_quality_gate_starts_cleans_and_guards_isolated_infrastructure() -> None
     # AC17-R97 added targeted-tests to this list: Tier 1 now runs in the container
     # and needs the same disposable pg-audit/rabbitmq-audit fixtures.
     assert (
-        "tests|pytest|targeted-tests|runtime-heartbeat-cross-profile|security-tests|security-regressions"
+        "tests|pytest|backend-tests|backend-frontend-contracts|targeted-tests|runtime-heartbeat-cross-profile|security-tests|security-regressions"
         in script
     )
     assert "FS_AUDIT_ISOLATED:-0" in script
