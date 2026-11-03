@@ -100,5 +100,5 @@ it("renders nothing when no linked workflow has a secret input", async () => {
   vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([]);
   const { container } = renderPanel();
   await waitFor(() => expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalled());
-  expect(container).toBeEmptyDOMElement();
+  await waitFor(() => expect(container).toBeEmptyDOMElement());
 });

@@ -50,7 +50,8 @@ export function ProjectWorkflowSecrets({ projectId }: Readonly<{ projectId: stri
     enabled: Boolean(projectId),
     retry: false,
   });
-  if (!projectId || (workflows.isSuccess && !(workflows.data ?? []).length)) return null;
+  // Nothing until the list arrives, and nothing when no linked workflow has a secret input.
+  if (!projectId || workflows.isPending || (workflows.isSuccess && !(workflows.data ?? []).length)) return null;
   return (
     <Card className="fs-card">
       <CardHeader>
