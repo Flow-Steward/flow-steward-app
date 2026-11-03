@@ -14,7 +14,7 @@ Do not add core code during a migration.
 | --- | --- |
 | Conditions, routers, joins | If/Switch plus graph edges; branches can share a continuation. Independent work uses Group lanes and joins at group exit. |
 | Item mapping, batching, aggregation | Transform/Set Variable, For each, Collect, Batch; move a nested item processor into a callable child when containers cannot nest. |
-| JSON reshaping and typed outputs | Transform typed actions, structured agent/skill outputs, connector mappings; Tabular Feed for JSON-array/NDJSON artifacts. A missing generic JSON-text parser does not mean JSON processing is absent. |
+| JSON reshaping and typed outputs | Transform typed actions, structured agent/skill outputs, connector mappings; Tabular Feed for formats supported by the selected producer/reader pair. A missing generic JSON-text parser does not mean JSON processing is absent. |
 | CSV/XLSX/full datasets | Tabular Feed read/transform/concat/write/read_rows/merge_rows. Process bounded pages without silently treating preview rows as the full dataset. Use a guard and explicit bound when the draft's supported input envelope is bounded. |
 | HTML/Markdown/email body | Template Jinja variables, conditions, loops and filters over prepared typed data. It emits text; choosing format does not parse arbitrary source HTML or convert Markdown to HTML. |
 | Review and resume | Native Approval with approved/rejected edges, feedback/response mappings and explicit rework; notifications choose the review channel. Email-specific reply ingestion is an adapter, not absence of approval. |
@@ -89,6 +89,10 @@ behavior: the rest of the full graph still has to exist.
 
 ## Verification is part of assembly
 
+Apply the [runtime-contract checks](runtime-contracts.md) before emitting the full
+graph. In particular, qualify a dataset producer and reader together; a returned
+handle alone does not establish readable serialization or complete row coverage.
+
 Check the bundle graph and exact configuration keys against the version-matched
 validators. Resolve every selector through success and failure fixtures: typed
 arrays, per-item scopes, branch outputs, checkpoint writes, review feedback and
@@ -127,7 +131,18 @@ optional does not make null valid for type text. Use type json for nullable
 values and test omitted-field cases as well as populated responses.
 
 
-## Complete adapted example
+## Complete adapted examples
+
+For a newly forward-tested B2B example, read
+[monthly finance №6294](../assets/offline_examples/monthly_finance_6294/workflow.yaml),
+its [setup](../assets/offline_examples/monthly_finance_6294/SETUP.txt) and
+[qualification](../assets/offline_examples/monthly_finance_6294/qualification.json).
+It includes full definitions, source JSON/mapping and19 synthetic scenarios. The
+real executor and released Workspace0.3.3/SMTP0.3.1 handlers were exercised with
+fixture transports. Read the declared UTC, row/money conventions,100-row envelope,
+SMTP delivery and aggregate-report adaptations before reuse. Connections, model
+choice, scheduler and live OAuth/permissions remain setup, not tested facts.
+
 
 For a full scheduled B2B email digest, inspect
 [`assets/adapted_examples/gmail_digest/workflow.yaml`](../assets/adapted_examples/gmail_digest/workflow.yaml)

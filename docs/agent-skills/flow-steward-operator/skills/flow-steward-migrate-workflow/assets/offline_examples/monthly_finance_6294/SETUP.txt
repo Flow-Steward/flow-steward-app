@@ -1,0 +1,11 @@
+MONTHLY FINANCE REPORT: n8n6294
+
+Full disabled unbound business-equivalent adaptation, not an exact translation of source defects. Read setup.json for every source mapping, input convention and adaptation. workflow.yaml retains exact tested bytes and metadata.authoring_definitions; definitions.yaml is its explicit provisioning companion. Provision definitions once, not twice.
+
+Select target core contract and permitted project connections/model, bind symbolic Sheets/SMTP tools, configure recipient and single-currency Income/Expense column conventions. reporting_reference_at is an explicit required input; scheduler/caller supplies it. Monthly schedule configuration is deferred. No schedule is created merely by metadata. Keep the workflow disabled until real validation/setup.
+
+Qualified offline: core0.9.9 commit21601831, published Workspace0.3.3 and SMTP0.3.1,19cases. Actual executor/PromptAgent and released handlers ran with synthetic model/Sheets/SMTP and documented host-boundary fixtures. No provider/API calls, OAuth/permission verification, import or publication. qualification.json records exact hashes and boundaries.
+
+The strict supported envelope is the entire <=100-row five-column table with a complete preview, ISO dates/timestamps, positive canonical two-decimal monetary amounts and one reporting currency. Totals use integer minor units. Empty month sends an explicit zero report without a model. Invalid/incomplete/oversize input stops before send. Never automatically retry an uncertain SMTP delivery.
+
+Gmail send is adapted to SMTP; all monthly rows are aggregated once instead of source per-row model calls; half-open month fixes last-day cutoff. These are disclosed business adaptations. Tests do not measure model financial reasoning or live integration quality.

@@ -1,0 +1,235 @@
+{
+  "scope": "offline actual-executor and released-handler qualification, not a live integration test",
+  "source_template": 6294,
+  "source_url": "https://n8n.io/workflows/6294-automate-monthly-finance-reports-with-google-sheets-gpt-4-analysis-and-gmail/",
+  "core_commit": "21601831d5f816e94f7ba2135585715f96f80316",
+  "yaml_sha256": "674467274eca7ebea166e58845cc0b0da1acd3b48c9c2a52d55aaa622b25418b",
+  "definitions_sha256": "f299bc9668418523775a0ebf44881e9f7d828a9e713d2047f8c4e3fca7f5978e",
+  "fixture_sha256": "197ea7de14d0116adb1730f29bb77ca275f57814210bbd47be54e49a57ec4578",
+  "cases": {
+    "cases": 19,
+    "passed": 19
+  },
+  "provider_api_calls": 0,
+  "socket_attempts": [],
+  "fixture_engine_verified": true,
+  "live_provider_verified": false,
+  "published": false,
+  "limits": [
+    "fixture registry/installation/host auth/connection/effect ledger",
+    "in-memory real artifact plane with fixture grants",
+    "real extension handler with fake Sheets/SMTP transport",
+    "real PromptAgent with scripted model client"
+  ],
+  "case_results": [
+    {
+      "id": "month_boundaries_decimal_exact",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "timezone_normalized",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "year_boundary",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "leap_february",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "zero_data",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "zero_selected",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "bad_date",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "bad_numeric",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "negative",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "three_decimals",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "bad_type",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "bad_time",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "over_row_bound",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "exact_row_bound",
+      "status": "completed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "byte_truncated_preview",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "smtp_failure",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "setup_unconfirmed",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "invalid_model_shape",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    },
+    {
+      "id": "malformed_model_envelope",
+      "status": "failed",
+      "assertions": {
+        "status": true,
+        "smtp_attempts": true,
+        "model_calls": true,
+        "email_body": true
+      },
+      "passed": true
+    }
+  ]
+}

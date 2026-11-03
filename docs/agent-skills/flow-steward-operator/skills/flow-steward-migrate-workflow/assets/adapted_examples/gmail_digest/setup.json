@@ -1,0 +1,47 @@
+{
+  "status": "unbound_draft",
+  "workflow_id": "n8n_2722_daily_digest",
+  "target": "core0.9.9 / 21601831",
+  "fixture_evidence": {
+    "yaml_sha256": "7e4ca5b583bf7ab61ce13d4e7b4c30b2a8cd3cc1b6ce12168655bf8b190bb3c6",
+    "receipt": "repair-12-20261103/engine-sixth.json",
+    "scope": "earlier real-executor qualification with Workspace0.3.1 and SMTP0.3.1; not requalified against later releases"
+  },
+  "documented_operations": {
+    "run_clock": {
+      "core_operation": "job_status",
+      "function_name": "job_status",
+      "arguments": {
+        "job_id": "state.job_id"
+      },
+      "clock_source": "persisted current-job started_at; never caller input"
+    },
+    "search_mail": {
+      "extension_id": "ext-google-workspace",
+      "operation_id": "search_messages",
+      "connection_ref": "gmail-fixture"
+    },
+    "send_digest": {
+      "extension_id": "ext-email-smtp",
+      "operation_id": "send_email",
+      "connection_ref": "smtp-fixture"
+    },
+    "hydrate_message": {
+      "extension_id": "ext-google-workspace",
+      "operation_id": "get_message",
+      "connection_ref": "gmail-fixture"
+    },
+    "send_digest_cc": {
+      "extension_id": "ext-email-smtp",
+      "operation_id": "send_email",
+      "connection_ref": "smtp-fixture"
+    }
+  },
+  "requires": [
+    "Resolve symbolic tool dependencies using real installed operations.",
+    "Provision included agent/skill definitions once; do not duplicate companion provisioning.",
+    "Bind Gmail/SMTP connections, model and callable defaults; verify current release contracts.",
+    "Create disabled schedule separately and establish overlap/reconciliation policy."
+  ],
+  "live_provider_verified": false
+}
