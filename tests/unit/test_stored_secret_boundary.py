@@ -30,7 +30,7 @@ from core.infrastructure.security.stored_secrets import (
 )
 
 _VALUE = "stored-secret-value-9135"
-_LEAKY = "postgresql://user:hunter2@db.internal/vault/path"
+_LEAKY = "postgresql://user:hunter2@db.internal/vault/path"  # pragma: allowlist secret
 
 
 class _Cursor:
@@ -214,7 +214,7 @@ def _connector_step() -> dict:
         "override": {
             "connector": {
                 "function_name": "demo_call",
-                "input_mapping": {"password": "state.inputs.login"},
+                "input_mapping": {"password": "state.inputs.login"},  # pragma: allowlist secret
             }
         },
     }
@@ -311,7 +311,9 @@ def test_a_configured_credential_without_a_value_is_an_error_not_a_dropped_field
         connection_secret_store.resolve_connection_secrets(
             None,
             account_id="acct-1",
-            secret_refs={"refs": {"api_token": "ref-token", "webhook_secret": "ref-gone"}},
+            secret_refs={
+                "refs": {"api_token": "ref-token", "webhook_secret": "ref-gone"}
+            },  # pragma: allowlist secret
             reader=reader,
         )
 

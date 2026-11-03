@@ -305,6 +305,33 @@ def launch_authority_for(
             return {}
 
 
+def child_launch_authority(
+    parent_state: Any, child_workflow_id: Any, child_inputs: Any
+) -> dict[str, Any]:
+    """A child's authority: its own bindings plus catalog secrets the parent passes on.
+
+    A passed catalog secret reaches the child only when a person approved the child's
+    own definition too; each level of the call is checked.
+    """
+    from core.infrastructure.security.secret_reference import as_secret_reference
+
+    state = parent_state if isinstance(parent_state, dict) else {}
+    parent_authority = state.get(AUTHORITY_STATE_KEY)
+    parent_authority = parent_authority if isinstance(parent_authority, dict) else {}
+    received = sorted(
+        {
+            reference.ref_key
+            for value in (child_inputs or {}).values()
+            if (reference := as_secret_reference(value)) is not None
+            and reference.ref_key
+            and storage_ref_fingerprint(reference.ref_key) in parent_authority
+        }
+    )
+    return launch_authority_for(
+        state.get("project_id"), child_workflow_id, received_storage_keys=tuple(received)
+    )
+
+
 def overlay_storage_keys(cur: Any, *, account_id: str, workflow_id: str) -> dict[str, str]:
     """field -> catalog storage key, for the launch interface; carries no value."""
     return {
@@ -429,6 +456,7 @@ __all__ = [
     "CatalogAuthorityReader",
     "SecretDestinationNotAllowed",
     "approved_rules",
+    "child_launch_authority",
     "http_destinations",
     "launch_authority",
     "launch_authority_for",
