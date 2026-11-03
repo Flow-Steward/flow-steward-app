@@ -252,6 +252,13 @@ A small diff `MUST NOT` be treated as low risk solely because it is small.
 - Deterministic configuration and generated-artifact checks `SHOULD` run before expensive tests.
 - Coverage `SHOULD` be collected once by the full gate, not during Tier 1.
 - Gate caches (shared evidence, per-file scan results, the npm package cache) live in the `flow-steward-quality-cache` volume that `fs-audit` mounts for every checkout and compose project. Every entry is content-addressed, so a fresh worktree reuses them; removing the volume only makes the next run cold.
+- Test cleanup `MUST` verify recorded resource identities using exact project
+  labels, per-invocation image tags, or verified installer-bootstrap ownership.
+  A daemon-wide before/after inventory does not establish
+  ownership: parallel jobs create resources in that interval too. Fixtures
+  `MUST NOT` sweep shared BuildKit cache, borrowed dependency images, or anonymous
+  volumes from such a delta. Remove attached anonymous volumes with their owned
+  containers; shared cache retention belongs to coordinated daemon maintenance.
 - The Tier 3 backend suite reports its slowest tests; a test that dominates the run `SHOULD` be made cheaper before it is moved into a serial group.
 - Final gates `MUST` verify committed content and `MUST NOT` be replaced by a dirty local result.
 - Repeated runs `MUST` have a distinct contract, relevant change, or failure hypothesis.

@@ -51,8 +51,6 @@ _LOW_CAPACITY_FILESYSTEM_BYTES = 2 * 1024**3
 _ACCEPTANCE_PORT_FIRST = 20_000
 _ACCEPTANCE_PORT_STOP = 30_000
 _ACCEPTANCE_PORT_ATTEMPTS = 1_000
-_BUILDKIT_CACHE_ID = re.compile(r"^[a-z0-9]{25}$")
-_DOCKER_IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 _PROOF = b"installer-proof"
 _PTY_WINDOW = struct.pack("HHHH", 30, 100, 0, 0)
 _PLAIN_FALLBACK_BANNER = b"Terminal is smaller than 80x24; using the plain interactive wizard."
@@ -401,7 +399,6 @@ class DisposableInstallerProject:
                 ],
             },
             "baseline_inventory": _docker_inventory(),
-            "baseline_build_cache": sorted(_docker_build_cache_records()),
             "baseline_image_tags": _docker_image_tag_mappings(),
         }
         manifest_path = work_root / "disposable-installer-resources.json"
@@ -1939,13 +1936,7 @@ class DisposableInstallerProject:
             if str(image) in manifest.get("baseline_image_tags", {}):
                 raise AssertionError(f"refusing to remove baseline Docker image tag: {image}")
             _run(["docker", "image", "rm", str(image)], check=False)
-        manifest["dependency_image_cleanup"] = self._remove_unused_dependency_images(manifest)
-        dangling_image_cleanup = self._remove_new_dangling_images(manifest)
-        manifest["dangling_image_cleanup"] = dangling_image_cleanup
-        anonymous_cleanup = self._remove_new_anonymous_volumes(manifest)
-        manifest["anonymous_volume_cleanup"] = anonymous_cleanup
-        build_cache_cleanup = self._remove_new_build_cache_records(manifest)
-        manifest["build_cache_cleanup"] = build_cache_cleanup
+        # Daemon inventory deltas and downloaded dependencies do not prove ownership.
         for raw_path in active["paths"]:
             path = Path(str(raw_path))
             if path == self.manifest_path or not path.is_relative_to(self.manifest_path.parent):
@@ -1964,189 +1955,8 @@ class DisposableInstallerProject:
         }
         _replace_owner_only_json(self.manifest_path, manifest)
         self.cleaned = True
-        if anonymous_cleanup["post_cleanup_residue"]:
-            raise AssertionError(
-                f"new anonymous Docker volume residue: {anonymous_cleanup['post_cleanup_residue']}"
-            )
-        if dangling_image_cleanup["post_cleanup_residue"]:
-            raise AssertionError(
-                "new unreferenced dangling Docker image residue: "
-                f"{dangling_image_cleanup['post_cleanup_residue']}"
-            )
-        if build_cache_cleanup["post_cleanup_residue"]:
-            raise AssertionError(
-                f"new Docker build cache residue: {build_cache_cleanup['post_cleanup_residue']}"
-            )
         manifest["cleanup_inventory_evidence"] = self._verify_baseline_preserved(manifest)
         _replace_owner_only_json(self.manifest_path, manifest)
-
-    def _remove_new_dangling_images(
-        self,
-        manifest: dict[str, Any],
-    ) -> dict[str, list[str]]:
-        """Remove only new, untagged image identities with no container links."""
-        baseline = set(manifest.get("baseline_inventory", {}).get("images", ()))
-        current = _docker_inventory()
-        observed = sorted(set(current["images"]) - baseline)
-        evidence: dict[str, list[str]] = {
-            "observed_new": observed,
-            "removed": [],
-            "retained_tagged_or_in_use": [],
-            "post_cleanup_residue": [],
-        }
-        linked_images = _image_ids_with_container_links()
-        removable: list[tuple[str, str]] = []
-        for image_id in observed:
-            inspected = _inspect("image", image_id)
-            if (
-                _DOCKER_IMAGE_ID.fullmatch(image_id) is None
-                or inspected is None
-                or inspected.get("RepoTags")
-                or image_id in linked_images
-            ):
-                evidence["retained_tagged_or_in_use"].append(image_id)
-                continue
-            removable.append((str(inspected.get("Created") or ""), image_id))
-        for _created, image_id in sorted(removable, reverse=True):
-            _run(["docker", "image", "rm", image_id], check=False)
-
-        after = set(_docker_inventory()["images"])
-        post_cleanup = after - baseline
-        evidence["removed"] = sorted(set(observed) - post_cleanup)
-        linked_images = _image_ids_with_container_links()
-        for image_id in sorted(post_cleanup):
-            inspected = _inspect("image", image_id)
-            if inspected is None or inspected.get("RepoTags") or image_id in linked_images:
-                evidence["retained_tagged_or_in_use"].append(image_id)
-            else:
-                evidence["post_cleanup_residue"].append(image_id)
-        evidence["retained_tagged_or_in_use"] = sorted(set(evidence["retained_tagged_or_in_use"]))
-        return evidence
-
-    def _remove_new_build_cache_records(
-        self,
-        manifest: dict[str, Any],
-    ) -> dict[str, list[str]]:
-        """Remove only reclaimable BuildKit records absent from the pre-test inventory."""
-        baseline_value = manifest.get("baseline_build_cache")
-        evidence: dict[str, list[str]] = {
-            "observed_new": [],
-            "removed": [],
-            "retained_in_use_or_unproven": [],
-            "post_cleanup_residue": [],
-        }
-        if not isinstance(baseline_value, list):
-            return evidence
-        baseline = {str(cache_id) for cache_id in baseline_value}
-        current = _docker_build_cache_records()
-        observed = sorted(set(current) - baseline)
-        evidence["observed_new"] = observed
-        attempted: set[str] = set()
-        for cache_id in _build_cache_prune_order(current, observed):
-            record = current[cache_id]
-            if (
-                _BUILDKIT_CACHE_ID.fullmatch(cache_id) is None
-                or record.get("Reclaimable") is not True
-            ):
-                evidence["retained_in_use_or_unproven"].append(cache_id)
-                continue
-            removed = _run(
-                [
-                    "docker",
-                    "buildx",
-                    "prune",
-                    "--filter",
-                    f"id={cache_id}",
-                    "--force",
-                ],
-                check=False,
-            )
-            if removed.returncode == 0:
-                attempted.add(cache_id)
-            else:
-                evidence["retained_in_use_or_unproven"].append(cache_id)
-        after = _docker_build_cache_records()
-        post_cleanup = set(after) - baseline
-        evidence["removed"] = sorted(attempted - post_cleanup)
-        for cache_id in sorted(post_cleanup):
-            record = after[cache_id]
-            if record.get("Shared") is True or record.get("Reclaimable") is not True:
-                evidence["retained_in_use_or_unproven"].append(cache_id)
-            else:
-                evidence["post_cleanup_residue"].append(cache_id)
-        evidence["retained_in_use_or_unproven"] = sorted(
-            set(evidence["retained_in_use_or_unproven"])
-        )
-        return evidence
-
-    def _remove_new_anonymous_volumes(
-        self,
-        manifest: dict[str, Any],
-    ) -> dict[str, list[str]]:
-        """Remove only unreferenced anonymous volume IDs absent from the pre-test inventory."""
-        baseline = set(manifest.get("baseline_inventory", {}).get("volumes", ()))
-        observed = sorted(set(_anonymous_volume_names()) - baseline)
-        evidence: dict[str, list[str]] = {
-            "observed_new": observed,
-            "removed": [],
-            "retained_in_use_or_unproven": [],
-            "post_cleanup_residue": [],
-        }
-        removal_attempts: set[str] = set()
-        for name in observed:
-            inspected = _inspect("volume", name)
-            labels = inspected.get("Labels") or {} if inspected is not None else {}
-            if (
-                inspected is None
-                or "com.docker.volume.anonymous" not in labels
-                or _volume_container_ids(name)
-            ):
-                evidence["retained_in_use_or_unproven"].append(name)
-                continue
-            removal_attempts.add(name)
-            removed = _run(["docker", "volume", "rm", name], check=False)
-            if removed.returncode == 0:
-                evidence["removed"].append(name)
-            else:
-                evidence["retained_in_use_or_unproven"].append(name)
-        evidence["post_cleanup_residue"] = sorted(
-            set(_anonymous_volume_names()).intersection(removal_attempts)
-        )
-        return evidence
-
-    def _remove_unused_dependency_images(
-        self,
-        manifest: dict[str, Any],
-    ) -> dict[str, list[str]]:
-        """Remove exact, newly materialized dependency refs when Docker says they are unused."""
-        baseline_ids = set(manifest.get("baseline_inventory", {}).get("images", ()))
-        observed_ids = manifest.get("observed_dependency_image_ids", {})
-        if not isinstance(observed_ids, dict):
-            raise AssertionError("observed dependency image identities are invalid")
-        evidence: dict[str, list[str]] = {
-            "removed": [],
-            "retained_baseline": [],
-            "retained_changed_or_in_use": [],
-        }
-        for raw_reference in dict.fromkeys(manifest.get("dependency_images", ())):
-            reference = str(raw_reference)
-            inspected = _inspect("image", reference)
-            if inspected is None:
-                continue
-            current_id = str(inspected.get("Id") or "")
-            expected_id = str(observed_ids.get(reference) or "")
-            if current_id in baseline_ids:
-                evidence["retained_baseline"].append(reference)
-                continue
-            if not expected_id or current_id != expected_id:
-                evidence["retained_changed_or_in_use"].append(reference)
-                continue
-            removed = _run(["docker", "image", "rm", reference], check=False)
-            if removed.returncode == 0:
-                evidence["removed"].append(reference)
-            else:
-                evidence["retained_changed_or_in_use"].append(reference)
-        return evidence
 
     def cleanup_proof(self) -> dict[str, list[str]]:
         value = self._manifest()["active_resources"]
@@ -2755,7 +2565,7 @@ class DisposableInstallerProject:
             and not self._is_owned_installer_bootstrap(inspected, manifest)
         ):
             raise AssertionError(f"container ownership mismatch: {name}")
-        _run(["docker", "container", "rm", "-f", name])
+        _run(["docker", "container", "rm", "-f", "--volumes", name])
 
     def _installer_bootstrap_container_names(self, manifest: dict[str, Any]) -> list[str]:
         planned_images = manifest.get("planned_resources", {}).get("images", ())
@@ -3187,73 +2997,6 @@ def _docker_inventory() -> dict[str, list[str]]:
     }
 
 
-def _docker_build_cache_records() -> dict[str, dict[str, Any]]:
-    result = _run(["docker", "buildx", "du", "--format", "json"])
-    records: dict[str, dict[str, Any]] = {}
-    for line in result.stdout.splitlines():
-        if not line.strip():
-            continue
-        record = json.loads(line)
-        cache_id = str(record.get("ID") or "")
-        if _BUILDKIT_CACHE_ID.fullmatch(cache_id) is None:
-            raise AssertionError("Docker build cache inventory returned an invalid identity")
-        records[cache_id] = record
-    return records
-
-
-def _build_cache_prune_order(
-    records: dict[str, dict[str, Any]],
-    cache_ids: list[str],
-) -> list[str]:
-    """Order exact BuildKit records so descendants are removed before parents."""
-    remaining = set(cache_ids)
-    children = {cache_id: set() for cache_id in remaining}
-    for child_id in remaining:
-        for parent_id in records[child_id].get("Parents") or ():
-            if parent_id in remaining:
-                children[parent_id].add(child_id)
-    ordered: list[str] = []
-    while remaining:
-        leaves = sorted(
-            cache_id for cache_id in remaining if not children[cache_id].intersection(remaining)
-        )
-        if not leaves:
-            ordered.extend(sorted(remaining))
-            break
-        ordered.extend(leaves)
-        remaining.difference_update(leaves)
-    return ordered
-
-
-def _anonymous_volume_names() -> list[str]:
-    result = _run(
-        [
-            "docker",
-            "volume",
-            "ls",
-            "-q",
-            "--filter",
-            "label=com.docker.volume.anonymous",
-        ]
-    )
-    return sorted(set(result.stdout.splitlines()))
-
-
-def _volume_container_ids(name: str) -> list[str]:
-    result = _run(
-        [
-            "docker",
-            "container",
-            "ls",
-            "-a",
-            "-q",
-            "--filter",
-            f"volume={name}",
-        ]
-    )
-    return sorted(set(result.stdout.splitlines()))
-
-
 def _docker_image_tag_mappings() -> dict[str, str]:
     result = _run(
         [
@@ -3333,25 +3076,6 @@ def _container_names_for_ancestor(image: str) -> list[str]:
         ]
     )
     return [line for line in result.stdout.splitlines() if line]
-
-
-def _image_ids_with_container_links() -> set[str]:
-    containers = _run(
-        ["docker", "container", "ls", "--all", "--quiet", "--no-trunc"]
-    ).stdout.splitlines()
-    if not containers:
-        return set()
-    result = _run(
-        [
-            "docker",
-            "container",
-            "inspect",
-            *containers,
-            "--format",
-            "{{.Image}}",
-        ]
-    )
-    return {line for line in result.stdout.splitlines() if line}
 
 
 def _container_names_for_project(project_name: str) -> list[str]:
