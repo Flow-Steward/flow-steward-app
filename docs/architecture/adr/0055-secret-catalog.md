@@ -134,15 +134,22 @@ with the list of conflicts, when one would break.
   are excluded. Any other change, a step's URL, headers or body on the same host
   included, makes the workflow unapproved.
 - **Destinations.** An HTTP step whose scheme and host are literal contributes its
-  exact origin, even when its path or query is computed: the HTTP step already refuses
-  a secret-bearing request whose rendered origin differs from the literal one, and
-  requires it to be HTTPS. Only a step with a computed scheme, host or port needs
-  destinations that the approving person enters: `exact_host` rules of scheme, host,
-  effective port and an optional path prefix. A path prefix is matched on segment
-  boundaries (`/api` admits `/api/x`, never `/api-x`) after dot segments are resolved,
-  and a path with an encoded dot, slash or backslash is refused. The `subdomains` rule
-  type is refused, because a correct match needs a pinned Public Suffix List snapshot,
-  which this release does not ship.
+  exact origin, even when its path or query is computed. A step with a computed
+  scheme, host or port needs destinations that the approving person enters:
+  `exact_host` rules of scheme, host, effective port and an optional path prefix. A
+  path prefix is matched on segment boundaries (`/api` admits `/api/x`, never
+  `/api-x`) after dot segments are resolved, and a path with an encoded dot, slash or
+  backslash is refused. The `subdomains` rule type is refused, because a correct
+  match needs a pinned Public Suffix List snapshot, which this release does not ship.
+- **Computed origins only for catalog-only requests.** The HTTP step has required a
+  literal HTTPS origin for any secret-bearing request since 0.9.0. A computed origin
+  now passes only when every reference the request carries is a catalog secret, by
+  the host database, and the rendered URL is HTTPS without userinfo; each read of
+  those keys then checks the job's pin, its ancestors, the binding and the rendered
+  URL against the approved destinations, and a key that is no longer a catalog
+  secret is refused, never read without an allowlist. Inline values, workflow
+  defaults, any mix with them, and basic or bearer auth keep the literal-origin rule.
+  The SSRF checks, no-redirect and no-secret-in-controls rules are unchanged.
 - **Nothing is decided at launch and carried in run state.** The worker derives a
   run's secret capabilities from host records of its own job
   (`core/application/secrets/run_authority.py`): the pinned definition and its
