@@ -4878,6 +4878,23 @@
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },
     {
+      "name": "FS_QUALITY_BACKEND_PARTITION",
+      "groups": [
+        "quality_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "all",
+      "owner": "quality",
+      "notes": "Transient core-only test workspace selection set by the canonical runner: all or independent. Independent selection omits unused global workflow/DB test bootstrap; tests needing it remain in the contract group."
+    },
+    {
       "name": "FS_QUALITY_CACHE_ROOT",
       "groups": [
         "quality_tools"
@@ -6060,6 +6077,23 @@
       "default": "",
       "owner": "testing",
       "notes": "Transient immutable audit image ID supplied by the canonical lint wrapper to nested disposable Docker tests. Must be a full sha256 image ID; caller-provided tags and stale inherited values are rejected."
+    },
+    {
+      "name": "FS_TEST_BACKEND_SERVICES_ID",
+      "groups": [
+        "test_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "testing",
+      "notes": "Transient sha256 identity of the actual named disposable PostgreSQL and RabbitMQ images, computed by lint.sh and supplied unchanged to backend verification and the final evidence reader. Missing identity disables cross-SHA backend reuse."
     },
     {
       "name": "FS_TEST_DISPOSABLE_DB",

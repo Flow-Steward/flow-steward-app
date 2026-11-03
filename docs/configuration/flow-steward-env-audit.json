@@ -8915,6 +8915,27 @@
     "variable_name": "FS_PYTHON_CACHE_DIR"
   },
   {
+    "canonical_name": "FS_QUALITY_BACKEND_PARTITION",
+    "code_read_locations": [
+      "tests/conftest.py",
+      "tests/unit/conftest.py"
+    ],
+    "conditional_groups": [
+      "quality_tools"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "local_development"
+    ],
+    "notes": "Transient core-only test workspace selection set by the canonical runner: all or independent. Independent selection omits unused global workflow/DB test bootstrap; tests needing it remain in the contract group.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "quality",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_QUALITY_BACKEND_PARTITION"
+  },
+  {
     "canonical_name": "FS_QUALITY_CACHE_ROOT",
     "code_read_locations": [
       "infra/docker/docker-compose.quality-hosted.yaml"
@@ -10788,6 +10809,24 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "FS_TEST_AUDIT_IMAGE_ID"
+  },
+  {
+    "canonical_name": "FS_TEST_BACKEND_SERVICES_ID",
+    "code_read_locations": [],
+    "conditional_groups": [
+      "test_tools"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "local_development"
+    ],
+    "notes": "Transient sha256 identity of the actual named disposable PostgreSQL and RabbitMQ images, computed by lint.sh and supplied unchanged to backend verification and the final evidence reader. Missing identity disables cross-SHA backend reuse.; registry-managed metadata only",
+    "owning_subsystem": "testing",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_TEST_BACKEND_SERVICES_ID"
   },
   {
     "canonical_name": "FS_TEST_DISPOSABLE_DB",

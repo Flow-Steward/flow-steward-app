@@ -451,19 +451,25 @@
         "bash",
         "core/entrypoints/cli/scripts/lint.sh",
         "--checks",
-        "tests",
+        "backend-tests",
         "--quality-owner-tier",
         "3"
       ],
-      "inputs": [
-        "core/**/*.py",
-        "tests/**/*.py",
-        "pyproject.toml"
-      ],
+      "inputs": ["**"],
+      "input_excludes": ["assets/**"],
+      "reuse_scope": "inputs",
       "prerequisites": [
         "ruff",
         "mypy"
       ]
+    },
+    {
+      "id": "backend-frontend-contracts",
+      "owner_tier": 3,
+      "command": ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "backend-frontend-contracts", "--quality-owner-tier", "3"],
+      "inputs": ["**"],
+      "reuse_scope": "inputs",
+      "prerequisites": ["ruff", "mypy"]
     },
     {
       "id": "runtime-heartbeat-cross-profile",
@@ -505,7 +511,8 @@
       ],
       "prerequisites": [
         "frontend-tests",
-        "backend-tests"
+        "backend-tests",
+        "backend-frontend-contracts"
       ],
       "execution": "external"
     },

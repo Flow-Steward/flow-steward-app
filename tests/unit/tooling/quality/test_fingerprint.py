@@ -5,6 +5,8 @@ from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from core.application.tooling.quality import fingerprint as fingerprint_module
 from core.application.tooling.quality import pip_audit_acceptance
 from core.application.tooling.quality.check_registry import (
@@ -116,6 +118,33 @@ def test_unrelated_frontend_change_does_not_invalidate_python_check(
     (repo / "assets/frontend/src/view.tsx").write_text("export const value = 2\n", encoding="utf-8")
 
     assert fingerprint_check(_check(), context) == before
+
+
+@pytest.mark.parametrize("source", ["worktree", "index", "commit"])
+def test_executable_mode_change_invalidates_content_evidence(tmp_path: Path, source) -> None:
+    repo = _repo(tmp_path)
+    script = repo / "runner.sh"
+    script.write_text("#!/bin/sh\nexit 0\n")
+    script.chmod(0o755)
+    _run_git(repo, "add", ".")
+    _run_git(repo, "commit", "-qm", "executable runner")
+    check = _check(inputs=("runner.sh",))
+    before = fingerprint_check(
+        check,
+        FingerprintContext(
+            root=repo, source=source, commit_sha=_run_git(repo, "rev-parse", "HEAD")
+        ),
+    )
+    script.chmod(0o644)
+    _run_git(repo, "add", ".")
+    _run_git(repo, "commit", "-qm", "remove executable permission")
+    after = fingerprint_check(
+        check,
+        FingerprintContext(
+            root=repo, source=source, commit_sha=_run_git(repo, "rev-parse", "HEAD")
+        ),
+    )
+    assert after != before
 
 
 def test_lock_change_invalidates_frontend_node(tmp_path: Path) -> None:

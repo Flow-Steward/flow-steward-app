@@ -43,27 +43,27 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `provider_defaults` | Provider-neutral model defaults and AI chunk sizing. | `9` |
 | `provider_google` | Google provider credentials. | `0` |
 | `provider_openai` | OpenAI provider credentials. | `0` |
-| `quality_tools` | Quality and SonarQube helpers. | `15` |
+| `quality_tools` | Quality and SonarQube helpers. | `16` |
 | `release_discovery` | Official GitHub repository used for stable release discovery. | `2` |
 | `release_publication` | CI and manual tooling for publishing official release images. | `2` |
 | `static_catalogs` | Read-only Git-hosted static catalogs for workflow templates and extensions. | `3` |
-| `test_tools` | Test runner and E2E helpers. | `33` |
+| `test_tools` | Test runner and E2E helpers. | `34` |
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `815`
-- Cataloged variables from `.env.example*` or manifest: `593`
+- Raw env-like names discovered by audit: `817`
+- Cataloged variables from `.env.example*` or manifest: `595`
 - Raw audit-only names outside examples/manifest: `222`
 - Unique variables in shipped `.env.example*` files: `377`
-- Variables in canonical manifest: `503`
+- Variables in canonical manifest: `505`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
 - Internal Runtime: `133`
 - Public / Operator: `330`
-- Test Config: `33`
+- Test Config: `34`
 - Test Only: `16`
-- Tooling Internal: `76`
+- Tooling Internal: `77`
 
 Raw audit-only names by scope:
 - Internal Runtime: `3`
@@ -602,6 +602,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_RUN_CLI_DOCKER_INTEGRATION` | test_tools | local_development | no | no | - | - | Tests (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `tests/integration/test_cli_warm_runtime_io.py` |
 | `FS_RUN_LIVE_PROVIDER_TESTS` | test_tools | local_development | no | no | - | - | Tests (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `tests/live/test_llm_provider_extension_contract.py` |
 | `FS_TEST_AUDIT_IMAGE_ID` | test_tools | local_development | no | no | - | - | CLI scripts (2), Tests (2) | Transient immutable audit image ID supplied by the canonical lint wrapper to nested disposable Docker tests. Must be a full sha256 image ID; caller-provided tags and stale inherited values are rejected. | `tests/integration/test_candidate_harness_disposable_docker.py`<br>`tests/integration/test_clone_volume_disposable.py`<br>`core/entrypoints/cli/scripts/lint.sh`<br>`core/entrypoints/cli/scripts/run-external-tier-three.sh` |
+| `FS_TEST_BACKEND_SERVICES_ID` | test_tools | local_development | no | no | - | - | No direct literal reads found | Transient sha256 identity of the actual named disposable PostgreSQL and RabbitMQ images, computed by lint.sh and supplied unchanged to backend verification and the final evidence reader. Missing identity disables cross-SHA backend reuse. | - |
 | `FS_TEST_DISPOSABLE_DB` | test_tools | local_development | no | no | - | - | Tests (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `tests/_disposable_db.py`<br>`tests/conftest.py` |
 | `FS_TEST_DOCKER_PUBLISHED_HOST` | test_tools | local_development | no | no | `127.0.0.1` | - | Tests (1) | Host used by containerized tests to reach ephemeral Docker-published database ports. | `tests/_disposable_db.py` |
 | `FS_TEST_MCP_IMAGE` | test_tools | local_development | no | no | - | - | Tests (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `tests/integration/test_packaged_mcp_image_parity.py` |
@@ -909,6 +910,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
 | `FS_EXTERNAL_TIER_GIT_COMMON_DIR` | quality_tools | local_development | no | no | - | - | CLI scripts (1) | Optional exact Git common directory mounted read-only into the external Tier 3 verifier. | `core/entrypoints/cli/scripts/run-external-tier-three.sh` |
+| `FS_QUALITY_BACKEND_PARTITION` | quality_tools | local_development | no | no | `all` | - | Tests (2) | Transient core-only test workspace selection set by the canonical runner: all or independent. Independent selection omits unused global workflow/DB test bootstrap; tests needing it remain in the contract group. | `tests/conftest.py`<br>`tests/unit/conftest.py` |
 | `FS_QUALITY_CACHE_ROOT` | quality_tools | local_development | no | no | - | - | Docker Compose (1) | Derived per-job package-cache bind directory for disposable hosted quality runners; not a product or persisted installation setting. | `infra/docker/docker-compose.quality-hosted.yaml` |
 | `FS_QUALITY_EVIDENCE_MODE` | quality_tools | local_development | no | no | `reuse` | - | CLI scripts (1) | Controls local quality evidence behavior: reuse, report, or off. CLI flags take precedence. | `core/entrypoints/cli/scripts/lint.sh` |
 | `SONAR_BACKLOG` | - | local_development | no | no | `0` | .env.example.quality | CLI scripts (1) | SonarQube (optional quality profile) | `core/entrypoints/cli/scripts/lint.sh` |

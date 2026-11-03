@@ -604,6 +604,12 @@ ENTRYPOINT ["python", "-m", "core.entrypoints.cli.compact_provider_runtime"]
 
 FROM audit-tooling AS audit
 
+# Measure installed tools/native libraries before adding candidate source. The
+# final image ID changes on every source COPY; this content receipt does not.
+COPY core/application/tooling/quality/runtime_receipt.py /tmp/fs-runtime-receipt.py
+RUN python /tmp/fs-runtime-receipt.py --output /opt/flow-steward/backend-runtime.sha256 \
+    && rm /tmp/fs-runtime-receipt.py
+
 COPY . .
 COPY --from=frontend-build /app/assets/frontend/dist /app/assets/frontend/dist
 RUN touch assets/frontend/dist/.vite/manifest.json

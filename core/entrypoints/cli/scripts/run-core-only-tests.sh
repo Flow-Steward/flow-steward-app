@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 workspace="$(mktemp -d "${TMPDIR:-/tmp}/flow-steward-core-only.XXXXXX")"
 coverage_export_dir=""
+without_assets=0
 cleanup() { rm -rf "${workspace}"; }
 trap cleanup EXIT
 
@@ -15,10 +16,15 @@ if [[ "${1:-}" == "--coverage-export-dir" ]]; then
   coverage_export_dir="$2"
   shift 2
 fi
+if [[ "${1:-}" == "--without-assets" ]]; then
+  without_assets=1
+  shift
+fi
 
 for path in .github core tests assets db docs examples infra locales scripts; do
   if [[ -e "${repo_root}/${path}" ]]; then
     if [[ "${path}" == assets ]]; then
+      if [[ "${without_assets}" -eq 1 ]]; then continue; fi
       # Dependency and build trees are deleted below; do not copy potentially
       # gigabytes of them just to discard them. The frontend shell is restored
       # explicitly after pruning, as it was before.
@@ -56,7 +62,7 @@ find "${workspace}" -type d \( \
   -name .mypy_cache -o -name .pytest_cache -o -name .ruff_cache -o \
   -name __pycache__ -o -name build -o -name dist -o -name node_modules \
 \) -prune -exec rm -rf {} +
-if [[ -d "${repo_root}/assets/frontend/dist" ]]; then
+if [[ "${without_assets}" -eq 0 && -d "${repo_root}/assets/frontend/dist" ]]; then
   mkdir -p "${workspace}/assets/frontend"
   cp -R "${repo_root}/assets/frontend/dist" "${workspace}/assets/frontend/dist"
 fi
@@ -81,6 +87,13 @@ unset COMPOSE_PROJECT_NAME
 # artifacts explicitly without copying executable extension code into the
 # isolated core-only workspace or adding it to PYTHONPATH.
 export PYTEST_SOURCE_REPO_ROOT="${repo_root}"
+export FS_QUALITY_BACKEND_PARTITION=all
+if [[ "${without_assets}" -eq 1 ]]; then
+  # The independent partition has no source checkout escape to real UI files.
+  export PYTEST_SOURCE_REPO_ROOT="${workspace}"
+  export FS_QUALITY_BACKEND_PARTITION=independent
+  test ! -e "${workspace}/assets"
+fi
 if [[ "${1:-}" == */* && "${1}" != /* ]]; then
   command_path="${repo_root}/${1}"
   shift

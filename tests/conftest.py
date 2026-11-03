@@ -65,7 +65,10 @@ def _initialize_workflow_test_patch_surface() -> None:
     workflow_module.__class__ = _WorkflowTestPatchModule
 
 
-_initialize_workflow_test_patch_surface()
+# Independent tests do not import the workflows aggregate or its patch bridge.
+# Tests/fixtures that use it belong to the frontend contract partition instead.
+if os.environ.get("FS_QUALITY_BACKEND_PARTITION") != "independent":
+    _initialize_workflow_test_patch_surface()
 
 
 def _ensure_langgraph_test_shims() -> None:
@@ -630,17 +633,18 @@ def poll_until(predicate, timeout: int = 60, interval: float = 1.0):
 def _reset_singletons():
     """Ensure singleton caches cannot leak state between tests."""
     yield
-    # Teardown: clear cached instances
+    # A module that was never loaded has no cache to leak. Importing it during
+    # teardown adds unrelated runtime dependencies to every test partition.
     try:
-        from core.application.orchestration.message_bus import MessageBus
-
-        MessageBus._instances.clear()
+        module = sys.modules.get("core.application.orchestration.message_bus")
+        if module is not None:
+            module.MessageBus._instances.clear()
     except Exception:
         pass
     try:
-        import core.application.registry.registry_manager as _rm_mod
-
-        _rm_mod._instance = None
+        module = sys.modules.get("core.application.registry.registry_manager")
+        if module is not None:
+            module._instance = None
     except Exception:
         pass
 

@@ -18,6 +18,7 @@ class CheckDefinition(BaseModel):
     owner_tier: Literal[1, 2, 3]
     command: tuple[str, ...] = Field(min_length=1)
     inputs: tuple[str, ...] = Field(min_length=1)
+    input_excludes: tuple[str, ...] = ()
     input_mode: Literal["content", "paths"] = "content"
     runtime_inputs: tuple[str, ...] = ()
     prerequisites: tuple[str, ...] = ()

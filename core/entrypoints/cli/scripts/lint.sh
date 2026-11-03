@@ -740,6 +740,7 @@ audit_toolchain_digest() {
     requirements-semgrep.txt
     core/application/tooling/quality/semgrep_distribution.py
     core/application/tooling/quality/semgrep_inventory.py
+    core/application/tooling/quality/runtime_receipt.py
     requirements-cli.lock
   )
   {
@@ -1138,21 +1139,29 @@ run_host_sonar_scan() {
     # NOTE: unit-only coverage intentionally under-reports project-wide coverage.
     # If only unit coverage is available, Sonar will show low numbers — that is correct.
     # Run core/entrypoints/cli/scripts/coverage_rebaseline.sh --critical-matrix before --sonar for better signal.
-    coverage_report_host=""
-    for candidate in \
-      "${ROOT_DIR}/logs/coverage/critical-matrix/coverage.xml" \
-      "${ROOT_DIR}/logs/coverage/unit/coverage.xml"; do
-      if [[ -f "${candidate}" ]]; then
-        coverage_report_host="${candidate}"
-        echo "[lint] Sonar Python coverage: using ${candidate#"${ROOT_DIR}/"}"
-        break
+    python_coverage_reports=()
+    python_coverage_candidates=("${ROOT_DIR}/logs/coverage/critical-matrix/coverage.xml")
+    if [[ ! -f "${python_coverage_candidates[0]}" ]]; then
+      python_coverage_candidates=(
+        "${ROOT_DIR}/logs/coverage/unit/independent/coverage.xml"
+        "${ROOT_DIR}/logs/coverage/unit/frontend-contract/coverage.xml"
+      )
+      if [[ ! -f "${python_coverage_candidates[0]}" && ! -f "${python_coverage_candidates[1]}" ]]; then
+        python_coverage_candidates=("${ROOT_DIR}/logs/coverage/unit/coverage.xml")
       fi
+    fi
+    coverage_report_index=0
+    for candidate in "${python_coverage_candidates[@]}"; do
+      [[ -f "${candidate}" ]] || continue
+      normalized_coverage_report_host="${ROOT_DIR}/logs/quality/sonar/coverage.${coverage_report_index}.sonar.xml"
+      normalize_sonar_python_coverage_report "${candidate}" "${normalized_coverage_report_host}"
+      python_coverage_reports+=("/usr/src/logs/quality/sonar/coverage.${coverage_report_index}.sonar.xml")
+      coverage_report_index=$((coverage_report_index + 1))
+      echo "[lint] Sonar Python coverage: using ${candidate#"${ROOT_DIR}/"} (available executed scope)"
     done
-    normalized_coverage_report_host="${ROOT_DIR}/logs/quality/sonar/coverage.sonar.xml"
-    normalized_coverage_report_container="/usr/src/logs/quality/sonar/coverage.sonar.xml"
-    if [[ -n "${coverage_report_host}" ]]; then
-      normalize_sonar_python_coverage_report "${coverage_report_host}" "${normalized_coverage_report_host}"
-      coverage_report_container="${normalized_coverage_report_container}"
+    if [[ ${#python_coverage_reports[@]} -gt 0 ]]; then
+      printf -v coverage_report_container '%s,' "${python_coverage_reports[@]}"
+      coverage_report_container="${coverage_report_container%,}"
       sonar_args+=("-Dsonar.python.coverage.reportPaths=${coverage_report_container}")
     else
       echo "[lint] Sonar Python coverage: no coverage.xml found — skipping coverage report."
@@ -1475,7 +1484,7 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
     if [[ ${#REQUESTED_CHECKS[@]} -gt 0 ]]; then
       for requested_check in "${REQUESTED_CHECKS[@]}"; do
         case "${requested_check}" in
-          tests|pytest|targeted-tests|runtime-heartbeat-cross-profile|security-tests|security-regressions)
+          tests|pytest|backend-tests|backend-frontend-contracts|targeted-tests|runtime-heartbeat-cross-profile|security-tests|security-regressions)
             needs_test_infra=1
             ;;
         esac
@@ -1518,6 +1527,14 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
     if [[ "${audit_exit_code}" -eq 0 && "${needs_test_infra}" -eq 1 ]]; then
       audit_infra_started=1
       fs_compose up -d --wait pg-audit rabbitmq-audit
+      # Bind backend reuse to the actual disposable service images, not mutable
+      # tags or container IDs. Preserve this identity for the final reader too.
+      backend_pg_container="$(fs_compose ps -q pg-audit)"
+      backend_rabbit_container="$(fs_compose ps -q rabbitmq-audit)"
+      backend_services_identity="$(docker inspect --format '{{.Image}}' \
+        "${backend_pg_container}" "${backend_rabbit_container}" | \
+        "${LINT_HOST_PYTHON:-python3}" -c 'import hashlib, sys; print("sha256:" + hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')"
+      lint_container_env_args+=(-e "FS_TEST_BACKEND_SERVICES_ID=${backend_services_identity}")
       fs_compose run --no-deps --rm -T fs-audit \
         python -m core.application.tooling.db.init_db
     fi
@@ -1549,7 +1566,7 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
     if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
       # External checks write 0600 evidence as root; the final reader must be
       # able to validate both those records and the ordinary fs-owned records.
-      fs_compose run --no-deps --rm -T --user 0:0 "${lint_container_volume_args[@]}" fs-audit \
+      fs_compose run --no-deps --rm -T --user 0:0 "${lint_container_env_args[@]}" "${lint_container_volume_args[@]}" fs-audit \
         python -m core.application.tooling.quality.release_gate \
         || audit_exit_code=$?
     fi
@@ -2266,7 +2283,34 @@ run_check_targeted_tests() {
 run_check_unit_tests_with_coverage() {
   if [[ -d tests/unit ]]; then
     assert_audit_test_isolation
-    ensure_frontend_shell || return $?
+    local partition="${1:-all}"
+    local selection=(tests/unit --ignore=tests/unit/stress)
+    local workspace_args=()
+    local coverage_dir="${ROOT_DIR}/logs/coverage/unit"
+    if [[ "${partition}" != all ]]; then
+      local selected_modules=""
+      selected_modules="$("${PYTHON_BIN}" -m core.application.tooling.quality.backend_partition --group "${partition}")" || return $?
+      selection=()
+      while IFS= read -r selected_module; do
+        [[ -n "${selected_module}" ]] && selection+=("${selected_module}")
+      done <<< "${selected_modules}"
+      if [[ ${#selection[@]} -eq 0 ]]; then
+        echo "[lint] Empty backend partition; refusing an unselected pytest run." >&2
+        return 2
+      fi
+      coverage_dir+="/${partition}"
+    fi
+    if [[ "${partition}" == independent ]]; then
+      workspace_args+=(--without-assets)
+    else
+      ensure_frontend_shell || return $?
+    fi
+    local selection_shell="" workspace_args_shell="" coverage_dir_shell=""
+    printf -v selection_shell "%q " "${selection[@]}"
+    if [[ ${#workspace_args[@]} -gt 0 ]]; then
+      printf -v workspace_args_shell "%q " "${workspace_args[@]}"
+    fi
+    printf -v coverage_dir_shell "%q" "${coverage_dir}"
     # Write unit-only coverage to logs/coverage/unit/.
     # Mixing unit-only and project-wide artifacts into one file makes coverage
     # claims untrustworthy. See TESTING_GAP_ANALYSIS.md §Measurement Scope.
@@ -2300,9 +2344,7 @@ run_check_unit_tests_with_coverage() {
       coverage_args=("--cov=.")
     fi
     printf -v coverage_args_shell "%q " "${coverage_args[@]}"
-    if [[ ! -d logs/coverage/unit ]]; then
-      mkdir -p logs/coverage/unit
-    fi
+    mkdir -p "${coverage_dir}"
     echo "[lint] Unit test workers share hash seed ${unit_test_hash_seed}."
     # -u streams progress through tee: a run the kernel kills for memory still
     # shows how far it got instead of an empty block-buffered log.
@@ -2310,17 +2352,17 @@ run_check_unit_tests_with_coverage() {
       "Unit tests with coverage" \
       bash -lc "set -o pipefail; \
         PYTHONHASHSEED=${unit_test_hash_seed} ./core/entrypoints/cli/scripts/run-core-only-tests.sh \
-          --coverage-export-dir "${ROOT_DIR}/logs/coverage/unit" \
-          \"${PYTHON_BIN}\" -u -m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}tests/unit --ignore=tests/unit/stress \
+          --coverage-export-dir ${coverage_dir_shell} ${workspace_args_shell}\
+          \"${PYTHON_BIN}\" -u -m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}${selection_shell}\
           ${coverage_args_shell}\
           --durations=30 --durations-min=1.0 \
           --cov-report=term-missing \
           --cov-report=xml:logs/coverage/unit/coverage.xml \
           --cov-fail-under=\"${FS_COV_FAIL_UNDER:-0}\" \
-          | tee logs/coverage/unit/coverage.txt; \
+          | tee ${coverage_dir_shell}/coverage.txt; \
         pytest_status=\${PIPESTATUS[0]}; \
         if [[ \"\${pytest_status}\" -ne 0 ]]; then exit \"\${pytest_status}\"; fi; \
-        if grep -Eq '(^SKIPPED \\[|[0-9]+ skipped)' logs/coverage/unit/coverage.txt; then \
+        if grep -Eq '(^SKIPPED \\[|[0-9]+ skipped)' ${coverage_dir_shell}/coverage.txt; then \
           if [[ "${FS_ALLOW_UNIT_TEST_SKIPS:-0}" == "1" ]]; then \
             echo '[lint] Unit test skips explicitly accepted for this environment.'; \
           else \
@@ -2485,6 +2527,12 @@ run_selected_checks() {
         ;;
       tests|pytest)
         run_check_unit_tests_with_coverage
+        ;;
+      backend-tests)
+        run_check_unit_tests_with_coverage independent
+        ;;
+      backend-frontend-contracts)
+        run_check_unit_tests_with_coverage frontend-contract
         ;;
       targeted-tests)
         run_check_targeted_tests
@@ -2887,6 +2935,13 @@ if [[ ${#REQUESTED_CHECKS[@]} -gt 0 ]]; then
   run_selected_checks
 else
   case "${MODE}" in fast) tier=2 ;; full) tier=3 ;; *) echo "[lint] Unsupported mode: ${MODE}" >&2; exit 2 ;; esac
+  if [[ "${tier}" == 3 ]]; then
+    # Reusing a test pass does not transfer a coverage report. Only reports
+    # generated by this invocation may be offered to Sonar.
+    rm -f logs/coverage/unit/coverage.xml \
+      logs/coverage/unit/independent/coverage.xml \
+      logs/coverage/unit/frontend-contract/coverage.xml
+  fi
   quality_verify_args=(
     --tier "${tier}"
     --evidence-mode "${EVIDENCE_MODE}"

@@ -13,15 +13,19 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Literal, Protocol
 
-from core.application.tooling.quality.check_registry import CheckDefinition
-
 from core.application.tooling.quality import pip_audit_acceptance
+from core.application.tooling.quality.backend_runtime import backend_runtime_identity
+from core.application.tooling.quality.check_registry import CheckDefinition
 
 FingerprintSource = Literal["worktree", "index", "commit"]
 _GATE_INPUTS = (
     "infra/tooling/quality/check-registry.json",
     "core/application/tooling/quality/check_registry.py",
     "core/application/tooling/quality/fingerprint.py",
+    "core/application/tooling/quality/backend_runtime.py",
+    "core/application/tooling/quality/backend_partition.py",
+    "core/application/tooling/quality/backend_partition_cache.py",
+    "core/application/tooling/quality/runtime_receipt.py",
     "core/application/tooling/quality/evidence.py",
     "core/application/tooling/quality/verify.py",
     "core/entrypoints/cli/scripts/lint.sh",
@@ -75,30 +79,35 @@ class FingerprintContext:
         object.__setattr__(self, "root", root)
 
     def iter_matching_content(
-        self, patterns: tuple[str, ...]
+        self, patterns: tuple[str, ...], *, exclude: tuple[str, ...] = ()
     ) -> tuple[tuple[PurePosixPath, bytes], ...]:
         """Return sorted repository-relative content for the selected source."""
         expanded = _validated_patterns(patterns)
+        excluded = _validated_patterns(exclude)
         if self.source == "worktree":
-            return _worktree_content(self.root, expanded)
+            return _worktree_content(self.root, expanded, excluded)
         if self.source == "index":
-            return _git_content(self.root, expanded, source="index")
-        return _git_content(self.root, expanded, source="commit", commit_sha=self.commit_sha)
+            return _git_content(self.root, expanded, excluded, source="index")
+        return _git_content(
+            self.root, expanded, excluded, source="commit", commit_sha=self.commit_sha
+        )
 
 
 def fingerprint_check(check: CheckDefinition, context: FingerprintContext) -> str:
     """Hash one check definition, its declared inputs, and runtime identity."""
     digest = hashlib.sha256()
-    _feed(digest, "schema", b"1")
+    _feed(digest, "schema", b"2")
     definition = json.dumps(
         check.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     _feed(digest, "definition", definition)
     for path, content in context.iter_matching_content(_GATE_INPUTS):
         _feed(digest, f"gate:{path.as_posix()}", content)
-    for path, content in context.iter_matching_content(check.inputs):
+    for path, content in context.iter_matching_content(check.inputs, exclude=check.input_excludes):
         _feed(digest, path.as_posix(), content if check.input_mode == "content" else b"")
     runtime_identity = dict(context.runtime_identity)
+    if check.id in {"backend-tests", "backend-frontend-contracts"}:
+        runtime_identity.update(backend_runtime_identity(context.commit_sha))
     if check.id == "frontend-tests":
         # The frontend workspace copies all assets, including shared JS/CSS.
         # Bind cross-commit reuse to the effective build/test environment too.
@@ -215,7 +224,7 @@ def _expand_braces(pattern: str) -> tuple[str, ...]:
 
 
 def _worktree_content(
-    root: Path, patterns: tuple[str, ...]
+    root: Path, patterns: tuple[str, ...], excluded: tuple[str, ...] = ()
 ) -> tuple[tuple[PurePosixPath, bytes], ...]:
     matched: dict[str, bytes] = {}
     candidates = _run_git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
@@ -223,19 +232,23 @@ def _worktree_content(
         if not raw_path:
             continue
         normalized = raw_path.decode("utf-8", errors="surrogateescape")
-        if not _matches_any_pattern(normalized, patterns):
+        if not _matches_any_pattern(normalized, patterns) or _matches_any_pattern(
+            normalized, excluded
+        ):
             continue
         path = root / normalized
         if path.is_symlink():
-            matched[normalized] = b"symlink\0" + os.readlink(path).encode("utf-8")
+            matched[normalized] = b"120000\0" + os.readlink(path).encode("utf-8")
         elif path.is_file():
-            matched[normalized] = path.read_bytes()
+            mode = b"100755" if path.stat().st_mode & 0o100 else b"100644"
+            matched[normalized] = mode + b"\0" + path.read_bytes()
     return tuple((PurePosixPath(path), matched[path]) for path in sorted(matched))
 
 
 def _git_content(
     root: Path,
     patterns: tuple[str, ...],
+    excluded: tuple[str, ...] = (),
     *,
     source: Literal["index", "commit"],
     commit_sha: str = "",
@@ -252,7 +265,7 @@ def _git_content(
         metadata, raw_path = raw_entry.split(b"\t", 1)
         parts = metadata.decode("ascii").split()
         path = raw_path.decode("utf-8", errors="surrogateescape")
-        if not _matches_any_pattern(path, patterns):
+        if not _matches_any_pattern(path, patterns) or _matches_any_pattern(path, excluded):
             continue
         if source == "index":
             mode, object_id, stage = parts
@@ -270,7 +283,7 @@ def _git_content(
     for path in sorted(entries):
         mode, object_id = entries[path]
         value = b"gitlink\0" + object_id.encode("ascii") if mode == "160000" else blobs[object_id]
-        content.append((PurePosixPath(path), value))
+        content.append((PurePosixPath(path), mode.encode("ascii") + b"\0" + value))
     return tuple(content)
 
 

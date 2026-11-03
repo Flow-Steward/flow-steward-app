@@ -203,6 +203,7 @@ def test_tier_three_keeps_only_long_suites_and_required_acceptance_checks() -> N
     assert set(tier_three_order) == {
         "frontend-tests",
         "backend-tests",
+        "backend-frontend-contracts",
         "extension-oauth-browser",
         "clone-volume-disposable",
         "quality-evidence-mixed-uid",

@@ -118,7 +118,7 @@ def test_backend_tier_three_collects_all_unit_test_failures() -> None:
     )
 
     assert "-m pytest -q -ra -x tests/unit" not in body
-    assert "${pytest_fail_fast_arg}tests/unit" in body
+    assert "${pytest_fail_fast_arg}${selection_shell}" in body
 
 
 def test_backend_unit_suite_runs_on_a_fixed_number_of_xdist_workers() -> None:
@@ -130,9 +130,11 @@ def test_backend_unit_suite_runs_on_a_fixed_number_of_xdist_workers() -> None:
 
     assert "local unit_test_workers=4" in body
     assert 'pytest_parallel_args="-n ${unit_test_workers} --dist loadgroup "' in body
-    assert "-m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}tests/unit" in body
+    assert (
+        "-m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}${selection_shell}" in body
+    )
     assert "--cov-report=xml:logs/coverage/unit/coverage.xml" in body
-    assert "| tee logs/coverage/unit/coverage.txt" in body
+    assert "| tee ${coverage_dir_shell}/coverage.txt" in body
     # Workers must collect identical test lists; one hash seed per run keeps them in step.
     assert 'unit_test_hash_seed="$(od -An -N4 -tu4 /dev/urandom' in body
     assert (
@@ -984,6 +986,7 @@ AUDIT_TOOLCHAIN_FILES = (
     "requirements-semgrep.txt",
     "core/application/tooling/quality/semgrep_distribution.py",
     "core/application/tooling/quality/semgrep_inventory.py",
+    "core/application/tooling/quality/runtime_receipt.py",
     "requirements-cli.lock",
 )
 

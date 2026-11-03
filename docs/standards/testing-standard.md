@@ -113,7 +113,7 @@ private development commit. Documentation workflows remain independent.
 
 Evidence has one of two reuse scopes, set per check in the registry (ADR 0036):
 
-- `commit` (the default, and every Tier 3 suite): a result counts only for the
+- `commit` (the default): a result counts only for the
   commit that produced it.
 - `inputs`: a passed result counts for any commit whose fingerprint for that
   check matches. The fingerprint covers the check's declared inputs, the gate
@@ -122,6 +122,35 @@ Evidence has one of two reuse scopes, set per check in the registry (ADR 0036):
 
 Unchanged work is never repeated: a commit that touches only the frontend does
 not rerun mypy, a later commit that leaves `core/` alone does not rerun Semgrep.
+
+Tier 3 Python tests have two disjoint module selections. `backend-tests` owns
+the statically independent selection; `backend-frontend-contracts` owns modules
+that read UI sources, serve the real frontend shell, scan repository trees, or
+have unresolved dependencies. Mixed API/UI modules stay together in the latter
+selection. Every non-stress unit test module belongs to exactly one selection;
+both checks are required for cumulative acceptance and browser prerequisites.
+`lint.sh --checks tests` remains the complete unit suite.
+
+Only the independent selection excludes `assets/**` from its fingerprint. It
+runs without assets or an escape through `PYTEST_SOURCE_REPO_ROOT`, and skips
+the shared workflows patch bootstrap it does not use. Tests importing that
+aggregate, or requesting its fixtures, remain in the contract selection.
+All other tracked repository content, executable modes, gate commands, Python
+runtime, installed tools, relevant environment, and actual disposable service
+images remain fingerprint inputs. A source-independent runtime receipt is baked
+before candidate source is copied into `fs-audit`; a different final Docker
+image ID alone does not invalidate an identical measured runtime. Missing
+receipts/service identities or custom external configuration disable cross-SHA
+reuse. The producer SHA stays on reused evidence.
+
+A frontend edit therefore invalidates the Python frontend contract selection,
+while a matching independent backend pass can be reused. This is conservative:
+an unresolved dependency stays in the contract selection instead of being
+assumed independent. No test is deleted or silently treated as passed.
+Coverage is stored separately for each executed selection. Reusing a pass does
+not manufacture or transfer coverage; a fresh cumulative invocation removes old
+unit XML reports and Sonar consumes only available reports from executed scopes.
+An explicit coverage threshold applies to each executed selection.
 
 ### Tier 1: Iteration
 

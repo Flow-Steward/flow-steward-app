@@ -149,7 +149,8 @@ if str(_ROOT) not in sys.path:
 
 from tests.unit._psycopg_runtime_stub import install_psycopg_runtime_stub  # noqa: E402
 
-install_psycopg_runtime_stub()
+if os.environ.get("FS_QUALITY_BACKEND_PARTITION") != "independent":
+    install_psycopg_runtime_stub()
 
 
 # ---------------------------------------------------------------------------
