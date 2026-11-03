@@ -117,7 +117,9 @@ function ConnectionSecretFieldPicker({
           {t("react.extensions.secret_catalog.bound_help", "A value typed above replaces this stored secret's value everywhere it is used.")}
         </p>
       ) : null}
+      {/* Created in place as a project secret and bound at once (ADR 0055). */}
       <CatalogSecretPicker
+        allowCreate
         boundSecretId={boundSecretId}
         busy={bind.isPending || unbind.isPending}
         error={bind.error || unbind.error}

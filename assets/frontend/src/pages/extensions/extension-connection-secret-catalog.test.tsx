@@ -10,7 +10,7 @@ import {
   unbindConnectionFieldSecret,
   type SecretApprovalStatus,
 } from "@/pages/projects/connections/api";
-import { fetchCatalogSecrets } from "@/pages/registry/secrets/api";
+import { createCatalogSecret, fetchCatalogSecrets } from "@/pages/registry/secrets/api";
 import { ConnectionSecretApprovalStatus, ConnectionSecretFieldBinding } from "./extension-connection-secret-catalog";
 import type { ManifestRenderContext } from "./extension-manifest-render-model";
 import { renderManifestComponent } from "./extension-manifest-renderer";
@@ -32,6 +32,7 @@ const mockedApprove = vi.mocked(approveConnectionSecretUse);
 const mockedBind = vi.mocked(bindConnectionFieldSecret);
 const mockedUnbind = vi.mocked(unbindConnectionFieldSecret);
 const mockedSecrets = vi.mocked(fetchCatalogSecrets);
+const mockedCreate = vi.mocked(createCatalogSecret);
 
 function approval(overrides: Partial<SecretApprovalStatus> = {}): SecretApprovalStatus {
   return {
@@ -88,6 +89,23 @@ describe("ConnectionSecretFieldBinding", () => {
 
     await waitFor(() => expect(mockedBind).toHaveBeenCalledWith("p1", "c1", "api_token", "s2"));
     expect(screen.getByRole("link", { name: /Manage stored secrets/ })).toHaveAttribute("href", "/registry/secrets");
+  });
+
+  it("creates a project secret in place for a connection field and binds it", async () => {
+    mockedCreate.mockResolvedValue({ id: "s9", name: "New token", description: "", owner: "project", workspace_id: "w1", project_id: "p1" });
+    renderWithClient(<ConnectionSecretFieldBinding field="api_token" fieldLabel="API token" projectId="p1" row={unboundRow} />);
+    fireEvent.click(screen.getByRole("button", { name: "Use an existing secret" }));
+
+    fireEvent.change(await screen.findByLabelText("Secret name"), { target: { value: "New token" } });
+    fireEvent.change(screen.getByLabelText("Value of the new secret for API token"), { target: { value: "typed-value" } });
+    const create = screen.getByRole("button", { name: "Create and use" });
+    await waitFor(() => expect(create).toBeEnabled());
+    fireEvent.click(create);
+
+    await waitFor(() =>
+      expect(mockedCreate).toHaveBeenCalledWith({ name: "New token", description: "", value: "typed-value", project_id: "p1" }),
+    );
+    await waitFor(() => expect(mockedBind).toHaveBeenCalledWith("p1", "c1", "api_token", "s9"));
   });
 
   it("shows the bound secret and removes the binding", async () => {

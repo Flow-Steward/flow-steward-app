@@ -63,6 +63,18 @@ def _is_workflow_authoring_create(path: str, method: str) -> bool:
     )
 
 
+#: Unbinding a catalog secret from one field of a workflow or connection (ADR 0055).
+#: It removes the binding, never the secret, and is the operator's like binding is;
+#: the secret catalog service checks role, interactive session and scopes.
+_SECRET_BINDING_RE = re.compile(
+    r"^/api/projects/[^/]+/(?:workflows|connections)/[^/]+/secret-bindings/[^/]+$"
+)
+
+
+def _is_secret_unbind(path: str, method: str) -> bool:
+    return method == "DELETE" and bool(_SECRET_BINDING_RE.fullmatch(path))
+
+
 _VIEWER_EXTENSION_DETAIL_RE = re.compile(r"^/api/extensions/([^/]+)(?:/compiled-manifest)?$")
 _PROJECT_EXTENSION_CALLBACK_WRITE_RE = re.compile(
     r"^/api/extensions/[^/]+/callbacks/[^/]+(?:/(?:rotate|status))?$"
@@ -270,7 +282,11 @@ def _required_http_scopes(
         # stays the middleware's role gate. The scope decides only what a token of an
         # administrator may be narrowed to (T1 acceptance: it was still admin:all).
         return [_TOKEN_PROJECTS_WRITE, _TOKEN_PROJECTS, _TOKEN_COMMAND, _TOKEN_ADMIN_ALL]
-    if admin_required or registry_write or method == "DELETE":
+    if (
+        admin_required
+        or registry_write
+        or (method == "DELETE" and not _is_secret_unbind(normalized_path, method))
+    ):
         return [_TOKEN_ADMIN_ALL]
     if normalized_path.startswith(_PATH_API_PROJECTS) and normalized_path.endswith(
         "/notifications/dispatch"
@@ -483,7 +499,7 @@ async def local_auth_middleware(
     authoring_validate = _is_workflow_authoring_validate(path, method)
     admin_required = bool(
         is_admin_only_route_fn(path)
-        or method == "DELETE"
+        or (method == "DELETE" and not _is_secret_unbind(path, method))
         or _is_workflow_authoring_create(path, method)
     )
     registry_read_route = bool(is_registry_read_route_fn(path))

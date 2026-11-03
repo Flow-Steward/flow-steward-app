@@ -1248,3 +1248,20 @@ def test_project_workflow_management_beside_the_secret_leaves_stays_admin_only(p
     )
     assert response.status_code == 403
     assert b"Admin role required" in response.body
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/projects/proj-1/connections/conn-1/secret-bindings/api_key",
+        "/api/projects/proj-1/connections/conn-1",
+        "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings",
+        "/api/projects/proj-1",
+    ],
+)
+def test_only_unbinding_a_secret_is_an_operator_delete(path: str) -> None:
+    response = _run_middleware_with_principal(
+        path=path, method="DELETE", principal=_OPERATOR, admin_only=is_admin_only_route(path)
+    )
+    expected = 204 if path.endswith("/secret-bindings/api_key") else 403
+    assert response.status_code == expected
