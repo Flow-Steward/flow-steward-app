@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+# Bound here, before any test replaces the availability check: this module imports
+# it by name at import time, and a first import under a patch would keep the stub.
+import core.infrastructure.extension_runtime.extension_runtime_entrypoints  # noqa: F401
 from core.application.orchestration.connector_extension_runtime import _dispatch_extension_runtime
 from core.application.orchestration.connector_receiver import PinnedReceiver
 
