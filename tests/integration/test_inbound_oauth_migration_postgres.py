@@ -30,9 +30,9 @@ pytestmark = pytest.mark.integration
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = "20261101153533_inbound_oauth_tables.sql"
 AGENT_MIGRATION = "20261103090000_retired_agent_type.sql"
-SECRET_CATALOG_MIGRATION = "20261103090000_secret_catalog.sql"
+CATALOG_MIGRATION = "20261103090000_secret_catalog.sql"
 #: Every migration this tree ships, in apply order; the secret catalog is pending too.
-MIGRATIONS = [MIGRATION, AGENT_MIGRATION, SECRET_CATALOG_MIGRATION]
+MIGRATIONS = [MIGRATION, AGENT_MIGRATION, CATALOG_MIGRATION]
 OAUTH_TABLES = (
     "oauth_clients",
     "oauth_grants",
