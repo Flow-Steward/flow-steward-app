@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from core.application.tooling.db import migration_runner, upgrade_phases
-from core.infrastructure.db.session_identity import NON_BLOCKING_ROLES, SESSION_PREFIX
+from core.infrastructure.config.session_identity import NON_BLOCKING_ROLES, SESSION_PREFIX
 
 _ROOT = Path(__file__).resolve().parents[4]
 _LISTED = 20

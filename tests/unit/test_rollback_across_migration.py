@@ -49,6 +49,12 @@ def test_a_database_this_release_fully_knows_has_nothing_unknown(tmp_path, monke
 
 def test_the_installer_baseline_refuses_a_database_a_newer_release_upgraded(monkeypatch) -> None:
     class _Cursor:
+        def fetchone(self):
+            return None
+
+        def fetchall(self):
+            return []
+
         def __enter__(self):
             return self
 

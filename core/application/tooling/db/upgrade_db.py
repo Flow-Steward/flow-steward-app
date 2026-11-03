@@ -23,7 +23,7 @@ from core.infrastructure.db.schema_state import (
     inspect_canonical_schema_state,
     record_canonical_schema_state,
 )
-from core.infrastructure.db.session_identity import set_session_role
+from core.infrastructure.config.session_identity import set_session_role
 
 UPGRADE_ADVISORY_LOCK_KEY = migration_runner.MIGRATION_ADVISORY_LOCK_KEY
 
@@ -104,9 +104,7 @@ def _stamp_verified_canonical_baseline(conn, *, component: str) -> dict[str, Any
     post_baseline = migration_runner.apply_pending_migrations(conn, acquire_lock=False)
     # A fresh database runs every data phase too; on an empty database each is a
     # no-op, and the runtime contract then finds them all recorded (ADR 0054).
-    phases = upgrade_phases.run_pending_phases(
-        conn, applied_migrations=set(migration_runner.fetch_applied_migrations(conn))
-    )
+    phases = upgrade_phases.run_pending_phases(conn)
     return {
         **post_baseline,
         "stamped": [],
@@ -208,10 +206,7 @@ def upgrade_database(
                 conn,
                 acquire_lock=False,
             )
-            schema_migrations["upgrade_phases"] = upgrade_phases.run_pending_phases(
-                conn,
-                applied_migrations=set(migration_runner.fetch_applied_migrations(conn)),
-            )
+            schema_migrations["upgrade_phases"] = upgrade_phases.run_pending_phases(conn)
         else:
             schema_migrations = _stamp_verified_canonical_baseline(
                 conn,

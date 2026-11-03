@@ -237,11 +237,15 @@ def test_resolve_extension_runtime_config_reads_connection_scoped_secret_refs():
     assert resolved["secret_refs"] == {
         "refs": {"api_token": "project_connection:conn_sample_tasks:api_token"}
     }
-    resolve_secrets.assert_called_once_with(
-        bl,
-        account_id="acc_default",
-        secret_refs={"refs": {"api_token": "project_connection:conn_sample_tasks:api_token"}},
-    )
+    resolve_secrets.assert_called_once()
+    assert resolve_secrets.call_args.args == (bl,)
+    call = resolve_secrets.call_args.kwargs
+    assert call["account_id"] == "acc_default"
+    assert call["secret_refs"] == {
+        "refs": {"api_token": "project_connection:conn_sample_tasks:api_token"}
+    }
+    # The use check needs the connection being resolved (ADR 0055).
+    assert call["connection"]["connection_id"] == "conn_sample_tasks"
 
 
 def test_resolve_extension_runtime_config_uses_explicit_connection_id():

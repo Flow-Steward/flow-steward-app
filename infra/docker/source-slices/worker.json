@@ -642,6 +642,13 @@
     "core/application/reports/ui_projection_extras_tabs.py",
     "core/application/reports/ui_projection_helpers.py",
     "core/application/reports/ui_projection_review_workspace.py",
+    "core/application/secrets/__init__.py",
+    "core/application/secrets/approval_gate.py",
+    "core/application/secrets/authority.py",
+    "core/application/secrets/projection.py",
+    "core/application/secrets/repository.py",
+    "core/application/secrets/service.py",
+    "core/application/secrets/workflow_gate.py",
     "core/application/security/__init__.py",
     "core/application/security/credential_redaction.py",
     "core/application/settings/__init__.py",
@@ -778,6 +785,7 @@
     "core/infrastructure/config/rabbitmq_transport.py",
     "core/infrastructure/config/runtime_config.py",
     "core/infrastructure/config/runtime_env.py",
+    "core/infrastructure/config/session_identity.py",
     "core/infrastructure/config/size_limits.py",
     "core/infrastructure/config/version.py",
     "core/infrastructure/config/workflow_collection_limits.py",
@@ -1036,6 +1044,7 @@
     "core/infrastructure/security/secret_codec.py",
     "core/infrastructure/security/secret_detection.py",
     "core/infrastructure/security/secret_reference.py",
+    "core/infrastructure/security/stored_secrets.py",
     "core/infrastructure/security/zip_guard.py",
     "core/infrastructure/standard_array.py",
     "core/infrastructure/standard_boolean.py",
@@ -1120,6 +1129,10 @@
     },
     {
       "path": "db/migrations/20261101153533_inbound_oauth_tables.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261103090000_secret_catalog.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

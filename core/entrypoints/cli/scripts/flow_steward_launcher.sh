@@ -1537,6 +1537,7 @@ run_compact_platform_command() {
   compact_operation_id=""
   compact_passphrase_stdin=0
   compact_maintenance_confirmed=0
+  compact_allow_unlabeled_sessions=0
   compact_dry_run=0
   compact_author=""
   compact_target_version=""
@@ -1565,6 +1566,7 @@ run_compact_platform_command() {
       --passphrase-stdin) compact_passphrase_stdin=1 ;;
       --dry-run) compact_dry_run=1 ;;
       --maintenance-confirmed) compact_maintenance_confirmed=1 ;;
+      --allow-unlabeled-sessions) compact_allow_unlabeled_sessions=1 ;;
       --author|--target-version|--timeout-seconds|--operation-id)
         [ "$#" -ge 2 ] || fail "$1 requires a value." 2
         case "$1" in
@@ -1622,6 +1624,7 @@ run_compact_platform_command() {
     2:release:check) compact_operation=release-check ;;
     2:release:upgrade) compact_operation=release-upgrade ;;
     2:database:status) compact_operation=database-status ;;
+    2:database:preflight) compact_operation=database-preflight ;;
     2:database:upgrade) compact_operation=database-upgrade ;;
     2:database:restore-parity-capture)
       compact_operation=database-restore-parity-capture
@@ -1682,6 +1685,9 @@ run_compact_platform_command() {
   fi
   if [ "$compact_maintenance_confirmed" -eq 1 ]; then
     set -- "$@" --maintenance-confirmed
+  fi
+  if [ "$compact_allow_unlabeled_sessions" -eq 1 ]; then
+    set -- "$@" --allow-unlabeled-sessions
   fi
   if [ -n "$compact_author" ]; then
     set -- "$@" --author "$compact_author"

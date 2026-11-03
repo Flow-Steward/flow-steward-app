@@ -321,6 +321,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/security/prompt_safety.py \
     core/infrastructure/security/secret_reference.py \
+    core/infrastructure/security/stored_secrets.py \
     core/infrastructure/security/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/projects/connection_repository.py core/application/projects/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/notifications/repository.py core/application/notifications/

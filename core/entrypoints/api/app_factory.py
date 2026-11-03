@@ -354,7 +354,7 @@ def create_app(
     from core.application.jobs.submission_admission import public_submission_pause_active
     from core.application.monitoring.runtime_composition import start_optional_process_reporting
     from core.infrastructure.config.runtime_env import runtime_env
-    from core.infrastructure.db.session_identity import set_session_role
+    from core.infrastructure.config.session_identity import set_session_role
 
     set_session_role(str(runtime_service_type or "app"))
     current_app = runtime._create_base_app()

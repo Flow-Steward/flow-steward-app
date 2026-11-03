@@ -422,6 +422,13 @@ def test_initialize_database_runs_clean_bootstrap_sequence(monkeypatch) -> None:
             or {"total": 1, "applied": ["0002.sql"], "skipped": []}
         ),
     )
+    from core.application.tooling.db import upgrade_phases
+
+    monkeypatch.setattr(
+        upgrade_phases,
+        "run_pending_phases_dsn",
+        lambda _dsn: calls.append("upgrade-phases") or {},
+    )
 
     class _FakeConnection:
         autocommit = False
@@ -442,6 +449,7 @@ def test_initialize_database_runs_clean_bootstrap_sequence(monkeypatch) -> None:
         "validate",
         "platform",
         "pending-migrations",
+        "upgrade-phases",
         "seed",
         "cleanup",
         "workflow-knowledge",
@@ -456,6 +464,7 @@ def test_initialize_database_runs_clean_bootstrap_sequence(monkeypatch) -> None:
             "applied": ["0002.sql"],
             "skipped": [],
         },
+        "upgrade_phases": {},
         "lookup": {"accounts": 1},
         "registry": {"agents": 2},
         "schema_cleanup": {

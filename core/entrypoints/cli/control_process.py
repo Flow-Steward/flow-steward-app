@@ -66,7 +66,7 @@ def _control_process_metrics_lines(
 
 def main() -> None:
     from core.application.jobs.submission_admission import public_submission_pause_active
-    from core.infrastructure.db.session_identity import set_session_role
+    from core.infrastructure.config.session_identity import set_session_role
 
     set_session_role("control")
 

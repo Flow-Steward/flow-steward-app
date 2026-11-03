@@ -1883,11 +1883,14 @@ def test_execute_connector_step_resolves_connection_target_and_persists_session_
         )
 
     assert result["ok"] is True
-    resolve_secrets.assert_called_once_with(
-        bl,
-        account_id="acc_alpha",
-        secret_refs={"refs": {"api_token": "project_connection:conn_provider_dev:api_token"}},
-    )
+    resolve_secrets.assert_called_once()
+    assert resolve_secrets.call_args.args == (bl,)
+    assert resolve_secrets.call_args.kwargs["account_id"] == "acc_alpha"
+    assert resolve_secrets.call_args.kwargs["secret_refs"] == {
+        "refs": {"api_token": "project_connection:conn_provider_dev:api_token"}
+    }
+    # The use check receives the connection that is about to be dispatched (ADR 0055).
+    assert resolve_secrets.call_args.kwargs["connection"]["connection_id"] == "conn_provider_dev"
     get_session.assert_called_once()
     target = run_action.call_args.kwargs["target"]
     assert target["connection"]["connection_id"] == "conn_provider_dev"

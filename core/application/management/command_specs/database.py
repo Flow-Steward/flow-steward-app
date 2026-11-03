@@ -62,6 +62,7 @@ _ALLOW_UNLABELED_SESSIONS_FIELD = FieldSpec(
     type=FieldType.BOOLEAN,
     default=False,
     option_name="--allow-unlabeled-sessions",
+    examples=("--allow-unlabeled-sessions",),
     description=(
         "Proceed although sessions of the application's database user carry no Flow "
         "Steward name, after confirming they are not processes of an earlier release."

@@ -94,6 +94,13 @@ class _Connection:
             def execute(self, *_args, **_kwargs) -> None:
                 return None
 
+            def fetchone(self):
+                # No upgrade-phase table yet, as on a 0.9.7 database.
+                return None
+
+            def fetchall(self):
+                return []
+
         return _Cursor()
 
     def close(self) -> None:
@@ -135,5 +142,9 @@ def test_the_release_check_stops_an_update_that_carries_the_migration() -> None:
 def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fingerprint() -> None:
     status = upgrade_db.inspect_database_upgrade()
 
-    assert status["pending_migrations"] == [MIGRATION]
+    # A later migration (the secret catalog) is pending on such a database too.
+    assert MIGRATION in status["pending_migrations"]
+    assert status["pending_migrations"] == sorted(
+        path.name for path in (ROOT / "db" / "migrations").glob("*.sql")
+    )
     assert status["needs_upgrade"] is True

@@ -21,7 +21,7 @@ from core.infrastructure.runtime.worker.worker import main as run_worker
 
 
 def main() -> None:
-    from core.infrastructure.db.session_identity import set_session_role
+    from core.infrastructure.config.session_identity import set_session_role
 
     set_session_role("worker")
     validate_compact_only_settings(_runtime_env)

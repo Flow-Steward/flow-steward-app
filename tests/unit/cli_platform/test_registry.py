@@ -230,6 +230,7 @@ _PHASE4_CONFIG_IDS = [
 ]
 _PHASE2_DATABASE_IDS = [
     "database.status",
+    "database.preflight",
     "database.upgrade",
     "database.bootstrap-seed",
     "database.generate-migration",
@@ -286,8 +287,9 @@ def test_public_command_specifications_have_unique_ids_and_paths() -> None:
     # installation Clone adds exactly create and destructive restore;
     # retiring generic task submission removes one public command;
     # `reports diagnostics` adds the installation report for bug reports;
-    # the nine workflow authoring adapters (authoring-schema .. stats) make 118.
-    assert len(command_ids) == 118
+    # the nine workflow authoring adapters (authoring-schema .. stats) make 118;
+    # the read-only `database preflight` of ADR 0054 makes 119.
+    assert len(command_ids) == 119
     assert len(command_ids) == len(set(command_ids))
     assert len(paths) == len(set(paths))
 

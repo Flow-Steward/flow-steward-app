@@ -107,8 +107,12 @@ def unknown_recorded_phases(conn: Any) -> list[str]:
     return sorted(recorded_phases(conn) - known)
 
 
-def run_pending_phases(conn: Any, *, applied_migrations: set[str]) -> dict[str, Any]:
+def run_pending_phases(conn: Any, *, applied_migrations: set[str] | None = None) -> dict[str, Any]:
     """Run each phase this database has not completed, each in its own transaction."""
+    if applied_migrations is None:
+        from core.application.tooling.db import migration_runner
+
+        applied_migrations = set(migration_runner.fetch_applied_migrations(conn))
     completed: dict[str, Any] = {}
     done = recorded_phases(conn)
     for phase in UPGRADE_PHASES:
@@ -137,15 +141,12 @@ def run_pending_phases_dsn(dsn: str) -> dict[str, Any]:
     """Connect and run the pending phases; for paths that applied migrations by DSN."""
     import contextlib
 
-    from core.application.tooling.db import migration_runner
     from core.infrastructure.db import psycopg_runtime
 
     conn = psycopg_runtime.connect(dsn)
     try:
         conn.autocommit = True
-        return run_pending_phases(
-            conn, applied_migrations=set(migration_runner.fetch_applied_migrations(conn))
-        )
+        return run_pending_phases(conn)
     finally:
         with contextlib.suppress(Exception):
             conn.close()

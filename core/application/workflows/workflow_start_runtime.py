@@ -606,9 +606,6 @@ def enqueue_workflow_start(
         "_workflow_secret_ref_fingerprints": list(
             effective_extra_state.get("_workflow_secret_ref_fingerprints") or []
         ),
-        "_workflow_catalog_secret_authority": dict(
-            effective_extra_state.get("_workflow_catalog_secret_authority") or {}
-        ),
     }
 
     return str(

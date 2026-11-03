@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from core.infrastructure.db.schema_contract_catalog import REQUIRED_UPGRADE_PHASES
+
 import sys
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -110,6 +112,9 @@ class _ContractCursor(AbstractContextManager):
         self.statements.append(normalized)
         if "FROM public.platform_schema_migrations" in normalized:
             self._rows = list(self.applied_migrations)
+        elif "FROM public.platform_upgrade_phases" in normalized:
+            # Every phase of this release completed (ADR 0054).
+            self._rows = [(phase,) for phase in REQUIRED_UPGRADE_PHASES]
         elif "relation_state.relkind" in normalized:
             self._rows = list(self.relation_rows)
         elif "column_shape.attname" in normalized:
