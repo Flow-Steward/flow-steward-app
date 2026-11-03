@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
+from uuid import uuid4
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,11 @@ _CANONICAL_PROJECTED_REGISTRY_PREFIX = (
     r"extension\."
     r"(?:pi_[0-9a-fA-F]{24}|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\."
 )
+
+# Installation tokens are opaque: both classic bodies and stateless JWT bodies
+# are supported, without a maximum length or a final word boundary that would
+# leave a base64url '-' behind. A sentence-ending dot stays outside the value.
+GITHUB_INSTALLATION_TOKEN_RE = re.compile(r"ghs_[A-Za-z0-9._-]{19,}[A-Za-z0-9_-](?![A-Za-z0-9_-])")
 
 
 SECRET_PATTERNS: tuple[SecretPattern, ...] = (
@@ -61,7 +68,7 @@ SECRET_PATTERNS: tuple[SecretPattern, ...] = (
     ),
     SecretPattern(
         "github_token",
-        re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{20,})\b"),
+        re.compile(rf"({GITHUB_INSTALLATION_TOKEN_RE.pattern}|\bgh[pour]_[A-Za-z0-9]{{20,}}\b)"),
         "critical",
         "GitHub access token",
     ),
@@ -203,12 +210,30 @@ SECRET_PATTERNS: tuple[SecretPattern, ...] = (
 )
 
 
-def redact_detected_secrets(value: str) -> str:
+def redact_github_installation_tokens(
+    value: str, *, replacement: str = "[SECRET:github_token:REDACTED]"
+) -> str:
+    """Mask installation credentials atomically before generic component rules."""
+    return GITHUB_INSTALLATION_TOKEN_RE.sub(replacement, value)
+
+
+def redact_detected_secrets(
+    value: str, *, patterns: Sequence[SecretPattern] = SECRET_PATTERNS
+) -> str:
     result = str(value or "")
-    for pattern in reversed(SECRET_PATTERNS):
+    placeholder = ""
+    if GITHUB_INSTALLATION_TOKEN_RE.search(result):
+        # Protect whole installation tokens from component rules. Restore their
+        # public marker last: credential-assignment rules also recognize the
+        # words in '[SECRET:github_token:REDACTED]' as a credential assignment.
+        placeholder = "\x00" + uuid4().hex + "\x00"
+        while placeholder in result:
+            placeholder = "\x00" + uuid4().hex + "\x00"
+        result = redact_github_installation_tokens(result, replacement=placeholder)
+    for pattern in reversed(patterns):
         replacement = pattern.replacement or f"[SECRET:{pattern.pattern_id}:REDACTED]"
         result = pattern.regex.sub(replacement, result)
-    return result
+    return result.replace(placeholder, "[SECRET:github_token:REDACTED]") if placeholder else result
 
 
 def contains_detected_secret(value: str) -> bool:
@@ -217,8 +242,10 @@ def contains_detected_secret(value: str) -> bool:
 
 
 __all__ = [
+    "GITHUB_INSTALLATION_TOKEN_RE",
     "SECRET_PATTERNS",
     "SecretPattern",
     "contains_detected_secret",
     "redact_detected_secrets",
+    "redact_github_installation_tokens",
 ]

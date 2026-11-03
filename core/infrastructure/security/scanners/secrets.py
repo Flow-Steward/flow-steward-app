@@ -11,7 +11,12 @@ from typing import Literal, cast
 
 from core.infrastructure.security.models import ScanFinding, meets_severity_threshold
 from core.infrastructure.security.policy import ScannerConfig
-from core.infrastructure.security.secret_detection import SECRET_PATTERNS, SecretPattern
+
+from core.infrastructure.security.secret_detection import (
+    SECRET_PATTERNS,
+    SecretPattern,
+    redact_detected_secrets,
+)
 
 
 class SecretScanner:
@@ -82,8 +87,4 @@ class SecretScanner:
     def redact(self, text: str, findings: list[ScanFinding]) -> str:
         """Apply redaction by re-running patterns and replacing matches."""
         _ = findings
-        result = text
-        for pat in reversed(self._patterns):
-            replacement = pat.replacement or f"[SECRET:{pat.pattern_id}:REDACTED]"
-            result = pat.regex.sub(replacement, result)
-        return result
+        return redact_detected_secrets(text, patterns=self._patterns)

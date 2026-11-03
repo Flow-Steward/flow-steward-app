@@ -8,6 +8,8 @@ from typing import Any
 
 from core.infrastructure.security.secret_reference import is_secret_reference
 
+from core.infrastructure.security.secret_detection import GITHUB_INSTALLATION_TOKEN_RE
+
 # Project config paths that are explicitly safe to expose in prompt templates.
 _ALLOWED_PROJECT_CONFIG_PREFIXES = (
     "project_config.project_rules",
@@ -499,7 +501,10 @@ def _is_safe_opaque_diagnostic_identifier(value: str) -> bool:
     text = str(value or "").strip()
     if not _SAFE_DIAGNOSTIC_IDENTIFIER_RE.fullmatch(text):
         return False
-    return _UNSAFE_DIAGNOSTIC_VALUE_RE.search(text) is None
+    return (
+        _UNSAFE_DIAGNOSTIC_VALUE_RE.search(text) is None
+        and GITHUB_INSTALLATION_TOKEN_RE.search(text) is None
+    )
 
 
 def blocked_reference_examples() -> list[dict[str, str]]:

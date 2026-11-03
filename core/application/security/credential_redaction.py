@@ -10,6 +10,11 @@ from dataclasses import dataclass
 
 from core.application.management.command_specs.contracts import CommandSpec
 
+from core.infrastructure.security.secret_detection import (
+    GITHUB_INSTALLATION_TOKEN_RE,
+    redact_github_installation_tokens,
+)
+
 _REDACTED = "[REDACTED]"
 _SENSITIVE_KEY = re.compile(
     r"(?:api[_-]?key|authorization|bearer|cookie|credential|dsn|passphrase|password|private[_-]?key|secret|session|token)",
@@ -231,6 +236,40 @@ def _replace_document_mapping_value(match: re.Match[str], *, context: RedactionC
     return _replace_quoted_mapping_value(match, context=context)
 
 
+def _redact_known_and_installation_tokens(text: str, context: RedactionContext) -> str:
+    matches = list(GITHUB_INSTALLATION_TOKEN_RE.finditer(text))
+    if not matches:
+        for secret in sorted(set(context.known_secrets), key=len, reverse=True):
+            if secret:
+                text = text.replace(secret, _REDACTED)
+        return text
+    if not context.known_secrets:
+        return redact_github_installation_tokens(text, replacement=_REDACTED)
+
+    # Merge overlapping original ranges so masking either a known value or a
+    # token component cannot split the other credential and expose its suffix.
+    spans = [match.span() for match in matches]
+    for secret in set(context.known_secrets):
+        if not secret:
+            continue
+        offset = text.find(secret)
+        while offset >= 0:
+            spans.append((offset, offset + len(secret)))
+            offset = text.find(secret, offset + 1)
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if merged and start < merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+        else:
+            merged.append((start, end))
+    pieces: list[str] = []
+    cursor = 0
+    for start, end in merged:
+        pieces.extend((text[cursor:start], _REDACTED))
+        cursor = end
+    return "".join((*pieces, text[cursor:]))
+
+
 def redact_document_text(text: str, *, context: RedactionContext | None = None) -> str:
     """Scrub a document whose secret-keyed values the server already masked.
 
@@ -240,9 +279,7 @@ def redact_document_text(text: str, *, context: RedactionContext | None = None) 
     """
     context = context or RedactionContext()
     sanitized = _URL_CREDENTIALS.sub(r"\g<prefix>" + _REDACTED + r"\g<suffix>", str(text))
-    for secret in sorted(set(context.known_secrets), key=len, reverse=True):
-        if secret:
-            sanitized = sanitized.replace(secret, _REDACTED)
+    sanitized = _redact_known_and_installation_tokens(sanitized, context)
     sanitized = _OPAQUE_SECRET_TOKEN.sub(_REDACTED, sanitized)
     sanitized = _QUOTED_MAPPING_ENTRY.sub(
         lambda match: _replace_document_mapping_value(match, context=context),
@@ -259,9 +296,7 @@ def redact_text(text: str, *, context: RedactionContext | None = None) -> str:
     """Scrub known values and URL credentials from unstructured diagnostic text."""
     context = context or RedactionContext()
     sanitized = _URL_CREDENTIALS.sub(r"\g<prefix>" + _REDACTED + r"\g<suffix>", str(text))
-    for secret in sorted(set(context.known_secrets), key=len, reverse=True):
-        if secret:
-            sanitized = sanitized.replace(secret, _REDACTED)
+    sanitized = _redact_known_and_installation_tokens(sanitized, context)
     sanitized = _OPAQUE_SECRET_TOKEN.sub(_REDACTED, sanitized)
     sanitized = _QUOTED_MAPPING_ENTRY.sub(
         lambda match: _replace_quoted_mapping_value(match, context=context),
