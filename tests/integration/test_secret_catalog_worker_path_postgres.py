@@ -287,11 +287,19 @@ def test_a_bound_catalog_secret_reaches_its_approved_destination(stand) -> None:
     ]
     job_id = stand.enqueue("wf_catalog", {"api_key": _ref(key)})
 
-    result = stand.run_http(stand.deliver(job_id), job_id)
+    state = stand.deliver(job_id)
+    assert "runtime_context" not in state
+    result = stand.run_http(state, job_id)
 
     assert result["ok"] is True, result
     assert _sent_header(stand) == VALUE
     assert VALUE not in json.dumps(result)
+
+    # A legacy runtime_context written into run state names no account the
+    # boundary trusts: the read still uses the job's own.
+    forged = {**state, "runtime_context": {"account_id": "00000000-0000-0000-0000-00000000dead"}}
+    assert stand.run_http(forged, job_id)["ok"] is True
+    assert _sent_header(stand) == VALUE
 
 
 def test_inline_and_workflow_default_secrets_work_on_the_worker_path(stand) -> None:
