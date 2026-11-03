@@ -312,8 +312,11 @@ def test_a_configured_credential_without_a_value_is_an_error_not_a_dropped_field
             None,
             account_id="acct-1",
             secret_refs={
-                "refs": {"api_token": "ref-token", "webhook_secret": "ref-gone"}
-            },  # pragma: allowlist secret
+                "refs": {
+                    "api_token": "ref-token",
+                    "webhook_secret": "ref-gone",  # pragma: allowlist secret
+                }
+            },
             reader=reader,
         )
 
