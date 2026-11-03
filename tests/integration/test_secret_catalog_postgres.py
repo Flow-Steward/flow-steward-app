@@ -475,3 +475,91 @@ def test_a_used_secret_cannot_be_deleted_and_survives_its_consumer(create_databa
         assert project_id
     finally:
         conn.close()
+
+
+def _ledger_and_shape(conn) -> tuple[list, list, list]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT migration_id, checksum FROM public.platform_schema_migrations ORDER BY 1"
+        )
+        ledger = cur.fetchall()
+        cur.execute("SELECT * FROM public.platform_upgrade_phases ORDER BY 1")
+        phases = cur.fetchall()
+        cur.execute(
+            """
+            SELECT table_name, column_name, data_type
+              FROM information_schema.columns
+             WHERE table_schema = 'public'
+             ORDER BY 1, 2
+            """
+        )
+        shape = cur.fetchall()
+    return ledger, phases, shape
+
+
+def test_a_ledger_that_skips_an_earlier_migration_is_refused_before_any_change(
+    create_database,
+) -> None:
+    """ADR 0056: the applied set is a prefix of this release's ordered files. A ledger
+    that records a later file while an earlier one is missing would get the earlier one
+    applied out of order."""
+    ordered = [path.name for path in migration_runner.discover_migration_files(ROOT)]
+    assert len(ordered) >= 3, "the guard needs a first, a skipped and a later migration"
+    dsn = create_database()
+    upgrade_db.baseline_migration_history(dsn=dsn, author="installer")
+    conn = _connect(dsn)
+    try:
+        with conn.cursor() as cur:
+            # Shapes this disposable database like one that applied the third file and
+            # never the second; the code under test never edits a ledger.
+            cur.execute(
+                "DELETE FROM public.platform_schema_migrations WHERE migration_id = %s",
+                (ordered[1],),
+            )
+        before = _ledger_and_shape(conn)
+
+        report = preflight(conn, allow_unlabeled_sessions=True, root=ROOT)
+
+        gaps = [
+            issue
+            for issue in report["blocking"]
+            if issue["code"] == "unknown_schema"
+            and "missing_migrations" in issue.get("details", {})
+        ]
+        assert [issue["details"]["missing_migrations"] for issue in gaps] == [[ordered[1]]]
+        with pytest.raises(RuntimeError, match="preflight is blocked"):
+            upgrade_db.upgrade_database(
+                dsn=dsn, author="test", maintenance_confirmed=True, allow_unlabeled_sessions=True
+            )
+        assert _ledger_and_shape(conn) == before, "the refusal wrote no DDL, ledger or phase"
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("kept", ["all", "prefix", "none"])
+def test_a_ledger_that_holds_a_prefix_of_the_ordered_files_is_a_supported_source(
+    create_database, kept: str
+) -> None:
+    ordered = [path.name for path in migration_runner.discover_migration_files(ROOT)]
+    dropped = {"all": [], "prefix": ordered[1:], "none": ordered}[kept]
+    dsn = create_database()
+    upgrade_db.baseline_migration_history(dsn=dsn, author="installer")
+    conn = _connect(dsn)
+    try:
+        with conn.cursor() as cur:
+            for name in dropped:
+                cur.execute(
+                    "DELETE FROM public.platform_schema_migrations WHERE migration_id = %s",
+                    (name,),
+                )
+
+        report = preflight(conn, allow_unlabeled_sessions=True, root=ROOT)
+
+        assert [
+            issue
+            for issue in report["blocking"]
+            if "missing_migrations" in issue.get("details", {})
+        ] == []
+        assert report["pending_migrations"] == dropped
+    finally:
+        conn.close()
