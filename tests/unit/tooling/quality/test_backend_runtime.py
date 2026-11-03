@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from dotenv import dotenv_values
 
 from core.application.tooling.quality import backend_runtime
 
@@ -27,6 +29,18 @@ def test_same_runtime_can_match_across_candidate_shas(canonical_environment) -> 
     assert first == second
 
 
+def test_shipped_quickstart_defaults_allow_cross_sha_reuse(canonical_environment) -> None:
+    defaults = dotenv_values(Path(__file__).resolve().parents[4] / ".env.example")
+    environment = {
+        **canonical_environment,
+        **{key: value for key, value in defaults.items() if value is not None},
+    }
+    assert not backend_runtime._has_external_inputs(environment)
+    assert backend_runtime.backend_runtime_identity("1" * 40, environ=environment) == (
+        backend_runtime.backend_runtime_identity("2" * 40, environ=environment)
+    )
+
+
 @pytest.mark.parametrize(
     ("name", "value"),
     [
@@ -46,6 +60,7 @@ def test_same_runtime_can_match_across_candidate_shas(canonical_environment) -> 
         ("FS_STACK_ENV_FILE", "/external/stack.env"),
         ("UNREGISTERED_CONFIG_FILE", "/external/custom.yaml"),
         ("UNREGISTERED_CONFIG_PATH", "custom/config.yaml"),
+        ("CUSTOM_PLUGIN_FILES", "plugins/a.py"),
         ("TARGET_PROJECT_PATH", "/real/external/project"),
         ("LD_PRELOAD", "/external/libcustom.so"),
         ("PATH", "/external/bin:/usr/bin"),
@@ -67,6 +82,7 @@ def test_unknown_or_custom_runtime_does_not_match_across_shas(
     [
         ("FS_TEST_BACKEND_SERVICES_ID", "sha256:" + "d" * 64),
         ("FS_COV_FAIL_UNDER", "90"),
+        ("FS_ATTACHMENT_MAX_FILES", "17"),
         ("FS_ALLOW_UNIT_TEST_SKIPS", "1"),
         ("FS_TEST_DISPOSABLE_DB", "0"),
         ("FS_MEMORY_VECTOR_BACKEND", "custom"),
