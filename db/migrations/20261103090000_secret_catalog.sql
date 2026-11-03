@@ -15,7 +15,7 @@
 --                          interrupted outcomes require manual reconciliation.
 -- transaction: true
 
--- Secret catalog (ADR 0057) and the upgrade phase ledger (ADR 0056).
+-- Secret catalog (ADR 0055) and the upgrade phase ledger (ADR 0054).
 --
 -- The DDL is the baseline block at the end of 001_schema_part_12.sql with IF NOT
 -- EXISTS added, so a fresh installation (which already has the tables) is unchanged
@@ -181,7 +181,7 @@ SELECT m.account_id, cs.id, 'project_connection', m.connection_id, m.field_name,
  WHERE cs.project_id = m.project_id
 ON CONFLICT (project_connection_id, field_name) DO NOTHING;
 
--- The connection's refs map is the projection of its bindings (ADR 0057): record
+-- The connection's refs map is the projection of its bindings (ADR 0055): record
 -- which fields the catalog now owns, so the use check and connection updates see them.
 UPDATE public.project_connections AS pc
    SET secret_refs = jsonb_set(
