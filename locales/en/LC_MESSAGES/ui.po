@@ -29150,3 +29150,186 @@ msgstr "In use — remove its bindings to delete it"
 
 msgid "react.registry.secrets.delete"
 msgstr "Delete"
+
+msgid "react.secret_catalog.owner_workspace"
+msgstr "workspace"
+
+msgid "react.secret_catalog.owner_project"
+msgstr "project"
+
+msgid "react.secret_catalog.failed"
+msgstr "The stored secret was not changed"
+
+msgid "react.secret_catalog.bound"
+msgstr "Uses stored secret"
+
+msgid "react.secret_catalog.remove_for"
+msgstr "Stop using the stored secret for {field}"
+
+msgid "react.secret_catalog.remove"
+msgstr "Stop using"
+
+msgid "react.secret_catalog.choose_for"
+msgstr "Stored secret for {field}"
+
+msgid "react.secret_catalog.none_available"
+msgstr "No stored secrets are available to this project"
+
+msgid "react.secret_catalog.choose"
+msgstr "Choose a stored secret"
+
+msgid "react.secret_catalog.use_instead"
+msgstr "Use instead"
+
+msgid "react.secret_catalog.use"
+msgstr "Use this secret"
+
+msgid "react.secret_catalog.create_legend"
+msgstr "Or create a project secret"
+
+msgid "react.secret_catalog.create_name"
+msgstr "Secret name"
+
+msgid "react.secret_catalog.create_value"
+msgstr "Value"
+
+msgid "react.secret_catalog.create_value_for"
+msgstr "Value of the new secret for {field}"
+
+msgid "react.secret_catalog.create_and_use"
+msgstr "Create and use"
+
+msgid "react.secret_catalog.manage"
+msgstr "Manage stored secrets"
+
+msgid "react.workflows.secret_catalog.needs_project"
+msgstr "Open this workflow from a project to use a stored secret for this input."
+
+msgid "react.workflows.secret_catalog.save_first"
+msgstr "Save the workflow to choose a stored secret for this input."
+
+msgid "react.workflows.secret_catalog.title"
+msgstr "Stored secret"
+
+msgid "react.workflows.secret_catalog.help"
+msgstr "A chosen stored secret is used instead of the value above. Runs can use it only after a person approves the workflow's use of secrets."
+
+msgid "react.workflows.secret_approval.scheme"
+msgstr "Scheme"
+
+msgid "react.workflows.secret_approval.scheme_n"
+msgstr "Scheme of rule {index}"
+
+msgid "react.workflows.secret_approval.host"
+msgstr "Host"
+
+msgid "react.workflows.secret_approval.host_n"
+msgstr "Host of rule {index}"
+
+msgid "react.workflows.secret_approval.port"
+msgstr "Port (optional)"
+
+msgid "react.workflows.secret_approval.port_n"
+msgstr "Port of rule {index}"
+
+msgid "react.workflows.secret_approval.path_prefix"
+msgstr "Path prefix (optional)"
+
+msgid "react.workflows.secret_approval.path_prefix_n"
+msgstr "Path prefix of rule {index}"
+
+msgid "react.workflows.secret_approval.remove_rule"
+msgstr "Remove rule"
+
+msgid "react.workflows.secret_approval.add_rule"
+msgstr "Add destination"
+
+msgid "react.workflows.secret_approval.title"
+msgstr "Use of stored secrets"
+
+msgid "react.workflows.secret_approval.approved"
+msgstr "approved"
+
+msgid "react.workflows.secret_approval.required"
+msgstr "approval required"
+
+msgid "react.workflows.secret_approval.approved_help"
+msgstr "A person approved this saved workflow's use of the stored secrets below. Any change to its steps or bindings needs a new approval."
+
+msgid "react.workflows.secret_approval.required_help"
+msgstr "Runs cannot use the stored secrets below until a person approves this saved workflow. Saving the workflow or applying an AI Builder draft never approves it."
+
+msgid "react.workflows.secret_approval.unsaved"
+msgstr "Approval covers the saved workflow"
+
+msgid "react.workflows.secret_approval.unsaved_help"
+msgstr "Your unsaved changes are not part of this approval. Save them first, then review and approve again."
+
+msgid "react.workflows.secret_approval.conflict"
+msgstr "The workflow changed after it was shown"
+
+msgid "react.workflows.secret_approval.conflict_help"
+msgstr "Nothing was approved. The status below is reloaded; review it and approve again."
+
+msgid "react.workflows.secret_approval.failed"
+msgstr "Not approved"
+
+msgid "react.workflows.secret_approval.secrets"
+msgstr "Secrets"
+
+msgid "react.workflows.secret_approval.destinations"
+msgstr "Sent to"
+
+msgid "react.workflows.secret_approval.no_literal_destinations"
+msgstr "no HTTP step with a fixed URL"
+
+msgid "react.workflows.secret_approval.approved_destinations"
+msgstr "Approved destinations"
+
+msgid "react.workflows.secret_approval.dynamic_steps"
+msgstr "HTTP steps with a computed URL"
+
+msgid "react.workflows.secret_approval.rules_help"
+msgstr "These steps build their URL while the workflow runs, so a secret may reach them only on the exact hosts you list here. A path prefix matches whole path segments."
+
+msgid "react.workflows.secret_approval.approve"
+msgstr "Approve use of secrets"
+
+msgid "react.workflows.secret_approval.rules_required"
+msgstr "Add at least one destination for the steps with a computed URL."
+
+msgid "react.extensions.secret_catalog.save_first"
+msgstr "After the connection is saved, you can use a stored secret for this field instead."
+
+msgid "react.extensions.secret_catalog.use_existing"
+msgstr "Use an existing secret"
+
+msgid "react.extensions.secret_catalog.bound_help"
+msgstr "A value typed above replaces this stored secret's value everywhere it is used."
+
+msgid "react.extensions.secret_catalog.approved"
+msgstr "stored secrets approved"
+
+msgid "react.extensions.secret_catalog.approval_required"
+msgstr "stored secrets need approval"
+
+msgid "react.extensions.secret_catalog.conflict"
+msgstr "The connection changed after it was shown"
+
+msgid "react.extensions.secret_catalog.conflict_help"
+msgstr "Nothing was approved. Review the reloaded status and approve again."
+
+msgid "react.extensions.secret_catalog.failed"
+msgstr "Not approved"
+
+msgid "react.extensions.secret_catalog.sent_to"
+msgstr "Sent to"
+
+msgid "react.extensions.secret_catalog.extension_code"
+msgstr "the extension's code (this release)"
+
+msgid "react.extensions.secret_catalog.approve_for"
+msgstr "Approve use of secrets for {name}"
+
+msgid "react.extensions.secret_catalog.approve"
+msgstr "Approve use of secrets"

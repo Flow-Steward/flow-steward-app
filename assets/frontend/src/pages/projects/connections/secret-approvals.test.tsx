@@ -43,9 +43,9 @@ describe("ProjectSecretApprovals", () => {
 
   it("renders nothing when no connection needs approval", async () => {
     mockedFetch.mockResolvedValue([]);
-    const { container } = renderPanel();
+    renderPanel();
     await waitFor(() => expect(mockedFetch).toHaveBeenCalled());
-    expect(container.querySelector(".fs-card")).toBeNull();
+    expect(screen.queryByText("Stored secrets need approval")).not.toBeInTheDocument();
   });
 
   it("shows what changed without values and approves exactly the fingerprint shown", async () => {

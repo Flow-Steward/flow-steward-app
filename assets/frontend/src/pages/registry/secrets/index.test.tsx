@@ -74,7 +74,7 @@ describe("RegistrySecretsPage", () => {
         project_id: "p1",
       }),
     );
-    expect(screen.queryByDisplayValue("typed-value")).toBeNull();
+    expect(screen.queryByDisplayValue("typed-value")).not.toBeInTheDocument();
   });
 
   it("blocks deleting a secret that is in use and replaces its value in one place", async () => {

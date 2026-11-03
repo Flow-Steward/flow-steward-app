@@ -28096,3 +28096,186 @@ msgstr ""
 
 msgid "react.registry.secrets.delete"
 msgstr ""
+
+msgid "react.secret_catalog.owner_workspace"
+msgstr ""
+
+msgid "react.secret_catalog.owner_project"
+msgstr ""
+
+msgid "react.secret_catalog.failed"
+msgstr ""
+
+msgid "react.secret_catalog.bound"
+msgstr ""
+
+msgid "react.secret_catalog.remove_for"
+msgstr ""
+
+msgid "react.secret_catalog.remove"
+msgstr ""
+
+msgid "react.secret_catalog.choose_for"
+msgstr ""
+
+msgid "react.secret_catalog.none_available"
+msgstr ""
+
+msgid "react.secret_catalog.choose"
+msgstr ""
+
+msgid "react.secret_catalog.use_instead"
+msgstr ""
+
+msgid "react.secret_catalog.use"
+msgstr ""
+
+msgid "react.secret_catalog.create_legend"
+msgstr ""
+
+msgid "react.secret_catalog.create_name"
+msgstr ""
+
+msgid "react.secret_catalog.create_value"
+msgstr ""
+
+msgid "react.secret_catalog.create_value_for"
+msgstr ""
+
+msgid "react.secret_catalog.create_and_use"
+msgstr ""
+
+msgid "react.secret_catalog.manage"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.needs_project"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.save_first"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.title"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.help"
+msgstr ""
+
+msgid "react.workflows.secret_approval.scheme"
+msgstr ""
+
+msgid "react.workflows.secret_approval.scheme_n"
+msgstr ""
+
+msgid "react.workflows.secret_approval.host"
+msgstr ""
+
+msgid "react.workflows.secret_approval.host_n"
+msgstr ""
+
+msgid "react.workflows.secret_approval.port"
+msgstr ""
+
+msgid "react.workflows.secret_approval.port_n"
+msgstr ""
+
+msgid "react.workflows.secret_approval.path_prefix"
+msgstr ""
+
+msgid "react.workflows.secret_approval.path_prefix_n"
+msgstr ""
+
+msgid "react.workflows.secret_approval.remove_rule"
+msgstr ""
+
+msgid "react.workflows.secret_approval.add_rule"
+msgstr ""
+
+msgid "react.workflows.secret_approval.title"
+msgstr ""
+
+msgid "react.workflows.secret_approval.approved"
+msgstr ""
+
+msgid "react.workflows.secret_approval.required"
+msgstr ""
+
+msgid "react.workflows.secret_approval.approved_help"
+msgstr ""
+
+msgid "react.workflows.secret_approval.required_help"
+msgstr ""
+
+msgid "react.workflows.secret_approval.unsaved"
+msgstr ""
+
+msgid "react.workflows.secret_approval.unsaved_help"
+msgstr ""
+
+msgid "react.workflows.secret_approval.conflict"
+msgstr ""
+
+msgid "react.workflows.secret_approval.conflict_help"
+msgstr ""
+
+msgid "react.workflows.secret_approval.failed"
+msgstr ""
+
+msgid "react.workflows.secret_approval.secrets"
+msgstr ""
+
+msgid "react.workflows.secret_approval.destinations"
+msgstr ""
+
+msgid "react.workflows.secret_approval.no_literal_destinations"
+msgstr ""
+
+msgid "react.workflows.secret_approval.approved_destinations"
+msgstr ""
+
+msgid "react.workflows.secret_approval.dynamic_steps"
+msgstr ""
+
+msgid "react.workflows.secret_approval.rules_help"
+msgstr ""
+
+msgid "react.workflows.secret_approval.approve"
+msgstr ""
+
+msgid "react.workflows.secret_approval.rules_required"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.save_first"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.use_existing"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.bound_help"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.approved"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.approval_required"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.conflict"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.conflict_help"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.failed"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.sent_to"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.extension_code"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.approve_for"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.approve"
+msgstr ""

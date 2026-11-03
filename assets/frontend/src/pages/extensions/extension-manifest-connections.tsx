@@ -4,6 +4,7 @@ import { objectOrEmpty, stringFrom } from "@/pages/extensions/extension-manifest
 import { InlineConfirm } from "@/components/shared/inline-confirm";
 import "@/pages/extensions/extension-manifest.css";
 
+import { ConnectionSecretApprovalStatus } from "./extension-connection-secret-catalog";
 import { type ManifestRenderContext } from "./extension-manifest-render-model";
 type ConnectionStatus = {
   label: string;
@@ -208,6 +209,7 @@ export function renderConnectionRow({
           rowId,
           runtime,
         })}
+        <ConnectionSecretApprovalStatus projectId={context.projectId} row={row} />
       </div>
       <fieldset
         aria-label={t("react.extensions.value0_actions", "{value0} actions", { value0: accountLabel })}

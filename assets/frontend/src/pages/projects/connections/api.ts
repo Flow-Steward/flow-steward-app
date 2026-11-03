@@ -197,3 +197,40 @@ export async function approveProjectSecretUse(
     },
   );
 }
+
+function connectionPath(projectId: string, connectionId: string) {
+  return `/api/projects/${encodeURIComponent(projectId)}/connections/${encodeURIComponent(connectionId)}`;
+}
+
+/** One connection's use of stored secrets: what is bound and whether a person approved it. */
+export async function fetchConnectionSecretApproval(projectId: string, connectionId: string) {
+  return fetchJson<SecretApprovalStatus>(`${connectionPath(projectId, connectionId)}/secret-approval`);
+}
+
+/** Approves exactly the fingerprint the person was shown; a changed connection is a conflict. */
+export async function approveConnectionSecretUse(projectId: string, connectionId: string, fingerprint: string) {
+  return fetchJson<SecretApprovalStatus>(`${connectionPath(projectId, connectionId)}/secret-approval`, {
+    method: "POST",
+    body: JSON.stringify({ fingerprint }),
+  });
+}
+
+/** Use a catalog secret for one credential field; the value itself never travels here. */
+export async function bindConnectionFieldSecret(
+  projectId: string,
+  connectionId: string,
+  field: string,
+  secretId: string,
+) {
+  return fetchJson<SecretApprovalStatus>(
+    `${connectionPath(projectId, connectionId)}/secret-bindings/${encodeURIComponent(field)}`,
+    { method: "PUT", body: JSON.stringify({ secret_id: secretId }) },
+  );
+}
+
+export async function unbindConnectionFieldSecret(projectId: string, connectionId: string, field: string) {
+  return fetchJson<SecretApprovalStatus>(
+    `${connectionPath(projectId, connectionId)}/secret-bindings/${encodeURIComponent(field)}`,
+    { method: "DELETE" },
+  );
+}

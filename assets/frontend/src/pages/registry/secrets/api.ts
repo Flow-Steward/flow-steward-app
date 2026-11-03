@@ -14,6 +14,11 @@ export type CatalogSecret = {
   usages?: { consumer_kind: string; connection_id: string | null; field: string }[];
 };
 
+/** The project's catalog list, shared with Registry → Secrets so one refresh serves both. */
+export function catalogSecretsQueryKey(projectId: string) {
+  return ["secrets", "project", projectId];
+}
+
 export async function fetchCatalogSecrets(projectId: string) {
   const payload = await fetchJson<{ secrets?: CatalogSecret[] }>(
     `/api/secrets?project_id=${encodeURIComponent(projectId)}`,

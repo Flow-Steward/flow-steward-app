@@ -29572,3 +29572,186 @@ msgstr "Naudojama — kad ištrintumėte, pirmiausia pašalinkite susiejimus"
 
 msgid "react.registry.secrets.delete"
 msgstr "Ištrinti"
+
+msgid "react.secret_catalog.owner_workspace"
+msgstr "darbo sritis"
+
+msgid "react.secret_catalog.owner_project"
+msgstr "projektas"
+
+msgid "react.secret_catalog.failed"
+msgstr "Saugoma paslaptis nepakeista"
+
+msgid "react.secret_catalog.bound"
+msgstr "Naudoja saugomą paslaptį"
+
+msgid "react.secret_catalog.remove_for"
+msgstr "Nebenaudoti saugomos paslapties laukui {field}"
+
+msgid "react.secret_catalog.remove"
+msgstr "Nebenaudoti"
+
+msgid "react.secret_catalog.choose_for"
+msgstr "Saugoma paslaptis laukui {field}"
+
+msgid "react.secret_catalog.none_available"
+msgstr "Šiam projektui nėra prieinamų saugomų paslapčių"
+
+msgid "react.secret_catalog.choose"
+msgstr "Pasirinkite saugomą paslaptį"
+
+msgid "react.secret_catalog.use_instead"
+msgstr "Naudoti vietoj jos"
+
+msgid "react.secret_catalog.use"
+msgstr "Naudoti šią paslaptį"
+
+msgid "react.secret_catalog.create_legend"
+msgstr "Arba sukurkite projekto paslaptį"
+
+msgid "react.secret_catalog.create_name"
+msgstr "Paslapties pavadinimas"
+
+msgid "react.secret_catalog.create_value"
+msgstr "Reikšmė"
+
+msgid "react.secret_catalog.create_value_for"
+msgstr "Naujos paslapties reikšmė laukui {field}"
+
+msgid "react.secret_catalog.create_and_use"
+msgstr "Sukurti ir naudoti"
+
+msgid "react.secret_catalog.manage"
+msgstr "Tvarkyti saugomas paslaptis"
+
+msgid "react.workflows.secret_catalog.needs_project"
+msgstr "Atidarykite šią darbo eigą iš projekto, kad šiai įvesčiai galėtumėte naudoti saugomą paslaptį."
+
+msgid "react.workflows.secret_catalog.save_first"
+msgstr "Išsaugokite darbo eigą, kad šiai įvesčiai galėtumėte pasirinkti saugomą paslaptį."
+
+msgid "react.workflows.secret_catalog.title"
+msgstr "Saugoma paslaptis"
+
+msgid "react.workflows.secret_catalog.help"
+msgstr "Pasirinkta saugoma paslaptis naudojama vietoj aukščiau nurodytos reikšmės. Vykdymai gali ją naudoti tik žmogui patvirtinus, kad darbo eiga naudoja paslaptis."
+
+msgid "react.workflows.secret_approval.scheme"
+msgstr "Schema"
+
+msgid "react.workflows.secret_approval.scheme_n"
+msgstr "{index} taisyklės schema"
+
+msgid "react.workflows.secret_approval.host"
+msgstr "Serveris"
+
+msgid "react.workflows.secret_approval.host_n"
+msgstr "{index} taisyklės serveris"
+
+msgid "react.workflows.secret_approval.port"
+msgstr "Prievadas (neprivaloma)"
+
+msgid "react.workflows.secret_approval.port_n"
+msgstr "{index} taisyklės prievadas"
+
+msgid "react.workflows.secret_approval.path_prefix"
+msgstr "Kelio priešdėlis (neprivaloma)"
+
+msgid "react.workflows.secret_approval.path_prefix_n"
+msgstr "{index} taisyklės kelio priešdėlis"
+
+msgid "react.workflows.secret_approval.remove_rule"
+msgstr "Pašalinti taisyklę"
+
+msgid "react.workflows.secret_approval.add_rule"
+msgstr "Pridėti paskirties vietą"
+
+msgid "react.workflows.secret_approval.title"
+msgstr "Saugomų paslapčių naudojimas"
+
+msgid "react.workflows.secret_approval.approved"
+msgstr "patvirtinta"
+
+msgid "react.workflows.secret_approval.required"
+msgstr "reikia patvirtinimo"
+
+msgid "react.workflows.secret_approval.approved_help"
+msgstr "Žmogus patvirtino, kad ši išsaugota darbo eiga naudoja toliau nurodytas saugomas paslaptis. Bet koks jos žingsnių ar susiejimų pakeitimas reikalauja naujo patvirtinimo."
+
+msgid "react.workflows.secret_approval.required_help"
+msgstr "Vykdymai negali naudoti toliau nurodytų saugomų paslapčių, kol žmogus nepatvirtins šios išsaugotos darbo eigos. Darbo eigos išsaugojimas ar AI Builder juodraščio pritaikymas jos niekada nepatvirtina."
+
+msgid "react.workflows.secret_approval.unsaved"
+msgstr "Patvirtinimas taikomas išsaugotai darbo eigai"
+
+msgid "react.workflows.secret_approval.unsaved_help"
+msgstr "Neišsaugoti pakeitimai į šį patvirtinimą neįeina. Pirmiausia juos išsaugokite, tada peržiūrėkite ir patvirtinkite iš naujo."
+
+msgid "react.workflows.secret_approval.conflict"
+msgstr "Darbo eiga pasikeitė po to, kai buvo parodyta"
+
+msgid "react.workflows.secret_approval.conflict_help"
+msgstr "Niekas nepatvirtinta. Toliau pateikta būsena įkelta iš naujo; peržiūrėkite ją ir patvirtinkite dar kartą."
+
+msgid "react.workflows.secret_approval.failed"
+msgstr "Nepatvirtinta"
+
+msgid "react.workflows.secret_approval.secrets"
+msgstr "Paslaptys"
+
+msgid "react.workflows.secret_approval.destinations"
+msgstr "Siunčiama į"
+
+msgid "react.workflows.secret_approval.no_literal_destinations"
+msgstr "nėra HTTP žingsnio su fiksuotu URL"
+
+msgid "react.workflows.secret_approval.approved_destinations"
+msgstr "Patvirtintos paskirties vietos"
+
+msgid "react.workflows.secret_approval.dynamic_steps"
+msgstr "HTTP žingsniai su apskaičiuojamu URL"
+
+msgid "react.workflows.secret_approval.rules_help"
+msgstr "Šie žingsniai URL sudaro darbo eigos vykdymo metu, todėl paslaptis gali juos pasiekti tik čia nurodytuose tiksliuose serveriuose. Kelio priešdėlis atitinka tik visus kelio segmentus."
+
+msgid "react.workflows.secret_approval.approve"
+msgstr "Patvirtinti paslapčių naudojimą"
+
+msgid "react.workflows.secret_approval.rules_required"
+msgstr "Pridėkite bent vieną paskirties vietą žingsniams su apskaičiuojamu URL."
+
+msgid "react.extensions.secret_catalog.save_first"
+msgstr "Išsaugoję ryšį, šiam laukui galėsite naudoti saugomą paslaptį."
+
+msgid "react.extensions.secret_catalog.use_existing"
+msgstr "Naudoti esamą paslaptį"
+
+msgid "react.extensions.secret_catalog.bound_help"
+msgstr "Aukščiau įvesta reikšmė pakeičia šios saugomos paslapties reikšmę visur, kur ji naudojama."
+
+msgid "react.extensions.secret_catalog.approved"
+msgstr "saugomos paslaptys patvirtintos"
+
+msgid "react.extensions.secret_catalog.approval_required"
+msgstr "saugomas paslaptis reikia patvirtinti"
+
+msgid "react.extensions.secret_catalog.conflict"
+msgstr "Ryšys pasikeitė po to, kai buvo parodytas"
+
+msgid "react.extensions.secret_catalog.conflict_help"
+msgstr "Niekas nepatvirtinta. Peržiūrėkite iš naujo įkeltą būseną ir patvirtinkite dar kartą."
+
+msgid "react.extensions.secret_catalog.failed"
+msgstr "Nepatvirtinta"
+
+msgid "react.extensions.secret_catalog.sent_to"
+msgstr "Siunčiama į"
+
+msgid "react.extensions.secret_catalog.extension_code"
+msgstr "plėtinio kodą (šis leidimas)"
+
+msgid "react.extensions.secret_catalog.approve_for"
+msgstr "Patvirtinti paslapčių naudojimą ryšiui {name}"
+
+msgid "react.extensions.secret_catalog.approve"
+msgstr "Patvirtinti paslapčių naudojimą"

@@ -17,6 +17,7 @@ import { DsSwitch } from "@/components/shared/ds-switch";
 import { ContractReadOnly, ContractRequiredLegend } from "./detail-contract-block";
 import { DrawerFooter, DrawerFooterSpacer } from "./detail-drawer-footer";
 import { SaveStateButton } from "./detail-save-button";
+import { WorkflowSecretApprovalPanel } from "./detail-workflow-secret-catalog";
 
 type WorkflowSettingsSmartSetupContext = Record<string, any>;
 
@@ -275,6 +276,24 @@ function StructuredInputEditor({ ctx }: Readonly<{ ctx: WorkflowSettingsSmartSet
     <Button onClick={() => commit([...model.rows, { id: structuredRowId(), original: {}, name: "", label: "", description: "", type: "string", required: false, members: [] }])} size="sm" type="button" variant="secondary">{t("react.workflows.add_structured_input", "Add structured input")}</Button>
     {advanced}
   </div>;
+}
+
+/**
+ * The approval of this workflow's use of stored secrets. It sits outside the
+ * contract fieldset: approving is a person's own action, not part of a save.
+ */
+function workflowSecretApprovalPanel(ctx: WorkflowSettingsSmartSetupContext) {
+  const rows: Array<{ originalAuthoredRow?: Record<string, unknown> }> = Array.isArray(ctx.workflowInterfaceInputsDraft) ? ctx.workflowInterfaceInputsDraft : [];
+  const hasSecretInputs = rows.some((row) => String(row.originalAuthoredRow?.type ?? "").trim() === "secret");
+  return (
+    <WorkflowSecretApprovalPanel
+      hasSecretInputs={hasSecretInputs}
+      projectId={String(ctx.selectedProjectId || "")}
+      revision={Number(ctx.serverRevision) || null}
+      unsavedChanges={Boolean(ctx.workflowFormDirty || ctx.changeSet?.hasChanges)}
+      workflowId={String(ctx.workflowId || "")}
+    />
+  );
 }
 
 function workflowInputContractEditor(ctx: WorkflowSettingsSmartSetupContext, t: I18nContextValue["t"] = fallbackContext.t) {
@@ -595,6 +614,7 @@ export function WorkflowSettingsSmartSetup({
               </ContractReadOnly>
             </fieldset>
           ) : null}
+          {drawerTab === "smart-setup" && ctx.drawerMode === "workflow-settings" ? workflowSecretApprovalPanel(ctx) : null}
           {ctx.drawerMode === "workflow-interface" ? (
             <>
             {renderInactiveWarning()}
@@ -671,6 +691,7 @@ export function WorkflowSettingsSmartSetup({
               </div> : null}
               </ContractReadOnly>
             </fieldset>
+            {drawerTab === "inputs" ? workflowSecretApprovalPanel(ctx) : null}
             </>
           ) : null}
           {advancedMode && drawerTab === "advanced" ? (
