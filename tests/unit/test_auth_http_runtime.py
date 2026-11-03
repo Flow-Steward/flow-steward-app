@@ -1202,10 +1202,10 @@ _VIEWER = ResolvedPrincipal(id="vw-1", username="viewer", roles=["viewer"], auth
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        ("GET", "/api/projects/proj-1/workflows/qa_wf_two/secret-approval"),
-        ("POST", "/api/projects/proj-1/workflows/qa_wf_two/secret-approval"),
-        ("PUT", "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/api_key"),
-        ("DELETE", "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/api_key"),
+        ("GET", "/api/projects/proj-1/workflows/orders_sync/secret-approval"),
+        ("POST", "/api/projects/proj-1/workflows/orders_sync/secret-approval"),
+        ("PUT", "/api/projects/proj-1/workflows/orders_sync/secret-bindings/api_key"),
+        ("DELETE", "/api/projects/proj-1/workflows/orders_sync/secret-bindings/api_key"),
     ],
 )
 def test_an_operator_reaches_workflow_secret_binding_and_approval(method: str, path: str) -> None:
@@ -1220,8 +1220,8 @@ def test_an_operator_reaches_workflow_secret_binding_and_approval(method: str, p
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        ("POST", "/api/projects/proj-1/workflows/qa_wf_two/secret-approval"),
-        ("PUT", "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/api_key"),
+        ("POST", "/api/projects/proj-1/workflows/orders_sync/secret-approval"),
+        ("PUT", "/api/projects/proj-1/workflows/orders_sync/secret-bindings/api_key"),
     ],
 )
 def test_a_viewer_cannot_bind_or_approve_workflow_secrets(method: str, path: str) -> None:
@@ -1235,10 +1235,10 @@ def test_a_viewer_cannot_bind_or_approve_workflow_secrets(method: str, path: str
     "path",
     [
         "/api/projects/proj-1/workflows",
-        "/api/projects/proj-1/workflows/qa_wf_two",
-        "/api/projects/proj-1/workflows/qa_wf_two/secret-approval/extra",
-        "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings",
-        "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/a/b",
+        "/api/projects/proj-1/workflows/orders_sync",
+        "/api/projects/proj-1/workflows/orders_sync/secret-approval/extra",
+        "/api/projects/proj-1/workflows/orders_sync/secret-bindings",
+        "/api/projects/proj-1/workflows/orders_sync/secret-bindings/a/b",
     ],
 )
 def test_project_workflow_management_beside_the_secret_leaves_stays_admin_only(path: str) -> None:
@@ -1255,7 +1255,7 @@ def test_project_workflow_management_beside_the_secret_leaves_stays_admin_only(p
     [
         "/api/projects/proj-1/connections/conn-1/secret-bindings/api_key",
         "/api/projects/proj-1/connections/conn-1",
-        "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings",
+        "/api/projects/proj-1/workflows/orders_sync/secret-bindings",
         "/api/projects/proj-1",
     ],
 )

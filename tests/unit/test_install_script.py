@@ -7,6 +7,8 @@ import signal
 import stat
 import subprocess
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -540,13 +542,14 @@ def test_a_hangup_stops_the_installer_runtime_instead_of_orphaning_it(tmp_path: 
         start_new_session=True,
     )
     cidfile = state_dir / "installer-runtime.cid"
-    deadline = time.monotonic() + 10
-    while not cidfile.is_file() and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert cidfile.is_file()
+    with _reaped(process):
+        deadline = time.monotonic() + 10
+        while not cidfile.is_file() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert cidfile.is_file()
 
-    os.killpg(process.pid, signal.SIGHUP)
-    process.communicate(timeout=15)
+        os.killpg(process.pid, signal.SIGHUP)
+        process.communicate(timeout=15)
 
     assert process.returncode == 10
     assert any(
@@ -555,10 +558,33 @@ def test_a_hangup_stops_the_installer_runtime_instead_of_orphaning_it(tmp_path: 
     )
 
 
-def test_install_sh_records_itself_from_its_start_to_its_end(tmp_path: Path) -> None:
+@contextmanager
+def _reaped(process: subprocess.Popen[str]) -> Iterator[None]:
+    """A failed assertion still stops the installer's process group: its fake runtime
+    loops until signalled and would outlive the test."""
+    try:
+        yield
+    finally:
+        if process.poll() is None:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=15)
+
+
+@pytest.mark.parametrize("slow_chmod", [False, True], ids=["plain", "slow-chmod"])
+def test_install_sh_records_itself_from_its_start_to_its_end(
+    tmp_path: Path, slow_chmod: bool
+) -> None:
     """AC17-R162 (L1): ./flow-steward refuses what would change the installation for the
-    whole run -- the record exists before the installer container, and not after."""
+    whole run -- the record exists before the installer container, and not after.
+
+    A slow chmod holds open the window a write-then-chmod record leaves: the full gate
+    under load caught the record at 0644 there. The record must be private when it appears."""
     docker_log = _fake_docker(tmp_path)
+    if slow_chmod:
+        real_chmod = shutil.which("chmod")
+        assert real_chmod is not None
+        _write_shim(tmp_path / "chmod", f'#!/bin/sh\nsleep 1\nexec {real_chmod} "$@"\n')
     state_dir = tmp_path / "state"
     env = {
         **os.environ,
@@ -580,14 +606,15 @@ def test_install_sh_records_itself_from_its_start_to_its_end(tmp_path: Path) -> 
         start_new_session=True,
     )
     record = state_dir / "installer-host.pid"
-    deadline = time.monotonic() + 10
-    while not record.is_file() and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert record.read_text(encoding="utf-8").strip() == str(process.pid)
-    assert record.stat().st_mode & 0o777 == 0o600
+    with _reaped(process):
+        deadline = time.monotonic() + 10
+        while not record.is_file() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert record.stat().st_mode & 0o777 == 0o600
+        assert record.read_text(encoding="utf-8").strip() == str(process.pid)
 
-    os.killpg(process.pid, signal.SIGINT)
-    process.communicate(timeout=15)
+        os.killpg(process.pid, signal.SIGINT)
+        process.communicate(timeout=15)
 
     assert not record.exists()
 

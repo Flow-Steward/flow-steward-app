@@ -293,8 +293,8 @@ describe("ProjectsDetailPage", () => {
     mockedFetchWorkflows.mockRejectedValue(new Error("Admin role required"));
     vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([
       {
-        workflow_id: "qa_wf_two",
-        display_name: "qa-wf-two",
+        workflow_id: "orders_sync",
+        display_name: "orders-sync",
         secret_inputs: ["api_key"],
         status: "approval_required",
         fingerprint: "sha256:token",
@@ -307,7 +307,7 @@ describe("ProjectsDetailPage", () => {
     renderProjectPage("/projects/project-123?tab=workflows");
 
     expect(await screen.findByText("Workflow secrets")).toBeInTheDocument();
-    expect(await screen.findByTestId("project-workflow-secrets-qa_wf_two")).toHaveTextContent("qa-wf-two");
+    expect(await screen.findByTestId("project-workflow-secrets-orders_sync")).toHaveTextContent("orders-sync");
     expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("project-123");
     // The admin-only workflow links are not asked for, so nothing claims they failed
     // or that every workflow is merely "available".
