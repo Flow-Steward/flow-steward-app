@@ -145,7 +145,7 @@ class ProjectConnectionContract:
         merged_payload: dict[str, Any] = {"refs": refs} if refs else {}
         if catalog_fields:
             # Bindings are changed only by the catalog, never by a connection update.
-            merged_payload["catalog"] = dict(existing_catalog)
+            merged_payload["catalog"] = dict(existing_catalog or {})
         return merged_payload
 
     def _sanitize_public_secret_values(

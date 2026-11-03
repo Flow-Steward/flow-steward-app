@@ -26,7 +26,6 @@ _SECRET_COLUMNS = (
     "value_updated_at",
     "value_updated_by",
 )
-_SECRET_SELECT = ", ".join(f"s.{column}" for column in _SECRET_COLUMNS)
 
 
 def _row(cur: Any, columns: tuple[str, ...]) -> dict[str, Any] | None:
@@ -81,12 +80,14 @@ def insert_secret(
 ) -> dict[str, Any]:
     secret_id = str(uuid.uuid4())
     cur.execute(
-        f"""
+        """
         INSERT INTO catalog_secrets AS s (
             id, account_id, workspace_id, project_id, name, description, storage_ref_key,
             created_by, metadata_updated_by, value_updated_by
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING {_SECRET_SELECT}
+        RETURNING s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+               s.value_updated_at, s.value_updated_by
         """,
         (
             secret_id,
@@ -109,15 +110,29 @@ def insert_secret(
 def get_secret(
     cur: Any, *, account_id: str, secret_id: str, for_update: bool = False
 ) -> dict[str, Any] | None:
-    cur.execute(
-        f"""
-        SELECT {_SECRET_SELECT}
-          FROM catalog_secrets AS s
-         WHERE s.id::text = %s AND s.account_id::text = %s
-         {"FOR UPDATE" if for_update else ""}
-        """,
-        (str(secret_id), str(account_id)),
-    )
+    if for_update:
+        cur.execute(
+            """
+            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+               s.value_updated_at, s.value_updated_by
+              FROM catalog_secrets AS s
+             WHERE s.id::text = %s AND s.account_id::text = %s
+             FOR UPDATE
+            """,
+            (str(secret_id), str(account_id)),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+               s.value_updated_at, s.value_updated_by
+              FROM catalog_secrets AS s
+             WHERE s.id::text = %s AND s.account_id::text = %s
+            """,
+            (str(secret_id), str(account_id)),
+        )
     return _row(cur, _SECRET_COLUMNS)
 
 
@@ -125,26 +140,48 @@ def list_secrets(
     cur: Any, *, account_id: str, workspace_id: str | None, project_id: str | None
 ) -> list[dict[str, Any]]:
     """Secrets visible from one project (its own and its workspace's) or one workspace."""
-    conditions = ["s.account_id::text = %s"]
-    params: list[Any] = [str(account_id)]
+    # Fixed statements rather than one assembled from parts.
     if project_id:
-        conditions.append(
-            "(s.project_id::text = %s OR (s.project_id IS NULL AND s.workspace_id::text = %s))"
+        cur.execute(
+            """
+            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+               s.value_updated_at, s.value_updated_by,
+                   (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
+              FROM catalog_secrets AS s
+             WHERE s.account_id::text = %s
+               AND (s.project_id::text = %s
+                    OR (s.project_id IS NULL AND s.workspace_id::text = %s))
+             ORDER BY lower(s.name), s.id
+            """,
+            (str(account_id), str(project_id), str(workspace_id or "")),
         )
-        params.extend((str(project_id), str(workspace_id or "")))
     elif workspace_id:
-        conditions.append("s.workspace_id::text = %s")
-        params.append(str(workspace_id))
-    cur.execute(
-        f"""
-        SELECT {_SECRET_SELECT},
-               (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
-          FROM catalog_secrets AS s
-         WHERE {" AND ".join(conditions)}
-         ORDER BY lower(s.name), s.id
-        """,
-        tuple(params),
-    )
+        cur.execute(
+            """
+            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+               s.value_updated_at, s.value_updated_by,
+                   (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
+              FROM catalog_secrets AS s
+             WHERE s.account_id::text = %s AND s.workspace_id::text = %s
+             ORDER BY lower(s.name), s.id
+            """,
+            (str(account_id), str(workspace_id)),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+               s.value_updated_at, s.value_updated_by,
+                   (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
+              FROM catalog_secrets AS s
+             WHERE s.account_id::text = %s
+             ORDER BY lower(s.name), s.id
+            """,
+            (str(account_id),),
+        )
     return _rows(cur, (*_SECRET_COLUMNS, "usage_count"))
 
 
@@ -152,12 +189,14 @@ def update_metadata(
     cur: Any, *, account_id: str, secret_id: str, name: str, description: str, actor: str
 ) -> dict[str, Any] | None:
     cur.execute(
-        f"""
+        """
         UPDATE catalog_secrets AS s
            SET name = %s, description = %s,
                metadata_updated_at = now(), metadata_updated_by = %s
          WHERE s.id::text = %s AND s.account_id::text = %s
-        RETURNING {_SECRET_SELECT}
+        RETURNING s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+               s.value_updated_at, s.value_updated_by
         """,
         (name, description, actor, str(secret_id), str(account_id)),
     )
@@ -200,8 +239,9 @@ _BINDING_COLUMNS = (
 
 def bindings_for_secret(cur: Any, *, account_id: str, secret_id: str) -> list[dict[str, Any]]:
     cur.execute(
-        f"""
-        SELECT {", ".join(_BINDING_COLUMNS)}
+        """
+        SELECT id, secret_id, consumer_kind, project_connection_id, field_name, created_at,
+               created_by
           FROM catalog_secret_bindings
          WHERE secret_id::text = %s AND account_id::text = %s
          ORDER BY project_connection_id, field_name
@@ -275,15 +315,31 @@ def lock_connection(
         "credential_revision",
         "display_name",
     )
-    cur.execute(
-        f"""
-        SELECT connection_id, account_id::text, project_id::text, {", ".join(columns[3:])}
-          FROM project_connections
-         WHERE connection_id = %s AND account_id::text = %s
-         {"FOR UPDATE" if for_update else ""}
-        """,
-        (str(connection_id), str(account_id)),
-    )
+    if for_update:
+        cur.execute(
+            """
+            SELECT connection_id, account_id::text, project_id::text, extension_id, extension_install_id,
+                   connection_kind, connection_type, runtime_mode, remote_base_url, connection_config,
+                   connection_routes, ingress_config, workflow_mappings, secret_refs,
+                   credential_revision, display_name
+              FROM project_connections
+             WHERE connection_id = %s AND account_id::text = %s
+             FOR UPDATE
+            """,
+            (str(connection_id), str(account_id)),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT connection_id, account_id::text, project_id::text, extension_id, extension_install_id,
+                   connection_kind, connection_type, runtime_mode, remote_base_url, connection_config,
+                   connection_routes, ingress_config, workflow_mappings, secret_refs,
+                   credential_revision, display_name
+              FROM project_connections
+             WHERE connection_id = %s AND account_id::text = %s
+            """,
+            (str(connection_id), str(account_id)),
+        )
     return _row(cur, columns)
 
 
@@ -291,14 +347,14 @@ def write_connection_secret_refs(
     cur: Any, *, connection_id: str, secret_refs: dict[str, Any], bump_revision: bool
 ) -> None:
     cur.execute(
-        f"""
+        """
         UPDATE project_connections
            SET secret_refs = %s::jsonb,
-               {"credential_revision = credential_revision + 1," if bump_revision else ""}
+               credential_revision = credential_revision + CASE WHEN %s THEN 1 ELSE 0 END,
                updated_at = now()
          WHERE connection_id = %s
         """,
-        (json.dumps(secret_refs, sort_keys=True), str(connection_id)),
+        (json.dumps(secret_refs, sort_keys=True), bool(bump_revision), str(connection_id)),
     )
 
 
@@ -333,8 +389,8 @@ _APPROVAL_COLUMNS = (
 
 def connection_approval(cur: Any, *, account_id: str, connection_id: str) -> dict[str, Any] | None:
     cur.execute(
-        f"""
-        SELECT {", ".join(_APPROVAL_COLUMNS)}
+        """
+        SELECT fingerprint, projection_jsonb, approved_by, approved_by_kind, approved_at
           FROM catalog_secret_approvals
          WHERE project_connection_id = %s AND account_id::text = %s
         """,

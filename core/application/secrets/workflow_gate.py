@@ -39,6 +39,10 @@ def _text(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _mapping(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _strip_cosmetic(value: Any) -> Any:
     if isinstance(value, dict):
         is_step = "step_kind" in value or "step_id" in value
@@ -72,10 +76,8 @@ def http_destinations(settings: Any) -> tuple[list[dict[str, Any]], list[str]]:
     for step in _steps(settings):
         if _text(step.get("step_kind")) != "http_request":
             continue
-        override = step.get("override") if isinstance(step.get("override"), dict) else {}
-        config = (
-            override.get("http_request") if isinstance(override.get("http_request"), dict) else {}
-        )
+        override = _mapping(step.get("override"))
+        config = _mapping(override.get("http_request"))
         url = _text(config.get("url"))
         origin = normalized_origin(url) if url and "{{" not in url else None
         if origin is None:
@@ -88,7 +90,7 @@ def http_destinations(settings: Any) -> tuple[list[dict[str, Any]], list[str]]:
 
 
 def workflow_projection(workflow: dict[str, Any], *, bindings: dict[str, str]) -> dict[str, Any]:
-    settings = workflow.get("settings") if isinstance(workflow.get("settings"), dict) else {}
+    settings = _mapping(workflow.get("settings"))
     executable = {key: item for key, item in settings.items() if key not in _COSMETIC_SETTINGS}
     return {
         "version": WORKFLOW_PROJECTION_VERSION,

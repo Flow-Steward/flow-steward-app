@@ -719,10 +719,10 @@ class SecretCatalogService:
 
     @staticmethod
     def _secret_input_names(workflow: dict[str, Any]) -> set[str]:
-        settings = workflow.get("settings") if isinstance(workflow.get("settings"), dict) else {}
-        callable_block = (
-            settings.get("callable") if isinstance(settings.get("callable"), dict) else {}
-        )
+        settings_value = workflow.get("settings")
+        settings = settings_value if isinstance(settings_value, dict) else {}
+        callable_value = settings.get("callable")
+        callable_block = callable_value if isinstance(callable_value, dict) else {}
         rows = callable_block.get("expected_inputs") if isinstance(callable_block, dict) else []
         return {
             _text(row.get("name"))
@@ -825,7 +825,7 @@ class SecretCatalogService:
             cur, account_id=scope.account_id, workflow_id=workflow_id
         )
         static_rules, dynamic_steps = workflow_gate.http_destinations(workflow.get("settings"))
-        approved = bool(approval) and approval.get("fingerprint") == fingerprint
+        approved = approval is not None and approval.get("fingerprint") == fingerprint
         return {
             "workflow_id": workflow_id,
             "status": "approved"
