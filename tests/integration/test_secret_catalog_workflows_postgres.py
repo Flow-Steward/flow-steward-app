@@ -161,6 +161,8 @@ def test_a_computed_url_needs_explicit_destinations(catalog) -> None:
     require_catalog_ref_authority(conn, state, ref_key=key, url="https://api.partner.test/api/x")
     for refused in (
         "https://api.partner.test/api-other",
+        "https://api.partner.test/api/../outside",
+        "https://api.partner.test/api/%2e%2e/outside",
         "http://api.partner.test/api/x",
         "https://api.partner.test:8443/api/x",
         "https://evil.test/api/x",

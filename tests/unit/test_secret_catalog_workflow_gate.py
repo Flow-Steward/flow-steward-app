@@ -70,6 +70,18 @@ def test_literal_and_computed_urls_are_told_apart() -> None:
         ("https://api.test:444/api/v1", False),
         ("http://api.test/api", False),
         ("https://api.test.evil/api", False),
+        # Dot segments are resolved the way the client sends the request.
+        ("https://api.test/api/./v1", True),
+        ("https://api.test/api/v1/..", True),
+        ("https://api.test/api/../outside", False),
+        ("https://api.test/api/v1/../../outside", False),
+        ("https://api.test/api/..", False),
+        # Encodings a server may decode into a traversal are refused, not guessed.
+        ("https://api.test/api/%2e%2e/outside", False),
+        ("https://api.test/api/%2E%2E/outside", False),
+        ("https://api.test/api/..%2foutside", False),
+        ("https://api.test/api%2F..%2Foutside", False),
+        ("https://api.test/api/..\\outside", False),
     ],
 )
 def test_path_prefixes_match_on_segment_boundaries(url, allowed) -> None:
@@ -82,6 +94,9 @@ def test_unsupported_rules_are_refused_not_approximated() -> None:
         normalize_rule({"kind": "subdomains", "scheme": "https", "host": "test"})
     with pytest.raises(ValueError):
         normalize_rule({"scheme": "ftp", "host": "api.test"})
+    for prefix in ("/api/../outside", "/api/%2e%2e", "/api\\x"):
+        with pytest.raises(ValueError, match="path_prefix"):
+            normalize_rule({"scheme": "https", "host": "api.test", "path_prefix": prefix})
 
 
 def test_a_definition_cannot_claim_a_binding() -> None:

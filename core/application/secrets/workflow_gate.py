@@ -130,6 +130,8 @@ def normalize_rule(rule: Any) -> dict[str, Any]:
     prefix = _text(rule.get("path_prefix"))
     if prefix and not prefix.startswith("/"):
         raise ValueError("destination rule: path_prefix must start with '/'")
+    if prefix and _request_path(prefix) != prefix:
+        raise ValueError("destination rule: path_prefix must be a plain path")
     normalized = {
         "kind": "exact_host",
         "scheme": origin["scheme"],
@@ -141,11 +143,41 @@ def normalize_rule(rule: Any) -> dict[str, Any]:
     return normalized
 
 
+#: Percent-encodings a server may decode into a dot segment or a separator.
+_AMBIGUOUS_PATH_ENCODINGS = ("%2e", "%2f", "%5c")
+
+
+def _request_path(path: str) -> str | None:
+    """The path as the client sends it, dot segments resolved (RFC 3986, 5.2.4).
+
+    None when a server could still read it differently: a backslash, or an encoded
+    dot, slash or backslash.
+    """
+    lowered = path.lower()
+    if "\\" in path or any(code in lowered for code in _AMBIGUOUS_PATH_ENCODINGS):
+        return None
+    resolved: list[str] = []
+    segments = path.split("/")
+    for index, segment in enumerate(segments):
+        last = index == len(segments) - 1
+        if segment == ".":
+            if last:
+                resolved.append("")
+        elif segment == "..":
+            if len(resolved) > 1:
+                resolved.pop()
+            if last:
+                resolved.append("")
+        else:
+            resolved.append(segment)
+    return "/".join(resolved) or "/"
+
+
 def url_allowed(url: Any, rules: list[dict[str, Any]]) -> bool:
     origin = normalized_origin(url)
     if origin is None:
         return False
-    path = urlsplit(str(url)).path or "/"
+    path = _request_path(urlsplit(str(url)).path or "/")
     for rule in rules:
         if (rule.get("scheme"), rule.get("host"), int(rule.get("port") or 0)) != (
             origin["scheme"],
@@ -154,8 +186,10 @@ def url_allowed(url: Any, rules: list[dict[str, Any]]) -> bool:
         ):
             continue
         prefix = _text(rule.get("path_prefix"))
+        if not prefix:
+            return True
         # Segment boundaries: "/api" admits "/api" and "/api/x", never "/api-x".
-        if not prefix or path == prefix or path.startswith(prefix + "/"):
+        if path is not None and (path == prefix or path.startswith(prefix + "/")):
             return True
     return False
 
