@@ -66,8 +66,19 @@ def candidate(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("FS_STACK_ENVIRONMENT", "development")
     monkeypatch.setenv("FS_AUDIT_ISOLATED", "1")
     monkeypatch.setenv("PYTHONPATH", "/app")
+    # Model the canonical verifier, independently of the surrounding suite's
+    # xdist scratch directories and pytest-cov subprocess configuration. These
+    # checks use RecordingRunner, so they never write artifacts or spawn pytest.
+    monkeypatch.setenv("ARTIFACT_LOCAL_ROOT_DIR", "/tmp/flow-steward-audit-artifacts")
+    monkeypatch.setenv("FS_ARTIFACT_ROOT", "/tmp/flow-steward-audit-ops")
     monkeypatch.setattr(backend_runtime, "_runtime_receipt_identity", lambda: "c" * 64)
-    for key in ("PYTEST_ADDOPTS", "PYTEST_PLUGINS", "PYTHONSTARTUP", "NODE_OPTIONS"):
+    for key in (
+        "PYTEST_ADDOPTS",
+        "PYTEST_PLUGINS",
+        "PYTHONSTARTUP",
+        "NODE_OPTIONS",
+        "COV_CORE_CONFIG",
+    ):
         monkeypatch.delenv(key, raising=False)
     sha = _commit(root, "core/value.py", "VALUE = 1\n")
     external_names = sorted(
@@ -78,6 +89,7 @@ def candidate(tmp_path: Path, monkeypatch):
             key in backend_runtime._EXTERNAL_INPUT_NAMES
             or (
                 key not in backend_runtime._OPERATIONAL_NAMES
+                and key not in backend_runtime._NON_PATH_CONFIGURATION_NAMES
                 and key != "PATH"
                 and backend_runtime._CONFIGURATION_PATH_NAME.search(key.upper())
                 and value not in backend_runtime._CANONICAL_CONFIGURATION_PATHS.get(key, ())

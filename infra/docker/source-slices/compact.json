@@ -1719,7 +1719,7 @@
     },
     {
       "path": "core/entrypoints/cli/lifecycle_click_app.py",
-      "consumer": "core/entrypoints/cli/platform_runtime.py:251 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
+      "consumer": "core/entrypoints/cli/platform_runtime.py:266 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
     },
     {
       "path": "core/entrypoints/cli/platform/service_bindings/config.py",
