@@ -258,6 +258,11 @@ class SecretCatalogService:
             {
                 "consumer_kind": usage["consumer_kind"],
                 "connection_id": usage["project_connection_id"],
+                "connection_name": usage["connection_name"] or "",
+                "workflow_id": usage["workflow_id"],
+                "workflow_name": usage["workflow_name"] or "",
+                "project_id": usage["project_id"],
+                "project_name": usage["project_name"] or "",
                 "field": usage["field_name"],
             }
             for usage in usages
@@ -697,9 +702,9 @@ class SecretCatalogService:
     # -- workflow inputs -----------------------------------------------------
 
     def _workflow_in_project(
-        self, cur: Any, scope: ScopeContext, workflow_id: Any, project_id: Any
+        self, conn: Any, cur: Any, scope: ScopeContext, workflow_id: Any, project_id: Any
     ) -> dict[str, Any]:
-        from core.application.secrets.workflow_gate import _workflow_row
+        from core.application.secrets.workflow_gate import current_definition, workflow_row
 
         _workspace, owner_project = self._owner_scope(
             cur, scope, project_id=project_id, workspace_id=None
@@ -712,10 +717,16 @@ class SecretCatalogService:
             (owner_project, _text(workflow_id)),
         )
         linked = cur.fetchone() is not None
-        workflow = _workflow_row(cur, account_id=scope.account_id, workflow_id=_text(workflow_id))
+        workflow = workflow_row(cur, account_id=scope.account_id, workflow_id=_text(workflow_id))
         if not linked or workflow is None:
             raise ServiceNotFoundError("Workflow not found")
-        return {"workflow": workflow, "project_id": owner_project}
+        # The approved document is the one a run pins: steps, Groups, graph, settings.
+        definition = current_definition(
+            conn, account_id=scope.account_id, workflow_id=_text(workflow_id)
+        )
+        if definition is None:
+            raise ServiceValidationError("This workflow cannot run, so it cannot be approved")
+        return {"workflow": workflow, "definition": definition, "project_id": owner_project}
 
     @staticmethod
     def _secret_input_names(workflow: dict[str, Any]) -> set[str]:
@@ -737,8 +748,8 @@ class SecretCatalogService:
         require_secret_bind(scope)
         validated_field = _validated_field(field)
         _kind, actor = actor_identity(scope)
-        with self._transaction() as (_conn, cur):
-            found = self._workflow_in_project(cur, scope, workflow_id, project_id)
+        with self._transaction() as (conn, cur):
+            found = self._workflow_in_project(conn, cur, scope, workflow_id, project_id)
             if validated_field not in self._secret_input_names(found["workflow"]):
                 raise ServiceValidationError(
                     f"'{validated_field}' is not a secret input of this workflow"
@@ -790,8 +801,8 @@ class SecretCatalogService:
     ) -> dict[str, Any]:
         require_secret_bind(scope)
         validated_field = _validated_field(field)
-        with self._transaction() as (_conn, cur):
-            self._workflow_in_project(cur, scope, workflow_id, project_id)
+        with self._transaction() as (conn, cur):
+            self._workflow_in_project(conn, cur, scope, workflow_id, project_id)
             cur.execute(
                 """
                 DELETE FROM catalog_secret_bindings
@@ -809,25 +820,27 @@ class SecretCatalogService:
 
     @staticmethod
     def _workflow_status_view(
-        cur: Any, scope: ScopeContext, workflow: dict[str, Any]
+        cur: Any, scope: ScopeContext, found: dict[str, Any]
     ) -> dict[str, Any]:
         from core.application.secrets import workflow_gate
 
-        workflow_id = _text(workflow.get("workflow_id"))
+        workflow_id = _text(found["workflow"].get("workflow_id"))
+        definition = found["definition"]
         bindings = workflow_gate.workflow_bindings(
             cur, account_id=scope.account_id, workflow_id=workflow_id
         )
         projection = workflow_gate.workflow_projection(
-            workflow, bindings={row["field"]: row["secret_id"] for row in bindings}
+            definition, bindings={row["field"]: row["secret_id"] for row in bindings}
         )
         fingerprint = workflow_gate.workflow_fingerprint(projection)
         approval = workflow_gate.workflow_approval(
             cur, account_id=scope.account_id, workflow_id=workflow_id
         )
-        static_rules, dynamic_steps = workflow_gate.http_destinations(workflow.get("settings"))
+        static_rules, dynamic_steps = workflow_gate.http_destinations(definition)
         approved = approval is not None and approval.get("fingerprint") == fingerprint
         return {
             "workflow_id": workflow_id,
+            "secret_inputs": sorted(SecretCatalogService._secret_input_names(found["workflow"])),
             "status": "approved"
             if approved
             else ("approval_required" if bindings else "not_required"),
@@ -842,9 +855,9 @@ class SecretCatalogService:
         self, workflow_id: Any, scope: ScopeContext, *, project_id: Any
     ) -> dict[str, Any]:
         require_secret_read_metadata(scope)
-        with self._transaction() as (_conn, cur):
-            found = self._workflow_in_project(cur, scope, workflow_id, project_id)
-            return self._workflow_status_view(cur, scope, found["workflow"])
+        with self._transaction() as (conn, cur):
+            found = self._workflow_in_project(conn, cur, scope, workflow_id, project_id)
+            return self._workflow_status_view(cur, scope, found)
 
     def approve_workflow(
         self,
@@ -868,21 +881,21 @@ class SecretCatalogService:
         except ValueError as exc:
             raise ServiceValidationError(str(exc)) from None
         _kind, actor = actor_identity(scope)
-        with self._transaction() as (_conn, cur):
-            found = self._workflow_in_project(cur, scope, workflow_id, project_id)
-            workflow = found["workflow"]
+        with self._transaction() as (conn, cur):
+            found = self._workflow_in_project(conn, cur, scope, workflow_id, project_id)
+            definition = found["definition"]
             bindings = workflow_gate.workflow_bindings(
                 cur, account_id=scope.account_id, workflow_id=_text(workflow_id)
             )
             projection = workflow_gate.workflow_projection(
-                workflow, bindings={row["field"]: row["secret_id"] for row in bindings}
+                definition, bindings={row["field"]: row["secret_id"] for row in bindings}
             )
             current = workflow_gate.workflow_fingerprint(projection)
             if current != _text(fingerprint):
                 raise ServiceConflictError(
                     "The workflow changed after it was shown; review it again"
                 )
-            static_rules, dynamic_steps = workflow_gate.http_destinations(workflow.get("settings"))
+            static_rules, dynamic_steps = workflow_gate.http_destinations(definition)
             if dynamic_steps and not explicit:
                 raise ServiceValidationError(
                     "HTTP steps with a computed URL need explicit destinations: "
@@ -917,7 +930,7 @@ class SecretCatalogService:
                 fingerprint=current,
                 destinations=rules,
             )
-            return self._workflow_status_view(cur, scope, workflow)
+            return self._workflow_status_view(cur, scope, found)
 
 
 __all__ = [

@@ -128,25 +128,47 @@ with the list of conflicts, when one would break.
   to its workflow and versions with it, as before. The upgrade does not move them into
   the catalog, so no existing workflow falls under approval at upgrade time. Only a
   catalog binding needs approval.
-- **The workflow fingerprint** covers the executable settings, the trigger and the
-  bindings. Canvas position, labels, notes and layout are excluded; any other change,
-  including a changed HTTP URL, makes the workflow unapproved.
-- **Destinations.** A literal HTTP step URL contributes its exact origin. A step whose
-  URL is computed needs destinations that the approving person enters: `exact_host`
-  rules of scheme, host, effective port and an optional path prefix matched on segment
-  boundaries (`/api` admits `/api/x`, never `/api-x`). The `subdomains` rule type is
-  refused, because a correct match needs a pinned Public Suffix List snapshot, which
-  this release does not ship.
-- **Launch.** Each launch, child launch and test run checks the approval of the
-  definition being launched and the secret's availability to the launching project. It
-  records the result in protected run state (`_workflow_catalog_secret_authority`),
-  which steps cannot write and the replay snapshot does not carry. The HTTP and connector
-  boundaries check that state before every stored read and refuse an unapproved
-  destination.
-- **Child workflows.** A catalog secret a parent passes on reaches a child only when a
-  person approved the child's own definition too; every level is checked.
+- **The workflow fingerprint** covers the definition a run executes: the same
+  `frozen_definition` a job pins (steps, Groups, For each containers, the execution
+  graph and the settings), plus the bindings. Canvas position, labels, notes and layout
+  are excluded. Any other change, a step's URL, headers or body on the same host
+  included, makes the workflow unapproved.
+- **Destinations.** An HTTP step whose scheme and host are literal contributes its
+  exact origin, even when its path or query is computed: the HTTP step already refuses
+  a secret-bearing request whose rendered origin differs from the literal one, and
+  requires it to be HTTPS. Only a step with a computed scheme, host or port needs
+  destinations that the approving person enters: `exact_host` rules of scheme, host,
+  effective port and an optional path prefix. A path prefix is matched on segment
+  boundaries (`/api` admits `/api/x`, never `/api-x`) after dot segments are resolved,
+  and a path with an encoded dot, slash or backslash is refused. The `subdomains` rule
+  type is refused, because a correct match needs a pinned Public Suffix List snapshot,
+  which this release does not ship.
+- **Nothing is decided at launch and carried in run state.** The worker derives a
+  run's secret capabilities from host records of its own job
+  (`core/application/secrets/run_authority.py`): the pinned definition and its
+  workflow-local defaults, the catalog bindings of that workflow for the job's project,
+  inline values in the job's own encrypted dispatch record, and, for an Invoke child,
+  what its parent may read. The delivered message, job metadata a caller can set, run
+  state a step can write and a storage key presented in launch inputs grant nothing.
+- **Every stored read is checked against the job's pin.** Before a catalog value is
+  read, the HTTP and connector boundaries look up the job's pinned definition, the
+  workflow's current bindings and approval, and the secret's owner. The read is refused
+  unless the pinned definition is approved, the secret is available to the job's
+  project, the job holds the key, and the request goes to an approved destination. An
+  edit after enqueue changes neither what the run executes nor what it may read; a new
+  run of the edited definition reads nothing until it is approved. Redelivery, retry
+  and resume of one job are checked again against the same pin; a restart is a new job
+  with its own pin.
+- **Child workflows.** A catalog secret travels to an Invoke child only when the child
+  records its parent and the parent records the child, the parent passed the key in,
+  and the pinned definition of every level of the chain is approved. An approved child
+  never revives the authority of an unapproved parent.
+- **Diagnostic step replay** re-runs one agent step in isolation (no job, no project)
+  and, as before, holds no secret authority.
 - **Structure-locked workflows** (installed from a catalog) keep their approval panel,
-  but their binding controls are disabled with the rest of the locked definition.
+  but their binding controls are disabled with the rest of the locked definition. The
+  project's Workflows tab offers binding and approval for every linked workflow
+  without the builder; the server checks role and interactive session for both.
 
 ### OAuth stays outside
 
@@ -191,9 +213,12 @@ provider responses.
   before use. That includes connections a person creates.
 - Machine tokens that used to save connection credentials now need the two explicit
   scopes.
-- A workflow that sends a catalog secret to a computed URL cannot be approved until a
-  person lists its destinations, and a destination under a whole domain must be listed
-  host by host until a Public Suffix List snapshot ships.
+- A workflow that sends a catalog secret through a step with a computed host cannot be
+  approved until a person lists its destinations, and a destination under a whole
+  domain must be listed host by host until a Public Suffix List snapshot ships.
+- Workflow secret inputs work on the worker again: the run's capabilities used to be
+  cut from the delivered message along with every other reserved key, so a stored or
+  inline secret input never reached a step. They are now derived on the worker.
 - Dynamic HTTP destinations in existing installations and the template catalog were
   not inventoried, and the session rule of ADR 0054 was not exercised on running
   Compact and Scalable installations. Both are follow-ups.

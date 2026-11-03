@@ -824,6 +824,7 @@
     "core/application/secrets/authority.py",
     "core/application/secrets/projection.py",
     "core/application/secrets/repository.py",
+    "core/application/secrets/run_authority.py",
     "core/application/secrets/service.py",
     "core/application/secrets/workflow_gate.py",
     "core/application/security/__init__.py",

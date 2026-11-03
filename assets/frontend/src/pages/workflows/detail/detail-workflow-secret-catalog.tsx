@@ -17,6 +17,7 @@ import {
   unbindWorkflowInputSecret,
   type WorkflowSecretApprovalStatus,
   type WorkflowSecretDestination,
+  workflowSecretApprovalQueryKey,
 } from "@/pages/workflows/shared/workflow-secret-catalog-api";
 
 /**
@@ -26,10 +27,6 @@ import {
  * part of the workflow save, so neither a normal save nor applying an AI Builder
  * draft can bind a secret or approve its use.
  */
-
-function workflowSecretApprovalQueryKey(projectId: string, workflowId: string, revision?: number | null) {
-  return ["workflows", workflowId, "secret-approval", projectId, revision ?? null];
-}
 
 function useWorkflowSecretApproval(projectId: string, workflowId: string, revision: number | null | undefined) {
   return useQuery({

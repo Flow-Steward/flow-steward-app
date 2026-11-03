@@ -9,9 +9,25 @@ export type CatalogSecret = {
   workspace_id: string;
   project_id: string | null;
   usage_count?: number;
+  created_at?: string | null;
+  created_by?: string;
   value_updated_at?: string | null;
   value_updated_by?: string;
-  usages?: { consumer_kind: string; connection_id: string | null; field: string }[];
+  metadata_updated_at?: string | null;
+  metadata_updated_by?: string;
+  usages?: CatalogSecretUsage[];
+};
+
+/** One consumer of a secret, named so a person can find it and remove its binding. */
+export type CatalogSecretUsage = {
+  consumer_kind: "project_connection" | "workflow_input" | string;
+  connection_id: string | null;
+  connection_name?: string;
+  workflow_id?: string | null;
+  workflow_name?: string;
+  project_id?: string | null;
+  project_name?: string;
+  field: string;
 };
 
 /** The project's catalog list, shared with Registry → Secrets so one refresh serves both. */

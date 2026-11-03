@@ -18,6 +18,13 @@ vi.mock("@/pages/workflows/shared/workflow-secret-catalog-api", () => ({
   approveWorkflowSecretUse: vi.fn(),
   bindWorkflowInputSecret: vi.fn(),
   unbindWorkflowInputSecret: vi.fn(),
+  workflowSecretApprovalQueryKey: (projectId: string, workflowId: string, revision?: number | null) => [
+    "workflows",
+    workflowId,
+    "secret-approval",
+    projectId,
+    revision ?? null,
+  ],
 }));
 vi.mock("@/pages/registry/secrets/api", () => ({
   catalogSecretsQueryKey: (projectId: string) => ["secrets", "project", projectId],

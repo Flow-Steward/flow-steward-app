@@ -2,10 +2,14 @@
 
 A workflow input is bound to a catalog secret only in `catalog_secret_bindings`; the
 workflow definition never carries the binding, so saving, AI Builder, import, export,
-clone and revision restore cannot move or forge it. At launch, the binding is honoured
-only when a person approved the definition being launched and the secret is available
-to the launching project. The decision is recorded in protected run state, so the
-step boundary checks what was decided for the revision that actually runs.
+clone and revision restore cannot move or forge it.
+
+Approval covers the definition a run executes: the same `frozen_definition` a job pins,
+steps included. Nothing is decided at launch and carried in run state. Each stored read
+at the HTTP and connector boundaries looks up the job's own pin, the current bindings
+and the current approval in the host database, so an edit after enqueue never changes
+what a run may do, and a retry, redelivery or resume of the same job is checked again
+against the same pin.
 """
 
 from __future__ import annotations
@@ -18,14 +22,13 @@ from core.application.secrets.approval_gate import SecretConfigurationUnapproved
 from core.application.secrets.projection import normalized_origin
 from core.infrastructure.security.stored_secrets import StoredSecretError
 
-#: Protected run state (see state_path_guards): fingerprint of an authorized catalog
-#: storage key -> the destination rules a person approved for it.
-AUTHORITY_STATE_KEY = "_workflow_catalog_secret_authority"
-WORKFLOW_PROJECTION_VERSION = "workflow.v1"
+WORKFLOW_PROJECTION_VERSION = "workflow.v2"
 #: Settings that are presentation or owned by other services, not executable content.
 _COSMETIC_SETTINGS = frozenset({"canvas_annotations", "canvas_annotations_revision", "layout"})
 #: Step keys that only place or label a step on the canvas.
-_COSMETIC_STEP_KEYS = frozenset({"position", "label", "description", "ui", "layout", "notes"})
+_COSMETIC_STEP_KEYS = frozenset(
+    {"position", "label", "display_name", "description", "ui", "layout", "notes"}
+)
 
 
 class SecretDestinationNotAllowed(StoredSecretError):
@@ -69,17 +72,42 @@ def _steps(value: Any) -> list[dict[str, Any]]:
     return found
 
 
-def http_destinations(settings: Any) -> tuple[list[dict[str, Any]], list[str]]:
-    """(rules for literal HTTP step URLs, ids of HTTP steps whose URL is computed)."""
+def _static_origin(url: str) -> dict[str, Any] | None:
+    """The origin of a URL whose scheme and authority are literal; None when computed.
+
+    A template in the path or query keeps the origin known: the HTTP step itself
+    refuses a secret-bearing request whose rendered origin differs from it.
+    """
+    if "{{" not in url:
+        return normalized_origin(url)
+    scheme_end = url.find("://")
+    if scheme_end < 0 or "{{" in url[:scheme_end]:
+        return None
+    rest = url[scheme_end + 3 :]
+    authority_end = min(
+        (index for index in (rest.find("/"), rest.find("?"), rest.find("#")) if index >= 0),
+        default=-1,
+    )
+    if authority_end < 0 or "{{" in rest[:authority_end]:
+        return None
+    return normalized_origin(url[: scheme_end + 3 + authority_end])
+
+
+def http_destinations(definition: Any) -> tuple[list[dict[str, Any]], list[str]]:
+    """(origins of HTTP steps, ids of HTTP steps whose scheme or host is computed).
+
+    `definition` is a pinned or current `frozen_definition`: its steps, Groups and
+    For each containers are all searched.
+    """
     rules: list[dict[str, Any]] = []
     dynamic: list[str] = []
-    for step in _steps(settings):
+    for step in _steps(definition):
         if _text(step.get("step_kind")) != "http_request":
             continue
         override = _mapping(step.get("override"))
         config = _mapping(override.get("http_request"))
         url = _text(config.get("url"))
-        origin = normalized_origin(url) if url and "{{" not in url else None
+        origin = _static_origin(url) if url else None
         if origin is None:
             dynamic.append(_text(step.get("step_id")) or "<unnamed step>")
             continue
@@ -89,14 +117,18 @@ def http_destinations(settings: Any) -> tuple[list[dict[str, Any]], list[str]]:
     return rules, sorted(set(dynamic))
 
 
-def workflow_projection(workflow: dict[str, Any], *, bindings: dict[str, str]) -> dict[str, Any]:
-    settings = _mapping(workflow.get("settings"))
-    executable = {key: item for key, item in settings.items() if key not in _COSMETIC_SETTINGS}
+def workflow_projection(definition: Any, *, bindings: dict[str, str]) -> dict[str, Any]:
+    """The approved part of a `frozen_definition`: everything it executes, plus bindings."""
+    body = _mapping(definition)
+    settings = _mapping(body.get("settings"))
+    executable = {key: item for key, item in body.items() if key not in {"settings", "protected"}}
+    executable["settings"] = {
+        key: item for key, item in settings.items() if key not in _COSMETIC_SETTINGS
+    }
     return {
         "version": WORKFLOW_PROJECTION_VERSION,
-        "workflow_id": _text(workflow.get("workflow_id")),
-        "settings": _strip_cosmetic(executable),
-        "trigger": workflow.get("trigger") if isinstance(workflow.get("trigger"), dict) else {},
+        "workflow_id": _text(body.get("workflow_id")),
+        "definition": _strip_cosmetic(executable),
         "bindings": {str(k): str(v) for k, v in sorted(bindings.items())},
     }
 
@@ -197,10 +229,11 @@ def url_allowed(url: Any, rules: list[dict[str, Any]]) -> bool:
 # -- launch --------------------------------------------------------------------
 
 
-def _workflow_row(cur: Any, *, account_id: str, workflow_id: str) -> dict[str, Any] | None:
+def workflow_row(cur: Any, *, account_id: str, workflow_id: str) -> dict[str, Any] | None:
+    """The registry row's identity and settings (the interface), not its steps."""
     cur.execute(
         """
-        SELECT workflow_id, settings, trigger
+        SELECT workflow_id, settings
           FROM registry_workflows
          WHERE workflow_id = %s AND deleted_at IS NULL
            AND (account_id IS NULL OR account_id::text = %s)
@@ -212,7 +245,22 @@ def _workflow_row(cur: Any, *, account_id: str, workflow_id: str) -> dict[str, A
         return None
     if isinstance(row, dict):
         return dict(row)
-    return {"workflow_id": row[0], "settings": row[1], "trigger": row[2]}
+    return {"workflow_id": row[0], "settings": row[1]}
+
+
+def current_definition(conn: Any, *, account_id: str, workflow_id: str) -> dict[str, Any] | None:
+    """The `frozen_definition` a job pinned now would execute, read like the pin reads it."""
+    from core.application.jobs.workflow_definition_snapshot_repository import (
+        WorkflowDefinitionPinError,
+        WorkflowDefinitionSnapshotRepository,
+    )
+
+    try:
+        return WorkflowDefinitionSnapshotRepository(conn).current_definition(
+            workflow_id, account_id=account_id
+        )
+    except WorkflowDefinitionPinError:
+        return None
 
 
 def workflow_bindings(cur: Any, *, account_id: str, workflow_id: str) -> list[dict[str, Any]]:
@@ -260,112 +308,6 @@ def approved_rules(approval: dict[str, Any] | None) -> list[dict[str, Any]]:
     projection = (approval or {}).get("projection_jsonb") or {}
     rules = projection.get("approved_destinations") if isinstance(projection, dict) else None
     return list(rules) if isinstance(rules, list) else []
-
-
-def launch_authority(
-    cur: Any,
-    *,
-    account_id: str,
-    workflow_id: str,
-    project_id: str,
-    received_storage_keys: tuple[str, ...] = (),
-) -> dict[str, Any]:
-    """What this launch may use; raises when a binding or received secret is not approved."""
-    bindings = workflow_bindings(cur, account_id=account_id, workflow_id=workflow_id)
-    if not bindings and not received_storage_keys:
-        return {}
-    workflow = _workflow_row(cur, account_id=account_id, workflow_id=workflow_id)
-    if workflow is None:
-        raise SecretConfigurationUnapproved()
-    projection = workflow_projection(
-        workflow, bindings={row["field"]: row["secret_id"] for row in bindings}
-    )
-    approval = workflow_approval(cur, account_id=account_id, workflow_id=workflow_id)
-    if not approval or approval.get("fingerprint") != workflow_fingerprint(projection):
-        raise SecretConfigurationUnapproved()
-    cur.execute(
-        "SELECT workspace_id::text FROM projects WHERE id::text = %s AND account_id::text = %s",
-        (project_id, account_id),
-    )
-    project_row = cur.fetchone()
-    workspace_id = _text(project_row[0] if project_row else "")
-    for row in bindings:
-        if _text(row["project_id"]):
-            available = _text(row["project_id"]) == _text(project_id)
-        else:
-            available = bool(workspace_id) and _text(row["workspace_id"]) == workspace_id
-        if not available:
-            raise SecretConfigurationUnapproved()
-    rules = approved_rules(approval)
-    authority = {
-        storage_ref_fingerprint(row["storage_ref_key"]): {"rules": rules} for row in bindings
-    }
-    for key in received_storage_keys:
-        authority[storage_ref_fingerprint(key)] = {"rules": rules}
-    return authority
-
-
-def launch_authority_for(
-    project_id: Any, workflow_id: Any, *, received_storage_keys: tuple[str, ...] = ()
-) -> dict[str, Any]:
-    """The authority to record in a new run's state; empty when nothing is approved.
-
-    An unapproved or unavailable binding records no authority, so the step that
-    would use the secret fails with `secret_configuration_unapproved`.
-    """
-    from core.application.registry.registry_manager import RegistryManager
-
-    db = getattr(RegistryManager.instance(), "db_store", None)
-    cursor = getattr(db, "cursor", None)
-    if not callable(cursor) or not _text(project_id) or not _text(workflow_id):
-        return {}
-    with cursor() as cur:
-        cur.execute(
-            "SELECT account_id::text FROM projects WHERE id::text = %s", (_text(project_id),)
-        )
-        row = cur.fetchone()
-        account_id = _text(
-            row[0] if row and not isinstance(row, dict) else (row or {}).get("account_id")
-        )
-        if not account_id:
-            return {}
-        try:
-            return launch_authority(
-                cur,
-                account_id=account_id,
-                workflow_id=_text(workflow_id),
-                project_id=_text(project_id),
-                received_storage_keys=received_storage_keys,
-            )
-        except SecretConfigurationUnapproved:
-            return {}
-
-
-def child_launch_authority(
-    parent_state: Any, child_workflow_id: Any, child_inputs: Any
-) -> dict[str, Any]:
-    """A child's authority: its own bindings plus catalog secrets the parent passes on.
-
-    A passed catalog secret reaches the child only when a person approved the child's
-    own definition too; each level of the call is checked.
-    """
-    from core.infrastructure.security.secret_reference import as_secret_reference
-
-    state = parent_state if isinstance(parent_state, dict) else {}
-    parent_authority = state.get(AUTHORITY_STATE_KEY)
-    parent_authority = parent_authority if isinstance(parent_authority, dict) else {}
-    received = sorted(
-        {
-            reference.ref_key
-            for value in (child_inputs or {}).values()
-            if (reference := as_secret_reference(value)) is not None
-            and reference.ref_key
-            and storage_ref_fingerprint(reference.ref_key) in parent_authority
-        }
-    )
-    return launch_authority_for(
-        state.get("project_id"), child_workflow_id, received_storage_keys=tuple(received)
-    )
 
 
 def overlay_storage_keys(cur: Any, *, account_id: str, workflow_id: str) -> dict[str, str]:
@@ -423,34 +365,72 @@ def overlay_workflow_row(db: Any, workflow: dict[str, Any]) -> dict[str, Any]:
 # -- step boundary ------------------------------------------------------------
 
 
-def is_catalog_storage_key(cur: Any, *, account_id: str, ref_key: str) -> bool:
+def _catalog_secret(cur: Any, ref_key: str) -> dict[str, str] | None:
+    """The catalog secret a storage key belongs to, in any account; None when it is not one."""
     cur.execute(
-        "SELECT 1 FROM catalog_secrets WHERE account_id::text = %s AND storage_ref_key = %s",
-        (account_id, ref_key),
+        """
+        SELECT id::text, account_id::text, project_id::text, workspace_id::text
+          FROM catalog_secrets
+         WHERE storage_ref_key = %s
+        """,
+        (ref_key,),
     )
-    return cur.fetchone() is not None
+    row = cur.fetchone()
+    if row is None:
+        return None
+    values = list(row.values()) if isinstance(row, dict) else list(row)
+    keys = ("id", "account_id", "project_id", "workspace_id")
+    return {key: _text(value) for key, value in zip(keys, values, strict=False)}
+
+
+def run_destination_rules(conn: Any, cur: Any, *, job_id: str, ref_key: str) -> list[dict]:
+    """Destinations this job may send a catalog secret to; raises when it may not read it.
+
+    Everything comes from the host database: the job's pin, the secret's owner, the
+    workflow's current bindings and approval. Run state contributes only the job id,
+    which steps cannot write.
+    """
+    from core.application.secrets.run_authority import load_run_job, run_secret_authority
+
+    secret = _catalog_secret(cur, ref_key)
+    if secret is None:
+        return []
+    job = load_run_job(cur, job_id) if _text(job_id) else None
+    if job is None or job.definition is None or job.account_id != secret["account_id"]:
+        raise SecretConfigurationUnapproved()
+    if secret["project_id"]:
+        available = secret["project_id"] == job.project_id
+    else:
+        available = bool(job.workspace_id) and secret["workspace_id"] == job.workspace_id
+    if not available:
+        raise SecretConfigurationUnapproved()
+    if ref_key not in run_secret_authority(conn, cur, job_id=job.job_id).stored_ref_keys:
+        raise SecretConfigurationUnapproved()
+    bindings = workflow_bindings(cur, account_id=job.account_id, workflow_id=job.workflow_id)
+    projection = workflow_projection(
+        job.definition, bindings={row["field"]: row["secret_id"] for row in bindings}
+    )
+    approval = workflow_approval(cur, account_id=job.account_id, workflow_id=job.workflow_id)
+    if not approval or approval.get("fingerprint") != workflow_fingerprint(projection):
+        raise SecretConfigurationUnapproved()
+    return approved_rules(approval)
 
 
 def require_catalog_ref_authority(
     conn: Any, runtime_state: dict[str, Any], *, ref_key: str, url: Any = None
 ) -> None:
-    """Refuse a catalog-owned reference this run was not authorized to use, or send there."""
-    context = runtime_state.get("runtime_context") if isinstance(runtime_state, dict) else None
-    account_id = _text((context or {}).get("account_id"))
-    if conn is None or not ref_key:
+    """Refuse a catalog-owned reference this run may not read, or may not send there."""
+    if not ref_key:
         return
-    with conn.cursor() as cur:
-        if not is_catalog_storage_key(cur, account_id=account_id, ref_key=ref_key):
-            return
-    authority = runtime_state.get(AUTHORITY_STATE_KEY) if isinstance(runtime_state, dict) else None
-    entry = (
-        (authority or {}).get(storage_ref_fingerprint(ref_key))
-        if isinstance(authority, dict)
-        else None
-    )
-    if not isinstance(entry, dict):
+    if conn is None or not callable(getattr(conn, "cursor", None)):
+        # Without the host database the reference cannot be classified: refuse.
         raise SecretConfigurationUnapproved()
-    if url is not None and not url_allowed(url, list(entry.get("rules") or [])):
+    state = runtime_state if isinstance(runtime_state, dict) else {}
+    with conn.cursor() as cur:
+        if _catalog_secret(cur, ref_key) is None:
+            return
+        rules = run_destination_rules(conn, cur, job_id=_text(state.get("job_id")), ref_key=ref_key)
+    if url is not None and not url_allowed(url, rules):
         raise SecretDestinationNotAllowed()
 
 
@@ -475,34 +455,31 @@ class CatalogAuthorityReader:
         self._url_provider = url_provider
 
     def read(self, context: Any, ref_key: str) -> str:
-        conn = self._conn_provider()
-        if callable(getattr(conn, "cursor", None)):
-            require_catalog_ref_authority(
-                conn,
-                self._state,
-                ref_key=ref_key,
-                url=self._url_provider() if self._url_provider is not None else None,
-            )
+        require_catalog_ref_authority(
+            self._conn_provider(),
+            self._state,
+            ref_key=ref_key,
+            url=self._url_provider() if self._url_provider is not None else None,
+        )
         return self._reader.read(context, ref_key)
 
 
 __all__ = [
-    "AUTHORITY_STATE_KEY",
     "RESERVED_INPUT_KEYS",
     "CatalogAuthorityReader",
     "SecretDestinationNotAllowed",
     "approved_rules",
-    "child_launch_authority",
+    "current_definition",
     "http_destinations",
-    "launch_authority",
-    "launch_authority_for",
     "normalize_rule",
     "overlay_storage_keys",
     "overlay_workflow_row",
     "require_catalog_ref_authority",
     "reserved_binding_keys",
+    "run_destination_rules",
     "url_allowed",
     "workflow_bindings",
     "workflow_fingerprint",
     "workflow_projection",
+    "workflow_row",
 ]

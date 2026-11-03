@@ -549,11 +549,6 @@ def _invoke_workflow_step(
         child_inputs=child_inputs,
     )
     child_extra_state["_workflow_secret_ref_fingerprints"] = child_secret_ref_snapshot
-    from core.application.secrets.workflow_gate import AUTHORITY_STATE_KEY, child_launch_authority
-
-    child_extra_state[AUTHORITY_STATE_KEY] = child_launch_authority(
-        state, child_workflow_id, child_inputs
-    )
     if _to_bool(state.get("test_mode"), False):
         child_extra_state["test_mode"] = True
         child_meta["test_mode"] = True

@@ -17,6 +17,8 @@ export type WorkflowSecretDestination = {
 
 export type WorkflowSecretApprovalStatus = {
   workflow_id: string;
+  /** Secret inputs the saved workflow declares. */
+  secret_inputs?: string[];
   status: "approved" | "approval_required" | "not_required";
   fingerprint: string;
   secrets: { field: string; secret_id: string }[];
@@ -24,6 +26,11 @@ export type WorkflowSecretApprovalStatus = {
   dynamic_http_steps: string[];
   approved_destinations: WorkflowSecretDestination[];
 };
+
+/** One query per project, workflow and revision, shared by the builder and the project page. */
+export function workflowSecretApprovalQueryKey(projectId: string, workflowId: string, revision?: number | null) {
+  return ["workflows", workflowId, "secret-approval", projectId, revision ?? null];
+}
 
 function workflowPath(projectId: string, workflowId: string) {
   return `/api/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}`;

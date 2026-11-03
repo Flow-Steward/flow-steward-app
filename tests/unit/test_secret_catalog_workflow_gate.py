@@ -13,50 +13,107 @@ from core.application.secrets.workflow_gate import (
     workflow_projection,
 )
 
-_WORKFLOW = {
+#: A `frozen_definition`: steps live beside the settings, as a run pins them.
+_DEFINITION = {
     "workflow_id": "wf",
+    "protected": False,
     "settings": {
         "callable": {"expected_inputs": [{"name": "key", "type": "secret"}]},
         "canvas_annotations": [{"text": "note"}],
-        "steps": [
-            {
-                "step_id": "a",
-                "step_kind": "http_request",
-                "label": "A",
-                "position": {"x": 1},
-                "override": {"http_request": {"url": "https://api.test/v1"}},
-            },
-            {
-                "step_id": "b",
-                "step_kind": "http_request",
-                "override": {"http_request": {"url": "{{ x }}"}},
-            },
-        ],
     },
+    "execution_graph": {"schema_version": 1, "entry": {"kind": "step", "id": "a"}, "edges": []},
+    "groups": [],
+    "for_each": [],
+    "steps": [
+        {
+            "step_id": "a",
+            "step_kind": "http_request",
+            "display_name": "A",
+            "position": {"x": 1},
+            "override": {"http_request": {"url": "https://api.test/v1", "headers": {"K": "v"}}},
+        },
+        {
+            "step_id": "b",
+            "step_kind": "http_request",
+            "override": {"http_request": {"url": "{{ x }}"}},
+        },
+    ],
 }
 
 
-def _fp(workflow) -> str:
-    return workflow_fingerprint(workflow_projection(workflow, bindings={"key": "s1"}))
+def _fp(definition) -> str:
+    return workflow_fingerprint(workflow_projection(definition, bindings={"key": "s1"}))
 
 
 def test_canvas_and_labels_are_not_executable() -> None:
     import copy
 
-    moved = copy.deepcopy(_WORKFLOW)
-    moved["settings"]["steps"][0]["label"] = "Renamed"
-    moved["settings"]["steps"][0]["position"] = {"x": 9}
+    moved = copy.deepcopy(_DEFINITION)
+    moved["steps"][0]["display_name"] = "Renamed"
+    moved["steps"][0]["position"] = {"x": 9}
     moved["settings"]["canvas_annotations"] = []
-    assert _fp(moved) == _fp(_WORKFLOW)
-    changed = copy.deepcopy(_WORKFLOW)
-    changed["settings"]["steps"][0]["override"]["http_request"]["url"] = "https://other.test"
-    assert _fp(changed) != _fp(_WORKFLOW)
+    moved["protected"] = True
+    assert _fp(moved) == _fp(_DEFINITION)
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda d: d["steps"][0]["override"]["http_request"].update(url="https://other.test"),
+        # Same host, but the secret could now travel in another header.
+        lambda d: d["steps"][0]["override"]["http_request"]["headers"].update(L="{{ key }}"),
+        lambda d: d["steps"].append({"step_id": "c", "step_kind": "transform"}),
+        lambda d: d["execution_graph"]["edges"].append({"source": "a", "target": "b"}),
+    ],
+)
+def test_every_executable_edit_changes_the_fingerprint(edit) -> None:
+    import copy
+
+    changed = copy.deepcopy(_DEFINITION)
+    edit(changed)
+    assert _fp(changed) != _fp(_DEFINITION)
+    assert workflow_fingerprint(workflow_projection(_DEFINITION, bindings={"key": "s2"})) != _fp(
+        _DEFINITION
+    )
 
 
 def test_literal_and_computed_urls_are_told_apart() -> None:
-    rules, dynamic = http_destinations(_WORKFLOW["settings"])
+    rules, dynamic = http_destinations(_DEFINITION)
     assert rules == [{"kind": "exact_host", "scheme": "https", "host": "api.test", "port": 443}]
     assert dynamic == ["b"]
+
+
+@pytest.mark.parametrize(
+    ("url", "origin"),
+    [
+        # A computed path or query keeps a literal origin.
+        ("https://api.test/v1/{{ state.inputs.id }}", ("https", "api.test", 443)),
+        ("https://api.test:8443?q={{ x }}", ("https", "api.test", 8443)),
+        # A computed scheme, host or port does not.
+        ("https://{{ host }}/v1", None),
+        ("https://api.{{ zone }}.test/v1", None),
+        ("https://api.test{{ suffix }}", None),
+        ("https://api.test:{{ port }}/v1", None),
+        ("{{ scheme }}://api.test/v1", None),
+    ],
+)
+def test_a_template_after_the_authority_keeps_the_origin(url, origin) -> None:
+    definition = {
+        "steps": [
+            {
+                "step_id": "s",
+                "step_kind": "http_request",
+                "override": {"http_request": {"url": url}},
+            }
+        ]
+    }
+    rules, dynamic = http_destinations(definition)
+    if origin is None:
+        assert (rules, dynamic) == ([], ["s"])
+    else:
+        scheme, host, port = origin
+        assert rules == [{"kind": "exact_host", "scheme": scheme, "host": host, "port": port}]
+        assert dynamic == []
 
 
 @pytest.mark.parametrize(
@@ -106,4 +163,4 @@ def test_a_definition_cannot_claim_a_binding() -> None:
         }
     }
     assert reserved_binding_keys(settings) == ["key.catalog_secret_id"]
-    assert reserved_binding_keys(_WORKFLOW["settings"]) == []
+    assert reserved_binding_keys(_DEFINITION["settings"]) == []

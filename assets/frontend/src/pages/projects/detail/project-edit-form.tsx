@@ -19,6 +19,7 @@ import { ProjectHistoryPanel } from "@/pages/projects/history";
 import { ProjectNotificationOverview } from "@/pages/projects/notifications/overview";
 import { ProjectPolicyEditor } from "@/pages/projects/policy";
 import { ProjectConnectionsEditor } from "@/pages/projects/connections";
+import { ProjectWorkflowSecrets } from "@/pages/projects/workflows/project-workflow-secrets";
 import { ProjectDatasetsEditor } from "@/pages/projects/datasets";
 import type { ModelOption } from "@/lib/utils/model-options";
 
@@ -374,6 +375,16 @@ export function ProjectEditForm({
                   <p className="mt-2 text-xs fs-ink-tertiary">
                     {t("react.projects.this_setting_is_informational_for_operators_and_does_not_auto_select_a_workflow_for_execution_or_preview", "This setting is informational for operators and does not auto-select a workflow for execution or preview.")} </p>
                 </div>
+                {renderWhen(activeTab === "workflows", (
+                  <ProjectWorkflowSecrets
+                    projectId={textOrEmpty(project.id) || projectId}
+                    workflows={selectedWorkflowIds.map((workflowId) => ({
+                      workflowId,
+                      displayName:
+                        availableWorkflowRows.find((item) => item.workflowId === workflowId)?.displayName || workflowId,
+                    }))}
+                  />
+                ))}
               </div>
             </div>
 

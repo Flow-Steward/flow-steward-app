@@ -170,8 +170,17 @@ def _reject_blocked_response_peer(response: httpx.Response) -> None:
     if not peer_host:
         return
     from core.application.extensions.lifecycle import _is_blocked_ip
+    from core.application.extensions.url_safety import (
+        _allow_private_remote_urls,
+        is_development_private_ip,
+    )
 
-    if _is_blocked_ip(peer_host):
+    # The administrator's private-address switch admits the ordinary private and
+    # loopback peers the request check already admitted; link-local, metadata and
+    # reserved addresses stay refused either way.
+    if _is_blocked_ip(peer_host) and not (
+        _allow_private_remote_urls() and is_development_private_ip(peer_host)
+    ):
         parsed = urlparse(str(response.request.url))
         raise httpx.ConnectError(
             f"http_request step url host '{parsed.hostname or ''}' connected to disallowed address '{peer_host}'",

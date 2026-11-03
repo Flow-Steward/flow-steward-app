@@ -29142,6 +29142,27 @@ msgstr "Replace value"
 msgid "react.registry.secrets.used_by"
 msgstr "Used by"
 
+msgid "react.registry.secrets.usage_workflow"
+msgstr "Workflow"
+
+msgid "react.registry.secrets.usage_connection"
+msgstr "Connection"
+
+msgid "react.registry.secrets.value_changed"
+msgstr "Value replaced"
+
+msgid "react.registry.secrets.metadata_changed"
+msgstr "Name or description changed"
+
+msgid "react.registry.secrets.created"
+msgstr "Created"
+
+msgid "react.projects.workflow_secrets.title"
+msgstr "Workflow secrets"
+
+msgid "react.projects.workflow_secrets.description"
+msgstr "Choose a stored secret for each secret input of a linked workflow and approve where runs may send it. This does not change the workflow."
+
 msgid "react.registry.secrets.unused"
 msgstr "nothing yet"
 

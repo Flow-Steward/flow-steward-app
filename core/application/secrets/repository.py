@@ -231,6 +231,11 @@ _BINDING_COLUMNS = (
     "secret_id",
     "consumer_kind",
     "project_connection_id",
+    "connection_name",
+    "workflow_id",
+    "workflow_name",
+    "project_id",
+    "project_name",
     "field_name",
     "created_at",
     "created_by",
@@ -238,13 +243,20 @@ _BINDING_COLUMNS = (
 
 
 def bindings_for_secret(cur: Any, *, account_id: str, secret_id: str) -> list[dict[str, Any]]:
+    """Every consumer of a secret, named, so a person can find and remove each binding."""
     cur.execute(
         """
-        SELECT id, secret_id, consumer_kind, project_connection_id, field_name, created_at,
-               created_by
-          FROM catalog_secret_bindings
-         WHERE secret_id::text = %s AND account_id::text = %s
-         ORDER BY project_connection_id, field_name
+        SELECT b.id, b.secret_id, b.consumer_kind, b.project_connection_id,
+               c.display_name AS connection_name, b.workflow_id,
+               w.display_name AS workflow_name,
+               COALESCE(c.project_id, b.consumer_project_id)::text AS project_id,
+               p.name AS project_name, b.field_name, b.created_at, b.created_by
+          FROM catalog_secret_bindings AS b
+          LEFT JOIN project_connections AS c ON c.connection_id = b.project_connection_id
+          LEFT JOIN registry_workflows AS w ON w.workflow_id = b.workflow_id
+          LEFT JOIN projects AS p ON p.id = COALESCE(c.project_id, b.consumer_project_id)
+         WHERE b.secret_id::text = %s AND b.account_id::text = %s
+         ORDER BY b.consumer_kind, b.project_connection_id, b.workflow_id, b.field_name
         """,
         (str(secret_id), str(account_id)),
     )

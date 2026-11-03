@@ -1,5 +1,7 @@
 import { useI18n } from "@/lib/i18n/useI18n";
+import { formatUserDateTime } from "@/lib/time/user-timezone";
 import { useMemo, useState } from "react";
+import { Link } from "react-router";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Loader2 } from "lucide-react";
@@ -16,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import {
   type CatalogSecret,
+  type CatalogSecretUsage,
   createCatalogSecret,
   deleteCatalogSecret,
   fetchCatalogSecret,
@@ -26,6 +29,40 @@ import {
 
 function errorText(error: unknown): string | null {
   return error instanceof Error ? error.message : null;
+}
+
+/** Where a consumer's binding is managed: the project tab that lists it. */
+function usageLink(usage: CatalogSecretUsage): string | null {
+  if (!usage.project_id) return null;
+  const tab = usage.consumer_kind === "workflow_input" ? "workflows" : "connections";
+  return `/projects/${encodeURIComponent(usage.project_id)}?tab=${tab}`;
+}
+
+function SecretUsage({ usage }: Readonly<{ usage: CatalogSecretUsage }>) {
+  const { t } = useI18n();
+  const consumer =
+    usage.consumer_kind === "workflow_input"
+      ? `${t("react.registry.secrets.usage_workflow", "Workflow")} ${usage.workflow_name || usage.workflow_id || ""}`
+      : `${t("react.registry.secrets.usage_connection", "Connection")} ${usage.connection_name || usage.connection_id || ""}`;
+  const label = `${consumer.trim()} · ${usage.field}`;
+  const link = usageLink(usage);
+  return (
+    <li>
+      {link ? <Link className="underline" to={link}>{label}</Link> : label}
+      {usage.project_name ? <span className="fs-ink-tertiary"> — {usage.project_name}</span> : null}
+    </li>
+  );
+}
+
+function ChangedLine({ label, at, by }: Readonly<{ label: string; at?: string | null; by?: string }>) {
+  if (!at) return null;
+  return (
+    <div>
+      <span className="fs-ink-tertiary">{label}: </span>
+      {formatUserDateTime(at)}
+      {by ? ` · ${by}` : ""}
+    </div>
+  );
 }
 
 function SecretCard({ secret, onChanged }: Readonly<{ secret: CatalogSecret; onChanged: () => void }>) {
@@ -76,11 +113,22 @@ function SecretCard({ secret, onChanged }: Readonly<{ secret: CatalogSecret; onC
           {t("react.registry.secrets.replace", "Replace value")}
         </Button>
       </div>
+      <div className="text-xs space-y-0.5">
+        <ChangedLine at={detail.data?.value_updated_at} by={detail.data?.value_updated_by} label={t("react.registry.secrets.value_changed", "Value replaced")} />
+        <ChangedLine at={detail.data?.metadata_updated_at} by={detail.data?.metadata_updated_by} label={t("react.registry.secrets.metadata_changed", "Name or description changed")} />
+        <ChangedLine at={detail.data?.created_at} by={detail.data?.created_by} label={t("react.registry.secrets.created", "Created")} />
+      </div>
       <div className="text-xs">
         <span className="fs-ink-tertiary">{t("react.registry.secrets.used_by", "Used by")}: </span>
-        {usages.length
-          ? usages.map((usage) => `${usage.connection_id ?? usage.consumer_kind} / ${usage.field}`).join(", ")
-          : t("react.registry.secrets.unused", "nothing yet")}
+        {usages.length ? (
+          <ul className="mt-1 list-disc pl-4 space-y-0.5">
+            {usages.map((usage) => (
+              <SecretUsage key={`${usage.consumer_kind}:${usage.connection_id ?? usage.workflow_id}:${usage.field}`} usage={usage} />
+            ))}
+          </ul>
+        ) : (
+          t("react.registry.secrets.unused", "nothing yet")
+        )}
       </div>
       <Button disabled={remove.isPending || usages.length > 0} onClick={() => remove.mutate()} size="sm" variant="ghost-danger">
         {usages.length > 0

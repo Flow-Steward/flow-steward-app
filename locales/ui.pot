@@ -28088,6 +28088,27 @@ msgstr ""
 msgid "react.registry.secrets.used_by"
 msgstr ""
 
+msgid "react.registry.secrets.usage_workflow"
+msgstr ""
+
+msgid "react.registry.secrets.usage_connection"
+msgstr ""
+
+msgid "react.registry.secrets.value_changed"
+msgstr ""
+
+msgid "react.registry.secrets.metadata_changed"
+msgstr ""
+
+msgid "react.registry.secrets.created"
+msgstr ""
+
+msgid "react.projects.workflow_secrets.title"
+msgstr ""
+
+msgid "react.projects.workflow_secrets.description"
+msgstr ""
+
 msgid "react.registry.secrets.unused"
 msgstr ""
 

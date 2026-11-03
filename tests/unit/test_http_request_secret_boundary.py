@@ -52,6 +52,26 @@ def _config(**changes):
     }
 
 
+class _NoCatalogConn:
+    """A run connection whose catalog holds no secrets: stored keys are not catalog keys."""
+
+    def cursor(self):
+        class _Cursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def execute(self, *_args):
+                return None
+
+            def fetchone(self):
+                return None
+
+        return _Cursor()
+
+
 @pytest.fixture
 def boundary_io(monkeypatch):
     captured = []
@@ -107,7 +127,9 @@ def boundary_io(monkeypatch):
     monkeypatch.setattr(runtime.httpx, "Client", Client)
     monkeypatch.setattr(runtime, "_SSRFGuardedHTTPTransport", lambda: object())
     monkeypatch.setattr(runtime, "_validate_http_request_url", lambda url: url)
-    monkeypatch.setattr(runtime, "_get_shared_logger", lambda: SimpleNamespace(conn=object()))
+    monkeypatch.setattr(
+        runtime, "_get_shared_logger", lambda: SimpleNamespace(conn=_NoCatalogConn())
+    )
     monkeypatch.setattr(
         "core.infrastructure.db.model_provider_store.get_secret_ref_ciphertext", read
     )
