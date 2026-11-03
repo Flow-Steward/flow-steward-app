@@ -263,6 +263,9 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
     renderWorkflowInterfaceFieldEditor,
     renderWorkflowReturnedFiles,
   } = createWorkflowInterfaceRenderers({
+    secretCatalogProjectId: ctx.secretCatalogProjectId,
+    secretCatalogRevision: ctx.secretCatalogRevision,
+    secretCatalogWorkflowId: ctx.secretCatalogWorkflowId,
     workflowInterfaceControlIdPrefix,
     workflowInterfaceNameValidationAttempted,
     workflowInterfaceReturnedFiles,

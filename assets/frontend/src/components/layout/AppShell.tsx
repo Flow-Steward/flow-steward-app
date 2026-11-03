@@ -19,6 +19,7 @@ import {
   Waypoints,
   Workflow,
   Wrench,
+  KeyRound,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -460,6 +461,12 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
             to: "/registry/data-connections",
             label: t("shell.nav.data_connections", "Data Connections"),
             icon: Network,
+          },
+          {
+            key: "registry_secrets",
+            to: "/registry/secrets",
+            label: t("shell.nav.secrets", "Secrets"),
+            icon: KeyRound,
           },
         ],
       }

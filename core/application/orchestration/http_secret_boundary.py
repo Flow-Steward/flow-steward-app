@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import codecs
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 from core.application.extensions.secret_reflection import (
     collect_secret_values,
@@ -29,6 +30,17 @@ from core.infrastructure.security.secret_reference import (
     as_secret_reference,
     resolve_secret_reference,
 )
+from core.infrastructure.security.stored_secrets import SecretReadContext, StoredSecretReader
+
+
+def _text_key(reference: Any) -> str:
+    return str(getattr(reference, "ref_key", "") or "").strip()
+
+
+def _all_catalog_keys(conn_provider: Any, keys: set[str]) -> bool:
+    from core.application.secrets.workflow_gate import catalog_only_refs
+
+    return callable(conn_provider) and catalog_only_refs(conn_provider(), keys)
 
 
 class HttpSecretInputError(ValueError):
@@ -47,6 +59,25 @@ class _TemplateValue:
 @dataclass(frozen=True, repr=False)
 class _SecretTemplate:
     parts: tuple[str | _TemplateValue, ...]
+
+
+def presented_references(value: Any) -> list[Any]:
+    """Every secret reference a rendered request carries, inside templates too."""
+    reference = as_secret_reference(value)
+    if reference is not None:
+        return [reference]
+    if isinstance(value, _SecretTemplate):
+        return [
+            found
+            for part in value.parts
+            if isinstance(part, _TemplateValue)
+            for found in presented_references(part.value)
+        ]
+    if isinstance(value, dict):
+        return [found for nested in value.values() for found in presented_references(nested)]
+    if isinstance(value, (list, tuple)):
+        return [found for nested in value for found in presented_references(nested)]
+    return []
 
 
 def has_http_secret(value: Any) -> bool:
@@ -108,14 +139,46 @@ def _public_copy(value: Any) -> Any:
 class HttpSecretBoundary:
     """Resolve only the outgoing copy under the immutable connector launch grant."""
 
-    def __init__(self, state: dict[str, Any], read_ciphertext: Callable[[str, str], str | None]):
+    def __init__(self, state: dict[str, Any], secret_reader: StoredSecretReader):
         self._state = state
-        self._read_ciphertext = read_ciphertext
+        self._secret_reader = secret_reader
         self._values: list[str] = []
         self.protected_values: frozenset[str] = frozenset()
         self.has_references = False
         self.request_method = "GET"
+        self.request_url: str | None = None
         self.request_dispatched = False
+        #: Set only by `check_origin`, from the host database: the catalog storage keys
+        #: of a request whose computed origin was let through. Every read of them must
+        #: then pass the catalog's allowlist; it never relaxes anything by itself.
+        self.computed_origin_refs: frozenset[str] = frozenset()
+        self.conn_provider: Any = None
+
+    def check_origin(
+        self, url_template: str, rendered_url: str, presented: Any, static_check: Any
+    ) -> None:
+        """The origin rule for a request carrying references (ADR 0057).
+
+        A literal HTTPS origin is required, as before, unless every reference the
+        request carries is a catalog secret: then a computed origin may pass, as
+        HTTPS without userinfo, and each read checks it against the approved
+        destinations. Inline values, workflow defaults and any mix keep the rule.
+        """
+        try:
+            static_check(url_template, rendered_url)
+            return
+        except ValueError:
+            references = presented_references(presented)
+            keys = {_text_key(reference) for reference in references}
+            catalog_only = bool(references) and all(
+                reference.ref_key and not reference.ciphertext for reference in references
+            )
+            if not catalog_only or not _all_catalog_keys(self.conn_provider, keys):
+                raise
+        parts = urlsplit(rendered_url)
+        if parts.scheme.lower() != "https" or parts.username or parts.password:
+            raise ValueError("a request carrying a stored secret must use https without userinfo")
+        self.computed_origin_refs = frozenset(keys)
 
     def public_control(self, value: Any) -> Any:
         if has_http_secret(value):
@@ -127,8 +190,6 @@ class HttpSecretBoundary:
         return redact_sensitive_structure(_public_copy(value)) if self.has_references else value
 
     def _resolve_reference(self, value: Any) -> str:
-        from core.infrastructure.security.secret_codec import decrypt_secret
-
         reference = as_secret_reference(value)
         assert reference is not None
         self.has_references = True
@@ -137,7 +198,11 @@ class HttpSecretBoundary:
             for item in (self._state.get("_workflow_secret_ref_fingerprints") or [])
             if str(item or "").strip()
         )
-        context = dict(self._state.get("runtime_context") or {})
+        from core.application.orchestration.runtime_identity import runtime_identity_from_state
+
+        # The run's trusted identity, as the worker built it; graph state has no
+        # "runtime_context" key, and an empty account reads nothing.
+        context = runtime_identity_from_state(self._state).as_context()
         authorized = frozenset(
             {reference.ref_key}
             if reference.ref_key and secret_ref_fingerprint(reference.ref_key) in snapshot
@@ -146,11 +211,10 @@ class HttpSecretBoundary:
         self._values.extend((reference.ref_key, reference.ciphertext))
         resolved = resolve_secret_reference(
             reference,
-            account_id=str(context.get("account_id") or "").strip(),
+            context=SecretReadContext.for_account(context.get("account_id")),
             authorized_ref_keys=authorized,
             authorized_inline_ref_fingerprints=snapshot,
-            read_ciphertext=self._read_ciphertext,
-            decrypt=decrypt_secret,
+            reader=self._secret_reader,
         )
         self._values.append(resolved)
         self.protected_values, exceeded = collect_secret_values(self._values)

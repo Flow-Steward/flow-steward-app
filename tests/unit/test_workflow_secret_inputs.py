@@ -24,8 +24,23 @@ from core.infrastructure.security.secret_reference import (
     as_secret_reference,
     is_secret_reference,
 )
+from core.infrastructure.security.stored_secrets import SecretReadContext, StoredSecretMissing
 
 _SECRET = "SHOULD-NEVER-APPEAR-4471"
+
+
+class _ciphertext_reader:
+    """A stored-secret reader over a ciphertext lookup and a decryptor."""
+
+    def __init__(self, read_ciphertext, decrypt) -> None:
+        self._read_ciphertext = read_ciphertext
+        self._decrypt = decrypt
+
+    def read(self, context, ref_key):
+        ciphertext = self._read_ciphertext(context.account_id, ref_key)
+        if not ciphertext:
+            raise StoredSecretMissing(ref_key)
+        return self._decrypt(ciphertext)
 
 
 def _interface(**overrides) -> WorkflowInterface:
@@ -100,10 +115,10 @@ def test_the_boundary_exchanges_a_reference_for_the_decrypted_value() -> None:
 
     resolved = resolve_secret_reference(
         SecretReference(name="login", ref_key="wf:orders:login"),
-        account_id="acct-1",
+        context=SecretReadContext(account_id="acct-1"),
         authorized_ref_keys=frozenset({"wf:orders:login"}),
-        read_ciphertext=lambda account_id, ref_key: "cipher",
-        decrypt=lambda ciphertext: _SECRET,
+        reader=_ciphertext_reader(lambda account_id, ref_key: "cipher", lambda ciphertext: _SECRET),
+        decrypt_inline=lambda ciphertext: _SECRET,
     )
 
     assert resolved == _SECRET
@@ -122,10 +137,10 @@ def test_the_boundary_refuses_a_reference_it_cannot_find() -> None:
     with pytest.raises(SecretReferenceUnresolved):
         resolve_secret_reference(
             _raises_input_120_1,
-            account_id="acct-1",
+            context=SecretReadContext(account_id="acct-1"),
             authorized_ref_keys=_raises_input_120_2,
-            read_ciphertext=lambda account_id, ref_key: None,
-            decrypt=lambda ciphertext: _SECRET,
+            reader=_ciphertext_reader(lambda account_id, ref_key: None, lambda ciphertext: _SECRET),
+            decrypt_inline=lambda ciphertext: _SECRET,
         )
 
 
@@ -140,10 +155,13 @@ def test_the_boundary_resolves_references_nested_in_a_payload() -> None:
 
     resolved = resolve_secret_references_in(
         payload,
-        account_id="acct-1",
+        context=SecretReadContext(account_id="acct-1"),
         authorized_ref_keys=frozenset({"k", "k2"}),
-        read_ciphertext=lambda account_id, ref_key: f"cipher:{ref_key}",
-        decrypt=lambda ciphertext: ciphertext.replace("cipher:", "value-for-"),
+        reader=_ciphertext_reader(
+            lambda account_id, ref_key: f"cipher:{ref_key}",
+            lambda ciphertext: ciphertext.replace("cipher:", "value-for-"),
+        ),
+        decrypt_inline=lambda ciphertext: ciphertext.replace("cipher:", "value-for-"),
     )
 
     assert resolved["auth"]["password"] == "value-for-k"
@@ -174,7 +192,7 @@ def test_the_connector_receives_the_value_and_the_result_keeps_the_reference() -
 
     state = {
         "inputs": {"login": reference},
-        "runtime_context": {"account_id": "acct-1"},
+        "trusted_runtime_context": {"account_id": "acct-1"},
         "_workflow_secret_ref_fingerprints": [secret_ref_fingerprint("wf:orders:login")],
     }
     step_payload = {
@@ -192,13 +210,13 @@ def test_the_connector_receives_the_value_and_the_result_keeps_the_reference() -
         pytest.MonkeyPatch.context() as patch,
     ):
         patch.setattr(runtime, "_dispatch_tool_runtime", fake_dispatch)
-        patch.setattr(
-            runtime,
-            "_read_secret_ciphertext",
-            lambda account_id, ref_key: f"cipher:{ref_key}",
+        result = runtime.execute_connector_step(
+            step=step_payload,
+            state=state,
+            secret_reader=_ciphertext_reader(
+                lambda account_id, ref_key: f"cipher:{ref_key}", lambda ciphertext: _SECRET
+            ),
         )
-        patch.setattr(runtime, "_decrypt_secret_value", lambda ciphertext: _SECRET)
-        result = runtime.execute_connector_step(step=step_payload, state=state)
 
     assert dispatched["password"] == _SECRET, "the connector must get the real value"
     assert dispatched["user"] == "bot"
@@ -235,10 +253,10 @@ def test_a_reference_the_workflow_did_not_declare_is_refused() -> None:
     with pytest.raises(SecretReferenceUnauthorized):
         resolve_secret_reference(
             forged,
-            account_id="acct-1",
+            context=SecretReadContext(account_id="acct-1"),
             authorized_ref_keys=_raises_input_231_1,
-            read_ciphertext=_raises_input_231_2,
-            decrypt=lambda ciphertext: ciphertext,
+            reader=_ciphertext_reader(_raises_input_231_2, lambda ciphertext: ciphertext),
+            decrypt_inline=lambda ciphertext: ciphertext,
         )
 
 
@@ -249,10 +267,10 @@ def test_a_declared_reference_still_resolves() -> None:
 
     resolved = resolve_secret_reference(
         SecretReference(name="login", ref_key="workflow:orders:input:login"),
-        account_id="acct-1",
+        context=SecretReadContext(account_id="acct-1"),
         authorized_ref_keys=frozenset({"workflow:orders:input:login"}),
-        read_ciphertext=_store_reader(store),
-        decrypt=lambda _ciphertext: _SECRET,
+        reader=_ciphertext_reader(_store_reader(store), lambda _ciphertext: _SECRET),
+        decrypt_inline=lambda _ciphertext: _SECRET,
     )
 
     assert resolved == _SECRET
@@ -273,10 +291,10 @@ def test_an_empty_authorization_set_resolves_nothing() -> None:
     with pytest.raises(SecretReferenceUnauthorized):
         resolve_secret_references_in(
             _raises_input_264_1,
-            account_id="acct-1",
+            context=SecretReadContext(account_id="acct-1"),
             authorized_ref_keys=_raises_input_264_2,
-            read_ciphertext=_raises_input_264_3,
-            decrypt=lambda ciphertext: ciphertext,
+            reader=_ciphertext_reader(_raises_input_264_3, lambda ciphertext: ciphertext),
+            decrypt_inline=lambda ciphertext: ciphertext,
         )
 
 
@@ -293,7 +311,7 @@ def test_the_connector_authorizes_against_the_running_workflow_contract() -> Non
 
     state = {
         "workflow_id": "orders",
-        "runtime_context": {"account_id": "acct-1"},
+        "trusted_runtime_context": {"account_id": "acct-1"},
         # Authored literal: the author never had this key legitimately.
         "inputs": {},
     }
@@ -314,9 +332,13 @@ def test_the_connector_authorizes_against_the_running_workflow_contract() -> Non
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(runtime, "_dispatch_tool_runtime", fake_dispatch)
-        patch.setattr(runtime, "_read_secret_ciphertext", lambda account_id, ref_key: "cipher")
-        patch.setattr(runtime, "_decrypt_secret_value", lambda _ciphertext: _SECRET)
-        result = runtime.execute_connector_step(step=step_payload, state=state)
+        result = runtime.execute_connector_step(
+            step=step_payload,
+            state=state,
+            secret_reader=_ciphertext_reader(
+                lambda account_id, ref_key: "cipher", lambda _ciphertext: _SECRET
+            ),
+        )
 
     assert not dispatched, "the connector must not be called at all"
     assert result["ok"] is False
@@ -409,11 +431,13 @@ def test_inline_reference_requires_launch_authority_even_when_ciphertext_decrypt
     with pytest.raises(SecretReferenceUnauthorized):
         resolve_secret_reference(
             forged,
-            account_id="different-account",
+            context=SecretReadContext(account_id="different-account"),
             authorized_ref_keys=_raises_input_402_1,
             authorized_inline_ref_fingerprints=_raises_input_402_2,
-            read_ciphertext=lambda _account_id, _ref_key: None,
-            decrypt=lambda _ciphertext: _SECRET,
+            reader=_ciphertext_reader(
+                lambda _account_id, _ref_key: None, lambda _ciphertext: _SECRET
+            ),
+            decrypt_inline=lambda _ciphertext: _SECRET,
         )
 
 
@@ -434,11 +458,13 @@ def test_minted_inline_reference_resolves_with_its_launch_authority() -> None:
     assert (
         resolve_secret_reference(
             reference,
-            account_id="acct-1",
+            context=SecretReadContext(account_id="acct-1"),
             authorized_ref_keys=frozenset(),
             authorized_inline_ref_fingerprints=frozenset(snapshot),
-            read_ciphertext=lambda _account_id, _ref_key: None,
-            decrypt=lambda _ciphertext: _SECRET,
+            reader=_ciphertext_reader(
+                lambda _account_id, _ref_key: None, lambda _ciphertext: _SECRET
+            ),
+            decrypt_inline=lambda _ciphertext: _SECRET,
         )
         == _SECRET
     )

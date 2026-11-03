@@ -185,7 +185,10 @@ def _run_recorded_oauth_lane(
         state["image"] = [f"{project}-app:{'b' * 16}", f"{project}-app-extra:{'a' * 16}"]
     (tmp_path / "state.json").write_text(json.dumps(state), encoding="utf-8")
     env = {
-        **os.environ,
+        # The fakes are this interpreter: under the coverage gate pytest-cov's .pth would
+        # start coverage in every one of the lane's docker calls, ~7x each call's cost,
+        # and the 20 s budget then measures instrumentation, not the runner.
+        **{key: value for key, value in os.environ.items() if not key.startswith("COV_CORE_")},
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "FS_COMPOSE_PROJECT_NAME": requested,
         "OAUTH_FAKE_ROOT": str(tmp_path),
@@ -350,6 +353,28 @@ def test_runner_fetches_only_missing_reachable_shared_images_before_no_pull_star
         # Shared bases are not owned candidate images.
         assert state["image"] == ([] if ingress_present else [ingress])
     assert state["container"] == state["network"] == state["volume"] == []
+
+
+def test_the_recorded_lane_runs_its_fakes_without_subprocess_coverage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The full gate's coverage run timed four lanes out at 20 s: each fake docker call
+    had started coverage. The lane's own budget must not depend on that run."""
+    datafile = tmp_path / "coverage" / ".coverage"
+    datafile.parent.mkdir()
+    # Sourced where the fakes live, so a fake that started coverage leaves data behind.
+    monkeypatch.setenv("COV_CORE_SOURCE", str(tmp_path / "lane"))
+    monkeypatch.setenv("COV_CORE_CONFIG", os.pathsep)
+    monkeypatch.setenv("COV_CORE_DATAFILE", str(datafile))
+    monkeypatch.setenv("COV_CORE_BRANCH", "enabled")
+
+    result, commands, _state = _run_recorded_oauth_lane(
+        tmp_path / "lane", overrides={"OAUTH_RESOURCE_RESIDUE": "1"}
+    )
+
+    assert result.returncode != 0
+    assert commands
+    assert list(datafile.parent.iterdir()) == []
 
 
 def test_consumer_seed_discovery_accepts_an_empty_core_extensions_root(tmp_path: Path) -> None:

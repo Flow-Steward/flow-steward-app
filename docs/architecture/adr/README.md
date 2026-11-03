@@ -101,6 +101,8 @@ ADR takes the next unused number; never reuse a retired number.
 | [0053](0053-hosted-quality-gates.md) | Hosted quality gates for the public source | Accepted for pilot |
 | [0054](0054-reuse-exact-sha-release-gate.md) | Reuse an exact-SHA hosted gate at publication | Accepted |
 | [0055](0055-structured-dataset-queries.md) | Structured Dataset Queries Alongside SQL | Accepted |
+| [0056](0056-pre-1.0-released-database-upgrades.md) | Database Upgrades of Released Installations Before 1.0 | Accepted |
+| [0057](0057-secret-catalog.md) | Secret Catalog, Bindings and Approved Use | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

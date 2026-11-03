@@ -139,7 +139,7 @@ Public readiness is checked separately through the HTTPS domain after DNS and ce
 | worker capacity | Scalable: `./flow-steward config set --worker-replicas N` then `./flow-steward config apply --confirm` (fs-worker containers; kept by every later apply, rollback and update). Do not use `docker compose --scale`: the next `compose up` returns fs-worker to the recorded count, and `config apply` and `./install.sh` refuse to run over a count that was not recorded. Compact: `./install.sh --worker-processes N` (processes inside the one runtime container), at install time and on an installed Compact alike: it records N, recreates the runtime, waits until exactly N workers have registered and prints `Compact worker processes: 2 -> N`. The same N changes nothing and recreates nothing; a run killed half-way is finished by the next `./install.sh`. It is the one setting `./install.sh` changes on an installed system: any other flag that differs from the applied configuration is refused by name (`installed_setting_not_applied`), never ignored | change Compact env and redeploy; overlapping Compact replicas are unsupported |
 | maintenance | `flow-steward maintenance enable|disable --confirm` | `flow-steward maintenance enable|disable --confirm` |
 | schema status | `flow-steward database status` | `flow-steward database status` |
-| upgrade | maintenance, verified backup, then `flow-steward database upgrade --maintenance-confirmed --author <name> --confirm` | `flow-steward database upgrade --maintenance-confirmed --author <name> --confirm` |
+| upgrade | maintenance, verified backup, `flow-steward database preflight`, then `flow-steward database upgrade --maintenance-confirmed --author <name> --confirm` | `flow-steward database preflight`, then `flow-steward database upgrade --maintenance-confirmed --author <name> --confirm` |
 | backup | `flow-steward backup create|list|verify` | `flow-steward backup create|list`; verify with `flow-steward backup verify <path>` |
 | restore | stop writers, verify/decrypt the protected artifact, use the native `FilesystemBackupGateway.restore_database` transport with an exact recovery target, then run parity/readiness checks | not supported; restore from the provider's own database backups (see "Operating a platform deployment" below) |
 | uninstall | existing installer uninstall for owned Docker resources | remove provider services only after exporting backups and confirming external storage ownership |
@@ -292,10 +292,19 @@ What follows depends on whether the release changes the database, and the instal
 ```bash
 ./flow-steward maintenance enable --confirm
 ./flow-steward backup create
+./flow-steward database preflight
 ./flow-steward database upgrade --maintenance-confirmed --confirm
 ./install.sh
 ./flow-steward maintenance disable --confirm
 ```
+
+`database preflight` changes nothing. It lists what would stop the upgrade, and `database upgrade` runs the same checks again before it changes anything (ADR 0056):
+
+- a schema no published release shipped, a migration or upgrade phase this release does not know, or migration drift;
+- Flow Steward processes that are still connected. Every process names its database session `flow-steward:<role>:<version>`; stop the previous release's app, worker, scheduler and MCP processes first. Releases before this check did not name their sessions, so sessions of the application's database user without a name block too. When you have confirmed the listed sessions are not Flow Steward processes, pass `--allow-unlabeled-sessions` to both commands;
+- data the release cannot move on its own, such as a stored connection credential shared by connections of different projects (enter it separately per connection first).
+
+A second upgrade started while one runs fails at once instead of waiting. Recovery is forward only: after a migration has committed, fix the cause and run the same release's `database upgrade` again; going back to the previous release means restoring the backup.
 
 The second `./install.sh` finishes the update the first one prepared. It reports the update and does not claim there was no migration, because this one had one.
 

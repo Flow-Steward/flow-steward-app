@@ -180,11 +180,14 @@ def _notification_connection_target(
                 bl,
                 account_id=_as_str(connection.get("account_id")),
                 secret_refs={"refs": configuration_refs},
+                connection=connection,
             )
         except Exception as exc:
-            raise RuntimeError(
-                f"connection_secret_resolution_failed:{connection_id}:{exc}"
-            ) from exc
+            from core.application.management.project_connection_secrets import (
+                connection_secret_failure,
+            )
+
+            raise RuntimeError(connection_secret_failure(connection_id, exc).detail) from None
 
     provider_secret_refs = _as_dict(secret_refs.get("provider_secrets"))
     provider_key = _as_str(provider_secret_refs.get("provider_key"))

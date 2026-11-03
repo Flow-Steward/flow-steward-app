@@ -18,6 +18,7 @@ import {
   type WorkflowInterfaceFieldDraft,
 } from "@/pages/workflows/detail/detail-helpers";
 import { isFileFieldType, isSecretFieldType } from "@/pages/workflows/detail/detail-interface";
+import { WorkflowInputSecretBinding } from "@/pages/workflows/detail/detail-workflow-secret-catalog";
 import { sizeLabel } from "@/pages/extensions/marketplace-model";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { trimRepeatedEdges } from "@/lib/utils/string-normalization";
@@ -43,6 +44,21 @@ type DefaultControlProps = {
   updateRow: (patch: Partial<WorkflowInterfaceFieldDraft>) => void;
 };
 
+/** Where a secret input's catalog binding lives: the saved workflow in its project. */
+export type SecretCatalogScope = {
+  projectId: string;
+  workflowId: string;
+  revision?: number | null;
+};
+
+/** The row is a secret input of the saved workflow under the name on screen. */
+function savedSecretInputName(row: WorkflowInterfaceFieldDraft): string {
+  const original = row.originalAuthoredRow ?? {};
+  const savedName = textOrEmpty(stringFromUnknownValue(original.name));
+  const savedType = textOrEmpty(stringFromUnknownValue(original.type));
+  return savedName && savedName === textOrEmpty(row.name) && isSecretFieldType(savedType) ? savedName : "";
+}
+
 function DefaultConfiguredControl({ configured, controlId, controlName, updateRow }: Readonly<DefaultControlProps>) {
   const { t } = useI18n();
   return (
@@ -66,9 +82,10 @@ function DefaultConfiguredControl({ configured, controlId, controlName, updateRo
   );
 }
 
-function SecretDefaultControl(props: Readonly<DefaultControlProps>) {
+function SecretDefaultControl(props: Readonly<DefaultControlProps & { catalog?: SecretCatalogScope | null }>) {
   const { t } = useI18n();
-  const { configured, controlId, controlName, row, updateRow } = props;
+  const { catalog, configured, controlId, controlName, row, updateRow } = props;
+  const savedName = savedSecretInputName(row);
   const draft = String(row.secretDraft ?? "");
   return (
     <div className="mt-2 rounded border border-[var(--fs-border-default)] bg-[var(--fs-bg-surface)] p-2 text-xs text-[var(--fs-text-primary)]">
@@ -96,6 +113,15 @@ function SecretDefaultControl(props: Readonly<DefaultControlProps>) {
           {t("settings.common.clear", "Clear")}</button>
       </div>
       <p className="mt-1 text-[11px] text-[var(--fs-text-tertiary)]">{t("react.workflows.stored_encrypted_and_never_shown_again_saving_the_workflow_applies_the_change", "Stored encrypted and never shown again. Saving the workflow applies the change.")}</p>
+      {catalog ? (
+        <WorkflowInputSecretBinding
+          field={savedName || textOrEmpty(row.name)}
+          projectId={catalog.projectId}
+          revision={catalog.revision}
+          saved={Boolean(savedName)}
+          workflowId={catalog.workflowId}
+        />
+      ) : null}
     </div>
   );
 }
@@ -200,10 +226,11 @@ function renderWorkflowFieldDefault(
   updateRow: (patch: Partial<WorkflowInterfaceFieldDraft>) => void,
   controlId: string,
   controlName: string,
+  catalog: SecretCatalogScope | null = null,
 ) {
   const type = textOrEmpty(row.type) || "string";
   const props = { configured: Boolean(row.defaultConfigured), controlId, controlName, row, updateRow };
-  if (isSecretFieldType(type)) return <SecretDefaultControl {...props} />;
+  if (isSecretFieldType(type)) return <SecretDefaultControl {...props} catalog={catalog} />;
   if (isFileFieldType(type)) return <SampleFileControl {...props} />;
   if (type === "boolean") return <BooleanDefaultControl {...props} />;
   if (type === "select") return <SelectDefaultControl {...props} />;
@@ -216,6 +243,15 @@ export function createWorkflowInterfaceRenderers(ctx: WorkflowInterfaceRenderCon
   const workflowInterfaceControlIdPrefix =
     firstStringFromUnknownValue([ctx.workflowInterfaceControlIdPrefix, ""]);
   const nameValidationAttempted = Boolean(ctx.workflowInterfaceNameValidationAttempted);
+  // The catalog binding of a secret input is its own request against the saved
+  // workflow; it is never added to the rows this editor saves.
+  const secretCatalog: SecretCatalogScope | null = ctx.secretCatalogWorkflowId
+    ? {
+        projectId: firstStringFromUnknownValue([ctx.secretCatalogProjectId, ""]),
+        workflowId: firstStringFromUnknownValue([ctx.secretCatalogWorkflowId, ""]),
+        revision: Number(ctx.secretCatalogRevision) || null,
+      }
+    : null;
   function renderContractChips(
     label: string,
     rows: Array<Record<string, unknown>>,
@@ -411,6 +447,7 @@ export function createWorkflowInterfaceRenderers(ctx: WorkflowInterfaceRenderCon
                     (patch) => updateRow(index, patch),
                     `${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-default`,
                     `workflow_interface_${editorKey}_${index}_default`,
+                    secretCatalog,
                   )
                 : null}
               <label className="block text-xs text-[var(--fs-text-primary)]">

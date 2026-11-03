@@ -56,6 +56,15 @@ class WorkflowSecretDefaultRepository(Protocol):
         keep_ref_key: str = "",
     ) -> None: ...
 
+    def delete_catalog_binding(
+        self,
+        transaction: Any,
+        *,
+        account_id: str,
+        workflow_id: str,
+        field_name: str,
+    ) -> None: ...
+
     def purge_workflow_secrets(
         self,
         transaction: Any,
@@ -296,6 +305,15 @@ class WorkflowSecretDefaultService:
                 code="workflow_secret_scope_forbidden",
                 status_code=403,
             )
+        from core.application.secrets.workflow_gate import reserved_binding_keys
+
+        reserved = reserved_binding_keys(final_settings)
+        if reserved:
+            # Catalog bindings are changed only by their own operation (ADR 0057).
+            raise SecretDefaultRejected(
+                "secret inputs cannot carry catalog bindings in the definition: "
+                + ", ".join(reserved)
+            )
         previous_fields = self._secret_fields(previous_settings)
         final_fields = self._secret_fields(final_settings)
         displaced_fields = sorted(set(previous_fields) - set(final_fields))
@@ -308,6 +326,12 @@ class WorkflowSecretDefaultService:
                 ):
                     raise SecretDefaultRejected("stored secret reference ownership is invalid")
             for field_name in displaced_fields:
+                self.repository.delete_catalog_binding(
+                    transaction,
+                    account_id=normalized_account_id,
+                    workflow_id=normalized_workflow_id,
+                    field_name=field_name,
+                )
                 self.repository.delete_owner_ciphertexts(
                     transaction,
                     account_id=normalized_account_id,

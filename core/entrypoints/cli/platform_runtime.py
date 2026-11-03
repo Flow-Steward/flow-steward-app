@@ -19,6 +19,7 @@ _OPERATIONS = (
     "doctor",
     "proxy-fragment",
     "database-status",
+    "database-preflight",
     "database-upgrade",
     "database-restore-parity-capture",
     "database-restore-parity-verify",
@@ -46,6 +47,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--label", default="")
     parser.add_argument("--author")
     parser.add_argument("--maintenance-confirmed", action="store_true")
+    parser.add_argument("--allow-unlabeled-sessions", action="store_true")
     parser.add_argument("--confirm", action="store_true")
     parser.add_argument("--confirmation", default="")
     parser.add_argument("--operation-id", default="")
@@ -87,6 +89,7 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         "label": bool(args.label),
         "author": args.author is not None,
         "maintenance_confirmed": args.maintenance_confirmed,
+        "allow_unlabeled_sessions": args.allow_unlabeled_sessions,
         "confirm": args.confirm,
         "confirmation": bool(args.confirmation),
         "operation_id": bool(args.operation_id),
@@ -96,7 +99,13 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         "passphrase_stdin": args.passphrase_stdin,
     }
     allowed = {
-        "database-upgrade": {"author", "maintenance_confirmed", "confirm"},
+        "database-upgrade": {
+            "author",
+            "maintenance_confirmed",
+            "allow_unlabeled_sessions",
+            "confirm",
+        },
+        "database-preflight": {"allow_unlabeled_sessions"},
         "maintenance-enable": {"confirm"},
         "maintenance-disable": {"confirm"},
         "database-restore-parity-capture": {"output", "label", "confirm"},
@@ -128,6 +137,8 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
             "--maintenance-confirmed",
             "--confirm",
         ]
+        if args.allow_unlabeled_sessions:
+            command.append("--allow-unlabeled-sessions")
     elif args.operation in {"maintenance-enable", "maintenance-disable"}:
         if not args.confirm:
             raise ValueError(f"{args.operation} requires --confirm")
@@ -193,6 +204,10 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
             command.extend(("--confirm", args.confirmation))
         if args.operation_id:
             command.extend(("--operation-id", args.operation_id))
+    elif args.operation == "database-preflight":
+        command = ["database", "preflight"]
+        if args.allow_unlabeled_sessions:
+            command.append("--allow-unlabeled-sessions")
     else:
         command = mapping[args.operation]
     if args.json:

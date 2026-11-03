@@ -314,9 +314,18 @@ class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthor
             display_name = str(workflow.get("display_name") or workflow_id).strip()
             enabled = bool(workflow.get("enabled", False))
 
+        from core.application.secrets.workflow_gate import catalog_bound_interface
+
         service = WorkflowInterfaceService()
-        interface = service.interface_from_definition(
-            projected_workflow if projected_workflow is not None else db_workflow
+        source = projected_workflow if projected_workflow is not None else db_workflow
+        # A projected manifest carries no owner: the account is the canonical row's.
+        owner_row = db_workflow or self._registry_db().get_workflow(resolved_workflow_id)
+        account_id = owner_row.get("account_id") if isinstance(owner_row, dict) else ""
+        # A secret input bound to a catalog secret is configured (ADR 0057).
+        interface = catalog_bound_interface(
+            service.interface_from_definition(source),
+            workflow_id=resolved_workflow_id,
+            account_id=account_id,
         )
         return {
             "workflow_id": resolved_workflow_id,

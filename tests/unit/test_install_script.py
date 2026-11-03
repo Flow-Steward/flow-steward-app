@@ -7,7 +7,8 @@ import signal
 import stat
 import subprocess
 import time
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -546,19 +547,33 @@ def test_a_hangup_stops_the_installer_runtime_instead_of_orphaning_it(tmp_path: 
         start_new_session=True,
     )
     cidfile = state_dir / "installer-runtime.cid"
-    deadline = time.monotonic() + 10
-    while not cidfile.is_file() and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert cidfile.is_file()
+    with _reaped(process):
+        deadline = time.monotonic() + 10
+        while not cidfile.is_file() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert cidfile.is_file()
 
-    os.killpg(process.pid, signal.SIGHUP)
-    process.communicate(timeout=15)
+        os.killpg(process.pid, signal.SIGHUP)
+        process.communicate(timeout=15)
 
     assert process.returncode == 10
     assert any(
         "container\tkill\t--signal\tTERM" in line
         for line in docker_log.read_text(encoding="utf-8").splitlines()
     )
+
+
+@contextmanager
+def _reaped(process: subprocess.Popen[str]) -> Iterator[None]:
+    """A failed assertion still stops the installer's process group: its fake runtime
+    loops until signalled and would outlive the test."""
+    try:
+        yield
+    finally:
+        if process.poll() is None:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=15)
 
 
 def test_sigint_during_build_removes_host_record_and_stops_build(tmp_path: Path) -> None:
@@ -605,6 +620,47 @@ def test_sigint_during_build_removes_host_record_and_stops_build(tmp_path: Path)
         with suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
         process.communicate(timeout=5)
+
+
+def test_the_host_record_is_private_from_the_moment_it_appears(tmp_path: Path) -> None:
+    """A slow chmod holds open the window a write-then-chmod record leaves: a loaded
+    full gate caught the record at 0644 there. The record must be 0600 when it appears."""
+    docker_log = _fake_docker(tmp_path)
+    real_chmod = shutil.which("chmod")
+    assert real_chmod is not None
+    _write_shim(tmp_path / "chmod", f'#!/bin/sh\nsleep 1\nexec {real_chmod} "$@"\n')
+    state_dir = tmp_path / "state"
+    env = {
+        **os.environ,
+        "PATH": f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}",
+        "DOCKER_LOG": str(docker_log),
+        "FAKE_CONTEXT_ENDPOINT": "unix:///var/run/docker.sock",
+        "FAKE_RUNTIME_WAIT": "1",
+        "FS_INSTALLER_IMAGE": "flow-steward-installer:test",
+        "FS_INSTALLER_STATE_DIR": str(state_dir),
+        "FS_INSTALLER_HEARTBEAT_SECONDS": "0.05",
+    }
+    process = subprocess.Popen(
+        ["bash", str(INSTALL_SCRIPT), "--non-interactive", "--confirm"],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    record = state_dir / "installer-host.pid"
+    with _reaped(process):
+        deadline = time.monotonic() + 10
+        while not record.is_file() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert record.stat().st_mode & 0o777 == 0o600
+        assert record.read_text(encoding="utf-8").strip() == str(process.pid)
+
+        os.killpg(process.pid, signal.SIGINT)
+        process.communicate(timeout=15)
+
+    assert not record.exists()
 
 
 def test_a_live_runs_record_is_not_taken_over(tmp_path: Path) -> None:

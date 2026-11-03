@@ -211,6 +211,7 @@ def create_frontend_shell_router(
         @router.get("/registry/guardrails", include_in_schema=False)
         @router.get("/registry/guardrails/{guardrail_id}", include_in_schema=False)
         @router.get("/registry/data-connections", include_in_schema=False)
+        @router.get("/registry/secrets", include_in_schema=False)
         @router.get("/registry/datasets", include_in_schema=False)
         @router.get("/registry/datasets/{dataset_id}", include_in_schema=False)
         @router.get("/registry/workspaces", include_in_schema=False)

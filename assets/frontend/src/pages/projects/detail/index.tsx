@@ -130,6 +130,9 @@ export function ProjectsDetailPage() {
   const { t } = useI18n();
   const { projectId = "" } = useParams();
   const canMutate = useHasCapability("mutate_projects");
+  // Linking workflows to a project is admin-only on the server; an operator sees
+  // the workflow secrets panel instead, never an assignment list it cannot load.
+  const canManageWorkflows = useHasCapability("administer_platform");
   /* Cancel used to leave for the overview, which threw the drafts away. The
      overview is this page now, so Cancel discards them in place: bumping the
      revision re-seeds every draft from the server data and remounts the form's
@@ -175,12 +178,13 @@ export function ProjectsDetailPage() {
   const workflowsQuery = useQuery({
     queryKey: ["projects", projectId, "workflows", "edit-workspace"],
     queryFn: () => fetchProjectWorkflowBindings(projectId),
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && canManageWorkflows,
   });
 
   const workflowCatalogQuery = useQuery({
     queryKey: ["workflows", "catalog", "project-edit"],
     queryFn: () => fetchWorkflows({ enabledOnly: false, search: "" }),
+    enabled: canManageWorkflows,
   });
 
   const workspacesQuery = useQuery({
@@ -963,6 +967,7 @@ export function ProjectsDetailPage() {
         projectRelevantAgentIds={projectRelevantAgentIds}
         providerOptions={providerOptions}
         readOnly={!canMutate}
+        canManageWorkflows={canManageWorkflows}
         removeAgentOverride={removeAgentOverride}
         selectProjectTab={selectProjectTab}
         selectedDataConnectionIds={selectedDataConnectionIds}
@@ -997,7 +1002,7 @@ export function ProjectsDetailPage() {
         workspaces={workspacesQuery.data || []}
       />
 
-      {(detailQuery.isError || workflowsQuery.isError || workflowCatalogQuery.isError) ? (
+      {(detailQuery.isError || (canManageWorkflows && (workflowsQuery.isError || workflowCatalogQuery.isError))) ? (
         <DsAlert tone="danger" title={t("react.projects.part_of_the_project_settings_could_not_be_loaded", "Part of the project settings could not be loaded")}>
           {[
             detailQuery.error instanceof Error ? detailQuery.error.message : "",

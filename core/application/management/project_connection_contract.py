@@ -48,8 +48,11 @@ class ProjectConnectionContract:
         if not isinstance(refs, dict):
             raise ServiceValidationError("secret_refs.refs: expected object")
 
-        existing_refs = self._normalize_secret_refs(existing_secret_refs).get("refs")
+        existing_normalized = self._normalize_secret_refs(existing_secret_refs)
+        existing_refs = existing_normalized.get("refs")
         existing_map = dict(existing_refs) if isinstance(existing_refs, dict) else {}
+        catalog_bound = existing_normalized.get("catalog")
+        catalog_fields = set(catalog_bound) if isinstance(catalog_bound, dict) else set()
         normalized_connection_id = self._normalize_text(connection_id)
         platform_names = {
             self._normalize_text(name)
@@ -66,6 +69,14 @@ class ProjectConnectionContract:
                 continue
             if self._is_internal_secret_ref_name(name) or name in platform_names:
                 errors.append(f"secret_refs.{name}: platform-owned OAuth secret refs are read-only")
+                continue
+            if name in catalog_fields:
+                # The catalog binding owns this field (ADR 0057). Echoing it back
+                # is harmless; pointing it elsewhere goes through a binding.
+                if ref_value != self._normalize_text(existing_map.get(name)) and raw_ref:
+                    errors.append(
+                        f"secret_refs.{name}: bound to a stored secret; change the binding instead"
+                    )
                 continue
 
             existing_ref = self._normalize_text(existing_map.get(name))
@@ -115,6 +126,8 @@ class ProjectConnectionContract:
             for name in (platform_secret_ref_names or set())
             if self._normalize_text(name)
         }
+        existing_catalog = self._normalize_secret_refs(existing_secret_refs).get("catalog")
+        catalog_fields = set(existing_catalog) if isinstance(existing_catalog, dict) else set()
         if isinstance(existing_refs, dict):
             for raw_name, raw_ref in existing_refs.items():
                 name = self._normalize_text(raw_name)
@@ -122,10 +135,18 @@ class ProjectConnectionContract:
                 if (
                     name
                     and ref
-                    and (self._is_internal_secret_ref_name(name) or name in platform_names)
+                    and (
+                        self._is_internal_secret_ref_name(name)
+                        or name in platform_names
+                        or name in catalog_fields
+                    )
                 ):
                     refs[name] = ref
-        return {"refs": refs} if refs else {}
+        merged_payload: dict[str, Any] = {"refs": refs} if refs else {}
+        if catalog_fields:
+            # Bindings are changed only by the catalog, never by a connection update.
+            merged_payload["catalog"] = dict(existing_catalog or {})
+        return merged_payload
 
     def _sanitize_public_secret_values(
         self,

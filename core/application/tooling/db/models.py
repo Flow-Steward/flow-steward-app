@@ -32,6 +32,12 @@ class DatabaseUpgradeRequest(_DatabaseRequest):
     dsn: str = ""
     author: str = "system"
     maintenance_confirmed: bool = False
+    allow_unlabeled_sessions: bool = False
+
+
+class DatabasePreflightRequest(_DatabaseRequest):
+    dsn: str = ""
+    allow_unlabeled_sessions: bool = False
 
 
 class DatabaseBootstrapSeedRequest(_DatabaseRequest):

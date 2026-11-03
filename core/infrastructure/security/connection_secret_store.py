@@ -6,6 +6,14 @@ from typing import Any
 
 from core.infrastructure.db import model_provider_store
 from core.infrastructure.security.secret_codec import decrypt_secret, encrypt_secret
+from core.infrastructure.security.stored_secrets import (
+    SecretReadContext,
+    StoredSecretReader,
+    stored_secret_reader,
+)
+
+#: Names the OAuth grant lifecycle owns inside a connection's secret map.
+OAUTH_GRANT_SECRET_PREFIX = "_oauth_"  # pragma: allowlist secret - a name prefix, not a value
 
 
 def normalize_connection_secret_refs(value: Any) -> dict[str, str]:
@@ -85,12 +93,48 @@ def save_connection_secrets(
     return {"refs": refs} if refs else {}
 
 
+def is_oauth_grant_secret_name(secret_name: Any) -> bool:
+    """Whether a connection secret belongs to the OAuth grant lifecycle, not static credentials."""
+    return str(secret_name or "").strip().startswith(OAUTH_GRANT_SECRET_PREFIX)
+
+
 def resolve_connection_secrets(
     conn: Any,
     *,
     account_id: str,
     secret_refs: Any,
+    reader: StoredSecretReader | None = None,
 ) -> dict[str, str]:
+    """Resolve a connection's static credentials through the host-selected reader.
+
+    Every configured reference must produce a value: a reference with nothing
+    behind it raises `StoredSecretMissing` rather than dropping the field, and a
+    stored empty string is a value. Whether a field is required at all is the
+    connection contract's question, not this one's. OAuth grant values are not
+    static credentials and never reach the reader; they stay on
+    `read_local_connection_secrets`.
+    """
+    store = reader or stored_secret_reader(conn)
+    context = SecretReadContext.for_account(account_id)
+    return {
+        secret_name: store.read(context, ref_key)
+        for secret_name, ref_key in normalize_connection_secret_refs(secret_refs).items()
+        if not is_oauth_grant_secret_name(secret_name)
+    }
+
+
+def read_local_connection_secrets(
+    conn: Any,
+    *,
+    account_id: str,
+    secret_refs: Any,
+) -> dict[str, str]:
+    """Read connection secrets from the local encrypted store with the OAuth lifecycle's semantics.
+
+    OAuth grant persistence writes, refreshes and revokes these values locally
+    and treats a missing one as absent. It deliberately does not go through the
+    stored-secret reader.
+    """
     values: dict[str, str] = {}
     for secret_name, ref_key in normalize_connection_secret_refs(secret_refs).items():
         ciphertext = model_provider_store.get_secret_ref_ciphertext(
@@ -122,6 +166,11 @@ def delete_connection_secret_refs(
             DELETE FROM secret_refs
              WHERE account_id::text = %s
                AND left(ref_key, length(%s)) = %s
+               AND NOT EXISTS (
+                   SELECT 1 FROM catalog_secrets AS catalog
+                    WHERE catalog.account_id = secret_refs.account_id
+                      AND catalog.storage_ref_key = secret_refs.ref_key
+               )
             """,
             (normalized_account_id, ref_prefix, ref_prefix),
         )
@@ -129,10 +178,13 @@ def delete_connection_secret_refs(
 
 
 __all__ = [
+    "OAUTH_GRANT_SECRET_PREFIX",
     "connection_secret_ref_key",
     "connection_secret_ref_map",
     "delete_connection_secret_refs",
+    "is_oauth_grant_secret_name",
     "normalize_connection_secret_refs",
+    "read_local_connection_secrets",
     "resolve_connection_secrets",
     "save_connection_secret",
     "save_connection_secrets",

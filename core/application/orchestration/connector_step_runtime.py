@@ -20,6 +20,7 @@ from core.application.orchestration.connector_mapping import (
     _suppressed_input_dependencies,
     _to_object,
 )
+from core.application.orchestration.connector_receiver import PinnedReceiver, PinnedTool
 from core.application.orchestration.connector_tool_runtime import _dispatch_tool_runtime
 from core.application.orchestration.state_paths import StatePathError
 from core.application.orchestration.step_activity import step_activity_heartbeat
@@ -27,20 +28,11 @@ from core.application.orchestration.step_activity import step_activity_heartbeat
 _MESSAGE_UNNAMED_STEP = "<unnamed step>"
 
 
-def _read_secret_ciphertext(account_id: str, ref_key: str) -> str | None:
-    """Read one encrypted value from the account-scoped secret store."""
-    from core.infrastructure.db.model_provider_store import get_secret_ref_ciphertext
+def _secret_reader() -> Any:
+    """The host-selected reader over the run's own database connection."""
+    from core.infrastructure.security.stored_secrets import deferred_stored_secret_reader
 
-    store = _shared_logger()
-    if store is None:
-        return None
-    return get_secret_ref_ciphertext(store.conn, account_id=account_id, ref_key=ref_key)
-
-
-def _decrypt_secret_value(ciphertext: str) -> str:
-    from core.infrastructure.security.secret_codec import decrypt_secret
-
-    return decrypt_secret(ciphertext)
+    return deferred_stored_secret_reader(lambda: getattr(_shared_logger(), "conn", None))
 
 
 def _presented_secret_ref_keys(value: Any) -> set[str]:
@@ -75,7 +67,10 @@ def _authorized_secret_ref_keys(
 
 
 def _payload_for_dispatch(
-    input_payload: dict[str, Any], runtime_state: dict[str, Any]
+    input_payload: dict[str, Any],
+    runtime_state: dict[str, Any],
+    secret_reader: Any = None,
+    receiver_identity: dict[str, str] | None = None,
 ) -> tuple[Any, frozenset[str], bool]:
     """Exchange secret references for values, for the call only.
 
@@ -84,15 +79,26 @@ def _payload_for_dispatch(
     keeps them. Resolving in place would put the credential into the very field
     that exists to say what was sent.
     """
+    from core.application.secrets.workflow_gate import RECEIVER_CONNECTOR, CatalogAuthorityReader
     from core.infrastructure.security.secret_reference import resolve_secret_references_in
+    from core.infrastructure.security.stored_secrets import SecretReadContext
 
-    runtime_context = dict(runtime_state.get("runtime_context") or {})
+    # The run's trusted identity, as the worker built it (graph state has no
+    # "runtime_context" key).
+    runtime_context = _runtime_ids_from_state(runtime_state)
     resolved_payload = resolve_secret_references_in(
         input_payload,
-        account_id=str(runtime_context.get("account_id") or "").strip(),
+        context=SecretReadContext.for_account(runtime_context.get("account_id")),
         authorized_ref_keys=_authorized_secret_ref_keys(runtime_state, input_payload),
-        read_ciphertext=_read_secret_ciphertext,
-        decrypt=_decrypt_secret_value,
+        reader=CatalogAuthorityReader(
+            secret_reader or _secret_reader(),
+            conn_provider=lambda: getattr(_shared_logger(), "conn", None),
+            runtime_state=runtime_state,
+            # The extension release captured before this read (connector_receiver);
+            # without one, no catalog secret is read for this input (ADR 0057).
+            receiver=RECEIVER_CONNECTOR,
+            receiver_identity=receiver_identity,
+        ),
         authorized_inline_ref_fingerprints=frozenset(
             str(item or "").strip()
             for item in (runtime_state.get("_workflow_secret_ref_fingerprints") or [])
@@ -125,12 +131,26 @@ def _resolved_secret_values(presented: Any, resolved: Any) -> tuple[frozenset[st
     return collect_secret_values(values)
 
 
+def _pinned_receiver(*, runtime_state: dict[str, Any], **target: str) -> Any:
+    """The extension release or tool a step dispatches to, selected now; else None."""
+    from core.application.orchestration.connector_receiver import pin_step_receiver
+
+    ids = _runtime_ids_from_state(runtime_state)
+    lineage = {key: str(ids.get(key) or "") for key in ("account_id", "project_id", "tenant_id")}
+    return pin_step_receiver(**target, lineage=lineage, get_logger_only=_shared_logger)
+
+
 def execute_connector_step(
     *,
     step: dict[str, Any],
     state: dict[str, Any] | None = None,
+    secret_reader: Any = None,
 ) -> dict[str, Any]:
-    """Execute connector step through tool or extension runtimes."""
+    """Execute connector step through tool or extension runtimes.
+
+    `secret_reader` replaces the host-selected stored-secret reader; tests pass
+    one, production callers leave it unset.
+    """
     step_payload = dict(step or {})
     runtime_state = dict(state or {})
     connector_id = str(step_payload.get("connector_id") or "").strip()
@@ -267,13 +287,27 @@ def execute_connector_step(
         SecretReferenceUnauthorized,
         SecretReferenceUnresolved,
     )
+    from core.infrastructure.security.stored_secrets import StoredSecretError
 
+    receiver = _pinned_receiver(
+        connector_id=connector_id,
+        extension_id=extension_id,
+        connector_install_id=connector_install_id,
+        action_id=action_id,
+        operation_id=operation_id,
+        runtime_state=runtime_state,
+    )
     try:
         (
             dispatch_payload,
             protected_input_secrets,
             protected_input_secret_budget_exceeded,
-        ) = _payload_for_dispatch(input_payload, runtime_state)
+        ) = _payload_for_dispatch(
+            input_payload,
+            runtime_state,
+            secret_reader,
+            receiver.identity() if receiver is not None else None,
+        )
     except (SecretReferenceUnauthorized, SecretReferenceUnresolved) as exc:
         # A configured secret with nothing behind it. Calling anyway would send a
         # credential that is not one, and the failure would come back as
@@ -286,6 +320,29 @@ def execute_connector_step(
             "error": "unresolved_secret_input",
             "detail": f"Step '{step_id}' could not resolve a secret input. {exc}",
             "input_payload": input_payload,
+            "retryable": False,
+            "failure_class": "validation",
+            "external_effect_status": "failed",
+            "definitely_no_external_effect": True,
+        }
+    except StoredSecretError as exc:
+        # The store, not the configuration, failed. Its message is fixed text;
+        # the reason the store gave stays out of the step result and the log.
+        # The operation kind is not known yet, so it is treated as a mutation;
+        # a retry is still allowed because the connector was provably not called.
+        step_id = str(step_payload.get("step_id") or "").strip() or _MESSAGE_UNNAMED_STEP
+        return {
+            "ok": False,
+            "runtime": "unresolved",
+            "connector_id": connector_id,
+            "error": exc.code,
+            "detail": f"Step '{step_id}' could not resolve a secret input. {exc}",
+            "input_payload": input_payload,
+            "retryable": exc.retryable,
+            "failure_class": exc.failure_class,
+            "request_semantics": "mutation",
+            "external_effect_status": "failed",
+            "definitely_no_external_effect": True,
         }
     activity_ids = _runtime_ids_from_state(runtime_state)
     activity_job_id = activity_ids.get("job_id")
@@ -294,17 +351,24 @@ def execute_connector_step(
         or connector_id
     )
     with step_activity_heartbeat(_shared_job_store(), job_id=activity_job_id, label=step_label):
-        tool_dispatch = _dispatch_tool_runtime(
-            connector_id=connector_id,
-            connector_install_id=connector_install_id,
-            function_name=function_name,
-            operation_id=operation_id,
-            input_payload=dispatch_payload,
-            event_input_payload=input_payload,
-            protected_input_secrets=protected_input_secrets,
-            protected_input_secret_budget_exceeded=protected_input_secret_budget_exceeded,
-            connection_binding=raw_connection_binding,
-            state=runtime_state,
+        # A pinned extension receives the values it was checked for, never a tool.
+        tool_dispatch = (
+            None
+            if isinstance(receiver, PinnedReceiver)
+            else _dispatch_tool_runtime(
+                connector_id=connector_id,
+                connector_install_id=connector_install_id,
+                function_name=function_name,
+                operation_id=operation_id,
+                input_payload=dispatch_payload,
+                event_input_payload=input_payload,
+                protected_input_secrets=protected_input_secrets,
+                protected_input_secret_budget_exceeded=protected_input_secret_budget_exceeded,
+                connection_binding=raw_connection_binding,
+                state=runtime_state,
+                # A pinned tool is dispatched as selected, never another one.
+                pinned_tool=receiver if isinstance(receiver, PinnedTool) else None,
+            )
         )
     if tool_dispatch and tool_dispatch.get("handled"):
         tool_dispatch["connector_id"] = connector_id
@@ -318,6 +382,11 @@ def execute_connector_step(
             state=runtime_state,
         )
         return _project_retry_signal(tool_dispatch)
+    if isinstance(receiver, PinnedTool):
+        # Values resolved for that tool go nowhere else.
+        return _unmatched_connector(
+            connector_id, input_payload, unresolved_inputs, raw_connection_binding
+        )
 
     with step_activity_heartbeat(_shared_job_store(), job_id=activity_job_id, label=step_label):
         extension_dispatch = _dispatch_extension_runtime(
@@ -332,6 +401,7 @@ def execute_connector_step(
             protected_input_secret_budget_exceeded=protected_input_secret_budget_exceeded,
             connection_binding=raw_connection_binding,
             state=runtime_state,
+            pinned_receiver=receiver,
         )
     if extension_dispatch and extension_dispatch.get("handled"):
         extension_dispatch["connector_id"] = connector_id
@@ -346,12 +416,20 @@ def execute_connector_step(
         )
         return _project_retry_signal(extension_dispatch)
 
+    return _unmatched_connector(
+        connector_id, input_payload, unresolved_inputs, raw_connection_binding
+    )
+
+
+def _unmatched_connector(
+    connector_id: str, input_payload: Any, unresolved_inputs: Any, connection_binding: Any
+) -> dict[str, Any]:
     return {
         "ok": False,
         "runtime": "unresolved",
         "connector_id": connector_id,
         "input_payload": input_payload,
         "input_mapping_unresolved": dict(unresolved_inputs),
-        "connection_binding": raw_connection_binding,
+        "connection_binding": connection_binding,
         "detail": "No connector runtime backend matched this connector_id",
     }

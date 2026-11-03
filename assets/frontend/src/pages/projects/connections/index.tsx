@@ -8,6 +8,7 @@ import { Link } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { fetchProjectConnectionsList } from "@/pages/projects/connections/api";
+import { ProjectSecretApprovals } from "@/pages/projects/connections/secret-approvals";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 type ProjectConnectionsEditorProps = {
@@ -37,6 +38,7 @@ export function ProjectConnectionsEditor({ projectId }: Readonly<ProjectConnecti
 
   return (
     <section className="space-y-6">
+      <ProjectSecretApprovals projectId={projectId} />
       <Card className="fs-card">
         <CardHeader>
           <CardTitle className="text-lg">{t("project_detail.connections.title", "Connections")}</CardTitle>

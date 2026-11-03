@@ -94,6 +94,16 @@ class _Repository:
             raise RuntimeError("write failed with private database detail")
         self.secret_refs[(account_id, ref_key)] = ciphertext
 
+    def delete_catalog_binding(
+        self,
+        _transaction,
+        *,
+        account_id: str,
+        workflow_id: str,
+        field_name: str,
+    ) -> None:
+        self.unbound = [*getattr(self, "unbound", []), (account_id, workflow_id, field_name)]
+
     def delete_owner_ciphertexts(
         self,
         _transaction,

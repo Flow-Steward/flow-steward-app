@@ -189,10 +189,13 @@ AUTH_ADMIN_ONLY_PATTERNS = (
     # Project workflow management is admin-only for writes (e.g. PUT workflow
     # bindings), but the read-only diagnostics — contract / validate / suggestions
     # GETs — are operator/viewer-readable for parity with the project
-    # workflow-catalog and workflow-entrypoints reads. The negative lookahead
-    # excludes those three diagnostic leaf paths from the admin-only gate.
+    # workflow-catalog and workflow-entrypoints reads. A workflow's stored-secret
+    # binding and approval (ADR 0057) are the operator's own operations; the secret
+    # catalog service checks role, interactive session and scopes for each. The
+    # negative lookahead excludes exactly these leaf paths from the admin-only gate.
     re.compile(
-        r"^(?!/api/projects/[^/]+/workflows/[^/]+/(?:contract|validate|suggestions)$)"
+        r"^(?!/api/projects/[^/]+/workflows/[^/]+/"
+        r"(?:contract|validate|suggestions|secret-approval|secret-bindings/[^/]+)$)"
         r"/api/projects/[^/]+/workflows(?:/|$)"
     ),
     re.compile(r"^/api/processes/[^/]+/kill$"),

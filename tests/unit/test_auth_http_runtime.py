@@ -1191,3 +1191,172 @@ def test_builder_normal_run_preserves_editor_role_and_cookie_csrf(role, csrf_val
         principal=ResolvedPrincipal(id="user", username="user", roles=[role], auth_source="local"),
     )
     assert response.status_code == expected
+
+
+_OPERATOR = ResolvedPrincipal(
+    id="op-1", username="operator", roles=["operator"], auth_source="session"
+)
+_VIEWER = ResolvedPrincipal(id="vw-1", username="viewer", roles=["viewer"], auth_source="session")
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/api/projects/proj-1/workflows/orders_sync/secret-approval"),
+        ("POST", "/api/projects/proj-1/workflows/orders_sync/secret-approval"),
+        ("PUT", "/api/projects/proj-1/workflows/orders_sync/secret-bindings/api_key"),
+        ("DELETE", "/api/projects/proj-1/workflows/orders_sync/secret-bindings/api_key"),
+    ],
+)
+def test_an_operator_reaches_workflow_secret_binding_and_approval(method: str, path: str) -> None:
+    # ADR 0057: binding and approval are the operator's; the secret catalog service
+    # then checks role, interactive session and scopes for each request.
+    response = _run_middleware_with_principal(
+        path=path, method=method, principal=_OPERATOR, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == 204
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/api/projects/proj-1/workflows/orders_sync/secret-approval"),
+        ("PUT", "/api/projects/proj-1/workflows/orders_sync/secret-bindings/api_key"),
+    ],
+)
+def test_a_viewer_cannot_bind_or_approve_workflow_secrets(method: str, path: str) -> None:
+    response = _run_middleware_with_principal(
+        path=path, method=method, principal=_VIEWER, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/projects/proj-1/workflows",
+        "/api/projects/proj-1/workflows/orders_sync",
+        "/api/projects/proj-1/workflows/orders_sync/secret-approval/extra",
+        "/api/projects/proj-1/workflows/orders_sync/secret-bindings",
+        "/api/projects/proj-1/workflows/orders_sync/secret-bindings/a/b",
+    ],
+)
+def test_project_workflow_management_beside_the_secret_leaves_stays_admin_only(path: str) -> None:
+    assert is_admin_only_route(path) is True
+    response = _run_middleware_with_principal(
+        path=path, method="PUT", principal=_OPERATOR, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == 403
+    assert b"Admin role required" in response.body
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/projects/proj-1/connections/conn-1/secret-bindings/api_key",
+        "/api/projects/proj-1/connections/conn-1",
+        "/api/projects/proj-1/workflows/orders_sync/secret-bindings",
+        "/api/projects/proj-1",
+    ],
+)
+def test_only_unbinding_a_secret_is_an_operator_delete(path: str) -> None:
+    response = _run_middleware_with_principal(
+        path=path, method="DELETE", principal=_OPERATOR, admin_only=is_admin_only_route(path)
+    )
+    expected = 204 if path.endswith("/secret-bindings/api_key") else 403
+    assert response.status_code == expected
+
+
+def test_an_operator_deletes_a_catalog_secret_and_a_viewer_does_not() -> None:
+    path = "/api/secrets/7c9e6679-7425-40de-944b-e07fc1f90ae7"
+    assert is_admin_only_route(path) is False
+    operator = _run_middleware_with_principal(path=path, method="DELETE", principal=_OPERATOR)
+    viewer = _run_middleware_with_principal(path=path, method="DELETE", principal=_VIEWER)
+    assert operator.status_code == 204
+    assert viewer.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/secrets",
+        "/api/secrets/s1/value",
+        "/api/secrets/s1/extra",
+        "/api/projects/proj-1/connections/conn-1",
+    ],
+)
+def test_deletes_beside_a_catalog_secret_stay_admin_only(path: str) -> None:
+    response = _run_middleware_with_principal(
+        path=path, method="DELETE", principal=_OPERATOR, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == 403
+    assert b"Admin role required" in response.body
+
+
+_CATALOG_WRITES = [
+    ("POST", "/api/secrets", "secrets:write"),
+    ("PATCH", "/api/secrets/s1", "secrets:write"),
+    ("PUT", "/api/secrets/s1/value", "secrets:write"),
+    ("DELETE", "/api/secrets/s1", "secrets:write"),
+    ("PUT", "/api/projects/proj-1/workflows/wf/secret-bindings/api_key", "secrets:bind"),
+    ("DELETE", "/api/projects/proj-1/workflows/wf/secret-bindings/api_key", "secrets:bind"),
+    ("PUT", "/api/projects/proj-1/connections/c1/secret-bindings/api_key", "secrets:bind"),
+    ("DELETE", "/api/projects/proj-1/connections/c1/secret-bindings/api_key", "secrets:bind"),
+]
+
+
+def _catalog_pat(*scopes: str) -> ResolvedPrincipal:
+    return ResolvedPrincipal(
+        id="pat-1", username="pat", roles=["operator"], auth_source="pat", scopes=list(scopes)
+    )
+
+
+@pytest.mark.parametrize(("method", "path", "scope"), _CATALOG_WRITES)
+def test_one_exact_catalog_scope_is_enough_for_its_write(
+    method: str, path: str, scope: str
+) -> None:
+    # ADR 0057: create, replace, edit and delete need exact secrets:write; bind and
+    # unbind need exact secrets:bind. Nothing else rides along.
+    response = _run_middleware_with_principal(
+        path=path,
+        method=method,
+        principal=_catalog_pat(scope),
+        admin_only=is_admin_only_route(path),
+    )
+    assert response.status_code == 204
+
+
+@pytest.mark.parametrize(("method", "path", "scope"), _CATALOG_WRITES)
+@pytest.mark.parametrize(
+    "held",
+    [
+        ("admin:all",),
+        ("secrets:*",),
+        ("*:*",),
+        ("command:*",),
+        ("*:bind", "*:write", "projects:*"),
+    ],
+)
+def test_no_wildcard_or_admin_scope_stands_in_for_an_exact_catalog_scope(
+    method: str, path: str, scope: str, held: tuple[str, ...]
+) -> None:
+    response = _run_middleware_with_principal(
+        path=path,
+        method=method,
+        principal=_catalog_pat(*held),
+        admin_only=is_admin_only_route(path),
+    )
+    assert response.status_code == 403
+    assert b"Missing required token scope" in response.body
+
+
+@pytest.mark.parametrize(("method", "path", "scope"), _CATALOG_WRITES)
+def test_the_other_catalog_scope_does_not_stand_in(method: str, path: str, scope: str) -> None:
+    other = "secrets:bind" if scope == "secrets:write" else "secrets:write"
+    response = _run_middleware_with_principal(
+        path=path,
+        method=method,
+        principal=_catalog_pat(other),
+        admin_only=is_admin_only_route(path),
+    )
+    assert response.status_code == 403

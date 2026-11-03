@@ -283,6 +283,7 @@ def _enforce_migration_history(bl, *, component: str) -> None:
         )
     }
     if actual == expected:
+        _enforce_upgrade_phases(bl, component=component)
         return
     missing = sorted(set(expected).difference(actual))
     unknown = sorted(set(actual).difference(expected))
@@ -294,6 +295,29 @@ def _enforce_migration_history(bl, *, component: str) -> None:
     raise RuntimeSchemaContractViolation(
         f"{component} schema contract check failed: migration history mismatch "
         f"(missing={missing}, drifted={drifted}, unknown={unknown}). "
+        "Run flow-steward database upgrade with the matching release before startup."
+    )
+
+
+def _enforce_upgrade_phases(bl, *, component: str) -> None:
+    """Every data phase of this release completed, and none this release does not know.
+
+    A missing phase means the upgrade did not finish, so this release does not serve.
+    An unknown one means a newer release upgraded the database, so this one does not
+    start on it (ADR 0056).
+    """
+    from core.infrastructure.db.schema_contract_catalog import REQUIRED_UPGRADE_PHASES
+
+    with _cursor_factory(bl)() as cur:
+        cur.execute("SELECT phase_id FROM public.platform_upgrade_phases ORDER BY phase_id")
+        rows = cur.fetchall() or []
+    actual = {str(_row_values(row, ("phase_id",))[0]) for row in rows}
+    expected = set(REQUIRED_UPGRADE_PHASES)
+    if actual == expected:
+        return
+    raise RuntimeSchemaContractViolation(
+        f"{component} schema contract check failed: upgrade phases mismatch "
+        f"(missing={sorted(expected - actual)}, unknown={sorted(actual - expected)}). "
         "Run flow-steward database upgrade with the matching release before startup."
     )
 

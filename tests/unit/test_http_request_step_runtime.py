@@ -66,7 +66,7 @@ def test_test_mode_http_writes_reach_a_real_local_recorder(method: str):
                 httpx.HTTPTransport,
             ),
             patch(
-                "core.application.extensions.lifecycle._is_blocked_ip",
+                "core.application.extensions.url_safety._is_blocked_ip",
                 side_effect=lambda address: address != "127.0.0.1",
             ),
         ):
@@ -294,6 +294,45 @@ def test_http_request_step_rejects_disallowed_response_peer():
 
     with pytest.raises(httpx.ConnectError):
         _reject_blocked_response_peer(response)
+
+
+@pytest.mark.parametrize(
+    ("peer", "opted_in", "allowed"),
+    [
+        ("172.27.0.5", False, False),
+        ("127.0.0.1", False, False),
+        ("172.27.0.5", True, True),
+        ("127.0.0.1", True, True),
+        # The private-address switch never admits link-local or metadata peers.
+        ("169.254.169.254", True, False),
+        ("fe80::1", True, False),
+        ("93.184.216.34", False, True),
+    ],
+)
+def test_response_peer_check_follows_the_private_address_switch(
+    monkeypatch, peer, opted_in, allowed
+):
+    import httpx
+
+    from core.application.extensions import lifecycle_descriptor_io
+    from core.application.orchestration.http_request_step_runtime import (
+        _reject_blocked_response_peer,
+    )
+
+    monkeypatch.setattr(lifecycle_descriptor_io, "_allow_private_remote_urls", lambda: opted_in)
+
+    class _Stream:
+        def get_extra_info(self, key):
+            return (peer, 8000) if key == "peername" else None
+
+    request = httpx.Request("GET", "http://secret-echo:8000/x")
+    response = httpx.Response(200, request=request, extensions={"network_stream": _Stream()})
+
+    if allowed:
+        _reject_blocked_response_peer(response)
+    else:
+        with pytest.raises(httpx.ConnectError):
+            _reject_blocked_response_peer(response)
 
 
 def test_execute_http_request_step_renders_method_template_and_source_body():

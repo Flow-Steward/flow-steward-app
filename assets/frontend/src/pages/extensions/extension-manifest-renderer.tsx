@@ -14,6 +14,7 @@ import {
   formatGridValue,
   listFromUnknown,
   manifestQueryValues,
+  stringListFromUnknown,
   objectOrEmpty,
   stringFrom,
   valueAtPath,
@@ -28,6 +29,8 @@ import { DsAlert, DsBadge } from "@/components/shared/design-system";
 import "@/pages/extensions/extension-manifest.css";
 
 import { renderConnectionRow } from "./extension-manifest-connections";
+import { ConnectionSecretFieldBinding } from "./extension-connection-secret-catalog";
+import { connectionDataForValues, manifestFieldIsSecret, manifestFieldPath } from "./connection-form-support";
 import { manifestFieldName, renderManifestField } from "./extension-manifest-fields";
 import {
   connectionSaveLabel,
@@ -257,6 +260,13 @@ export function renderManifestComponent(
     const savedSecretPaths = new Set(
       Object.keys(connectionSecretRefs(objectOrEmpty(selectedRow).secret_refs)),
     );
+    // The same secret field list the save path uses, so a field offers a stored
+    // secret exactly when its typed value would be saved as one.
+    const saveData = connectionDataForValues(component, effectiveValues);
+    const secretFieldPaths = new Set([
+      ...stringListFromUnknown(saveData.secret_fields),
+      ...stringListFromUnknown(saveData.required_secret_fields),
+    ]);
     return (
       <div className="fs-manifest-block" key={componentId}>
         <div className="fs-manifest-head">
@@ -284,8 +294,8 @@ export function renderManifestComponent(
         ) : null}
         <form className="fs-manifest-inset" onSubmit={(event) => event.preventDefault()}>
           <div className="fs-manifest-fields">
-            {activeFields.map((field) =>
-              renderManifestField({
+            {activeFields.map((field) => {
+              const rendered = renderManifestField({
                 componentId,
                 field,
                 values: effectiveValues,
@@ -294,8 +304,22 @@ export function renderManifestComponent(
                 invalidMessage: componentError,
                 savedSecretPaths,
                 t,
-              }),
-            )}
+              });
+              const fieldPath = manifestFieldPath(field);
+              // OAuth grant values belong to the platform, never to the catalog.
+              if (oauthConnection || !fieldPath || !manifestFieldIsSecret(field, secretFieldPaths)) return rendered;
+              return (
+                <div key={`${fieldPath}-with-catalog`}>
+                  {rendered}
+                  <ConnectionSecretFieldBinding
+                    field={fieldPath}
+                    fieldLabel={stringFrom(field.label || fieldPath)}
+                    projectId={context.projectId}
+                    row={selectedRow}
+                  />
+                </div>
+              );
+            })}
           </div>
           <div className="fs-manifest-actions">
             <button className="fs-button sm primary" disabled={context.busy || (oauthConnection && !selectedRow && Boolean(context.connectionCreationBlockedReason))} onClick={() => context.onConnectionSave(component, effectiveValues)} title={oauthConnection && !selectedRow ? context.connectionCreationBlockedReason : undefined} type="button">

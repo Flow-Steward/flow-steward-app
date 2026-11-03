@@ -7,7 +7,8 @@ calls unchanged, so a run can pass a credential around without any step,
 checkpoint, prompt, log or Test Run response ever holding the value.
 
 Resolution happens at one place — an authorized backend tool or connector
-boundary — which is the only code that calls `resolve_secret_reference`.
+boundary — which is the only code that calls `resolve_secret_reference`. The
+value itself comes from the host-selected `StoredSecretReader`.
 """
 
 from __future__ import annotations
@@ -15,6 +16,13 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from typing import Any
+
+from core.infrastructure.security.stored_secrets import (
+    SecretReadContext,
+    StoredSecretMissing,
+    StoredSecretReader,
+    StoredSecretUndecryptable,
+)
 
 #: Wire form. A checkpoint or JSON payload round-trips through this shape, so a
 #: reference that crosses a serialization boundary is still a reference and not
@@ -140,21 +148,31 @@ class SecretReferenceUnresolved(RuntimeError):
         self.reference = reference
 
 
+def _decrypt_inline(ciphertext: str) -> str:
+    from core.infrastructure.security.secret_codec import decrypt_secret
+
+    return decrypt_secret(ciphertext)
+
+
 def resolve_secret_reference(
     reference: Any,
     *,
-    account_id: str,
+    context: SecretReadContext,
     authorized_ref_keys: frozenset[str],
-    read_ciphertext: Callable[[str, str], str | None],
-    decrypt: Callable[[str], str],
+    reader: StoredSecretReader,
     authorized_inline_ref_fingerprints: frozenset[str] = frozenset(),
+    decrypt_inline: Callable[[str], str] = _decrypt_inline,
 ) -> str:
     """Exchange one reference for its plaintext. Only an authorized boundary calls this.
 
     `authorized_ref_keys` is what the running workflow declares. It is required
     rather than optional: a default of "everything" is the version of this
     function that leaks, and a caller that forgets the argument should fail to
-    call it at all.
+    call it at all. Authorization is decided here, before `reader` is asked.
+
+    A stored value comes from `reader`, whichever store the host selected. An
+    inline value is this run's own ciphertext and is always decrypted locally:
+    it was never in any store, so no reader can produce it.
     """
     resolved = as_secret_reference(reference)
     if resolved is None:
@@ -163,18 +181,19 @@ def resolve_secret_reference(
         fingerprint = inline_secret_ref_fingerprint(resolved)
         if not fingerprint or fingerprint not in authorized_inline_ref_fingerprints:
             raise SecretReferenceUnauthorized(resolved)
-        plaintext = decrypt(resolved.ciphertext)
+        try:
+            plaintext = decrypt_inline(resolved.ciphertext)
+        except Exception:
+            raise StoredSecretUndecryptable() from None
         if not plaintext:
             raise SecretReferenceUnresolved(resolved)
         return plaintext
     if not resolved.ref_key or resolved.ref_key not in authorized_ref_keys:
         raise SecretReferenceUnauthorized(resolved)
-    ciphertext = (
-        read_ciphertext(str(account_id or ""), resolved.ref_key) if resolved.ref_key else None
-    )
-    if not ciphertext:
-        raise SecretReferenceUnresolved(resolved)
-    plaintext = decrypt(ciphertext)
+    try:
+        plaintext = reader.read(context, resolved.ref_key)
+    except StoredSecretMissing:
+        raise SecretReferenceUnresolved(resolved) from None
     if not plaintext:
         raise SecretReferenceUnresolved(resolved)
     return plaintext
@@ -183,11 +202,11 @@ def resolve_secret_reference(
 def resolve_secret_references_in(
     payload: Any,
     *,
-    account_id: str,
+    context: SecretReadContext,
     authorized_ref_keys: frozenset[str],
-    read_ciphertext: Callable[[str, str], str | None],
-    decrypt: Callable[[str], str],
+    reader: StoredSecretReader,
     authorized_inline_ref_fingerprints: frozenset[str] = frozenset(),
+    decrypt_inline: Callable[[str], str] = _decrypt_inline,
 ) -> Any:
     """Resolve every reference inside a payload, leaving everything else alone.
 
@@ -195,40 +214,24 @@ def resolve_secret_references_in(
     depth in it. Walking the payload here means the boundary is one call rather
     than a rule each step has to remember.
     """
-    if is_secret_reference(payload):
-        return resolve_secret_reference(
-            payload,
-            account_id=account_id,
-            authorized_ref_keys=authorized_ref_keys,
-            read_ciphertext=read_ciphertext,
-            decrypt=decrypt,
-            authorized_inline_ref_fingerprints=authorized_inline_ref_fingerprints,
-        )
-    if isinstance(payload, dict):
-        return {
-            key: resolve_secret_references_in(
-                item,
-                account_id=account_id,
+
+    def walk(node: Any) -> Any:
+        if is_secret_reference(node):
+            return resolve_secret_reference(
+                node,
+                context=context,
                 authorized_ref_keys=authorized_ref_keys,
-                read_ciphertext=read_ciphertext,
-                decrypt=decrypt,
+                reader=reader,
                 authorized_inline_ref_fingerprints=authorized_inline_ref_fingerprints,
+                decrypt_inline=decrypt_inline,
             )
-            for key, item in payload.items()
-        }
-    if isinstance(payload, list):
-        return [
-            resolve_secret_references_in(
-                item,
-                account_id=account_id,
-                authorized_ref_keys=authorized_ref_keys,
-                read_ciphertext=read_ciphertext,
-                decrypt=decrypt,
-                authorized_inline_ref_fingerprints=authorized_inline_ref_fingerprints,
-            )
-            for item in payload
-        ]
-    return payload
+        if isinstance(node, dict):
+            return {key: walk(item) for key, item in node.items()}
+        if isinstance(node, list):
+            return [walk(item) for item in node]
+        return node
+
+    return walk(payload)
 
 
 __all__ = [

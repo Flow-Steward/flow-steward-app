@@ -76,6 +76,7 @@ const RegistryMcpDetailPage = lazyNamed(
   "RegistryMcpDetailPage",
 );
 const RegistryMcpPage = lazyNamed(() => import("@/pages/registry/mcp"), "RegistryMcpPage");
+const RegistrySecretsPage = lazyNamed(() => import("@/pages/registry/secrets"), "RegistrySecretsPage");
 const RegistryPublishedBlocksPage = lazyNamed(
   () => import("@/pages/registry/published-blocks"),
   "RegistryPublishedBlocksPage",
@@ -317,6 +318,7 @@ function AppRoutes() {
             <Route path="guardrails" element={<RegistryGuardrailsPage />} />
             <Route path="guardrails/:guardrailId" element={<RegistryGuardrailsDetailPage />} />
             <Route path="data-connections" element={<RegistryDataConnectionsPage />} />
+            <Route path="secrets" element={<RegistrySecretsPage />} />
             <Route path="datasets" element={<RegistryDatasetsPage />} />
             <Route path="datasets/:datasetId" element={<RequireCapability capability="administer_platform"><RegistryDatasetsDetailPage /></RequireCapability>} />
             <Route path="workspaces" element={<RegistryWorkspacesPage />} />

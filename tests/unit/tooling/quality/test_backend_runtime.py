@@ -206,12 +206,17 @@ def test_known_isolated_resource_paths_do_not_force_candidate_scope(canonical_en
 
 
 def test_environment_identity_does_not_return_secrets(canonical_environment) -> None:
-    canonical_environment["FS_SECRET_KEY"] = "private-sentinel-secret"
+    canonical_environment["FS_SECRET_KEY"] = (
+        "private-sentinel-secret"  # pragma: allowlist secret - synthetic offline fixture
+    )
 
     result = backend_runtime.backend_runtime_identity("1" * 40, environ=canonical_environment)
 
     assert "private-sentinel-secret" not in json.dumps(result)
-    changed_environment = {**canonical_environment, "FS_SECRET_KEY": "changed-secret"}
+    changed_environment = {
+        **canonical_environment,
+        "FS_SECRET_KEY": "changed-secret",  # pragma: allowlist secret - synthetic offline fixture
+    }
     assert result != backend_runtime.backend_runtime_identity("1" * 40, environ=changed_environment)
 
 

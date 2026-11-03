@@ -73,6 +73,22 @@ class PostgresWorkflowSecretDefaultRepository:
         )
 
     @staticmethod
+    def delete_catalog_binding(
+        transaction: Any,
+        *,
+        account_id: str,
+        workflow_id: str,
+        field_name: str,
+    ) -> None:
+        """Remove the catalog binding of an input that left the definition (ADR 0057)."""
+        transaction.execute(
+            """DELETE FROM catalog_secret_bindings
+                WHERE consumer_kind = 'workflow_input'
+                  AND account_id = %s AND workflow_id = %s AND field_name = %s""",
+            (account_id, workflow_id, field_name),
+        )
+
+    @staticmethod
     def purge_workflow_secrets(
         transaction: Any,
         *,

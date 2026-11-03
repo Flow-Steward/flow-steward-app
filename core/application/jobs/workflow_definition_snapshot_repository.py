@@ -276,6 +276,18 @@ class WorkflowDefinitionSnapshotRepository:
             )
             return ref
 
+    def current_definition(self, workflow_id: str, *, account_id: str) -> dict[str, Any] | None:
+        """The definition a job pinned now would execute, without pinning or validating it.
+
+        Read the same way the pin reads it, so an approval of this definition and the
+        check of a pinned one compare the same document.
+        """
+        with self._cursor() as cur:
+            workflow = self._workflow_row(
+                cur, str(workflow_id or "").strip(), account_id=str(account_id or "")
+            )
+        return frozen_definition(workflow) if workflow is not None else None
+
     def ensure_pinned(self, *, job_id: Any, workflow_id: str) -> dict[str, Any]:
         """Read the job's submission pin; never create one after dispatch.
 

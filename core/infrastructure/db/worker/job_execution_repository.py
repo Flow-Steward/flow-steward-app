@@ -49,6 +49,16 @@ class JobExecutionRepositoryAdapter:
         row = getter(str(project_id))
         return row if isinstance(row, Mapping) else None
 
+    def run_secret_fingerprints(self, job_id: str) -> list[str]:
+        """The job's secret capabilities, derived from host records, never the message."""
+        from core.application.secrets.run_authority import run_secret_authority
+
+        conn = getattr(self._bl, "conn", None)
+        if conn is None or not str(job_id or "").strip():
+            return []
+        with conn.cursor() as cur:
+            return run_secret_authority(conn, cur, job_id=str(job_id)).fingerprints()
+
     def persist_meta(self, job_id: str, meta: dict[str, Any]) -> None:
         self._dependencies.persist_meta(self._bl, job_id, meta)
 

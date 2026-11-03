@@ -26,6 +26,13 @@ def _existing_migration_ledger(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_preflight_or_phases(monkeypatch):
+    """These tests pin the upgrade sequence; preflight and phases have their own tests."""
+    monkeypatch.setattr(upgrade_db, "_refuse_blocked_preflight", lambda *_a, **_k: None)
+    monkeypatch.setattr(upgrade_db.upgrade_phases, "run_pending_phases", lambda *_a, **_k: {})
+
+
 def test_upgrade_database_runs_upgrade_sequence(monkeypatch) -> None:
     calls: list[str] = []
 
@@ -84,8 +91,12 @@ def test_upgrade_database_runs_upgrade_sequence(monkeypatch) -> None:
         def __exit__(self, exc_type, exc, tb):
             return False
 
+        def fetchone(self):
+
+            return (True,)
+
         def execute(self, sql, _params=None) -> None:
-            if "pg_advisory_lock" in sql:
+            if "advisory_lock(" in sql and "unlock" not in sql:
                 calls.append("lock")
             elif "pg_advisory_unlock" in sql:
                 calls.append("unlock")
@@ -173,6 +184,7 @@ def test_upgrade_database_runs_upgrade_sequence(monkeypatch) -> None:
         "applied": ["0001.sql"],
         "skipped": ["0000.sql"],
         "repaired_user_memberships": 0,
+        "upgrade_phases": {},
     }
     assert summary["schema_reconcile"] == {
         "files": 0,
@@ -200,6 +212,9 @@ def test_upgrade_missing_tracking_table_verifies_baseline_then_applies_post_base
     calls: list[str] = []
 
     class _Cursor:
+        def fetchone(self):
+            return (True,)
+
         def __enter__(self):
             return self
 
@@ -306,6 +321,9 @@ def test_membership_recovery_is_insert_only_and_idempotent() -> None:
     statements: list[str] = []
 
     class _Cursor:
+        def fetchone(self):
+            return (True,)
+
         rowcount = 1
 
         def __enter__(self):
@@ -342,8 +360,12 @@ def test_upgrade_database_stops_before_reconciliation_when_migration_fails(
         def __exit__(self, exc_type, exc, tb):
             return False
 
+        def fetchone(self):
+
+            return (True,)
+
         def execute(self, sql, _params=None) -> None:
-            if "pg_advisory_lock" in sql:
+            if "advisory_lock(" in sql and "unlock" not in sql:
                 calls.append("lock")
             elif "pg_advisory_unlock" in sql:
                 calls.append("unlock")
@@ -439,6 +461,9 @@ def test_upgrade_database_aligns_runtime_status_before_seed(monkeypatch) -> None
     monkeypatch.setattr(upgrade_db.init_db, "init_langgraph_schema", lambda: None)
 
     class _FakeCursor:
+        def fetchone(self):
+            return (True,)
+
         def __enter__(self):
             return self
 
@@ -634,8 +659,12 @@ class _LockRecordingConnection:
             def __exit__(self, exc_type, exc, tb):
                 return False
 
+            def fetchone(self):
+
+                return (True,)
+
             def execute(self, sql, _params=None) -> None:
-                if "pg_advisory_lock" in sql:
+                if "advisory_lock(" in sql and "unlock" not in sql:
                     calls.append("lock")
                 elif "pg_advisory_unlock" in sql:
                     calls.append("unlock")

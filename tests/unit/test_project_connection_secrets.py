@@ -72,7 +72,7 @@ def test_save_connection_secrets_writes_encrypted_secret_refs() -> None:
 def test_resolve_connection_secrets_decrypts_refs_by_account() -> None:
     conn = _Conn(row=("encrypted-token",))
     with patch(
-        "core.infrastructure.security.connection_secret_store.decrypt_secret",
+        "core.infrastructure.security.secret_codec.decrypt_secret",
         return_value="plain-token",
     ) as decrypt:
         values = connection_secret_store.resolve_connection_secrets(
@@ -95,10 +95,10 @@ def test_secret_ref_names_preserves_legacy_list_normalization() -> None:
     ]
 
 
-def test_resolve_connection_secrets_skips_internal_oauth_refs_by_default() -> None:
+def test_resolve_connection_secrets_never_reads_oauth_grant_refs() -> None:
     conn = _Conn(row=("encrypted-token",))
     with patch(
-        "core.infrastructure.security.connection_secret_store.decrypt_secret",
+        "core.infrastructure.security.secret_codec.decrypt_secret",
         return_value="plain-token",
     ) as decrypt:
         values = project_connection_secrets.resolve_connection_secrets(
@@ -117,17 +117,16 @@ def test_resolve_connection_secrets_skips_internal_oauth_refs_by_default() -> No
     assert len(conn.cursor_obj.calls) == 1
 
 
-def test_resolve_connection_secrets_can_include_internal_oauth_refs() -> None:
+def test_local_connection_secret_read_includes_oauth_grant_refs() -> None:
     conn = _Conn(row=("encrypted-token",))
     with patch(
         "core.infrastructure.security.connection_secret_store.decrypt_secret",
         return_value="plain-token",
     ) as decrypt:
-        values = project_connection_secrets.resolve_connection_secrets(
+        values = project_connection_secrets.read_local_connection_secrets(
             conn,
             account_id="acc_default",
             secret_refs={"refs": {"_oauth_refresh_token": "project_connection:conn_123:rt"}},
-            include_internal=True,
         )
 
     assert values == {"_oauth_refresh_token": "plain-token"}
