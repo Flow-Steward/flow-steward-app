@@ -28088,6 +28088,12 @@ msgstr ""
 msgid "react.registry.secrets.used_by"
 msgstr ""
 
+msgid "react.workflows.secret_approval.delegation_badge"
+msgstr ""
+
+msgid "react.workflows.secret_approval.delegation_help"
+msgstr ""
+
 msgid "react.workflows.secret_approval.receiver_extension"
 msgstr ""
 

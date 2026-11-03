@@ -29564,6 +29564,12 @@ msgstr "Pakeisti reikšmę"
 msgid "react.registry.secrets.used_by"
 msgstr "Naudoja"
 
+msgid "react.workflows.secret_approval.delegation_badge"
+msgstr "nepatvirtinta perduotoms paslaptims"
+
+msgid "react.workflows.secret_approval.delegation_help"
+msgstr "Ši darbo eiga turi slaptų įvesčių, bet neturi savo saugomos paslapties. Tėvinė darbo eiga gali jai perduoti saugomą paslaptį; tokiam vykdymui reikia patvirtinti ir šią išsaugotą darbo eigą. Vykdymui įvestoms reikšmėms to nereikia."
+
 msgid "react.workflows.secret_approval.receiver_extension"
 msgstr "plėtinio leidimas"
 

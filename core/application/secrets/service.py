@@ -864,12 +864,21 @@ class SecretCatalogService:
             and approval.get("fingerprint") == fingerprint
             and workflow_gate.receivers_approved(approval, receivers)
         )
+        secret_inputs = sorted(SecretCatalogService._secret_input_names(found["workflow"]))
+        if approved:
+            status = "approved"
+        elif bindings:
+            status = "approval_required"
+        elif secret_inputs:
+            # No binding of its own, but a parent may pass it a catalog secret: that
+            # run needs this workflow's own approval too. Inline values never do.
+            status = "delegation_optional"
+        else:
+            status = "not_required"
         return {
             "workflow_id": workflow_id,
-            "secret_inputs": sorted(SecretCatalogService._secret_input_names(found["workflow"])),
-            "status": "approved"
-            if approved
-            else ("approval_required" if bindings else "not_required"),
+            "secret_inputs": secret_inputs,
+            "status": status,
             "fingerprint": workflow_gate.approval_token(fingerprint, receivers),
             "secrets": [{"field": row["field"], "secret_id": row["secret_id"]} for row in bindings],
             "destinations": static_rules,

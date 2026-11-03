@@ -37,7 +37,7 @@ export type WorkflowSecretApprovalStatus = {
   workflow_id: string;
   /** Secret inputs the saved workflow declares. */
   secret_inputs?: string[];
-  status: "approved" | "approval_required" | "not_required";
+  status: "approved" | "approval_required" | "delegation_optional" | "not_required";
   fingerprint: string;
   secrets: { field: string; secret_id: string }[];
   destinations: WorkflowSecretDestination[];

@@ -157,30 +157,69 @@ def test_a_release_published_after_the_capture_pins_nothing(monkeypatch, tmp_pat
     )
 
 
-def test_an_mcp_call_uses_the_row_selected_before_the_read(monkeypatch) -> None:
+_LINEAGE = {
+    "account_id": "00000000-0000-0000-0000-000000000002",
+    "project_id": "00000000-0000-0000-0000-0000000000aa",
+    "tenant_id": "00000000-0000-0000-0000-000000000001",
+}
+
+
+def _mcp_manifest():
     from types import SimpleNamespace
 
-    from core.application.orchestration.tools import tool_resolver
-
-    def reload(*_args, **_kwargs):
-        raise AssertionError("a pinned MCP call must not read the connector again")
-
-    monkeypatch.setattr(tool_resolver, "_load_mcp_connector_row", reload)
-    manifest = SimpleNamespace(
+    return SimpleNamespace(
         tool_id="partner_mcp",
         implementation=SimpleNamespace(
             to_dict=lambda: {"connector_id": "mcp_partner", "remote_tool_name": "ask"}
         ),
         config={},
     )
-    pinned = {"connector_id": "mcp_partner", "enabled": False}
-    with pytest.raises(RuntimeError, match="disabled"):
+
+
+@pytest.mark.parametrize(
+    ("row_project", "message"),
+    [
+        (_LINEAGE["project_id"], "disabled"),
+        # A pinned row of another project is refused like a fresh read would be.
+        ("00000000-0000-0000-0000-0000000000bb", "project mismatch"),
+    ],
+)
+def test_an_mcp_call_uses_the_pinned_row_after_the_lineage_checks(
+    monkeypatch, row_project, message
+) -> None:
+    from core.application.orchestration.tools import tool_resolver
+
+    def reload(*_args, **_kwargs):
+        raise AssertionError("a pinned MCP call must not read the connector again")
+
+    monkeypatch.setattr(tool_resolver, "_load_mcp_connector_row", reload)
+    pinned = {
+        "connector_id": "mcp_partner",
+        "enabled": False,
+        "account_id": _LINEAGE["account_id"],
+        "project_id": row_project,
+        "tenant_id": _LINEAGE["tenant_id"],
+    }
+    with pytest.raises(RuntimeError, match=message):
         tool_resolver._invoke_remote_mcp_tool(
-            manifest,
+            _mcp_manifest(),
             function_name="ask",
             arguments={},
-            runtime_context={"pinned_mcp_connector_row": pinned},
+            runtime_context={**_LINEAGE, "pinned_mcp_connector_row": pinned},
         )
+
+
+def test_run_state_cannot_supply_a_pinned_mcp_row() -> None:
+    from core.application.orchestration.connector_events import _runtime_ids_from_state
+
+    forged = {"connector_id": "mcp_partner", "base_url": "https://collector.evil.test"}
+    state = {
+        "pinned_mcp_connector_row": forged,
+        "trusted_runtime_context": {**_LINEAGE, "pinned_mcp_connector_row": forged},
+    }
+    # The tool runtime builds its call context from these ids and adds a pin only
+    # from the receiver it selected itself.
+    assert "pinned_mcp_connector_row" not in _runtime_ids_from_state(state)
 
 
 def _host_manifest(**changes):

@@ -541,6 +541,9 @@ def _approve(stand: Stand, workflow_id: str) -> None:
     status = stand.service.workflow_approval_status(
         workflow_id, _human(), project_id=stand.project_id
     )
+    # A workflow with a secret input and no binding of its own offers the approval
+    # a parent's passed-in catalog secret needs; the panel shows this status.
+    assert status["status"] in {"delegation_optional", "approval_required"}
     stand.service.approve_workflow(
         workflow_id, _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
     )
@@ -889,3 +892,54 @@ def test_a_host_tool_edit_under_the_same_id_needs_a_new_approval(stand, monkeypa
             {"token": _ref(key)}, state, spy, pin_tool().identity()
         )
     assert spy.reads == []
+
+
+def test_a_bound_input_is_configured_in_the_public_contract(stand) -> None:
+    from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+    from core.application.secrets.workflow_gate import catalog_bound_interface
+
+    stand.save("wf_contract")
+    _secret, key = _catalog_input(stand, "wf_contract")
+    service = WorkflowInterfaceService()
+    raw = service.interface_from_definition(stand.registry.get_workflow("wf_contract"))
+    bound = catalog_bound_interface(raw, workflow_id="wf_contract", account_id=ACCOUNT)
+    [plain] = service.public_contract_payload(raw)["expected_inputs"]
+    [shown] = service.public_contract_payload(bound)["expected_inputs"]
+    assert (plain["default_configured"], shown["default_configured"]) == (False, True)
+    # The contract says a value is configured; it never carries the reference.
+    assert key not in json.dumps(service.public_contract_payload(bound))
+    # The launch interface, through the same real registry store, agrees.
+    launched = service.interface_for_workflow_id("wf_contract")
+    assert service.public_contract_payload(launched)["expected_inputs"][0]["default_configured"]
+    status = stand.service.unbind_workflow_input(
+        "wf_contract", _human(), project_id=stand.project_id, field="api_key"
+    )
+    assert status["status"] == "delegation_optional"
+    unbound = catalog_bound_interface(raw, workflow_id="wf_contract", account_id=ACCOUNT)
+    assert (
+        service.public_contract_payload(unbound)["expected_inputs"][0]["default_configured"]
+        is False
+    )
+
+
+def test_the_operator_contract_of_a_projected_manifest_shows_the_binding(stand) -> None:
+    """The builder's contract read, as the registry serves it: a WorkflowManifest."""
+    from core.application.management.workflow_operator_service import WorkflowOperatorService
+    from core.application.registry.workflow_manifest import WorkflowManifest
+
+    stand.save("wf_manifest")
+    _secret, key = _catalog_input(stand, "wf_manifest")
+    manifest = WorkflowManifest.from_db_row(stand.registry.get_workflow("wf_manifest"))
+    assert not hasattr(manifest, "account_id")
+    service = WorkflowOperatorService(
+        get_logger=lambda: None,
+        project_query_service=None,
+        registry_manager_provider=lambda: SimpleNamespace(
+            workflows=SimpleNamespace(get_workflow=lambda _workflow_id: manifest)
+        ),
+        registry_db_provider=lambda: stand.registry,
+    )
+    contract = service.workflow_contract("wf_manifest", require_available=False).dump()
+    [row] = contract["interface"]["expected_inputs"]
+    assert (row["name"], row["default_configured"]) == ("api_key", True)
+    assert key not in json.dumps(contract)

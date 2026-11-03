@@ -140,6 +140,36 @@ describe("WorkflowSecretApprovalPanel", () => {
     expect(screen.queryByTestId("workflow-secret-approval")).not.toBeInTheDocument();
   });
 
+  it("offers approval for stored secrets a parent passes in when nothing is bound here", async () => {
+    mockedStatus.mockResolvedValue(status({ status: "delegation_optional", secrets: [] }));
+    mockedApprove.mockResolvedValue(status({ status: "approved", secrets: [] }));
+    renderWithClient(<WorkflowSecretApprovalPanel hasSecretInputs projectId="p1" workflowId="wf1" />);
+
+    expect(await screen.findByText("not approved for passed-in secrets")).toBeInTheDocument();
+    expect(screen.getByText(/A parent workflow may pass it a stored secret/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Approve use of secrets" }));
+    await waitFor(() => expect(mockedApprove).toHaveBeenCalledWith("p1", "wf1", "sha256:one", []));
+  });
+
+  it("names every connector receiver a person approves", async () => {
+    mockedStatus.mockResolvedValue(
+      status({
+        receivers: [
+          { step_id: "ship", kind: "extension", install_id: "pi_1", release_id: "rel_1", descriptor_sha256: "sha256:abcdef1234567890" },
+          { step_id: "ask", kind: "mcp", tool_id: "partner_mcp", endpoint: "https://mcp.partner.test/mcp", transport: "streamable_http", remote_tool: "ask" },
+          { step_id: "fmt", kind: "host_tool", tool_id: "format", implementation: "core.tools.format" },
+          { step_id: "raw", kind: "unpinned", connector_id: "x" },
+        ],
+      }),
+    );
+    renderWithClient(<WorkflowSecretApprovalPanel hasSecretInputs projectId="p1" workflowId="wf1" />);
+
+    expect(await screen.findByText("ship → extension release rel_1 · abcdef123456")).toBeInTheDocument();
+    expect(screen.getByText("ask → MCP ask · https://mcp.partner.test/mcp (streamable_http)")).toBeInTheDocument();
+    expect(screen.getByText("fmt → built-in tool format (core.tools.format)")).toBeInTheDocument();
+    expect(screen.getByText(/Connector steps do not receive stored secrets/)).toBeInTheDocument();
+  });
+
   it("approves exactly the fingerprint shown, with the literal destinations listed", async () => {
     mockedStatus.mockResolvedValue(status());
     mockedApprove.mockResolvedValue(status({ status: "approved", approved_destinations: status().destinations }));

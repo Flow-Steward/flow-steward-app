@@ -306,8 +306,9 @@ def current_definition(conn: Any, *, account_id: str, workflow_id: str) -> dict[
 def workflow_bindings(cur: Any, *, account_id: str, workflow_id: str) -> list[dict[str, Any]]:
     cur.execute(
         """
-        SELECT b.field_name, b.secret_id::text, s.storage_ref_key, s.project_id::text,
-               s.workspace_id::text, b.consumer_project_id::text
+        SELECT b.field_name AS field, b.secret_id::text AS secret_id, s.storage_ref_key,
+               s.project_id::text AS project_id, s.workspace_id::text AS workspace_id,
+               b.consumer_project_id::text AS consumer_project_id
           FROM catalog_secret_bindings AS b
           JOIN catalog_secrets AS s ON s.id = b.secret_id
          WHERE b.consumer_kind = 'workflow_input'
@@ -324,7 +325,13 @@ def workflow_bindings(cur: Any, *, account_id: str, workflow_id: str) -> list[di
         "workspace_id",
         "consumer_project_id",
     )
-    return [dict(zip(keys, row, strict=False)) for row in cur.fetchall() or []]
+    # A dict cursor (the registry store's) and a tuple cursor give the same rows.
+    return [
+        {key: row.get(key) for key in keys}
+        if isinstance(row, dict)
+        else dict(zip(keys, row, strict=False))
+        for row in cur.fetchall() or []
+    ]
 
 
 def workflow_approval(cur: Any, *, account_id: str, workflow_id: str) -> dict[str, Any] | None:
@@ -358,6 +365,38 @@ def overlay_storage_keys(cur: Any, *, account_id: str, workflow_id: str) -> dict
     }
 
 
+def catalog_bound_interface(interface: Any, *, workflow_id: Any, account_id: Any) -> Any:
+    """`interface` with each catalog-bound secret input defaulting to its catalog secret.
+
+    The default is a storage reference, never a value, and public contract payloads
+    reduce it to `default_configured`: a bound input is then not asked for again,
+    in the builder's Test Run, the operator contract or an Invoke mapping.
+    Whether a run may read it is decided at the step boundary.
+    """
+    from core.application.registry.registry_manager import RegistryManager
+
+    try:
+        db = getattr(RegistryManager.instance(), "db_store", None)
+    except Exception:
+        return interface
+    cursor = registry_cursor(db)
+    if not callable(cursor) or not _text(workflow_id) or not _text(account_id):
+        return interface
+    with cursor() as cur:
+        overlay = overlay_storage_keys(
+            cur, account_id=_text(account_id), workflow_id=_text(workflow_id)
+        )
+    if not overlay:
+        return interface
+    rows = [
+        row.model_copy(update={"default_secret_ref": overlay[row.name]})
+        if row.name in overlay and _text(row.type).lower() == "secret"
+        else row
+        for row in interface.expected_inputs
+    ]
+    return interface.model_copy(update={"expected_inputs": rows})
+
+
 #: Input row keys that would claim a catalog binding or approval from inside a
 #: definition. Bindings are rows of their own; a definition naming one is refused.
 RESERVED_INPUT_KEYS = frozenset(
@@ -377,6 +416,19 @@ def reserved_binding_keys(settings: Any) -> list[str]:
     return sorted(found)
 
 
+def registry_cursor(db: Any) -> Any:
+    """A cursor factory of the registry store: its `_cursor()`, or a plain `cursor()`.
+
+    The registry store keeps its cursor helper private; a lookup of `cursor` alone
+    missed it and skipped every overlay silently.
+    """
+    for name in ("_cursor", "cursor"):
+        factory = getattr(db, name, None)
+        if callable(factory):
+            return factory
+    return None
+
+
 def overlay_workflow_row(db: Any, workflow: dict[str, Any]) -> dict[str, Any]:
     """A copy of the row whose bound secret inputs point at their catalog secrets.
 
@@ -384,7 +436,7 @@ def overlay_workflow_row(db: Any, workflow: dict[str, Any]) -> dict[str, Any]:
     """
     import copy
 
-    cursor = getattr(db, "cursor", None)
+    cursor = registry_cursor(db)
     workflow_id = _text(workflow.get("workflow_id"))
     account_id = _text(workflow.get("account_id"))
     if not callable(cursor) or not workflow_id:
@@ -580,6 +632,7 @@ __all__ = [
     "SecretDestinationNotAllowed",
     "approved_receivers",
     "approved_rules",
+    "catalog_bound_interface",
     "connector_step_ids",
     "connector_steps",
     "current_definition",

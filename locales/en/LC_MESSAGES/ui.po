@@ -29142,6 +29142,12 @@ msgstr "Replace value"
 msgid "react.registry.secrets.used_by"
 msgstr "Used by"
 
+msgid "react.workflows.secret_approval.delegation_badge"
+msgstr "not approved for passed-in secrets"
+
+msgid "react.workflows.secret_approval.delegation_help"
+msgstr "This workflow has secret inputs but no stored secret of its own. A parent workflow may pass it a stored secret; such a run needs this saved workflow approved too. Values typed in for a run never need it."
+
 msgid "react.workflows.secret_approval.receiver_extension"
 msgstr "extension release"
 

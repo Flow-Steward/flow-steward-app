@@ -42,6 +42,9 @@ function useStatusWriter(projectId: string, workflowId: string, revision: number
   return (status: WorkflowSecretApprovalStatus) => {
     queryClient.setQueryData(workflowSecretApprovalQueryKey(projectId, workflowId, revision), status);
     void queryClient.invalidateQueries({ queryKey: ["secrets"] });
+    // A bound input becomes configured in the contract: the Test Run form stops
+    // asking for it without a reload.
+    void queryClient.invalidateQueries({ queryKey: ["workflows", "contract", workflowId] });
   };
 }
 
@@ -256,6 +259,8 @@ function WorkflowSecretApprovalCard({ projectId, workflowId, revision, unsavedCh
   }
   const names = new Map((catalog.data ?? []).map((secret) => [secret.id, secret.name]));
   const approved = data.status === "approved";
+  // No binding of its own: an approval lets runs use catalog secrets a parent passes in.
+  const delegated = data.status === "delegation_optional";
   const dynamic = data.dynamic_http_steps;
   const pinned = (data.receivers ?? []).filter((row) => row.kind !== "unpinned");
   const unpinned = (data.receivers ?? []).filter((row) => row.kind === "unpinned").map((row) => row.step_id);
@@ -273,6 +278,8 @@ function WorkflowSecretApprovalCard({ projectId, workflowId, revision, unsavedCh
         <span className="fs-drawer-label">{t("react.workflows.secret_approval.title", "Use of stored secrets")}</span>
         {approved ? (
           <DsBadge tone="green">{t("react.workflows.secret_approval.approved", "approved")}</DsBadge>
+        ) : delegated ? (
+          <DsBadge>{t("react.workflows.secret_approval.delegation_badge", "not approved for passed-in secrets")}</DsBadge>
         ) : (
           <DsBadge tone="orange">{t("react.workflows.secret_approval.required", "approval required")}</DsBadge>
         )}
@@ -280,7 +287,9 @@ function WorkflowSecretApprovalCard({ projectId, workflowId, revision, unsavedCh
       <p className="fs-field-helper">
         {approved
           ? t("react.workflows.secret_approval.approved_help", "A person approved this saved workflow's use of the stored secrets below. Any change to its steps or bindings needs a new approval.")
-          : t("react.workflows.secret_approval.required_help", "Runs cannot use the stored secrets below until a person approves this saved workflow. Saving the workflow or applying an AI Builder draft never approves it.")}
+          : delegated
+            ? t("react.workflows.secret_approval.delegation_help", "This workflow has secret inputs but no stored secret of its own. A parent workflow may pass it a stored secret; such a run needs this saved workflow approved too. Values typed in for a run never need it.")
+            : t("react.workflows.secret_approval.required_help", "Runs cannot use the stored secrets below until a person approves this saved workflow. Saving the workflow or applying an AI Builder draft never approves it.")}
       </p>
       {unsavedChanges ? (
         <DsAlert tone="warning" title={t("react.workflows.secret_approval.unsaved", "Approval covers the saved workflow")}>

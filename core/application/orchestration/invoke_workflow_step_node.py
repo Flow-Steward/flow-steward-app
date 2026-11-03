@@ -375,8 +375,16 @@ def _invoke_workflow_step(
         child_settings = getattr(resolved_child, "settings", {}) or {}
         child_label = str(getattr(resolved_child, "display_name", "") or "").strip()
     child_label = child_label or child_workflow_id
+    from core.application.orchestration.runtime_identity import runtime_identity_from_state
+    from core.application.secrets.workflow_gate import catalog_bound_interface
+
     interface_service = WorkflowInterfaceService()
-    child_interface = interface_service.interface_from_definition(resolved_child)
+    child_interface = catalog_bound_interface(
+        interface_service.interface_from_definition(resolved_child),
+        workflow_id=child_workflow_id,
+        # The run's trusted account; a projected manifest carries no owner.
+        account_id=runtime_identity_from_state(state).as_context().get("account_id"),
+    )
     callable_enabled = bool(child_interface.enabled)
     hook_problems = (
         binding_compatibility_issues(hook_plan, child_settings)
