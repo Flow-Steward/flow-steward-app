@@ -47,6 +47,27 @@ save disabled objects and validate their saved definitions. A disabled child,
 agent or skill remains an execution prerequisite, even when its definition is
 included correctly.
 
+An operation name alone is insufficient. Check request arguments and response
+fields against the versioned selected operation, including additional fetches
+when search returns IDs only. A named SQL query in a setup file is not an
+implemented tool. Check its provisioning, parameter schema, read/write policy
+and transaction behavior before treating it as available.
+
+For authenticated services, verify the existing connection provider owns the
+whole lifecycle required by the workflow. A manually supplied short-lived access
+token does not implement OAuth consent, redirects, code exchange or renewal.
+Leave that adapter blocked rather than presenting credentials as its only setup.
+API-key HTTP adapters still need documented request/response contracts and
+actual executor checks, including malformed responses, status failures and
+secret handling. Reading provider documentation is not a successful execution.
+
+Check the graph HTTP projection explicitly: an inline `response_target` receives
+the response body itself, not the executor's diagnostic envelope. For example,
+`response_target: state.search` puts provider JSON at `state.search`; selectors
+such as `state.search.response_body` incorrectly assume another wrapper. Exercise
+the authored output and provider-error selectors against that actual projection.
+Use a shape guard before returning a response declared as an object.
+
 ## Check the import/export round-trip
 
 After an authorized save, export from the current target with children and
@@ -81,7 +102,8 @@ state that limit in the template description and pull request; never label
 synthetic replay as a successful live run. A catalog verification badge is not
 evidence that the importing user's OAuth, model or provider was exercised.
 
-The [Outlook categorization example](../assets/adapted_examples/outlook_categorization/workflow.yaml)
-is a complete parent/child/definitions export from this path. Its
-[setup notes](../assets/adapted_examples/outlook_categorization/SETUP.txt) distinguish
-successful import and preserved secret wiring from pending execution setup.
+The [unverified Outlook counterexample](../assets/unverified_examples/outlook_categorization/workflow.yaml)
+was withdrawn after import-only verification missed its incomplete OAuth adapter.
+Its [qualification notes](../assets/unverified_examples/outlook_categorization/SETUP.txt)
+explain why a complete graph and preserved secret wiring do not establish a
+working integration. Do not reuse or publish it as a qualified template.

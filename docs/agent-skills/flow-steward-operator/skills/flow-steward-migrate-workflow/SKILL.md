@@ -163,6 +163,14 @@ use only live dependency identities and supported resolutions for actual import/
 An unbound draft retains declared symbolic dependencies and explicit blockers;
 expected `requires_mapping` is not a successful import. An assumed MCP argument
 schema remains unverified even if structural checks pass.
+An executable-looking graph is not an implemented integration when it relies on
+invented named-query tools, unavailable output fields or an unimplemented OAuth
+client. Verify each selected operation's exact arguments and outputs, including
+hydration and pagination. Fixtures must follow the inspected versioned contracts;
+do not invent fixture fields to satisfy the authored selectors. For OAuth, check
+consent, redirects, token exchange, refresh and expiry through the existing
+connection provider. A required raw access-token input does not implement those
+parts and remains an integration blocker, beyond missing account credentials.
 When the authoring MCP connection is unavailable, use the existing browser
 draft/import preview and validation controls instead. Do not save or launch just
 to inspect validation. Report which checks that interface actually performed;

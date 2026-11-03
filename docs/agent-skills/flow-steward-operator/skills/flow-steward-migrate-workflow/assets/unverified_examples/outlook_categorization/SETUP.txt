@@ -1,3 +1,6 @@
+BLOCKED COUNTEREXAMPLE: do not publish or present as a working Outlook integration.
+The HTTP steps require a caller-supplied access token. OAuth consent, redirect, code exchange, refresh-token storage and automatic renewal are not implemented. Prior import/synthetic checks did not prove operational integration. The original export is retained for diagnosing this qualification failure.
+
 Full adapted n8n #2454 template, exported with its child and definitions from Flow Steward 0.9.9.
 Source: https://n8n.io/workflows/2454-auto-categorise-outlook-emails-with-ai/
 
