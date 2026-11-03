@@ -69,6 +69,7 @@ from .docker_runtime_probes import (
 
 # The image's checkout root (/app in the CLI image), where fs-cli mounts .env.prod.
 _IMAGE_ROOT = Path(__file__).resolve().parents[3]
+_PRODUCTION_ENV_FILENAME = ".env.prod"
 
 
 class DockerLifecycleGateway:
@@ -97,9 +98,9 @@ class DockerLifecycleGateway:
         # be mounted, and the image's own copy (FS_CANDIDATE_PROD_ENV) records the same value.
         return docker_host_state_dir(
             Path(state_root),
-            self._docker_host_project_root / ".env.prod",
-            self._project_root / ".env.prod",
-            _IMAGE_ROOT / ".env.prod",
+            self._docker_host_project_root / _PRODUCTION_ENV_FILENAME,
+            self._project_root / _PRODUCTION_ENV_FILENAME,
+            _IMAGE_ROOT / _PRODUCTION_ENV_FILENAME,
         )
 
     def services(self, target: ComposeTarget) -> tuple[str, ...]:

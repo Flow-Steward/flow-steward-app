@@ -517,10 +517,11 @@ def test_a_catalog_bound_secret_input_is_not_asked_for_again_in_a_test_run(
     interface from the raw settings, without the catalog overlay a normal launch uses."""
     from core.application.secrets import workflow_gate
 
+    storage_ref = "catalog_secret:s-1"
     monkeypatch.setattr(
         workflow_gate,
         "overlay_storage_keys",
-        lambda _cur, **_kwargs: {"api_key": "catalog_secret:s-1"} if bound else {},
+        lambda _cur, **_kwargs: {"api_key": storage_ref} if bound else {},
     )
     enqueue = MagicMock()
     client, _project_store, _job_store = _client(
@@ -544,7 +545,7 @@ def test_a_catalog_bound_secret_input_is_not_asked_for_again_in_a_test_run(
 
     if bound:
         assert response.status_code == 200, response.text
-        assert "catalog_secret:s-1" not in response.text
+        assert storage_ref not in response.text
     else:
         # An input nobody bound is still required: the overlay adds nothing else.
         assert response.status_code == 422, response.text

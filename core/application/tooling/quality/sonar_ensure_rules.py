@@ -261,8 +261,11 @@ def ensure_rules(client: SonarApiClient, rules: list[str]) -> list[EnsureResult]
 def ensure_sonar_rules(*, host_url: str, rules: str, sonar_token: str) -> int:
     """Ensure Sonar rules from a typed operation boundary."""
     client = SonarClient(str(host_url), get_token(sonar_token))
+    # The schema-driven CLI calls this boundary directly, bypassing argparse's
+    # default. Omitted or blank selections must still ensure the required rules.
+    selected_rules = parse_rule_list(str(rules)) or list(REQUIRED_RULES)
     try:
-        results = ensure_rules(client, parse_rule_list(str(rules)))
+        results = ensure_rules(client, selected_rules)
     except SonarApiError as exc:
         raise SystemExit(
             f"[sonar-rules] HTTP {exc.status} from SonarQube API. "

@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from click.testing import CliRunner
 
 from core.entrypoints.cli.platform.service_registry import ServiceRegistry
@@ -115,6 +116,133 @@ def _app() -> tuple[Any, _Runtime]:
 
     runtime = _Runtime()
     return build_click_app(ServiceRegistry(runtime), SimpleNamespace()), runtime
+
+
+@pytest.fixture
+def canonical_sonar_rules(monkeypatch: Any):
+    from core.application.tooling.contracts import ToolRunResult
+    from core.application.tooling.quality import sonar_ensure_rules
+    from core.application.tooling.quality.service import QualityToolingService
+    from tests.unit.test_sonar_ensure_rules import FakeSonarClient
+
+    class InlineRecordingRunner:
+        def __init__(self) -> None:
+            self.operations: list[str] = []
+
+        def run_callable(self, *, operation: str, target: Any, **_kwargs: Any) -> ToolRunResult:
+            self.operations.append(operation)
+            stderr = ""
+            try:
+                exit_code = target() or 0
+            except SystemExit as error:
+                exit_code = error.code if isinstance(error.code, int) else 1
+                stderr = str(error)
+            return ToolRunResult(
+                operation=operation,
+                status="completed" if exit_code == 0 else "failed",
+                exit_code=exit_code,
+                stderr=stderr,
+                stderr_full=stderr,
+            )
+
+    client = FakeSonarClient()
+    for language in ("py", "js", "ts"):
+        client.profiles[language] = [
+            {
+                "key": f"sonar-way-{language}",
+                "name": "Sonar way",
+                "language": language,
+                "isDefault": True,
+                "isBuiltIn": True,
+            }
+        ]
+    connections: list[tuple[str, str]] = []
+
+    def connect(host_url: str, token: str):
+        connections.append((host_url, token))
+        return client
+
+    monkeypatch.setattr(sonar_ensure_rules, "SonarClient", connect)
+    _interactive_terminal(monkeypatch)
+    app, runtime = _app()
+    recording_runner = InlineRecordingRunner()
+    runtime.quality_tooling_service = QualityToolingService(
+        runner=recording_runner, lint_script_path="core/entrypoints/cli/scripts/lint.sh"
+    )
+
+    def invoke(rules: str | None):
+        args = [
+            "quality",
+            "sonar-ensure-rules",
+            "--host-url",
+            "http://sonar.fixture:9000",
+            "--confirm",
+            "--json",
+            "--sonar-token-stdin",
+        ]
+        if rules is not None:
+            args.extend(["--rules", rules])
+        result = CliRunner().invoke(app, args, input="fixture-only-token\n")
+        assert recording_runner.operations == ["quality.sonar-ensure-rules"]
+        assert connections == [("http://sonar.fixture:9000", "fixture-only-token")]
+        return result
+
+    return client, invoke
+
+
+@pytest.mark.parametrize("rules", [None, "", " \t ", " , , "])
+def test_canonical_sonar_rules_default_activates_three_rules_and_managed_profiles(
+    canonical_sonar_rules, rules: str | None
+) -> None:
+    client, invoke = canonical_sonar_rules
+    result = invoke(rules)
+    assert result.exit_code == 0, result.output
+    activations = [params for path, params in client.posts if path.endswith("/activate_rule")]
+    assert activations == [
+        {"key": "flow-steward-py", "rule": "python:S104"},
+        {"key": "flow-steward-js", "rule": "javascript:S104"},
+        {"key": "flow-steward-ts", "rule": "typescript:S104"},
+    ]
+    for language, name in (
+        ("py", "Flow Steward Python"),
+        ("js", "Flow Steward JavaScript"),
+        ("ts", "Flow Steward TypeScript"),
+    ):
+        assert (
+            "/api/qualityprofiles/set_default",
+            {
+                "language": language,
+                "qualityProfile": name,
+            },
+        ) in client.posts
+        assert (
+            next(profile for profile in client.profiles[language] if profile["isDefault"])["name"]
+            == name
+        )
+
+
+def test_canonical_sonar_rules_preserves_explicit_selection(canonical_sonar_rules) -> None:
+    client, invoke = canonical_sonar_rules
+    result = invoke(" typescript:S104 ")
+    assert result.exit_code == 0, result.output
+    assert [params for path, params in client.posts if path.endswith("/activate_rule")] == [
+        {"key": "flow-steward-ts", "rule": "typescript:S104"}
+    ]
+    assert client.profiles["py"][0]["isDefault"] is True
+    assert client.profiles["js"][0]["isDefault"] is True
+
+
+@pytest.mark.parametrize("rules", [None, " ", "python:S104"])
+def test_canonical_sonar_rules_api_failure_remains_nonzero(
+    canonical_sonar_rules, rules: str | None
+) -> None:
+    from core.application.tooling.quality import sonar_ensure_rules
+
+    client, invoke = canonical_sonar_rules
+    client.activate_error = sonar_ensure_rules.SonarApiError(403, "Profile update forbidden")
+    result = invoke(rules)
+    assert result.exit_code != 0, result.output
+    assert "sonar_authentication_failed" in result.output
 
 
 def test_quality_commands_delegate_to_typed_tooling_service(monkeypatch: Any) -> None:
