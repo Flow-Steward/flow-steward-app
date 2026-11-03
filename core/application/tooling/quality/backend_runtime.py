@@ -114,6 +114,9 @@ _CONFIGURATION_PATH_NAME = re.compile(
 # write locations or as repository paths already covered by backend inputs.
 # An unknown configuration path can refer to mutable files outside that graph.
 _CANONICAL_CONFIGURATION_PATHS = {
+    # Public quickstart marker: this directory is absent and is not mounted
+    # into fs-audit. A real/custom target path remains candidate-bound.
+    "TARGET_PROJECT_PATH": frozenset({"/absolute/path/to/your/project"}),
     "PLAYWRIGHT_BROWSERS_PATH": frozenset({"/ms-playwright"}),
     "PYTHONPATH": frozenset({"/app"}),
     "FS_STACK_ENV_FILE": frozenset({"/dev/null"}),
@@ -179,6 +182,9 @@ def _runtime_receipt_identity() -> str:
 
 
 def _has_external_inputs(environment: Mapping[str, str]) -> bool:
+    target = environment.get("TARGET_PROJECT_PATH", "")
+    if target == "/absolute/path/to/your/project" and Path(target).exists():
+        return True
     if any(environment.get(name, "").strip() for name in _EXTERNAL_INPUT_NAMES):
         return True
     if environment.get("FS_STACK_ENV_FILE", "") not in {"", "/dev/null"}:

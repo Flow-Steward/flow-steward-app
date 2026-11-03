@@ -46,6 +46,7 @@ def test_same_runtime_can_match_across_candidate_shas(canonical_environment) -> 
         ("FS_STACK_ENV_FILE", "/external/stack.env"),
         ("UNREGISTERED_CONFIG_FILE", "/external/custom.yaml"),
         ("UNREGISTERED_CONFIG_PATH", "custom/config.yaml"),
+        ("TARGET_PROJECT_PATH", "/real/external/project"),
         ("LD_PRELOAD", "/external/libcustom.so"),
         ("PATH", "/external/bin:/usr/bin"),
     ],
@@ -177,6 +178,7 @@ def test_operational_candidate_and_workspace_identifiers_do_not_prevent_reuse(
 def test_known_isolated_resource_paths_do_not_force_candidate_scope(canonical_environment) -> None:
     canonical_environment.update(
         ARTIFACT_LOCAL_ROOT_DIR="/tmp/flow-steward-audit-artifacts",
+        TARGET_PROJECT_PATH="/absolute/path/to/your/project",
         FS_ARTIFACT_ROOT="/tmp/flow-steward-audit-ops",
         FS_STACK_ENV_FILE="/dev/null",
     )
@@ -195,6 +197,14 @@ def test_environment_identity_does_not_return_secrets(canonical_environment) -> 
     assert "private-sentinel-secret" not in json.dumps(result)
     changed_environment = {**canonical_environment, "FS_SECRET_KEY": "changed-secret"}
     assert result != backend_runtime.backend_runtime_identity("1" * 40, environ=changed_environment)
+
+
+def test_quickstart_marker_is_external_if_it_actually_exists(
+    canonical_environment, monkeypatch
+) -> None:
+    canonical_environment["TARGET_PROJECT_PATH"] = "/absolute/path/to/your/project"
+    monkeypatch.setattr(backend_runtime.Path, "exists", lambda _path: True)
+    assert backend_runtime._has_external_inputs(canonical_environment)
 
 
 def test_changed_installed_distributions_invalidate_identity(
