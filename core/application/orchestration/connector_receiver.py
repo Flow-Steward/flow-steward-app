@@ -107,9 +107,14 @@ def pin_extension_receiver(
         action_id=action_id,
         operation_id=operation_id,
     )
+    from core.application.orchestration.connector_mapping import _TOKEN_EXTENSION
+
     install_id = _text(connector_install_id)
     candidates = [install_id] if install_id else ([ext_id] if ext_id else [])
+    # The dispatch refuses these before any lookup; nothing to pin either.
     if not op_id or not _text(account_id):
+        return None
+    if _text(connector_id).startswith(_TOKEN_EXTENSION) and not install_id:
         return None
     for candidate in candidates:
         extension, bl = resolve_extension_runtime_record(
