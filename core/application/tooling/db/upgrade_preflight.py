@@ -29,6 +29,17 @@ def _released_baselines(root: Path) -> set[str]:
     return {item for item in released if item}
 
 
+def ledger_gaps(ordered: list[str], applied: set[str]) -> list[str]:
+    """This release's files missing before the last one the ledger records (ADR 0056).
+
+    A supported source has applied a prefix of the ordered files; running an earlier
+    file after a later one would apply it out of order. Names this release does not
+    know are reported as newer or pre-release instead, so they are left out here.
+    """
+    last = max((index for index, name in enumerate(ordered) if name in applied), default=-1)
+    return [name for name in ordered[: last + 1] if name not in applied]
+
+
 def _table_exists(cur: Any, name: str) -> bool:
     cur.execute("SELECT to_regclass(%s) IS NOT NULL", (f"public.{name}",))
     row = cur.fetchone()
@@ -82,6 +93,19 @@ def _source_issues(conn: Any, root: Path) -> list[dict[str, Any]]:
                 "migration_drift",
                 "Applied migrations differ from this release's files.",
                 migrations=drifted[:_LISTED],
+            )
+        )
+    skipped = ledger_gaps(
+        [path.name for path in migration_runner.discover_migration_files(root)],
+        set(migration_runner.fetch_applied_migrations(conn)),
+    )
+    if skipped:
+        issues.append(
+            _issue(
+                "unknown_schema",
+                "The applied migrations are not a prefix of this release's ordered files: "
+                "a later one is recorded while an earlier one is not.",
+                missing_migrations=skipped[:_LISTED],
             )
         )
     unknown_phases = upgrade_phases.unknown_recorded_phases(conn)
@@ -241,4 +265,4 @@ def preflight(
     }
 
 
-__all__ = ["preflight"]
+__all__ = ["ledger_gaps", "preflight"]
