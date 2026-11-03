@@ -1205,3 +1205,107 @@ def test_one_exact_scope_reaches_each_catalog_write_through_the_routes(stand) ->
     assert writer.delete(f"/api/secrets/{secret_id}").status_code == 409
     assert binder.delete(bind_path).status_code == 200
     assert writer.delete(f"/api/secrets/{secret_id}").status_code == 200
+
+
+def test_a_secret_binds_only_within_its_project_or_workspace(stand) -> None:
+    """Project A, project B of the same workspace, a project of another workspace, and
+    another account: for a workflow input and for a connection field alike."""
+    from core.application.management.errors import ServiceNotFoundError
+    from tests.integration.test_secret_catalog_postgres import _connection
+
+    other_account = "00000000-0000-0000-0000-0000000000a2"
+    with stand.conn.cursor() as cur:
+        project_b = _project(cur, "scope-b")  # the same workspace as project A
+        cur.execute(
+            "INSERT INTO workspaces (id, account_id, workspace_key, display_name) "
+            "VALUES (gen_random_uuid(), %s, 'other-ws', 'Other') RETURNING id::text",
+            (ACCOUNT,),
+        )
+        other_workspace = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO projects (name, account_id, workspace_id) VALUES ('scope-c', %s, %s) "
+            "RETURNING id::text",
+            (ACCOUNT, other_workspace),
+        )
+        project_c = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO accounts (id, account_key, display_name) VALUES (%s, 'acct-2', 'Two')",
+            (other_account,),
+        )
+        cur.execute(
+            "INSERT INTO workspaces (id, account_id, workspace_key, display_name) "
+            "VALUES (gen_random_uuid(), %s, 'acct2-ws', 'Two') RETURNING id::text",
+            (other_account,),
+        )
+        foreign_workspace = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO projects (name, account_id, workspace_id) VALUES ('scope-x', %s, %s) "
+            "RETURNING id::text",
+            (other_account, foreign_workspace),
+        )
+        foreign_project = cur.fetchone()[0]
+        connections = {
+            project: _connection(cur, project, label=f"conn {project}", refs={})
+            for project in (stand.project_id, project_b, project_c)
+        }
+
+    stand.save("wf_scope")
+    for project in (project_b, project_c):
+        stand.store.add_project_workflow_binding(project, "wf_scope")
+    service = stand.service
+    project_secret = service.create_secret(
+        _human(), name="A only", value=VALUE, project_id=stand.project_id
+    )
+    workspace_secret = service.create_secret(
+        _human(),
+        name="Workspace A",
+        value=VALUE,
+        workspace_id=_workspace_of(stand, stand.project_id),
+    )
+    foreign = ScopeContext(
+        account_id=other_account, principal_type="operator", auth_source="local", actor_id="other"
+    )
+    foreign_secret = service.create_secret(
+        foreign, name="Other account", value=VALUE, project_id=foreign_project
+    )
+
+    def bind_input(project: str, secret_id: str) -> None:
+        service.bind_workflow_input(
+            "wf_scope", _human(), project_id=project, field="api_key", secret_id=secret_id
+        )
+
+    def bind_field(project: str, secret_id: str) -> None:
+        service.bind_connection_field(
+            connections[project], _human(), field="api_key", secret_id=secret_id
+        )
+
+    for bind in (bind_input, bind_field):
+        # A project secret reaches no other project, even in its workspace.
+        with pytest.raises(ServiceValidationError, match="not available"):
+            bind(project_b, project_secret["id"])
+        # A workspace secret reaches no project of another workspace.
+        with pytest.raises(ServiceValidationError, match="not available"):
+            bind(project_c, workspace_secret["id"])
+        # Another account's secret does not exist for this caller.
+        with pytest.raises(ServiceNotFoundError):
+            bind(project_b, foreign_secret["id"])
+        assert _bindings(stand) == []
+        # A workspace secret is shared with every project of that workspace.
+        bind(project_b, workspace_secret["id"])
+        assert _bindings(stand) == [workspace_secret["id"]]
+        with stand.conn.cursor() as cur:
+            cur.execute("DELETE FROM catalog_secret_bindings")
+
+
+def _workspace_of(stand: Stand, project_id: str) -> str:
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "SELECT workspace_id::text FROM projects WHERE id::text = %s", (str(project_id),)
+        )
+        return cur.fetchone()[0]
+
+
+def _bindings(stand: Stand) -> list[str]:
+    with stand.conn.cursor() as cur:
+        cur.execute("SELECT secret_id::text FROM catalog_secret_bindings ORDER BY 1")
+        return [row[0] for row in cur.fetchall()]
