@@ -8,6 +8,7 @@ import time
 from collections.abc import Iterator
 from contextlib import suppress
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -75,6 +76,34 @@ def test_timeout_cleanup_survives_unknown_proc_visibility(
 
     monkeypatch.setattr(Path, "read_text", read_text)
     monkeypatch.setattr(Path, "iterdir", iterdir)
+    # Start the executor's two-second timeout only after the child tree has
+    # installed its signal handlers; Python startup is not the behavior under test.
+    from core.infrastructure.installer import process as process_module
+
+    real_popen = subprocess.Popen
+    real_monotonic = time.monotonic
+    start = real_monotonic()
+    shift = [0.0]
+
+    def ready_popen(*args, **kwargs):
+        child = real_popen(*args, **kwargs)
+        deadline = real_monotonic() + 10
+        while not pid_path.is_file() and real_monotonic() < deadline:
+            time.sleep(0.01)
+        if not pid_path.is_file():
+            with suppress(ProcessLookupError):
+                os.killpg(child.pid, signal.SIGKILL)
+            child.wait(timeout=5)
+            pytest.fail("child process tree did not become ready")
+        shift[0] = real_monotonic() - start
+        return child
+
+    monkeypatch.setattr(process_module.subprocess, "Popen", ready_popen)
+    monkeypatch.setattr(
+        process_module,
+        "time",
+        SimpleNamespace(monotonic=lambda: real_monotonic() - shift[0], sleep=time.sleep),
+    )
     try:
         executor = SubprocessExecutor()
         command = [sys.executable, "-c", _ready_process_tree_command(pid_path)]

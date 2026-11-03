@@ -82,12 +82,69 @@ jobs:
           cache-from: type=gha,scope=quality-postgres-amd64
           cache-to: type=gha,scope=quality-postgres-amd64,mode=min
       - name: Complete exact-SHA Tier 2 and Tier 3 gate
+        if: needs.resolve.outputs.tag != 'v0.9.9'
         env:
           RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
         run: |
           set -o pipefail
           ./core/entrypoints/cli/scripts/lint.sh --full --fingerprint-source commit --commit-sha "$RELEASE_REVISION" \
             2>&1 | tee logs/quality/hosted/full.log
+      - name: Focused acceptance (full suite not rerun)
+        if: needs.resolve.outputs.tag == 'v0.9.9'
+        env:
+          RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$RELEASE_REVISION" ]]
+          git merge-base --is-ancestor c876d3efb66cadba95c99e6677cba20e45a8d514 "$RELEASE_REVISION"
+          mkdir -p logs/quality/hosted
+          {
+            echo 'Focused acceptance for v0.9.9; full suite not rerun.'
+            echo "Final revision: $RELEASE_REVISION"
+            echo 'The v0.9.8 publication gate failed: https://github.com/Flow-Steward/flow-steward-app/actions/runs/41591208411'
+            echo 'The user requested focused failed and impacted tests in place of another full gate.'
+          } | tee logs/quality/hosted/focused-acceptance.txt >> "$GITHUB_STEP_SUMMARY"
+          backend_paths=(
+            tests/unit/test_install_script.py
+            tests/unit/installer/test_installer_process.py
+            tests/unit/lifecycle/test_docker_host_state.py
+            tests/unit/test_retired_agent_type_migration.py
+            tests/unit/test_inbound_oauth_migration.py
+            tests/unit/test_released_migration_immutability.py
+            tests/integration/test_inbound_oauth_migration_postgres.py
+            tests/unit/test_release_automation.py
+          )
+          frontend_paths=(
+            src/pages/registry/data-connections/connection-preservation.test.tsx
+            src/pages/registry/mcp/index.test.tsx
+            src/pages/registry/mcp/mcp-json-import.test.ts
+            src/pages/registry/mcp/mcp-json-import-field.test.tsx
+            src/pages/workflows/detail/index.change-set-scope.test.tsx
+            src/pages/workflows/detail/index.hook-frame.test.tsx
+            src/pages/workflows/detail/index.transform-draft.test.tsx
+            src/pages/workflows/detail/index.unsaved-forms.test.tsx
+            src/pages/workflows/builder/canvas-edge-label-placement.test.ts
+            src/pages/workflows/builder/canvas-slot-labels.test.tsx
+            src/pages/workflows/builder/canvas-viewport.test.ts
+          )
+          printf 'Backend targets: %s\nFrontend targets: %s\n' "${backend_paths[*]}" "${frontend_paths[*]}" | tee -a logs/quality/hosted/focused-acceptance.txt
+          ./core/entrypoints/cli/scripts/lint.sh --checks targeted-tests --test-paths "${backend_paths[*]}" \
+            2>&1 | tee logs/quality/hosted/focused-backend.log
+          cp assets/frontend/vitest.config.ts "$RUNNER_TEMP/v099-vitest.config.ts"
+          trap 'cp "$RUNNER_TEMP/v099-vitest.config.ts" assets/frontend/vitest.config.ts' EXIT
+          for frontend_path in "${frontend_paths[@]}"; do
+            printf '\nChecking %s\n' "$frontend_path" | tee -a logs/quality/hosted/focused-frontend.log
+            if [[ "$frontend_path" == src/pages/workflows/detail/index.hook-frame.test.tsx ]]; then
+              # The user requested individual regressions, not the other 82 Hook cases.
+              python3 -c 'import json,pathlib; p=pathlib.Path("assets/frontend/vitest.config.ts"); s=p.read_text(); marker="  test: {"; assert s.count(marker)==1; pattern="offers selected child Step Delete but no protected author Delete|drops a held child Step guard after switching to another Hook|waits for an explicitly selected connected Hook before adding"; extra={"testNamePattern":pattern,"reporters":["default","json"],"outputFile":"/app/logs/quality/hosted/hook-focused-vitest.json"}; p.write_text(s.replace(marker, marker+json.dumps(extra)[1:-1]+","))'
+            fi
+            ./core/entrypoints/cli/scripts/lint.sh --checks frontend-targeted-tests --test-paths "$frontend_path" \
+              2>&1 | tee -a logs/quality/hosted/focused-frontend.log
+            if [[ "$frontend_path" == src/pages/workflows/detail/index.hook-frame.test.tsx ]]; then
+              python3 -c 'import json,pathlib; d=json.loads(pathlib.Path("logs/quality/hosted/hook-focused-vitest.json").read_text()); assert d["numPassedTests"]==3 and d["numFailedTests"]==0, d; print("Three selected Hook regressions passed; other Hook cases excluded.")'
+              cp "$RUNNER_TEMP/v099-vitest.config.ts" assets/frontend/vitest.config.ts
+            fi
+          done
       - name: Collect bounded diagnostics
         if: always() && env.FS_QUALITY_CACHE_ROOT != ''
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh diagnostics
@@ -240,6 +297,10 @@ jobs:
           script: |
             const fs = require('node:fs');
             const tag = process.env.RELEASE_TAG;
+            const focusedNotice = tag === 'v0.9.9'
+              ? `Focused acceptance (full suite not rerun) for revision ${process.env.FS_RELEASE_REVISION}. The v0.9.8 publication gate failed: https://github.com/Flow-Steward/flow-steward-app/actions/runs/41591208411. The user requested focused failed and impacted tests instead of another full gate. See the quality artifact for the selected paths and results: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}.`
+              : '';
+            const defaultBody = 'Native AMD64 and ARM64 images verified in both GHCR and Docker Hub. See attached digest evidence.';
             let release;
             try {
               ({data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag}));
@@ -248,10 +309,16 @@ jobs:
               ({data: release} = await github.rest.repos.createRelease({
                 ...context.repo, tag_name: tag, target_commitish: process.env.FS_RELEASE_REVISION,
                 name: tag, draft: false, prerelease: false,
-                body: 'Native AMD64 and ARM64 images verified in both GHCR and Docker Hub. See attached digest evidence.'
+                body: focusedNotice ? `${defaultBody}\n\n${focusedNotice}` : defaultBody
               }));
             }
             if (release.draft || release.prerelease) throw new Error('Existing release must be stable and non-draft; review it manually');
+            if (focusedNotice && !(release.body || '').includes(focusedNotice)) {
+              ({data: release} = await github.rest.repos.updateRelease({
+                ...context.repo, release_id: release.id,
+                body: `${release.body || defaultBody}\n\n${focusedNotice}`
+              }));
+            }
             await github.rest.repos.uploadReleaseAsset({
               ...context.repo, release_id: release.id,
               name: `registry-verification-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}.json`,

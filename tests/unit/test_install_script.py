@@ -7,6 +7,7 @@ import signal
 import stat
 import subprocess
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,6 +91,11 @@ if [[ "${{docker_command}}" == "run" && "${{FAKE_EXPECT_HELPER_MOUNT:-0}}" == "1
   fi
 fi
 if [[ "${{docker_command}}" == "build" ]]; then
+  if [[ -n "${{FAKE_BUILD_READY:-}}" ]]; then
+    printf '%s\n' "$$" > "${{FAKE_BUILD_READY}}"
+    trap 'exit 10' INT TERM
+    while true; do sleep 1; done
+  fi
   sleep {build_delay}
   echo "build output retained"
 fi
@@ -555,7 +561,7 @@ def test_a_hangup_stops_the_installer_runtime_instead_of_orphaning_it(tmp_path: 
     )
 
 
-def test_install_sh_records_itself_from_its_start_to_its_end(tmp_path: Path) -> None:
+def test_sigint_during_build_removes_host_record_and_stops_build(tmp_path: Path) -> None:
     """AC17-R162 (L1): ./flow-steward refuses what would change the installation for the
     whole run -- the record exists before the installer container, and not after."""
     docker_log = _fake_docker(tmp_path)
@@ -566,6 +572,7 @@ def test_install_sh_records_itself_from_its_start_to_its_end(tmp_path: Path) -> 
         "DOCKER_LOG": str(docker_log),
         "FAKE_CONTEXT_ENDPOINT": "unix:///var/run/docker.sock",
         "FAKE_RUNTIME_WAIT": "1",
+        "FAKE_BUILD_READY": str(tmp_path / "build-ready"),
         "FS_INSTALLER_IMAGE": "flow-steward-installer:test",
         "FS_INSTALLER_STATE_DIR": str(state_dir),
         "FS_INSTALLER_HEARTBEAT_SECONDS": "0.05",
@@ -580,16 +587,24 @@ def test_install_sh_records_itself_from_its_start_to_its_end(tmp_path: Path) -> 
         start_new_session=True,
     )
     record = state_dir / "installer-host.pid"
-    deadline = time.monotonic() + 10
-    while not record.is_file() and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert record.read_text(encoding="utf-8").strip() == str(process.pid)
-    assert record.stat().st_mode & 0o777 == 0o600
-
-    os.killpg(process.pid, signal.SIGINT)
-    process.communicate(timeout=15)
-
-    assert not record.exists()
+    ready = tmp_path / "build-ready"
+    try:
+        deadline = time.monotonic() + 10
+        while not ready.is_file() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert ready.is_file(), "fake Docker build did not start"
+        assert record.read_text(encoding="utf-8").strip() == str(process.pid)
+        assert record.stat().st_mode & 0o777 == 0o600
+        build_pid = int(ready.read_text(encoding="utf-8"))
+        os.killpg(process.pid, signal.SIGINT)
+        process.communicate(timeout=15)
+        assert not record.exists()
+        with pytest.raises(ProcessLookupError):
+            os.kill(build_pid, 0)
+    finally:
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        process.communicate(timeout=5)
 
 
 def test_a_live_runs_record_is_not_taken_over(tmp_path: Path) -> None:

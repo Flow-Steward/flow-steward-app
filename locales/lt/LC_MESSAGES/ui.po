@@ -10013,6 +10013,39 @@ msgstr "Perkelta į šiukšlinę {date}; perkėlė {actor}"
 msgid "react.registry.mcp_final_view_in_trash"
 msgstr "Peržiūrėti šiukšlinėje"
 
+msgid "react.registry.mcp_json.fill"
+msgstr "Užpildyti formą"
+
+msgid "react.registry.mcp_json.filled"
+msgstr "Užpildyta iš JSON: {name}. Prieš išsaugodami patikrinkite laukus."
+
+msgid "react.registry.mcp_json.headers_to_fill"
+msgstr "Įveskite reikšmę: {headers}."
+
+msgid "react.registry.mcp_json.helper"
+msgstr "Neprivaloma. Konfigūracija iš serverio dokumentacijos arba iš Claude, Cursor ar VS Code užpildo toliau esančius laukus."
+
+msgid "react.registry.mcp_json.invalid"
+msgstr "Šis tekstas nėra tinkamas JSON."
+
+msgid "react.registry.mcp_json.label"
+msgstr "Įklijuokite JSON konfigūraciją"
+
+msgid "react.registry.mcp_json.no_servers"
+msgstr "Šiame JSON nerasta MCP serverio."
+
+msgid "react.registry.mcp_json.server"
+msgstr "Serveris iš JSON"
+
+msgid "react.registry.mcp_json.skipped_no_url"
+msgstr "{name} neturi URL."
+
+msgid "react.registry.mcp_json.skipped_sse"
+msgstr "{name} naudoja SSE transportą. Vietoj jo naudokite serverio „streamable HTTP“ URL (dažnai baigiasi /mcp)."
+
+msgid "react.registry.mcp_json.skipped_stdio"
+msgstr "{name} veikia kaip vietinė programa (command). Prijungti galima tik nuotolinius MCP serverius per HTTP."
+
 msgid "react.registry.mcp_sync_failed"
 msgstr "MCP sinchronizavimas nepavyko."
 

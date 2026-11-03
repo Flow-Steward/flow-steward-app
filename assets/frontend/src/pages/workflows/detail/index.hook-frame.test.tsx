@@ -380,6 +380,12 @@ it("waits for an explicitly selected connected Hook before adding to its own chi
     const authorBefore = structuredClone(hookAuthorityControllers.scope!.canvasChangeSet.preview);
     await chooseFirstHookStep();
 
+    await waitFor(() => {
+      const scope = hookAuthorityControllers.scope!;
+      expect(scope.effectiveHookId).toBe("before_finish");
+      expect(scope.childWorkflowId).toBe("client_fix");
+      expect(scope.childChangeSet.journal.items).toHaveLength(1);
+    }, { timeout: 5_000 });
     expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Set variable");
     expect(screen.getAllByRole("dialog", { name: "Step editor" })).toHaveLength(1);
     const scope = hookAuthorityControllers.scope!;
@@ -1916,7 +1922,7 @@ it("drops a held child Step guard after switching to another Hook without stagin
   });
   await renderHookedBuilder();
   fireEvent.click(screen.getByRole("group", { name: "Open step Fix the customer name" }));
-  const editor = await screen.findByRole("dialog", { name: "Step editor" });
+  const editor = await screen.findByRole("dialog", { name: "Step editor" }, { timeout: 3_000 });
   expect(await within(editor).findByRole("textbox", { name: "Step label" })).toHaveValue("Fix the customer name");
   fireEvent.click(within(editor).getByRole("button", { name: "Delete step" }));
   await waitFor(() => expect(scopedGets.some((url) => url.searchParams.get("scope_kind") === "step"

@@ -22,6 +22,7 @@ from core.application.lifecycle.stack_service import (
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.installer.process import (
     DockerHostStateExecutor,
+    DockerHostStateUnavailable,
     SubprocessExecutor,
     docker_host_state_dir,
 )
@@ -66,6 +67,9 @@ from .docker_runtime_probes import (
     service_release,
 )
 
+# The image's checkout root (/app in the CLI image), where fs-cli mounts .env.prod.
+_IMAGE_ROOT = Path(__file__).resolve().parents[3]
+
 
 class DockerLifecycleGateway:
     """Construct and execute selected installed Compose lifecycle operations."""
@@ -89,7 +93,14 @@ class DockerLifecycleGateway:
         state_root = str(_runtime_env.get("FS_INSTALLER_STATE_DIR") or "").strip()
         if not state_root:
             return None
-        return docker_host_state_dir(Path(state_root), self._docker_host_project_root / ".env.prod")
+        # The host project's .env.prod first; in the CLI container that path may not
+        # be mounted, and the image's own copy (FS_CANDIDATE_PROD_ENV) records the same value.
+        return docker_host_state_dir(
+            Path(state_root),
+            self._docker_host_project_root / ".env.prod",
+            self._project_root / ".env.prod",
+            _IMAGE_ROOT / ".env.prod",
+        )
 
     def services(self, target: ComposeTarget) -> tuple[str, ...]:
         outcome = self._run_compose(
@@ -859,6 +870,8 @@ class DockerLifecycleGateway:
                 input_text=input_text,
                 separate_stderr=separate_stderr,
             )
+        except DockerHostStateUnavailable as exc:
+            raise StackGatewayError(action=action, detail=str(exc)) from exc
         except (OSError, subprocess.SubprocessError) as exc:
             raise StackGatewayError(
                 action=action,

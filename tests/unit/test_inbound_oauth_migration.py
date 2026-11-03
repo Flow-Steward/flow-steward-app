@@ -135,5 +135,5 @@ def test_the_release_check_stops_an_update_that_carries_the_migration() -> None:
 def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fingerprint() -> None:
     status = upgrade_db.inspect_database_upgrade()
 
-    assert status["pending_migrations"] == [MIGRATION]
+    assert status["pending_migrations"] == [MIGRATION, "20261103090000_retired_agent_type.sql"]
     assert status["needs_upgrade"] is True

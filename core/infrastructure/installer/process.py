@@ -27,22 +27,60 @@ class ProcessOutcome:
     stderr: str = ""
 
 
-def docker_host_state_dir(state_root: Path, env_file: Path) -> str | None:
+# Where the CLI container mounts the host's state directory (fs-cli in
+# docker-compose.prod.yaml: `${FS_CANDIDATE_STATE_DIR}:/run/flow-steward-candidate-state`).
+CONTAINER_STATE_MOUNT = Path("/run/flow-steward-candidate-state")
+
+
+class DockerHostStateUnavailable(RuntimeError):
+    """The state directory is a container mount whose host path is not recorded."""
+
+
+def _recorded_host_state_dir(env_files: Sequence[Path]) -> str:
+    for env_file in env_files:
+        try:
+            text = env_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        configured = ""
+        for line in text.splitlines():
+            name, separator, value = line.strip().partition("=")
+            if separator and name.strip() == "FS_CANDIDATE_STATE_DIR":
+                configured = value.strip().strip('"').strip("'")
+        if Path(configured).is_absolute():
+            return configured
+    return ""
+
+
+def docker_host_state_dir(state_root: Path, *env_files: Path) -> str | None:
     """The state directory's Docker-host path, when this process sees it elsewhere.
 
     Production records the host path as FS_CANDIDATE_STATE_DIR. Inside a CLI
     container the same directory is mounted at another path, and only the host one
     means anything to a Compose bind source.
+
+    At the CLI container's own mount the recorded value is the mount's source, so
+    it is used without looking for it: the host path is usually not visible from
+    the container, and `samefile` failing there used to hand Compose the container
+    path, which made the daemon create an empty directory in place of
+    `runtime/seaweedfs-s3.json` on `stack start`. With no recorded value the run
+    stops instead of creating that directory.
     """
+    configured = _recorded_host_state_dir(env_files)
+    if state_root == CONTAINER_STATE_MOUNT:
+        if not configured:
+            raise DockerHostStateUnavailable(
+                f"{state_root} is the CLI container's mount of the installer state, and "
+                "FS_CANDIDATE_STATE_DIR in .env.prod does not record its host path; "
+                "rerun ./install.sh to record it."
+            )
+        return configured
+    if not configured:
+        return None
+    host_dir = Path(configured)
+    if host_dir == state_root:
+        return None
     try:
-        configured = ""
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            name, separator, value = line.strip().partition("=")
-            if separator and name.strip() == "FS_CANDIDATE_STATE_DIR":
-                configured = value.strip().strip('"').strip("'")
-        host_dir = Path(configured)
-        if not host_dir.is_absolute() or host_dir == state_root:
-            return None
         return str(host_dir) if os.path.samefile(host_dir, state_root) else None
     except OSError:
         return None

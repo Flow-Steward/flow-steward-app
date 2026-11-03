@@ -78,6 +78,7 @@ function httpStore(
 }
 
 async function editConnection(name: string) {
+  await waitFor(() => expect(screen.getByRole("table", { name: "Connection registry" })).toHaveAttribute("aria-busy", "false"), { timeout: 5_000 });
   await userEvent.click(await screen.findByRole("button", { name: `Actions for ${name}` }));
   await userEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
   return screen.findByRole("dialog", { name: "Edit data connection" });

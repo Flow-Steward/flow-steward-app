@@ -27,7 +27,12 @@ env:
 
 jobs:
   quality:
-    if: github.repository == 'Flow-Steward/flow-steward-app' && github.event.repository.private == false
+    # The v0.9.9 release workflow owns the user's one-time focused acceptance.
+    # Skip this duplicate branch gate only for its explicitly marked main commit.
+    if: >-
+      github.repository == 'Flow-Steward/flow-steward-app' && github.event.repository.private == false &&
+      !(github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+        contains(github.event.head_commit.message, '[focused-release-v0.9.9]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:

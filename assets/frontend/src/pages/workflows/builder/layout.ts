@@ -2,7 +2,7 @@ import type { ContainerRuntimeMark, ContainerRuntimeMarks } from "./runtime-cont
 import { runtimeEdgeKey } from "@/pages/jobs/detail/job-execution-trace";
 import { columnsFor } from "./canvas-layout-ranking";
 import { wrapRootColumns } from "./canvas-root-wrap";
-import type { CanvasEdgeRoute } from "./canvas-edge-routing";
+import type { CanvasEdgeRoute, CanvasPoint } from "./canvas-edge-routing";
 import type { HookExecutionMark, HookExecutionMarks } from "@/pages/workflows/detail/detail-hook-execution-marks";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { Position, type Edge, type Node } from "@xyflow/react";
@@ -181,6 +181,8 @@ export type CanvasEdgeData = {
   /** How often the run took this connection, when more than once (a loop). */
   passes?: number;
   route?: CanvasEdgeRoute;
+  /** Where the outcome label sits on the route: off every card (canvas-edge-label-placement). */
+  labelAt?: CanvasPoint;
   /** Logical layout metadata, never inferred from hand-placed screen coordinates. */
   routing?: { sameScope: boolean; sourceColumn?: number; targetColumn?: number; longJump: boolean };
   draft: boolean;

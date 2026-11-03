@@ -314,3 +314,52 @@ new AsyncFunction('github', 'context', 'process', input.script)(github, context,
         capture_output=True,
     )
     assert (result.returncode == 0) is accepted, result.stderr
+
+
+def test_release_v099_focused_exception_is_narrow_and_records_failed_and_impacted_tests() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    steps = workflow["jobs"]["quality"]["steps"]
+    full = next(step for step in steps if "lint.sh --full" in step.get("run", ""))
+    focused = next(
+        step for step in steps if step.get("name") == "Focused acceptance (full suite not rerun)"
+    )
+    assert full["if"] == "needs.resolve.outputs.tag != 'v0.9.9'"
+    assert focused["if"] == "needs.resolve.outputs.tag == 'v0.9.9'"
+    assert focused["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
+    command = focused["run"]
+    assert "git rev-parse HEAD" in command
+    assert "git merge-base --is-ancestor c876d3efb66cadba95c99e6677cba20e45a8d514" in command
+    assert "set -euo pipefail" in command
+    assert "--checks targeted-tests" in command
+    assert "--checks frontend-targeted-tests" in command
+    assert "41591208411" in command
+    for target in (
+        "tests/unit/test_install_script.py",
+        "tests/unit/installer/test_installer_process.py",
+        "tests/unit/lifecycle/test_docker_host_state.py",
+        "tests/unit/test_retired_agent_type_migration.py",
+        "tests/unit/test_released_migration_immutability.py",
+        "tests/integration/test_inbound_oauth_migration_postgres.py",
+        "src/pages/registry/data-connections/connection-preservation.test.tsx",
+        "src/pages/registry/mcp/index.test.tsx",
+        "src/pages/registry/mcp/mcp-json-import.test.ts",
+        "src/pages/registry/mcp/mcp-json-import-field.test.tsx",
+        "src/pages/workflows/detail/index.change-set-scope.test.tsx",
+        "src/pages/workflows/detail/index.hook-frame.test.tsx",
+        "src/pages/workflows/detail/index.transform-draft.test.tsx",
+        "src/pages/workflows/detail/index.unsaved-forms.test.tsx",
+        "src/pages/workflows/builder/canvas-edge-label-placement.test.ts",
+        "src/pages/workflows/builder/canvas-slot-labels.test.tsx",
+        "src/pages/workflows/builder/canvas-viewport.test.ts",
+    ):
+        assert target in command
+    publish = workflow["jobs"]["publish"]
+    assert "needs.quality.result == 'success'" in publish["if"]
+    release = next(
+        step
+        for step in publish["steps"]
+        if step.get("name", "").startswith("Publish stable GitHub Release")
+    )
+    assert "Focused acceptance (full suite not rerun)" in release["with"]["script"]
+    assert "updateRelease" in release["with"]["script"]

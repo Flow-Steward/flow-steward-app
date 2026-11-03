@@ -80,7 +80,7 @@ export function CanvasEditableEdge({ id, data, label, sourceX, sourceY, targetX,
     {data ? <EdgeLabelRenderer>
       <CanvasEdgeBeads midpoint={route.midpoint} visible={Boolean(!data.selected && (data.hovered || actionHovered))} onHoverChange={setActionHovered}
         onInsert={data.onInsert ? () => data.onInsert?.(data) : undefined} onRemove={data.onDelete ? () => data.onDelete?.(data) : undefined} />
-      {label ? <span className="workflow-edge-label nodrag nopan" style={{ transform: `translate(${route.midpoint.x}px, ${route.midpoint.y}px) translate(-50%, 0)` }}>{label}</span> : null}
+      {label ? <span className="workflow-edge-label nodrag nopan" style={{ transform: `translate(${(data.labelAt ?? route.midpoint).x}px, ${(data.labelAt ?? route.midpoint).y}px) translate(-50%, 0)` }}>{label}</span> : null}
     </EdgeLabelRenderer> : null}
   </>;
 }
