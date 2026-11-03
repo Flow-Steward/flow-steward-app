@@ -245,4 +245,14 @@ describe("workflow interface row names", () => {
     expect(workflowFieldPayload([])).toEqual([]);
     expect(workflowOutputFieldPayload([])).toEqual([]);
   });
+
+  it("never replays a catalog binding or approval key in the saved definition", () => {
+    const stored = {
+      name: "api_token", type: "secret", catalog_secret: "s1", catalog_secret_id: "s1", // pragma: allowlist secret
+      secret_binding: { secret_id: "s1" }, secret_approval: { fingerprint: "sha256:x" },
+    };
+    const [payload] = workflowFieldPayload([fieldDraftFromContract(stored)]);
+
+    expect(payload).toEqual({ name: "api_token", type: "secret", required: false });
+  });
 });

@@ -446,6 +446,12 @@ def initialize_database() -> dict[str, Any]:
         # them before canonical seeds use repositories that intentionally fail
         # closed when a required current-schema column is absent.
         summary["post_baseline_migrations"] = migration_runner.run_pending_migrations(dsn=dsn)
+        from core.application.tooling.db import upgrade_phases
+
+        summary["upgrade_phases"] = {
+            phase_id: len(result)
+            for phase_id, result in upgrade_phases.run_pending_phases_dsn(dsn).items()
+        }
     summary.update(
         apply_clean_bootstrap(
             dsn=dsn,

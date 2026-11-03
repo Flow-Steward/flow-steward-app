@@ -104,7 +104,10 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
   if (drawerTab === "triggers" && !triggersWasOpened) setTriggersWasOpened(true);
 
   const ctx = {
-    ...settings, ...createWorkflowInterfaceRenderers({ ...settings, workflowInterfaceControlIdPrefix }, t),
+    ...settings, ...createWorkflowInterfaceRenderers({
+      ...settings, workflowInterfaceControlIdPrefix,
+      secretCatalogWorkflowId: workflowId, secretCatalogProjectId: selectedProjectId, secretCatalogRevision: workflowRecord.revision,
+    }, t),
     workflowInterfaceControlIdPrefix, workflowId, workflowRecord, workflowContractQuery: contract,
     linkedProjectQuery, selectedProjectId, searchParams, savingWorkflowSurface, advancedMode: false,
     drawerOpen: active, drawerMode: "workflow-settings", drawerTab, structureLocked,

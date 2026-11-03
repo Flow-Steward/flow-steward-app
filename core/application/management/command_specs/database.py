@@ -15,6 +15,7 @@ from core.application.tooling.db.models import (
     DatabaseBootstrapSeedRequest,
     DatabaseGenerateMigrationRequest,
     DatabaseOperationResult,
+    DatabasePreflightRequest,
     DatabaseQueryDiagnosticsRequest,
     DatabaseRestoreParityCaptureRequest,
     DatabaseRestoreParityVerifyRequest,
@@ -25,6 +26,7 @@ from core.application.tooling.db.models import (
 
 _TOKEN_DATABASE_STATUS = "database.status"
 _TOKEN_DATABASE_UPGRADE = "database.upgrade"
+_TOKEN_DATABASE_PREFLIGHT = "database.preflight"
 _TOKEN_DATABASE_BOOTSTRAP_SEED = "database.bootstrap-seed"
 _TOKEN_DATABASE_GENERATE_MIGRATION = "database.generate-migration"
 _TOKEN_DATABASE_QUERY_DIAGNOSTICS = "database.query-diagnostics"
@@ -52,6 +54,19 @@ _AUTHOR_FIELD = FieldSpec(
     type=FieldType.RUNTIME_IDENTIFIER,
     default="system",
     option_name="--author",
+)
+
+_ALLOW_UNLABELED_SESSIONS_FIELD = FieldSpec(
+    key="allow_unlabeled_sessions",
+    label="Allow unlabeled sessions",
+    type=FieldType.BOOLEAN,
+    default=False,
+    option_name="--allow-unlabeled-sessions",
+    examples=("--allow-unlabeled-sessions",),
+    description=(
+        "Proceed although sessions of the application's database user carry no Flow "
+        "Steward name, after confirming they are not processes of an earlier release."
+    ),
 )
 
 _STORAGE_FIELD = FieldSpec(
@@ -89,6 +104,26 @@ DATABASE_COMMAND_SPECS: tuple[CommandSpec, ...] = (
         result_renderer_ref=_TOKEN_DATABASE_STATUS,
     ),
     CommandSpec(
+        command_id=_TOKEN_DATABASE_PREFLIGHT,
+        compact_support=CompactSupport.PLATFORM,
+        path=("database", "preflight"),
+        summary="Check what would stop the database upgrade.",
+        description=(
+            "Read-only check of the schema source, migration and phase history, live "
+            "runtime sessions and data the upgrade cannot move on its own."
+        ),
+        examples=("flow-steward database preflight",),
+        operation_type=OperationType.READ,
+        interactive_policy=InteractivePolicy.IMMEDIATE,
+        fields=(_DSN_SECRET_FIELD, _ALLOW_UNLABELED_SESSIONS_FIELD),
+        input_model=DatabasePreflightRequest,
+        result_model=DatabaseOperationResult,
+        plan_builder_ref=None,
+        confirmation_policy_ref=None,
+        service_ref=_TOKEN_DATABASE_PREFLIGHT,
+        result_renderer_ref=_TOKEN_DATABASE_STATUS,
+    ),
+    CommandSpec(
         command_id=_TOKEN_DATABASE_UPGRADE,
         compact_support=CompactSupport.PLATFORM,
         path=("database", "upgrade"),
@@ -111,6 +146,7 @@ DATABASE_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                     "maintenance migrations."
                 ),
             ),
+            _ALLOW_UNLABELED_SESSIONS_FIELD,
         ),
         input_model=DatabaseUpgradeRequest,
         result_model=DatabaseOperationResult,

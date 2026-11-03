@@ -465,6 +465,7 @@ def test_real_release_service_migration_json_keeps_maintenance_enabled() -> None
     details = json.loads(result.output)["error"]["details"]
     assert details["next_steps"] == [
         "flow-steward backup create",
+        "flow-steward database preflight",
         "flow-steward database upgrade --maintenance-confirmed --confirm",
         "flow-steward release upgrade --target-version 2.0.0 --confirm",
     ]

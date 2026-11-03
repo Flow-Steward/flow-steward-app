@@ -294,6 +294,18 @@ def _load_mcp_connector_row(
     )
     if not row:
         raise RuntimeError(f"MCP connector '{connector_id}' not found")
+    return _checked_mcp_connector_row(
+        row,
+        connector_id=connector_id,
+        expected=(expected_account_id, expected_project_id, expected_tenant_id),
+    )
+
+
+def _checked_mcp_connector_row(
+    row: dict[str, Any], *, connector_id: str, expected: tuple[str, str, str]
+) -> dict[str, Any]:
+    """The row, once its account, project and tenant are the run's trusted lineage."""
+    expected_account_id, expected_project_id, expected_tenant_id = expected
     _assert_mcp_connector_row_account(
         row,
         connector_id=connector_id,
@@ -332,10 +344,20 @@ def _invoke_remote_mcp_tool(
     if not remote_tool_name.strip():
         raise RuntimeError(f"Tool '{manifest.tool_id}' is missing implementation.remote_tool_name")
 
-    connector_row = _load_mcp_connector_row(
-        connector_id,
-        manifest=manifest,
-        runtime_context=runtime_context,
+    # A row selected before the step read its secrets (connector_receiver) is used
+    # as selected, after the same lineage checks a fresh read gets.
+    pinned_row = (runtime_context or {}).get("pinned_mcp_connector_row")
+    connector_row = (
+        _checked_mcp_connector_row(
+            dict(pinned_row),
+            connector_id=connector_id,
+            expected=_expected_mcp_connector_lineage(manifest, runtime_context, require=True),
+        )
+        if isinstance(pinned_row, dict)
+        and str(pinned_row.get("connector_id") or "") == connector_id
+        else _load_mcp_connector_row(
+            connector_id, manifest=manifest, runtime_context=runtime_context
+        )
     )
     if not bool(connector_row.get("enabled", True)):
         raise RuntimeError(f"MCP connector '{connector_id}' is disabled")

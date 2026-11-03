@@ -963,11 +963,10 @@ def test_reconnect_without_rotated_refresh_preserves_old_secret_and_updates_only
         assert runtime_status == "ready"
         assert last_seen_ok_at is not None
         assert last_error == ""
-    secrets = project_connection_secrets.resolve_connection_secrets(
+    secrets = project_connection_secrets.read_local_connection_secrets(
         pg_conn,
         account_id=str(ACCOUNT),
         secret_refs=refs,
-        include_internal=True,
     )
     assert secrets["_oauth_refresh_token"] == "old-refresh-secret"
     assert secrets["_oauth_access_token"] == "new-access-secret"
@@ -1059,11 +1058,10 @@ def test_reconnect_post_connect_failure_clears_stale_verified_identity_and_keeps
         "safe_metadata",
     } & set(config["oauth"])
     assert "raw-provider-copy-canary" not in repr(config)
-    secrets = project_connection_secrets.resolve_connection_secrets(
+    secrets = project_connection_secrets.read_local_connection_secrets(
         pg_conn,
         account_id=str(ACCOUNT),
         secret_refs=refs,
-        include_internal=True,
     )
     assert secrets["_oauth_access_token"] == "new-reconnect-access-canary"
     assert secrets["_oauth_refresh_token"] == "old-refresh-secret"
@@ -1147,11 +1145,10 @@ def test_runtime_refresh_keeps_database_idle_during_http_and_commits_atomically(
             )
             revision, refs = cur.fetchone()
         assert revision == 2
-        resolved = project_connection_secrets.resolve_connection_secrets(
+        resolved = project_connection_secrets.read_local_connection_secrets(
             pg_conn,
             account_id=str(ACCOUNT),
             secret_refs=refs,
-            include_internal=True,
         )
         assert resolved["_oauth_access_token"] == "new-runtime-access"
         assert resolved["_oauth_refresh_token"] == "preserved-runtime-refresh"
@@ -1617,11 +1614,10 @@ def test_runtime_refresh_rejects_install_disable_race_and_releases_claim(
             )
             revision, refs = cur.fetchone()
         assert revision == 1
-        secrets = project_connection_secrets.resolve_connection_secrets(
+        secrets = project_connection_secrets.read_local_connection_secrets(
             lifecycle_conn,
             account_id=str(ACCOUNT),
             secret_refs=refs,
-            include_internal=True,
         )
         assert secrets["_oauth_access_token"] == "old-disable-race-access"
         assert secrets["_oauth_refresh_token"] == "old-disable-race-refresh"
@@ -2989,11 +2985,10 @@ def test_disable_after_grant_commit_wins_before_post_connect_dispatch(
             )
             committed_revision, committed_refs = cur.fetchone()
         assert committed_revision == 1
-        committed_secrets = project_connection_secrets.resolve_connection_secrets(
+        committed_secrets = project_connection_secrets.read_local_connection_secrets(
             pg_conn,
             account_id=str(ACCOUNT),
             secret_refs=committed_refs,
-            include_internal=True,
         )
         assert committed_secrets["_oauth_access_token"] == "committed-before-disable"
         with disable_conn.transaction(), disable_conn.cursor() as cur:
@@ -3025,11 +3020,10 @@ def test_disable_after_grant_commit_wins_before_post_connect_dispatch(
             )
             revision, secret_refs = cur.fetchone()
         assert revision == 2
-        resolved = project_connection_secrets.resolve_connection_secrets(
+        resolved = project_connection_secrets.read_local_connection_secrets(
             pg_conn,
             account_id=str(ACCOUNT),
             secret_refs=secret_refs,
-            include_internal=True,
         )
         assert resolved["_oauth_access_token"] == "committed-before-disable"
     finally:

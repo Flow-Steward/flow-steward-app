@@ -642,6 +642,10 @@ function WorkflowDetailPageContent({
     transformActionsQuery,
     workflowContractSectionsExpanded,
     workflowId: stepWorkflowId,
+    // The interface editor edits this workflow's own inputs, never a hook child's.
+    secretCatalogWorkflowId: workflowId,
+    secretCatalogProjectId: selectedProjectId,
+    secretCatalogRevision: serverRevision,
     workflowInterfaceControlIdPrefix,
     workflowInterfaceNameValidationAttempted: settings.workflowInterfaceNameValidationAttempted,
     workflowInterfaceOutputsDraft: settings.workflowInterfaceOutputsDraft,

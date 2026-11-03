@@ -65,7 +65,10 @@ class ConnectionAdapter:
 
 
 def connect(*args, **kwargs) -> ConnectionAdapter:
+    from core.infrastructure.config.session_identity import session_application_name
+
     kwargs.setdefault("prepare_threshold", None)
+    kwargs.setdefault("application_name", session_application_name())
     return ConnectionAdapter(psycopg.connect(*args, **kwargs))
 
 

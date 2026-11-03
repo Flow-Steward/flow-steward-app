@@ -61,6 +61,7 @@ __all__ = [
     "build_pinned_httpx_transport",
     "build_pinned_opener",
     "is_development_private_ip",
+    "is_refused_response_peer",
     "open_pinned_url",
     "pin_httpx_transport",
     "pinned_requests_session",
@@ -74,6 +75,18 @@ class PinnedPeerError(ValueError):
 
 class RemoteURLResolutionError(ValueError):
     """The configured remote hostname could not be resolved."""
+
+
+def is_refused_response_peer(address: str) -> bool:
+    """Whether a response came from a peer an outbound request may not reach.
+
+    The administrator's private-address switch admits the ordinary private and
+    loopback peers the request check already admitted; link-local, metadata and
+    reserved addresses stay refused either way.
+    """
+    if not _is_blocked_ip(address):
+        return False
+    return not (_allow_private_remote_urls() and is_development_private_ip(address))
 
 
 def is_development_private_ip(address: str) -> bool:

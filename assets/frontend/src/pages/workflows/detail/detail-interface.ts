@@ -377,6 +377,9 @@ function configuredDefaultRequirement(type: string, t: I18nContextValue["t"]): s
   }
 }
 
+/** Definition keys the server reserves for catalog secret bindings (ADR 0057). */
+const CATALOG_BINDING_KEYS = ["catalog_secret", "catalog_secret_id", "secret_binding", "secret_approval"] as const;
+
 function workflowFieldPayloadRow(row: WorkflowInterfaceFieldDraft, t: I18nContextValue["t"] = fallbackContext.t): Record<string, unknown> {
   const name = textOrEmpty(row.name);
   if (!name) {
@@ -384,7 +387,9 @@ function workflowFieldPayloadRow(row: WorkflowInterfaceFieldDraft, t: I18nContex
   }
   const type = textOrEmpty(row.type) || "string";
   const payload: Record<string, unknown> = { ...row.originalAuthoredRow };
-  for (const key of ["default_secret_ref", "default_configured", "sample_file", "source", "returned_files"]) {
+  // A catalog binding and its approval are their own operations; the server
+  // refuses a definition row that names one, so a save never replays them.
+  for (const key of ["default_secret_ref", "default_configured", "sample_file", "source", "returned_files", ...CATALOG_BINDING_KEYS]) {
     delete payload[key];
   }
   payload.name = name;

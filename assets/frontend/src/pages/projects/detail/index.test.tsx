@@ -17,6 +17,7 @@ import { interpolate } from "@/lib/i18n/interpolate";
 import { ProjectsDetailPage } from "@/pages/projects/detail";
 import { fetchWorkspaces } from "@/pages/registry/workspaces/api";
 import { fetchProjectWorkflowBindings } from "@/pages/projects/workflows/api";
+import { fetchProjectWorkflowSecretApprovals } from "@/pages/workflows/shared/workflow-secret-catalog-api";
 import {
   fetchWorkflowDetail,
   fetchWorkflows,
@@ -40,6 +41,28 @@ vi.mock("@/pages/registry/workspaces/api", () => ({
 vi.mock("@/pages/workflows/shared/api", () => ({
   fetchWorkflowDetail: vi.fn(),
   fetchWorkflows: vi.fn(),
+}));
+
+vi.mock("@/pages/workflows/shared/workflow-secret-catalog-api", () => ({
+  fetchProjectWorkflowSecretApprovals: vi.fn(),
+  projectWorkflowSecretsQueryKey: (projectId: string) => ["workflows", "project-secret-approvals", projectId],
+  workflowSecretApprovalQueryKey: (projectId: string, workflowId: string, revision?: number | null) => [
+    "workflows",
+    workflowId,
+    "secret-approval",
+    projectId,
+    revision ?? null,
+  ],
+  fetchWorkflowSecretApproval: vi.fn(),
+  approveWorkflowSecretUse: vi.fn(),
+  bindWorkflowInputSecret: vi.fn(),
+  unbindWorkflowInputSecret: vi.fn(),
+}));
+
+vi.mock("@/pages/registry/secrets/api", () => ({
+  catalogSecretsQueryKey: (projectId: string) => ["secrets", "project", projectId],
+  fetchCatalogSecrets: vi.fn().mockResolvedValue([]),
+  createCatalogSecret: vi.fn(),
 }));
 
 vi.mock("@/pages/projects/history", () => ({
@@ -132,6 +155,8 @@ describe("ProjectsDetailPage", () => {
     mockedFetchWorkspaces.mockReset();
     mockedFetchWorkflows.mockReset();
     mockedFetchWorkflowDetail.mockReset();
+    vi.mocked(fetchProjectWorkflowSecretApprovals).mockReset();
+    vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([]);
 
     mockedFetchProjectDetail.mockResolvedValue({
       id: "project-123",
@@ -259,6 +284,39 @@ describe("ProjectsDetailPage", () => {
     renderProjectPage(`/projects/project-123?tab=${tab}`, "lt");
     expect(await screen.findByText(translated)).toBeInTheDocument();
     expect(screen.queryByText(english)).not.toBeInTheDocument();
+  });
+
+  it("shows an operator the workflow secrets panel when the admin project settings fail", async () => {
+    // An operator: the admin-only workflow links cannot be read.
+    mockedUseHasCapability.mockReturnValue(false);
+    mockedFetchProjectWorkflowBindings.mockRejectedValue(new Error("Admin role required"));
+    mockedFetchWorkflows.mockRejectedValue(new Error("Admin role required"));
+    vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([
+      {
+        workflow_id: "orders_sync",
+        display_name: "orders-sync",
+        secret_inputs: ["api_key"],
+        status: "approval_required",
+        fingerprint: "sha256:token",
+        secrets: [{ field: "api_key", secret_id: "s1" }],
+        destinations: [],
+        dynamic_http_steps: [],
+        approved_destinations: [],
+      },
+    ]);
+    renderProjectPage("/projects/project-123?tab=workflows");
+
+    expect(await screen.findByText("Workflow secrets")).toBeInTheDocument();
+    expect(await screen.findByTestId("project-workflow-secrets-orders_sync")).toHaveTextContent("orders-sync");
+    expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("project-123");
+    // The admin-only workflow links are not asked for, so nothing claims they failed
+    // or that every workflow is merely "available".
+    expect(mockedFetchProjectWorkflowBindings).not.toHaveBeenCalled();
+    expect(mockedFetchWorkflows).not.toHaveBeenCalled();
+    expect(screen.queryByText("Part of the project settings could not be loaded")).not.toBeInTheDocument();
+    expect(screen.getByText(/An administrator links workflows to this project/)).toBeInTheDocument();
+    // No workflow assignment list: its search field is the selector's own.
+    expect(screen.queryByPlaceholderText("Workflow name or ID")).not.toBeInTheDocument();
   });
 
   it("is the project itself: no Configuration screen to open and no way back to leave for", async () => {

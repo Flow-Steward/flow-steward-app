@@ -17,7 +17,7 @@ import pytest
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
-from core.application.tooling.db import migration_runner, upgrade_db
+from core.application.tooling.db import migration_runner, upgrade_db, upgrade_phases
 from core.application.tooling.db.init_db import bootstrap_canonical_schema_if_empty
 from core.application.tooling.db.models import DatabaseStatusRequest
 from core.application.tooling.db.service import DatabaseToolingService
@@ -30,7 +30,9 @@ pytestmark = pytest.mark.integration
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = "20261101153533_inbound_oauth_tables.sql"
 AGENT_MIGRATION = "20261103090000_retired_agent_type.sql"
-MIGRATIONS = [MIGRATION, AGENT_MIGRATION]
+SECRET_CATALOG_MIGRATION = "20261103090000_secret_catalog.sql"
+#: Every migration this tree ships, in apply order; the secret catalog is pending too.
+MIGRATIONS = [MIGRATION, AGENT_MIGRATION, SECRET_CATALOG_MIGRATION]
 OAUTH_TABLES = (
     "oauth_clients",
     "oauth_grants",
@@ -175,7 +177,13 @@ def _apply(dsn: str) -> dict:
     """The migration step `database upgrade` runs on a database that has a ledger."""
     conn = psycopg_runtime.connect(dsn)
     try:
-        return migration_runner.apply_pending_migrations(conn)
+        applied = migration_runner.apply_pending_migrations(conn)
+        conn.autocommit = True
+        # database upgrade runs the data phases after the migrations (ADR 0056).
+        upgrade_phases.run_pending_phases(
+            conn, applied_migrations=set(migration_runner.fetch_applied_migrations(conn))
+        )
+        return applied
     finally:
         conn.close()
 

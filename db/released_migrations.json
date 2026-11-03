@@ -8,11 +8,16 @@
     "baseline_schema_fingerprint is the fingerprint of db/schema/ as released.",
     "Installed databases never re-read db/schema/, so a baseline edit reaches them",
     "only through a migration that makes the same change. Record the new",
-    "fingerprint in the commit that adds that migration."
+    "fingerprint in the commit that adds that migration.",
+    "released_baseline_fingerprints is append-only: every baseline a published release shipped, the supported upgrade sources of ADR 0056."
   ],
-  "baseline_schema_fingerprint": "1e11d7a421ff40ebbfd3fd910a04daad48439bee36a1f56930e331823cecfe7b",
+  "baseline_schema_fingerprint": "13263a033fb2c038854279b352d4c7023ec5772361de92705f6d69933935d116",
   "migrations": {
     "20261101153533_inbound_oauth_tables.sql": "c8f4063e2e456fe7b3004e7a41c924b6bcbfabe82e2c7bc7707a4418364ec3c0",
-    "20261103090000_retired_agent_type.sql": "6a88aa8465458201edd171494c9e3c60cc89204ef35c6dec7fc10c02afc539f0"
-  }
+    "20261103090000_retired_agent_type.sql": "6a88aa8465458201edd171494c9e3c60cc89204ef35c6dec7fc10c02afc539f0",
+    "20261103090000_secret_catalog.sql": "7083d1fe0e31eb92d39645984aa821ad246478960b6e72db4db434895a0e4acb"
+  },
+  "released_baseline_fingerprints": [
+    "1e11d7a421ff40ebbfd3fd910a04daad48439bee36a1f56930e331823cecfe7b"
+  ]
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 from core.application.tooling.db.models import (
     DatabaseBootstrapSeedRequest,
     DatabaseGenerateMigrationRequest,
+    DatabasePreflightRequest,
     DatabaseQueryDiagnosticsRequest,
     DatabaseRestoreParityCaptureRequest,
     DatabaseRestoreParityVerifyRequest,
@@ -26,6 +27,15 @@ async def database_status(runtime: RuntimeServices, value: object, **_kwargs: ob
         else DatabaseStatusRequest.model_validate(value)
     )
     return await await_maybe(runtime.database_tooling_service.status(command))
+
+
+async def database_preflight(runtime: RuntimeServices, value: object, **_kwargs: object) -> object:
+    command = (
+        value
+        if isinstance(value, DatabasePreflightRequest)
+        else DatabasePreflightRequest.model_validate(value)
+    )
+    return await await_maybe(runtime.database_tooling_service.preflight(command))
 
 
 async def database_upgrade(runtime: RuntimeServices, value: object, **_kwargs: object) -> object:
@@ -103,6 +113,7 @@ async def database_restore_parity_verify(
 
 DATABASE_SERVICE_FACTORIES: dict[str, ServiceFactory] = {
     "database.status": database_status,
+    "database.preflight": database_preflight,
     "database.upgrade": database_upgrade,
     "database.bootstrap-seed": database_bootstrap_seed,
     "database.generate-migration": database_generate_migration,

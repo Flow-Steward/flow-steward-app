@@ -1,0 +1,1311 @@
+"""Workflow secrets on the worker path, on real PostgreSQL (ADR 0057, stage 2b).
+
+Each run goes through the real submission (`enqueue_job`: pin + encrypted dispatch
+record), the worker's request build and its authority restore, then the real HTTP
+step with only the network replaced. A delivered message that carries forged
+authority, a presented storage key or a job id it does not own gains nothing.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from types import SimpleNamespace
+from uuid import uuid4
+
+import pytest
+
+from core.application.auth.secrets import encrypt_secret
+from core.application.jobs.task_dispatch_common import _read_dispatch_envelope
+from core.application.jobs.task_enqueue_runtime import enqueue_job
+from core.application.jobs.task_execution_request import _build_request, _with_project_scope
+from core.application.jobs.task_execution_service import TaskExecutionService
+from core.application.management.errors import ServiceForbiddenError, ServiceValidationError
+from core.application.management.scope import ScopeContext
+from core.application.orchestration import http_request_step_runtime as runtime
+from core.application.orchestration.state import build_initial_orchestrator_state
+from core.application.registry.db_store import RegistryDBStore
+from core.application.registry.workflow_secret_defaults import secret_default_ref_owner_prefix
+from core.application.secrets.approval_gate import SecretConfigurationUnapproved
+from core.application.secrets.service import SecretCatalogService
+from core.infrastructure.db.worker.job_execution_repository import JobExecutionRepositoryAdapter
+from core.infrastructure.security.secret_reference import SecretReference
+from core.infrastructure.security.stored_secrets import LocalStoredSecretReader
+from tests.integration.test_secret_catalog_postgres import (
+    ACCOUNT,
+    _connect,
+    _human,
+    _project,
+    _token,
+    create_database,  # noqa: F401 - the shared disposable-database fixture
+)
+from tests.support.platform_test_store import PlatformTestStore
+
+pytestmark = pytest.mark.integration
+
+URL = "https://api.partner.test/v1/send"
+#: A delegated key an unapproved level never passed on is not authorized at all;
+#: a key the job holds under an unapproved pin is refused by the catalog gate.
+_DENIED = {"unresolved_secret_input", "secret_configuration_unapproved"}
+VALUE = "synthetic-catalog-value"
+
+
+def _http_step(url: str = URL, header: str = "X-Api-Key") -> dict:
+    return {
+        "step_id": "send",
+        "step_kind": "http_request",
+        "display_name": "Send",
+        "override": {
+            "http_request": {
+                "method": "POST",
+                "url": url,
+                "headers": {header: "{{ state.inputs.api_key }}"},
+                "auth_mode": "none",
+                "expected_statuses": [200],
+                "response_target": "state.outputs.echo",
+            }
+        },
+    }
+
+
+def _settings(default_ref: str = "") -> dict:
+    row = {"name": "api_key", "type": "secret", "required": True}
+    if default_ref:
+        row["default_secret_ref"] = default_ref
+    return {
+        "callable": {
+            "enabled": True,
+            "trigger_channels": ["ui", "api"],
+            "input_mode": "fields",
+            "expected_inputs": [row],
+        },
+        "execution_graph": {
+            "schema_version": 1,
+            "entry": {"kind": "step", "id": "send"},
+            "edges": [
+                {
+                    "source": {"kind": "step", "id": "send"},
+                    "outcome": {"name": "success"},
+                    "target": {"kind": "step", "id": "done"},
+                }
+            ],
+        },
+    }
+
+
+class Stand(SimpleNamespace):
+    """One disposable database with a project, a store and the network replaced."""
+
+    def save(self, workflow_id: str, *, step: dict | None = None, default_ref: str = "") -> None:
+        self.registry.save_workflow(
+            {
+                "workflow_id": workflow_id,
+                "display_name": workflow_id,
+                "enabled": True,
+                "settings": _settings(default_ref),
+                "steps": [step or _http_step(), {"step_id": "done", "step_kind": "stop_success"}],
+                "groups": [],
+                "for_each": [],
+            }
+        )
+        self.store.add_project_workflow_binding(self.project_id, workflow_id)
+
+    def enqueue(
+        self,
+        workflow_id: str,
+        inputs: dict,
+        *,
+        task_source: str = "manual_ui",
+        meta: dict | None = None,
+        forged: dict | None = None,
+    ) -> str:
+        extra_state = {"workflow_id": workflow_id, "inputs": inputs, **(forged or {})}
+        job_id = enqueue_job(
+            bl=self.store,
+            enqueue_task_fn=lambda **_kwargs: None,
+            build_project_config_snapshot=lambda config: dict(config),
+            logger=logging.getLogger(__name__),
+            log_prefix="worker-path-test",
+            notification_dispatch_fn=None,
+            task_id="task-" + uuid4().hex[:8],
+            task_summary="Send",
+            task_source=task_source,
+            test_mode=False,
+            project_id=self.project_id,
+            project_name="Secrets",
+            project_config={},
+            extra_state=extra_state,
+            meta=dict(meta or {}),
+        )
+        return str(job_id)
+
+    def deliver(self, job_id: str, *, message_extra: dict | None = None) -> dict:
+        """The worker side: the delivered message, the request build, the restore."""
+        envelope = _read_dispatch_envelope(self.store, job_id)
+        message = {
+            "job_id": job_id,
+            "task_id": "t",
+            "task_source": "manual_ui",
+            "project_config": envelope["project_config"],
+            # A forged message cannot add authority: the worker never reads it.
+            "extra_state": {**envelope["extra_state"], **(message_extra or {})},
+        }
+        repository = JobExecutionRepositoryAdapter(self.store, None)
+        service = TaskExecutionService(
+            repository=repository,
+            graph=None,
+            terminal=None,
+            runtime_mode=None,
+            worker_id=lambda: "w",
+        )
+        job_row = self.store.get_job(job_id)
+        request = _build_request(message, job_row)
+        service._restore_secret_authority(request)
+        request = _with_project_scope(request, job_row, service._load_project(job_row))
+        # The state the graph starts from, built as the worker builds it: the run's
+        # identity is its trusted_runtime_context, never a hand-made runtime_context.
+        return build_initial_orchestrator_state(
+            task_id=request.task_id,
+            task_summary=request.task_summary,
+            task_source=request.task_source,
+            project_name=request.project_name,
+            project_config=dict(request.project_config),
+            test_mode=request.test_mode,
+            status="in_progress",
+            extra_state=dict(request.extra_state),
+        )
+
+    def run_http(self, state: dict, job_id: str) -> dict:
+        """The pinned HTTP step of the job, executed with the network captured."""
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT s.definition_jsonb FROM jobs j "
+            "JOIN workflow_definition_snapshots s ON s.id = j.workflow_definition_snapshot_id "
+            "WHERE j.id::text = %s",
+            (job_id,),
+        )
+        definition = cur.fetchone()[0]
+        step = next(s for s in definition["steps"] if s["step_kind"] == "http_request")
+        self.sent.clear()
+        return runtime.execute_http_request_step(
+            config=step["override"]["http_request"],
+            state=state,
+            secret_reader=LocalStoredSecretReader(self.conn),
+        )
+
+
+@pytest.fixture
+def stand(create_database, monkeypatch):  # noqa: F811
+    dsn = create_database()
+    conn = _connect(dsn)
+    with conn.cursor() as cur:
+        project_id = _project(cur, "worker-path")
+    sent: list[dict] = []
+
+    class Response:
+        status_code = 200
+
+        @property
+        def headers(self) -> dict[str, str]:
+            return {"content-type": "application/json"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def iter_raw(self, chunk_size=None):
+            yield b'{"ok":true}'
+
+    class Client:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def stream(self, **kwargs):
+            sent.append(kwargs)
+            return Response()
+
+    monkeypatch.setattr(runtime.httpx, "Client", Client)
+    monkeypatch.setattr(runtime, "_SSRFGuardedHTTPTransport", lambda: object())
+    monkeypatch.setattr(runtime, "_validate_http_request_url", lambda url: url)
+    monkeypatch.setattr(runtime, "_get_shared_logger", lambda: SimpleNamespace(conn=conn))
+    monkeypatch.setattr(
+        "core.application.registry.registry_manager.RegistryManager.instance",
+        lambda: SimpleNamespace(db_store=RegistryDBStore(dsn)),
+    )
+    service = SecretCatalogService(lambda: conn, encrypt=encrypt_secret)
+    yield Stand(
+        conn=conn,
+        project_id=project_id,
+        registry=RegistryDBStore(dsn),
+        store=PlatformTestStore(dsn),
+        service=service,
+        sent=sent,
+    )
+    conn.close()
+
+
+def _catalog_input(stand: Stand, workflow_id: str) -> tuple[dict, str]:
+    """A bound, approved catalog secret; returns the secret and its storage key."""
+    secret = stand.service.create_secret(
+        _human(), name="Partner key", value=VALUE, project_id=stand.project_id
+    )
+    status = stand.service.bind_workflow_input(
+        workflow_id, _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
+    )
+    stand.service.approve_workflow(
+        workflow_id, _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+    return secret, f"catalog_secret:{secret['id']}"
+
+
+def _ref(key: str) -> dict:
+    return SecretReference(name="api_key", ref_key=key).to_wire()
+
+
+def _sent_header(stand: Stand, header: str = "X-Api-Key") -> str | None:
+    if not stand.sent:
+        return None
+    return dict(stand.sent[-1].get("headers") or {}).get(header)
+
+
+def test_a_bound_catalog_secret_reaches_its_approved_destination(stand) -> None:
+    stand.save("wf_catalog")
+    _secret, key = _catalog_input(stand, "wf_catalog")
+    status = stand.service.workflow_approval_status(
+        "wf_catalog", _human(), project_id=stand.project_id
+    )
+    # The status reads the steps, so the approval shows where the secret goes.
+    assert status["destinations"] == [
+        {"kind": "exact_host", "scheme": "https", "host": "api.partner.test", "port": 443}
+    ]
+    job_id = stand.enqueue("wf_catalog", {"api_key": _ref(key)})
+
+    state = stand.deliver(job_id)
+    assert "runtime_context" not in state
+    result = stand.run_http(state, job_id)
+
+    assert result["ok"] is True, result
+    assert _sent_header(stand) == VALUE
+    assert VALUE not in json.dumps(result)
+
+    # A legacy runtime_context written into run state names no account the
+    # boundary trusts: the read still uses the job's own.
+    forged = {**state, "runtime_context": {"account_id": "00000000-0000-0000-0000-00000000dead"}}
+    assert stand.run_http(forged, job_id)["ok"] is True
+    assert _sent_header(stand) == VALUE
+
+
+def test_inline_and_workflow_default_secrets_work_on_the_worker_path(stand) -> None:
+    default_key = secret_default_ref_owner_prefix("wf_default", "api_key") + "a" * 24
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO secret_refs (account_id, ref_key, encrypted_value) VALUES (%s, %s, %s)",
+            (ACCOUNT, default_key, encrypt_secret("synthetic-default")),
+        )
+    stand.save("wf_default", default_ref=default_key)
+    job_id = stand.enqueue("wf_default", {"api_key": _ref(default_key)})
+    assert stand.run_http(stand.deliver(job_id), job_id)["ok"] is True
+    assert _sent_header(stand) == "synthetic-default"
+
+    stand.save("wf_inline")
+    inline = SecretReference(name="api_key", ciphertext=encrypt_secret("synthetic-inline"))
+    job_id = stand.enqueue("wf_inline", {"api_key": inline.to_wire()})
+    assert stand.run_http(stand.deliver(job_id), job_id)["ok"] is True
+    assert _sent_header(stand) == "synthetic-inline"
+
+
+def test_an_edit_after_enqueue_changes_neither_the_run_nor_its_grant(stand) -> None:
+    stand.save("wf_pinned")
+    _secret, key = _catalog_input(stand, "wf_pinned")
+    job_id = stand.enqueue("wf_pinned", {"api_key": _ref(key)})
+    # The definition moves on after the job pinned the approved one.
+    stand.save("wf_pinned", step=_http_step(url="https://evil.test/collect"))
+
+    result = stand.run_http(stand.deliver(job_id), job_id)
+    assert result["ok"] is True, result
+    assert stand.sent[-1]["url"] == URL
+
+    # A new run pins the edited, unapproved definition and reads nothing.
+    edited_job = stand.enqueue("wf_pinned", {"api_key": _ref(key)})
+    result = stand.run_http(stand.deliver(edited_job), edited_job)
+    assert result["ok"] is False
+    assert result["failure_reason"] == "secret_configuration_unapproved"
+    assert stand.sent == []
+
+
+def test_a_same_host_step_edit_needs_a_new_approval(stand) -> None:
+    stand.save("wf_header")
+    _secret, key = _catalog_input(stand, "wf_header")
+    stand.save("wf_header", step=_http_step(header="X-Forward-To-Log"))
+
+    job_id = stand.enqueue("wf_header", {"api_key": _ref(key)})
+    result = stand.run_http(stand.deliver(job_id), job_id)
+    assert result["failure_reason"] == "secret_configuration_unapproved"
+    assert stand.sent == []
+
+    status = stand.service.workflow_approval_status(
+        "wf_header", _human(), project_id=stand.project_id
+    )
+    assert status["status"] == "approval_required"
+    stand.service.approve_workflow(
+        "wf_header", _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+    job_id = stand.enqueue("wf_header", {"api_key": _ref(key)})
+    assert stand.run_http(stand.deliver(job_id), job_id)["ok"] is True
+    assert _sent_header(stand, "X-Forward-To-Log") == VALUE
+
+
+def test_forged_keys_messages_and_job_ids_grant_nothing(stand) -> None:
+    stand.save("wf_owner")
+    _secret, key = _catalog_input(stand, "wf_owner")
+    owner_job = stand.enqueue("wf_owner", {"api_key": _ref(key)})
+
+    # Another workflow presents the storage key and forges authority everywhere it can.
+    stand.save("wf_thief")
+    status = stand.service.workflow_approval_status(
+        "wf_thief", _human(), project_id=stand.project_id
+    )
+    stand.service.approve_workflow(
+        "wf_thief", _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+    forged = {
+        "_workflow_secret_ref_fingerprints": ["forged"],
+        "_workflow_catalog_secret_authority": {"x": {"rules": []}},
+        "job_id": owner_job,
+    }
+    thief_job = stand.enqueue("wf_thief", {"api_key": _ref(key)}, forged=forged)
+    state = stand.deliver(thief_job, message_extra=forged)
+    assert "forged" not in state["_workflow_secret_ref_fingerprints"]
+    result = stand.run_http(state, thief_job)
+    assert result["ok"] is False
+    assert stand.sent == []
+
+    # A job id that names no job, or another account's job, reads nothing either.
+    for job_id in (str(uuid4()), ""):
+        result = stand.run_http({**state, "job_id": job_id}, thief_job)
+        assert result["ok"] is False
+        assert stand.sent == []
+
+
+def test_a_child_reads_a_parent_secret_only_through_a_confirmed_link(stand) -> None:
+    stand.save("wf_parent")
+    _secret, key = _catalog_input(stand, "wf_parent")
+    parent_job = stand.enqueue("wf_parent", {"api_key": _ref(key)})
+    stand.save("wf_child")
+    status = stand.service.workflow_approval_status(
+        "wf_child", _human(), project_id=stand.project_id
+    )
+    stand.service.approve_workflow(
+        "wf_child", _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+    link = {
+        "invoke_parent_job_id": parent_job,
+        "invoke_parent_task_id": "t",
+        "invoke_parent_workflow_id": "wf_parent",
+        "invoke_child_workflow_id": "wf_child",
+    }
+    child_job = stand.enqueue(
+        "wf_child", {"api_key": _ref(key)}, task_source="invoke_workflow", meta=link
+    )
+    # Without the parent's own record of this child, the link is not confirmed.
+    result = stand.run_http(stand.deliver(child_job), child_job)
+    assert result["ok"] is False
+    assert stand.sent == []
+
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "UPDATE jobs SET meta = jsonb_set(COALESCE(meta, '{}'::jsonb), '{invoke_children}', "
+            "jsonb_build_object(%s::text, jsonb_build_object('step_id', 'call'))) "
+            "WHERE id::text = %s",
+            (child_job, parent_job),
+        )
+    result = stand.run_http(stand.deliver(child_job), child_job)
+    assert result["ok"] is True, result
+    assert _sent_header(stand) == VALUE
+
+    # The child's own definition must stay approved.
+    stand.save("wf_child", step=_http_step(header="X-Other"))
+    edited = stand.enqueue(
+        "wf_child", {"api_key": _ref(key)}, task_source="invoke_workflow", meta=link
+    )
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "UPDATE jobs SET meta = jsonb_set(meta, '{invoke_children}', "
+            "meta->'invoke_children' || jsonb_build_object(%s::text, '{}'::jsonb)) "
+            "WHERE id::text = %s",
+            (edited, parent_job),
+        )
+    result = stand.run_http(stand.deliver(edited), edited)
+    assert result["failure_reason"] == "secret_configuration_unapproved"
+    assert stand.sent == []
+
+
+def test_redelivery_and_retry_of_one_job_are_checked_again_against_its_pin(stand) -> None:
+    stand.save("wf_retry")
+    secret, key = _catalog_input(stand, "wf_retry")
+    job_id = stand.enqueue("wf_retry", {"api_key": _ref(key)})
+
+    first = stand.deliver(job_id)
+    again = stand.deliver(job_id)
+    assert first["_workflow_secret_ref_fingerprints"] == again["_workflow_secret_ref_fingerprints"]
+    assert stand.run_http(again, job_id)["ok"] is True
+
+    # A resumed run keeps its checkpointed capabilities, and the gate still asks the
+    # database: once the binding is gone, the same job reads nothing.
+    stand.service.unbind_workflow_input(
+        "wf_retry", _human(), project_id=stand.project_id, field="api_key"
+    )
+    result = stand.run_http(first, job_id)
+    assert result["ok"] is False
+    assert stand.sent == []
+    assert secret["id"]
+
+
+def test_a_computed_path_keeps_its_origin_and_a_computed_host_needs_rules(stand) -> None:
+    stand.save("wf_path", step=_http_step(url="https://api.partner.test/{{ state.inputs.target }}"))
+    secret = stand.service.create_secret(
+        _human(), name="Path key", value=VALUE, project_id=stand.project_id
+    )
+    status = stand.service.bind_workflow_input(
+        "wf_path", _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
+    )
+    assert status["dynamic_http_steps"] == []
+    assert status["destinations"] == [
+        {"kind": "exact_host", "scheme": "https", "host": "api.partner.test", "port": 443}
+    ]
+    stand.service.approve_workflow(
+        "wf_path", _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+    key = f"catalog_secret:{secret['id']}"
+    for target, allowed in (("v1/x", True), ("../../other", True)):
+        job_id = stand.enqueue("wf_path", {"api_key": _ref(key), "target": target})
+        result = stand.run_http(stand.deliver(job_id), job_id)
+        assert result["ok"] is allowed, (target, result)
+        assert stand.sent[-1]["url"].startswith("https://api.partner.test/")
+
+    stand.save("wf_host", step=_http_step(url="https://{{ state.inputs.host }}/v1"))
+    status = stand.service.bind_workflow_input(
+        "wf_host", _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
+    )
+    assert status["dynamic_http_steps"] == ["send"]
+    with pytest.raises(ServiceValidationError, match="computed URL"):
+        stand.service.approve_workflow(
+            "wf_host", _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+        )
+    with pytest.raises(ServiceValidationError, match="not supported"):
+        stand.service.approve_workflow(
+            "wf_host",
+            _human(),
+            project_id=stand.project_id,
+            fingerprint=status["fingerprint"],
+            destinations=[{"kind": "subdomains", "scheme": "https", "host": "partner.test"}],
+        )
+    stand.service.approve_workflow(
+        "wf_host",
+        _human(),
+        project_id=stand.project_id,
+        fingerprint=status["fingerprint"],
+        destinations=[{"scheme": "https", "host": "api.partner.test", "path_prefix": "/v1"}],
+    )
+    # A request whose only references are catalog secrets may build its host: each
+    # read checks the rendered URL against the destinations a person approved.
+    for host, path, allowed in (
+        ("api.partner.test", "/v1", True),
+        ("api.partner.test", "/v1/../admin", False),
+        ("evil.test", "/v1", False),
+        ("api.partner.test:8443", "/v1", False),
+    ):
+        stand.save("wf_host", step=_http_step(url="https://{{ state.inputs.host }}" + path))
+        status = stand.service.workflow_approval_status(
+            "wf_host", _human(), project_id=stand.project_id
+        )
+        stand.service.approve_workflow(
+            "wf_host",
+            _human(),
+            project_id=stand.project_id,
+            fingerprint=status["fingerprint"],
+            destinations=[{"scheme": "https", "host": "api.partner.test", "path_prefix": "/v1"}],
+        )
+        job_id = stand.enqueue("wf_host", {"api_key": _ref(key), "host": host})
+        result = stand.run_http(stand.deliver(job_id), job_id)
+        assert result["ok"] is allowed, (host, path, result)
+        assert bool(stand.sent) is allowed, (host, path)
+        if allowed:
+            assert _sent_header(stand) == VALUE
+
+
+def _catalog_input_for_computed_host(stand: Stand, workflow_id: str) -> tuple[dict, str]:
+    """A bound catalog secret, approved with an explicit exact destination."""
+    secret = stand.service.create_secret(
+        _human(), name=f"{workflow_id} key", value=VALUE, project_id=stand.project_id
+    )
+    status = stand.service.bind_workflow_input(
+        workflow_id, _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
+    )
+    stand.service.approve_workflow(
+        workflow_id,
+        _human(),
+        project_id=stand.project_id,
+        fingerprint=status["fingerprint"],
+        destinations=[{"scheme": "https", "host": "api.partner.test", "path_prefix": "/v1"}],
+    )
+    return secret, f"catalog_secret:{secret['id']}"
+
+
+def _computed_host_workflow(stand: Stand, workflow_id: str, *, url: str, auth_mode: str = "none"):
+    step = _http_step(url=url)
+    step["override"]["http_request"]["auth_mode"] = auth_mode
+    stand.save(workflow_id, step=step)
+    return step
+
+
+def test_a_computed_origin_never_opens_for_non_catalog_references(stand, monkeypatch) -> None:
+    from core.application.secrets import workflow_gate
+
+    default_key = secret_default_ref_owner_prefix("wf_dyn_default", "api_key") + "c" * 24
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO secret_refs (account_id, ref_key, encrypted_value) VALUES (%s, %s, %s)",
+            (ACCOUNT, default_key, encrypt_secret("synthetic-default")),
+        )
+    inline = SecretReference(
+        name="api_key", ciphertext=encrypt_secret("synthetic-inline")
+    ).to_wire()
+    url = "https://{{ state.inputs.host }}/v1"
+    cases = {
+        "wf_dyn_default": {"api_key": _ref(default_key)},
+        "wf_dyn_inline": {"api_key": inline},
+    }
+    for workflow_id, inputs in cases.items():
+        _computed_host_workflow(stand, workflow_id, url=url)
+        job_id = stand.enqueue(workflow_id, {**inputs, "host": "api.partner.test"})
+        result = stand.run_http(stand.deliver(job_id), job_id)
+        assert result["ok"] is False, workflow_id
+        assert stand.sent == [], workflow_id
+
+    # A mix of a catalog secret and an inline value keeps the literal rule.
+    step = _http_step(url=url)
+    step["override"]["http_request"]["headers"]["X-Other"] = "{{ state.inputs.other }}"
+    stand.save("wf_dyn_mixed", step=step)
+    _secret, key = _catalog_input_for_computed_host(stand, "wf_dyn_mixed")
+    job_id = stand.enqueue(
+        "wf_dyn_mixed", {"api_key": _ref(key), "other": inline, "host": "api.partner.test"}
+    )
+    assert stand.run_http(stand.deliver(job_id), job_id)["ok"] is False
+    assert stand.sent == []
+
+    # Bearer auth and a computed scheme keep the literal https origin too.
+    _computed_host_workflow(
+        stand, "wf_dyn_scheme", url="{{ state.inputs.scheme }}://api.partner.test/v1"
+    )
+    _secret, key = _catalog_input_for_computed_host(stand, "wf_dyn_scheme")
+    job_id = stand.enqueue("wf_dyn_scheme", {"api_key": _ref(key), "scheme": "http"})
+    assert stand.run_http(stand.deliver(job_id), job_id)["ok"] is False
+    assert stand.sent == []
+
+    _computed_host_workflow(stand, "wf_dyn_bearer", url=url, auth_mode="bearer")
+    _secret, key = _catalog_input_for_computed_host(stand, "wf_dyn_bearer")
+    job_id = stand.enqueue("wf_dyn_bearer", {"api_key": _ref(key), "host": "api.partner.test"})
+    # Basic and bearer auth refuse a computed origin before anything is rendered.
+    with pytest.raises(ValueError, match="authority must be static"):
+        stand.run_http(stand.deliver(job_id), job_id)
+    assert stand.sent == []
+
+    # A key classified as a catalog secret and then gone is refused, never read
+    # through the plain path without an allowlist.
+    monkeypatch.setattr(workflow_gate, "catalog_only_refs", lambda _conn, _keys: True)
+    job_id = stand.enqueue(
+        "wf_dyn_default", {"api_key": _ref(default_key), "host": "api.partner.test"}
+    )
+    result = stand.run_http(stand.deliver(job_id), job_id)
+    assert result["ok"] is False
+    assert stand.sent == []
+
+
+def test_binding_and_approval_need_their_own_authority(stand) -> None:
+    stand.save("wf_scopes")
+    secret = stand.service.create_secret(
+        _human(), name="Scoped key", value=VALUE, project_id=stand.project_id
+    )
+    with pytest.raises(ServiceForbiddenError):
+        stand.service.bind_workflow_input(
+            "wf_scopes",
+            _token("admin:all", "*:*", "secrets:*", "*:bind"),
+            project_id=stand.project_id,
+            field="api_key",
+            secret_id=secret["id"],
+        )
+    with pytest.raises(ServiceValidationError, match="not a secret input"):
+        stand.service.bind_workflow_input(
+            "wf_scopes",
+            _human(),
+            project_id=stand.project_id,
+            field="other",
+            secret_id=secret["id"],
+        )
+    status = stand.service.bind_workflow_input(
+        "wf_scopes", _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
+    )
+    with pytest.raises(ServiceForbiddenError):
+        stand.service.approve_workflow(
+            "wf_scopes",
+            _token("secrets:bind", "secrets:write"),
+            project_id=stand.project_id,
+            fingerprint=status["fingerprint"],
+        )
+
+
+def _approve(stand: Stand, workflow_id: str) -> None:
+    status = stand.service.workflow_approval_status(
+        workflow_id, _human(), project_id=stand.project_id
+    )
+    # A workflow with a secret input and no binding of its own offers the approval
+    # a parent's passed-in catalog secret needs; the panel shows this status.
+    assert status["status"] in {"delegation_optional", "approval_required"}
+    stand.service.approve_workflow(
+        workflow_id, _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+
+
+def _child(stand: Stand, parent_job: str, parent_wf: str, child_wf: str, key: str) -> str:
+    """A child job of `parent_job` whose link both sides record."""
+    child_job = stand.enqueue(
+        child_wf,
+        {"api_key": _ref(key)},
+        task_source="invoke_workflow",
+        meta={
+            "invoke_parent_job_id": parent_job,
+            "invoke_parent_task_id": "t",
+            "invoke_parent_workflow_id": parent_wf,
+            "invoke_child_workflow_id": child_wf,
+        },
+    )
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "UPDATE jobs SET meta = jsonb_set(COALESCE(meta, '{}'::jsonb), '{invoke_children}', "
+            "COALESCE(meta->'invoke_children', '{}'::jsonb) "
+            "|| jsonb_build_object(%s::text, '{}'::jsonb)) WHERE id::text = %s",
+            (child_job, parent_job),
+        )
+    return child_job
+
+
+def test_an_approved_child_never_revives_an_unapproved_parent(stand) -> None:
+    stand.save("wf_a")
+    _secret, key = _catalog_input(stand, "wf_a")
+    # A changes after its approval and before its run: its pin is not approved.
+    stand.save("wf_a", step=_http_step(header="X-Changed"))
+    parent_job = stand.enqueue("wf_a", {"api_key": _ref(key)})
+    stand.save("wf_b")
+    _approve(stand, "wf_b")
+
+    child_job = _child(stand, parent_job, "wf_a", "wf_b", key)
+    result = stand.run_http(stand.deliver(child_job), child_job)
+    assert result["failure_reason"] in _DENIED, result
+    assert stand.sent == []
+
+
+def test_every_level_of_an_invoke_chain_must_be_approved(stand) -> None:
+    stand.save("wf_top")
+    _secret, key = _catalog_input(stand, "wf_top")
+    top_job = stand.enqueue("wf_top", {"api_key": _ref(key)})
+    stand.save("wf_middle")  # never approved
+    stand.save("wf_leaf")
+    _approve(stand, "wf_leaf")
+
+    middle_job = _child(stand, top_job, "wf_top", "wf_middle", key)
+    leaf_job = _child(stand, middle_job, "wf_middle", "wf_leaf", key)
+    result = stand.run_http(stand.deliver(leaf_job), leaf_job)
+    assert result["failure_reason"] in _DENIED, result
+    assert stand.sent == []
+
+    # Approving the middle level completes the chain.
+    _approve(stand, "wf_middle")
+    result = stand.run_http(stand.deliver(leaf_job), leaf_job)
+    assert result["ok"] is True, result
+    assert _sent_header(stand) == VALUE
+
+
+class _SpyReader:
+    """The real reader, counting reads, so a refusal is shown to happen before any."""
+
+    def __init__(self, conn) -> None:
+        self.inner = LocalStoredSecretReader(conn)
+        self.reads: list[str] = []
+
+    def read(self, context, ref_key: str) -> str:
+        self.reads.append(ref_key)
+        return self.inner.read(context, ref_key)
+
+
+def test_an_unpinned_connector_input_never_receives_a_catalog_secret(stand, monkeypatch) -> None:
+    from core.application.orchestration import connector_step_runtime
+    from core.application.secrets.workflow_gate import CatalogSecretReceiverUnpinned
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    stand.save("wf_connector")
+    _secret, key = _catalog_input(stand, "wf_connector")
+    job_id = stand.enqueue("wf_connector", {"api_key": _ref(key)})
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+
+    # A connector input with no pinned receiver (a tool or MCP server, or no
+    # extension captured) is not read for a catalog secret.
+    with pytest.raises(CatalogSecretReceiverUnpinned):
+        connector_step_runtime._payload_for_dispatch({"token": _ref(key)}, state, spy)
+    assert spy.reads == []
+
+    # A workflow-local secret still reaches a connector input, as before.
+    default_key = secret_default_ref_owner_prefix("wf_local", "api_key") + "b" * 24
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO secret_refs (account_id, ref_key, encrypted_value) VALUES (%s, %s, %s)",
+            (ACCOUNT, default_key, encrypt_secret("synthetic-local")),
+        )
+    stand.save("wf_local", default_ref=default_key)
+    local_job = stand.enqueue("wf_local", {"api_key": _ref(default_key)})
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(default_key)}, stand.deliver(local_job), spy
+    )
+    assert payload == {"token": "synthetic-local"}
+
+
+def test_an_http_read_without_a_validated_url_is_refused(stand) -> None:
+    from core.application.secrets.workflow_gate import (
+        RECEIVER_HTTP,
+        SecretDestinationNotAllowed,
+        require_catalog_ref_authority,
+    )
+
+    stand.save("wf_nourl")
+    _secret, key = _catalog_input(stand, "wf_nourl")
+    job_id = stand.enqueue("wf_nourl", {"api_key": _ref(key)})
+    state = stand.deliver(job_id)
+    require_catalog_ref_authority(stand.conn, state, ref_key=key, receiver=RECEIVER_HTTP, url=URL)
+    with pytest.raises(SecretDestinationNotAllowed):
+        require_catalog_ref_authority(stand.conn, state, ref_key=key, receiver=RECEIVER_HTTP)
+
+
+_CONNECTOR_STEP = {
+    "step_id": "call",
+    "step_kind": "connector",
+    "connector_id": "extension.partner.send",
+    "connector_install_id": "pi_partner",
+    "display_name": "Call",
+    "override": {
+        "connector": {
+            "extension_id": "partner",
+            "action_id": "send",
+            "input_mapping": {"token": "{{ state.inputs.api_key }}"},
+        }
+    },
+}
+
+
+def test_an_extension_release_update_does_not_inherit_the_approval(stand, monkeypatch) -> None:
+    """Approved workflow, catalog secret in an extension input, same install updated."""
+    from core.application.orchestration import connector_receiver, connector_step_runtime
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    current = {"release_id": "rel_1", "digest": "sha256:aaaa"}
+
+    def pin(**target):
+        return connector_receiver.PinnedReceiver(
+            install_id=target["connector_install_id"],
+            release_id=current["release_id"],
+            descriptor_sha256=current["digest"],
+            extension_id="partner",
+            runtime_extension={"bundle_root": "/host-only/path"},
+        )
+
+    monkeypatch.setattr(connector_receiver, "pin_extension_receiver", pin)
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO extension_releases (release_id, extension_id, release_version) "
+            "VALUES ('rel_1', 'partner', '1.0.0')"
+        )
+        cur.execute(
+            "INSERT INTO extension_installs (extension_id, account_id, install_id, release_id) "
+            "VALUES ('partner', %s, 'pi_partner', 'rel_1')",
+            (ACCOUNT,),
+        )
+    stand.save("wf_ext", step=_CONNECTOR_STEP)
+    secret, key = _catalog_input(stand, "wf_ext")
+    status = stand.service.workflow_approval_status("wf_ext", _human(), project_id=stand.project_id)
+    assert status["status"] == "approved"
+    assert status["receivers"] == [
+        {
+            "project_id": str(stand.project_id),
+            "step_id": "call",
+            "kind": "extension",
+            "install_id": "pi_partner",
+            "release_id": "rel_1",
+            "descriptor_sha256": "sha256:aaaa",
+        }
+    ]
+    # The approval names the release, never a host path.
+    assert "host-only" not in json.dumps(status)
+    # A step test run pins the draft without structural validation; this connector
+    # step names an extension that is not installed on disk here.
+    job_id = stand.enqueue("wf_ext", {"api_key": _ref(key)}, task_source="step_test_run")
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+    approved = pin(connector_install_id="pi_partner").identity()
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, approved
+    )
+    assert payload == {"token": VALUE}
+
+    # The same install now runs another release; the workflow did not change.
+    current.update(release_id="rel_2", digest="sha256:bbbb")
+    status = stand.service.workflow_approval_status("wf_ext", _human(), project_id=stand.project_id)
+    assert status["status"] == "approval_required"
+    spy.reads.clear()
+    # The new release does not inherit the approval.
+    with pytest.raises(SecretConfigurationUnapproved):
+        connector_step_runtime._payload_for_dispatch(
+            {"token": _ref(key)}, state, spy, pin(connector_install_id="pi_partner").identity()
+        )
+    assert spy.reads == []
+    # A step that captured the old release before the update dispatches to that
+    # captured, approved code, so its read is still the approved one.
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, approved
+    )
+    assert payload == {"token": VALUE}
+
+    stand.service.approve_workflow(
+        "wf_ext", _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, pin(connector_install_id="pi_partner").identity()
+    )
+    assert payload == {"token": VALUE}
+    assert secret["id"]
+
+
+_MCP_STEP = {
+    "step_id": "ask",
+    "step_kind": "connector",
+    "connector_id": "tool.partner_mcp",
+    "display_name": "Ask",
+    "override": {"connector": {"input_mapping": {"token": "{{ state.inputs.api_key }}"}}},
+}
+
+
+def test_an_mcp_receiver_is_approved_per_project_and_by_its_config(stand, monkeypatch) -> None:
+    """A remote MCP tool: the connector row selected before the read, for the job's project."""
+    from core.application.orchestration import connector_receiver, connector_step_runtime
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    manifest = SimpleNamespace(
+        implementation=SimpleNamespace(
+            to_dict=lambda: {
+                "type": "mcp",
+                "connector_id": "mcp_partner",
+                "remote_tool_name": "ask",
+            }
+        )
+    )
+    row = {
+        "connector_id": "mcp_partner",
+        "account_id": ACCOUNT,
+        "project_id": str(stand.project_id),
+        "transport": "streamable_http",
+        "base_url": "https://mcp.partner.test/mcp",
+        "auth_mode": "headers",
+        "header_secret_refs_jsonb": {"refs": {"X-Key": "gen-1"}},
+        "allowlisted_tools": ["ask"],
+        "enabled": True,
+    }
+
+    def pin_tool(**_kwargs):
+        return connector_receiver.PinnedTool(
+            tool_id="partner_mcp", manifest=manifest, mcp_row=dict(row)
+        )
+
+    monkeypatch.setattr(connector_receiver, "pin_tool_receiver", pin_tool)
+    stand.save("wf_mcp", step=_MCP_STEP)
+    _secret, key = _catalog_input(stand, "wf_mcp")
+    status = stand.service.workflow_approval_status("wf_mcp", _human(), project_id=stand.project_id)
+    assert status["status"] == "approved"
+    [receiver] = status["receivers"]
+    assert (receiver["kind"], receiver["project_id"]) == ("mcp", str(stand.project_id))
+    # A person approves a named endpoint, transport and tool, not a bare digest.
+    assert (receiver["endpoint"], receiver["transport"], receiver["remote_tool"]) == (
+        "https://mcp.partner.test/mcp",
+        "streamable_http",
+        "ask",
+    )
+
+    job_id = stand.enqueue("wf_mcp", {"api_key": _ref(key)}, task_source="step_test_run")
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+    payload, _p, _o = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, pin_tool().identity()
+    )
+    assert payload == {"token": VALUE}
+
+    # A new header value writes a new reference generation; another endpoint is
+    # another receiver. Either needs a new approval before a read.
+    for change in (
+        {"header_secret_refs_jsonb": {"refs": {"X-Key": "gen-2"}}},
+        {"base_url": "https://collector.evil.test/mcp"},
+    ):
+        row.update(change)
+        spy.reads.clear()
+        with pytest.raises(SecretConfigurationUnapproved):
+            connector_step_runtime._payload_for_dispatch(
+                {"token": _ref(key)}, state, spy, pin_tool().identity()
+            )
+        assert spy.reads == []
+        status = stand.service.workflow_approval_status(
+            "wf_mcp", _human(), project_id=stand.project_id
+        )
+        assert status["status"] == "approval_required"
+
+
+def test_a_host_tool_edit_under_the_same_id_needs_a_new_approval(stand, monkeypatch) -> None:
+    from core.application.orchestration import connector_receiver, connector_step_runtime
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    current = {"config": {"region": "eu"}}
+
+    def manifest():
+        return SimpleNamespace(
+            implementation=SimpleNamespace(
+                to_dict=lambda: {"type": "python", "module": "core.tools.partner"}
+            ),
+            config=dict(current["config"]),
+            interface=SimpleNamespace(function_name="send", operations=[]),
+        )
+
+    def pin_tool(**_kwargs):
+        return connector_receiver.PinnedTool(tool_id="partner_send", manifest=manifest())
+
+    monkeypatch.setattr(connector_receiver, "pin_tool_receiver", pin_tool)
+    stand.save("wf_tool", step={**_MCP_STEP, "connector_id": "tool.partner_send"})
+    _secret, key = _catalog_input(stand, "wf_tool")
+    job_id = stand.enqueue("wf_tool", {"api_key": _ref(key)}, task_source="step_test_run")
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+    payload, _p, _o = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, pin_tool().identity()
+    )
+    assert payload == {"token": VALUE}
+
+    # A machine edit of the same tool id changes what runs: refused before the read.
+    current["config"] = {"region": "eu", "forward_to": "https://collector.evil.test"}
+    spy.reads.clear()
+    with pytest.raises(SecretConfigurationUnapproved):
+        connector_step_runtime._payload_for_dispatch(
+            {"token": _ref(key)}, state, spy, pin_tool().identity()
+        )
+    assert spy.reads == []
+
+
+def test_a_bound_input_is_configured_in_the_public_contract(stand) -> None:
+    from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+    from core.application.secrets.workflow_gate import catalog_bound_interface
+
+    stand.save("wf_contract")
+    _secret, key = _catalog_input(stand, "wf_contract")
+    service = WorkflowInterfaceService()
+    raw = service.interface_from_definition(stand.registry.get_workflow("wf_contract"))
+    bound = catalog_bound_interface(raw, workflow_id="wf_contract", account_id=ACCOUNT)
+    [plain] = service.public_contract_payload(raw)["expected_inputs"]
+    [shown] = service.public_contract_payload(bound)["expected_inputs"]
+    assert (plain["default_configured"], shown["default_configured"]) == (False, True)
+    # The contract says a value is configured; it never carries the reference.
+    assert key not in json.dumps(service.public_contract_payload(bound))
+    # The launch interface, through the same real registry store, agrees.
+    launched = service.interface_for_workflow_id("wf_contract")
+    assert service.public_contract_payload(launched)["expected_inputs"][0]["default_configured"]
+    status = stand.service.unbind_workflow_input(
+        "wf_contract", _human(), project_id=stand.project_id, field="api_key"
+    )
+    assert status["status"] == "delegation_optional"
+    unbound = catalog_bound_interface(raw, workflow_id="wf_contract", account_id=ACCOUNT)
+    assert (
+        service.public_contract_payload(unbound)["expected_inputs"][0]["default_configured"]
+        is False
+    )
+
+
+def test_the_operator_contract_of_a_projected_manifest_shows_the_binding(stand) -> None:
+    """The builder's contract read, as the registry serves it: a WorkflowManifest."""
+    from core.application.management.workflow_operator_service import WorkflowOperatorService
+    from core.application.registry.workflow_manifest import WorkflowManifest
+
+    stand.save("wf_manifest")
+    _secret, key = _catalog_input(stand, "wf_manifest")
+    manifest = WorkflowManifest.from_db_row(stand.registry.get_workflow("wf_manifest"))
+    assert not hasattr(manifest, "account_id")
+    service = WorkflowOperatorService(
+        get_logger=lambda: None,
+        project_query_service=None,
+        registry_manager_provider=lambda: SimpleNamespace(
+            workflows=SimpleNamespace(get_workflow=lambda _workflow_id: manifest)
+        ),
+        registry_db_provider=lambda: stand.registry,
+    )
+    contract = service.workflow_contract("wf_manifest", require_available=False).dump()
+    [row] = contract["interface"]["expected_inputs"]
+    assert (row["name"], row["default_configured"]) == ("api_key", True)
+    assert key not in json.dumps(contract)
+
+
+@pytest.mark.parametrize("role", ["operator", "viewer"])
+def test_the_project_workflow_secrets_route_serves_operators_and_viewers(stand, role) -> None:
+    """The operator's panel reads its own list: linked workflows with secret inputs."""
+    from fastapi import APIRouter, FastAPI
+    from fastapi.responses import JSONResponse
+    from fastapi.testclient import TestClient
+
+    from core.entrypoints.api.integrations_secret_routes import register_secret_approval_routes
+
+    stand.save("wf_route")
+    _secret, key = _catalog_input(stand, "wf_route")
+    stand.save("wf_route_plain", step=_http_step())
+    router = APIRouter()
+    register_secret_approval_routes(
+        api_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=500),
+        err_not_found="not found",
+        get_logger=lambda: stand.conn,
+        request_scope=lambda _request, project_id=None: _human(role),
+        router=router,
+        service_error_response=lambda exc: JSONResponse(
+            {"error": str(exc)}, status_code=getattr(exc, "status_code", 400)
+        ),
+    )
+    app = FastAPI()
+    app.include_router(router)
+    response = TestClient(app).get(f"/api/projects/{stand.project_id}/workflow-secret-approvals")
+
+    assert response.status_code == 200, response.text
+    rows = {row["workflow_id"]: row for row in response.json()["workflows"]}
+    assert rows["wf_route"]["status"] == "approved"
+    assert rows["wf_route"]["secret_inputs"] == ["api_key"]
+    assert rows["wf_route"]["display_name"] == "wf_route"
+    assert key not in response.text
+
+
+def _secret_routes_client(stand: Stand, scope: ScopeContext):
+    from fastapi import APIRouter, FastAPI
+    from fastapi.responses import JSONResponse
+    from fastapi.testclient import TestClient
+
+    from core.application.management.errors import ServiceError
+    from core.entrypoints.api.integrations_secret_routes import register_secret_approval_routes
+
+    def service_error_response(exc: ServiceError) -> JSONResponse:
+        return JSONResponse({"error": str(exc)}, status_code=getattr(exc, "status_code", 400))
+
+    router = APIRouter()
+    register_secret_approval_routes(
+        api_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=500),
+        err_not_found="not found",
+        get_logger=lambda: stand.conn,
+        request_scope=lambda _request, project_id=None, **_kw: scope,
+        router=router,
+        service_error_response=service_error_response,
+    )
+    app = FastAPI()
+    app.include_router(router)
+    return TestClient(app)
+
+
+@pytest.mark.parametrize(
+    ("scope", "allowed"),
+    [
+        (_human("operator"), True),
+        (_human("viewer"), False),
+        # A machine never approves, whatever scopes it holds.
+        (_token("secrets:bind", "secrets:write", "admin:all"), False),
+    ],
+)
+def test_only_an_interactive_operator_approves_through_the_route(stand, scope, allowed) -> None:
+    stand.save("wf_route_approve")
+    secret = stand.service.create_secret(
+        _human(), name="Route key", value=VALUE, project_id=stand.project_id
+    )
+    status = stand.service.bind_workflow_input(
+        "wf_route_approve",
+        _human(),
+        project_id=stand.project_id,
+        field="api_key",
+        secret_id=secret["id"],
+    )
+    path = f"/api/projects/{stand.project_id}/workflows/wf_route_approve/secret-approval"
+    response = _secret_routes_client(stand, scope).post(
+        path, json={"fingerprint": status["fingerprint"], "destinations": []}
+    )
+    assert (response.status_code == 200) is allowed, response.text
+    if not allowed:
+        assert response.status_code == 403
+
+
+def test_one_exact_scope_reaches_each_catalog_write_through_the_routes(stand) -> None:
+    writer = _secret_routes_client(stand, _token("secrets:write"))
+    binder = _secret_routes_client(stand, _token("secrets:bind"))
+    created = writer.post(
+        "/api/secrets",
+        json={
+            "name": "Token-made",
+            "description": "",
+            "value": VALUE,
+            "project_id": str(stand.project_id),
+        },
+    )
+    assert created.status_code == 200, created.text
+    secret_id = created.json()["id"]
+    assert VALUE not in created.text
+    assert (
+        writer.patch(
+            f"/api/secrets/{secret_id}", json={"name": "Token-made 2", "description": "x"}
+        ).status_code
+        == 200
+    )
+    assert (
+        writer.put(f"/api/secrets/{secret_id}/value", json={"value": VALUE + "-2"}).status_code
+        == 200
+    )
+
+    stand.save("wf_token_bind")
+    bind_path = f"/api/projects/{stand.project_id}/workflows/wf_token_bind/secret-bindings/api_key"
+    # Each scope reaches only its own operations in the service, too.
+    assert writer.put(bind_path, json={"secret_id": secret_id}).status_code == 403
+    bound = binder.put(bind_path, json={"secret_id": secret_id})
+    assert bound.status_code == 200, bound.text
+    approval_path = f"/api/projects/{stand.project_id}/workflows/wf_token_bind/secret-approval"
+    for client in (writer, binder):
+        assert (
+            client.post(
+                approval_path, json={"fingerprint": bound.json()["fingerprint"], "destinations": []}
+            ).status_code
+            == 403
+        )
+    # A bound secret is not deleted; after unbinding it is.
+    assert writer.delete(f"/api/secrets/{secret_id}").status_code == 409
+    assert binder.delete(bind_path).status_code == 200
+    assert writer.delete(f"/api/secrets/{secret_id}").status_code == 200
+
+
+def test_a_secret_binds_only_within_its_project_or_workspace(stand) -> None:
+    """Project A, project B of the same workspace, a project of another workspace, and
+    another account: for a workflow input and for a connection field alike."""
+    from core.application.management.errors import ServiceNotFoundError
+    from tests.integration.test_secret_catalog_postgres import _connection
+
+    other_account = "00000000-0000-0000-0000-0000000000a2"
+    with stand.conn.cursor() as cur:
+        project_b = _project(cur, "scope-b")  # the same workspace as project A
+        cur.execute(
+            "INSERT INTO workspaces (id, account_id, workspace_key, display_name) "
+            "VALUES (gen_random_uuid(), %s, 'other-ws', 'Other') RETURNING id::text",
+            (ACCOUNT,),
+        )
+        other_workspace = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO projects (name, account_id, workspace_id) VALUES ('scope-c', %s, %s) "
+            "RETURNING id::text",
+            (ACCOUNT, other_workspace),
+        )
+        project_c = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO accounts (id, account_key, display_name) VALUES (%s, 'acct-2', 'Two')",
+            (other_account,),
+        )
+        cur.execute(
+            "INSERT INTO workspaces (id, account_id, workspace_key, display_name) "
+            "VALUES (gen_random_uuid(), %s, 'acct2-ws', 'Two') RETURNING id::text",
+            (other_account,),
+        )
+        foreign_workspace = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO projects (name, account_id, workspace_id) VALUES ('scope-x', %s, %s) "
+            "RETURNING id::text",
+            (other_account, foreign_workspace),
+        )
+        foreign_project = cur.fetchone()[0]
+        connections = {
+            project: _connection(cur, project, label=f"conn {project}", refs={})
+            for project in (stand.project_id, project_b, project_c)
+        }
+
+    stand.save("wf_scope")
+    for project in (project_b, project_c):
+        stand.store.add_project_workflow_binding(project, "wf_scope")
+    service = stand.service
+    project_secret = service.create_secret(
+        _human(), name="A only", value=VALUE, project_id=stand.project_id
+    )
+    workspace_secret = service.create_secret(
+        _human(),
+        name="Workspace A",
+        value=VALUE,
+        workspace_id=_workspace_of(stand, stand.project_id),
+    )
+    foreign = ScopeContext(
+        account_id=other_account, principal_type="operator", auth_source="local", actor_id="other"
+    )
+    foreign_secret = service.create_secret(
+        foreign, name="Other account", value=VALUE, project_id=foreign_project
+    )
+
+    def bind_input(project: str, secret_id: str) -> None:
+        service.bind_workflow_input(
+            "wf_scope", _human(), project_id=project, field="api_key", secret_id=secret_id
+        )
+
+    def bind_field(project: str, secret_id: str) -> None:
+        service.bind_connection_field(
+            connections[project], _human(), field="api_key", secret_id=secret_id
+        )
+
+    for bind in (bind_input, bind_field):
+        # A project secret reaches no other project, even in its workspace.
+        with pytest.raises(ServiceValidationError, match="not available"):
+            bind(project_b, project_secret["id"])
+        # A workspace secret reaches no project of another workspace.
+        with pytest.raises(ServiceValidationError, match="not available"):
+            bind(project_c, workspace_secret["id"])
+        # Another account's secret does not exist for this caller.
+        with pytest.raises(ServiceNotFoundError):
+            bind(project_b, foreign_secret["id"])
+        assert _bindings(stand) == []
+        # A workspace secret is shared with every project of that workspace.
+        bind(project_b, workspace_secret["id"])
+        assert _bindings(stand) == [workspace_secret["id"]]
+        with stand.conn.cursor() as cur:
+            cur.execute("DELETE FROM catalog_secret_bindings")
+
+
+def _workspace_of(stand: Stand, project_id: str) -> str:
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "SELECT workspace_id::text FROM projects WHERE id::text = %s", (str(project_id),)
+        )
+        return cur.fetchone()[0]
+
+
+def _bindings(stand: Stand) -> list[str]:
+    with stand.conn.cursor() as cur:
+        cur.execute("SELECT secret_id::text FROM catalog_secret_bindings ORDER BY 1")
+        return [row[0] for row in cur.fetchall()]

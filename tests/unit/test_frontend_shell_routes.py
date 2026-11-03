@@ -143,6 +143,7 @@ def test_frontend_shell_serves_index_and_assets(tmp_path: Path) -> None:
         "/registry/workspaces/00000000-0000-0000-0000-000000000003",
         "/registry/datasets",
         "/registry/datasets/customer-orders",
+        "/registry/secrets",
         "/registry/tools",
         "/registry/tools/demo-tool",
         "/registry/agents",

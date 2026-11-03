@@ -86,6 +86,7 @@ class TaskExecutionService:
             repository.get_job if repository is not None and repository.available else None
         )
         request = _build_request(message, job_row, parent_job_lookup=parent_job_lookup)
+        self._restore_secret_authority(request)
         project_lookup = self._load_project(job_row)
         request = _with_project_scope(request, job_row, project_lookup)
         queue_context = _queue_context(message, job_row)
@@ -126,6 +127,26 @@ class TaskExecutionService:
         if job_row is None:
             return _delivery("discard", reason="missing_job_row")
         return dict(job_row)
+
+    def _restore_secret_authority(self, request: TaskExecutionRequest) -> None:
+        """Set the run's secret capabilities from host records.
+
+        The delivered message lost them on purpose (`_build_request` strips every
+        reserved key); they are derived again from the job's pin, bindings and
+        own dispatch record. Without a repository the run has none.
+        """
+        repository = self._repository
+        fingerprints: list[str] = []
+        if repository is not None and repository.available and request.job_id:
+            try:
+                fingerprints = list(repository.run_secret_fingerprints(request.job_id))
+            except Exception as exc:
+                logger.warning(
+                    "job_id=%s run capabilities unavailable: %s",
+                    request.job_id,
+                    type(exc).__name__,
+                )
+        request.extra_state["_workflow_secret_ref_fingerprints"] = fingerprints
 
     def _load_project(
         self,

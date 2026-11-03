@@ -169,9 +169,9 @@ def _reject_blocked_response_peer(response: httpx.Response) -> None:
         peer_host = str(peer or "").strip()
     if not peer_host:
         return
-    from core.application.extensions.lifecycle import _is_blocked_ip
+    from core.application.extensions.url_safety import is_refused_response_peer
 
-    if _is_blocked_ip(peer_host):
+    if is_refused_response_peer(peer_host):
         parsed = urlparse(str(response.request.url))
         raise httpx.ConnectError(
             f"http_request step url host '{parsed.hostname or ''}' connected to disallowed address '{peer_host}'",
@@ -494,23 +494,20 @@ def _http_retry_facts(
     return facts
 
 
-def _read_http_input_ciphertext(account_id: str, ref_key: str) -> str | None:
-    from core.infrastructure.db.model_provider_store import get_secret_ref_ciphertext
-
-    store = _get_shared_logger()
-    if store is None:
-        return None
-    return get_secret_ref_ciphertext(store.conn, account_id=account_id, ref_key=ref_key)
-
-
-def _secret_failure(reason: str, boundary: HttpSecretBoundary) -> dict[str, Any]:
+def _secret_failure(
+    reason: str,
+    boundary: HttpSecretBoundary,
+    *,
+    retryable: bool = False,
+    failure_class: str = "validation",
+) -> dict[str, Any]:
     uncertain_mutation = (
         boundary.request_dispatched and boundary.request_method not in _SAFE_READ_METHODS
     )
     return {
         "ok": False,
         "status_code": None,
-        "retryable": False,
+        "retryable": retryable and not boundary.request_dispatched,
         "failure_reason": reason,
         "response_excerpt": "",
         "request": {},
@@ -519,25 +516,54 @@ def _secret_failure(reason: str, boundary: HttpSecretBoundary) -> dict[str, Any]
         else "safe_read",
         "external_effect_status": "timeout_unknown" if uncertain_mutation else "failed",
         "definitely_no_external_effect": not uncertain_mutation,
-        "failure_class": "validation",
+        "failure_class": failure_class,
     }
 
 
 def execute_http_request_step(
-    *, config: dict[str, Any], state: dict[str, Any] | None = None
+    *,
+    config: dict[str, Any],
+    state: dict[str, Any] | None = None,
+    secret_reader: Any = None,
 ) -> dict[str, Any]:
+    """Run one HTTP step; `secret_reader` replaces the host-selected reader in tests."""
+    from core.application.secrets.workflow_gate import RECEIVER_HTTP, CatalogAuthorityReader
     from core.infrastructure.security.secret_reference import (
         SecretReferenceUnauthorized,
         SecretReferenceUnresolved,
     )
+    from core.infrastructure.security.stored_secrets import (
+        StoredSecretError,
+        deferred_stored_secret_reader,
+    )
 
-    boundary = HttpSecretBoundary(dict(state or {}), _read_http_input_ciphertext)
+    runtime_state = dict(state or {})
+
+    def _run_conn():
+        return getattr(_get_shared_logger(), "conn", None)
+
+    boundary: HttpSecretBoundary
+    checked_reader = CatalogAuthorityReader(
+        secret_reader or deferred_stored_secret_reader(_run_conn),
+        conn_provider=_run_conn,
+        runtime_state=runtime_state,
+        # A catalog secret goes only where a person approved (ADR 0057).
+        receiver=RECEIVER_HTTP,
+        url_provider=lambda: boundary.request_url,
+        computed_origin_refs=lambda: boundary.computed_origin_refs,
+    )
+    boundary = HttpSecretBoundary(runtime_state, checked_reader)
+    boundary.conn_provider = _run_conn
     try:
         return boundary.safe_result(
             _execute_http_request_step(config=config, state=state, secret_boundary=boundary)
         )
     except (HttpSecretInputError, SecretReferenceUnauthorized, SecretReferenceUnresolved):
         return _secret_failure("unresolved_secret_input", boundary)
+    except StoredSecretError as exc:
+        return _secret_failure(
+            exc.code, boundary, retryable=exc.retryable, failure_class=exc.failure_class
+        )
     except HttpSecretExposureError:
         return _secret_failure("secret_exposure_blocked", boundary)
     except Exception as exc:
@@ -584,6 +610,7 @@ def _execute_http_request_step(
     if not rendered_url:
         raise ValueError("http_request url is required")
     rendered_url = _validate_http_request_url(rendered_url)
+    secret_boundary.request_url = rendered_url
     auth_mode = str(config.get("auth_mode") or "none").strip().lower()
     if auth_mode in {"basic", "bearer"}:
         _validate_static_https_auth_origin(url_template, rendered_url)
@@ -632,7 +659,9 @@ def _execute_http_request_step(
     }
     if has_http_secret(presented):
         secret_boundary.has_references = True
-        _validate_static_https_auth_origin(url_template, rendered_url)
+        secret_boundary.check_origin(
+            url_template, rendered_url, presented, _validate_static_https_auth_origin
+        )
     dispatch = secret_boundary.resolve(presented) if secret_boundary.has_references else presented
     rendered_headers = _normalize_http_headers(dispatch["headers"])
     rendered_query = _normalize_query_params(dispatch["query_params"])

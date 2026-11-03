@@ -1368,9 +1368,8 @@ class TestProjectConnectionService:
             patch.object(svc, "_update_connection_row") as update_row,
             patch.object(svc, "_invalidate_connection_sessions") as invalidate_sessions,
             patch(
-                "core.application.management.project_connection_secrets.save_connection_secrets",
-                return_value={"refs": {"bot_token": "project_connection:conn_123:bot_token"}},
-            ) as save_secrets,
+                "core.application.secrets.service.SecretCatalogService.save_connection_values",
+            ) as save_values,
         ):
             result = svc.save_connection_secrets(
                 "conn_123",
@@ -1379,20 +1378,12 @@ class TestProjectConnectionService:
                 scope=_trusted_scope(),
             )
 
-        save_secrets.assert_called_once_with(
-            bl,
-            account_id=DEFAULT_ACCOUNT_ID,
-            connection_id="conn_123",
-            secrets={"bot_token": "secret-value"},
-        )
-        update_row.assert_called_once()
-        updates = update_row.call_args.args[2]
-        assert updates["credential_revision"] == 3
-        assert updates["secret_refs"] == {
-            "refs": {
-                "bot_token": "project_connection:conn_123:bot_token",
-            }
-        }
+        # The typed value becomes a catalog secret bound to the field (ADR 0057); the
+        # catalog writes the refs projection and bumps the revision itself.
+        save_values.assert_called_once()
+        assert save_values.call_args.args[0] == "conn_123"
+        assert save_values.call_args.kwargs["values"] == {"bot_token": "secret-value"}
+        update_row.assert_not_called()
         invalidate_sessions.assert_called_once_with(bl, "conn_123")
         assert result.credential_revision == 3
         assert result.secret_refs == updated["secret_refs"]

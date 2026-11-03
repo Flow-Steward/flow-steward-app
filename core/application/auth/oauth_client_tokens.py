@@ -144,14 +144,15 @@ def store_oauth_token_response(
 
 def _resolve_oauth_secret_values(conn: Any, connection: dict[str, Any]) -> dict[str, str]:
     from core.application.management.project_connection_secrets import (
-        resolve_connection_secrets,
+        read_local_connection_secrets,
     )
 
-    return resolve_connection_secrets(
+    # The grant lifecycle reads, refreshes and revokes these values in the
+    # local store together with the client credentials it needs for them.
+    return read_local_connection_secrets(
         conn,
         account_id=_as_text(connection.get("account_id")),
         secret_refs=connection.get("secret_refs"),
-        include_internal=True,
     )
 
 

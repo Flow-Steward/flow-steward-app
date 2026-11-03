@@ -224,8 +224,9 @@ class OrchestratorState(TypedDict):
     ]  # guardrail check key -> latest pass/fail metadata
     state_summary: str | None  # compressed summary of state (≈500 tokens)
     inputs: dict | None  # normalized public workflow inputs
-    # Immutable, non-revealing capability snapshot minted by the launch boundary.
-    # It must be a declared LangGraph channel or graph compilation drops it.
+    # Immutable, non-revealing capability snapshot the worker derives from host
+    # records of the job (run_authority). It must be a declared LangGraph channel
+    # or graph compilation drops it.
     _workflow_secret_ref_fingerprints: Annotated[list[str] | None, lambda a, b: b]
     # Host-authored proof that an output is absent because its producing
     # connector mutation was deliberately suppressed in Test Mode.

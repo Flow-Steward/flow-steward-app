@@ -9,7 +9,7 @@ from typing import Any
 from core.infrastructure.db import model_provider_store
 from core.infrastructure.security.connection_secret_store import (
     connection_secret_ref_key,
-    resolve_connection_secrets,
+    read_local_connection_secrets,
     save_connection_secrets,
 )
 
@@ -30,7 +30,7 @@ class DatabaseOAuthCallbackTokenStore:
         self._now = now
 
     def resolve_refresh_token(self, *, account_id: str, secret_refs: Any) -> str:
-        values = resolve_connection_secrets(
+        values = read_local_connection_secrets(
             self._conn,
             account_id=account_id,
             secret_refs=secret_refs,
@@ -38,7 +38,7 @@ class DatabaseOAuthCallbackTokenStore:
         return str(values.get(_REFRESH_TOKEN) or "")
 
     def resolve_access_token(self, *, account_id: str, secret_refs: Any) -> str:
-        values = resolve_connection_secrets(
+        values = read_local_connection_secrets(
             self._conn,
             account_id=account_id,
             secret_refs=secret_refs,
@@ -46,7 +46,7 @@ class DatabaseOAuthCallbackTokenStore:
         return str(values.get(_ACCESS_TOKEN) or "")
 
     def resolve_token_snapshot(self, *, account_id: str, secret_refs: Any) -> dict[str, Any]:
-        values = resolve_connection_secrets(
+        values = read_local_connection_secrets(
             self._conn,
             account_id=account_id,
             secret_refs=secret_refs,

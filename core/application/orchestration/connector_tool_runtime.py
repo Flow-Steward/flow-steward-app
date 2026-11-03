@@ -55,20 +55,30 @@ def _dispatch_tool_runtime(
     connection_binding: dict[str, Any],
     state: dict[str, Any],
     suppression_probe_only: bool = False,
+    pinned_tool: Any = None,
 ) -> dict[str, Any] | None:
+    """Dispatch to a tool; to `pinned_tool`, selected before any secret read, if set."""
     from core.application.registry.registry_manager import RegistryManager
 
-    try:
-        registry = RegistryManager.instance()
-    except Exception as exc:
-        logger.debug("Connector tool registry is unavailable: %s", exc)
-        return None
-    tools_registry = getattr(registry, "tools", None)
-    if tools_registry is None:
-        return None
+    if pinned_tool is not None:
+        candidates = [pinned_tool.tool_id]
 
-    for tool_id in _tool_id_candidates(connector_id):
+        def get_tool(_tool_id: str) -> Any:
+            return pinned_tool.manifest
+
+    else:
+        try:
+            registry = RegistryManager.instance()
+        except Exception as exc:
+            logger.debug("Connector tool registry is unavailable: %s", exc)
+            return None
+        tools_registry = getattr(registry, "tools", None)
+        if tools_registry is None:
+            return None
+        candidates = _tool_id_candidates(connector_id)
         get_tool = getattr(tools_registry, "get_tool", None)
+
+    for tool_id in candidates:
         manifest = get_tool(tool_id) if callable(get_tool) else None
         if manifest is None or getattr(manifest, "enabled", True) is False:
             continue
@@ -151,6 +161,7 @@ def _dispatch_tool_runtime(
                 connection_binding=connection_binding,
                 state=state,
                 suppression_probe_only=suppression_probe_only,
+                pinned_receiver=pinned_tool.extension if pinned_tool is not None else None,
             )
             if extension_result and extension_result.get("handled"):
                 extension_result["tool_id"] = tool_id
@@ -179,6 +190,9 @@ def _dispatch_tool_runtime(
             from core.infrastructure.security.prompt_safety import redact_sensitive_structure
 
             runtime_context["source"] = "connector_step_runtime"
+            if pinned_tool is not None and pinned_tool.mcp_row is not None:
+                # The connector row this call was checked against (connector_receiver).
+                runtime_context["pinned_mcp_connector_row"] = dict(pinned_tool.mcp_row)
             if bl is not None:
                 runtime_context["logger"] = bl
             event_input = input_payload

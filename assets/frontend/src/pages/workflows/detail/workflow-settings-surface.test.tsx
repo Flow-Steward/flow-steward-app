@@ -140,6 +140,17 @@ function fixture(options: FixtureOptions = {}) {
       if (path === `/api/workflows/${workflowId}/reactions`) return json({ reactions: [], sources: [] });
       if (path === `/api/projects/${projectId}/providers`) return json({ project_providers: [] });
       if (path === `/api/workflows/${workflowId}/history`) return json([]);
+      // A secret input asks its catalog binding and the approval status; saves never write either.
+      if (path === `/api/projects/${projectId}/workflows/${workflowId}/secret-approval`) {
+        return json({
+          workflow_id: workflowId, status: "approval_required", fingerprint: "sha256:fixture",
+          secrets: [{ field: "token", secret_id: "catalog-token" }], destinations: [],
+          dynamic_http_steps: [], approved_destinations: [],
+        });
+      }
+      if (path === "/api/secrets" && url.searchParams.get("project_id") === projectId) {
+        return json({ secrets: [{ id: "catalog-token", name: "Fixture token", description: "", owner: "project", workspace_id: "w1", project_id: projectId }] });
+      }
     }
     unexpected.push(`${method} ${path}`);
     // In particular, never provide DAG/canvas or broad project-catalog fixtures
@@ -334,6 +345,9 @@ it.each(["failSecretOnce", "failFileOnce"] as const)("retains rejected %s action
     const writes = state.requested.filter(({ method }) => method !== "GET");
     expect(writes.map(({ method, path }) => method === "PATCH" ? "PATCH" : path.split("/").at(-1))).toEqual(["PATCH", "secret", "sample-file", "PATCH", failure === "failSecretOnce" ? "secret" : "sample-file"]);
     expect(state.detail.revision).toBe(11);
+    // The bound catalog secret and its pending approval were on screen; a save neither rebinds nor approves.
+    expect(screen.getByTestId("workflow-secret-approval")).toHaveTextContent("approval required");
+    expect(state.requested.filter(({ path }) => /secret-(bindings|approval)/.test(path)).every(({ method }) => method === "GET")).toBe(true);
     expectNoGraphReads(state.requested); expect(state.unexpected).toEqual([]);
   } finally { view.dispose(); }
 });

@@ -17,9 +17,8 @@ import re
 import subprocess
 from pathlib import Path
 
-from tests.support.source_index import whole_words_in
-
 from core.infrastructure.db.schema_state import read_canonical_schema_sql
+from tests.support.source_index import whole_words_in
 
 ROOT = Path(__file__).parent.parent.parent
 REGISTRY_SEED = ROOT / "db" / "seeds" / "registry_seed.json"

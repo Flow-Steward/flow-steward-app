@@ -238,7 +238,7 @@ else
   LOG_DIR="${STATE_DIR}/logs"
   BOOTSTRAP_LOG="${LOG_DIR}/install-bootstrap-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
 fi
-: > "${BOOTSTRAP_LOG}"
+(umask 077 && : > "${BOOTSTRAP_LOG}")  # private from its first byte, like the record below
 chmod 600 "${BOOTSTRAP_LOG}"
 # AC17-R162 (L1): from here on this run owns the installation, and ./flow-steward refuses
 # what would change it -- from here, not from when the installer container starts: the
@@ -258,8 +258,12 @@ elif ! [[ "${previous_installer_pid}" =~ ^[0-9]+$ ]] ||
   else
     ps -p "${previous_installer_pid}" -o command= 2>/dev/null
   fi; } | grep -q 'install\.sh'; then
-  printf '%s\n' "$$" > "${installer_host_record}"
-  chmod 600 "${installer_host_record}"
+  # Written aside and renamed: the record appears whole and 0600 at once, never as a
+  # umask-mode file that a reader can catch before a chmod.
+  installer_host_record_next="${installer_host_record}.$$"
+  rm -f "${installer_host_record_next}"  # a leftover would keep its own mode
+  (umask 077 && printf '%s\n' "$$" > "${installer_host_record_next}")
+  mv -f "${installer_host_record_next}" "${installer_host_record}"
 fi
 
 if ! host_docker info --format 'Docker Server Version: {{.ServerVersion}}' >"${BOOTSTRAP_LOG}" 2>&1; then
