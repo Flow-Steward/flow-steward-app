@@ -7,6 +7,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 from core.application.extensions.secret_reflection import (
     collect_secret_values,
@@ -32,6 +33,16 @@ from core.infrastructure.security.secret_reference import (
 from core.infrastructure.security.stored_secrets import SecretReadContext, StoredSecretReader
 
 
+def _text_key(reference: Any) -> str:
+    return str(getattr(reference, "ref_key", "") or "").strip()
+
+
+def _all_catalog_keys(conn_provider: Any, keys: set[str]) -> bool:
+    from core.application.secrets.workflow_gate import catalog_only_refs
+
+    return callable(conn_provider) and catalog_only_refs(conn_provider(), keys)
+
+
 class HttpSecretInputError(ValueError):
     """A reference cannot be used at this HTTP boundary."""
 
@@ -48,6 +59,25 @@ class _TemplateValue:
 @dataclass(frozen=True, repr=False)
 class _SecretTemplate:
     parts: tuple[str | _TemplateValue, ...]
+
+
+def presented_references(value: Any) -> list[Any]:
+    """Every secret reference a rendered request carries, inside templates too."""
+    reference = as_secret_reference(value)
+    if reference is not None:
+        return [reference]
+    if isinstance(value, _SecretTemplate):
+        return [
+            found
+            for part in value.parts
+            if isinstance(part, _TemplateValue)
+            for found in presented_references(part.value)
+        ]
+    if isinstance(value, dict):
+        return [found for nested in value.values() for found in presented_references(nested)]
+    if isinstance(value, (list, tuple)):
+        return [found for nested in value for found in presented_references(nested)]
+    return []
 
 
 def has_http_secret(value: Any) -> bool:
@@ -118,6 +148,37 @@ class HttpSecretBoundary:
         self.request_method = "GET"
         self.request_url: str | None = None
         self.request_dispatched = False
+        #: Set only by `check_origin`, from the host database: the catalog storage keys
+        #: of a request whose computed origin was let through. Every read of them must
+        #: then pass the catalog's allowlist; it never relaxes anything by itself.
+        self.computed_origin_refs: frozenset[str] = frozenset()
+        self.conn_provider: Any = None
+
+    def check_origin(
+        self, url_template: str, rendered_url: str, presented: Any, static_check: Any
+    ) -> None:
+        """The origin rule for a request carrying references (ADR 0055).
+
+        A literal HTTPS origin is required, as before, unless every reference the
+        request carries is a catalog secret: then a computed origin may pass, as
+        HTTPS without userinfo, and each read checks it against the approved
+        destinations. Inline values, workflow defaults and any mix keep the rule.
+        """
+        try:
+            static_check(url_template, rendered_url)
+            return
+        except ValueError:
+            references = presented_references(presented)
+            keys = {_text_key(reference) for reference in references}
+            catalog_only = bool(references) and all(
+                reference.ref_key and not reference.ciphertext for reference in references
+            )
+            if not catalog_only or not _all_catalog_keys(self.conn_provider, keys):
+                raise
+        parts = urlsplit(rendered_url)
+        if parts.scheme.lower() != "https" or parts.username or parts.password:
+            raise ValueError("a request carrying a stored secret must use https without userinfo")
+        self.computed_origin_refs = frozenset(keys)
 
     def public_control(self, value: Any) -> Any:
         if has_http_secret(value):

@@ -550,8 +550,10 @@ def execute_http_request_step(
         # A catalog secret goes only where a person approved (ADR 0055).
         receiver=RECEIVER_HTTP,
         url_provider=lambda: boundary.request_url,
+        computed_origin_refs=lambda: boundary.computed_origin_refs,
     )
     boundary = HttpSecretBoundary(runtime_state, checked_reader)
+    boundary.conn_provider = _run_conn
     try:
         return boundary.safe_result(
             _execute_http_request_step(config=config, state=state, secret_boundary=boundary)
@@ -657,7 +659,9 @@ def _execute_http_request_step(
     }
     if has_http_secret(presented):
         secret_boundary.has_references = True
-        _validate_static_https_auth_origin(url_template, rendered_url)
+        secret_boundary.check_origin(
+            url_template, rendered_url, presented, _validate_static_https_auth_origin
+        )
     dispatch = secret_boundary.resolve(presented) if secret_boundary.has_references else presented
     rendered_headers = _normalize_http_headers(dispatch["headers"])
     rendered_query = _normalize_query_params(dispatch["query_params"])

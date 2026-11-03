@@ -515,9 +515,116 @@ def test_a_computed_path_keeps_its_origin_and_a_computed_host_needs_rules(stand)
         fingerprint=status["fingerprint"],
         destinations=[{"scheme": "https", "host": "api.partner.test", "path_prefix": "/v1"}],
     )
-    # The HTTP step refuses a secret-bearing request with a computed host before
-    # any read, whatever was approved.
-    job_id = stand.enqueue("wf_host", {"api_key": _ref(key), "host": "api.partner.test"})
+    # A request whose only references are catalog secrets may build its host: each
+    # read checks the rendered URL against the destinations a person approved.
+    for host, path, allowed in (
+        ("api.partner.test", "/v1", True),
+        ("api.partner.test", "/v1/../admin", False),
+        ("evil.test", "/v1", False),
+        ("api.partner.test:8443", "/v1", False),
+    ):
+        stand.save("wf_host", step=_http_step(url="https://{{ state.inputs.host }}" + path))
+        status = stand.service.workflow_approval_status(
+            "wf_host", _human(), project_id=stand.project_id
+        )
+        stand.service.approve_workflow(
+            "wf_host",
+            _human(),
+            project_id=stand.project_id,
+            fingerprint=status["fingerprint"],
+            destinations=[{"scheme": "https", "host": "api.partner.test", "path_prefix": "/v1"}],
+        )
+        job_id = stand.enqueue("wf_host", {"api_key": _ref(key), "host": host})
+        result = stand.run_http(stand.deliver(job_id), job_id)
+        assert result["ok"] is allowed, (host, path, result)
+        assert bool(stand.sent) is allowed, (host, path)
+        if allowed:
+            assert _sent_header(stand) == VALUE
+
+
+def _catalog_input_for_computed_host(stand: Stand, workflow_id: str) -> tuple[dict, str]:
+    """A bound catalog secret, approved with an explicit exact destination."""
+    secret = stand.service.create_secret(
+        _human(), name=f"{workflow_id} key", value=VALUE, project_id=stand.project_id
+    )
+    status = stand.service.bind_workflow_input(
+        workflow_id, _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
+    )
+    stand.service.approve_workflow(
+        workflow_id,
+        _human(),
+        project_id=stand.project_id,
+        fingerprint=status["fingerprint"],
+        destinations=[{"scheme": "https", "host": "api.partner.test", "path_prefix": "/v1"}],
+    )
+    return secret, f"catalog_secret:{secret['id']}"
+
+
+def _computed_host_workflow(stand: Stand, workflow_id: str, *, url: str, auth_mode: str = "none"):
+    step = _http_step(url=url)
+    step["override"]["http_request"]["auth_mode"] = auth_mode
+    stand.save(workflow_id, step=step)
+    return step
+
+
+def test_a_computed_origin_never_opens_for_non_catalog_references(stand, monkeypatch) -> None:
+    from core.application.secrets import workflow_gate
+
+    default_key = secret_default_ref_owner_prefix("wf_dyn_default", "api_key") + "c" * 24
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO secret_refs (account_id, ref_key, encrypted_value) VALUES (%s, %s, %s)",
+            (ACCOUNT, default_key, encrypt_secret("synthetic-default")),
+        )
+    inline = SecretReference(
+        name="api_key", ciphertext=encrypt_secret("synthetic-inline")
+    ).to_wire()
+    url = "https://{{ state.inputs.host }}/v1"
+    cases = {
+        "wf_dyn_default": {"api_key": _ref(default_key)},
+        "wf_dyn_inline": {"api_key": inline},
+    }
+    for workflow_id, inputs in cases.items():
+        _computed_host_workflow(stand, workflow_id, url=url)
+        job_id = stand.enqueue(workflow_id, {**inputs, "host": "api.partner.test"})
+        result = stand.run_http(stand.deliver(job_id), job_id)
+        assert result["ok"] is False, workflow_id
+        assert stand.sent == [], workflow_id
+
+    # A mix of a catalog secret and an inline value keeps the literal rule.
+    step = _http_step(url=url)
+    step["override"]["http_request"]["headers"]["X-Other"] = "{{ state.inputs.other }}"
+    stand.save("wf_dyn_mixed", step=step)
+    _secret, key = _catalog_input_for_computed_host(stand, "wf_dyn_mixed")
+    job_id = stand.enqueue(
+        "wf_dyn_mixed", {"api_key": _ref(key), "other": inline, "host": "api.partner.test"}
+    )
+    assert stand.run_http(stand.deliver(job_id), job_id)["ok"] is False
+    assert stand.sent == []
+
+    # Bearer auth and a computed scheme keep the literal https origin too.
+    _computed_host_workflow(
+        stand, "wf_dyn_scheme", url="{{ state.inputs.scheme }}://api.partner.test/v1"
+    )
+    _secret, key = _catalog_input_for_computed_host(stand, "wf_dyn_scheme")
+    job_id = stand.enqueue("wf_dyn_scheme", {"api_key": _ref(key), "scheme": "http"})
+    assert stand.run_http(stand.deliver(job_id), job_id)["ok"] is False
+    assert stand.sent == []
+
+    _computed_host_workflow(stand, "wf_dyn_bearer", url=url, auth_mode="bearer")
+    _secret, key = _catalog_input_for_computed_host(stand, "wf_dyn_bearer")
+    job_id = stand.enqueue("wf_dyn_bearer", {"api_key": _ref(key), "host": "api.partner.test"})
+    # Basic and bearer auth refuse a computed origin before anything is rendered.
+    with pytest.raises(ValueError, match="authority must be static"):
+        stand.run_http(stand.deliver(job_id), job_id)
+    assert stand.sent == []
+
+    # A key classified as a catalog secret and then gone is refused, never read
+    # through the plain path without an allowlist.
+    monkeypatch.setattr(workflow_gate, "catalog_only_refs", lambda _conn, _keys: True)
+    job_id = stand.enqueue(
+        "wf_dyn_default", {"api_key": _ref(default_key), "host": "api.partner.test"}
+    )
     result = stand.run_http(stand.deliver(job_id), job_id)
     assert result["ok"] is False
     assert stand.sent == []

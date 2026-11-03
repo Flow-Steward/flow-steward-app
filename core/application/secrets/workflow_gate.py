@@ -548,6 +548,16 @@ def approved_receivers(approval: dict[str, Any] | None) -> list[dict[str, Any]]:
     return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
 
+def catalog_only_refs(conn: Any, keys: set[str]) -> bool:
+    """Whether every key is a catalog secret's storage key, by the host database."""
+    if not keys or conn is None or not callable(getattr(conn, "cursor", None)):
+        return False
+    from core.application.secrets.run_authority import catalog_storage_keys
+
+    with conn.cursor() as cur:
+        return catalog_storage_keys(cur, set(keys)) == set(keys)
+
+
 def require_catalog_ref_authority(
     conn: Any,
     runtime_state: dict[str, Any],
@@ -556,8 +566,14 @@ def require_catalog_ref_authority(
     receiver: str,
     url: Any = None,
     receiver_identity: dict[str, str] | None = None,
+    require_catalog: bool = False,
 ) -> None:
-    """Refuse a catalog-owned reference this run may not read, or may not send there."""
+    """Refuse a catalog-owned reference this run may not read, or may not send there.
+
+    `require_catalog` comes from a request whose computed origin was let through
+    because its references were catalog secrets: a key that is not one any more is
+    refused rather than read without an allowlist.
+    """
     if not ref_key:
         return
     if conn is None or not callable(getattr(conn, "cursor", None)):
@@ -566,6 +582,8 @@ def require_catalog_ref_authority(
     state = runtime_state if isinstance(runtime_state, dict) else {}
     with conn.cursor() as cur:
         if _catalog_secret(cur, ref_key) is None:
+            if require_catalog:
+                raise SecretDestinationNotAllowed()
             return
         if receiver == RECEIVER_CONNECTOR and not receiver_identity:
             raise CatalogSecretReceiverUnpinned()
@@ -603,6 +621,7 @@ class CatalogAuthorityReader:
         receiver: str,
         url_provider: Any = None,
         receiver_identity: dict[str, str] | None = None,
+        computed_origin_refs: Any = None,
     ) -> None:
         self._reader = reader
         self._conn_provider = conn_provider
@@ -610,8 +629,13 @@ class CatalogAuthorityReader:
         self._receiver = receiver
         self._url_provider = url_provider
         self._receiver_identity = receiver_identity
+        self._computed_origin_refs = computed_origin_refs
 
     def read(self, context: Any, ref_key: str) -> str:
+        relaxed = frozenset(self._computed_origin_refs() if self._computed_origin_refs else ())
+        if relaxed and ref_key not in relaxed:
+            # A computed origin was let through for exactly these keys.
+            raise SecretDestinationNotAllowed()
         require_catalog_ref_authority(
             self._conn_provider(),
             self._state,
@@ -619,6 +643,7 @@ class CatalogAuthorityReader:
             receiver=self._receiver,
             url=self._url_provider() if self._url_provider is not None else None,
             receiver_identity=self._receiver_identity,
+            require_catalog=bool(relaxed),
         )
         return self._reader.read(context, ref_key)
 
@@ -633,6 +658,7 @@ __all__ = [
     "approved_receivers",
     "approved_rules",
     "catalog_bound_interface",
+    "catalog_only_refs",
     "connector_step_ids",
     "connector_steps",
     "current_definition",
