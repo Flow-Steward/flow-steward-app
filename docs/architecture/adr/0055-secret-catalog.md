@@ -159,6 +159,25 @@ with the list of conflicts, when one would break.
   run of the edited definition reads nothing until it is approved. Redelivery, retry
   and resume of one job are checked again against the same pin; a restart is a new job
   with its own pin.
+- **Connector steps pin their receiver before the read.** A connector step selects
+  what its input goes to before any value is read, and dispatches to that same
+  selection (`core/application/orchestration/connector_receiver.py`):
+  - an extension action: the installed record captured to its immutable release
+    directory, which must still be the install's canonical release; identity
+    `install_id`, `release_id`, `descriptor_sha256`;
+  - a built-in tool: host code, identified by its tool id and a digest of its
+    executable manifest (implementation, module, config, interface);
+  - a tool implemented by an extension: both of the above;
+  - a remote MCP tool: the connector row read with the run's trusted account,
+    project and tenant, identified by the manifest digest and a digest of its
+    endpoint, transport, auth mode, credential revision, header reference map and
+    allowlist. The call uses that row, after the same lineage checks.
+  Identities carry no host paths, so one release is one identity on every host.
+  An approval records the receivers per project, and the approval panel names each
+  one. A read must match the approved entry of its own job's project; a new
+  release, an edited tool manifest or a changed MCP connector needs a new approval.
+  A step whose receiver cannot be selected never receives a catalog secret. A
+  workflow-local secret reaches connector inputs as before.
 - **Child workflows.** A catalog secret travels to an Invoke child only when the child
   records its parent and the parent records the child, the parent passed the key in,
   and the pinned definition of every level of the chain is approved. An approved child
