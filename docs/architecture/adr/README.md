@@ -99,6 +99,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0051](0051-authorized-agent-file-inputs.md) | Authorized file inputs for agent steps | Proposed |
 | [0052](0052-optional-opentelemetry-export.md) | Optional OpenTelemetry export | Accepted |
 | [0053](0053-hosted-quality-gates.md) | Hosted quality gates for the public source | Accepted for pilot |
+| [0054](0054-reuse-exact-sha-release-gate.md) | Reuse an exact-SHA hosted gate at publication | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

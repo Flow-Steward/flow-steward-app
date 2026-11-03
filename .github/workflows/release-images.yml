@@ -31,7 +31,7 @@ jobs:
       artifact_run_id: ${{ steps.identity.outputs.artifact_run_id }}
       reuse: ${{ steps.identity.outputs.reuse }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -61,17 +61,58 @@ jobs:
     needs: resolve
     runs-on: ${{ vars.RELEASE_GATE_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
     env:
       FS_STACK_ENV_FILE: /dev/null
       DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Find an already successful exact-SHA cumulative gate
+        id: previous-quality
+        if: needs.resolve.outputs.tag != 'v0.9.9'
+        continue-on-error: true
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
+        with:
+          script: |
+            const fs = require('fs');
+            const choose = require(`${process.env.GITHUB_WORKSPACE}/scripts/release/select-verified-quality.cjs`);
+            const repositoryId = Number(process.env.GITHUB_REPOSITORY_ID);
+            const workflow = await github.rest.actions.getWorkflow({...context.repo, workflow_id: 'remote-quality.yml'});
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo, workflow_id: workflow.data.id, head_sha: process.env.RELEASE_REVISION,
+              status: 'success', per_page: 100,
+            });
+            let matched = null;
+            for (const run of runs) {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+                ...context.repo, run_id: run.id, attempt_number: run.run_attempt, per_page: 100,
+              });
+              if (choose(run, jobs, process.env.RELEASE_REVISION, repositoryId, workflow.data.id)) {
+                matched = run;
+                break;
+              }
+            }
+            if (matched) {
+              fs.mkdirSync('logs/quality/hosted', {recursive: true});
+              fs.writeFileSync('logs/quality/hosted/reused-gate.json', JSON.stringify({
+                revision: process.env.RELEASE_REVISION, run_id: matched.id,
+                run_attempt: matched.run_attempt, url: matched.html_url,
+              }, null, 2) + '\n');
+              await core.summary.addRaw(`Reused successful exact-SHA Tier 2 + Tier 3 gate: ${matched.html_url}`).write();
+            }
+            core.setOutput('reuse', matched ? 'true' : 'false');
       - uses: ./.github/actions/prepare-quality
+        if: needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true'
       - name: Build the canonical disposable PostgreSQL image
+        if: needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -82,7 +123,7 @@ jobs:
           cache-from: type=gha,scope=quality-postgres-amd64
           cache-to: type=gha,scope=quality-postgres-amd64,mode=min
       - name: Complete exact-SHA Tier 2 and Tier 3 gate
-        if: needs.resolve.outputs.tag != 'v0.9.9'
+        if: needs.resolve.outputs.tag != 'v0.9.9' && (steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
         env:
           RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
         run: |
@@ -179,7 +220,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           fetch-depth: 0
@@ -221,7 +262,7 @@ jobs:
       FS_RELEASE_DOCKERHUB_NAMESPACE: ${{ vars.RELEASE_DOCKERHUB_NAMESPACE || 'docker.io/flowsteward' }}
       RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           fetch-depth: 0

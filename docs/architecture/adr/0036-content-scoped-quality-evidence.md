@@ -50,3 +50,19 @@ minutes, one check at a time, and any new commit restarted it from scratch.
 - Removing the cache volume is always safe and only makes the next run cold.
 - Tier 3 suites keep the per-commit cost until their real file dependencies are
   known; that is the next step, not part of this decision.
+
+## Amendment — 2026-11-03: frontend input reuse
+
+`frontend-tests` now uses input-scoped evidence for the complete copied `assets/`
+tree, including shared platform JS/CSS, tests, build scripts, configuration and
+the npm lockfile. Node/npm versions, OS/architecture, and frontend/Node/npm/locale
+environment settings join its fingerprint alongside the common gate/toolchain
+inputs. Gate workspaces exclude frontend dotenv files, so ignored local overrides
+cannot silently change execution. A custom extension manifest can read outside
+that tree and therefore keeps the candidate SHA in its key.
+
+This permits an unchanged core frontend pass to survive a backend-only commit.
+Failed results never qualify. Backend suites remain commit-scoped because their
+complete runtime/database/fixture inputs have not yet been proven. A focused fix
+cycle is not per-test full-suite evidence, and imported records retain their
+original producing SHA; final validation recomputes their input fingerprints.

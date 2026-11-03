@@ -51,9 +51,9 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `814`
+- Raw env-like names discovered by audit: `815`
 - Cataloged variables from `.env.example*` or manifest: `593`
-- Raw audit-only names outside examples/manifest: `221`
+- Raw audit-only names outside examples/manifest: `222`
 - Unique variables in shipped `.env.example*` files: `377`
 - Variables in canonical manifest: `503`
 
@@ -67,7 +67,7 @@ Cataloged variables by scope:
 
 Raw audit-only names by scope:
 - Internal Runtime: `3`
-- Script Internal: `124`
+- Script Internal: `125`
 - Test Only: `44`
 - Tooling Internal: `8`
 - Uncategorized: `42`
@@ -872,7 +872,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
 | `FS_ALLOW_UNIT_TEST_SKIPS` | audit_tools | local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
-| `FS_AUDIT_ISOLATED` | audit_tools | local_development | no | no | `0` | - | CLI scripts (1), Tests (9) | Fail-closed marker proving quality tests are connected only to disposable audit infrastructure. | `tests/_disposable_db.py`<br>`tests/_xdist_isolation.py`<br>`tests/integration/test_rs5_003_external_effect_rework.py`<br>`tests/integration/test_rs5_010_workspace_connections.py`<br>`tests/integration/test_scheduled_job_overlap_postgres.py`<br>`tests/unit/conftest.py`<br>+4 more in JSON audit |
+| `FS_AUDIT_ISOLATED` | audit_tools | local_development | no | no | `0` | - | CLI scripts (1), Tests (9), Tooling (1) | Fail-closed marker proving quality tests are connected only to disposable audit infrastructure. | `core/application/tooling/quality/reuse_smoke.py`<br>`tests/_disposable_db.py`<br>`tests/_xdist_isolation.py`<br>`tests/integration/test_rs5_003_external_effect_rework.py`<br>`tests/integration/test_rs5_010_workspace_connections.py`<br>`tests/integration/test_scheduled_job_overlap_postgres.py`<br>+5 more in JSON audit |
 | `FS_BANDIT_BASELINE_FILE` | audit_tools | local_development | no | no | `infra/tooling/quality/bandit-baseline-medium-high.json` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_BOUNDARY_TRACKED_FILES_MANIFEST` | audit_tools | local_development | no | no | - | - | CLI scripts (2), Tests (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `tests/unit/test_pre_010_cleanup_guardrails.py`<br>`tests/unit/test_repository_binary_hygiene.py`<br>`core/entrypoints/cli/scripts/check_no_enterprise_leak.sh`<br>`core/entrypoints/cli/scripts/lint.sh` |
 | `FS_COV_FAIL_UNDER` | audit_tools | local_development | no | no | `0` | .env.example.quality | CLI scripts (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/coverage_rebaseline.sh`<br>`core/entrypoints/cli/scripts/lint.sh` |
@@ -960,7 +960,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 | Scope | Count | Common Usage Areas |
 |---|---|---|
 | Internal Runtime | `3` | CLI scripts (3), Tests (1) |
-| Script Internal | `124` | CLI scripts (190), CLI (12), Tests (7), Tooling (5), Database (3) |
-| Test Only | `44` | Tests (75), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
+| Script Internal | `125` | CLI scripts (191), CLI (12), Tests (7), Tooling (6), Database (3) |
+| Test Only | `44` | Tests (77), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |
 | Uncategorized | `42` | Docker Compose (36), Tooling (9), Infrastructure (4), Database (4), Security (3) |

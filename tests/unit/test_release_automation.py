@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from core.application.release.images import all_release_roles
 from core.application.tooling.release_automation import (
     preflight_registry,
@@ -324,7 +323,7 @@ def test_release_v099_focused_exception_is_narrow_and_records_failed_and_impacte
     focused = next(
         step for step in steps if step.get("name") == "Focused acceptance (full suite not rerun)"
     )
-    assert full["if"] == "needs.resolve.outputs.tag != 'v0.9.9'"
+    assert full["if"].startswith("needs.resolve.outputs.tag != 'v0.9.9' && (")
     assert focused["if"] == "needs.resolve.outputs.tag == 'v0.9.9'"
     assert focused["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
     command = focused["run"]

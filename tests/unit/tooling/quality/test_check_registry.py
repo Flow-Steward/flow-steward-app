@@ -16,6 +16,16 @@ REGISTRY_PATH = ROOT / "infra/tooling/quality/check-registry.json"
 LINT_SCRIPT = ROOT / "core/entrypoints/cli/scripts/lint.sh"
 
 
+def test_scale_scenario_is_separate_from_unit_acceptance_but_can_run_explicitly() -> None:
+    stress_test = ROOT / "tests/unit/stress/test_for_each_history_projection.py"
+    assert stress_test.is_file()
+    assert not (ROOT / "tests/unit/test_for_each_history_projection.py").exists()
+    assert "--ignore=tests/unit/stress" in LINT_SCRIPT.read_text(encoding="utf-8")
+    registry = load_check_registry(REGISTRY_PATH)
+    targeted = next(check for check in registry.checks if check.id == "targeted-tests")
+    assert targeted.selection_required
+
+
 def test_canonical_registry_assigns_each_check_to_one_tier() -> None:
     registry = load_check_registry(REGISTRY_PATH)
 
