@@ -14201,7 +14201,6 @@
       "tests/unit/test_extension_progress_channel.py",
       "tests/unit/test_extension_runtime.py",
       "tests/unit/test_install_script.py",
-      "tests/unit/test_lint_script.py",
       "tests/unit/test_release_candidate_inputs.py",
       "tests/unit/test_release_candidate_operations.py",
       "tests/unit/test_release_smoke_gate.py",
@@ -17828,6 +17827,25 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "VERIFY_SSL"
+  },
+  {
+    "canonical_name": "VITE_FRONTEND_EXTENSION_MANIFEST",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/lint.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "VITE_FRONTEND_EXTENSION_MANIFEST"
   },
   {
     "canonical_name": "VITE_HOST",

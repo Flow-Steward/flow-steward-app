@@ -26,7 +26,9 @@ def _shell_function(source: str, name: str, next_name: str) -> str:
     return source.split(f"{name}()", 1)[1].split(f"{next_name}()", 1)[0]
 
 
-def test_targeted_frontend_runner_works_without_bundled_extensions(tmp_path: Path) -> None:
+def test_targeted_frontend_runner_works_without_bundled_extensions(
+    tmp_path: Path,
+) -> None:
     frontend = tmp_path / "assets" / "frontend" / "src"
     frontend.mkdir(parents=True)
     (frontend / "probe.test.tsx").write_text("export {};\n", encoding="utf-8")
@@ -212,7 +214,9 @@ def test_an_extension_checkout_is_streamed_never_mounted() -> None:
         ["--checks", "extension-tests,targeted-tests", "--extension-root", "/tmp"],
     ],
 )
-def test_extension_checks_refuse_an_ambiguous_checkout_before_any_docker_work(args) -> None:
+def test_extension_checks_refuse_an_ambiguous_checkout_before_any_docker_work(
+    args,
+) -> None:
     result = subprocess.run(
         ["bash", str(LINT_SCRIPT), *args],
         cwd=ROOT,
@@ -811,7 +815,9 @@ def test_pip_audit_audits_every_lock_an_image_installs_as_pinned() -> None:
     assert '"${lock_specs[@]}"' in function_body
 
 
-def test_enterprise_boundary_guard_fails_when_git_enumeration_fails(tmp_path: Path) -> None:
+def test_enterprise_boundary_guard_fails_when_git_enumeration_fails(
+    tmp_path: Path,
+) -> None:
     guard = ROOT / "core/entrypoints/cli/scripts/check_no_enterprise_leak.sh"
     git_shim = tmp_path / "git"
     git_shim.write_text("#!/bin/sh\nexit 128\n", encoding="utf-8")
@@ -920,6 +926,8 @@ def test_frontend_shell_is_built_once_per_source_content(
             "set -euo pipefail",
             'ROOT_DIR="$1"',
             'quality_cache_dir="$2"',
+            "frontend_shell_key()"
+            + _shell_function(source, "frontend_shell_key", "ensure_frontend_shell"),
             "ensure_frontend_shell()"
             + _shell_function(source, "ensure_frontend_shell", "prepare_frontend_workspace"),
             "prepare_frontend_workspace()"
@@ -938,7 +946,10 @@ def test_frontend_shell_is_built_once_per_source_content(
 
     def run() -> None:
         subprocess.run(
-            ["bash", "-c", script, "_", str(repo), str(cache)], env=env, check=True, text=True
+            ["bash", "-c", script, "_", str(repo), str(cache)],
+            env=env,
+            check=True,
+            text=True,
         )
 
     run()
@@ -1143,7 +1154,16 @@ def test_audit_image_resolver_overwrites_inherited_selector_and_refuses_bad_meta
     )
 
     result = subprocess.run(
-        ["bash", "-c", script, "_", str(tmp_path), str(log), metadata, str(inspect_exit)],
+        [
+            "bash",
+            "-c",
+            script,
+            "_",
+            str(tmp_path),
+            str(log),
+            metadata,
+            str(inspect_exit),
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -1308,3 +1328,100 @@ def test_audit_sdk_enumeration_failure_stops_before_image_use(tmp_path: Path, fa
 
     assert result.returncode == (128 if failure == "missing-metadata" else 23)
     assert log.read_text(encoding="utf-8") == "", "invalid SDK input must not inspect or build"
+
+
+@pytest.mark.parametrize("scenario", ["unchanged", "changed", "custom_manifest"])
+def test_frontend_suite_shell_is_reused_only_for_matching_core_sources(
+    tmp_path: Path, scenario: str
+) -> None:
+    repo = tmp_path / "repo"
+    frontend = repo / "assets/frontend"
+    (frontend / "src").mkdir(parents=True)
+    (frontend / "package.json").write_text("{}\n")
+    (frontend / "src/main.tsx").write_text("export const version = 1;\n")
+    subprocess.run(("git", "init", "-q"), cwd=repo, check=True)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "npm").write_text("#!/bin/sh\nexit 0\n")
+    (fake_bin / "npx").write_text(
+        "#!/bin/sh\n"
+        'echo backend-rebuild >> "$FS_TEST_REBUILDS"\n'
+        "mkdir -p dist && echo core-shell > dist/index.html\n"
+    )
+    for name in ("npm", "npx"):
+        (fake_bin / name).chmod(0o755)
+    source = LINT_SCRIPT.read_text()
+    script = "\n".join(
+        (
+            "set -euo pipefail",
+            'ROOT_DIR="$1"',
+            'quality_cache_dir="$2"',
+            "frontend_shell_key()"
+            + _shell_function(source, "frontend_shell_key", "ensure_frontend_shell"),
+            'run_step() { local label="$1"; shift; case "$label" in '
+            '"Frontend workspace build") mkdir -p "$frontend_dir/dist"; '
+            'echo suite-shell > "$frontend_dir/dist/index.html"; '
+            'if [[ "$FS_TEST_SCENARIO" == changed ]]; then echo changed >> "$ROOT_DIR/assets/frontend/src/main.tsx"; fi;; '
+            '"Publish frontend shell for backend tests") "$@";; esac; }',
+            "ensure_frontend_shell()"
+            + _shell_function(source, "ensure_frontend_shell", "prepare_frontend_workspace"),
+            "prepare_frontend_workspace()"
+            + _shell_function(source, "prepare_frontend_workspace", "run_check_frontend_lint"),
+            "run_check_frontend_test_build()"
+            + _shell_function(
+                source,
+                "run_check_frontend_test_build",
+                "run_check_frontend_dependency_audit",
+            ),
+            "run_check_frontend_test_build",
+            "ensure_frontend_shell",
+        )
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "FS_TEST_SCENARIO": scenario,
+        "FS_TEST_REBUILDS": str(tmp_path / "rebuilds"),
+    }
+    env.pop("VITE_FRONTEND_EXTENSION_MANIFEST", None)
+    if scenario == "custom_manifest":
+        env["VITE_FRONTEND_EXTENSION_MANIFEST"] = "custom-manifest.ts"
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(repo), str(cache)],
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    expected = "suite-shell" if scenario == "unchanged" else "core-shell"
+    assert (frontend / "dist/index.html").read_text().strip() == expected
+    assert (tmp_path / "rebuilds").exists() is (scenario != "unchanged")
+
+
+def test_frontend_gate_workspace_excludes_implicit_dotenv_inputs(
+    tmp_path: Path,
+) -> None:
+    source_assets = tmp_path / "assets"
+    frontend = source_assets / "frontend"
+    frontend.mkdir(parents=True)
+    for name in (".env", ".env.production", ".env.test.local"):
+        (frontend / name).write_text("VITE_UNTRACKED_OVERRIDE=unsafe\n")
+    (frontend / "package.json").write_text("{}\n")
+    (source_assets / "platform-components.css").write_text("body {}\n")
+    workspace_assets = tmp_path / "workspace/assets"
+    source = LINT_SCRIPT.read_text()
+    script = (
+        "set -euo pipefail\nprepare_frontend_workspace()"
+        + _shell_function(source, "prepare_frontend_workspace", "run_check_frontend_lint")
+        + '\nprepare_frontend_workspace "$1" "$2"\n'
+    )
+    subprocess.run(
+        ["bash", "-c", script, "_", str(source_assets), str(workspace_assets)],
+        check=True,
+    )
+    assert (workspace_assets / "frontend/package.json").is_file()
+    assert (workspace_assets / "platform-components.css").is_file()
+    assert list((workspace_assets / "frontend").glob(".env*")) == []

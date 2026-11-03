@@ -201,6 +201,9 @@ A small diff `MUST NOT` be treated as low risk solely because it is small.
 
 ## Failure and Retry Semantics
 
+- After a completed full gate fails, agents `MUST` collect its complete failure list, group failures by cause, and make one coherent fix batch. The next verification `MUST` select the failed tests plus tests affected by that batch; `MUST NOT` automatically restart `--full` or GitHub's entire failed quality job after each edit.
+- For that fix cycle, use the failed candidate SHA as the diff base (`auto:<failed-sha>`) and add explicit failed test paths/node IDs. Add database, dynamic import, extension and other consumers that the import graph cannot identify. Frontend explicit selections `MUST` include both failed files and affected consumers; the frontend wrapper accepts either `auto:<ref>` or an explicit list, not a combined string.
+- Keep previous passed results with their original SHA and environment as historical evidence. A focused pass `MUST NOT` rewrite a failed full gate, upgrade historical passes to the changed SHA, or claim complete Tier 2/Tier 3 coverage. A final cumulative gate is a separate readiness step, after the focused cycle passes; a user-authorized release exception `MUST` name the selected checks, source failed run, final SHA and unrun coverage explicitly.
 - During Tier 1 focused iteration, a deterministic failure `MUST` stop its current sequential group immediately.
 - The Tier 3 backend unit suite is the explicit exception: it `MUST` finish collecting its failure list before dependent checks stop; the failures are then grouped by shared root cause and fixed as one justified in-scope batch.
 - Tier 3 `MUST` run every owned check to the end even after one fails, so one run reports the whole batch; only a check whose prerequisite failed is skipped and reported as blocked.

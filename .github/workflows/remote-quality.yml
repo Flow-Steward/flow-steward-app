@@ -12,6 +12,11 @@ on:
         required: true
         default: tier2
         options: [tier2, release, release-sonar, sonar-diagnostic, parallel-diagnostic]
+      reuse_run_id:
+        description: Optional completed official remote-quality run whose evidence and coverage will be fingerprint-validated
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -33,6 +38,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+    outputs:
+      evidence_imported: ${{ steps.copy-restored-evidence.outcome == 'success' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -40,7 +47,60 @@ jobs:
           persist-credentials: false
       - name: Require a clean exact-SHA candidate including current main
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
-      - uses: ./.github/actions/prepare-quality
+      - name: Validate explicitly requested source run and exact evidence artifact
+        id: validate-reuse-source
+        if: github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != ''
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        with:
+          script: |
+            const requested = process.env.REUSE_RUN_ID;
+            const runId = Number(requested);
+            if (!/^[1-9][0-9]*$/.test(requested) || !Number.isSafeInteger(runId)) {
+              throw new Error('reuse_run_id must be an explicit positive decimal run ID');
+            }
+            const repositoryId = Number(process.env.GITHUB_REPOSITORY_ID);
+            if (process.env.GITHUB_REPOSITORY !== 'Flow-Steward/flow-steward-app' ||
+                !Number.isSafeInteger(repositoryId) || repositoryId <= 0) {
+              throw new Error('Evidence import requires the official source repository identity');
+            }
+            const {data: workflow} = await github.rest.actions.getWorkflow({
+              ...context.repo, workflow_id: 'remote-quality.yml',
+            });
+            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: runId});
+            if (run.id !== runId || run.workflow_id !== workflow.id ||
+                run.repository?.id !== repositoryId || run.head_repository?.id !== repositoryId ||
+                !['push', 'workflow_dispatch'].includes(run.event) ||
+                run.status !== 'completed' || !['success', 'failure'].includes(run.conclusion)) {
+              throw new Error('Requested run is not a completed official remote-quality push/dispatch run');
+            }
+            if (!/^[0-9a-f]{40}$/.test(run.head_sha) ||
+                !Number.isSafeInteger(run.run_attempt) || run.run_attempt <= 0) {
+              throw new Error('Requested run has invalid source SHA or attempt provenance');
+            }
+            const artifactName = `quality-${run.head_sha}-${run.run_attempt}`;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo, run_id: runId, per_page: 100,
+            });
+            const matching = artifacts.filter(artifact => artifact.name === artifactName);
+            if (matching.length !== 1 || matching[0].expired !== false) {
+              throw new Error('Requested source has no unique retained exact-SHA/attempt quality artifact');
+            }
+            core.setOutput('run_id', requested);
+            core.setOutput('artifact_name', artifactName);
+            core.setOutput('source_sha', run.head_sha);
+            core.info(`Importing ${artifactName} from official run ${runId}; every check still requires fingerprint validation.`);
+      - name: Download explicitly requested source evidence and coverage
+        id: restore-source-evidence
+        if: steps.validate-reuse-source.outcome == 'success'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ steps.validate-reuse-source.outputs.artifact_name }}
+          path: ${{ runner.temp }}/source-quality
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.validate-reuse-source.outputs.run_id }}
       - name: Identify the previous attempt of this run
         id: previous-attempt
         if: fromJSON(github.run_attempt) > 1
@@ -56,23 +116,41 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ github.run_id }}
       - name: Restore owned evidence and coverage for fingerprint validation
-        if: steps.restore-prior-evidence.outcome == 'success'
+        id: copy-restored-evidence
+        if: steps.restore-source-evidence.outcome == 'success' || steps.restore-prior-evidence.outcome == 'success'
+        env:
+          SOURCE_RESTORED: ${{ steps.restore-source-evidence.outcome == 'success' }}
+          SOURCE_SHA: ${{ steps.validate-reuse-source.outputs.source_sha }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
-          previous="$RUNNER_TEMP/previous-quality"
-          if [[ -d "$previous/quality/evidence" ]]; then
-            mkdir -p logs/quality/evidence
-            cp -R "$previous/quality/evidence/." logs/quality/evidence/
+          if [[ "$SOURCE_RESTORED" == true ]]; then
+            source_evidence="$RUNNER_TEMP/source-quality/quality/evidence"
+            if [[ ! -d "$source_evidence" ]] || [[ -z "$(find "$source_evidence" -type f -name evidence.json -print -quit)" ]]; then
+              echo '::error::Requested quality source artifact contains no check evidence; refusing an implicit full run.'
+              exit 1
+            fi
           fi
-          if [[ -d "$previous/coverage" ]]; then
-            mkdir -p logs/coverage
-            cp -R "$previous/coverage/." logs/coverage/
-          fi
+          # Copy intact records: fingerprint and commit-scope policy decide reuse.
+          # A newer attempt of this run takes precedence over the explicit source.
+          for previous in "$RUNNER_TEMP/source-quality" "$RUNNER_TEMP/previous-quality"; do
+            if [[ -d "$previous/quality/evidence" ]]; then
+              mkdir -p logs/quality/evidence
+              cp -R "$previous/quality/evidence/." logs/quality/evidence/
+            fi
+            # Coverage describes its exact source SHA even when passed check
+            # evidence can be reused across SHAs by input fingerprint.
+            if [[ -d "$previous/coverage" ]] && [[ "$previous" == "$RUNNER_TEMP/previous-quality" || "$SOURCE_SHA" == "$GITHUB_SHA" ]]; then
+              mkdir -p logs/coverage
+              cp -R "$previous/coverage/." logs/coverage/
+            fi
+          done
           for output in logs/quality/evidence logs/coverage; do
             if [[ -d "$output" ]]; then
               sudo chgrp -R 1000 "$output"
               sudo chmod -R g+rwX "$output"
             fi
           done
+      - uses: ./.github/actions/prepare-quality
       - name: Run canonical Tier 2
         run: |
           set -o pipefail
@@ -208,6 +286,7 @@ jobs:
     needs: quality
     if: >-
       always() && !cancelled() &&
+      (inputs.reuse_run_id == '' || needs.quality.outputs.evidence_imported == 'true') &&
       (needs.quality.result == 'success' || needs.quality.result == 'failure') &&
       (inputs.mode == 'release-sonar' || inputs.mode == 'sonar-diagnostic' ||
        (github.event_name == 'push' &&

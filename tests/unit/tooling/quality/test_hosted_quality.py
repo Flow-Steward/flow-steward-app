@@ -244,3 +244,309 @@ def test_retry_restores_previous_attempt_evidence_only_from_same_run() -> None:
     assert "previous-attempt" in restore["with"]["name"]
     assert "run_attempt" in restore["if"]
     assert quality["permissions"]["actions"] == "read"
+
+
+def _remote_quality_workflow() -> dict:
+    import yaml
+
+    source_root = Path(os.environ.get("PYTEST_SOURCE_REPO_ROOT", str(ROOT)))
+    return yaml.safe_load((source_root / ".github/workflows/remote-quality.yml").read_text())
+
+
+def test_explicit_cross_run_import_is_optional_and_fails_closed_before_building() -> None:
+    workflow = _remote_quality_workflow()
+    # PyYAML's YAML 1.1 loader treats the Actions `on` key as True.
+    inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
+    assert inputs["reuse_run_id"]["type"] == "string"
+    assert inputs["reuse_run_id"]["required"] is False
+    quality = workflow["jobs"]["quality"]
+    steps = quality["steps"]
+    validate = next(step for step in steps if step.get("id") == "validate-reuse-source")
+    download = next(step for step in steps if step.get("id") == "restore-source-evidence")
+    assert "inputs.reuse_run_id != ''" in validate["if"]
+    assert validate["env"]["REUSE_RUN_ID"] == "${{ inputs.reuse_run_id }}"
+    assert validate.get("continue-on-error", False) is False
+    assert download.get("continue-on-error", False) is False
+    assert download["with"]["run-id"] == "${{ steps.validate-reuse-source.outputs.run_id }}"
+    assert download["with"]["name"] == "${{ steps.validate-reuse-source.outputs.artifact_name }}"
+    assert download["with"]["repository"] == "${{ github.repository }}"
+    assert download["with"]["github-token"] == "${{ github.token }}"
+    assert download["with"]["path"] == "${{ runner.temp }}/source-quality"
+    prepare = next(
+        step for step in steps if step.get("uses") == "./.github/actions/prepare-quality"
+    )
+    tier_two = next(step for step in steps if "lint.sh --fast" in step.get("run", ""))
+    assert (
+        steps.index(validate) < steps.index(download) < steps.index(prepare) < steps.index(tier_two)
+    )
+    assert quality["permissions"] == {"contents": "read", "actions": "read"}
+    assert "needs.quality.outputs.evidence_imported == 'true'" in workflow["jobs"]["sonar"]["if"]
+
+
+def _validate_reuse_source(run_id: str, run: dict, artifacts: list[dict]) -> dict:
+    steps = _remote_quality_workflow()["jobs"]["quality"]["steps"]
+    script = next(step for step in steps if step.get("id") == "validate-reuse-source")["with"][
+        "script"
+    ]
+    command = """
+const input = JSON.parse(process.argv[1]);
+const outputs = {};
+const github = {
+  rest: {actions: {
+    getWorkflow: async () => ({data: {id: 99}}),
+    getWorkflowRun: async ({run_id}) => {
+      if (String(run_id) !== input.run_id) throw new Error('Wrong requested run');
+      return {data: input.run};
+    },
+    listWorkflowRunArtifacts: () => {},
+  }},
+  paginate: async (_method, {run_id}) => {
+    if (String(run_id) !== input.run_id) throw new Error('Wrong artifact source');
+    return input.artifacts;
+  },
+};
+const core = {
+  setOutput: (name, value) => { outputs[name] = String(value); },
+  info: () => {},
+};
+const context = {repo: {owner: 'Flow-Steward', repo: 'flow-steward-app'}};
+const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
+new AsyncFunction('github', 'context', 'core', input.script)(github, context, core)
+  .then(() => process.stdout.write(JSON.stringify({ok: true, outputs})))
+  .catch(error => process.stdout.write(JSON.stringify({ok: false, error: error.message, outputs})));
+"""
+    result = subprocess.run(
+        [
+            "node",
+            "-e",
+            command,
+            json.dumps({"script": script, "run_id": run_id, "run": run, "artifacts": artifacts}),
+        ],
+        env={
+            **os.environ,
+            "REUSE_RUN_ID": run_id,
+            "GITHUB_REPOSITORY": "Flow-Steward/flow-steward-app",
+            "GITHUB_REPOSITORY_ID": "42",
+            "GITHUB_RUN_ID": "999",
+            "GITHUB_SHA": "b" * 40,
+        },
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def _reusable_source() -> tuple[dict, list[dict]]:
+    run = {
+        "id": 321,
+        "head_sha": "a" * 40,
+        "run_attempt": 2,
+        "workflow_id": 99,
+        "event": "push",
+        "status": "completed",
+        "conclusion": "failure",
+        "repository": {"id": 42},
+        "head_repository": {"id": 42},
+    }
+    artifacts = [{"name": f"quality-{'a' * 40}-2", "expired": False}]
+    return run, artifacts
+
+
+@pytest.mark.parametrize("event", ["push", "workflow_dispatch"])
+@pytest.mark.parametrize("conclusion", ["success", "failure"])
+def test_cross_sha_import_accepts_official_completed_run_checks(
+    event: str, conclusion: str
+) -> None:
+    run, artifacts = _reusable_source()
+    run.update(event=event, conclusion=conclusion)
+    result = _validate_reuse_source("321", run, artifacts)
+    assert result["ok"] is True, result
+    assert result["outputs"] == {
+        "run_id": "321",
+        "artifact_name": f"quality-{'a' * 40}-2",
+        "source_sha": "a" * 40,
+    }
+
+
+@pytest.mark.parametrize(
+    "run_id", ["0", "-1", "321junk", "3.21", " 321", "0321", "1e3", "9007199254740992"]
+)
+def test_cross_run_import_rejects_non_decimal_or_unsafe_run_id(run_id: str) -> None:
+    run, artifacts = _reusable_source()
+    result = _validate_reuse_source(run_id, run, artifacts)
+    assert result["ok"] is False, result
+    assert "run ID" in result["error"]
+    assert not result["outputs"]
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "run_id",
+        "workflow",
+        "repository",
+        "head_repository",
+        "missing_head_repository",
+        "event",
+        "in_progress",
+        "cancelled",
+        "sha",
+        "attempt",
+        "missing_artifact",
+        "wrong_artifact_sha",
+        "wrong_artifact_attempt",
+        "expired_artifact",
+        "duplicate_artifact",
+    ],
+)
+def test_cross_run_import_rejects_wrong_or_missing_source(fault: str) -> None:
+    run, artifacts = _reusable_source()
+    if fault == "run_id":
+        run["id"] = 322
+    elif fault == "workflow":
+        run["workflow_id"] = 100
+    elif fault in {"repository", "head_repository"}:
+        run[fault] = {"id": 43}
+    elif fault == "missing_head_repository":
+        run["head_repository"] = None
+    elif fault == "event":
+        run["event"] = "pull_request"
+    elif fault == "in_progress":
+        run["status"] = "in_progress"
+    elif fault == "cancelled":
+        run["conclusion"] = "cancelled"
+    elif fault == "sha":
+        run["head_sha"] = "../bad-sha"
+    elif fault == "attempt":
+        run["run_attempt"] = 0
+    elif fault == "missing_artifact":
+        artifacts.clear()
+    elif fault == "wrong_artifact_sha":
+        artifacts[0]["name"] = f"quality-{'b' * 40}-2"
+    elif fault == "wrong_artifact_attempt":
+        artifacts[0]["name"] = f"quality-{'a' * 40}-1"
+    elif fault == "expired_artifact":
+        artifacts[0]["expired"] = True
+    elif fault == "duplicate_artifact":
+        artifacts.append(artifacts[0].copy())
+    result = _validate_reuse_source("321", run, artifacts)
+    assert result["ok"] is False, result
+    assert not result["outputs"]
+
+
+def test_import_copies_evidence_unchanged_and_prefers_same_run_attempt() -> None:
+    steps = _remote_quality_workflow()["jobs"]["quality"]["steps"]
+    restore = next(step for step in steps if step.get("id") == "copy-restored-evidence")
+    assert "steps.restore-source-evidence.outcome == 'success'" in restore["if"]
+    assert "steps.restore-prior-evidence.outcome == 'success'" in restore["if"]
+    script = restore["run"]
+    assert script.index('"$RUNNER_TEMP/source-quality"') < script.index(
+        '"$RUNNER_TEMP/previous-quality"'
+    )
+    assert 'cp -R "$previous/quality/evidence/." logs/quality/evidence/' in script
+    assert 'cp -R "$previous/coverage/." logs/coverage/' in script
+    assert restore["env"]["SOURCE_SHA"] == "${{ steps.validate-reuse-source.outputs.source_sha }}"
+    assert restore["env"]["GITHUB_SHA"] == "${{ github.sha }}"
+    assert '"$SOURCE_SHA" == "$GITHUB_SHA"' in script
+
+
+@pytest.mark.parametrize("has_evidence", [False, True])
+def test_requested_source_content_is_required_and_copied_without_promoting_commit(
+    tmp_path: Path, has_evidence: bool
+) -> None:
+    steps = _remote_quality_workflow()["jobs"]["quality"]["steps"]
+    script = next(step for step in steps if step.get("id") == "copy-restored-evidence")["run"]
+    runner_temp = tmp_path / "runner-temp"
+    source = runner_temp / "source-quality"
+    source.mkdir(parents=True)
+    record = '{"commit_sha": "' + "a" * 40 + '", "status": "passed"}\n'
+    if has_evidence:
+        for name in ("source-quality", "previous-quality"):
+            artifact = runner_temp / name
+            evidence = artifact / "quality/evidence/check/fingerprint"
+            evidence.mkdir(parents=True)
+            (evidence / "evidence.json").write_text(record)
+            coverage = artifact / "coverage"
+            coverage.mkdir()
+            (coverage / "coverage.xml").write_text(name)
+        reports = source / "quality/hosted"
+        reports.mkdir()
+        (reports / "old-hosted.log").write_text("prior hosted diagnostics")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    sudo = fake_bin / "sudo"
+    sudo.write_text("#!/usr/bin/env bash\nexit 0\n")
+    sudo.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "-euo", "pipefail", "-c", script],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "RUNNER_TEMP": str(runner_temp),
+            "SOURCE_RESTORED": "true",
+            "SOURCE_SHA": "a" * 40,
+            "GITHUB_SHA": "b" * 40,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if has_evidence:
+        assert result.returncode == 0, result.stderr
+        assert (
+            tmp_path / "logs/quality/evidence/check/fingerprint/evidence.json"
+        ).read_text() == record
+        assert (tmp_path / "logs/coverage/coverage.xml").read_text() == "previous-quality"
+        assert not (tmp_path / "logs/quality/hosted/old-hosted.log").exists()
+    else:
+        assert result.returncode != 0
+        assert "refusing an implicit full run" in result.stdout
+        assert not (tmp_path / "logs").exists()
+
+
+@pytest.mark.parametrize("same_sha", [False, True])
+def test_source_coverage_is_restored_only_for_exact_current_sha(
+    tmp_path: Path, same_sha: bool
+) -> None:
+    steps = _remote_quality_workflow()["jobs"]["quality"]["steps"]
+    script = next(step for step in steps if step.get("id") == "copy-restored-evidence")["run"]
+    runner_temp = tmp_path / "runner-temp"
+    source = runner_temp / "source-quality"
+    evidence = source / "quality/evidence/check/fingerprint"
+    evidence.mkdir(parents=True)
+    record = '{"commit_sha": "' + "a" * 40 + '", "status": "passed"}\n'
+    (evidence / "evidence.json").write_text(record)
+    coverage = source / "coverage"
+    coverage.mkdir()
+    (coverage / "coverage.xml").write_text("source coverage")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    sudo = fake_bin / "sudo"
+    sudo.write_text("#!/usr/bin/env bash\nexit 0\n")
+    sudo.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "-euo", "pipefail", "-c", script],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "RUNNER_TEMP": str(runner_temp),
+            "SOURCE_RESTORED": "true",
+            "SOURCE_SHA": "a" * 40,
+            "GITHUB_SHA": ("a" if same_sha else "b") * 40,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (
+        tmp_path / "logs/quality/evidence/check/fingerprint/evidence.json"
+    ).read_text() == record
+    restored = tmp_path / "logs/coverage/coverage.xml"
+    if same_sha:
+        assert restored.read_text() == "source coverage"
+    else:
+        assert not restored.exists()

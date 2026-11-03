@@ -2574,6 +2574,19 @@ fi
 # backend test run now makes sure the shell matches the current sources itself:
 # keyed by the content of assets/ (tests excluded), restored from the shared
 # cache when that key was built before, otherwise built with vite.
+frontend_shell_key() {
+  local sources=""
+  # Without a source listing there is no trustworthy key: build, cache nothing.
+  if sources="$(git -C "${ROOT_DIR}" ls-files --cached --others --exclude-standard -- assets)" \
+    && [[ -n "${sources}" ]]; then
+    {
+      node --version 2>/dev/null || echo no-node
+      grep -vE '(\.test\.|\.spec\.|/tests?/|/dist/)' <<< "${sources}" \
+        | (cd "${ROOT_DIR}" && xargs -d '\n' -r sha256sum 2>/dev/null)
+    } | sha256sum | cut -d' ' -f1
+  fi
+}
+
 ensure_frontend_shell() {
   local frontend_dir="${ROOT_DIR}/assets/frontend"
   local dist_dir="${frontend_dir}/dist"
@@ -2582,20 +2595,8 @@ ensure_frontend_shell() {
   local cached=""
   local workspace_dir=""
 
-  local sources=""
-
   [[ -f "${frontend_dir}/package.json" ]] || return 0
-  # Without a source listing there is no trustworthy key: build, cache nothing.
-  if sources="$(git -C "${ROOT_DIR}" ls-files --cached --others --exclude-standard -- assets)" \
-    && [[ -n "${sources}" ]]; then
-    key="$(
-      {
-        node --version 2>/dev/null || echo no-node
-        grep -vE '(\.test\.|\.spec\.|/tests?/|/dist/)' <<< "${sources}" \
-          | (cd "${ROOT_DIR}" && xargs -d '\n' -r sha256sum 2>/dev/null)
-      } | sha256sum | cut -d' ' -f1
-    )"
-  fi
+  key="$(frontend_shell_key)"
   if [[ -n "${key}" && -f "${stamp}" && "$(cat -- "${stamp}")" == "${key}" ]]; then
     return 0
   fi
@@ -2650,6 +2651,7 @@ prepare_frontend_workspace() {
   # Keep npm's mutable dependency tree off the Docker Desktop bind mount.
   mkdir -p "${workspace_assets_dir}"
   tar --exclude='./frontend/node_modules' --exclude='./frontend/dist' \
+    --exclude='./frontend/.env' --exclude='./frontend/.env.*' \
     -C "${source_assets_dir}" -cf - . \
     | tar -C "${workspace_assets_dir}" -xf -
 }
@@ -2756,6 +2758,7 @@ run_check_frontend_test_build() {
   local source_dir="${ROOT_DIR}/assets/frontend"
   local workspace_dir=""
   local frontend_dir=""
+  local shell_key_before=""
 
   if [[ ! -f "${source_dir}/package.json" ]]; then
     echo
@@ -2763,6 +2766,9 @@ run_check_frontend_test_build() {
     return
   fi
 
+  if [[ -z "${VITE_FRONTEND_EXTENSION_MANIFEST:-}" ]]; then
+    shell_key_before="$(frontend_shell_key)"
+  fi
   workspace_dir="$(mktemp -d "${TMPDIR:-/tmp}/flow-steward-frontend.XXXXXX")"
   frontend_dir="${workspace_dir}/assets/frontend"
   trap 'rm -rf "${workspace_dir}"' EXIT
@@ -2774,6 +2780,9 @@ run_check_frontend_test_build() {
   run_step \
     "Publish frontend shell for backend tests" \
     bash -lc "rm -rf '${source_dir}/dist' && cp -R '${frontend_dir}/dist' '${source_dir}/dist'"
+  if [[ -n "${shell_key_before}" && "${shell_key_before}" == "$(frontend_shell_key)" ]]; then
+    printf '%s\n' "${shell_key_before}" > "${source_dir}/dist/.flow-steward-shell-key"
+  fi
 )
 }
 
