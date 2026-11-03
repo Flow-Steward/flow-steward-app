@@ -279,6 +279,31 @@ function renderPage(
   };
 }
 
+/** Action identity tests start with loaded data; loading is covered separately. */
+function renderReadyManifestActionPage(manifest: Record<string, unknown>) {
+  const extensionId = "smoke.guardrail.enforcement";
+  mockedFetchExtensionCompiledManifest.mockResolvedValue(manifest);
+  return renderPage(`/extensions/${extensionId}`, "admin", (queryClient) => {
+    queryClient.setQueryData(["extensions", "detail", extensionId], {
+      extension_id: extensionId,
+      display_name: "Smoke Guardrail Enforcement",
+      version: "1.0.1",
+      state: "active",
+      active: true,
+      vendor_name: "Flow Steward",
+      category: "security-automation",
+      description: "Enforces extension runtime guardrails.",
+    });
+    queryClient.setQueryData(["extensions", "compiled-manifest", extensionId], manifest);
+    queryClient.setQueryData(["extensions", "archive-lifecycle-capability"], {
+      available: true,
+      reason_code: "available",
+      message: "",
+      remediation: { install_update: [], uninstall: [] },
+    });
+  });
+}
+
 function RecoveryScopeSwitcher() {
   const navigate = useNavigate();
   return <>
@@ -5436,7 +5461,7 @@ describe("ExtensionsHubPage", () => {
         },
       },
     });
-    mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    renderReadyManifestActionPage({
       ui_manifest: {
         pages: [
           {
@@ -5459,9 +5484,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    renderPage("/extensions/smoke.guardrail.enforcement");
-
-    await user.click(await screen.findByRole("button", { name: "Score Records" }));
+    await user.click(screen.getByRole("button", { name: "Score Records" }));
 
     const result = await screen.findByRole("region", { name: "Score Records result" });
     expect(result).toHaveTextContent("succeeded");
@@ -5535,7 +5558,7 @@ describe("ExtensionsHubPage", () => {
       }))
       .mockResolvedValueOnce(succeeded)
       .mockResolvedValueOnce(succeeded);
-    mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    renderReadyManifestActionPage({
       ui_manifest: {
         pages: [
           {
@@ -5558,8 +5581,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    renderPage("/extensions/smoke.guardrail.enforcement");
-    const actionButton = await screen.findByRole("button", { name: "Score Records" });
+    const actionButton = screen.getByRole("button", { name: "Score Records" });
 
     await user.click(actionButton);
     expect(await screen.findByText(
@@ -5594,7 +5616,7 @@ describe("ExtensionsHubPage", () => {
         .mockResolvedValueOnce({
           action: { status: "succeeded", response: { ok: true, result: {} } },
         });
-      mockedFetchExtensionCompiledManifest.mockResolvedValue({
+      renderReadyManifestActionPage({
         ui_manifest: {
           pages: [
             {
@@ -5617,8 +5639,7 @@ describe("ExtensionsHubPage", () => {
         },
       });
 
-      renderPage("/extensions/smoke.guardrail.enforcement");
-      const actionButton = await screen.findByRole("button", { name: "Score Records" });
+      const actionButton = screen.getByRole("button", { name: "Score Records" });
       await user.click(actionButton);
       expect(await screen.findByText(
         "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
@@ -5659,7 +5680,7 @@ describe("ExtensionsHubPage", () => {
       .mockResolvedValueOnce({
         action: { status: "succeeded", response: { ok: true, result: {} } },
       });
-    mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    renderReadyManifestActionPage({
       ui_manifest: {
         pages: [{
           page_id: "setup",
@@ -5678,8 +5699,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    renderPage("/extensions/smoke.guardrail.enforcement");
-    const actionButton = await screen.findByRole("button", { name: "Verify" });
+    const actionButton = screen.getByRole("button", { name: "Verify" });
     await user.click(actionButton);
 
     expect(
@@ -5730,7 +5750,7 @@ describe("ExtensionsHubPage", () => {
         .mockResolvedValueOnce({
           action: { status: "succeeded", response: { ok: true, result: {} } },
         });
-      mockedFetchExtensionCompiledManifest.mockResolvedValue({
+      const manifest = {
         ui_manifest: {
           pages: [{
             page_id: "operations",
@@ -5745,10 +5765,10 @@ describe("ExtensionsHubPage", () => {
             }],
           }],
         },
-      });
+      };
 
-      renderPage("/extensions/smoke.guardrail.enforcement");
-      const actionButton = await screen.findByRole("button", { name: "Publish" });
+      renderReadyManifestActionPage(manifest);
+      const actionButton = screen.getByRole("button", { name: "Publish" });
       await user.click(actionButton);
       const ambiguity = screen.queryByText(
         "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
@@ -5795,7 +5815,7 @@ describe("ExtensionsHubPage", () => {
       .mockResolvedValueOnce({
         action: { status: "succeeded", response: { ok: true, result: {} } },
       });
-    mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    renderReadyManifestActionPage({
       ui_manifest: {
         pages: [{
           page_id: "operations",
@@ -5817,8 +5837,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    renderPage("/extensions/smoke.guardrail.enforcement");
-    const actionButton = await screen.findByRole("button", {
+    const actionButton = screen.getByRole("button", {
       name: "Refresh Discovered Chats",
     });
     await user.click(actionButton);
@@ -5854,7 +5873,7 @@ describe("ExtensionsHubPage", () => {
         .mockResolvedValueOnce({
           action: { status: "succeeded", response: { ok: true, result: {} } },
         });
-      mockedFetchExtensionCompiledManifest.mockResolvedValue({
+      renderReadyManifestActionPage({
         ui_manifest: {
           pages: [{
             page_id: "settings",
@@ -5873,8 +5892,7 @@ describe("ExtensionsHubPage", () => {
         },
       });
 
-      renderPage("/extensions/smoke.guardrail.enforcement");
-      const actionButton = await screen.findByRole("button", { name: "Save Settings" });
+      const actionButton = screen.getByRole("button", { name: "Save Settings" });
       await user.click(actionButton);
       expect(await screen.findByText(
         "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
@@ -5902,7 +5920,7 @@ describe("ExtensionsHubPage", () => {
       .mockResolvedValueOnce({
         action: { status: "succeeded", response: { ok: true, result: {} } },
       });
-    mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    renderReadyManifestActionPage({
       ui_manifest: {
         pages: [
           {
@@ -5926,8 +5944,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    renderPage("/extensions/smoke.guardrail.enforcement");
-    const actionButton = await screen.findByRole("button", { name: "Score Records" });
+    const actionButton = screen.getByRole("button", { name: "Score Records" });
     const record = screen.getByLabelText("Record");
     await user.type(record, "first");
     await user.click(actionButton);
@@ -5987,7 +6004,7 @@ describe("ExtensionsHubPage", () => {
         },
       }))
       .mockResolvedValueOnce(succeeded);
-    mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    const manifest = {
       ui_manifest: {
         pages: [
           {
@@ -6008,10 +6025,10 @@ describe("ExtensionsHubPage", () => {
           },
         ],
       },
-    });
+    };
 
-    renderPage("/extensions/smoke.guardrail.enforcement");
-    const actionButton = await screen.findByRole("button", { name: "Score Records" });
+    renderReadyManifestActionPage(manifest);
+    const actionButton = screen.getByRole("button", { name: "Score Records" });
 
     await user.click(actionButton);
     await screen.findByText(

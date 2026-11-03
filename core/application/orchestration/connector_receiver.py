@@ -110,7 +110,12 @@ def pin_extension_receiver(
     from core.application.orchestration.connector_mapping import _TOKEN_EXTENSION
 
     install_id = _text(connector_install_id)
-    candidates = [install_id] if install_id else ([ext_id] if ext_id else [])
+    if install_id:
+        candidates = [install_id]
+    elif ext_id:
+        candidates = [ext_id]
+    else:
+        candidates = []
     # The dispatch refuses these before any lookup; nothing to pin either.
     if not op_id or not _text(account_id):
         return None
@@ -382,11 +387,12 @@ def definition_receivers(definition: Any, *, lineage: dict[str, str]) -> list[di
     for step in connector_steps(definition):
         target = step_target(step)
         pinned = pin_step_receiver(**target, lineage=lineage, get_logger_only=_shared_logger)
-        entry = (
-            (pinned.describe() if isinstance(pinned, PinnedTool) else pinned.identity())
-            if pinned is not None
-            else {"kind": "unpinned", "connector_id": target["connector_id"]}
-        )
+        if pinned is None:
+            entry = {"kind": "unpinned", "connector_id": target["connector_id"]}
+        elif isinstance(pinned, PinnedTool):
+            entry = pinned.describe()
+        else:
+            entry = pinned.identity()
         entry = {
             "project_id": _text(lineage.get("project_id")),
             "step_id": _text(_mapping(step).get("step_id")),

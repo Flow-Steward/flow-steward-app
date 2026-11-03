@@ -20,7 +20,8 @@ export type CatalogSecret = {
 
 /** One consumer of a secret, named so a person can find it and remove its binding. */
 export type CatalogSecretUsage = {
-  consumer_kind: "project_connection" | "workflow_input" | string;
+  /** "project_connection" or "workflow_input" today; a newer server may name another. */
+  consumer_kind: string;
   connection_id: string | null;
   connection_name?: string;
   workflow_id?: string | null;

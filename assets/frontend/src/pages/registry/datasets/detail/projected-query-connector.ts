@@ -2,7 +2,19 @@ import type { DatasetConnector, DatasetRecord } from "../api";
 import { isRecord } from "./dataset-detail-helpers";
 
 const text = (value: unknown): string => typeof value === "string" ? value.trim() : "";
-const bridgePart = (value: string): string => value.replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "");
+const bridgePart = (value: string): string => {
+  const normalized = value.replace(/[^A-Za-z0-9_.-]+/g, "-");
+  let start = 0;
+  let end = normalized.length;
+  // Trim only edge hyphens without backtracking; interior runs remain part of the ID.
+  while (start < end && normalized[start] === "-") {
+    start += 1;
+  }
+  while (end > start && normalized[end - 1] === "-") {
+    end -= 1;
+  }
+  return normalized.slice(start, end);
+};
 
 /** Mirror the immutable projected bridge checks used by saved-query validation. */
 export function projectedQueryConnector(

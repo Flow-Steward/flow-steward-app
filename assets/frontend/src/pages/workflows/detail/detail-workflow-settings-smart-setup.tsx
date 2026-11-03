@@ -284,7 +284,10 @@ function StructuredInputEditor({ ctx }: Readonly<{ ctx: WorkflowSettingsSmartSet
  */
 function workflowSecretApprovalPanel(ctx: WorkflowSettingsSmartSetupContext) {
   const rows: Array<{ originalAuthoredRow?: Record<string, unknown> }> = Array.isArray(ctx.workflowInterfaceInputsDraft) ? ctx.workflowInterfaceInputsDraft : [];
-  const hasSecretInputs = rows.some((row) => String(row.originalAuthoredRow?.type ?? "").trim() === "secret");
+  const hasSecretInputs = rows.some((row) => {
+    const authoredType = row.originalAuthoredRow?.type;
+    return typeof authoredType === "string" && authoredType.trim() === "secret";
+  });
   return (
     <WorkflowSecretApprovalPanel
       hasSecretInputs={hasSecretInputs}

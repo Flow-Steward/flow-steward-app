@@ -352,10 +352,12 @@ def execute_connector_step(
     )
     with step_activity_heartbeat(_shared_job_store(), job_id=activity_job_id, label=step_label):
         # A pinned extension receives the values it was checked for, never a tool.
-        tool_dispatch = (
-            None
-            if isinstance(receiver, PinnedReceiver)
-            else _dispatch_tool_runtime(
+        if isinstance(receiver, PinnedReceiver):
+            tool_dispatch = None
+        else:
+            # A pinned tool is dispatched as selected, never another one.
+            pinned_tool = receiver if isinstance(receiver, PinnedTool) else None
+            tool_dispatch = _dispatch_tool_runtime(
                 connector_id=connector_id,
                 connector_install_id=connector_install_id,
                 function_name=function_name,
@@ -366,10 +368,8 @@ def execute_connector_step(
                 protected_input_secret_budget_exceeded=protected_input_secret_budget_exceeded,
                 connection_binding=raw_connection_binding,
                 state=runtime_state,
-                # A pinned tool is dispatched as selected, never another one.
-                pinned_tool=receiver if isinstance(receiver, PinnedTool) else None,
+                pinned_tool=pinned_tool,
             )
-        )
     if tool_dispatch and tool_dispatch.get("handled"):
         tool_dispatch["connector_id"] = connector_id
         tool_dispatch["input_payload"] = input_payload

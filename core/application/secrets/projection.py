@@ -79,7 +79,11 @@ OAUTH_OPERATIONAL_FIELDS = frozenset(
 
 
 def _object(value: Any) -> Any:
-    return value if isinstance(value, (dict, list)) else ({} if value is None else value)
+    if isinstance(value, (dict, list)):
+        return value
+    if value is None:
+        return {}
+    return value
 
 
 def _executable_config(value: Any) -> Any:

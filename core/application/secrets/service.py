@@ -38,6 +38,7 @@ from core.application.secrets.service_workflows import WorkflowSecretInputsMixin
 _MAX_NAME = 200
 _MAX_DESCRIPTION = 2000
 _MAX_VALUE_BYTES = 64 * 1024
+_NOT_FOUND_MESSAGE = "Secret not found"
 OAUTH_GRANT_PREFIX = "_oauth_"  # pragma: allowlist secret - a name prefix
 
 
@@ -219,13 +220,13 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
             cur, account_id=scope.account_id, secret_id=_text(secret_id), for_update=lock
         )
         if not secret:
-            raise ServiceNotFoundError("Secret not found")
+            raise ServiceNotFoundError(_NOT_FOUND_MESSAGE)
         project_id = _text(secret.get("project_id"))
         workspace_id = _text(secret.get("workspace_id"))
         if scope.allowed_project_ids and project_id not in scope.allowed_project_ids:
-            raise ServiceNotFoundError("Secret not found")
+            raise ServiceNotFoundError(_NOT_FOUND_MESSAGE)
         if scope.allowed_workspace_ids and workspace_id not in scope.allowed_workspace_ids:
-            raise ServiceNotFoundError("Secret not found")
+            raise ServiceNotFoundError(_NOT_FOUND_MESSAGE)
         return secret
 
     # -- catalog -------------------------------------------------------------

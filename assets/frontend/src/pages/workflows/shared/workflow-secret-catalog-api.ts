@@ -19,7 +19,8 @@ export type WorkflowSecretDestination = {
 export type WorkflowSecretReceiver = {
   project_id?: string;
   step_id: string;
-  kind: "extension" | "tool_extension" | "host_tool" | "mcp" | "unpinned" | string;
+  /** "extension", "tool_extension", "host_tool", "mcp" or "unpinned" today; a newer server may name another. */
+  kind: string;
   tool_id?: string;
   install_id?: string;
   release_id?: string;
