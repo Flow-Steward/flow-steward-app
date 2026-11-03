@@ -30,6 +30,9 @@ jobs:
     if: github.repository == 'Flow-Steward/flow-steward-app' && github.event.repository.private == false
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -38,6 +41,38 @@ jobs:
       - name: Require a clean exact-SHA candidate including current main
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - uses: ./.github/actions/prepare-quality
+      - name: Identify the previous attempt of this run
+        id: previous-attempt
+        if: fromJSON(github.run_attempt) > 1
+        run: echo "number=$((GITHUB_RUN_ATTEMPT - 1))" >> "$GITHUB_OUTPUT"
+      - name: Restore prior evidence from this same run and SHA
+        id: restore-prior-evidence
+        if: fromJSON(github.run_attempt) > 1
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: quality-${{ github.sha }}-${{ steps.previous-attempt.outputs.number }}
+          path: ${{ runner.temp }}/previous-quality
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+      - name: Restore owned evidence and coverage for fingerprint validation
+        if: steps.restore-prior-evidence.outcome == 'success'
+        run: |
+          previous="$RUNNER_TEMP/previous-quality"
+          if [[ -d "$previous/quality/evidence" ]]; then
+            mkdir -p logs/quality/evidence
+            cp -R "$previous/quality/evidence/." logs/quality/evidence/
+          fi
+          if [[ -d "$previous/coverage" ]]; then
+            mkdir -p logs/coverage
+            cp -R "$previous/coverage/." logs/coverage/
+          fi
+          for output in logs/quality/evidence logs/coverage; do
+            if [[ -d "$output" ]]; then
+              sudo chgrp -R 1000 "$output"
+              sudo chmod -R g+rwX "$output"
+            fi
+          done
       - name: Run canonical Tier 2
         run: |
           set -o pipefail

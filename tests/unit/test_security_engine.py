@@ -110,11 +110,6 @@ class TestEmptyInput:
         decision = orch.scan_input("", "inbound")
         assert decision.action == "allow"
 
-    def test_none_like(self, policy):
-        orch = SecurityOrchestrator(policy)
-        decision = orch.scan_input("", "inbound")
-        assert decision.action == "allow"
-
 
 class TestProjectIsolation:
     def test_different_project_ids(self):

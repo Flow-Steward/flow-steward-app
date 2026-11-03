@@ -2311,7 +2311,7 @@ run_check_unit_tests_with_coverage() {
       bash -lc "set -o pipefail; \
         PYTHONHASHSEED=${unit_test_hash_seed} ./core/entrypoints/cli/scripts/run-core-only-tests.sh \
           --coverage-export-dir "${ROOT_DIR}/logs/coverage/unit" \
-          \"${PYTHON_BIN}\" -u -m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}tests/unit \
+          \"${PYTHON_BIN}\" -u -m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}tests/unit --ignore=tests/unit/stress \
           ${coverage_args_shell}\
           --durations=30 --durations-min=1.0 \
           --cov-report=term-missing \

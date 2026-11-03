@@ -22,6 +22,7 @@ _GATE_INPUTS = (
     "core/application/tooling/quality/evidence.py",
     "core/application/tooling/quality/verify.py",
     "core/entrypoints/cli/scripts/lint.sh",
+    "core/entrypoints/cli/scripts/run-core-only-tests.sh",
     # The audit image pins the tool versions. Evidence reused across commits
     # (reuse_scope "inputs") must not outlive a ruff, mypy or semgrep upgrade.
     "infra/docker/Dockerfile",

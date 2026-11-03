@@ -226,3 +226,21 @@ def test_cumulative_reader_is_dispatched_with_privileged_identity() -> None:
     dispatch = dispatch.rsplit("fs_compose run", 1)[1]
     arguments = shlex.split(dispatch)
     assert arguments[arguments.index("--user") + 1] == "0:0"
+
+
+def test_retry_restores_previous_attempt_evidence_only_from_same_run() -> None:
+    import yaml
+
+    source_root = Path(os.environ.get("PYTEST_SOURCE_REPO_ROOT", str(ROOT)))
+    workflow = yaml.safe_load((source_root / ".github/workflows/remote-quality.yml").read_text())
+    quality = workflow["jobs"]["quality"]
+    steps = quality["steps"]
+    retry = next(step for step in steps if step.get("id") == "previous-attempt")
+    assert "GITHUB_RUN_ATTEMPT" in retry["run"]
+    restore = next(step for step in steps if step.get("id") == "restore-prior-evidence")
+    assert restore["continue-on-error"] is True
+    assert restore["with"]["run-id"] == "${{ github.run_id }}"
+    assert "github.sha" in restore["with"]["name"]
+    assert "previous-attempt" in restore["with"]["name"]
+    assert "run_attempt" in restore["if"]
+    assert quality["permissions"]["actions"] == "read"

@@ -108,22 +108,6 @@ def test_workflow_knowledge_sync_readiness_fails_after_loop_failure() -> None:
     assert "graph with oid" in result["last_failure_reason"]
 
 
-def test_workflow_knowledge_sync_readiness_preserves_latest_failure_detail() -> None:
-    bl = MagicMock()
-    bl.get_workflow_knowledge_sync_loop_status.return_value = {
-        "last_attempt_at": datetime.now(UTC).isoformat(),
-        "last_success_at": "",
-        "last_failure_reason": "graph with oid 21229 does not exist",
-        "consecutive_failures": 1,
-    }
-
-    result = readiness_runtime._workflow_knowledge_sync_check(bl)
-
-    assert result["ok"] is False
-    assert result["consecutive_failures"] == 1
-    assert "graph with oid" in result["last_failure_reason"]
-
-
 def test_workflow_knowledge_sync_readiness_fails_when_success_is_stale() -> None:
     bl = MagicMock()
     stale = datetime.now(UTC) - timedelta(hours=2)

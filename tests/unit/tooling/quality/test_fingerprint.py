@@ -250,6 +250,19 @@ def test_gate_implementation_change_invalidates_existing_fingerprint(tmp_path: P
     assert fingerprint_check(_check(), context) != before
 
 
+def test_core_only_workspace_change_invalidates_prior_check_evidence(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    runner = repo / "core/entrypoints/cli/scripts/run-core-only-tests.sh"
+    runner.parent.mkdir(parents=True, exist_ok=True)
+    runner.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    context = FingerprintContext(root=repo, source="worktree")
+    before = fingerprint_check(_check(), context)
+
+    runner.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+
+    assert fingerprint_check(_check(), context) != before
+
+
 def test_path_only_check_ignores_content_but_detects_new_path(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     check = _check("repository-boundary", inputs=("core/**",)).model_copy(

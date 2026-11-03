@@ -25,6 +25,7 @@ The canonical test layout is:
 - `tests/security`
 - `tests/db`
 - `tests/fixtures`
+- `tests/unit/stress` — separately scheduled scale and stress checks
 
 Rules:
 
@@ -184,6 +185,7 @@ interpreter and never by a core-only result:
 - `MUST NOT` treat the Tier 3 delta alone as proof of Tier 2 or publish when the cumulative `--full` validation fails.
 - `MUST` run integration/E2E and candidate smoke checks when required by the changed runtime contract, recording image digests, compose project, and environment.
 - Additional deep audit checks `MAY` be selected explicitly with `lint.sh --checks`; they are not a fourth tier or a GitHub prerequisite.
+- Stress and scale checks under `tests/unit/stress` run separately from merge and release acceptance. The public GitHub workflow runs them weekly and on manual dispatch; run them locally when needed with `lint.sh --checks targeted-tests --test-paths tests/unit/stress`. Their results are not part of Tier 3 evidence.
 
 ## Test Selection
 

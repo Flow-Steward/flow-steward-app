@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import threading
 from datetime import UTC, datetime
@@ -235,6 +236,42 @@ def test_reuse_mode_skips_valid_hits(tmp_path: Path) -> None:
     assert runner.calls == []
     assert summary.reused == ("ruff", "mypy", "frontend-lint")
     assert summary.status == "passed"
+
+
+def test_restored_same_commit_reuses_frontend_and_retries_failed_backend(tmp_path: Path) -> None:
+    repo, sha = _committed_repo(tmp_path / "repo")
+    registry = CheckRegistry(
+        schema_version=1,
+        checks=(
+            CheckDefinition(
+                id="frontend-tests", owner_tier=3, command=("frontend",), inputs=("assets/**",)
+            ),
+            CheckDefinition(
+                id="backend-tests", owner_tier=3, command=("backend",), inputs=("core/**",)
+            ),
+        ),
+    )
+    first = tmp_path / "first"
+    request = VerificationRequest(
+        tier=3, repository_root=repo, evidence_root=first, commit_sha=sha, evidence_mode="reuse"
+    )
+    initial = verify(
+        request,
+        registry=registry,
+        runner=FakeCheckRunner({"frontend-tests": 0, "backend-tests": 1}),
+    )
+    assert initial.status == "failed"
+
+    restored = tmp_path / "restored"
+    shutil.copytree(first, restored)
+    runner = FakeCheckRunner({"frontend-tests": 1, "backend-tests": 0})
+    result = verify(
+        request.model_copy(update={"evidence_root": restored}), registry=registry, runner=runner
+    )
+
+    assert result.status == "passed"
+    assert result.reused == ("frontend-tests",)
+    assert runner.calls == ["backend-tests"]
 
 
 def test_tier2_failure_stops_before_dependent_or_independent_checks(tmp_path: Path) -> None:
