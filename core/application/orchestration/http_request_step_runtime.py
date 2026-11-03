@@ -169,18 +169,9 @@ def _reject_blocked_response_peer(response: httpx.Response) -> None:
         peer_host = str(peer or "").strip()
     if not peer_host:
         return
-    from core.application.extensions.lifecycle import _is_blocked_ip
-    from core.application.extensions.url_safety import (
-        _allow_private_remote_urls,
-        is_development_private_ip,
-    )
+    from core.application.extensions.url_safety import is_refused_response_peer
 
-    # The administrator's private-address switch admits the ordinary private and
-    # loopback peers the request check already admitted; link-local, metadata and
-    # reserved addresses stay refused either way.
-    if _is_blocked_ip(peer_host) and not (
-        _allow_private_remote_urls() and is_development_private_ip(peer_host)
-    ):
+    if is_refused_response_peer(peer_host):
         parsed = urlparse(str(response.request.url))
         raise httpx.ConnectError(
             f"http_request step url host '{parsed.hostname or ''}' connected to disallowed address '{peer_host}'",
@@ -536,7 +527,7 @@ def execute_http_request_step(
     secret_reader: Any = None,
 ) -> dict[str, Any]:
     """Run one HTTP step; `secret_reader` replaces the host-selected reader in tests."""
-    from core.application.secrets.workflow_gate import CatalogAuthorityReader
+    from core.application.secrets.workflow_gate import RECEIVER_HTTP, CatalogAuthorityReader
     from core.infrastructure.security.secret_reference import (
         SecretReferenceUnauthorized,
         SecretReferenceUnresolved,
@@ -557,6 +548,7 @@ def execute_http_request_step(
         conn_provider=_run_conn,
         runtime_state=runtime_state,
         # A catalog secret goes only where a person approved (ADR 0055).
+        receiver=RECEIVER_HTTP,
         url_provider=lambda: boundary.request_url,
     )
     boundary = HttpSecretBoundary(runtime_state, checked_reader)

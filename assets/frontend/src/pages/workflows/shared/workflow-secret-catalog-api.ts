@@ -15,6 +15,24 @@ export type WorkflowSecretDestination = {
   path_prefix?: string;
 };
 
+/** What one connector step's input goes to, in the project the status is for. */
+export type WorkflowSecretReceiver = {
+  project_id?: string;
+  step_id: string;
+  kind: "extension" | "tool_extension" | "host_tool" | "mcp" | "unpinned" | string;
+  tool_id?: string;
+  install_id?: string;
+  release_id?: string;
+  descriptor_sha256?: string;
+  connector_id?: string;
+  endpoint?: string;
+  transport?: string;
+  remote_tool?: string;
+  /** A built-in tool's implementation module. */
+  implementation?: string;
+  manifest_sha256?: string;
+};
+
 export type WorkflowSecretApprovalStatus = {
   workflow_id: string;
   /** Secret inputs the saved workflow declares. */
@@ -24,6 +42,8 @@ export type WorkflowSecretApprovalStatus = {
   secrets: { field: string; secret_id: string }[];
   destinations: WorkflowSecretDestination[];
   dynamic_http_steps: string[];
+  /** Who each connector step sends its input to: a pinned extension release, or nothing pinned. */
+  receivers?: WorkflowSecretReceiver[];
   approved_destinations: WorkflowSecretDestination[];
 };
 

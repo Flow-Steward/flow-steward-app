@@ -24,6 +24,7 @@ from core.application.management.errors import ServiceForbiddenError, ServiceVal
 from core.application.orchestration import http_request_step_runtime as runtime
 from core.application.registry.db_store import RegistryDBStore
 from core.application.registry.workflow_secret_defaults import secret_default_ref_owner_prefix
+from core.application.secrets.approval_gate import SecretConfigurationUnapproved
 from core.application.secrets.service import SecretCatalogService
 from core.infrastructure.db.worker.job_execution_repository import JobExecutionRepositoryAdapter
 from core.infrastructure.security.secret_reference import SecretReference
@@ -602,3 +603,289 @@ def test_every_level_of_an_invoke_chain_must_be_approved(stand) -> None:
     result = stand.run_http(stand.deliver(leaf_job), leaf_job)
     assert result["ok"] is True, result
     assert _sent_header(stand) == VALUE
+
+
+class _SpyReader:
+    """The real reader, counting reads, so a refusal is shown to happen before any."""
+
+    def __init__(self, conn) -> None:
+        self.inner = LocalStoredSecretReader(conn)
+        self.reads: list[str] = []
+
+    def read(self, context, ref_key: str) -> str:
+        self.reads.append(ref_key)
+        return self.inner.read(context, ref_key)
+
+
+def test_an_unpinned_connector_input_never_receives_a_catalog_secret(stand, monkeypatch) -> None:
+    from core.application.orchestration import connector_step_runtime
+    from core.application.secrets.workflow_gate import CatalogSecretReceiverUnpinned
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    stand.save("wf_connector")
+    _secret, key = _catalog_input(stand, "wf_connector")
+    job_id = stand.enqueue("wf_connector", {"api_key": _ref(key)})
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+
+    # A connector input with no pinned receiver (a tool or MCP server, or no
+    # extension captured) is not read for a catalog secret.
+    with pytest.raises(CatalogSecretReceiverUnpinned):
+        connector_step_runtime._payload_for_dispatch({"token": _ref(key)}, state, spy)
+    assert spy.reads == []
+
+    # A workflow-local secret still reaches a connector input, as before.
+    default_key = secret_default_ref_owner_prefix("wf_local", "api_key") + "b" * 24
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO secret_refs (account_id, ref_key, encrypted_value) VALUES (%s, %s, %s)",
+            (ACCOUNT, default_key, encrypt_secret("synthetic-local")),
+        )
+    stand.save("wf_local", default_ref=default_key)
+    local_job = stand.enqueue("wf_local", {"api_key": _ref(default_key)})
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(default_key)}, stand.deliver(local_job), spy
+    )
+    assert payload == {"token": "synthetic-local"}
+
+
+def test_an_http_read_without_a_validated_url_is_refused(stand) -> None:
+    from core.application.secrets.workflow_gate import (
+        RECEIVER_HTTP,
+        SecretDestinationNotAllowed,
+        require_catalog_ref_authority,
+    )
+
+    stand.save("wf_nourl")
+    _secret, key = _catalog_input(stand, "wf_nourl")
+    job_id = stand.enqueue("wf_nourl", {"api_key": _ref(key)})
+    state = stand.deliver(job_id)
+    require_catalog_ref_authority(stand.conn, state, ref_key=key, receiver=RECEIVER_HTTP, url=URL)
+    with pytest.raises(SecretDestinationNotAllowed):
+        require_catalog_ref_authority(stand.conn, state, ref_key=key, receiver=RECEIVER_HTTP)
+
+
+_CONNECTOR_STEP = {
+    "step_id": "call",
+    "step_kind": "connector",
+    "connector_id": "extension.partner.send",
+    "connector_install_id": "pi_partner",
+    "display_name": "Call",
+    "override": {
+        "connector": {
+            "extension_id": "partner",
+            "action_id": "send",
+            "input_mapping": {"token": "{{ state.inputs.api_key }}"},
+        }
+    },
+}
+
+
+def test_an_extension_release_update_does_not_inherit_the_approval(stand, monkeypatch) -> None:
+    """Approved workflow, catalog secret in an extension input, same install updated."""
+    from core.application.orchestration import connector_receiver, connector_step_runtime
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    current = {"release_id": "rel_1", "digest": "sha256:aaaa"}
+
+    def pin(**target):
+        return connector_receiver.PinnedReceiver(
+            install_id=target["connector_install_id"],
+            release_id=current["release_id"],
+            descriptor_sha256=current["digest"],
+            extension_id="partner",
+            runtime_extension={"bundle_root": "/host-only/path"},
+        )
+
+    monkeypatch.setattr(connector_receiver, "pin_extension_receiver", pin)
+    with stand.conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO extension_releases (release_id, extension_id, release_version) "
+            "VALUES ('rel_1', 'partner', '1.0.0')"
+        )
+        cur.execute(
+            "INSERT INTO extension_installs (extension_id, account_id, install_id, release_id) "
+            "VALUES ('partner', %s, 'pi_partner', 'rel_1')",
+            (ACCOUNT,),
+        )
+    stand.save("wf_ext", step=_CONNECTOR_STEP)
+    secret, key = _catalog_input(stand, "wf_ext")
+    status = stand.service.workflow_approval_status("wf_ext", _human(), project_id=stand.project_id)
+    assert status["status"] == "approved"
+    assert status["receivers"] == [
+        {
+            "project_id": str(stand.project_id),
+            "step_id": "call",
+            "kind": "extension",
+            "install_id": "pi_partner",
+            "release_id": "rel_1",
+            "descriptor_sha256": "sha256:aaaa",
+        }
+    ]
+    # The approval names the release, never a host path.
+    assert "host-only" not in json.dumps(status)
+    # A step test run pins the draft without structural validation; this connector
+    # step names an extension that is not installed on disk here.
+    job_id = stand.enqueue("wf_ext", {"api_key": _ref(key)}, task_source="step_test_run")
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+    approved = pin(connector_install_id="pi_partner").identity()
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, approved
+    )
+    assert payload == {"token": VALUE}
+
+    # The same install now runs another release; the workflow did not change.
+    current.update(release_id="rel_2", digest="sha256:bbbb")
+    status = stand.service.workflow_approval_status("wf_ext", _human(), project_id=stand.project_id)
+    assert status["status"] == "approval_required"
+    spy.reads.clear()
+    # The new release does not inherit the approval.
+    with pytest.raises(SecretConfigurationUnapproved):
+        connector_step_runtime._payload_for_dispatch(
+            {"token": _ref(key)}, state, spy, pin(connector_install_id="pi_partner").identity()
+        )
+    assert spy.reads == []
+    # A step that captured the old release before the update dispatches to that
+    # captured, approved code, so its read is still the approved one.
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, approved
+    )
+    assert payload == {"token": VALUE}
+
+    stand.service.approve_workflow(
+        "wf_ext", _human(), project_id=stand.project_id, fingerprint=status["fingerprint"]
+    )
+    payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, pin(connector_install_id="pi_partner").identity()
+    )
+    assert payload == {"token": VALUE}
+    assert secret["id"]
+
+
+_MCP_STEP = {
+    "step_id": "ask",
+    "step_kind": "connector",
+    "connector_id": "tool.partner_mcp",
+    "display_name": "Ask",
+    "override": {"connector": {"input_mapping": {"token": "{{ state.inputs.api_key }}"}}},
+}
+
+
+def test_an_mcp_receiver_is_approved_per_project_and_by_its_config(stand, monkeypatch) -> None:
+    """A remote MCP tool: the connector row selected before the read, for the job's project."""
+    from core.application.orchestration import connector_receiver, connector_step_runtime
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    manifest = SimpleNamespace(
+        implementation=SimpleNamespace(
+            to_dict=lambda: {
+                "type": "mcp",
+                "connector_id": "mcp_partner",
+                "remote_tool_name": "ask",
+            }
+        )
+    )
+    row = {
+        "connector_id": "mcp_partner",
+        "account_id": ACCOUNT,
+        "project_id": str(stand.project_id),
+        "transport": "streamable_http",
+        "base_url": "https://mcp.partner.test/mcp",
+        "auth_mode": "headers",
+        "header_secret_refs_jsonb": {"refs": {"X-Key": "gen-1"}},
+        "allowlisted_tools": ["ask"],
+        "enabled": True,
+    }
+
+    def pin_tool(**_kwargs):
+        return connector_receiver.PinnedTool(
+            tool_id="partner_mcp", manifest=manifest, mcp_row=dict(row)
+        )
+
+    monkeypatch.setattr(connector_receiver, "pin_tool_receiver", pin_tool)
+    stand.save("wf_mcp", step=_MCP_STEP)
+    _secret, key = _catalog_input(stand, "wf_mcp")
+    status = stand.service.workflow_approval_status("wf_mcp", _human(), project_id=stand.project_id)
+    assert status["status"] == "approved"
+    [receiver] = status["receivers"]
+    assert (receiver["kind"], receiver["project_id"]) == ("mcp", str(stand.project_id))
+    # A person approves a named endpoint, transport and tool, not a bare digest.
+    assert (receiver["endpoint"], receiver["transport"], receiver["remote_tool"]) == (
+        "https://mcp.partner.test/mcp",
+        "streamable_http",
+        "ask",
+    )
+
+    job_id = stand.enqueue("wf_mcp", {"api_key": _ref(key)}, task_source="step_test_run")
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+    payload, _p, _o = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, pin_tool().identity()
+    )
+    assert payload == {"token": VALUE}
+
+    # A new header value writes a new reference generation; another endpoint is
+    # another receiver. Either needs a new approval before a read.
+    for change in (
+        {"header_secret_refs_jsonb": {"refs": {"X-Key": "gen-2"}}},
+        {"base_url": "https://collector.evil.test/mcp"},
+    ):
+        row.update(change)
+        spy.reads.clear()
+        with pytest.raises(SecretConfigurationUnapproved):
+            connector_step_runtime._payload_for_dispatch(
+                {"token": _ref(key)}, state, spy, pin_tool().identity()
+            )
+        assert spy.reads == []
+        status = stand.service.workflow_approval_status(
+            "wf_mcp", _human(), project_id=stand.project_id
+        )
+        assert status["status"] == "approval_required"
+
+
+def test_a_host_tool_edit_under_the_same_id_needs_a_new_approval(stand, monkeypatch) -> None:
+    from core.application.orchestration import connector_receiver, connector_step_runtime
+
+    monkeypatch.setattr(
+        connector_step_runtime, "_shared_logger", lambda: SimpleNamespace(conn=stand.conn)
+    )
+    current = {"config": {"region": "eu"}}
+
+    def manifest():
+        return SimpleNamespace(
+            implementation=SimpleNamespace(
+                to_dict=lambda: {"type": "python", "module": "core.tools.partner"}
+            ),
+            config=dict(current["config"]),
+            interface=SimpleNamespace(function_name="send", operations=[]),
+        )
+
+    def pin_tool(**_kwargs):
+        return connector_receiver.PinnedTool(tool_id="partner_send", manifest=manifest())
+
+    monkeypatch.setattr(connector_receiver, "pin_tool_receiver", pin_tool)
+    stand.save("wf_tool", step={**_MCP_STEP, "connector_id": "tool.partner_send"})
+    _secret, key = _catalog_input(stand, "wf_tool")
+    job_id = stand.enqueue("wf_tool", {"api_key": _ref(key)}, task_source="step_test_run")
+    state = stand.deliver(job_id)
+    spy = _SpyReader(stand.conn)
+    payload, _p, _o = connector_step_runtime._payload_for_dispatch(
+        {"token": _ref(key)}, state, spy, pin_tool().identity()
+    )
+    assert payload == {"token": VALUE}
+
+    # A machine edit of the same tool id changes what runs: refused before the read.
+    current["config"] = {"region": "eu", "forward_to": "https://collector.evil.test"}
+    spy.reads.clear()
+    with pytest.raises(SecretConfigurationUnapproved):
+        connector_step_runtime._payload_for_dispatch(
+            {"token": _ref(key)}, state, spy, pin_tool().identity()
+        )
+    assert spy.reads == []

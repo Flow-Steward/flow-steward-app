@@ -38,6 +38,22 @@ class SecretDestinationNotAllowed(StoredSecretError):
     safe_message = "This request's destination is not approved for the stored secret it uses."
 
 
+class CatalogSecretReceiverUnpinned(StoredSecretError):
+    """A catalog secret would reach code whose release no approval can pin.
+
+    A connector step's input goes to whatever extension release, tool or MCP server
+    is selected when it is dispatched, after the value is read. Until that choice
+    is bound to an approved immutable identity, a catalog secret does not go there;
+    a connection's own stored credentials carry their release approval instead.
+    """
+
+    code = "catalog_secret_receiver_unpinned"
+    safe_message = (
+        "A stored catalog secret cannot be passed to a connector step input. "
+        "Store it in the connection the step uses."
+    )
+
+
 def _text(value: Any) -> str:
     return str(value or "").strip()
 
@@ -117,8 +133,22 @@ def http_destinations(definition: Any) -> tuple[list[dict[str, Any]], list[str]]
     return rules, sorted(set(dynamic))
 
 
+def connector_steps(definition: Any) -> list[dict[str, Any]]:
+    """The connector steps of a definition, in Groups and For each containers too."""
+    return [step for step in _steps(definition) if _text(step.get("step_kind")) == "connector"]
+
+
+def connector_step_ids(definition: Any) -> list[str]:
+    return sorted(
+        {_text(step.get("step_id")) or "<unnamed step>" for step in connector_steps(definition)}
+    )
+
+
 def workflow_projection(definition: Any, *, bindings: dict[str, str]) -> dict[str, Any]:
-    """The approved part of a `frozen_definition`: everything it executes, plus bindings."""
+    """The approved part of a `frozen_definition`: everything it executes, plus bindings.
+
+    Connector receivers are approved beside it, per project (`approved_receivers`).
+    """
     body = _mapping(definition)
     settings = _mapping(body.get("settings"))
     executable = {key: item for key, item in body.items() if key not in {"settings", "protected"}}
@@ -131,6 +161,16 @@ def workflow_projection(definition: Any, *, bindings: dict[str, str]) -> dict[st
         "definition": _strip_cosmetic(executable),
         "bindings": {str(k): str(v) for k, v in sorted(bindings.items())},
     }
+
+
+def current_projection(
+    cur: Any, *, account_id: str, workflow_id: str, definition: Any
+) -> dict[str, Any]:
+    """The projection of `definition` with the workflow's current bindings."""
+    bindings = workflow_bindings(cur, account_id=account_id, workflow_id=workflow_id)
+    return workflow_projection(
+        definition, bindings={row["field"]: row["secret_id"] for row in bindings}
+    )
 
 
 def workflow_fingerprint(projection: dict[str, Any]) -> str:
@@ -383,8 +423,8 @@ def _catalog_secret(cur: Any, ref_key: str) -> dict[str, str] | None:
     return {key: _text(value) for key, value in zip(keys, values, strict=False)}
 
 
-def run_destination_rules(conn: Any, cur: Any, *, job_id: str, ref_key: str) -> list[dict]:
-    """Destinations this job may send a catalog secret to; raises when it may not read it.
+def run_approval(conn: Any, cur: Any, *, job_id: str, ref_key: str) -> tuple[dict, str]:
+    """(approval, job project) that let this job read a catalog secret; raises otherwise.
 
     Everything comes from the host database: the job's pin, the secret's owner, the
     workflow's current bindings and approval. Run state contributes only the job id,
@@ -394,7 +434,7 @@ def run_destination_rules(conn: Any, cur: Any, *, job_id: str, ref_key: str) -> 
 
     secret = _catalog_secret(cur, ref_key)
     if secret is None:
-        return []
+        raise SecretConfigurationUnapproved()
     job = load_run_job(cur, job_id) if _text(job_id) else None
     if job is None or job.definition is None or job.account_id != secret["account_id"]:
         raise SecretConfigurationUnapproved()
@@ -406,18 +446,64 @@ def run_destination_rules(conn: Any, cur: Any, *, job_id: str, ref_key: str) -> 
         raise SecretConfigurationUnapproved()
     if ref_key not in run_secret_authority(conn, cur, job_id=job.job_id).stored_ref_keys:
         raise SecretConfigurationUnapproved()
-    bindings = workflow_bindings(cur, account_id=job.account_id, workflow_id=job.workflow_id)
-    projection = workflow_projection(
-        job.definition, bindings={row["field"]: row["secret_id"] for row in bindings}
+    projection = current_projection(
+        cur, account_id=job.account_id, workflow_id=job.workflow_id, definition=job.definition
     )
     approval = workflow_approval(cur, account_id=job.account_id, workflow_id=job.workflow_id)
     if not approval or approval.get("fingerprint") != workflow_fingerprint(projection):
         raise SecretConfigurationUnapproved()
-    return approved_rules(approval)
+    return approval, job.project_id
+
+
+#: Who receives a resolved value: an HTTP request, checked against the approved
+#: destinations, or a connector step's input, checked against the approved release
+#: of the extension it was pinned to. A connector input with no pinned extension (a
+#: tool or an MCP server) never receives a catalog secret.
+RECEIVER_HTTP = "http"
+RECEIVER_CONNECTOR = "connector"
+
+
+def approval_token(fingerprint: str, receivers: list[dict[str, Any]]) -> str:
+    """What a person is shown and approves: the definition and this project's receivers."""
+    return "sha256:" + canonical_json_hash({"fingerprint": fingerprint, "receivers": receivers})
+
+
+def receivers_approved(approval: dict[str, Any] | None, receivers: list[dict[str, Any]]) -> bool:
+    """Whether every selectable receiver of this project is in the approved set."""
+    approved = approved_receivers(approval)
+    return all(row in approved for row in receivers if row.get("kind") != "unpinned")
+
+
+def merged_receivers(
+    approval: dict[str, Any] | None, fingerprint: str, receivers: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The receivers an approval holds after approving `receivers` for their project.
+
+    Another project's entries survive only while the definition stays the approved one.
+    """
+    project_ids = {row.get("project_id") for row in receivers}
+    kept = (
+        [row for row in approved_receivers(approval) if row.get("project_id") not in project_ids]
+        if approval and approval.get("fingerprint") == fingerprint
+        else []
+    )
+    return [*kept, *receivers]
+
+
+def approved_receivers(approval: dict[str, Any] | None) -> list[dict[str, Any]]:
+    projection = (approval or {}).get("projection_jsonb") or {}
+    rows = projection.get("receivers") if isinstance(projection, dict) else None
+    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
 
 def require_catalog_ref_authority(
-    conn: Any, runtime_state: dict[str, Any], *, ref_key: str, url: Any = None
+    conn: Any,
+    runtime_state: dict[str, Any],
+    *,
+    ref_key: str,
+    receiver: str,
+    url: Any = None,
+    receiver_identity: dict[str, str] | None = None,
 ) -> None:
     """Refuse a catalog-owned reference this run may not read, or may not send there."""
     if not ref_key:
@@ -429,8 +515,23 @@ def require_catalog_ref_authority(
     with conn.cursor() as cur:
         if _catalog_secret(cur, ref_key) is None:
             return
-        rules = run_destination_rules(conn, cur, job_id=_text(state.get("job_id")), ref_key=ref_key)
-    if url is not None and not url_allowed(url, rules):
+        if receiver == RECEIVER_CONNECTOR and not receiver_identity:
+            raise CatalogSecretReceiverUnpinned()
+        approval, project_id = run_approval(
+            conn, cur, job_id=_text(state.get("job_id")), ref_key=ref_key
+        )
+    if receiver == RECEIVER_CONNECTOR:
+        # Exactly the receiver the step will dispatch to, selected before this read,
+        # approved for the job's own project.
+        identity = {**dict(receiver_identity or {}), "project_id": project_id}
+        if not any(
+            {key: row.get(key) for key in identity} == identity
+            for row in approved_receivers(approval)
+        ):
+            raise SecretConfigurationUnapproved()
+        return
+    # An HTTP read with no validated URL yet has no destination to approve.
+    if url is None or not url_allowed(url, approved_rules(approval)):
         raise SecretDestinationNotAllowed()
 
 
@@ -447,36 +548,49 @@ class CatalogAuthorityReader:
         *,
         conn_provider: Any,
         runtime_state: dict[str, Any],
+        receiver: str,
         url_provider: Any = None,
+        receiver_identity: dict[str, str] | None = None,
     ) -> None:
         self._reader = reader
         self._conn_provider = conn_provider
         self._state = runtime_state
+        self._receiver = receiver
         self._url_provider = url_provider
+        self._receiver_identity = receiver_identity
 
     def read(self, context: Any, ref_key: str) -> str:
         require_catalog_ref_authority(
             self._conn_provider(),
             self._state,
             ref_key=ref_key,
+            receiver=self._receiver,
             url=self._url_provider() if self._url_provider is not None else None,
+            receiver_identity=self._receiver_identity,
         )
         return self._reader.read(context, ref_key)
 
 
 __all__ = [
+    "RECEIVER_CONNECTOR",
+    "RECEIVER_HTTP",
     "RESERVED_INPUT_KEYS",
     "CatalogAuthorityReader",
+    "CatalogSecretReceiverUnpinned",
     "SecretDestinationNotAllowed",
+    "approved_receivers",
     "approved_rules",
+    "connector_step_ids",
+    "connector_steps",
     "current_definition",
+    "current_projection",
     "http_destinations",
     "normalize_rule",
     "overlay_storage_keys",
     "overlay_workflow_row",
     "require_catalog_ref_authority",
     "reserved_binding_keys",
-    "run_destination_rules",
+    "run_approval",
     "url_allowed",
     "workflow_bindings",
     "workflow_fingerprint",

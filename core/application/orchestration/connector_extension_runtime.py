@@ -71,6 +71,7 @@ def _dispatch_extension_runtime(
     state: dict[str, Any],
     suppression_probe_only: bool = False,
     artifact_policy_operation_id: str | None = None,
+    pinned_receiver: Any = None,
 ) -> dict[str, Any] | None:
     ext_id, op_id = _derive_extension_action(
         connector_id=connector_id,
@@ -159,7 +160,9 @@ def _dispatch_extension_runtime(
     extension = None
     bl = None
     resolved_extension_id = ""
-    for candidate in resolution_candidates:
+    if pinned_receiver is not None:  # captured before any secret read (connector_receiver)
+        extension, bl, resolved_extension_id, install_id = pinned_receiver.target(install_id)
+    for candidate in [] if extension else resolution_candidates:
         extension, bl = resolve_extension_runtime_record(
             candidate,
             get_logger_only=_shared_logger,

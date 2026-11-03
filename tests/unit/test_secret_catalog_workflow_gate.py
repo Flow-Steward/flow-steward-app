@@ -164,3 +164,25 @@ def test_a_definition_cannot_claim_a_binding() -> None:
     }
     assert reserved_binding_keys(settings) == ["key.catalog_secret_id"]
     assert reserved_binding_keys(_DEFINITION["settings"]) == []
+
+
+def test_a_captured_release_stays_put_when_the_active_link_moves(tmp_path) -> None:
+    from core.application.extensions.invocation_release import InvocationReleaseSelection
+
+    releases = tmp_path / ".releases" / "partner"
+    (releases / "1.0.0-aaaa").mkdir(parents=True)
+    (releases / "1.1.0-bbbb").mkdir(parents=True)
+    active = tmp_path / "partner"
+    active.symlink_to(releases / "1.0.0-aaaa")
+
+    captured = InvocationReleaseSelection.capture({"bundle_root": str(active)}).runtime_extension()
+    active.unlink()
+    active.symlink_to(releases / "1.1.0-bbbb")
+
+    # The invocation captures again what the step dispatched: the same directory.
+    again = InvocationReleaseSelection.capture(captured)
+    assert again.bundle_root == (releases / "1.0.0-aaaa").resolve()
+    assert (
+        InvocationReleaseSelection.capture({"bundle_root": str(active)}).bundle_root
+        == (releases / "1.1.0-bbbb").resolve()
+    )

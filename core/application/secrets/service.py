@@ -819,6 +819,27 @@ class SecretCatalogService:
         return self.workflow_approval_status(workflow_id, scope, project_id=project_id)
 
     @staticmethod
+    def _receivers(cur: Any, scope: ScopeContext, found: dict[str, Any]) -> list[dict[str, Any]]:
+        """The connector receivers of the definition, selected for this project."""
+        from core.application.orchestration.connector_receiver import definition_receivers
+        from core.application.secrets import workflow_gate
+
+        if not workflow_gate.connector_steps(found["definition"]):
+            return []
+        cur.execute(
+            "SELECT tenant_id::text FROM projects WHERE id::text = %s AND account_id::text = %s",
+            (found["project_id"], scope.account_id),
+        )
+        row = cur.fetchone()
+        tenant = row[0] if row and not isinstance(row, dict) else (row or {}).get("tenant_id")
+        lineage = {
+            "account_id": scope.account_id,
+            "project_id": _text(found["project_id"]),
+            "tenant_id": _text(tenant),
+        }
+        return definition_receivers(found["definition"], lineage=lineage)
+
+    @staticmethod
     def _workflow_status_view(
         cur: Any, scope: ScopeContext, found: dict[str, Any]
     ) -> dict[str, Any]:
@@ -829,25 +850,33 @@ class SecretCatalogService:
         bindings = workflow_gate.workflow_bindings(
             cur, account_id=scope.account_id, workflow_id=workflow_id
         )
-        projection = workflow_gate.workflow_projection(
-            definition, bindings={row["field"]: row["secret_id"] for row in bindings}
+        projection = workflow_gate.current_projection(
+            cur, account_id=scope.account_id, workflow_id=workflow_id, definition=definition
         )
         fingerprint = workflow_gate.workflow_fingerprint(projection)
         approval = workflow_gate.workflow_approval(
             cur, account_id=scope.account_id, workflow_id=workflow_id
         )
         static_rules, dynamic_steps = workflow_gate.http_destinations(definition)
-        approved = approval is not None and approval.get("fingerprint") == fingerprint
+        receivers = SecretCatalogService._receivers(cur, scope, found)
+        approved = (
+            approval is not None
+            and approval.get("fingerprint") == fingerprint
+            and workflow_gate.receivers_approved(approval, receivers)
+        )
         return {
             "workflow_id": workflow_id,
             "secret_inputs": sorted(SecretCatalogService._secret_input_names(found["workflow"])),
             "status": "approved"
             if approved
             else ("approval_required" if bindings else "not_required"),
-            "fingerprint": fingerprint,
+            "fingerprint": workflow_gate.approval_token(fingerprint, receivers),
             "secrets": [{"field": row["field"], "secret_id": row["secret_id"]} for row in bindings],
             "destinations": static_rules,
             "dynamic_http_steps": dynamic_steps,
+            # What each connector step's input goes to, for this project; an
+            # "unpinned" step never receives a catalog secret.
+            "receivers": receivers,
             "approved_destinations": workflow_gate.approved_rules(approval) if approved else [],
         }
 
@@ -884,17 +913,21 @@ class SecretCatalogService:
         with self._transaction() as (conn, cur):
             found = self._workflow_in_project(conn, cur, scope, workflow_id, project_id)
             definition = found["definition"]
-            bindings = workflow_gate.workflow_bindings(
-                cur, account_id=scope.account_id, workflow_id=_text(workflow_id)
-            )
-            projection = workflow_gate.workflow_projection(
-                definition, bindings={row["field"]: row["secret_id"] for row in bindings}
+            projection = workflow_gate.current_projection(
+                cur,
+                account_id=scope.account_id,
+                workflow_id=_text(workflow_id),
+                definition=definition,
             )
             current = workflow_gate.workflow_fingerprint(projection)
-            if current != _text(fingerprint):
+            receivers = self._receivers(cur, scope, found)
+            if workflow_gate.approval_token(current, receivers) != _text(fingerprint):
                 raise ServiceConflictError(
                     "The workflow changed after it was shown; review it again"
                 )
+            previous = workflow_gate.workflow_approval(
+                cur, account_id=scope.account_id, workflow_id=_text(workflow_id)
+            )
             static_rules, dynamic_steps = workflow_gate.http_destinations(definition)
             if dynamic_steps and not explicit:
                 raise ServiceValidationError(
@@ -918,7 +951,16 @@ class SecretCatalogService:
                     scope.account_id,
                     _text(workflow_id),
                     current,
-                    json.dumps({**projection, "approved_destinations": rules}, sort_keys=True),
+                    json.dumps(
+                        {
+                            **projection,
+                            "approved_destinations": rules,
+                            "receivers": workflow_gate.merged_receivers(
+                                previous, current, receivers
+                            ),
+                        },
+                        sort_keys=True,
+                    ),
                     actor,
                 ),
             )
@@ -929,6 +971,7 @@ class SecretCatalogService:
                 {"workflow_id": _text(workflow_id)},
                 fingerprint=current,
                 destinations=rules,
+                receivers=receivers,
             )
             return self._workflow_status_view(cur, scope, found)
 

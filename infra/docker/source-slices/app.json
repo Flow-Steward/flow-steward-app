@@ -574,6 +574,7 @@
     "core/application/orchestration/connector_extension_runtime.py",
     "core/application/orchestration/connector_grants.py",
     "core/application/orchestration/connector_mapping.py",
+    "core/application/orchestration/connector_receiver.py",
     "core/application/orchestration/connector_step_runtime.py",
     "core/application/orchestration/connector_tool_runtime.py",
     "core/application/orchestration/container_progress.py",

@@ -29564,6 +29564,24 @@ msgstr "Pakeisti reikšmę"
 msgid "react.registry.secrets.used_by"
 msgstr "Naudoja"
 
+msgid "react.workflows.secret_approval.receiver_extension"
+msgstr "plėtinio leidimas"
+
+msgid "react.workflows.secret_approval.receiver_tool"
+msgstr "įrankis"
+
+msgid "react.workflows.secret_approval.receiver_host_tool"
+msgstr "integruotas įrankis"
+
+msgid "react.workflows.secret_approval.receivers"
+msgstr "Jungčių žingsniai siunčia į"
+
+msgid "react.workflows.secret_approval.connector_steps"
+msgstr "Jungčių žingsniai negauna saugomų paslapčių"
+
+msgid "react.workflows.secret_approval.connector_steps_help"
+msgstr "Saugoma paslaptis, perduota į jungties žingsnio įvestį, vykdymo metu atmetama. Išsaugokite ją ryšyje, kurį naudoja žingsnis."
+
 msgid "react.registry.secrets.usage_workflow"
 msgstr "Darbo eiga"
 

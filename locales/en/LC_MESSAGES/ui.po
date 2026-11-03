@@ -29142,6 +29142,24 @@ msgstr "Replace value"
 msgid "react.registry.secrets.used_by"
 msgstr "Used by"
 
+msgid "react.workflows.secret_approval.receiver_extension"
+msgstr "extension release"
+
+msgid "react.workflows.secret_approval.receiver_tool"
+msgstr "tool"
+
+msgid "react.workflows.secret_approval.receiver_host_tool"
+msgstr "built-in tool"
+
+msgid "react.workflows.secret_approval.receivers"
+msgstr "Connector steps send to"
+
+msgid "react.workflows.secret_approval.connector_steps"
+msgstr "Connector steps do not receive stored secrets"
+
+msgid "react.workflows.secret_approval.connector_steps_help"
+msgstr "A stored secret passed into a connector step's input is refused at run time. Store it in the connection the step uses."
+
 msgid "react.registry.secrets.usage_workflow"
 msgstr "Workflow"
 

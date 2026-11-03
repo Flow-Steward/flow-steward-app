@@ -217,18 +217,15 @@ def pinned_definition_approved(cur: Any, job: RunJob) -> bool:
     """Whether a person approved exactly the definition this job pinned."""
     from core.application.secrets import workflow_gate
 
-    bindings = workflow_gate.workflow_bindings(
-        cur, account_id=job.account_id, workflow_id=job.workflow_id
-    )
-    projection = workflow_gate.workflow_projection(
-        job.definition, bindings={row["field"]: row["secret_id"] for row in bindings}
+    projection = workflow_gate.current_projection(
+        cur, account_id=job.account_id, workflow_id=job.workflow_id, definition=job.definition
     )
     approval = workflow_gate.workflow_approval(
         cur, account_id=job.account_id, workflow_id=job.workflow_id
     )
-    return bool(approval) and approval.get("fingerprint") == workflow_gate.workflow_fingerprint(
-        projection
-    )
+    if approval is None:
+        return False
+    return approval.get("fingerprint") == workflow_gate.workflow_fingerprint(projection)
 
 
 def run_secret_authority(conn: Any, cur: Any, *, job_id: str, depth: int = 0) -> RunSecretAuthority:

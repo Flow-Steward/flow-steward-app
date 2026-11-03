@@ -28088,6 +28088,24 @@ msgstr ""
 msgid "react.registry.secrets.used_by"
 msgstr ""
 
+msgid "react.workflows.secret_approval.receiver_extension"
+msgstr ""
+
+msgid "react.workflows.secret_approval.receiver_tool"
+msgstr ""
+
+msgid "react.workflows.secret_approval.receiver_host_tool"
+msgstr ""
+
+msgid "react.workflows.secret_approval.receivers"
+msgstr ""
+
+msgid "react.workflows.secret_approval.connector_steps"
+msgstr ""
+
+msgid "react.workflows.secret_approval.connector_steps_help"
+msgstr ""
+
 msgid "react.registry.secrets.usage_workflow"
 msgstr ""
 

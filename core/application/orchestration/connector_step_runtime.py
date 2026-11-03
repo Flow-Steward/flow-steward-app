@@ -20,6 +20,7 @@ from core.application.orchestration.connector_mapping import (
     _suppressed_input_dependencies,
     _to_object,
 )
+from core.application.orchestration.connector_receiver import PinnedReceiver, PinnedTool
 from core.application.orchestration.connector_tool_runtime import _dispatch_tool_runtime
 from core.application.orchestration.state_paths import StatePathError
 from core.application.orchestration.step_activity import step_activity_heartbeat
@@ -69,6 +70,7 @@ def _payload_for_dispatch(
     input_payload: dict[str, Any],
     runtime_state: dict[str, Any],
     secret_reader: Any = None,
+    receiver_identity: dict[str, str] | None = None,
 ) -> tuple[Any, frozenset[str], bool]:
     """Exchange secret references for values, for the call only.
 
@@ -77,7 +79,7 @@ def _payload_for_dispatch(
     keeps them. Resolving in place would put the credential into the very field
     that exists to say what was sent.
     """
-    from core.application.secrets.workflow_gate import CatalogAuthorityReader
+    from core.application.secrets.workflow_gate import RECEIVER_CONNECTOR, CatalogAuthorityReader
     from core.infrastructure.security.secret_reference import resolve_secret_references_in
     from core.infrastructure.security.stored_secrets import SecretReadContext
 
@@ -90,6 +92,10 @@ def _payload_for_dispatch(
             secret_reader or _secret_reader(),
             conn_provider=lambda: getattr(_shared_logger(), "conn", None),
             runtime_state=runtime_state,
+            # The extension release captured before this read (connector_receiver);
+            # without one, no catalog secret is read for this input (ADR 0055).
+            receiver=RECEIVER_CONNECTOR,
+            receiver_identity=receiver_identity,
         ),
         authorized_inline_ref_fingerprints=frozenset(
             str(item or "").strip()
@@ -121,6 +127,15 @@ def _resolved_secret_values(presented: Any, resolved: Any) -> tuple[frozenset[st
         elif isinstance(presented_node, (list, tuple)) and isinstance(resolved_node, (list, tuple)):
             pending.extend(zip(presented_node, resolved_node, strict=False))
     return collect_secret_values(values)
+
+
+def _pinned_receiver(*, runtime_state: dict[str, Any], **target: str) -> Any:
+    """The extension release or tool a step dispatches to, selected now; else None."""
+    from core.application.orchestration.connector_receiver import pin_step_receiver
+
+    ids = _runtime_ids_from_state(runtime_state)
+    lineage = {key: str(ids.get(key) or "") for key in ("account_id", "project_id", "tenant_id")}
+    return pin_step_receiver(**target, lineage=lineage, get_logger_only=_shared_logger)
 
 
 def execute_connector_step(
@@ -272,12 +287,25 @@ def execute_connector_step(
     )
     from core.infrastructure.security.stored_secrets import StoredSecretError
 
+    receiver = _pinned_receiver(
+        connector_id=connector_id,
+        extension_id=extension_id,
+        connector_install_id=connector_install_id,
+        action_id=action_id,
+        operation_id=operation_id,
+        runtime_state=runtime_state,
+    )
     try:
         (
             dispatch_payload,
             protected_input_secrets,
             protected_input_secret_budget_exceeded,
-        ) = _payload_for_dispatch(input_payload, runtime_state, secret_reader)
+        ) = _payload_for_dispatch(
+            input_payload,
+            runtime_state,
+            secret_reader,
+            receiver.identity() if receiver is not None else None,
+        )
     except (SecretReferenceUnauthorized, SecretReferenceUnresolved) as exc:
         # A configured secret with nothing behind it. Calling anyway would send a
         # credential that is not one, and the failure would come back as
@@ -321,17 +349,24 @@ def execute_connector_step(
         or connector_id
     )
     with step_activity_heartbeat(_shared_job_store(), job_id=activity_job_id, label=step_label):
-        tool_dispatch = _dispatch_tool_runtime(
-            connector_id=connector_id,
-            connector_install_id=connector_install_id,
-            function_name=function_name,
-            operation_id=operation_id,
-            input_payload=dispatch_payload,
-            event_input_payload=input_payload,
-            protected_input_secrets=protected_input_secrets,
-            protected_input_secret_budget_exceeded=protected_input_secret_budget_exceeded,
-            connection_binding=raw_connection_binding,
-            state=runtime_state,
+        # A pinned extension receives the values it was checked for, never a tool.
+        tool_dispatch = (
+            None
+            if isinstance(receiver, PinnedReceiver)
+            else _dispatch_tool_runtime(
+                connector_id=connector_id,
+                connector_install_id=connector_install_id,
+                function_name=function_name,
+                operation_id=operation_id,
+                input_payload=dispatch_payload,
+                event_input_payload=input_payload,
+                protected_input_secrets=protected_input_secrets,
+                protected_input_secret_budget_exceeded=protected_input_secret_budget_exceeded,
+                connection_binding=raw_connection_binding,
+                state=runtime_state,
+                # A pinned tool is dispatched as selected, never another one.
+                pinned_tool=receiver if isinstance(receiver, PinnedTool) else None,
+            )
         )
     if tool_dispatch and tool_dispatch.get("handled"):
         tool_dispatch["connector_id"] = connector_id
@@ -345,6 +380,11 @@ def execute_connector_step(
             state=runtime_state,
         )
         return _project_retry_signal(tool_dispatch)
+    if isinstance(receiver, PinnedTool):
+        # Values resolved for that tool go nowhere else.
+        return _unmatched_connector(
+            connector_id, input_payload, unresolved_inputs, raw_connection_binding
+        )
 
     with step_activity_heartbeat(_shared_job_store(), job_id=activity_job_id, label=step_label):
         extension_dispatch = _dispatch_extension_runtime(
@@ -359,6 +399,7 @@ def execute_connector_step(
             protected_input_secret_budget_exceeded=protected_input_secret_budget_exceeded,
             connection_binding=raw_connection_binding,
             state=runtime_state,
+            pinned_receiver=receiver,
         )
     if extension_dispatch and extension_dispatch.get("handled"):
         extension_dispatch["connector_id"] = connector_id
@@ -373,12 +414,20 @@ def execute_connector_step(
         )
         return _project_retry_signal(extension_dispatch)
 
+    return _unmatched_connector(
+        connector_id, input_payload, unresolved_inputs, raw_connection_binding
+    )
+
+
+def _unmatched_connector(
+    connector_id: str, input_payload: Any, unresolved_inputs: Any, connection_binding: Any
+) -> dict[str, Any]:
     return {
         "ok": False,
         "runtime": "unresolved",
         "connector_id": connector_id,
         "input_payload": input_payload,
         "input_mapping_unresolved": dict(unresolved_inputs),
-        "connection_binding": raw_connection_binding,
+        "connection_binding": connection_binding,
         "detail": "No connector runtime backend matched this connector_id",
     }

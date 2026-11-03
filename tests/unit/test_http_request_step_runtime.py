@@ -66,7 +66,7 @@ def test_test_mode_http_writes_reach_a_real_local_recorder(method: str):
                 httpx.HTTPTransport,
             ),
             patch(
-                "core.application.extensions.lifecycle._is_blocked_ip",
+                "core.application.extensions.url_safety._is_blocked_ip",
                 side_effect=lambda address: address != "127.0.0.1",
             ),
         ):

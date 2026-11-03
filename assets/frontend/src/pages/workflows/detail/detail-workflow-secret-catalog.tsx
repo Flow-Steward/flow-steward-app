@@ -17,6 +17,7 @@ import {
   unbindWorkflowInputSecret,
   type WorkflowSecretApprovalStatus,
   type WorkflowSecretDestination,
+  type WorkflowSecretReceiver,
   workflowSecretApprovalQueryKey,
 } from "@/pages/workflows/shared/workflow-secret-catalog-api";
 
@@ -105,6 +106,21 @@ let ruleSequence = 0;
 function emptyRule(): RuleDraft {
   ruleSequence += 1;
   return { id: ruleSequence, scheme: "https", host: "", port: "", path_prefix: "" };
+}
+
+function shortDigest(digest: string | undefined): string {
+  const value = String(digest ?? "").replace(/^sha256:/, "");
+  return value ? value.slice(0, 12) : "";
+}
+
+/** One receiver as a person approves it: the step and exactly where its input goes. */
+function receiverLabel(row: WorkflowSecretReceiver, t: (key: string, fallback: string) => string): string {
+  const release = `${row.release_id ?? ""}${row.descriptor_sha256 ? ` · ${shortDigest(row.descriptor_sha256)}` : ""}`;
+  if (row.kind === "extension") return `${row.step_id} → ${t("react.workflows.secret_approval.receiver_extension", "extension release")} ${release}`;
+  if (row.kind === "tool_extension") return `${row.step_id} → ${t("react.workflows.secret_approval.receiver_tool", "tool")} ${row.tool_id ?? ""}, ${t("react.workflows.secret_approval.receiver_extension", "extension release")} ${release}`;
+  if (row.kind === "host_tool") return `${row.step_id} → ${t("react.workflows.secret_approval.receiver_host_tool", "built-in tool")} ${row.tool_id ?? ""}${row.implementation ? ` (${row.implementation})` : ""}`;
+  if (row.kind === "mcp") return `${row.step_id} → MCP ${row.remote_tool ?? row.tool_id ?? ""} · ${row.endpoint ?? ""} (${row.transport ?? ""})`;
+  return row.step_id;
 }
 
 function destinationLabel(rule: WorkflowSecretDestination): string {
@@ -241,6 +257,8 @@ function WorkflowSecretApprovalCard({ projectId, workflowId, revision, unsavedCh
   const names = new Map((catalog.data ?? []).map((secret) => [secret.id, secret.name]));
   const approved = data.status === "approved";
   const dynamic = data.dynamic_http_steps;
+  const pinned = (data.receivers ?? []).filter((row) => row.kind !== "unpinned");
+  const unpinned = (data.receivers ?? []).filter((row) => row.kind === "unpinned").map((row) => row.step_id);
   const explicit = destinationsFromDrafts(rules);
   const missingRules = dynamic.length > 0 && explicit.length === 0;
   const failure = approve.error && !conflict ? (approve.error instanceof Error ? approve.error.message : "") : "";
@@ -277,7 +295,22 @@ function WorkflowSecretApprovalCard({ projectId, workflowId, revision, unsavedCh
       {failure ? (
         <DsAlert tone="danger" title={t("react.workflows.secret_approval.failed", "Not approved")}>{failure}</DsAlert>
       ) : null}
+      {unpinned.length && data.secrets.length ? (
+        <DsAlert tone="warning" title={t("react.workflows.secret_approval.connector_steps", "Connector steps do not receive stored secrets")}>
+          {`${t("react.workflows.secret_approval.connector_steps_help", "A stored secret passed into a connector step's input is refused at run time. Store it in the connection the step uses.")} ${unpinned.join(", ")}`}
+        </DsAlert>
+      ) : null}
       <dl className="grid gap-1">
+        {pinned.length ? (
+          <div>
+            <dt className="inline fs-ink-tertiary">{t("react.workflows.secret_approval.receivers", "Connector steps send to")}: </dt>
+            <dd className="inline">
+              {pinned.map((row) => (
+                <DsValueChip key={`${row.step_id}:${row.kind}`}>{receiverLabel(row, t)}</DsValueChip>
+              ))}
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt className="inline fs-ink-tertiary">{t("react.workflows.secret_approval.secrets", "Secrets")}: </dt>
           <dd className="inline">
