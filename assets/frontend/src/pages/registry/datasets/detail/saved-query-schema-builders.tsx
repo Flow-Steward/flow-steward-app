@@ -41,6 +41,7 @@ type SavedQuerySchemaBuildersProps = {
   paramsSchema: Record<string, unknown>;
   resources: DatasetResource[];
   sql: string;
+  queryLanguage?: string;
   selectAllOutputByDefault: boolean;
   onOutputSchemaChange: (schema: Record<string, unknown>) => void;
   onParamsSchemaChange: (schema: Record<string, unknown>) => void;
@@ -57,12 +58,18 @@ export function SavedQuerySchemaBuilders({
   resources,
   selectAllOutputByDefault,
   sql,
+  queryLanguage = "sql",
   onOutputSchemaChange,
   onParamsSchemaChange,
 }: Readonly<SavedQuerySchemaBuildersProps>) {
   const { t } = useI18n();
-  const parameterFields = useMemo(() => queryParameterFields(sql, paramsSchema), [paramsSchema, sql]);
-  const outputFields = useMemo(() => queryOutputFields(resources), [resources]);
+  const parameterTypes = [...localizedPARAMETER_TYPES(t), ...(queryLanguage === "json" ? [
+    { value: "object", label: t("react.registry.json_object", "Object") },
+    { value: "array", label: t("react.registry.json_array", "Array") },
+    { value: "null", label: t("react.registry.json_null", "Null") },
+  ] : [])];
+  const parameterFields = useMemo(() => queryParameterFields(sql, paramsSchema, queryLanguage), [paramsSchema, sql, queryLanguage]);
+  const outputFields = useMemo(() => queryOutputFields(resources, queryLanguage), [resources, queryLanguage]);
   const outputProperties = useMemo(() => {
     const value = outputSchema.properties;
     return value && typeof value === "object" && !Array.isArray(value)
@@ -82,7 +89,7 @@ export function SavedQuerySchemaBuilders({
   }, [onOutputSchemaChange, outputFields, selectAllOutputByDefault]);
 
   function updateParameter(name: string, patch: Partial<QueryParameterField>) {
-    const base = paramsSchemaForSql(sql, paramsSchema);
+    const base = paramsSchemaForSql(sql, paramsSchema, queryLanguage);
     const properties = { ...objectValue(base.properties) };
     const property = { ...objectValue(properties[name]) };
     if (patch.type !== undefined) property.type = patch.type;
@@ -101,13 +108,13 @@ export function SavedQuerySchemaBuilders({
   }
 
   function storedParameterType(field: QueryParameterField): string {
-    const properties = objectValue(paramsSchemaForSql(sql, paramsSchema).properties);
+    const properties = objectValue(paramsSchemaForSql(sql, paramsSchema, queryLanguage).properties);
     const type = objectValue(properties[field.name]).type;
     return typeof type === "string" ? type : "";
   }
 
   function parameterTypeEditable(field: QueryParameterField): boolean {
-    return localizedPARAMETER_TYPES(t).some((item) => item.value === storedParameterType(field));
+    return parameterTypes.some((item) => item.value === storedParameterType(field));
   }
 
   return (
@@ -115,7 +122,7 @@ export function SavedQuerySchemaBuilders({
       <section className="fs-panel-stack">
         <h3 className="fs-panel-title">{t("react.registry.input_parameters", "Input parameters")}</h3>
         <p className="fs-field-helper">
-          {t("react.registry.parameters_appear_automatically_from", "Parameters appear automatically from")}{" "}<code className="fs-code-value">:name</code> {" "}{t("react.registry.in_your_sql_choose_what_each_value_represents", "in your SQL. Choose what each value represents.")}</p>
+          {queryLanguage === "json" ? t("react.registry.json_parameters_help", 'Parameters appear from {"$param":"name"} in arguments. Choose each value type.') : <>{t("react.registry.parameters_appear_automatically_from", "Parameters appear automatically from")}{" "}<code className="fs-code-value">:name</code> {" "}{t("react.registry.in_your_sql_choose_what_each_value_represents", "in your SQL. Choose what each value represents.")}</>}</p>
         {parameterFields.length ? (
           <div className="grid gap-3">
             {parameterFields.map((field) => (
@@ -123,8 +130,8 @@ export function SavedQuerySchemaBuilders({
                 className="fs-surface-radius fs-surface-inset border border-subtle p-3"
                 key={field.name}
               >
-                <code className="fs-code-value">:{field.name}</code>
-                <p className="fs-field-helper">{t("react.registry.used_in_sql_as_a_query_value", "Used in SQL as a query value.")}</p>
+                <code className="fs-code-value">{queryLanguage === "json" ? JSON.stringify({ $param: field.name }) : `:${field.name}`}</code>
+                <p className="fs-field-helper">{queryLanguage === "json" ? t("react.registry.typed_json_value", "Used as a typed JSON value.") : t("react.registry.used_in_sql_as_a_query_value", "Used in SQL as a query value.")}</p>
                 <div className="fs-form-grid">
                 <div className="fs-field">
                   <span className="fs-field-label">{t("trash.columns.type", "Type")}</span>
@@ -134,7 +141,7 @@ export function SavedQuerySchemaBuilders({
                     onChange={(value) =>
                       updateParameter(field.name, { format: "", type: value as QuerySchemaType })
                     }
-                    options={localizedPARAMETER_TYPES(t).map((type) => ({
+                    options={parameterTypes.map((type) => ({
                       value: type.value,
                       label: type.label,
                     }))}
@@ -175,7 +182,7 @@ export function SavedQuerySchemaBuilders({
           </div>
         ) : (
           <DsAlert title={t("react.registry.no_input_parameters_yet", "No input parameters yet")} tone="neutral">
-            {t("react.registry.add_a_named_value_such_as_where_status_status_to_create_an_input_parameter", "Add a named value such as WHERE status = :status to create an input parameter.")}</DsAlert>
+            {queryLanguage === "json" ? t("react.registry.json_add_parameter", 'Add {"$param":"name"} inside arguments to create an input parameter.') : t("react.registry.add_a_named_value_such_as_where_status_status_to_create_an_input_parameter", "Add a named value such as WHERE status = :status to create an input parameter.")}</DsAlert>
         )}
       </section>
 
@@ -227,7 +234,7 @@ export function SavedQuerySchemaBuilders({
                       >
                         {`${field.resourceId}.${field.name}`}
                       </DsCheckbox>
-                      <span className="fs-field-helper">{parameterTypeLabel(field.type, t)}</span>
+                      <span className="fs-field-helper">{field.type === "json" ? "JSON" : parameterTypeLabel(field.type, t)}</span>
                     </div>
                     {selected && field.type === "string" ? (
                       <div className="fs-field">

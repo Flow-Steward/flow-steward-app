@@ -81,14 +81,21 @@ class ExtensionArchiveValidationService:
         bundle_dir, descriptor_path = self._locate_bundle(extracted_root)
         compiled, extension_id, version = self._compile_bundle(bundle_dir)
         self._validate_icon(bundle_dir)
+        artifact_bundle = "artifact_bundle" in (compiled.get("features") or [])
+        if artifact_bundle and descriptor_path is None:
+            raise ServiceValidationError("artifact_bundle requires descriptor artifacts")
         if descriptor_path is not None:
-            self._validate_descriptor_identity(
+            normalized = self._validate_descriptor_identity(
                 descriptor_path=descriptor_path,
                 extension_id=extension_id,
                 version=version,
                 bl=bl,
                 scope=scope,
             )
+            if artifact_bundle and not normalized.get("artifacts"):
+                raise ServiceValidationError(
+                    "artifact_bundle requires nonempty descriptor artifacts"
+                )
         return ValidatedExtensionBundle(
             bundle_dir=bundle_dir,
             descriptor_path=descriptor_path,
@@ -225,7 +232,7 @@ class ExtensionArchiveValidationService:
         version: str,
         bl: Any,
         scope: ScopeContext | None,
-    ) -> None:
+    ) -> dict[str, Any]:
         # Compatibility is declared against the extension host contract version.
         from core.application.extensions.service_support import _runtime_platform_version
 
@@ -257,6 +264,7 @@ class ExtensionArchiveValidationService:
                     "descriptor_release_version": descriptor_version,
                 },
             )
+        return normalized
 
 
 __all__ = [

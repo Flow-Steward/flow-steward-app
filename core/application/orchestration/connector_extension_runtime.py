@@ -224,23 +224,15 @@ def _dispatch_extension_runtime(
         runtime_context["logger"] = bl
     if install_id:
         runtime_context["connector_install_id"] = install_id
+        runtime_context["extension_install_id"] = _resolved_install_id(extension) or install_id
     connection_id = _connection_id_from_binding(dict(connection_binding or {}))
     operation_contract = extension_operation_contract(extension, operation_id=op_id)
     from core.application.orchestration.retry_policy import (
-        policy_from_state,
+        operation_deadline_from_state,
         request_semantics_for_operation_kind,
     )
 
-    try:
-        operation_deadline_epoch_seconds = float(
-            state.get("_operation_deadline_epoch_seconds") or 0.0
-        )
-    except (TypeError, ValueError):
-        operation_deadline_epoch_seconds = 0.0
-    if operation_deadline_epoch_seconds <= 0:
-        operation_deadline_epoch_seconds = (
-            time.time() + policy_from_state(state).operation_deadline_seconds
-        )
+    operation_deadline_epoch_seconds = operation_deadline_from_state(state, now=time.time)
 
     def _operation_deadline_failure(
         external_effect: dict[str, Any] | None = None,
@@ -408,6 +400,7 @@ def _dispatch_extension_runtime(
         {"connection_binding": dict(connection_binding or {})} if connection_binding else {}
     )
     if runtime_connection:
+        runtime_context["connection_id"] = runtime_connection["connection_id"]
         target["connection"] = runtime_connection
         logged_target["connection"] = logged_connection
     hydrated_secrets, secret_budget_exceeded = collect_secret_values(

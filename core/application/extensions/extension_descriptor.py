@@ -15,6 +15,12 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from core.application.extensions.extension_contract_loading import _extract_contract_root
+from core.application.extensions.extension_contract_policies import (
+    ARTIFACT_ENTRY_ID_FIELDS as _ARTIFACT_ENTRY_ID_FIELDS,
+)
+from core.application.extensions.extension_contract_policies import NATIVE_DATASET_PLATFORM_MIN
+
 # The llm_provider block lives in its own module; these names stay importable
 # from here (explicit re-exports) because callers have always imported them so.
 from core.application.extensions.extension_descriptor_llm_provider import (
@@ -80,23 +86,19 @@ EXTENSION_DESCRIPTOR_SCHEMA_VERSION = "extension_descriptor_v1"
 # sets platform_min 1.3.0; an older host forbids the fields and refuses the
 # bundle as below its required minimum.
 # 1.4.0: generic declared string settings and JSON-object secret format.
-DEFAULT_FS_RUNTIME_VERSION = "1.4.0"
+# 1.5.0: native Dataset connectors support typed structured JSON saved queries
+# alongside SQL. Runtime-only service descriptors may omit authoring artifacts.
+DEFAULT_FS_RUNTIME_VERSION = "1.5.0"
 
-_ARTIFACT_ENTRY_ID_FIELDS = (
-    "workflow_id",
-    "agent_id",
-    "skill_id",
-    "skill_id",
-    "tool_id",
-    "contract_id",
-    "data_contract_id",
-    "dataset_id",
-    "query_template_id",
-    "saved_query_id",
-    "guardrail_id",
-    "extension_id",
-    "id",
+RUNTIME_INTERFACE_SECTIONS = (
+    "connection_types",
+    "dataset_connectors",
+    "operation_manifest",
+    "resource_query_manifest",
+    "oauth_providers",
+    "llm_provider",
 )
+
 _REMOTE_REQUIRED_ENDPOINTS = ("handshake", "health", "query", "action", "emit_event")
 
 
@@ -537,7 +539,7 @@ class ExtensionDescriptor(BaseModel):
         default_factory=ExtensionDescriptorDependencies
     )
     lifecycle: ExtensionDescriptorLifecycle = Field(default_factory=ExtensionDescriptorLifecycle)
-    artifacts: ExtensionDescriptorArtifacts
+    artifacts: ExtensionDescriptorArtifacts | None = None
     provenance: ExtensionDescriptorProvenance | None = None
     commerce: ExtensionDescriptorCommerce | None = None
 
@@ -573,11 +575,45 @@ class ExtensionDescriptor(BaseModel):
             raise ValueError(str(issues[0].get("message") or "invalid python_requirements"))
         return normalized
 
+    @field_validator("artifacts", mode="before")
+    @classmethod
+    def _reject_null_artifacts(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("artifacts must be omitted or contain at least one artifact entry")
+        return value
+
+    @model_validator(mode="after")
+    def _require_artifacts_or_service_runtime(self) -> ExtensionDescriptor:
+        if self.artifacts is not None:
+            return self
+        if (
+            compare_semver(
+                self.runtime.compatibility.platform_min,
+                NATIVE_DATASET_PLATFORM_MIN,
+                field_name=RUNTIME_COMPATIBILITY_PLATFORM_MIN_VALUE,
+            )
+            < 0
+        ):
+            raise ValueError("Artifact-free services require host contract 1.5.0 or later")
+        contract = _extract_contract_root(self.model_dump()) or {}
+        if self.extension_type != "service_extension" or not any(
+            contract.get(section) for section in RUNTIME_INTERFACE_SECTIONS
+        ):
+            raise ValueError(
+                "artifacts are required unless a service extension declares a runtime interface"
+            )
+        return self
+
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(self.model_dump_json())
+        normalized = json.loads(self.model_dump_json())
+        if self.artifacts is None:
+            normalized.pop("artifacts", None)
+        return normalized
 
     def artifact_entries(self) -> list[tuple[str, int, ExtensionDescriptorArtifactEntry]]:
         entries: list[tuple[str, int, ExtensionDescriptorArtifactEntry]] = []
+        if self.artifacts is None:
+            return entries
         for section_name, section_entries in self.artifacts.sections().items():
             for index, entry in enumerate(section_entries):
                 entries.append((section_name, index, entry))

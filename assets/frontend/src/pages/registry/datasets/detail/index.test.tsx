@@ -100,6 +100,15 @@ async function openRowMenu(queryName: string) {
   await userEvent.click(screen.getByRole("button", { name: `Actions for ${queryName}` }));
 }
 
+function installSqlQueryConnection() {
+  const fetchDataset = mockedFetchDataset.getMockImplementation();
+  mockedFetchDataset.mockImplementation(async (id) => ({
+    ...(await fetchDataset!(id)), metadata_jsonb: { connection_id: "connection-a" },
+  }));
+  mockedFetchDatasetConnectors.mockResolvedValue([{ connector_id: "connector.sql", display_name: "SQL", connector_kind: "extension", runtime_kind: "local_extension", query_language: "sql" }]);
+  mockedFetchDataConnections.mockResolvedValue([{ connection_id: "connection-a", display_name: "SQL connection", workspace_id: "workspace-1", source_kind: "extension", environment: "dev", enabled: true, health_status: "healthy", query_capable: true, linked_dataset_count: 0, connector_ref_jsonb: { connector_id: "connector.sql" } }]);
+}
+
 async function clickRowAction(queryName: string, action: string) {
   await openRowMenu(queryName);
   await userEvent.click(await screen.findByRole("menuitem", { name: action }));
@@ -586,6 +595,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
       query_template_id: "query-1",
     });
 
+    installSqlQueryConnection();
     renderPage();
     await user.click(
       await screen.findByRole("tab", { name: "Saved queries" }),
@@ -646,6 +656,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
       new Error("Query name is already in use."),
     );
 
+    installSqlQueryConnection();
     renderPage();
     await user.click(
       await screen.findByRole("tab", { name: "Saved queries" }),
@@ -748,6 +759,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
       },
     });
 
+    installSqlQueryConnection();
     renderPage();
     await user.click(
       await screen.findByRole("tab", { name: "Saved queries" }),
@@ -923,6 +935,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
         version: 1,
       },
     ]);
+    installSqlQueryConnection();
     renderPage("/registry/datasets/events?tab=saved-queries");
 
     await user.click(await screen.findByRole("button", { name: "Add query" }));
@@ -943,11 +956,12 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
 
   it("shows package configuration and query SQL read-only while ordinary queries remain editable", async () => {
     projectScopedQuery();
-    const dataset = { dataset_id: "events", workspace_id: "", display_name: "Package orders", availability_mode: "specific_projects_only" as const, connector_kind: "extension", runtime_kind: "local_extension", query_language: "sql", read_only: true, enabled: true, source_install_id: "install", source_release_id: "release", metadata_jsonb: { connection_resolution: "project_scope" as const }, schema_snapshot_jsonb: { resources: [{ resource_id: "orders", columns: [{ name: "order_id" }] }] }, resource_scope_jsonb: { resources: [{ resource_id: "orders", columns: ["order_id"] }] } };
+    const dataset = { dataset_id: "extension.install.orders", account_id: "account-1", workspace_id: "", display_name: "Package orders", availability_mode: "specific_projects_only" as const, connector_kind: "extension", connector_id: "orders_connector", runtime_kind: "local_extension", query_language: "sql", read_only: true, enabled: true, source_install_id: "install", source_release_id: "release", metadata_jsonb: { account_id: "account-1", connection_resolution: "project_scope" as const, projection_bridge: { immutable: true, install_id: "install", release_id: "release", artifact_kind: "dataset", artifact_id: "orders" } }, schema_snapshot_jsonb: { resources: [{ resource_id: "orders", columns: [{ name: "order_id" }] }] }, resource_scope_jsonb: { resources: [{ resource_id: "orders", columns: ["order_id"] }] } };
     mockedFetchDataset.mockResolvedValue(dataset);
-    const query = { query_template_id: "package-query", dataset_id: "events", display_name: "Package query", query_language: "sql", query_definition_jsonb: { sql: "SELECT order_id FROM orders" }, enabled: true, version: 1, source_install_id: "install", source_release_id: "release" };
+    mockedFetchDatasetConnectors.mockResolvedValue([{ connector_id: "extension.install.orders_connector", local_connector_id: "orders_connector", account_id: "account-1", source_install_id: "install", source_release_id: "release", display_name: "Orders connector", connector_kind: "extension", runtime_kind: "local_extension", query_language: "sql" }]);
+    const query = { query_template_id: "package-query", dataset_id: dataset.dataset_id, display_name: "Package query", query_language: "sql", query_definition_jsonb: { sql: "SELECT order_id FROM orders" }, enabled: true, version: 1, source_install_id: "install", source_release_id: "release" };
     mockedFetchDatasetQueryTemplates.mockResolvedValue([query, { ...query, query_template_id: "user-query", display_name: "User query", source_install_id: undefined, source_release_id: undefined }]);
-    renderPage();
+    renderPage(`/registry/datasets/${dataset.dataset_id}`);
     await screen.findByRole("heading", { name: "Package orders" });
     expect.soft(screen.queryByText(/provided by an installed extension/i)).toBeInTheDocument();
     expect.soft(screen.queryByText(/no permanent workspace/i)).toBeInTheDocument();
@@ -963,6 +977,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     expect.soft(resource).toHaveTextContent("order_id");
     await userEvent.click(screen.getByRole("tab", { name: "Saved queries" }));
     await screen.findByText("Package query");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add query" })).toBeEnabled());
     await openRowMenu("Package query");
     for (const name of ["Edit", "Disable", "Delete"]) expect.soft(screen.queryByRole("menuitem", { name })).not.toBeInTheDocument();
     expect.soft(screen.queryByRole("menuitem", { name: "View" })).toBeInTheDocument();

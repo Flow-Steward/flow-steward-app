@@ -246,6 +246,17 @@ def policy_from_state(
     )
 
 
+def operation_deadline_from_state(state: Mapping[str, Any], *, now: Callable[[], float]) -> float:
+    """Reuse the operation deadline or derive it from the configured retry policy."""
+    try:
+        deadline = float(state.get("_operation_deadline_epoch_seconds") or 0.0)
+    except (TypeError, ValueError):
+        deadline = 0.0
+    if deadline <= 0:
+        deadline = now() + policy_from_state(state).operation_deadline_seconds
+    return deadline
+
+
 @dataclass(frozen=True)
 class RetryPolicy:
     """Project retry settings; ``max_retries`` excludes the first invocation."""

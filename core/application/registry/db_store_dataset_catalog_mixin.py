@@ -470,6 +470,11 @@ class RegistryDBStoreDatasetCatalogMixin:
         )
 
         validate_saved_query_contract(data, dataset=dataset_row)
+        from core.application.datasets.saved_query_binding import (
+            validate_saved_query_connector_binding,
+        )
+
+        validate_saved_query_connector_binding(data, dataset=dataset_row, db=self)
         existing = self.get_dataset_query_template(query_template_id, include_trashed=True) or {}
         assert_projection_bridge_mutable(existing, author=author)
         snapshot = {

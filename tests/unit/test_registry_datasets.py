@@ -2610,3 +2610,42 @@ def test_saved_query_preview_workspace_wide_dataset_allowed_for_restricted_admin
         json={"params": {}, "row_limit": 10},
     )
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize("method", ["post", "put"])
+def test_saved_query_write_maps_store_connector_rejection_to_validation_error(monkeypatch, method):
+    from core.application.datasets.saved_query_binding import validate_saved_query_connector_binding
+
+    db = FakeDatasetDB()
+    dataset = {
+        "dataset_id": "customer_orders",
+        "workspace_id": "ws-1",
+        "availability_mode": "all_workspace_projects",
+        "enabled": True,
+        "project_ids": [],
+        "connector_id": "extension.install_1.warehouse_sql",
+        "resource_scope_jsonb": {"resources": [{"resource_id": "orders"}]},
+    }
+    db.rows["customer_orders"] = dataset
+    db.connectors[0]["query_language"] = "json"
+
+    def save_with_active_connector_validation(payload, author="admin"):
+        validate_saved_query_connector_binding(payload, dataset=dataset, db=db)
+        raise AssertionError("a mismatched connector must not persist a query")
+
+    monkeypatch.setattr(db, "save_dataset_query_template", save_with_active_connector_validation)
+    client = _client(db, monkeypatch)
+    path = "/api/datasets/query-templates"
+    if method == "put":
+        path += "/qt_assigned"
+    response = getattr(client, method)(
+        path,
+        json={
+            "dataset_id": "customer_orders",
+            "display_name": "Orders",
+            "query_definition_jsonb": {"sql": "SELECT order_id FROM orders LIMIT 1"},
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["path"] == "query_language"
+    assert db.saved_query_writes == []

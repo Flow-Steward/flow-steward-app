@@ -9,7 +9,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from core.application.management.command_specs.contracts import CommandSpec
-
 from core.infrastructure.security.secret_detection import (
     GITHUB_INSTALLATION_TOKEN_RE,
     redact_github_installation_tokens,

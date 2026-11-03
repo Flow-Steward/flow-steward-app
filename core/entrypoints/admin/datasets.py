@@ -551,7 +551,10 @@ def create_dataset_query_template(request: Request, body: DatasetQueryTemplateSa
     save_template = getattr(db, "save_dataset_query_template", None)
     if not callable(save_template):
         raise HTTPException(status_code=503, detail=SAVED_QUERY_STORAGE_IS_NOT_AVAILABLE_VALUE)
-    row = save_template(payload, author=scope.actor_name)
+    try:
+        row = save_template(payload, author=scope.actor_name)
+    except SavedQueryContractError as exc:
+        raise HTTPException(status_code=422, detail=exc.as_detail()) from exc
     return {
         "status": "created",
         "query_template": row,
@@ -582,7 +585,10 @@ def update_dataset_query_template(
     save_template = getattr(db, "save_dataset_query_template", None)
     if not callable(save_template):
         raise HTTPException(status_code=503, detail=SAVED_QUERY_STORAGE_IS_NOT_AVAILABLE_VALUE)
-    row = save_template(payload, author=scope.actor_name)
+    try:
+        row = save_template(payload, author=scope.actor_name)
+    except SavedQueryContractError as exc:
+        raise HTTPException(status_code=422, detail=exc.as_detail()) from exc
     return {"status": "updated", "query_template": row, "query_template_id": query_template_id}
 
 

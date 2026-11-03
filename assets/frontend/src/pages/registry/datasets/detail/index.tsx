@@ -63,6 +63,9 @@ export function RegistryDatasetsDetailPage() {
     handleSave,
     message,
     openCreateQueryModal,
+    queryCreationReady,
+    queryConnectorLoading,
+    retryQueryConnectionDetails,
     savedQueriesQuery,
     savedQueryColumns,
     savedQueries,
@@ -362,10 +365,19 @@ export function RegistryDatasetsDetailPage() {
                 <p className="fs-field-helper">
                   {t("react.registry.saved_queries_belong_to_this_dataset_and_are_referenced_by_dataset_query_workflow_steps", "Saved queries belong to this dataset and are referenced by dataset_query workflow steps.")}</p>
                 <div className="fs-footer-actions">
-                  <button className="fs-button primary" onClick={openCreateQueryModal} type="button">
+                  <button className="fs-button primary" disabled={!queryCreationReady} onClick={openCreateQueryModal} type="button">
                     {t("react.registry.add_query", "Add query")}</button>
                   {message ? <DsAlert title={message} tone="success" /> : null}
                 </div>
+                {!queryCreationReady ? queryConnectorLoading ? (
+                  <p role="status" className="fs-field-helper">{t("react.registry.loading_query_connection", "Loading connection details…")}</p>
+                ) : (
+                  <DsAlert title={t("react.registry.query_connector_unavailable", "Connection details are unavailable. Retry or check the dataset connection.")} tone="danger">
+                    <button className="fs-button" onClick={retryQueryConnectionDetails} type="button">
+                      {t("react.registry.retry_query_connection", "Retry connection details")}
+                    </button>
+                  </DsAlert>
+                ) : null}
                 <DsTable
                   ariaLabel={t("react.registry.saved_queries", "Saved queries")}
                   busy={savedQueriesQuery.isLoading}
@@ -463,7 +475,7 @@ export function RegistryDatasetsDetailPage() {
 
       <DsDialog
         busy={saveQueryMutation.isPending}
-        description={t("react.registry.query_sql_is_saved_on_this_dataset_and_can_be_referenced_by_dataset_query_workflow_steps", "Query SQL is saved on this dataset and can be referenced by dataset_query workflow steps.")}
+        description={t("react.registry.queries_saved_on_dataset", "Queries are saved on this dataset and can be referenced by dataset_query workflow steps.")}
         eyebrow={t("react.registry.saved_queries", "Saved queries")}
         footer={
           <>
@@ -505,27 +517,27 @@ export function RegistryDatasetsDetailPage() {
             <DsSelect
               ariaLabel={t("react.registry.query_language", "Query language")}
               id="saved-query-language"
-              disabled={queryConfigurationReadOnly}
-              onChange={(value) => updateQueryDraft({ query_language: value })}
-              options={[{ value: "sql", label: "SQL" }]}
+              disabled
+              onChange={() => {}}
+              options={[{ value: queryDraft.query_language, label: queryDraft.query_language.toUpperCase() }]}
               value={queryDraft.query_language}
             />
           </div>
           <div className="fs-field full">
             <label className="fs-field-label" htmlFor="saved-query-sql">
-              {t("react.registry.sql_query", "SQL query")}</label>
+              {queryDraft.query_language === "json" ? t("react.registry.json_query_definition", "JSON query definition") : t("react.registry.sql_query", "SQL query")}</label>
             <textarea
               aria-describedby="saved-query-sql-help"
               className="fs-textarea fs-code-value"
               id="saved-query-sql"
               readOnly={queryConfigurationReadOnly}
-              onChange={(event) => updateQueryDraft({ sql: event.target.value })}
-              placeholder={"SELECT event, eventStart FROM event\nWHERE eventStart >= :from_date\nLIMIT 100"}
-              value={queryDraft.sql}
+              onChange={(event) => updateQueryDraft(queryDraft.query_language === "json" ? { definition_json: event.target.value } : { sql: event.target.value })}
+              placeholder={queryDraft.query_language === "json" ? '{"resource_id":"events","operation":"find","arguments":{}}' : "SELECT event, eventStart FROM event\nWHERE eventStart >= :from_date\nLIMIT 100"}
+              value={queryDraft.query_language === "json" ? queryDraft.definition_json || "" : queryDraft.sql}
             />
             <span className="fs-field-helper" id="saved-query-sql-help">
-              {t("react.registry.use_name_in_sql_for_a_named_parameter", "Use :name in SQL for a named parameter.")}</span>
-            <code className="fs-code-value">WHERE eventStart &gt;= :from_date</code>
+              {queryDraft.query_language === "json" ? t("react.registry.json_parameter_help", 'Use {"$param":"name"} inside arguments for a typed parameter.') : t("react.registry.use_name_in_sql_for_a_named_parameter", "Use :name in SQL for a named parameter.")}</span>
+            {queryDraft.query_language !== "json" ? <code className="fs-code-value">WHERE eventStart &gt;= :from_date</code> : null}
           </div>
           <div className="fs-field full">
             {queryConfigurationReadOnly ? <pre className="fs-code-value">{stringifyJson({ params: queryParamsSchema, output: queryOutputSchema })}</pre> : <SavedQuerySchemaBuilders
@@ -535,7 +547,8 @@ export function RegistryDatasetsDetailPage() {
               paramsSchema={queryParamsSchema}
               resources={schemaSnapshot.resources}
               selectAllOutputByDefault={!editingQueryId}
-              sql={queryDraft.sql}
+              queryLanguage={queryDraft.query_language}
+              sql={queryDraft.query_language === "json" ? queryDraft.definition_json || "" : queryDraft.sql}
             />}
           </div>
         </div>

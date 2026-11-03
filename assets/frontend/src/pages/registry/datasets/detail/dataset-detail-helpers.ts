@@ -19,6 +19,7 @@ export type QueryDraft = {
   description: string;
   query_language: string;
   sql: string;
+  definition_json?: string;
   params_json: string;
   output_json: string;
 };
@@ -49,7 +50,7 @@ export type QueryPreviewState = {
   truncated: boolean;
 };
 
-export type QuerySchemaType = "string" | "integer" | "number" | "boolean";
+export type QuerySchemaType = "string" | "integer" | "number" | "boolean" | "object" | "array" | "null";
 
 export type QueryParameterField = {
   format: string;
@@ -62,7 +63,7 @@ export type QueryOutputField = {
   format: string;
   name: string;
   resourceId: string;
-  type: QuerySchemaType;
+  type: QuerySchemaType | "json";
 };
 
 export const EMPTY_QUERY_DRAFT: QueryDraft = {
@@ -122,9 +123,13 @@ const QUERY_SCHEMA_TYPES = new Set<QuerySchemaType>([
   "integer",
   "number",
   "boolean",
+  "object",
+  "array",
+  "null",
 ]);
 
-function schemaType(value: unknown): QuerySchemaType {
+function schemaType(value: unknown, language = "sql"): QuerySchemaType {
+  if (language !== "json" && ["object", "array", "null"].includes(String(value))) return "string";
   return typeof value === "string" && QUERY_SCHEMA_TYPES.has(value as QuerySchemaType)
     ? (value as QuerySchemaType)
     : "string";
@@ -215,8 +220,27 @@ function parameterNamesFromSql(sql: string): string[] {
   return names;
 }
 
-function schemaFieldFromColumn(column: DatasetColumn): Pick<QueryOutputField, "format" | "type"> {
+export function queryParameterNames(text: string, language = "sql"): string[] {
+  if (language !== "json") return parameterNamesFromSql(text);
+  try {
+    const definition = parseObjectJson(text, "Query");
+    const names = new Set<string>();
+    const visit = (value: unknown): void => {
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (isRecord(value)) {
+        if (Object.keys(value).length === 1 && typeof value.$param === "string" && /^[A-Za-z_]\w*$/.test(value.$param)) names.add(value.$param);
+        else Object.values(value).forEach(visit);
+      }
+    };
+    visit(definition.arguments);
+    return [...names];
+  } catch { return []; }
+}
+
+function schemaFieldFromColumn(column: DatasetColumn, language = "sql"): Pick<QueryOutputField, "format" | "type"> {
   const valueType = String(column.value_type || "").toLowerCase();
+  if (language === "json" && valueType === "json") return { type: "json", format: "" };
+  if (language === "json" && ["object", "array", "null"].includes(valueType)) return { type: valueType as QuerySchemaType, format: "" };
   if (valueType === "integer") {
     return { type: "integer", format: "" };
   }
@@ -236,6 +260,7 @@ function schemaFieldFromColumn(column: DatasetColumn): Pick<QueryOutputField, "f
 export function queryParameterFields(
   sql: string,
   schema: Record<string, unknown>,
+  language = "sql",
 ): QueryParameterField[] {
   const properties = objectValue(schema.properties);
   const required = new Set(
@@ -243,13 +268,13 @@ export function queryParameterFields(
       ? schema.required.filter((name): name is string => typeof name === "string")
       : [],
   );
-  const sqlParameters = new Set(parameterNamesFromSql(sql));
+  const sqlParameters = new Set(queryParameterNames(sql, language));
   const names = Array.from(new Set([...sqlParameters, ...Object.keys(properties)]));
   return names.map((name) => {
     const property = objectValue(properties[name]);
     return {
       name,
-      type: schemaType(property.type),
+      type: schemaType(property.type, language),
       format: typeof property.format === "string" ? property.format : "",
       required: required.has(name) || (sqlParameters.has(name) && !Object.hasOwn(properties, name)),
     };
@@ -276,9 +301,9 @@ export function paramsSchemaFromFields(fields: QueryParameterField[]): Record<st
   };
 }
 
-export function paramsSchemaForSql(sql: string, schema: Record<string, unknown>): Record<string, unknown> {
+export function paramsSchemaForSql(sql: string, schema: Record<string, unknown>, language = "sql"): Record<string, unknown> {
   const properties = { ...objectValue(schema.properties) };
-  const added = parameterNamesFromSql(sql).filter((name) => !Object.hasOwn(properties, name));
+  const added = queryParameterNames(sql, language).filter((name) => !Object.hasOwn(properties, name));
   if (!added.length) return schema;
   for (const name of added) properties[name] = { type: "string" };
   const required = Array.isArray(schema.required) ? schema.required : [];
@@ -290,7 +315,7 @@ export function paramsSchemaForSql(sql: string, schema: Record<string, unknown>)
   };
 }
 
-export function queryOutputFields(resources: DatasetResource[]): QueryOutputField[] {
+export function queryOutputFields(resources: DatasetResource[], language = "sql"): QueryOutputField[] {
   const seenNames = new Set<string>();
   return resources.flatMap((resource) =>
     resource.columns.flatMap((column) => {
@@ -298,7 +323,7 @@ export function queryOutputFields(resources: DatasetResource[]): QueryOutputFiel
         return [];
       }
       seenNames.add(column.name);
-      return [{ resourceId: resource.resource_id, name: column.name, ...schemaFieldFromColumn(column) }];
+      return [{ resourceId: resource.resource_id, name: column.name, ...schemaFieldFromColumn(column, language) }];
     }),
   );
 }
@@ -310,7 +335,7 @@ export function outputSchemaWithField(
 ): Record<string, unknown> {
   const properties = { ...objectValue(schema.properties) };
   if (selected && !Object.hasOwn(properties, field.name)) {
-    properties[field.name] = {
+    properties[field.name] = field.type === "json" ? {} : {
       type: field.type,
       ...(field.type === "string" && field.format ? { format: field.format } : {}),
     };
@@ -360,6 +385,8 @@ function previewParameterValue(schema: unknown): unknown {
     return property.default;
   }
   switch (property.type) {
+    case "null":
+      return null;
     case "boolean":
       return false;
     case "integer":
@@ -378,7 +405,7 @@ export function previewParamsJsonForTemplate(template: DatasetQueryTemplate): st
   const paramsSchema = objectValue(template.params_schema_jsonb);
   const properties = objectValue(paramsSchema.properties);
   const sql = firstStringFromUnknownValue([objectValue(template.query_definition_jsonb).sql, ""]);
-  const sqlParameterNames = parameterNamesFromSql(sql);
+  const sqlParameterNames = queryParameterNames(template.query_language === "json" ? stringifyJson(template.query_definition_jsonb) : sql, template.query_language);
   const parameterNames = Array.from(new Set([...Object.keys(properties), ...sqlParameterNames]));
   return JSON.stringify(
     Object.fromEntries(
@@ -535,6 +562,7 @@ export function queryDraftFromTemplate(query: DatasetQueryTemplate): QueryDraft 
     description: query.description || "",
     query_language: query.query_language || "sql",
     sql: firstStringFromUnknownValue([query.query_definition_jsonb?.sql, ""]),
+    definition_json: stringifyJson(query.query_definition_jsonb),
     params_json: stringifyJson(query.params_schema_jsonb),
     output_json: stringifyJson(query.output_schema_jsonb),
   };

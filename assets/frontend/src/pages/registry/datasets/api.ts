@@ -4,6 +4,7 @@ import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-value
 export type DatasetMetadata = Record<string, unknown> & { connection_resolution?: "project_scope" };
 
 export type DatasetRecord = {
+  account_id?: string;
   source_install_id?: string;
   source_release_id?: string;
   dataset_id: string;
@@ -43,6 +44,7 @@ export type DatasetPayload = {
 };
 
 export type DatasetConnector = {
+  account_id?: string;
   connector_id: string;
   local_connector_id?: string;
   display_name: string;
@@ -151,6 +153,7 @@ function resourceScopeFromMetadata(value: unknown): Record<string, unknown> {
 
 function normalizeDataset(row: Record<string, unknown>): DatasetRecord {
   return {
+    account_id: firstStringFromUnknownValue([row.account_id, ""]).trim(),
     source_install_id: firstStringFromUnknownValue([row.source_install_id, ""]).trim(),
     source_release_id: firstStringFromUnknownValue([row.source_release_id, ""]).trim(),
     dataset_id: firstStringFromUnknownValue([row.dataset_id, row.id, ""]),
@@ -185,13 +188,14 @@ function normalizeDataset(row: Record<string, unknown>): DatasetRecord {
 
 function normalizeConnector(row: Record<string, unknown>): DatasetConnector {
   return {
+    account_id: firstStringFromUnknownValue([row.account_id, ""]).trim(),
     connector_id: firstStringFromUnknownValue([row.connector_id, row.id, ""]),
     local_connector_id: firstStringFromUnknownValue([row.local_connector_id, row.connector_id, ""]),
     display_name: firstStringFromUnknownValue([row.display_name, row.name, row.connector_id, "Dataset connector"]),
     description: firstStringFromUnknownValue([row.description, ""]),
     connector_kind: firstStringFromUnknownValue([row.connector_kind, "extension"]),
     runtime_kind: firstStringFromUnknownValue([row.runtime_kind, "local_extension"]),
-    query_language: firstStringFromUnknownValue([row.query_language, "sql"]),
+    query_language: firstStringFromUnknownValue([row.query_language, ""]).trim().toLowerCase(),
     connection_schema: isRecord(row.connection_schema) ? row.connection_schema : {},
     secret_schema: isRecord(row.secret_schema) ? row.secret_schema : {},
     capabilities: isRecord(row.capabilities) ? row.capabilities : {},

@@ -28129,3 +28129,42 @@ msgstr ""
 
 msgid "react.workflows.agent_file_formats_encoding"
 msgstr ""
+
+msgid "react.registry.json_add_parameter"
+msgstr ""
+
+msgid "react.registry.json_array"
+msgstr ""
+
+msgid "react.registry.json_null"
+msgstr ""
+
+msgid "react.registry.json_object"
+msgstr ""
+
+msgid "react.registry.json_parameter_help"
+msgstr ""
+
+msgid "react.registry.json_parameters_help"
+msgstr ""
+
+msgid "react.registry.json_query_definition"
+msgstr ""
+
+msgid "react.registry.loading_query_connection"
+msgstr ""
+
+msgid "react.registry.queries_saved_on_dataset"
+msgstr ""
+
+msgid "react.registry.query_connector_unavailable"
+msgstr ""
+
+msgid "react.registry.query_name_definition_required"
+msgstr ""
+
+msgid "react.registry.retry_query_connection"
+msgstr ""
+
+msgid "react.registry.typed_json_value"
+msgstr ""
