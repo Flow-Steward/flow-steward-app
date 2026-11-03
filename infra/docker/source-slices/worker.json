@@ -1166,6 +1166,10 @@
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {
+      "path": "db/migrations/20261103090000_secret_catalog.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
       "path": "db/schema/001_schema_part_01.sql",
       "consumer": "core.infrastructure.db.schema_state canonical startup schema fingerprint"
     },
