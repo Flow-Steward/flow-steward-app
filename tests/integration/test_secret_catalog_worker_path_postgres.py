@@ -21,6 +21,7 @@ from core.application.jobs.task_enqueue_runtime import enqueue_job
 from core.application.jobs.task_execution_request import _build_request, _with_project_scope
 from core.application.jobs.task_execution_service import TaskExecutionService
 from core.application.management.errors import ServiceForbiddenError, ServiceValidationError
+from core.application.management.scope import ScopeContext
 from core.application.orchestration import http_request_step_runtime as runtime
 from core.application.orchestration.state import build_initial_orchestrator_state
 from core.application.registry.db_store import RegistryDBStore
@@ -996,3 +997,58 @@ def test_the_project_workflow_secrets_route_serves_operators_and_viewers(stand, 
     assert rows["wf_route"]["secret_inputs"] == ["api_key"]
     assert rows["wf_route"]["display_name"] == "wf_route"
     assert key not in response.text
+
+
+def _secret_routes_client(stand: Stand, scope: ScopeContext):
+    from fastapi import APIRouter, FastAPI
+    from fastapi.responses import JSONResponse
+    from fastapi.testclient import TestClient
+
+    from core.application.management.errors import ServiceError
+    from core.entrypoints.api.integrations_secret_routes import register_secret_approval_routes
+
+    def service_error_response(exc: ServiceError) -> JSONResponse:
+        return JSONResponse({"error": str(exc)}, status_code=getattr(exc, "status_code", 400))
+
+    router = APIRouter()
+    register_secret_approval_routes(
+        api_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=500),
+        err_not_found="not found",
+        get_logger=lambda: stand.conn,
+        request_scope=lambda _request, project_id=None, **_kw: scope,
+        router=router,
+        service_error_response=service_error_response,
+    )
+    app = FastAPI()
+    app.include_router(router)
+    return TestClient(app)
+
+
+@pytest.mark.parametrize(
+    ("scope", "allowed"),
+    [
+        (_human("operator"), True),
+        (_human("viewer"), False),
+        # A machine never approves, whatever scopes it holds.
+        (_token("secrets:bind", "secrets:write", "admin:all"), False),
+    ],
+)
+def test_only_an_interactive_operator_approves_through_the_route(stand, scope, allowed) -> None:
+    stand.save("wf_route_approve")
+    secret = stand.service.create_secret(
+        _human(), name="Route key", value=VALUE, project_id=stand.project_id
+    )
+    status = stand.service.bind_workflow_input(
+        "wf_route_approve",
+        _human(),
+        project_id=stand.project_id,
+        field="api_key",
+        secret_id=secret["id"],
+    )
+    path = f"/api/projects/{stand.project_id}/workflows/wf_route_approve/secret-approval"
+    response = _secret_routes_client(stand, scope).post(
+        path, json={"fingerprint": status["fingerprint"], "destinations": []}
+    )
+    assert (response.status_code == 200) is allowed, response.text
+    if not allowed:
+        assert response.status_code == 403

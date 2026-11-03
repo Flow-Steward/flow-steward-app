@@ -1191,3 +1191,60 @@ def test_builder_normal_run_preserves_editor_role_and_cookie_csrf(role, csrf_val
         principal=ResolvedPrincipal(id="user", username="user", roles=[role], auth_source="local"),
     )
     assert response.status_code == expected
+
+
+_OPERATOR = ResolvedPrincipal(
+    id="op-1", username="operator", roles=["operator"], auth_source="session"
+)
+_VIEWER = ResolvedPrincipal(id="vw-1", username="viewer", roles=["viewer"], auth_source="session")
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/api/projects/proj-1/workflows/qa_wf_two/secret-approval"),
+        ("POST", "/api/projects/proj-1/workflows/qa_wf_two/secret-approval"),
+        ("PUT", "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/api_key"),
+        ("DELETE", "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/api_key"),
+    ],
+)
+def test_an_operator_reaches_workflow_secret_binding_and_approval(method: str, path: str) -> None:
+    # ADR 0055: binding and approval are the operator's; the secret catalog service
+    # then checks role, interactive session and scopes for each request.
+    response = _run_middleware_with_principal(
+        path=path, method=method, principal=_OPERATOR, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == 204
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/api/projects/proj-1/workflows/qa_wf_two/secret-approval"),
+        ("PUT", "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/api_key"),
+    ],
+)
+def test_a_viewer_cannot_bind_or_approve_workflow_secrets(method: str, path: str) -> None:
+    response = _run_middleware_with_principal(
+        path=path, method=method, principal=_VIEWER, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/projects/proj-1/workflows",
+        "/api/projects/proj-1/workflows/qa_wf_two",
+        "/api/projects/proj-1/workflows/qa_wf_two/secret-approval/extra",
+        "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings",
+        "/api/projects/proj-1/workflows/qa_wf_two/secret-bindings/a/b",
+    ],
+)
+def test_project_workflow_management_beside_the_secret_leaves_stays_admin_only(path: str) -> None:
+    assert is_admin_only_route(path) is True
+    response = _run_middleware_with_principal(
+        path=path, method="PUT", principal=_OPERATOR, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == 403
+    assert b"Admin role required" in response.body

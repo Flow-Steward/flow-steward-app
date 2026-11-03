@@ -309,6 +309,13 @@ describe("ProjectsDetailPage", () => {
     expect(await screen.findByText("Workflow secrets")).toBeInTheDocument();
     expect(await screen.findByTestId("project-workflow-secrets-qa_wf_two")).toHaveTextContent("qa-wf-two");
     expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("project-123");
+    // The admin-only workflow links are not asked for, so nothing claims they failed
+    // or that every workflow is merely "available".
+    expect(mockedFetchProjectWorkflowBindings).not.toHaveBeenCalled();
+    expect(mockedFetchWorkflows).not.toHaveBeenCalled();
+    expect(screen.queryByText("Part of the project settings could not be loaded")).not.toBeInTheDocument();
+    expect(screen.getByText(/An administrator links workflows to this project/)).toBeInTheDocument();
+    expect(screen.queryByText("Linked")).not.toBeInTheDocument();
   });
 
   it("is the project itself: no Configuration screen to open and no way back to leave for", async () => {

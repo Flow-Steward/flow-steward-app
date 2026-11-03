@@ -29142,6 +29142,9 @@ msgstr "Replace value"
 msgid "react.registry.secrets.used_by"
 msgstr "Used by"
 
+msgid "react.projects.workflow_links_admin_only"
+msgstr "An administrator links workflows to this project. You can choose stored secrets for the linked workflows below."
+
 msgid "react.projects.workflow_secrets.failed"
 msgstr "Workflow secrets could not be loaded"
 

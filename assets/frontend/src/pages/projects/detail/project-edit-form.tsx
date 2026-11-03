@@ -119,6 +119,8 @@ type ProjectEditFormProps = {
   providerOptions: ProviderOption[];
   /** Without `mutate_projects`: every control is disabled and nothing offers Save. */
   readOnly: boolean;
+  /** Admin: may link workflows to the project. Others see only the workflow secrets panel. */
+  canManageWorkflows?: boolean;
   removeAgentOverride: (agentName: string) => void;
   selectProjectTab: (tabKey: ProjectTabKey) => void;
   selectedDataConnectionIds: string[];
@@ -192,6 +194,7 @@ export function ProjectEditForm({
   projectRelevantAgentIds,
   providerOptions,
   readOnly,
+  canManageWorkflows = true,
   removeAgentOverride,
   selectProjectTab,
   selectedDataConnectionIds,
@@ -320,61 +323,69 @@ export function ProjectEditForm({
                 </div>
               </div>
               <div className="space-y-4">
-                {renderWhen(Boolean(staleSelectedWorkflowIds.length), (
-                  <div className="fs-surface-radius border border-selected fs-surface-attention px-3 py-2 text-sm fs-ink-attention">
-                    {t("react.projects.this_project_still_references_missing_workflow", "This project still references missing workflow")} {pluralSuffix(staleSelectedWorkflowIds.length)}{" "}
-                    {staleSelectedWorkflowIds.map((workflowId) => `"${workflowId}"`).join(", ")}{t("react.projects.unselect", ". Unselect")} {staleWorkflowPronoun(staleSelectedWorkflowIds.length)} {t("react.projects.before_saving_project_changes", "before saving project changes.")} </div>
-                ))}
-                <AssignmentSelector
-                  activeFilter={workflowStatusFilter}
-                  emptyState={t("react.projects.no_workflows_available", "No workflows available.")}
-                  filters={workflowFilterItems}
-                  loading={workflowAssignmentsLoading}
-                  loadingLabel={t("react.projects.loading_workflow_catalog", "Loading workflow catalog...")}
-                  onFilterChange={(value) => setWorkflowStatusFilter(value as WorkflowStatusFilter)}
-                  onSearchChange={setWorkflowSearch}
-                  onToggleRow={toggleWorkflow}
-                  readOnly={readOnly}
-                  renderRowAction={(row) => (
-                    selectedDefaultWorkflowId === row.id ? (
-                      <span className="rounded-full border border-selected fs-surface-selected px-2 py-0.5 text-[11px] fs-ink-success">
-                        {t("react.projects.operator_default_2", "operator default")} </span>
-                    ) : (
-                      <span className="text-xs fs-ink-tertiary">—</span>
-                    )
-                  )}
-                  rows={workflowSelectorRows}
-                  searchPlaceholder={t("react.projects.workflow_name_or_id", "Workflow name or ID")}
-                  searchValue={workflowSearch}
-                  selectedCount={linkedWorkflowCount}
-                  totalCount={availableWorkflowRows.length}
-                />
-                <div className="fs-field fs-form-block">
-                  <span className="fs-field-label">{t("react.projects.operator_default_workflow", "Operator default workflow")}</span>
-                  <DsFormSelect
-                    ariaLabel={t("react.projects.operator_default_workflow", "Operator default workflow")}
-                    disabled={!selectedWorkflowIds.length}
-                    name="operator_default_workflow_id"
-                    onChange={setDefaultWorkflowId}
-                    options={[
-                      { value: "", label: t("react.projects.no_operator_default", "No operator default") },
-                      ...selectedWorkflowIds.filter(
-                        (workflowId) =>
-                          !availableWorkflowRows.find((item) => item.workflowId === workflowId)?.stale,
-                      )
-                      .map((workflowId) => ({
-                        value: workflowId,
-                        label:
-                          availableWorkflowRows.find((item) => item.workflowId === workflowId)?.displayName ||
-                          workflowId,
-                      })),
-                    ]}
-                    placeholder={t("react.projects.no_operator_default", "No operator default")}
-                    value={selectedDefaultWorkflowId}
-                  />
-                  <p className="mt-2 text-xs fs-ink-tertiary">
-                    {t("react.projects.this_setting_is_informational_for_operators_and_does_not_auto_select_a_workflow_for_execution_or_preview", "This setting is informational for operators and does not auto-select a workflow for execution or preview.")} </p>
-                </div>
+                {canManageWorkflows ? (
+                  <>
+                    {renderWhen(Boolean(staleSelectedWorkflowIds.length), (
+                      <div className="fs-surface-radius border border-selected fs-surface-attention px-3 py-2 text-sm fs-ink-attention">
+                        {t("react.projects.this_project_still_references_missing_workflow", "This project still references missing workflow")} {pluralSuffix(staleSelectedWorkflowIds.length)}{" "}
+                        {staleSelectedWorkflowIds.map((workflowId) => `"${workflowId}"`).join(", ")}{t("react.projects.unselect", ". Unselect")} {staleWorkflowPronoun(staleSelectedWorkflowIds.length)} {t("react.projects.before_saving_project_changes", "before saving project changes.")} </div>
+                    ))}
+                    <AssignmentSelector
+                      activeFilter={workflowStatusFilter}
+                      emptyState={t("react.projects.no_workflows_available", "No workflows available.")}
+                      filters={workflowFilterItems}
+                      loading={workflowAssignmentsLoading}
+                      loadingLabel={t("react.projects.loading_workflow_catalog", "Loading workflow catalog...")}
+                      onFilterChange={(value) => setWorkflowStatusFilter(value as WorkflowStatusFilter)}
+                      onSearchChange={setWorkflowSearch}
+                      onToggleRow={toggleWorkflow}
+                      readOnly={readOnly}
+                      renderRowAction={(row) => (
+                        selectedDefaultWorkflowId === row.id ? (
+                          <span className="rounded-full border border-selected fs-surface-selected px-2 py-0.5 text-[11px] fs-ink-success">
+                            {t("react.projects.operator_default_2", "operator default")} </span>
+                        ) : (
+                          <span className="text-xs fs-ink-tertiary">—</span>
+                        )
+                      )}
+                      rows={workflowSelectorRows}
+                      searchPlaceholder={t("react.projects.workflow_name_or_id", "Workflow name or ID")}
+                      searchValue={workflowSearch}
+                      selectedCount={linkedWorkflowCount}
+                      totalCount={availableWorkflowRows.length}
+                    />
+                    <div className="fs-field fs-form-block">
+                      <span className="fs-field-label">{t("react.projects.operator_default_workflow", "Operator default workflow")}</span>
+                      <DsFormSelect
+                        ariaLabel={t("react.projects.operator_default_workflow", "Operator default workflow")}
+                        disabled={!selectedWorkflowIds.length}
+                        name="operator_default_workflow_id"
+                        onChange={setDefaultWorkflowId}
+                        options={[
+                          { value: "", label: t("react.projects.no_operator_default", "No operator default") },
+                          ...selectedWorkflowIds.filter(
+                            (workflowId) =>
+                              !availableWorkflowRows.find((item) => item.workflowId === workflowId)?.stale,
+                          )
+                          .map((workflowId) => ({
+                            value: workflowId,
+                            label:
+                              availableWorkflowRows.find((item) => item.workflowId === workflowId)?.displayName ||
+                              workflowId,
+                          })),
+                        ]}
+                        placeholder={t("react.projects.no_operator_default", "No operator default")}
+                        value={selectedDefaultWorkflowId}
+                      />
+                      <p className="mt-2 text-xs fs-ink-tertiary">
+                        {t("react.projects.this_setting_is_informational_for_operators_and_does_not_auto_select_a_workflow_for_execution_or_preview", "This setting is informational for operators and does not auto-select a workflow for execution or preview.")} </p>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm fs-ink-tertiary">
+                    {t("react.projects.workflow_links_admin_only", "An administrator links workflows to this project. You can choose stored secrets for the linked workflows below.")}
+                  </p>
+                )}
                 {renderWhen(activeTab === "workflows", (
                   <ProjectWorkflowSecrets projectId={textOrEmpty(project.id) || projectId} />
                 ))}

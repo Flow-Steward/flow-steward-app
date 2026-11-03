@@ -29564,6 +29564,9 @@ msgstr "Pakeisti reikšmę"
 msgid "react.registry.secrets.used_by"
 msgstr "Naudoja"
 
+msgid "react.projects.workflow_links_admin_only"
+msgstr "Darbo eigas su šiuo projektu susieja administratorius. Toliau galite pasirinkti saugomas paslaptis susietoms darbo eigoms."
+
 msgid "react.projects.workflow_secrets.failed"
 msgstr "Darbo eigų paslapčių nepavyko įkelti"
 

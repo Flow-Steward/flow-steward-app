@@ -28088,6 +28088,9 @@ msgstr ""
 msgid "react.registry.secrets.used_by"
 msgstr ""
 
+msgid "react.projects.workflow_links_admin_only"
+msgstr ""
+
 msgid "react.projects.workflow_secrets.failed"
 msgstr ""
 
