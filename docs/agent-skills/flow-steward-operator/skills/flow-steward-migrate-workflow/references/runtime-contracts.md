@@ -99,6 +99,17 @@ the final exported bytes and record new hashes. Prior fixture success does not
 qualify a different published artifact. If export/round-trip cannot be checked,
 report that gap rather than calling a fixture binding portable.
 
+Canonicalize executor identity before export using the selected authoring schema.
+In the audited release, runtime accepts the step alias `agent`, but the portability
+export allowlist preserves `agent_id`: an alias-only agent step lost its executor
+identity on export and failed execution. Author with `agent_id` and compare that
+field in saved and exported steps; do not infer preservation from successful
+dependency discovery. Apply `skill_id` only where the actual step/export schema
+supports it, rather than guessing that every runtime alias is portable. Compare
+input/output mappings as well, then execute the exported bytes, not merely the
+pre-export candidate. Required agent definitions without a step executor reference
+do not repair an executor-less graph.
+
 - Audited SMTP `send_email` exposes flat `delivered` and `provider_message_id`.
   `result.delivered` failed after the email had already been sent. Test mappings
   after the actual send handler; a fake `{result: {delivered: true}}` conceals
@@ -256,3 +267,7 @@ integration claim. A fixture pass does not itself authorize publication or prove
 live readiness. If the user explicitly requests publication of an offline-qualified
 template, follow the catalog's actual publication rules and disclose the verified
 layer, unbound dependencies, trigger adaptations and unperformed live checks.
+
+Validate embedded agent/skill definitions through the actual import preflight, not
+only the graph validator. Registry fields such as skill `category` use the target
+product enum; a runnable graph can still carry a definition import refuses.
