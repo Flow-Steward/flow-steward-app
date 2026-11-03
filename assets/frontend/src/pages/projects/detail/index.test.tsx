@@ -315,7 +315,8 @@ describe("ProjectsDetailPage", () => {
     expect(mockedFetchWorkflows).not.toHaveBeenCalled();
     expect(screen.queryByText("Part of the project settings could not be loaded")).not.toBeInTheDocument();
     expect(screen.getByText(/An administrator links workflows to this project/)).toBeInTheDocument();
-    expect(screen.queryByText("Linked")).not.toBeInTheDocument();
+    // No workflow assignment list: its search field is the selector's own.
+    expect(screen.queryByPlaceholderText("Workflow name or ID")).not.toBeInTheDocument();
   });
 
   it("is the project itself: no Configuration screen to open and no way back to leave for", async () => {

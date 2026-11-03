@@ -75,6 +75,40 @@ def _is_secret_unbind(path: str, method: str) -> bool:
     return method == "DELETE" and bool(_SECRET_BINDING_RE.fullmatch(path))
 
 
+#: Deleting one catalog secret (ADR 0055): the operator's, like creating and editing
+#: one; the catalog refuses a secret that is still bound.
+_CATALOG_SECRET_RE = re.compile(r"^/api/secrets/[^/]+$")
+_SECRET_WRITE_SCOPE = "secrets:write"  # pragma: allowlist secret - a scope name
+_SECRET_BIND_SCOPE = "secrets:bind"  # pragma: allowlist secret - a scope name
+#: The secret catalog's writes and the one exact token scope each needs (ADR 0055).
+#: These scopes are exact-only: no wildcard and no admin:all grants them, and none
+#: of these requests needs any other scope beside it.
+_CATALOG_WRITE_SCOPES: tuple[tuple[str, re.Pattern[str], str], ...] = (
+    ("POST", re.compile(r"^/api/secrets$"), _SECRET_WRITE_SCOPE),
+    ("PATCH", _CATALOG_SECRET_RE, _SECRET_WRITE_SCOPE),
+    ("DELETE", _CATALOG_SECRET_RE, _SECRET_WRITE_SCOPE),
+    ("PUT", re.compile(r"^/api/secrets/[^/]+/value$"), _SECRET_WRITE_SCOPE),
+    ("PUT", _SECRET_BINDING_RE, _SECRET_BIND_SCOPE),
+    ("DELETE", _SECRET_BINDING_RE, _SECRET_BIND_SCOPE),
+)
+
+
+def _catalog_write_scope(path: str, method: str) -> str | None:
+    for write_method, pattern, scope in _CATALOG_WRITE_SCOPES:
+        if method == write_method and pattern.fullmatch(path):
+            return scope
+    return None
+
+
+def _is_catalog_secret_delete(path: str, method: str) -> bool:
+    return method == "DELETE" and bool(_CATALOG_SECRET_RE.fullmatch(path))
+
+
+def _is_operator_delete(path: str, method: str) -> bool:
+    """The only DELETE requests below admin: unbinding and deleting catalog secrets."""
+    return _is_secret_unbind(path, method) or _is_catalog_secret_delete(path, method)
+
+
 _VIEWER_EXTENSION_DETAIL_RE = re.compile(r"^/api/extensions/([^/]+)(?:/compiled-manifest)?$")
 _PROJECT_EXTENSION_CALLBACK_WRITE_RE = re.compile(
     r"^/api/extensions/[^/]+/callbacks/[^/]+(?:/(?:rotate|status))?$"
@@ -282,10 +316,13 @@ def _required_http_scopes(
         # stays the middleware's role gate. The scope decides only what a token of an
         # administrator may be narrowed to (T1 acceptance: it was still admin:all).
         return [_TOKEN_PROJECTS_WRITE, _TOKEN_PROJECTS, _TOKEN_COMMAND, _TOKEN_ADMIN_ALL]
+    catalog_scope = None if admin_required else _catalog_write_scope(normalized_path, method)
+    if catalog_scope is not None:
+        return [catalog_scope]
     if (
         admin_required
         or registry_write
-        or (method == "DELETE" and not _is_secret_unbind(normalized_path, method))
+        or (method == "DELETE" and not _is_operator_delete(normalized_path, method))
     ):
         return [_TOKEN_ADMIN_ALL]
     if normalized_path.startswith(_PATH_API_PROJECTS) and normalized_path.endswith(
@@ -499,7 +536,7 @@ async def local_auth_middleware(
     authoring_validate = _is_workflow_authoring_validate(path, method)
     admin_required = bool(
         is_admin_only_route_fn(path)
-        or (method == "DELETE" and not _is_secret_unbind(path, method))
+        or (method == "DELETE" and not _is_operator_delete(path, method))
         or _is_workflow_authoring_create(path, method)
     )
     registry_read_route = bool(is_registry_read_route_fn(path))

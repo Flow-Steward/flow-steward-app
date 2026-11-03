@@ -1052,3 +1052,49 @@ def test_only_an_interactive_operator_approves_through_the_route(stand, scope, a
     assert (response.status_code == 200) is allowed, response.text
     if not allowed:
         assert response.status_code == 403
+
+
+def test_one_exact_scope_reaches_each_catalog_write_through_the_routes(stand) -> None:
+    writer = _secret_routes_client(stand, _token("secrets:write"))
+    binder = _secret_routes_client(stand, _token("secrets:bind"))
+    created = writer.post(
+        "/api/secrets",
+        json={
+            "name": "Token-made",
+            "description": "",
+            "value": VALUE,
+            "project_id": str(stand.project_id),
+        },
+    )
+    assert created.status_code == 200, created.text
+    secret_id = created.json()["id"]
+    assert VALUE not in created.text
+    assert (
+        writer.patch(
+            f"/api/secrets/{secret_id}", json={"name": "Token-made 2", "description": "x"}
+        ).status_code
+        == 200
+    )
+    assert (
+        writer.put(f"/api/secrets/{secret_id}/value", json={"value": VALUE + "-2"}).status_code
+        == 200
+    )
+
+    stand.save("wf_token_bind")
+    bind_path = f"/api/projects/{stand.project_id}/workflows/wf_token_bind/secret-bindings/api_key"
+    # Each scope reaches only its own operations in the service, too.
+    assert writer.put(bind_path, json={"secret_id": secret_id}).status_code == 403
+    bound = binder.put(bind_path, json={"secret_id": secret_id})
+    assert bound.status_code == 200, bound.text
+    approval_path = f"/api/projects/{stand.project_id}/workflows/wf_token_bind/secret-approval"
+    for client in (writer, binder):
+        assert (
+            client.post(
+                approval_path, json={"fingerprint": bound.json()["fingerprint"], "destinations": []}
+            ).status_code
+            == 403
+        )
+    # A bound secret is not deleted; after unbinding it is.
+    assert writer.delete(f"/api/secrets/{secret_id}").status_code == 409
+    assert binder.delete(bind_path).status_code == 200
+    assert writer.delete(f"/api/secrets/{secret_id}").status_code == 200
