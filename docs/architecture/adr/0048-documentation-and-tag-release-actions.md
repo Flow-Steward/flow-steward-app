@@ -28,9 +28,14 @@ checks existing gaps; failures and no-ops do not silently mark changes accepted.
 
 Official stable `vX.Y.Z` tags build once per native Linux AMD64/ARM64 architecture.
 The existing role catalog and OCI release scripts remain authoritative. Jobs copy
-retained artifacts to both configured registries, verify source labels and child
-digests, and require both complete registries before creating a GitHub Release.
-Partial failures preserve artifacts/evidence for idempotent mirror retries.
+retained artifacts to both configured registries and verify source labels and child
+digests. The owner amended the availability rule on 2026-11-03: one complete
+verified registry is sufficient to create the GitHub Release, so a failed mirror
+does not disable registry redundancy. A complete registry contains the entire
+canonical role set and both native platforms; partial registries are never mixed.
+Image-identity failures, immutable-version conflicts and disagreement between
+verified child digests remain fatal. Release notes and evidence identify unavailable
+mirrors, and preserve artifacts for idempotent retries.
 Existing differing version artifacts may not be overwritten.
 
 Product verification continues through `lint.sh`, its single check registry and

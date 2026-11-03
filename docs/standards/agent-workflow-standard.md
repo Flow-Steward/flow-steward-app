@@ -87,7 +87,9 @@ AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `l
 - Additional deep audit checks `MAY` be requested through `lint.sh --checks`; `--audit` is a compatibility alias for the final committed gate.
 - Remote quality workflows are enabled for the public source (ADR 0053), alongside
   documentation and tag-release workflows (ADR 0048). Official automated publication
-  `MUST` wait for its exact-SHA Docker quality gate and both-registry verification.
+  `MUST` wait for its exact-SHA Docker quality gate and verification of the complete
+  canonical image-role/platform set in at least one configured registry. Unavailable
+  mirrors remain visible in evidence; invalid identities and digest conflicts fail closed.
 - `MUST` report exact commands, achieved tier, candidate provenance, and blocked or unrun verification.
 - `MUST NOT` combine results from different commits or environments into one green result, except input-scoped evidence whose fingerprint matches the final tree.
 

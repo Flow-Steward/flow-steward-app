@@ -21,10 +21,13 @@ export FS_RELEASE_GHCR_NAMESPACE=ghcr.io/flow-steward
 export FS_RELEASE_DOCKERHUB_NAMESPACE=docker.io/flowsteward
 ```
 
-The namespaces are operator configuration. Automated publication requires both
-registries to verify. The lower-level manual scripts may configure one namespace
-for an idempotent mirror retry; verify the complete pair before announcing a
-new official release.
+The namespaces are operator configuration and redundant publication targets. Automated
+publication requires at least one complete verified registry. A healthy registry must
+contain every canonical role and both native architectures; roles from different
+partial mirrors are never combined. An unavailable mirror is reported in release
+notes and retained evidence without blocking the healthy registry. Invalid image
+identity, conflicting immutable tags, and cross-registry digest mismatches remain
+fatal. The lower-level scripts may configure one namespace for an idempotent retry.
 
 Each namespace holds seven public repositories, one per release image role
 (`core/application/release/images.py`):
@@ -69,7 +72,7 @@ the active Docker context. The Docker daemon server architecture must match
    `scripts/release/official-release-verify.sh`. Retain the resulting per-registry
    index-digest evidence with the release record.
 6. Publish the stable, non-draft, non-prerelease GitHub Release for `vX.Y.Z` only
-   after verification reports both configured registries complete. An incomplete mirror
+   after verification reports at least one configured registry complete. An unavailable mirror
    can be retried by configuring only that namespace; artifacts are copied again,
    never rebuilt.
 
@@ -119,10 +122,11 @@ retains OCI archives for 30 days. It validates archive checksums before accessin
 registries and rejects any existing version whose child/index digests differ.
 No latest aliases or prerelease images are produced.
 
-Publication attempts each mirror independently. Both registries must expose every
-catalog role and both architectures with matching child digests and source labels.
-Only then is a stable GitHub Release created, with registry verification JSON
-attached. Registry evidence is also retained as a workflow artifact for 90 days;
+Publication attempts each mirror independently. A stable GitHub Release is created
+when at least one registry exposes every catalog role and both architectures with
+the expected native-artifact digests and source labels. If both registries verify,
+their child digests must match. The release notes name the available and unavailable
+registries; registry verification JSON is attached. Registry evidence is also retained as a workflow artifact for 90 days;
 quality evidence and native archives retain for 30 days. Configure organization
 artifact limits to permit these durations and sufficient archive storage.
 
@@ -138,15 +142,19 @@ re-run failed jobs, or run **Publish official images** manually from main with:
 
 Manual publication retry verifies that the artifacts came from this repository's
 release workflow, checks source/version/architecture metadata and every archive
-checksum, runs the exact-SHA quality gate again, then copies the same bytes. A
+checksum, validates the applicable exact-SHA quality evidence, then copies the same bytes.
+Publication tooling is pinned to the workflow commit and runs against a separate
+clean checkout of the immutable tagged source, so an older tag can use current
+recovery tooling without moving its source revision. A
 full re-run of an existing run also selects its retained native artifacts. If an
 archive is missing/expired, the workflow fails; it never silently rebuilds under
 publication-retry mode. A fresh build attempt must pass immutability checks and
 cannot replace already-published differing content. Preserve the original archives
 outside Actions if publication may be delayed beyond retention.
 
-A partial mirror is a failed automated release even though the low-level verifier
-can produce useful evidence for the one healthy registry. Retrying an already
+A partial mirror is not eligible for installation, but it does not block publication
+when another configured registry has the complete verified release. If no complete
+registry remains, publication fails. Retrying an already
 complete mirror is safe only with identical archive digests. The workflow does not
 delete partial tags or roll back registry content. No production application
 rollout is part of this workflow.

@@ -55,22 +55,40 @@ def registry_namespaces(ghcr: str, dockerhub: str) -> tuple[str, str]:
 
 
 def require_complete_release(
-    path: Path, *, version: str, revision: str, namespaces: tuple[str, str]
+    path: Path,
+    *,
+    version: str,
+    revision: str,
+    namespaces: tuple[str, str],
+    artifact_dir: Path | None = None,
 ) -> None:
-    """Reject partial mirrors even when the underlying manual verifier succeeds."""
+    """Require one complete verified registry; never combine partial sets."""
     document = json.loads(path.read_text(encoding="utf-8"))
     if document.get("version") != version or document.get("revision") != revision:
         raise ValueError("verification evidence has the wrong release identity")
     registries = document.get("registries", [])
-    if document.get("failures") or len(registries) != 2:
-        raise ValueError("both registries must verify without failures")
+    if len(registries) != 2:
+        raise ValueError("both configured registries must be represented")
     if {item.get("namespace") for item in registries} != set(namespaces):
         raise ValueError("verification evidence has the wrong registry set")
     roles = {role.role: role.repository for role in all_release_roles()}
+    expected_artifacts = (
+        _artifact_children(artifact_dir, version, revision) if artifact_dir is not None else None
+    )
     children = []
     for registry in registries:
+        status = registry.get("status")
+        if status == "invalid":
+            raise ValueError("registry contains invalid release identity")
+        if status == "incomplete":
+            if not any(
+                str(row).startswith(f"{registry['namespace']}:")
+                for row in document.get("failures", [])
+            ):
+                raise ValueError("incomplete registry must include its failure")
+            continue
         images = registry.get("images", [])
-        if registry.get("status") != "verified" or len(images) != len(roles):
+        if status != "verified" or len(images) != len(roles):
             raise ValueError("registry does not contain the complete verified role set")
         if {image.get("role") for image in images} != set(roles):
             raise ValueError("registry contains missing, duplicate or unexpected roles")
@@ -90,10 +108,23 @@ def require_complete_release(
                     _DIGEST.fullmatch(str(digest)) is None for digest in identity.values()
                 ):
                     raise ValueError("registry child identity is invalid")
+            if (
+                expected_artifacts is not None
+                and {
+                    platform: identity["manifest_digest"]
+                    for platform, identity in platforms.items()
+                }
+                != expected_artifacts[roles[role]]
+            ):
+                raise ValueError("verified registry differs from native release artifacts")
             identities[role] = platforms
         children.append(identities)
-    if children[0] != children[1]:
+    if not children:
+        raise ValueError("no complete verified registry")
+    if len(children) == 2 and children[0] != children[1]:
         raise ValueError("registry child digests differ")
+    if len(children) == 2 and document.get("failures"):
+        raise ValueError("verified registries cannot have failures")
 
 
 def _artifact_children(directory: Path, version: str, revision: str) -> dict[str, dict[str, str]]:
@@ -131,6 +162,10 @@ def _artifact_children(directory: Path, version: str, revision: str) -> dict[str
     return expected
 
 
+class RegistryUnavailable(ValueError):
+    """A registry cannot be inspected safely; no writes may be sent there."""
+
+
 def inspect_reference(reference: str) -> str | None:
     """Return missing only for registry not-found; auth/network failures abort."""
     try:
@@ -144,7 +179,9 @@ def inspect_reference(reference: str) -> str | None:
             r"manifest unknown|name unknown|manifest_unknown|name_unknown", exc.stderr.lower()
         ):
             return None
-        raise ValueError(f"cannot inspect release reference {reference}") from exc
+        raise RegistryUnavailable(
+            f"cannot inspect release reference {reference}: {exc.stderr.strip()}"
+        ) from exc
 
 
 def preflight_registry(
@@ -154,28 +191,37 @@ def preflight_registry(
     namespaces: tuple[str, str],
     *,
     inspect: Callable[[str], str | None] = inspect_reference,
-) -> None:
-    """Validate all archives and forbid replacing existing immutable versions."""
+) -> tuple[str, ...]:
+    """Validate archives and skip only registries unavailable for inspection."""
     expected = _artifact_children(directory, version, revision)
+    available = []
     for namespace in namespaces:
-        for repository, platforms in expected.items():
-            reference = f"{namespace}/{repository}:{version}"
-            for platform, digest in platforms.items():
-                raw = inspect(f"{reference}-{platform.split('/')[1]}")
-                if (
-                    raw is not None
-                    and "sha256:" + hashlib.sha256(raw.encode()).hexdigest() != digest
-                ):
-                    raise ValueError(f"immutable release child differs: {reference}")
-            raw = inspect(reference)
-            if raw is None:
-                continue
-            descriptors = json.loads(raw).get("manifests", [])
-            observed = {
-                f"{item.get('platform', {}).get('os')}/{item.get('platform', {}).get('architecture')}": item.get(
-                    "digest"
-                )
-                for item in descriptors
-            }
-            if len(descriptors) != 2 or observed != platforms:
-                raise ValueError(f"immutable release index differs: {reference}")
+        try:
+            for repository, platforms in expected.items():
+                reference = f"{namespace}/{repository}:{version}"
+                for platform, digest in platforms.items():
+                    raw = inspect(f"{reference}-{platform.split('/')[1]}")
+                    if (
+                        raw is not None
+                        and "sha256:" + hashlib.sha256(raw.encode()).hexdigest() != digest
+                    ):
+                        raise ValueError(f"immutable release child differs: {reference}")
+                raw = inspect(reference)
+                if raw is None:
+                    continue
+                descriptors = json.loads(raw).get("manifests", [])
+                observed = {
+                    f"{item.get('platform', {}).get('os')}/{item.get('platform', {}).get('architecture')}": item.get(
+                        "digest"
+                    )
+                    for item in descriptors
+                }
+                if len(descriptors) != 2 or observed != platforms:
+                    raise ValueError(f"immutable release index differs: {reference}")
+        except RegistryUnavailable as exc:
+            print(f"Registry unavailable; skipping publication to {namespace}: {exc}")
+        else:
+            available.append(namespace)
+    if not available:
+        raise ValueError("no registry passed immutable preflight")
+    return tuple(available)

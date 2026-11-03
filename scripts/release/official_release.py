@@ -46,10 +46,16 @@ def _run(command: Sequence[str], *, cwd: Path) -> str:
     completed = subprocess.run(
         command,
         cwd=cwd,
-        check=True,
+        check=False,
         text=True,
         capture_output=True,
     )
+    if completed.returncode:
+        if completed.stderr:
+            print(completed.stderr, file=sys.stderr, end="")
+        raise subprocess.CalledProcessError(
+            completed.returncode, command, completed.stdout, completed.stderr
+        )
     return completed.stdout
 
 
@@ -481,16 +487,17 @@ def verify(root: Path, version: str, revision: str, evidence: Path) -> None:
                 raise ValueError(
                     f"{namespace} does not match verified child digests from the primary registry"
                 )
-        except (subprocess.CalledProcessError, ValueError, KeyError, TypeError) as exc:
+        except subprocess.CalledProcessError as exc:
             failures.append(f"{namespace}: {exc}")
             registry_record["status"] = "incomplete"
+        except (ValueError, KeyError, TypeError) as exc:
+            failures.append(f"{namespace}: {exc}")
+            registry_record["status"] = "invalid"
         else:
             registry_record["status"] = "verified"
             if verified_children is None:
                 verified_children = registry_children
         registries.append(registry_record)
-    if not any(item.get("status") == "verified" for item in registries):
-        raise ValueError("no official registry contains a complete verified release set")
     evidence.parent.mkdir(parents=True, exist_ok=True)
     evidence.write_text(
         json.dumps(
@@ -506,6 +513,10 @@ def verify(root: Path, version: str, revision: str, evidence: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
+    if any(item.get("status") == "invalid" for item in registries):
+        raise ValueError("registry release identity invalid or inconsistent")
+    if not any(item.get("status") == "verified" for item in registries):
+        raise ValueError("no official registry contains a complete verified release set")
 
 
 def main(argv: Sequence[str] | None = None) -> int:

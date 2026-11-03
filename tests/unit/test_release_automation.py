@@ -4,12 +4,15 @@ import copy
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
+
 from core.application.release.images import all_release_roles
 from core.application.tooling.release_automation import (
+    RegistryUnavailable,
     preflight_registry,
     release_identity,
     require_complete_release,
@@ -362,3 +365,187 @@ def test_release_v099_focused_exception_is_narrow_and_records_failed_and_impacte
     )
     assert "Focused acceptance (full suite not rerun)" in release["with"]["script"]
     assert "updateRelease" in release["with"]["script"]
+
+
+def test_one_complete_registry_accepts_unavailable_mirror_without_mixing(tmp_path: Path) -> None:
+    value = evidence()
+    value["registries"][0] = {"namespace": NAMESPACES[0], "status": "incomplete", "images": []}
+    value["failures"] = [f"{NAMESPACES[0]}: registry unavailable"]
+    path = tmp_path / "verification.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    require_complete_release(path, version="1.2.3", revision=REVISION, namespaces=NAMESPACES)
+
+
+def test_all_unavailable_registries_fail_closed(tmp_path: Path) -> None:
+    value = evidence()
+    for registry in value["registries"]:
+        registry["status"] = "incomplete"
+        registry["images"] = []
+    value["failures"] = ["both unavailable"]
+    path = tmp_path / "verification.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    with pytest.raises(ValueError):
+        require_complete_release(path, version="1.2.3", revision=REVISION, namespaces=NAMESPACES)
+
+
+def test_invalid_registry_cannot_be_downgraded_to_transport_failure(tmp_path: Path) -> None:
+    value = evidence()
+    value["registries"][0]["status"] = "invalid"
+    value["failures"] = ["image identity mismatch"]
+    path = tmp_path / "verification.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    with pytest.raises(ValueError):
+        require_complete_release(path, version="1.2.3", revision=REVISION, namespaces=NAMESPACES)
+
+
+def test_preflight_skips_unavailable_registry_without_authorizing_its_writes(
+    tmp_path: Path,
+) -> None:
+    write_native_records(tmp_path)
+
+    def inspect(reference: str) -> None:
+        if reference.startswith(NAMESPACES[0]):
+            raise RegistryUnavailable("registry denied")
+        return
+
+    assert preflight_registry(tmp_path, "1.2.3", REVISION, NAMESPACES, inspect=inspect) == (
+        NAMESPACES[1],
+    )
+
+
+def test_release_workflow_uses_only_preflight_approved_registries() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    steps = workflow["jobs"]["publish"]["steps"]
+    preflight = next(step for step in steps if step.get("id") == "preflight")
+    assert "--preflight-output" in preflight["run"]
+    copy = next(
+        step
+        for step in steps
+        if step.get("name") == "Copy to available registries and verify complete release sets"
+    )
+    assert 'if [[ "$GHCR_READY" == true ]]' in copy["run"]
+    assert 'if [[ "$DOCKERHUB_READY" == true ]]' in copy["run"]
+    assert 'official_release.py" verify --root "$FS_RELEASE_SOURCE"' in copy["run"]
+    assert '--artifact-dir "$FS_RELEASE_ARTIFACT_DIR"' in copy["run"]
+    release = next(
+        step for step in steps if step.get("name", "").startswith("Publish stable GitHub Release")
+    )
+    assert "Registry availability:" in release["with"]["script"]
+    assert "status === 'verified'" in release["with"]["script"]
+    assert "status === 'incomplete'" in release["with"]["script"]
+    assert "target_commitish" not in release["with"]["script"]
+
+
+def test_preflight_rejects_all_unavailable_registries(tmp_path: Path) -> None:
+    write_native_records(tmp_path)
+
+    def unavailable(_reference: str) -> None:
+        raise RegistryUnavailable("offline")
+
+    with pytest.raises(ValueError, match="no registry"):
+        preflight_registry(tmp_path, "1.2.3", REVISION, NAMESPACES, inspect=unavailable)
+
+
+def test_preflight_does_not_downgrade_mismatched_registry_to_unavailable(tmp_path: Path) -> None:
+    write_native_records(tmp_path)
+
+    def inspect(reference: str) -> str | None:
+        if reference.startswith(NAMESPACES[0]):
+            raise RegistryUnavailable("offline")
+        return '{"schemaVersion":2}'
+
+    with pytest.raises(ValueError, match="immutable"):
+        preflight_registry(tmp_path, "1.2.3", REVISION, NAMESPACES, inspect=inspect)
+
+
+def test_complete_registry_must_match_native_archives(tmp_path: Path) -> None:
+    write_native_records(tmp_path)
+    value = evidence()
+    value["registries"][0] = {"namespace": NAMESPACES[0], "status": "incomplete", "images": []}
+    value["failures"] = [f"{NAMESPACES[0]}: unavailable"]
+    value["registries"][1]["images"][0]["platforms"]["linux/amd64"]["manifest_digest"] = (
+        "sha256:" + "4" * 64
+    )
+    path = tmp_path / "verification.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    with pytest.raises(ValueError, match="native release artifacts"):
+        require_complete_release(
+            path, version="1.2.3", revision=REVISION, namespaces=NAMESPACES, artifact_dir=tmp_path
+        )
+
+
+def test_publication_uses_workflow_pinned_tooling_and_separate_tagged_source() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    steps = workflow["jobs"]["publish"]["steps"]
+    source = steps[0]["with"]
+    tooling = next(
+        step["with"]
+        for step in steps
+        if step.get("name") == "Check out the workflow's immutable publication tooling"
+    )
+    assert source["ref"] == "${{ needs.resolve.outputs.revision }}"
+    assert source["path"] == "source"
+    assert tooling["ref"] == "${{ github.sha }}"
+    assert tooling["path"] == "tooling"
+    preflight = next(step for step in steps if step.get("id") == "preflight")
+    assert (
+        "$FS_RELEASE_TOOLING/core/entrypoints/cli/scripts/release-automation.py" in preflight["run"]
+    )
+    assert '--root "$FS_RELEASE_SOURCE"' in preflight["run"]
+
+
+def test_release_adapter_identity_uses_explicit_source_root(tmp_path: Path) -> None:
+    def git(*args: str) -> str:
+        return subprocess.check_output(["git", *args], cwd=tmp_path, text=True).strip()
+
+    git("init", "-b", "main")
+    git("config", "user.email", "test@example.invalid")
+    git("config", "user.name", "Test")
+    (tmp_path / "VERSION").write_text("1.2.3\n")
+    git("add", ".")
+    git("commit", "-m", "source")
+    git("tag", "v1.2.3")
+    revision = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/origin/main", revision)
+    script = (
+        Path(__file__).resolve().parents[2] / "core/entrypoints/cli/scripts/release-automation.py"
+    )
+    result = subprocess.run(
+        [sys.executable, str(script), "identity", "--tag", "v1.2.3", "--root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert f"revision={revision}" in result.stdout
+
+
+@pytest.mark.parametrize("kind", ["direct", "annotated", "different", "missing"])
+def test_release_tag_guard_checks_remote_ref_before_create_or_update(kind: str) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    release = next(
+        step
+        for step in workflow["jobs"]["publish"]["steps"]
+        if step.get("name", "").startswith("Publish stable GitHub Release")
+    )
+    script = release["with"]["script"]
+    guard = script.split("async function assertTagMatchesRevision() {", 1)[1].split(
+        "\nlet release;", 1
+    )[0]
+    assert script.count("await assertTagMatchesRevision();") == 3
+    assert "await assertTagMatchesRevision();\nawait github.rest.repos.uploadReleaseAsset" in script
+    node = f"""const kind = {json.dumps(kind)};
+const expected = "a".repeat(40);
+process.env.FS_RELEASE_REVISION = expected;
+const tag = "v1.2.3";
+const context = {{repo: {{owner: "o", repo: "r"}}}};
+const github = {{rest: {{git: {{
+  getRef: async () => {{ if (kind === "missing") throw new Error("missing"); return {{data: {{object: kind === "annotated" ? {{type: "tag", sha: "tag-object"}} : {{type: "commit", sha: kind === "different" ? "b".repeat(40) : expected}}}}}}; }},
+  getTag: async () => ({{data: {{object: {{type: "commit", sha: expected}}}}}}),
+}}}}}};
+async function assertTagMatchesRevision() {{{guard}
+assertTagMatchesRevision().then(() => process.exit(0)).catch(() => process.exit(1));"""
+    result = subprocess.run(["node", "-e", node], capture_output=True, text=True)
+    assert (result.returncode == 0) == (kind in {"direct", "annotated"}), result.stderr

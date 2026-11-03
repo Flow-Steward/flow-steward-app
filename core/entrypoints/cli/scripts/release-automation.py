@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -24,11 +25,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("identity", "preflight", "evidence"))
     parser.add_argument("--tag", required=True)
+    parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--artifact-dir", type=Path)
     parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--preflight-output", type=Path)
     args = parser.parse_args()
     try:
-        version, revision = release_identity(ROOT, args.tag)
+        version, revision = release_identity(args.root.resolve(), args.tag)
         if args.action == "identity":
             print(f"version={version}\nrevision={revision}")
             return 0
@@ -39,12 +42,20 @@ def main() -> int:
         if args.action == "preflight":
             if args.artifact_dir is None:
                 parser.error("preflight requires --artifact-dir")
-            preflight_registry(args.artifact_dir, version, revision, namespaces)
+            available = preflight_registry(args.artifact_dir, version, revision, namespaces)
+            if args.preflight_output is not None:
+                args.preflight_output.write_text(
+                    json.dumps({"available": available}) + "\n", encoding="utf-8"
+                )
         else:
             if args.evidence is None:
                 parser.error("evidence requires --evidence")
             require_complete_release(
-                args.evidence, version=version, revision=revision, namespaces=namespaces
+                args.evidence,
+                version=version,
+                revision=revision,
+                namespaces=namespaces,
+                artifact_dir=args.artifact_dir,
             )
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"Release automation failed: {exc}", file=sys.stderr)

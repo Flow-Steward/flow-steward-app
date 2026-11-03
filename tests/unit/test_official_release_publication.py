@@ -352,8 +352,9 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
         assert command[tag_index + 2 :] == expected
 
 
+@pytest.mark.parametrize("failed_namespace", ["ghcr.io/example", "docker.io/example"])
 def test_verification_accepts_one_complete_registry_and_records_incomplete_mirror(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failed_namespace: str
 ) -> None:
     monkeypatch.setenv("FS_RELEASE_GHCR_NAMESPACE", "ghcr.io/example")
     monkeypatch.setenv("FS_RELEASE_DOCKERHUB_NAMESPACE", "docker.io/example")
@@ -386,7 +387,7 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
     def run(command, *, cwd):
         del cwd
         reference = command[-1]
-        if reference.startswith("docker://docker.io/example/"):
+        if reference.startswith(f"docker://{failed_namespace}/"):
             raise official_release.subprocess.CalledProcessError(1, command)
         if "--format" in command:
             return "sha256:" + "d" * 64 + "\n"
@@ -426,15 +427,11 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
     official_release.verify(tmp_path, "1.2.3", _REVISION, evidence)
 
     result = json.loads(evidence.read_text(encoding="utf-8"))
-    assert [item["status"] for item in result["registries"]] == [
-        "verified",
-        "incomplete",
-    ]
-    assert len(result["registries"][0]["images"]) == len(all_release_roles())
-    assert {(item["role"], item["reference"]) for item in result["registries"][0]["images"]} >= {
-        ("postgres", "ghcr.io/example/flow-steward-postgres:1.2.3")
-    }
-    assert result["registries"][0]["images"][0]["platforms"] == {
+    good = next(row for row in result["registries"] if row["status"] == "verified")
+    bad = next(row for row in result["registries"] if row["status"] == "incomplete")
+    assert bad["namespace"] == failed_namespace
+    assert len(good["images"]) == len(all_release_roles())
+    assert good["images"][0]["platforms"] == {
         "linux/amd64": {
             "config_digest": "sha256:" + "e" * 64,
             "manifest_digest": child_digests["linux/amd64"],
@@ -444,8 +441,7 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
             "manifest_digest": child_digests["linux/arm64"],
         },
     }
-    assert result["failures"]
-    assert "docker.io/example" in result["failures"][0]
+    assert failed_namespace in result["failures"][0]
 
 
 def test_verification_rejects_duplicate_runtime_platform_descriptors(
@@ -475,11 +471,11 @@ def test_verification_rejects_duplicate_runtime_platform_descriptors(
         lambda command, *, cwd: json.dumps(duplicated),
     )
 
-    with pytest.raises(ValueError, match="complete verified release set"):
+    with pytest.raises(ValueError, match="invalid or inconsistent"):
         official_release.verify(tmp_path, "1.2.3", _REVISION, tmp_path / "evidence.json")
 
 
-def test_verification_marks_a_complete_but_digest_divergent_mirror_incomplete(
+def test_verification_rejects_a_complete_but_digest_divergent_mirror(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("FS_RELEASE_GHCR_NAMESPACE", "ghcr.io/example")
@@ -558,12 +554,13 @@ def test_verification_marks_a_complete_but_digest_divergent_mirror_incomplete(
     monkeypatch.setattr(official_release, "_run", run)
     evidence = tmp_path / "verification.json"
 
-    official_release.verify(tmp_path, "1.2.3", _REVISION, evidence)
+    with pytest.raises(ValueError, match="invalid or inconsistent"):
+        official_release.verify(tmp_path, "1.2.3", _REVISION, evidence)
 
     result = json.loads(evidence.read_text(encoding="utf-8"))
     assert [item["status"] for item in result["registries"]] == [
         "verified",
-        "incomplete",
+        "invalid",
     ]
     assert "does not match verified child digests" in result["failures"][0]
 

@@ -265,10 +265,20 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
         with:
           ref: ${{ needs.resolve.outputs.revision }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out the workflow's immutable publication tooling
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
+        with:
+          ref: ${{ github.sha }}
+          path: tooling
           fetch-depth: 0
           persist-credentials: false
       - name: Set publication paths outside the clean source tree
         run: |
+          printf 'FS_RELEASE_SOURCE=%s/source\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          printf 'FS_RELEASE_TOOLING=%s/tooling\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
           printf 'FS_RELEASE_ARTIFACT_DIR=%s/native\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'FS_RELEASE_EVIDENCE=%s/release-verification.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'REGISTRY_AUTH_FILE=%s/registry-auth.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
@@ -302,28 +312,48 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y skopeo
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        continue-on-error: true
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        continue-on-error: true
         with:
           registry: docker.io
           username: ${{ vars.DOCKERHUB_USERNAME || 'flowsteward' }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Validate archives and protect immutable registry versions
+        id: preflight
         run: |
-          cp "$HOME/.docker/config.json" "$REGISTRY_AUTH_FILE"
+          set -euo pipefail
+          if [[ -f "$HOME/.docker/config.json" ]]; then
+            cp "$HOME/.docker/config.json" "$REGISTRY_AUTH_FILE"
+          else
+            printf '{}\n' > "$REGISTRY_AUTH_FILE"
+          fi
           chmod 600 "$REGISTRY_AUTH_FILE"
-          python3 core/entrypoints/cli/scripts/release-automation.py preflight --tag "$RELEASE_TAG" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR"
-      - name: Copy identical archives to both registries and verify both
+          python3 "$FS_RELEASE_TOOLING/core/entrypoints/cli/scripts/release-automation.py" preflight --root "$FS_RELEASE_SOURCE" --tag "$RELEASE_TAG" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR" --preflight-output "$RUNNER_TEMP/release-preflight.json"
+          python3 - <<'PYCODE' >> "$GITHUB_OUTPUT"
+          import json, os
+          data = json.load(open(os.path.join(os.environ['RUNNER_TEMP'], 'release-preflight.json')))
+          print('ghcr=' + str(os.environ['FS_RELEASE_GHCR_NAMESPACE'] in data['available']).lower())
+          print('dockerhub=' + str(os.environ['FS_RELEASE_DOCKERHUB_NAMESPACE'] in data['available']).lower())
+          PYCODE
+      - name: Copy to available registries and verify complete release sets
+        env:
+          GHCR_READY: ${{ steps.preflight.outputs.ghcr }}
+          DOCKERHUB_READY: ${{ steps.preflight.outputs.dockerhub }}
         run: |
-          result=0
-          FS_RELEASE_DOCKERHUB_NAMESPACE= ./scripts/release/official-release-publish.sh || result=1
-          FS_RELEASE_GHCR_NAMESPACE= ./scripts/release/official-release-publish.sh || result=1
-          ./scripts/release/official-release-verify.sh || result=1
-          python3 core/entrypoints/cli/scripts/release-automation.py evidence --tag "$RELEASE_TAG" --evidence "$FS_RELEASE_EVIDENCE" || result=1
-          exit "$result"
+          set -euo pipefail
+          if [[ "$GHCR_READY" == true ]]; then
+            FS_RELEASE_DOCKERHUB_NAMESPACE= python3 "$FS_RELEASE_TOOLING/scripts/release/official_release.py" publish --root "$FS_RELEASE_SOURCE" --version "$FS_RELEASE_VERSION" --revision "$FS_RELEASE_REVISION" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR" || echo '::warning::GHCR publication failed; checking the other registry.'
+          fi
+          if [[ "$DOCKERHUB_READY" == true ]]; then
+            FS_RELEASE_GHCR_NAMESPACE= python3 "$FS_RELEASE_TOOLING/scripts/release/official_release.py" publish --root "$FS_RELEASE_SOURCE" --version "$FS_RELEASE_VERSION" --revision "$FS_RELEASE_REVISION" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR" || echo '::warning::Docker Hub publication failed; checking the other registry.'
+          fi
+          python3 "$FS_RELEASE_TOOLING/scripts/release/official_release.py" verify --root "$FS_RELEASE_SOURCE" --version "$FS_RELEASE_VERSION" --revision "$FS_RELEASE_REVISION" --evidence "$FS_RELEASE_EVIDENCE"
+          python3 "$FS_RELEASE_TOOLING/core/entrypoints/cli/scripts/release-automation.py" evidence --root "$FS_RELEASE_SOURCE" --tag "$RELEASE_TAG" --evidence "$FS_RELEASE_EVIDENCE" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR"
       - name: Retain registry verification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -332,7 +362,7 @@ jobs:
           path: ${{ runner.temp }}/release-verification.json
           retention-days: 90
           if-no-files-found: warn
-      - name: Publish stable GitHub Release only after both registries verify
+      - name: Publish stable GitHub Release after a complete registry verifies
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
@@ -341,25 +371,42 @@ jobs:
             const focusedNotice = tag === 'v0.9.9'
               ? `Focused acceptance (full suite not rerun) for revision ${process.env.FS_RELEASE_REVISION}. The v0.9.8 publication gate failed: https://github.com/Flow-Steward/flow-steward-app/actions/runs/41591208411. The user requested focused failed and impacted tests instead of another full gate. See the quality artifact for the selected paths and results: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}.`
               : '';
-            const defaultBody = 'Native AMD64 and ARM64 images verified in both GHCR and Docker Hub. See attached digest evidence.';
+            const evidence = JSON.parse(fs.readFileSync(process.env.FS_RELEASE_EVIDENCE, 'utf8'));
+            const available = evidence.registries.filter(registry => registry.status === 'verified').map(registry => registry.namespace);
+            const unavailable = evidence.registries.filter(registry => registry.status === 'incomplete').map(registry => registry.namespace);
+            const registryNotice = `Registry availability: verified complete AMD64 and ARM64 images: ${available.join(', ')}.${unavailable.length ? ` Unavailable or incomplete: ${unavailable.join(', ')}.` : ''} See attached digest evidence.`;
+            const defaultBody = registryNotice;
+            async function assertTagMatchesRevision() {
+              let object = (await github.rest.git.getRef({...context.repo, ref: `tags/${tag}`})).data.object;
+              for (let depth = 0; object.type === 'tag' && depth < 8; depth++) {
+                object = (await github.rest.git.getTag({...context.repo, tag_sha: object.sha})).data.object;
+              }
+              if (object.type !== 'commit' || object.sha !== process.env.FS_RELEASE_REVISION) {
+                throw new Error('Release tag no longer resolves to the verified revision');
+              }
+            }
             let release;
             try {
               ({data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag}));
             } catch (error) {
               if (error.status !== 404) throw error;
+              await assertTagMatchesRevision();
               ({data: release} = await github.rest.repos.createRelease({
-                ...context.repo, tag_name: tag, target_commitish: process.env.FS_RELEASE_REVISION,
+                ...context.repo, tag_name: tag,
                 name: tag, draft: false, prerelease: false,
                 body: focusedNotice ? `${defaultBody}\n\n${focusedNotice}` : defaultBody
               }));
             }
             if (release.draft || release.prerelease) throw new Error('Existing release must be stable and non-draft; review it manually');
-            if (focusedNotice && !(release.body || '').includes(focusedNotice)) {
-              ({data: release} = await github.rest.repos.updateRelease({
-                ...context.repo, release_id: release.id,
-                body: `${release.body || defaultBody}\n\n${focusedNotice}`
-              }));
+            let body = release.body || '';
+            body = body.replace(/^Registry availability:.*$/gm, '').replace('Native AMD64 and ARM64 images verified in both GHCR and Docker Hub. See attached digest evidence.', '').trim();
+            body = `${registryNotice}${body ? `\n\n${body}` : ''}`;
+            if (focusedNotice && !body.includes(focusedNotice)) body += `\n\n${focusedNotice}`;
+            if (body !== release.body) {
+              await assertTagMatchesRevision();
+              ({data: release} = await github.rest.repos.updateRelease({...context.repo, release_id: release.id, body}));
             }
+            await assertTagMatchesRevision();
             await github.rest.repos.uploadReleaseAsset({
               ...context.repo, release_id: release.id,
               name: `registry-verification-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}.json`,
