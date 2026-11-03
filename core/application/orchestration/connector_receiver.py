@@ -51,6 +51,12 @@ class PinnedReceiver:
         }
 
 
+def _payload(value: object) -> dict[str, Any]:
+    """A manifest part as a mapping, through its `to_dict` when it has one."""
+    to_dict = getattr(value, "to_dict", None)
+    return _mapping(to_dict() if callable(to_dict) else value)
+
+
 def _text(value: Any) -> str:
     return str(value or "").strip()
 
@@ -196,9 +202,7 @@ def manifest_digest(manifest: Any) -> str:
 
     kind, payload = _implementation(manifest)
     interface = getattr(manifest, "interface", None)
-    interface_payload = (
-        _mapping(interface.to_dict()) if hasattr(interface, "to_dict") else _mapping(interface)
-    )
+    interface_payload = _payload(interface)
     executable = {
         "kind": kind,
         "implementation": payload,
