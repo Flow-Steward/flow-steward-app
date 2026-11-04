@@ -326,7 +326,10 @@ def test_release_v099_focused_exception_is_narrow_and_records_failed_and_impacte
     focused = next(
         step for step in steps if step.get("name") == "Focused acceptance (full suite not rerun)"
     )
-    assert full["if"].startswith("needs.resolve.outputs.tag != 'v0.9.9' && (")
+    # v0.9.10 later took its own explicit exception, recorded in its own step.
+    assert full["if"].startswith(
+        "needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10' && ("
+    )
     assert focused["if"] == "needs.resolve.outputs.tag == 'v0.9.9'"
     assert focused["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
     command = focused["run"]

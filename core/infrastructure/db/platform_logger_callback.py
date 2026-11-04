@@ -519,9 +519,13 @@ class PlatformLoggerCallback(BaseCallbackHandler):
         else:
             # A state-based approval pauses through its update, not an interrupt.
             paused = str(public_payload.get("status") or "").startswith(("awaiting", "waiting"))
-            self._telemetry.step_finished(
-                run_id_str, outcome=OUTCOME_PAUSED if paused else step_outcome(public_status)
+            outcome = (
+                OUTCOME_PAUSED
+                if paused
+                else self._telemetry.step_result_outcome(run_id_str, public_payload)
+                or step_outcome(public_status)
             )
+            self._telemetry.step_finished(run_id_str, outcome=outcome)
         self._telemetry.run_forgotten(run_id_str)
 
     def on_chain_error(self, error=None, *, run_id=None, name=None, **kwargs):

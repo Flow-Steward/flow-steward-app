@@ -200,6 +200,29 @@ def test_installation_values_follow_the_metrics_endpoint(state: _Telemetry) -> N
     assert points("fs.slo.workflow.p95_latency") == {(): 1.5}
 
 
+def test_an_unreachable_database_leaves_its_measurements_out(state: _Telemetry) -> None:
+    def failing_store():
+        store = _store()
+        store.conn.cursor.side_effect = RuntimeError("database down")
+        store.list_project_execution_leases.side_effect = RuntimeError("database down")
+        return store
+
+    otel_installation_metrics.register_installation_metrics(
+        store_factory=failing_store, get_ready_queue_depth=lambda: 4
+    )
+
+    metrics = _metrics(state)
+
+    # Unknown is not zero: no projects, jobs or leases are reported at all.
+    for name in (
+        "fs.installation.projects",
+        "fs.installation.jobs",
+        "fs.installation.project_leases.active",
+    ):
+        assert name not in metrics
+    assert [p.value for p in metrics["fs.installation.ready_queue.depth"].data.data_points] == [4]
+
+
 def test_one_collection_takes_one_snapshot(state: _Telemetry) -> None:
     store = _store()
     queue_depth = MagicMock(return_value=1)

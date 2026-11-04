@@ -49,6 +49,18 @@ _PROVIDER_CATEGORIES = {
     "google": "gcp.gemini",
     "openai": "openai",
 }
+# The status a step's own result message carries -> the attempt's outcome.
+_RESULT_OUTCOMES = {
+    "pass": OUTCOME_OK,
+    "passed": OUTCOME_OK,
+    "completed": OUTCOME_OK,
+    "success": OUTCOME_OK,
+    "fail": OUTCOME_ERROR,
+    "failed": OUTCOME_ERROR,
+    "error": OUTCOME_ERROR,
+    "skipped": OUTCOME_SKIPPED,
+    "cancelled": OUTCOME_CANCELLED,
+}
 _SEGMENT_OUTCOMES = {
     "completed": OUTCOME_OK,
     "failed": OUTCOME_ERROR,
@@ -197,6 +209,11 @@ class RunTelemetry:
         self._segment_run: str | None = None
         # Step attempts already opened by an executor node of this segment.
         self._claimed_steps: set[tuple[str, int]] = set()
+        # The attempt each open step run executes, to find its result message.
+        self._step_attempts: dict[str, tuple[str, int]] = {}
+        # A step of this segment paused it: an interrupt does not reach the root
+        # run's status, which still reads as in progress.
+        self._paused = False
 
     # -- tree ----------------------------------------------------------------
 
@@ -320,6 +337,9 @@ class RunTelemetry:
             return
         entry, duration = finished
         self._segment_run = None
+        if self._paused and outcome not in {OUTCOME_ERROR, OUTCOME_CANCELLED}:
+            outcome = OUTCOME_PAUSED
+        self._paused = False
         self._end(entry, duration, instruments.SEGMENT_DURATION, outcome=outcome, error=error)
 
     def step_started(
@@ -338,6 +358,8 @@ class RunTelemetry:
             if claim in self._claimed_steps:
                 return
             self._claimed_steps.add(claim)
+            if (key := _key(run_id)) is not None:
+                self._step_attempts[key] = claim
         self._start(
             run_id,
             parent_run_id,
@@ -347,10 +369,37 @@ class RunTelemetry:
             measurement={"fs.step.kind": kind},
         )
 
+    def step_result_outcome(self, run_id: Any, payload: Mapping[str, Any] | None) -> str | None:
+        """The outcome the step's own result message in *payload* reports, if any.
+
+        Executors report most failures as a ``fail`` message rather than an
+        exception, so the node's own status says nothing about the attempt.
+        """
+        attempt = self._step_attempts.get(_key(run_id) or "")
+        messages = payload.get("agent_messages") if isinstance(payload, Mapping) else None
+        if attempt is None or not isinstance(messages, list):
+            return None
+        execution_id, number = attempt
+        for message in reversed(messages):
+            if not isinstance(message, Mapping):
+                continue
+            if str(message.get("step_execution_id") or "") != execution_id:
+                continue
+            if str(message.get("attempt") or "") != str(number):
+                continue
+            status = str(message.get("status") or "").strip().lower()
+            if status.startswith(("awaiting", "waiting")):
+                return OUTCOME_PAUSED
+            return _RESULT_OUTCOMES.get(status, OTHER)
+        return None
+
     def step_finished(self, run_id: Any, *, outcome: str, error: Any = None) -> None:
+        self._step_attempts.pop(_key(run_id) or "", None)
         finished = self._finish(run_id, "step")
         if finished is not None:
             entry, duration = finished
+            if outcome == OUTCOME_PAUSED:
+                self._paused = True
             self._end(entry, duration, instruments.STEP_DURATION, outcome=outcome, error=error)
 
     def _end(

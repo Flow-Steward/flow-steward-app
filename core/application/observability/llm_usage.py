@@ -245,6 +245,10 @@ def usage_from_message(message: Any) -> TokenUsage | None:
     response_metadata = getattr(message, "response_metadata", None)
     if not isinstance(response_metadata, Mapping):
         response_metadata = {}
+    # Exact counts, unknown ones kept unknown, which usage_metadata cannot hold.
+    normalized = _from_normalized(response_metadata.get(LLM_OUTPUT_USAGE_KEY))
+    if normalized is not None:
+        return normalized
     raw_usage = response_metadata.get("usage")
     raw_usage = raw_usage if isinstance(raw_usage, Mapping) else None
     if isinstance(usage_metadata, Mapping) and usage_metadata:

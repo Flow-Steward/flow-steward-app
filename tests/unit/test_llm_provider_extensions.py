@@ -2846,6 +2846,20 @@ class TestExtensionChatModel:
             "input_token_details": {"cache_read": 3},
         }
 
+    def test_partial_usage_survives_on_the_message_for_message_only_readers(self, monkeypatch):
+        # Step replay reads usage from the returned message, never llm_output.
+        from langchain_core.messages import HumanMessage
+
+        from core.application.observability.llm_usage import usage_from_message
+
+        _stub_runtime(monkeypatch, action_result={**_CHAT_RESULT, "usage": {"input_tokens": 13}})
+
+        message = _make_adapter().invoke([HumanMessage(content="hello")])
+
+        usage = usage_from_message(message)
+        assert usage is not None
+        assert (usage.input_tokens, usage.output_tokens) == (13, None)
+
     def test_structured_output_include_raw_returns_accounted_ai_message(self, monkeypatch):
         from langchain_core.messages import AIMessage, HumanMessage
 

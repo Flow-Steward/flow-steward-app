@@ -86,19 +86,28 @@ class InstallationMetrics:
                 self._taken_at = now
             return self._snapshot
 
+    # An unknown measurement is left out, never reported as zero.
+
     def projects(self) -> Iterator[tuple[float, dict[str, str]]]:
-        yield self.snapshot().project_count, {}
+        snapshot = self.snapshot()
+        if snapshot.counts_available:
+            yield snapshot.project_count, {}
 
     def jobs(self) -> Iterator[tuple[float, dict[str, str]]]:
+        snapshot = self.snapshot()
+        if not snapshot.counts_available:
+            return
         totals: dict[str, int] = {}
-        for status, count in self.snapshot().job_status_counts.items():
+        for status, count in snapshot.job_status_counts.items():
             bounded = status if status in JOB_STATUSES else "other"
             totals[bounded] = totals.get(bounded, 0) + count
         for status, count in sorted(totals.items()):
             yield count, {"fs.job.status": status}
 
     def leases(self) -> Iterator[tuple[float, dict[str, str]]]:
-        yield self.snapshot().active_leases, {}
+        snapshot = self.snapshot()
+        if snapshot.leases_available:
+            yield snapshot.active_leases, {}
 
     def ready_queue_depth(self) -> Iterator[tuple[float, dict[str, str]]]:
         depth = self.snapshot().ready_queue_depth
