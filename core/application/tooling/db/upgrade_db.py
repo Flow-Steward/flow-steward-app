@@ -285,6 +285,7 @@ def baseline_migration_history(
     set_session_role("upgrade")
     dsn = _resolved_dsn(dsn)
     init_db.validate_bootstrap_layout()
+    upgrade_preflight.validate_release_artifacts()
     conn = psycopg_runtime.connect(dsn)
     conn.autocommit = True
     with conn.cursor() as cur:

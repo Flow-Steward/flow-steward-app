@@ -8,6 +8,7 @@ query text.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,83 @@ def _released_baselines(root: Path) -> set[str]:
     released = {str(item) for item in payload.get("released_baseline_fingerprints") or []}
     released.add(str(payload.get("baseline_schema_fingerprint") or ""))
     return {item for item in released if item}
+
+
+def _artifact_issues(root: Path) -> list[dict[str, Any]]:
+    manifest = root / "db" / "released_migrations.json"
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return [
+            _issue(
+                "migration_artifact_invalid",
+                "Release database artifact db/released_migrations.json is missing, unreadable, "
+                "or invalid; restore the complete matching release before upgrading.",
+            )
+        ]
+    released = payload.get("migrations") if isinstance(payload, dict) else None
+    if not isinstance(released, dict) or any(
+        not migration_runner.is_valid_migration_filename(name)
+        or not isinstance(checksum, str)
+        or re.fullmatch(r"[0-9a-f]{64}", checksum) is None
+        for name, checksum in released.items()
+    ):
+        return [
+            _issue(
+                "migration_artifact_invalid",
+                "Release database artifact db/released_migrations.json has an invalid migration "
+                "inventory; restore the complete matching release before upgrading.",
+            )
+        ]
+    try:
+        files = {path.name: path for path in migration_runner.discover_migration_files(root)}
+    except (OSError, migration_runner.MigrationError) as error:
+        return [
+            _issue("migration_artifact_invalid", f"Release migration inventory is invalid: {error}")
+        ]
+    issues = []
+    for name in sorted(set(released) - set(files)):
+        issues.append(
+            _issue(
+                "migration_artifact_invalid",
+                f"Release database artifact db/migrations/{name} is missing.",
+            )
+        )
+    for name in sorted(set(files) - set(released)):
+        issues.append(
+            _issue(
+                "migration_artifact_invalid",
+                f"Release database artifact db/migrations/{name} is not recorded in "
+                "db/released_migrations.json.",
+            )
+        )
+    for name in sorted(set(released) & set(files)):
+        try:
+            checksum = migration_runner.migration_checksum(files[name].read_text(encoding="utf-8"))
+        except (OSError, UnicodeError):
+            issues.append(
+                _issue(
+                    "migration_artifact_invalid",
+                    f"Release database artifact db/migrations/{name} is unreadable.",
+                )
+            )
+            continue
+        if checksum != released[name]:
+            issues.append(
+                _issue(
+                    "migration_artifact_invalid",
+                    f"Release database artifact db/migrations/{name} does not match its checksum "
+                    "in db/released_migrations.json.",
+                )
+            )
+    return issues
+
+
+def validate_release_artifacts(root: Path | None = None) -> None:
+    """Refuse an incomplete release before the installer can apply baseline migrations."""
+    issues = _artifact_issues(Path(root) if root is not None else _ROOT)
+    if issues:
+        raise RuntimeError(issues[0]["message"])
 
 
 def ledger_gaps(ordered: list[str], applied: set[str]) -> list[str]:
@@ -243,6 +321,14 @@ def preflight(
     conn: Any, *, allow_unlabeled_sessions: bool = False, root: Path | None = None
 ) -> dict[str, Any]:
     repo_root = Path(root) if root is not None else _ROOT
+    artifact_issues = _artifact_issues(repo_root)
+    if artifact_issues:
+        return {
+            "blocking": artifact_issues,
+            "warnings": [],
+            "pending_migrations": [],
+            "pending_phases": [],
+        }
     blocking = _source_issues(conn, repo_root)
     session_blocking, warnings = _session_issues(
         conn, allow_unlabeled_sessions=allow_unlabeled_sessions
@@ -265,4 +351,4 @@ def preflight(
     }
 
 
-__all__ = ["ledger_gaps", "preflight"]
+__all__ = ["ledger_gaps", "preflight", "validate_release_artifacts"]
