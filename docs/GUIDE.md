@@ -1429,7 +1429,7 @@ For extensions, follow the
 [agent playbook](extension-authoring-agent-playbook.md) and the
 [Development lifecycle](#post-start-extension-build-lifecycle). Use the public
 Docker-backed launcher and current subcommand help. `extensions test` requires
-its dedicated Development test runtime; a generic MCP/QA/admin client can
+its dedicated Development test runtime; a generic MCP or admin client can
 refuse. Do not bypass that requirement by setting `FS_EXTENSION_TEST_RUNTIME`.
 Install an archive only when requested and authorized, then inspect it with the
 existing `extensions list`, `show` and `health` commands. Skills do not publish

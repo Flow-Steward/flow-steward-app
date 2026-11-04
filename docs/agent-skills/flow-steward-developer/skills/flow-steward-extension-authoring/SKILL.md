@@ -226,7 +226,7 @@ extension catalog, use the `flow-steward-publish-extension` skill.
 The leaf `--confirm` accepts the reviewed create/package operation; it is not
 permission for installation or publication. `extensions test` has no `--confirm`.
 It requires the Development launcher's dedicated `fs-test-runner`; a generic
-MCP/QA/admin client can refuse. Report that limitation and use the supported
+MCP or admin client can refuse. Report that limitation and use the supported
 launcher, without setting `FS_EXTENSION_TEST_RUNTIME` to bypass it. Production
 does not provision test tooling implicitly. Nonzero or review exits are not
 successful validation.

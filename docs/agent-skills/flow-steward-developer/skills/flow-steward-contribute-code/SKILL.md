@@ -33,7 +33,7 @@ If none exists, open one (the `flow-steward-report-issue` skill) and describe
 the problem and the change you propose. For anything larger than a small bug
 fix — a new feature, a changed contract, a database change, a new dependency,
 a new architectural pattern — wait for a maintainer to agree on the approach
-before writing code. One issue, one pull request, one change.
+before starting the change. One issue, one pull request, one change.
 
 ## 2. Fork, clone and branch
 
