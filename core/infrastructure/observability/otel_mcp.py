@@ -13,7 +13,7 @@ list and installs ``McpTraceMiddleware`` instead:
   bounded method name, a first-party tool name and a bounded ``error.type``.
 
 The SDK's own spans (scope ``mcp-python-sdk``) are not exported: that scope
-gets a tracer that records nothing (``otel_export_guards.PassThroughTracer``).
+gets the API ``NoOpTracer``, which records nothing (see ``otel_export_guards``).
 """
 
 from __future__ import annotations

@@ -11,14 +11,13 @@ called.
   a reduced public ``ReadableSpan`` copy (or drops the span) before export.
 
 ``ScopeSuppressingTracerProvider`` hands scopes that must not record spans at
-all a tracer that creates none (see ``PassThroughTracer``).
+all the API's ``NoOpTracer``, which creates none.
 """
 
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -27,14 +26,11 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import (
     Link,
-    NonRecordingSpan,
-    Span,
+    NoOpTracer,
     SpanKind,
     Status,
     StatusCode,
     Tracer,
-    get_current_span,
-    use_span,
 )
 
 from core.infrastructure.observability.otel_http import (
@@ -53,27 +49,13 @@ from core.infrastructure.observability.otel_mcp import MCP_SDK_SCOPE
 SUPPRESSED_TRACER_SCOPES = frozenset({MCP_SDK_SCOPE})
 
 
-class PassThroughTracer(Tracer):
-    """Creates no span: every "new" span is the current context's, unchanged."""
-
-    def start_span(self, name: str, context: Any = None, *args: Any, **kwargs: Any) -> Span:
-        return NonRecordingSpan(get_current_span(context).get_span_context())
-
-    @contextmanager
-    def start_as_current_span(
-        self, name: str, context: Any = None, *args: Any, **kwargs: Any
-    ) -> Iterator[Span]:
-        span = self.start_span(name, context)
-        with use_span(span, end_on_exit=False):
-            yield span
-
-
 class ScopeSuppressingTracerProvider(TracerProvider):
     """The SDK tracer provider, minus the scopes in ``SUPPRESSED_TRACER_SCOPES``."""
 
     def get_tracer(self, instrumenting_module_name: str, *args: Any, **kwargs: Any) -> Tracer:
         if instrumenting_module_name in SUPPRESSED_TRACER_SCOPES:
-            return PassThroughTracer()
+            # The API no-op tracer hands back the current context's span unchanged.
+            return NoOpTracer()
         return super().get_tracer(instrumenting_module_name, *args, **kwargs)
 
 
@@ -262,7 +244,6 @@ __all__ = [
     "FLOW_STEWARD_SCOPE",
     "SUPPRESSED_TRACER_SCOPES",
     "OwnerProcess",
-    "PassThroughTracer",
     "PidGuardedMetricExporter",
     "SanitizingSpanExporter",
     "ScopeRule",
