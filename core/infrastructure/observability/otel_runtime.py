@@ -109,15 +109,16 @@ def _sampler(settings: TelemetrySettings) -> Any:
 
 def _tracer_provider(resource: Any, settings: TelemetrySettings, exporter: Any) -> Any:
     from opentelemetry.metrics import NoOpMeterProvider
-    from opentelemetry.sdk.trace import SpanLimits, TracerProvider
+    from opentelemetry.sdk.trace import SpanLimits
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
     from core.infrastructure.observability.otel_export_guards import (
         DEFAULT_SPAN_EXPORT_POLICY,
         SanitizingSpanExporter,
+        ScopeSuppressingTracerProvider,
     )
 
-    provider = TracerProvider(
+    provider = ScopeSuppressingTracerProvider(
         resource=resource,
         sampler=_sampler(settings),
         span_limits=SpanLimits(**_SPAN_LIMITS),
