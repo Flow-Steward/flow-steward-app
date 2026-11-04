@@ -76,7 +76,7 @@ CLAUDE_CODE_LABEL = "Claude Code"
 CLAUDE_CODE_ARCHIVE = "flow-steward-claude-code.zip"
 CURSOR_ARCHIVE = "flow-steward-cursor.zip"
 SKILLS_ARCHIVE = "flow-steward-skills.zip"
-#: Where the Claude Code install command keeps the extracted marketplace folder.
+#: Where the personal plugin's install command keeps the extracted marketplace folder.
 _PLUGIN_HOME = "~/.flow-steward-agent"
 OPENAI_CLI_ID = "codex"
 OPENAI_CLI_LABEL = "Codex"

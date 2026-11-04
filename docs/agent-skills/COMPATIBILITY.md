@@ -8,8 +8,8 @@ package version 1.0.0. Client documentation checked on 2026-10-31.
 Every setup connects to **your own** Flow Steward installation. No released
 package contains an address, a token or a demonstration server, and no catalog
 listing replaces your address with a fixed one. Only the files the AI agents
-page builds for you carry your address and token: the personal Claude Code
-plugin, and the MCP settings it shows for the other clients.
+page builds for you carry your address and token: the personal plugin, and
+the MCP settings it shows for the other clients.
 
 ## Status legend
 

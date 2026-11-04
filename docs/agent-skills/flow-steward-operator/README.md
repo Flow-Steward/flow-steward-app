@@ -20,7 +20,7 @@ package or both; neither needs the other.
 - Connect your Flow Steward MCP server in the client, with your installation's
   address and a personal token, as your installation's AI-agent setup
   describes. That page (Settings → Account → AI agents) can also give you a
-  personal copy of this package for Claude Code with the address and token
+  personal copy of this package's Claude plugin with the address and token
   already in it, and the MCP settings for other clients filled in. The
   released package contains no address and no token. Only its Claude plugin
   manifest declares the server, and it asks you for both values (see below);

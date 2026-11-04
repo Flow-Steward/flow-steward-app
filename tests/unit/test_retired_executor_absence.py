@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -190,6 +191,12 @@ ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
         ),
     },
 }
+# The web UI's copy of the agent skill packages, rendered by
+# infra/tooling/agent-skills/sync_packages.py. JSON holds each file on one line, so
+# every embedded file is held, line by line, to the allowance of the file it copies.
+WEB_SKILL_BUNDLE = Path(
+    "assets/frontend/src/pages/settings/account/agent-skill-packages.generated.json"
+)
 SCANNED_TREES = (
     "assets",
     "core",
@@ -325,6 +332,30 @@ def _tracked_product_paths() -> list[Path]:
     return sorted(path for path in paths if path not in TEMPORARY_ORCHESTRATION_ARTIFACTS)
 
 
+def _allowed_lines(relative: Path) -> set[bytes]:
+    return ALLOWED_NON_PRODUCT_METADATA_LINES.get(relative, set()) | (
+        ALLOWED_TOOLKIT_DOCUMENTATION_LINES.get(relative, set())
+    )
+
+
+def _bundle_offenders(payload: bytes, tokens: tuple[bytes, ...]) -> list[str]:
+    """Every ``source:line`` of an embedded package file that the source would fail on."""
+    bundle = json.loads(payload)
+    offenders: list[str] = []
+    for package, files in sorted(bundle.get("packages", {}).items()):
+        for name, text in sorted(files.items()):
+            source = Path("docs/agent-skills") / package / name
+            allowed = _allowed_lines(source)
+            offenders.extend(
+                f"{source.as_posix()}:{line_number}"
+                for line_number, line in enumerate(
+                    str(text).lower().encode("utf-8").splitlines(), start=1
+                )
+                if line.strip() not in allowed and any(token in line for token in tokens)
+            )
+    return offenders
+
+
 def _surface_offenders() -> dict[str, list[int]]:
     tokens = _retired_fragments()
     offenders: dict[str, list[int]] = {}
@@ -332,11 +363,13 @@ def _surface_offenders() -> dict[str, list[int]]:
         path_key = relative.as_posix()
         path_bytes = path_key.lower().encode("utf-8")
         path_hits = [0] if any(token in path_bytes for token in tokens) else []
+        if relative == WEB_SKILL_BUNDLE:
+            if _bundle_offenders((ROOT / relative).read_bytes(), tokens) or path_hits:
+                offenders[path_key] = [1]
+            continue
         payload = (ROOT / relative).read_bytes().lower()
         content_tokens = _binary_retired_markers() if _is_binary(payload) else tokens
-        allowed_lines = ALLOWED_NON_PRODUCT_METADATA_LINES.get(relative, set()) | (
-            ALLOWED_TOOLKIT_DOCUMENTATION_LINES.get(relative, set())
-        )
+        allowed_lines = _allowed_lines(relative)
         allowed_line_numbers = ALLOWED_HISTORICAL_PROVENANCE_LINES.get(relative, set())
         line_hits = [
             line_number
@@ -359,6 +392,19 @@ def test_shipped_tree_has_no_retired_executor_surface() -> None:
     )
 
     assert not offenders, f"retired product surface remains:\n{detail}"
+
+
+def test_web_skill_bundle_is_held_to_the_allowance_of_each_copied_file() -> None:
+    client = _EXTERNAL_CODE_CLIENT
+    readme = "docs/agent-skills/flow-steward-operator/README.md"
+    allowed = json.dumps(
+        {"packages": {"flow-steward-operator": {"README.md": f"# x\n### {client}\n"}}}
+    )
+    assert _bundle_offenders(allowed.encode(), _retired_fragments()) == []
+    extra = json.dumps(
+        {"packages": {"flow-steward-operator": {"README.md": f"# x\nrun {client} here\n"}}}
+    )
+    assert _bundle_offenders(extra.encode(), _retired_fragments()) == [f"{readme}:2"]
 
 
 def test_surviving_provider_and_protocol_contracts_remain_present() -> None:
