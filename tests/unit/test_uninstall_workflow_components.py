@@ -702,3 +702,28 @@ def test_cleanup_validator_accepts_exact_physical_direct_bundle(
             extension_id="acme.demo",
             bundle_root=sibling,
         )
+
+
+@pytest.mark.parametrize("include_consumer_accounts", [True, False])
+def test_provider_uninstall_removes_secret_uses_in_its_scope_only(
+    include_consumer_accounts: bool,
+) -> None:
+    context = MagicMock(account_id="owner-account")
+    context.bl._table_exists.side_effect = lambda table: table == "catalog_secret_bindings"
+    target = MagicMock(include_consumer_accounts=include_consumer_accounts)
+    state = MagicMock(install_id="install-1")
+    cursor = MagicMock(rowcount=1)
+    removed_data: list[str] = []
+
+    ExtensionUninstallCleanupQueries()._cleanup_projection_credentials(
+        context, target, state, cursor, removed_data
+    )
+
+    (sql, params), *_ = (call.args for call in cursor.execute.call_args_list)
+    assert sql.startswith(
+        "DELETE FROM catalog_secret_bindings WHERE consumer_kind = 'llm_provider'"
+    )
+    assert "catalog_secrets" not in sql and "secret_refs" not in sql
+    # True drops every account's uses; False keeps them to the owner account.
+    assert params == ("install-1", include_consumer_accounts, "owner-account")
+    assert removed_data == ["llm_catalog_secret_bindings"]

@@ -286,16 +286,10 @@ class ExtensionUninstallCleanupQueries:
         if getattr(bl, "_table_exists", lambda *_args: False)("catalog_secret_bindings"):
             # Stored secrets the provider install chose (ADR 0057): the uses go, the
             # secrets stay in Registry → Secrets.
-            if target.include_consumer_accounts:
-                cur.execute(
-                    "DELETE FROM catalog_secret_bindings WHERE consumer_kind = 'llm_provider' AND llm_provider_install_id = %s",
-                    (state.install_id,),
-                )
-            else:
-                cur.execute(
-                    "DELETE FROM catalog_secret_bindings WHERE consumer_kind = 'llm_provider' AND llm_provider_install_id = %s AND account_id::text = %s",
-                    (state.install_id, str(context.account_id)),
-                )
+            cur.execute(
+                "DELETE FROM catalog_secret_bindings WHERE consumer_kind = 'llm_provider' AND llm_provider_install_id = %s AND (%s OR account_id::text = %s)",
+                (state.install_id, bool(target.include_consumer_accounts), str(context.account_id)),
+            )
             self._record_removed(cur, removed_data, "llm_catalog_secret_bindings")
         if getattr(bl, "_table_exists", lambda *_args: False)("dataset_query_templates"):
             cur.execute(
