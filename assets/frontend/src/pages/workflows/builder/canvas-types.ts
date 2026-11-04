@@ -179,6 +179,8 @@ export type BuilderSurfaceProps = {
   ) => Promise<boolean> | boolean;
   onDisconnectPort: (source: WorkflowNodeRef, outcome: WorkflowOutcome) => void;
   onInsertStep: (edge: WorkflowGraphEdge, intent?: CanvasCreationIntent) => void;
+  /** Open the new-step editor for a step that goes between Start and the current first step. */
+  onInsertBeforeEntry?: () => void;
   /** Open the new-step editor for a step connected after this free outcome. */
   onAppendStep?: (source: WorkflowNodeRef, outcome: WorkflowOutcome, intent?: CanvasCreationIntent) => void;
   onOpenGroup: (groupId: string, defaultTab?: string) => void;

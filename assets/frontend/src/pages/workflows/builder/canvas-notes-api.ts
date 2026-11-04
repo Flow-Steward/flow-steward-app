@@ -53,3 +53,18 @@ export function isCanvasNotesRevisionConflict(error: unknown): boolean {
   const detail = (error.payload as { detail?: unknown }).detail;
   return Boolean(detail && typeof detail === "object" && "code" in detail && detail.code === "workflow_annotations_revision_conflict");
 }
+
+/** Where the author put the cards, kept with the workflow (presentation only; no definition revision). */
+export type SavedCanvasLayout = { mode: "auto" | "manual"; positions: Record<string, { x: number; y: number }> };
+
+function layoutPath(workflowId: string) {
+  return `/api/workflows/${encodeURIComponent(workflowId)}/canvas-layout`;
+}
+
+export function fetchCanvasLayout(workflowId: string) {
+  return fetchJson<{ layout: SavedCanvasLayout; saved: boolean }>(layoutPath(workflowId));
+}
+
+export function saveCanvasLayout(workflowId: string, layout: SavedCanvasLayout) {
+  return fetchJson<{ layout: SavedCanvasLayout; saved: boolean }>(layoutPath(workflowId), { method: "PUT", body: JSON.stringify({ layout }) });
+}

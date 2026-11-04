@@ -21005,6 +21005,9 @@ msgstr ""
 msgid "react.workflows.workflow_discovery_uses_this_metadata_to_identify_when_this_workflow_can_be_reused"
 msgstr ""
 
+msgid "react.workflows.workflow_entry_replaces_current"
+msgstr ""
+
 msgid "react.workflows.workflow_has_contract_issues"
 msgstr ""
 
@@ -25856,6 +25859,9 @@ msgid "react.workflows.palette_actions"
 msgstr ""
 
 msgid "react.workflows.palette_append_title"
+msgstr ""
+
+msgid "react.workflows.palette_before_entry_title"
 msgstr ""
 
 msgid "react.workflows.palette_canvas"

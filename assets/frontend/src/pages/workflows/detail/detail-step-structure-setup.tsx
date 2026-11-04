@@ -174,6 +174,18 @@ export function ContainerConnections({
   );
 }
 
+/** The workflow's current first step, by the name the author sees on its card. */
+function rootEntryLabel(preview: WorkflowDefinitionModel): string {
+  const entry = preview.graph.entry;
+  if (!entry) return "";
+  const rows: Array<{ id: unknown; display_name?: unknown }> = entry.kind === "step"
+    ? preview.steps.map((row) => ({ id: row.step_id, display_name: row.display_name }))
+    : entry.kind === "group"
+      ? preview.groups.map((row) => ({ id: row.group_id, display_name: row.display_name }))
+      : preview.forEach.map((row) => ({ id: row.for_each_id, display_name: row.display_name }));
+  return textOrEmpty(rows.find((row) => row.id === entry.id)?.display_name) || entry.id;
+}
+
 export function WorkflowStepStructureSetup({ ctx }: Readonly<{ ctx: Record<string, any> }>) {
   const { t } = useI18n();
   const {
@@ -269,11 +281,25 @@ export function WorkflowStepStructureSetup({ ctx }: Readonly<{ ctx: Record<strin
               ) : null}
             </span>
           </DsCheckbox>
+        ) : preview.graph.entry ? (
+          <>
+            <DsCheckbox checked={Boolean(createAsEntry)} onChange={setCreateAsEntry}>
+              <span>
+                {t("react.workflows.make_workflow_entry", "Make it the workflow entry")}
+                <span className="mt-0.5 block text-[11px] fs-ink-tertiary">
+                  {t("react.workflows.workflow_entry_replaces_current", "Start runs it first; it then goes on to {step}.", { step: rootEntryLabel(preview) })}
+                </span>
+              </span>
+            </DsCheckbox>
+            {createAsEntry ? null : (
+              <p className="text-[11px] fs-ink-tertiary">
+                {t("react.workflows.new_root_step_not_entry", "The workflow keeps its entry. Connect the new step from another step's outcome.")}
+              </p>
+            )}
+          </>
         ) : (
           <p className="text-[11px] fs-ink-tertiary">
-            {preview.graph.entry
-              ? t("react.workflows.new_root_step_not_entry", "The workflow keeps its entry. Connect the new step from another step's outcome.")
-              : t("react.workflows.new_root_step_becomes_entry", "The workflow has no entry yet, so this step becomes it.")}
+            {t("react.workflows.new_root_step_becomes_entry", "The workflow has no entry yet, so this step becomes it.")}
           </p>
         )}
       </div>

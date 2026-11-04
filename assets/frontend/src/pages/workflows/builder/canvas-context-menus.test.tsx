@@ -57,13 +57,25 @@ describe("Canvas right-click menus", () => {
   it("disables a step through one undoable change set intent and offers Undo in the toast", () => {
     const { value, stageGraphIntent, undoGraphIntent } = host();
     const disable = stepMoreItems(value, "fetch").find((item) => item.kind !== "separator" && item.key === "disable");
-    expect(labels(stepMoreItems(value, "fetch"))).toEqual(["Duplicate", "Disable", "Delete"]);
+    expect(labels(stepMoreItems(value, "fetch"))).toEqual(["Duplicate", "Disable", "Make it the workflow entry", "Delete"]);
     if (!disable || disable.kind === "separator") throw new Error("no Disable");
     disable.onSelect?.();
     expect(stageGraphIntent).toHaveBeenCalledWith([{ op: "update_step_config", step_id: "fetch", patch: { disabled: true } }], "Fetch order disabled. The run skips it.");
     const notice = vi.mocked(value.notice).mock.calls[0][0];
     notice.action?.onAction();
     expect(undoGraphIntent).toHaveBeenCalledOnce();
+  });
+
+  it("makes another step the entry from the toolbar's More, as one undoable change", () => {
+    const { value, stageGraphIntent } = host();
+    const entry = stepMoreItems(value, "classify").find((item) => item.kind !== "separator" && item.key === "entry");
+    if (!entry || entry.kind === "separator") throw new Error("no Make entry in More");
+    expect(entry).toMatchObject({ label: "Make it the workflow entry" });
+    expect(entry.disabledReason).toBeUndefined();
+    entry.onSelect?.();
+    expect(stageGraphIntent).toHaveBeenCalledWith([{ op: "set_entry", target: { kind: "step", id: "classify" } }], expect.any(String));
+    // The step that already starts the run says so instead.
+    expect(stepMoreItems(value, "fetch").find((item) => item.kind !== "separator" && item.key === "entry")).toMatchObject({ disabledReason: "The run starts here already." });
   });
 
   it("refuses to disable a step without a single Next outcome", () => {

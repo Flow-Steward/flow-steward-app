@@ -217,6 +217,29 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     expect(postedChangeSets()).toEqual([]);
   });
 
+  it("puts a new step between Start and the first step from the Start connection's +", async () => {
+    installLinearWorkflow();
+    renderPage({ surface: "builder" });
+    await screen.findByRole("group", { name: "Open step Plan work" });
+    // Start → Plan work has its own "Insert a step here", like every other connection.
+    const inserts = screen.getAllByRole("button", { name: "Insert a step here" });
+    expect(inserts).toHaveLength(2);
+    fireEvent.click(inserts[0]);
+    const palette = await screen.findByRole("dialog", { name: "Insert before Plan work" });
+    fireEvent.click(within(palette).getByRole("option", { name: "Wait" }));
+    await screen.findByRole("group", { name: "Open step Wait" });
+    expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure not applied: 3 change(s)");
+    await waitFor(() => expect(dryRunChangeSets()).toEqual(expect.arrayContaining([expect.objectContaining({
+      operations: [
+        { op: "create_step", step: expect.objectContaining({ step_id: "wait", step_kind: "wait" }) },
+        { op: "set_entry", target: { kind: "step", id: "wait" } },
+        { op: "connect", edge: { source: { kind: "step", id: "wait" }, outcome: { name: "success" }, target: { kind: "step", id: "plan" } } },
+      ],
+    })])));
+    expect(within(screen.getByRole("group", { name: "Open step Wait" })).getByText("Entry")).toBeInTheDocument();
+    expect(postedChangeSets()).toEqual([]);
+  });
+
   it("closes the step editor and clears the selection when the new step it shows is deleted", async () => {
     installLinearWorkflow();
     renderPage({ surface: "builder" });

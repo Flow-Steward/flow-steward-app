@@ -60,6 +60,12 @@ class Repository:
         settings["canvas_annotations_revision"] = expected_annotations_revision + 1
         return settings["canvas_annotations_revision"]
 
+    def save_workflow_canvas_layout(self, workflow_id, *, account_id, layout):
+        if workflow_id != "annotated":
+            return False
+        self.workflow["settings"]["canvas_layout"] = copy.deepcopy(layout)
+        return True
+
 
 class Plane:
     def __init__(self):

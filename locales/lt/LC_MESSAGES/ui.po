@@ -21251,6 +21251,9 @@ msgstr ""
 "Darbo eigų paieška naudoja šiuos metaduomenis nustatyti, kada šią darbo eigą "
 "galima panaudoti pakartotinai."
 
+msgid "react.workflows.workflow_entry_replaces_current"
+msgstr "Start jį vykdo pirmą, o po jo einama į {step}."
+
 msgid "react.workflows.workflow_has_contract_issues"
 msgstr "Darbo eigos sutartyje yra problemų."
 
@@ -27253,6 +27256,9 @@ msgstr "Veiksmai"
 
 msgid "react.workflows.palette_append_title"
 msgstr "Pridėti po {source} · {outcome}"
+
+msgid "react.workflows.palette_before_entry_title"
+msgstr "Įterpti prieš {target}"
 
 msgid "react.workflows.palette_canvas"
 msgstr "Drobė"

@@ -70,6 +70,8 @@ def test_canvas_notes_and_their_revision_do_not_change_executable_snapshot():
         {"id": "note", "text": "Documentation", "x": 40, "y": 50}
     ]
     workflow["settings"]["canvas_annotations_revision"] = 7
+    # Dragging a card saves its place; a run never pins it.
+    workflow["settings"]["canvas_layout"] = {"mode": "manual", "positions": {"a": {"x": 1, "y": 2}}}
     annotated = frozen_definition(workflow)
     assert annotated == original
     assert definition_digest(annotated) == definition_digest(original)

@@ -126,6 +126,8 @@ function fixture({ linked = ["project-a", "project-b"], failProjects = false, fa
     });
     // The builder reads the steps' kept test outputs (Test output); this workflow keeps none.
     if (path === `/api/workflows/${workflowId}/kept-test-outputs`) return json({ workflow_id: workflowId, kept_outputs: [] });
+    // The builder reads where the author placed the cards; nothing is saved for this workflow.
+    if (method === "GET" && path === `/api/workflows/${workflowId}/canvas-layout`) return json({ layout: { mode: "auto", positions: {} }, saved: false });
     if (path === "/api/workflows/meta/callable-workflows") return json({ workflows: [] });
     if (path === "/api/workflows/meta/connector-catalog") return json({ connectors: [] });
     unexpected.push(`${method} ${path}`);

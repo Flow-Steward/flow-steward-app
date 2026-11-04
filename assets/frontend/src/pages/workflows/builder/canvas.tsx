@@ -12,7 +12,7 @@ import type { CanvasPlacementDelta, CanvasPlacementValues } from "./canvas-histo
 import { CanvasPortProvider } from "./canvas-port-control";
 import { canvasConnectionDefinition, connectionPlacement, connectionRefusal } from "./canvas-connection-policy";
 import type { CanvasCreationIntent, CanvasPlacementPoint } from "./canvas-types";
-import { arrangeSnapshot, useCanvasArrangeMode } from "./canvas-layout-menu";
+import { arrangeSnapshot, useCanvasArrangeMode, useSavedCanvasLayout } from "./canvas-layout-menu";
 import { useInlineLoopIds } from "./canvas-inline-loop-layout";
 import type { CanvasShellExtras } from "./canvas-context-menus";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -118,6 +118,7 @@ export function WorkflowCanvasBuilderSurface({
   onConnectPort,
   onDisconnectPort,
   onInsertStep,
+  onInsertBeforeEntry,
   onAppendStep,
   onOpenGroup,
   onOpenGroupAutomation,
@@ -631,6 +632,11 @@ export function WorkflowCanvasBuilderSurface({
     workflowId, t, manualPositions, setManualPositions, layoutNodes: nodes, setGraphEditNotice,
     undoLastChange: useCallback(() => undoLastChangeRef.current(), []),
   });
+  // The places travel with the workflow, so a new sign-in or another browser shows them too.
+  useSavedCanvasLayout({
+    workflowId, editable: !structureLocked, mode: arrange.mode, positions: manualPositions,
+    hydrate: arrange.hydrate, setManualPositions,
+  });
 
   useEffect(() => {
     setMeasuredStepHeights({});
@@ -811,7 +817,7 @@ export function WorkflowCanvasBuilderSurface({
   });
 
   const { deleteEdgeData, visibleEdges, selectedEdge } = useCanvasInteractiveEdges({
-    t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, resolveCommandOwner: commandOwnerFor
+    t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, onInsertBeforeEntry, resolveCommandOwner: commandOwnerFor
   });
 
   const recordAutoLayout = useCallback((before: Record<string, CanvasPosition>) => {

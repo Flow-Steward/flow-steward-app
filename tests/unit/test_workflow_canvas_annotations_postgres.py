@@ -130,3 +130,57 @@ def test_clone_initializes_independent_presentation_revision(audit_db):
         assert store.get_workflow(workflow_id)["settings"]["canvas_annotations_revision"] == 1
     finally:
         conn.execute("DELETE FROM registry_workflows WHERE workflow_id = %s", (child_id,))
+
+
+LAYOUT = {"mode": "manual", "positions": {"work": {"x": 480, "y": 176}}}
+
+
+def _layout_service(store):
+    return WorkflowCanvasAnnotationService(store, Plane())
+
+
+def test_layout_save_is_presentation_only_and_survives_a_full_definition_save(audit_db):
+    store, conn, workflow_id, project_id = audit_db
+    _save(store, workflow_id)
+    source = store.get_workflow(workflow_id)
+    account_id = str(source["account_id"])
+    before = _pin(conn, _job(conn, project_id), workflow_id)
+
+    saved = _layout_service(store).save_layout(
+        workflow_id=workflow_id, account_id=account_id, layout=LAYOUT
+    )
+
+    assert saved == {"layout": LAYOUT, "saved": True}
+    stored = store.get_workflow(workflow_id)
+    # Dragging a card never makes a definition revision or moves a run's pin.
+    assert stored["revision"] == source["revision"]
+    assert _pin(conn, _job(conn, project_id), workflow_id) == before
+    # A definition writer that read the workflow before the drag keeps the layout.
+    source["description"] = "Applied after the drag"
+    store.save_workflow(source, author="audit", expected_revision=source["revision"])
+    reloaded = _layout_service(store).get_layout(workflow_id=workflow_id, account_id=account_id)
+    assert reloaded == {"layout": LAYOUT, "saved": True}
+    assert store.get_workflow(workflow_id)["description"] == "Applied after the drag"
+
+
+def test_layout_refuses_unbounded_or_non_finite_positions(audit_db):
+    from core.application.workflows.workflow_canvas_annotation_service import (
+        WorkflowCanvasAnnotationError,
+    )
+
+    store, _, workflow_id, _ = audit_db
+    _save(store, workflow_id)
+    account_id = str(store.get_workflow(workflow_id)["account_id"])
+    for layout in (
+        {"mode": "sideways", "positions": {}},
+        {"mode": "manual", "positions": {"work": {"x": float("inf"), "y": 0}}},
+        {"mode": "manual", "positions": {"": {"x": 0, "y": 0}}},
+    ):
+        with pytest.raises(WorkflowCanvasAnnotationError):
+            _layout_service(store).save_layout(
+                workflow_id=workflow_id, account_id=account_id, layout=layout
+            )
+    assert _layout_service(store).get_layout(workflow_id=workflow_id, account_id=account_id) == {
+        "layout": {"mode": "auto", "positions": {}},
+        "saved": False,
+    }

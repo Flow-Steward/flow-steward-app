@@ -18,11 +18,12 @@ import {
   canvasPasteRectsVisible,
   canvasPasteTranslationToBounds,
   canvasPasteViewport,
+  canvasRevealViewport,
   fitCanvasToNodes,
   positionAtViewportCentre,
   positionRightOfManualSource,
 } from "./canvas-viewport";
-import { type buildCanvasLayout, nodeIdForRef, type CanvasEdgeData } from "./layout";
+import { type buildCanvasLayout, nodeIdForRef, START_ENTRY_EDGE_ID, type CanvasEdgeData } from "./layout";
 import { applyCanvasNodeState, reconcileCanvasGeometry, manualPositionsFromNodes } from "./canvas-state-helpers";
 import type { useCanvasNotes } from "./canvas-notes";
 import type { CanvasNoteData } from "./canvas-note-node";
@@ -64,6 +65,7 @@ type CanvasInteractionContext = {
   selectedEdgeId: string | null;
   closeTransientSurfaces: () => void;
   onInsertStep: BuilderSurfaceProps["onInsertStep"];
+  onInsertBeforeEntry?: BuilderSurfaceProps["onInsertBeforeEntry"];
   beginPlacementGesture: (nodeIds: string[], dragging: boolean) => PlacementGesture | null;
   changeAnnotationNodes: ReturnType<typeof useCanvasNotes>["onNodesChange"];
   setManualPositions: StateSetter<Record<string, CanvasPosition>>;
@@ -198,7 +200,7 @@ export function useCanvasRenderedStepHeights({ canvasMeasureRootRef, setMeasured
 
 }
 
-export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, resolveCommandOwner }: Readonly<Pick<CanvasInteractionContext, "t" | "onDisconnectPort" | "setSelectedEdgeId" | "setGraphEditNotice" | "nodes" | "nodesWithCanvasState" | "rootRows" | "edges" | "showFailurePaths" | "structureLocked" | "hoveredEdgeId" | "selectedEdgeId" | "closeTransientSurfaces" | "onInsertStep" | "resolveCommandOwner">>) {
+export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, onInsertBeforeEntry, resolveCommandOwner }: Readonly<Pick<CanvasInteractionContext, "t" | "onDisconnectPort" | "setSelectedEdgeId" | "setGraphEditNotice" | "nodes" | "nodesWithCanvasState" | "rootRows" | "edges" | "showFailurePaths" | "structureLocked" | "hoveredEdgeId" | "selectedEdgeId" | "closeTransientSurfaces" | "onInsertStep" | "onInsertBeforeEntry" | "resolveCommandOwner">>) {
   /** Remove connection acts at once; the toast offers Undo (Components2 › Connection actions). */
   const deleteEdgeData = useCallback(
     (data?: CanvasEdgeData) => {
@@ -265,10 +267,15 @@ export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdge
   }, [edges, nodes, nodesWithCanvasState, rootRows]);
 
   const visibleEdges = useMemo(() => routedEdges.filter((edge) => showFailurePaths || !edge.data?.failurePath).map((edge) => {
-    if (!edge.data) return edge;
+    if (!edge.data) {
+      // Start → the first step: its "+" puts a new first step in front (the old one follows it).
+      if (edge.id !== START_ENTRY_EDGE_ID || structureLocked || !onInsertBeforeEntry) return edge;
+      const entryInsert: Partial<InteractiveCanvasEdgeData> = { hovered: edge.id === hoveredEdgeId, onInsert: () => { setSelectedEdgeId(null); closeTransientSurfaces(); onInsertBeforeEntry(); } };
+      return { ...edge, data: entryInsert as InteractiveCanvasEdgeData };
+    }
     const editable = !structureLocked || isHookMemberEdge(edge.data.edge);
     return { ...edge, data: { ...edge.data, hovered: edge.id === hoveredEdgeId, selected: edge.id === selectedEdgeId, ...(editable ? { onDelete: deleteEdgeData, onInsert: (data: CanvasEdgeData) => { setSelectedEdgeId(null); closeTransientSurfaces(); onInsertStep(data.edge); } } : {}) } };
-  }), [closeTransientSurfaces, deleteEdgeData, hoveredEdgeId, onInsertStep, routedEdges, selectedEdgeId, showFailurePaths, structureLocked, setSelectedEdgeId]);
+  }), [closeTransientSurfaces, deleteEdgeData, hoveredEdgeId, onInsertBeforeEntry, onInsertStep, routedEdges, selectedEdgeId, showFailurePaths, structureLocked, setSelectedEdgeId]);
   const selectedEdge = useMemo(
     () =>
       visibleEdges.find((edge) => edge.id === selectedEdgeId) as
@@ -740,7 +747,9 @@ export function useCanvasClipboardPublication({
       const ids = [...world.keys()];
       const byHand = pending.event.command === "paste" && pending.event.authority.pasteMode === "pointer";
       const manualPaste = byHand || pending.event.command === "paste" && arrangeMode === "manual";
-      const autoPaste = pending.event.command === "paste" && !byHand && arrangeMode === "auto";
+      // Automatically: the layout places the copy (a Duplicate too), and the camera
+      // moves to it, or the copy can land beyond the visible canvas and look lost.
+      const autoPaste = arrangeMode === "auto" && (pending.event.command === "duplicate" || pending.event.command === "paste" && !byHand);
       const viewportGeneration = clipboardViewportGenerationRef.current;
       const laterCamera = viewportGeneration !== pending.viewportGeneration;
       const newerMove = ids.some((id) => (clipboardManualInteractionsRef.current.subjects.get(id) ?? 0) > pending.manualGeneration);
@@ -800,8 +809,8 @@ export function useCanvasClipboardPublication({
         if (!parent) { retry(); return; }
         positions.set(id, { x: point.x - parent.x, y: point.y - parent.y });
       }
-      if (pending.event.command === "duplicate") {
-        if (arrangeMode !== "auto") setManualPositions((value) => ({ ...value, ...Object.fromEntries(positions) }));
+      if (pending.event.command === "duplicate" && arrangeMode !== "auto") {
+        setManualPositions((value) => ({ ...value, ...Object.fromEntries(positions) }));
         finish(roots as string[]);
         return;
       }
@@ -833,7 +842,9 @@ export function useCanvasClipboardPublication({
         if (!stage || !fittingPane || !reactFlowInstance) { retry(); return; }
         const bounds = reactFlowInstance.getNodesBounds(ids);
         input = JSON.stringify([bounds, fittingPane, stage.left, stage.top]);
-        const target = canvasPasteViewport(bounds, fittingPane, stage);
+        const target = pending.event.command === "duplicate"
+          ? canvasRevealViewport(bounds, fittingPane, stage, phase.viewport ?? reactFlowInstance.getViewport())
+          : canvasPasteViewport(bounds, fittingPane, stage);
         if (!target) { retry(); return; }
         if (phase.fitInput !== input) {
           if (!current() || clipboardViewportGenerationRef.current !== pending.viewportGeneration || commandSelectionRef.current.generation !== pending.event.authority.generation) { finish(); return; }

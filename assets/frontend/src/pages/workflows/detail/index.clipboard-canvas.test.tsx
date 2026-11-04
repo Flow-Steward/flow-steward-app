@@ -230,6 +230,22 @@ it.each(["auto", "manual"] as const)("duplicates a selected authored step as one
   expect(postedChangeSets()).toEqual([]);
 });
 
+it("brings a duplicate placed by Arrange Automatically into view without changing the zoom", async () => {
+  installWorkflow();
+  saveArrangeMode("weekly_report", "auto");
+  renderPage({ surface: "builder" });
+  clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
+  const instance = await realViewport();
+  // The author looks elsewhere: the layout's place for the copy is outside the view.
+  await act(async () => { await instance.setViewport({ x: -1600, y: 24, zoom: 1 }, { duration: 0 }); });
+  pressCanvasKey("KeyD");
+  await screen.findByRole("group", { name: "Open step Plan work copy" });
+  await waitFor(() => expectPublishedInside(instance, ["plan_2"]));
+  expect(instance.getZoom()).toBe(1);
+  expect(loadManualLayout("weekly_report").plan_2).toBeUndefined();
+  expect(postedChangeSets()).toEqual([]);
+});
+
 it("reports protected paste refusal without reading the clipboard or staging a graph edit", async () => {
   installWorkflow();
   mockedFetchWorkflowExportPolicy.mockResolvedValueOnce({

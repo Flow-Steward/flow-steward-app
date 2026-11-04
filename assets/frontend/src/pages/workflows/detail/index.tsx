@@ -345,6 +345,7 @@ function WorkflowDetailPageContent({
     selectedIssueWorkflowContractSection,
     setAdvancedMode,
     setAutomationScopeKind,
+    setCreateAsEntry,
     setDrawerMode,
     setDrawerTab,
     setGroupCreateMode,

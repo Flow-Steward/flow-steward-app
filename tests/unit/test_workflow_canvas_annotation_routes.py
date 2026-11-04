@@ -139,3 +139,19 @@ def test_note_mutation_requires_both_revision_guards(client):
     )
     assert refused.status_code == 409
     assert refused.json()["detail"]["code"] == "workflow_revision_conflict"
+
+
+def test_canvas_layout_round_trips_via_http_and_rejects_invalid_positions(client):
+    base = "/api/workflows/annotated/canvas-layout"
+    assert client.get(base).json() == {"layout": {"mode": "auto", "positions": {}}, "saved": False}
+    layout = {"mode": "manual", "positions": {"plan": {"x": 480, "y": 176.5}}}
+    saved = client.put(base, json={"layout": layout})
+    assert saved.status_code == 200, saved.text
+    assert saved.json() == {"layout": layout, "saved": True}
+    # A new page load reads the same places, wherever the author signs in.
+    assert client.get(base).json() == {"layout": layout, "saved": True}
+    refused = client.put(
+        base, json={"layout": {"mode": "manual", "positions": {"plan": {"x": "far"}}}}
+    )
+    assert refused.status_code == 422
+    assert client.get(base).json() == {"layout": layout, "saved": True}

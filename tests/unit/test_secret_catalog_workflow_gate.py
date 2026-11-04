@@ -52,6 +52,8 @@ def test_canvas_and_labels_are_not_executable() -> None:
     moved["steps"][0]["display_name"] = "Renamed"
     moved["steps"][0]["position"] = {"x": 9}
     moved["settings"]["canvas_annotations"] = []
+    # Dragging cards saves the canvas layout; an approval must not depend on it.
+    moved["settings"]["canvas_layout"] = {"mode": "manual", "positions": {"a": {"x": 9, "y": 1}}}
     moved["protected"] = True
     assert _fp(moved) == _fp(_DEFINITION)
 

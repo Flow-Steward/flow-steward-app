@@ -63,6 +63,8 @@ function fixture(failSecond = false) {
     if (path === `/api/workflows/${workflowId}/canvas-graph`) return json({ workflow: { id: workflowId, display_name: "Context fixture", enabled: true, callable_by_parent: false }, interface_contract: callable, output_contract: { output_mode: "none", expected_outputs: [], returned_files: [] }, groups: [], steps: [], edges: [], validation_issues: [], automation_rules: [] });
     // The Builder reads kept test outputs (workflow-level, outside the definition) on open.
     if (method === "GET" && path === `/api/workflows/${workflowId}/kept-test-outputs`) return json({ workflow_id: workflowId, kept_outputs: [] });
+    // The builder reads where the author placed the cards; nothing is saved for this workflow.
+    if (method === "GET" && path === `/api/workflows/${workflowId}/canvas-layout`) return json({ layout: { mode: "auto", positions: {} }, saved: false });
     if (path === "/api/workflows/meta/callable-workflows") return json({ workflows: [] });
     if (path === "/api/workflows/meta/connector-catalog") return json({ connectors: [] });
     unexpected.push(`${method} ${path}`);

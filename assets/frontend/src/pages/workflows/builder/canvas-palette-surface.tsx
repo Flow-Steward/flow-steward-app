@@ -22,6 +22,8 @@ type PaletteRequest = {
   clientPoint: { x: number; y: number };
   /** Asked for at a point of the canvas (right-click › Add step here): the new node lands there. */
   at?: CanvasPlacementPoint;
+  /** Asked for between Start and the first step: the new step starts the run and goes on to it. */
+  createAsEntry?: boolean;
   returnFocus: HTMLElement | null;
 };
 
@@ -114,6 +116,10 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
     if (!scope) return;
     open({ ...scope, insert: { source: edge.source, outcome: edge.outcome, label: `${edge.source.id} · ${outcomeHandleId(edge.outcome)}` } }, intent || { source: edge.source, outcome: edge.outcome, scope }, edge);
   }, [definition, open]);
+  const insertBeforeEntry = useCallback(() => {
+    const next = open({});
+    setRequest({ ...next, createAsEntry: true });
+  }, [open]);
   const placeNextAt = useCallback((point: { x: number; y: number }) => {
     setPlacementCommand({ kind: "place-next", point, nonce: ++placementSerial.current });
   }, []);
@@ -126,7 +132,7 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
     // A node asked for at a point (and not after a port) lands where it was asked for.
     if (selection.at && !selection.context.insert) placeNextAt(selection.at.point);
     try {
-      const result = await onCreateStep({ requestId: selection.requestId, choice, context: selection.context, intent: selection.intent, at: selection.at, expectedEdge: selection.expectedEdge, signal: controller.signal });
+      const result = await onCreateStep({ requestId: selection.requestId, choice, context: selection.context, intent: selection.intent, at: selection.at, expectedEdge: selection.expectedEdge, ...(selection.createAsEntry ? { createAsEntry: true } : {}), signal: controller.signal });
       if (controller.signal.aborted || activeRequest.current !== selection.requestId) return;
       if (result.status === "created") {
         const nodeId = "canvasStepId" in result ? result.canvasNodeId || result.canvasStepId : result.canvasNodeId;
@@ -155,9 +161,11 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
     if (!request) return;
     const at = { point: target.point, clientPoint: target.clientPoint };
     // Opened from a port or a connection, Add step keeps that connection and only takes the drop's place.
+    // Before the first step, it stays in the workflow root (the entry) and only takes the drop's place.
     const selection: PaletteRequest = request.context.insert
       ? { ...request, intent: request.intent ? { ...request.intent, point: target.point, clientPoint: target.clientPoint } : request.intent }
-      : { ...request, context: { groupId: target.groupId, forEachId: target.forEachId, laneId: target.laneId }, at };
+      : request.createAsEntry ? { ...request, at }
+        : { ...request, context: { groupId: target.groupId, forEachId: target.forEachId, laneId: target.laneId }, at };
     chooseFromPalette(entry.choice, selection);
   }, [chooseFromPalette, request]);
   const paletteDrag = usePaletteDrag({ instance, canvasRoot: () => root.current?.querySelector(".react-flow") ?? null, t, onDrop: drop });
@@ -177,7 +185,10 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
   let title = t("react.workflows.add_step_title", "Add step");
   let subtitle = t("react.workflows.palette_unconnected", "In view, not connected yet");
   const insertion = scope?.insert;
-  if (insertion && request?.expectedEdge) {
+  if (request?.createAsEntry && graph.entry) {
+    title = t("react.workflows.palette_before_entry_title", "Insert before {target}", { target: nodeName(graph, graph.entry) });
+    subtitle = "";
+  } else if (insertion && request?.expectedEdge) {
     title = t("react.workflows.palette_insert_title", "Insert on {source} · {outcome} → {target}", { source: nodeName(graph, insertion.source), outcome: outcomeName(graph, insertion.source, insertion.outcome, t("react.workflows.outcome_success", "Next")), target: nodeName(graph, request.expectedEdge.target) || t("react.workflows.exit", "Exit") });
     subtitle = "";
   } else if (insertion) {
@@ -201,7 +212,7 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
   return <div className="contents" ref={root} onClickCapture={(event) => {
     if (event.target instanceof Element) lastControl.current = event.target.closest<HTMLElement>("button, [role=button], [role=group]");
   }}>
-    <WorkflowCanvasBuilderSurface {...props} creationSelection={creationSelection} creationIntentRetireNonce={creationIntentRetireNonce} canvasPlacementCommand={placementCommand} onCanvasReady={ready} onAppendStep={append} onInsertStep={insert} onOpenNewStep={(context, at) => open(context, undefined, undefined, at)} onOpenNewGroup={createContainer} />
+    <WorkflowCanvasBuilderSurface {...props} creationSelection={creationSelection} creationIntentRetireNonce={creationIntentRetireNonce} canvasPlacementCommand={placementCommand} onCanvasReady={ready} onAppendStep={append} onInsertStep={insert} onInsertBeforeEntry={insertBeforeEntry} onOpenNewStep={(context, at) => open(context, undefined, undefined, at)} onOpenNewGroup={createContainer} />
     {request ? <CanvasAddStepPalette key={request.requestId} clientPoint={request.clientPoint} title={title} subtitle={subtitle} projectId={props.projectId} laneId={scope?.laneId || undefined} sequenceForEach={Boolean(forEach?.body?.kind === "sequence" && !scope?.laneId && !scope?.groupId)} allowHookDeclaration={Boolean(props.allowHookDeclaration && rootScope && !props.structureLocked && onCreateStep)} allowGroup={rootScope || hookRoot} allowForEach={rootScope || hookRoot || sequenceGroup} inserting={Boolean(request.expectedEdge)} connected={Boolean(request.context.insert)} busy={busy} error={error} dragging={paletteDrag.dragging} onChoose={(choice) => { if (!paletteDrag.consumeClick()) chooseFromPalette(choice); }} onDragStart={paletteDrag.onDragStart} onDismiss={dismiss} /> : null}
     {paletteDrag.overlay}
   </div>;

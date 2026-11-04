@@ -13,7 +13,9 @@ from core.application.registry.db_store_workflows_mixin import WorkflowRevisionC
 from core.application.workflows.workflow_canvas_annotation_contract import (
     ANNOTATIONS_REVISION_SETTING,
     ANNOTATIONS_SETTING,
+    CANVAS_LAYOUT_SETTING,
     CanvasAnnotation,
+    CanvasLayout,
     WorkflowAnnotationsRevisionConflictError,
 )
 from core.infrastructure.config.workflow_file_limits import file_preview_max_bytes
@@ -108,6 +110,35 @@ class WorkflowCanvasAnnotationService:
             "annotations_revision": annotations_revision,
             "annotations": self._notes(workflow),
         }
+
+    @staticmethod
+    def _layout(workflow: dict[str, Any]) -> dict[str, Any]:
+        stored = (workflow.get("settings") or {}).get(CANVAS_LAYOUT_SETTING)
+        try:
+            return CanvasLayout.model_validate(stored or {}).model_dump()
+        except ValidationError:
+            # A layout written by hand or by an older build falls back to automatic.
+            return CanvasLayout().model_dump()
+
+    def get_layout(self, *, workflow_id: str, account_id: str) -> dict:
+        workflow = self._load(workflow_id, account_id)
+        saved = CANVAS_LAYOUT_SETTING in (workflow.get("settings") or {})
+        return {"layout": self._layout(workflow), "saved": saved}
+
+    def save_layout(self, *, workflow_id: str, account_id: str, layout: dict) -> dict:
+        """Last writer wins: positions are presentation, so no definition revision guards them."""
+        try:
+            normalized = CanvasLayout.model_validate(layout).model_dump()
+        except ValidationError as exc:
+            raise WorkflowCanvasAnnotationError(
+                "Invalid canvas layout: choose auto or manual and give finite positions."
+            ) from exc
+        self._load(workflow_id, account_id)
+        if not self.repository.save_workflow_canvas_layout(
+            workflow_id, account_id=account_id, layout=normalized
+        ):
+            raise WorkflowCanvasAnnotationError("Workflow not found.", status_code=404)
+        return {"layout": normalized, "saved": True}
 
     def list_notes(self, *, workflow_id: str, account_id: str) -> dict:
         workflow = self._load(workflow_id, account_id)

@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- the arrange store, its hook and its control belong together. */
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Node } from "@xyflow/react";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { DsPopover, type PopoverTriggerProps } from "@/components/shared/popover";
@@ -7,6 +7,7 @@ import type { I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { CanvasAutoLayoutIcon } from "./canvas-shell-support";
 import type { CanvasPosition, GraphEditNotice } from "./canvas-core";
+import { fetchCanvasLayout, saveCanvasLayout, type SavedCanvasLayout } from "./canvas-notes-api";
 import "./canvas-menus.css";
 
 /** Automatically: every step is placed by the layout after each change. Manually: steps stay where they are put. */
@@ -82,6 +83,8 @@ export function useCanvasArrangeMode({ workflowId, t, manualPositions, setManual
       action: { label: t("react.workflows.undo", "Undo"), onAction: () => { undoLastChange?.(); setMode("auto"); setManualPositions({}); } },
     });
   }
+  /** The saved layout arrived: take its mode without a toast or a snapshot of the current places. */
+  const hydrate = useCallback((next: CanvasArrangeMode) => setMode(next), [setMode]);
   const choose = useCallback((next: CanvasArrangeMode) => {
     if (next === mode) return;
     setMode(next);
@@ -94,7 +97,80 @@ export function useCanvasArrangeMode({ workflowId, t, manualPositions, setManual
       tone: "success",
     });
   }, [layoutNodes, mode, setGraphEditNotice, setManualPositions, setMode, t]);
-  return { mode, choose };
+  return { mode, choose, hydrate };
+}
+
+const SAVE_LAYOUT_DELAY_MS = 600;
+
+function savedLayoutFrom(value: unknown): (SavedCanvasLayout & { saved: boolean }) | null {
+  const layout = value && typeof value === "object" ? (value as { layout?: unknown }).layout : null;
+  const saved = value && typeof value === "object" ? (value as { saved?: unknown }).saved : undefined;
+  if (!layout || typeof layout !== "object" || typeof saved !== "boolean") return null;
+  const { mode, positions } = layout as Partial<SavedCanvasLayout>;
+  if ((mode !== "auto" && mode !== "manual") || !positions || typeof positions !== "object" || Array.isArray(positions)) return null;
+  const valid = Object.entries(positions).filter(([, point]) => point && Number.isFinite(point.x) && Number.isFinite(point.y));
+  return { saved, mode, positions: Object.fromEntries(valid.map(([id, point]) => [id, { x: point.x, y: point.y }])) };
+}
+
+/**
+ * Keep the canvas layout with the workflow, not only in this browser: signing
+ * out clears browser storage, and another browser or teammate never had it.
+ * The saved layout is read once per workflow and wins over this browser's copy;
+ * a browser that still holds places from before they were saved sends them up.
+ * After that each change is saved shortly after it settles. Nothing is written
+ * until the saved layout was read, so an early empty canvas never erases it.
+ */
+export function useSavedCanvasLayout({ workflowId, editable, mode, positions, hydrate, setManualPositions }: Readonly<{
+  workflowId: string;
+  /** Authors who can move cards save; a read-only canvas only reads. */
+  editable: boolean;
+  mode: CanvasArrangeMode;
+  positions: Record<string, CanvasPosition>;
+  hydrate: (mode: CanvasArrangeMode) => void;
+  setManualPositions: Dispatch<SetStateAction<Record<string, CanvasPosition>>>;
+}>) {
+  const [ready, setReady] = useState<string | null>(null);
+  const savedRef = useRef<{ workflowId: string; body: string } | null>(null);
+  const currentRef = useRef({ mode, positions });
+  currentRef.current = { mode, positions };
+  useEffect(() => {
+    let cancelled = false;
+    setReady(null);
+    savedRef.current = null;
+    if (!workflowId) return undefined;
+    Promise.resolve().then(() => fetchCanvasLayout(workflowId)).then((response) => {
+      if (cancelled) return;
+      const saved = savedLayoutFrom(response);
+      // An unreadable answer leaves this browser's places as they are and saves nothing.
+      if (!saved) return;
+      const local = currentRef.current;
+      const layout: SavedCanvasLayout = { mode: saved.mode, positions: saved.positions };
+      if (saved.saved) {
+        hydrate(layout.mode);
+        setManualPositions(layout.positions);
+        savedRef.current = { workflowId, body: JSON.stringify(layout) };
+      } else {
+        // Nothing saved yet: what this browser holds (if anything) is sent up once.
+        savedRef.current = { workflowId, body: JSON.stringify(Object.keys(local.positions).length ? layout : local) };
+      }
+      setReady(workflowId);
+    }).catch(() => { /* Unreachable layout: the canvas still works from this browser's copy. */ });
+    return () => { cancelled = true; };
+    // The saved layout is read once per workflow; later edits are this hook's own writes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowId]);
+  useEffect(() => {
+    if (!editable || ready !== workflowId || savedRef.current?.workflowId !== workflowId) return undefined;
+    const layout: SavedCanvasLayout = { mode, positions };
+    const body = JSON.stringify(layout);
+    if (body === savedRef.current.body) return undefined;
+    const timer = globalThis.setTimeout(() => {
+      saveCanvasLayout(workflowId, layout).then(() => {
+        if (savedRef.current?.workflowId === workflowId) savedRef.current = { workflowId, body };
+      }).catch(() => { /* The next change tries again; this browser keeps its copy meanwhile. */ });
+    }, SAVE_LAYOUT_DELAY_MS);
+    return () => globalThis.clearTimeout(timer);
+  }, [editable, mode, positions, ready, workflowId]);
 }
 
 /** The Layout arrow that opens Arrange; it points up while the menu is open. */

@@ -24,7 +24,9 @@ from core.infrastructure.security.stored_secrets import StoredSecretError
 
 WORKFLOW_PROJECTION_VERSION = "workflow.v2"
 #: Settings that are presentation or owned by other services, not executable content.
-_COSMETIC_SETTINGS = frozenset({"canvas_annotations", "canvas_annotations_revision", "layout"})
+_COSMETIC_SETTINGS = frozenset(
+    {"canvas_annotations", "canvas_annotations_revision", "canvas_layout", "layout"}
+)
 #: Step keys that only place or label a step on the canvas.
 _COSMETIC_STEP_KEYS = frozenset(
     {"position", "label", "display_name", "description", "ui", "layout", "notes"}

@@ -298,6 +298,8 @@ export function useWorkflowDrawerController(ctx: Record<string, any>) {
         insert: context.insert || null,
         laneId: textOrEmpty(context.laneId),
       });
+      // Each Add step starts unticked: an earlier "Make it the entry" choice never carries over.
+      ctx.setCreateAsEntry?.(false);
       setSelectedGroupId(textOrEmpty(context.forEachId) || textOrEmpty(context.groupId));
       setSelectedStepId("");
       setStepDisplayName(textOrEmpty(defaults.displayName) || t("react.workflows.new_step_default_name", "New step"));
