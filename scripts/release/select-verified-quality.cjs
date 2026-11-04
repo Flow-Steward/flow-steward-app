@@ -1,7 +1,7 @@
 "use strict";
 
-// Only a completed public-source run of this exact commit, with both
-// cumulative gate steps successful, can replace a repeated release gate.
+// Only a completed public-source run of this exact commit with a successful
+// explicit cumulative gate and exact-candidate boundaries is full acceptance.
 module.exports = function selectVerifiedQuality(run, jobs, sha, repositoryId, workflowId) {
   if (!run || run.head_sha !== sha || run.workflow_id !== workflowId ||
       !["push", "workflow_dispatch"].includes(run.event) ||
@@ -12,14 +12,22 @@ module.exports = function selectVerifiedQuality(run, jobs, sha, repositoryId, wo
   if (matches.length !== 1) return false;
   const job = matches[0];
   if (job.status !== "completed" || job.conclusion !== "success" || !Array.isArray(job.steps)) return false;
-  return [
+  const succeeded = (name) => {
+    const steps = job.steps.filter((step) => step.name === name);
+    return steps.length === 1 && steps[0].status === "completed" && steps[0].conclusion === "success";
+  };
+  if (![
     "Require a clean exact-SHA candidate including current main",
+    "Reject results if main advanced beyond the candidate",
+  ].every(succeeded)) return false;
+  const legacyFull = [
     "Run canonical Tier 2",
     "Recheck current main before starting Tier 3",
     "Run cumulative gate with Tier 3",
-    "Reject results if main advanced beyond the candidate",
-  ].every((name) => {
-    const steps = job.steps.filter((step) => step.name === name);
-    return steps.length === 1 && steps[0].status === "completed" && steps[0].conclusion === "success";
-  });
+  ].every(succeeded);
+  const explicitFull = [
+    "Recheck current main before an explicitly requested full gate",
+    "Run explicitly requested cumulative full gate",
+  ].every(succeeded);
+  return legacyFull || explicitFull;
 };

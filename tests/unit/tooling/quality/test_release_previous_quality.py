@@ -12,22 +12,26 @@ SELECTOR = ROOT / "scripts/release/select-verified-quality.cjs"
 SHA = "a" * 40
 
 
-def test_release_falls_back_to_full_gate_if_lookup_fails_or_finds_nothing() -> None:
+def test_release_blocks_missing_evidence_without_automatically_running_full() -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/release-images.yml").read_text())
-    quality = workflow["jobs"]["quality"]
-    steps = quality["steps"]
+    steps = workflow["jobs"]["quality"]["steps"]
     lookup = next(step for step in steps if step.get("id") == "previous-quality")
     assert lookup["continue-on-error"] is True
-    gate = next(step for step in steps if "lint.sh --full" in step.get("run", ""))
+    gate = next(
+        step
+        for step in steps
+        if step.get("name", "").startswith("Require existing complete exact-SHA")
+    )
     assert gate["if"] == (
-        "needs.resolve.outputs.tag != 'v0.9.9' && ("
+        "inputs.require_full_quality == true && needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10' && ("
         "steps.previous-quality.outcome != 'success' || "
         "steps.previous-quality.outputs.reuse != 'true')"
     )
-    assert "needs.resolve.outputs.revision" in gate["env"]["RELEASE_REVISION"]
+    assert "exit 1" in gate["run"]
+    assert not any("lint.sh --full" in step.get("run", "") for step in steps)
 
 
-@pytest.mark.parametrize("tag", ["v0.9.9", "v0.9.10"])
+@pytest.mark.parametrize("tag", ["v0.9.9", "v0.9.10", "v0.9.11"])
 @pytest.mark.parametrize("outcome", ["success", "failure", "skipped"])
 @pytest.mark.parametrize("reuse", ["true", "false"])
 def test_release_gate_conditions_preserve_focused_exception_and_reuse(
@@ -41,7 +45,9 @@ def test_release_gate_conditions_preserve_focused_exception_and_reuse(
         "postgres": lambda step: (
             step.get("name") == "Build the canonical disposable PostgreSQL image"
         ),
-        "full": lambda step: "lint.sh --full" in step.get("run", ""),
+        "blocked": lambda step: step.get("name", "").startswith(
+            "Require existing complete exact-SHA"
+        ),
         "focused": lambda step: step.get("name") == "Focused acceptance (full suite not rerun)",
     }
     expressions = {
@@ -50,9 +56,10 @@ def test_release_gate_conditions_preserve_focused_exception_and_reuse(
     }
     command = (
         "const x=JSON.parse(process.argv[1]);const needs={resolve:{outputs:{tag:x.tag}}};"
+        "const inputs={require_full_quality:true};"
         "const steps={'previous-quality':{outcome:x.outcome,outputs:{reuse:x.reuse}}};"
         "process.stdout.write(JSON.stringify(Object.fromEntries(Object.entries(x.expressions)"
-        ".map(([name,expression])=>[name,Function('needs','steps','return ('+expression.replaceAll('steps.previous-quality',\"steps['previous-quality']\")+')')(needs,steps)]))));"
+        ".map(([name,expression])=>[name,Function('needs','steps','inputs','return ('+expression.replaceAll('steps.previous-quality',\"steps['previous-quality']\")+')')(needs,steps,inputs)]))));"
     )
     result = subprocess.run(
         [
@@ -71,10 +78,10 @@ def test_release_gate_conditions_preserve_focused_exception_and_reuse(
     focused = tag == "v0.9.9"
     proven = outcome == "success" and reuse == "true"
     assert actual == {
-        "lookup": not focused,
-        "prepare": focused or not proven,
-        "postgres": focused or not proven,
-        "full": not focused and not proven,
+        "lookup": tag not in {"v0.9.9", "v0.9.10"},
+        "prepare": focused,
+        "postgres": focused,
+        "blocked": tag not in {"v0.9.9", "v0.9.10"} and not proven,
         "focused": focused,
     }
 
@@ -161,3 +168,79 @@ def test_unproven_hosted_gate_cannot_be_reused(fault: str) -> None:
     elif fault == "step_skipped":
         jobs[0]["steps"][3]["conclusion"] = "skipped"
     assert _select(run, jobs) is False
+
+
+def _explicit_full() -> tuple[dict, list[dict]]:
+    run, jobs = _valid()
+    run["event"] = "workflow_dispatch"
+    jobs[0]["steps"] = [
+        {"name": name, "status": "completed", "conclusion": "success"}
+        for name in (
+            "Require a clean exact-SHA candidate including current main",
+            "Recheck current main before an explicitly requested full gate",
+            "Run explicitly requested cumulative full gate",
+            "Reject results if main advanced beyond the candidate",
+        )
+    ]
+    return run, jobs
+
+
+def test_explicit_full_cumulative_step_is_accepted_with_both_candidate_checks() -> None:
+    run, jobs = _explicit_full()
+    assert _select(run, jobs) is True
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        "Execute only the validated impacted plan",
+        "Record the explicit v0.9.10 release exception (no Tier 3 or Sonar)",
+    ],
+)
+def test_impacted_or_exception_step_is_not_full_acceptance(replacement: str) -> None:
+    run, jobs = _explicit_full()
+    jobs[0]["steps"][2]["name"] = replacement
+    assert _select(run, jobs) is False
+
+
+@pytest.mark.parametrize("index", [0, 1, 2, 3])
+@pytest.mark.parametrize("fault", ["missing", "skipped", "failed", "duplicate"])
+def test_explicit_full_requires_each_unique_successful_boundary(index: int, fault: str) -> None:
+    run, jobs = _explicit_full()
+    steps = jobs[0]["steps"]
+    if fault == "missing":
+        steps.pop(index)
+    elif fault == "duplicate":
+        steps.append(dict(steps[index]))
+    else:
+        steps[index]["conclusion"] = "skipped" if fault == "skipped" else "failure"
+    assert _select(run, jobs) is False
+
+
+def test_release_full_receipt_is_required_only_by_explicit_opt_in() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/release-images.yml").read_text())
+    steps = workflow["jobs"]["quality"]["steps"]
+    gate = next(
+        step
+        for step in steps
+        if step.get("name", "").startswith("Require existing complete exact-SHA")
+    )
+    script = """
+const expression = process.argv[1].replaceAll('steps.previous-quality',"steps['previous-quality']");
+const needs = {resolve:{outputs:{tag:'v0.9.11'}}};
+const steps = {'previous-quality':{outcome:'failure',outputs:{reuse:'false'}}};
+const check = Function('needs','steps','inputs','return ('+expression+')');
+process.stdout.write(JSON.stringify([{}, {require_full_quality:false}, {require_full_quality:true}].map(inputs => Boolean(check(needs,steps,inputs)))));
+"""
+    selected = subprocess.check_output(["node", "-e", script, gate["if"]], text=True)
+    assert json.loads(selected) == [False, False, True], (
+        "Missing remote full receipts must block only an explicit full-quality requirement"
+    )
+    inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
+    assert inputs["require_full_quality"]["type"] == "boolean"
+    assert inputs["require_full_quality"]["default"] is False
+    provenance = next(step for step in steps if step.get("id") == "publication-quality-scope")
+    assert provenance["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
+    assert "local impacted verification" in provenance["run"]
+    assert "not a full quality pass" in provenance["run"]
+    assert "exit 1" in gate["run"]

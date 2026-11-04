@@ -12,6 +12,11 @@ on:
         description: Retry publication using native archives from this workflow run ID (leave empty for a new build)
         required: false
         type: string
+      require_full_quality:
+        description: Explicitly require an existing exact-SHA full quality receipt (never runs a full gate automatically)
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -75,7 +80,7 @@ jobs:
           persist-credentials: false
       - name: Find an already successful exact-SHA cumulative gate
         id: previous-quality
-        if: needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10'
+        if: inputs.require_full_quality == true && needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10'
         continue-on-error: true
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
@@ -110,9 +115,9 @@ jobs:
             }
             core.setOutput('reuse', matched ? 'true' : 'false');
       - uses: ./.github/actions/prepare-quality
-        if: needs.resolve.outputs.tag != 'v0.9.10' && (needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
+        if: needs.resolve.outputs.tag == 'v0.9.9'
       - name: Build the canonical disposable PostgreSQL image
-        if: needs.resolve.outputs.tag != 'v0.9.10' && (needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
+        if: needs.resolve.outputs.tag == 'v0.9.9'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -122,14 +127,29 @@ jobs:
           tags: fs-postgres-extended:0.1.0-pgvector-0.8.5
           cache-from: type=gha,scope=quality-postgres-amd64
           cache-to: type=gha,scope=quality-postgres-amd64,mode=min
-      - name: Complete exact-SHA Tier 2 and Tier 3 gate
-        if: needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10' && (steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
+      - name: Require existing complete exact-SHA evidence without an automatic full run
+        if: inputs.require_full_quality == true && needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10' && (steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
+        run: |
+          echo '::error::Full quality was explicitly required, but complete exact-SHA Tier 2 and Tier 3 evidence is missing. Obtain the requested full receipt explicitly; no full run is started by publication.'
+          exit 1
+      - name: Record ordinary publication scope and local verification responsibility
+        id: publication-quality-scope
+        if: inputs.require_full_quality != true && needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10'
         env:
           RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
         run: |
-          set -o pipefail
-          ./core/entrypoints/cli/scripts/lint.sh --full --fingerprint-source commit --commit-sha "$RELEASE_REVISION" \
-            2>&1 | tee logs/quality/hosted/full.log
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$RELEASE_REVISION" ]]
+          mkdir -p logs/quality/hosted
+          {
+            echo "Release tag: $RELEASE_TAG"
+            echo "Release revision: $RELEASE_REVISION"
+            echo 'Publication relies on local impacted verification performed by the publisher under the repository standards.'
+            echo 'No remote full receipt is required for ordinary publication.'
+            echo 'This provenance and responsibility record is not a full quality pass and does not assert that tests ran in this job.'
+            echo 'Native archive, registry digest, tag and source provenance validation remain mandatory.'
+          } | tee logs/quality/hosted/publication-quality-scope.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Record the explicit v0.9.10 release exception (no Tier 3 or Sonar)
         if: needs.resolve.outputs.tag == 'v0.9.10'
         env:

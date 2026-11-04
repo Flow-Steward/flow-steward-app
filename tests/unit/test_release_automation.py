@@ -44,7 +44,9 @@ def test_release_quality_prepares_hosted_uids_and_hands_back_artifacts_after_cle
     )
     assert prepare is not None, "Release quality must prepare hosted checkout/cache permissions"
     gate = next(
-        index for index, step in enumerate(steps) if "lint.sh --full" in step.get("run", "")
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Focused acceptance (full suite not rerun)"
     )
     commands = {step.get("run"): index for index, step in enumerate(steps) if "run" in step}
     adapter = "./core/entrypoints/cli/scripts/hosted-quality.sh "
@@ -57,6 +59,14 @@ def test_release_quality_prepares_hosted_uids_and_hands_back_artifacts_after_cle
         if step.get("uses", "").startswith("actions/upload-artifact@")
     )
     assert prepare < gate < diagnostics < cleanup < ownership < upload
+    assert steps[prepare]["if"] == steps[gate]["if"] == "needs.resolve.outputs.tag == 'v0.9.9'"
+    blocked = next(
+        step
+        for step in steps
+        if step.get("name", "").startswith("Require existing complete exact-SHA")
+    )
+    assert "exit 1" in blocked["run"]
+    assert not any("lint.sh --full" in step.get("run", "") for step in steps)
     for index in (diagnostics, cleanup, ownership):
         assert steps[index]["if"] == "always() && env.FS_QUALITY_CACHE_ROOT != ''"
     assert steps[upload]["if"] == "always()"
@@ -79,9 +89,19 @@ def test_release_quality_keeps_resolved_tag_identity_for_dispatch_retries() -> N
     assert "if" not in quality  # Archive reuse must not bypass the tag's gate.
     checkout = quality["steps"][0]
     assert checkout["with"]["ref"] == "${{ needs.resolve.outputs.revision }}"
-    gate = next(step for step in quality["steps"] if "lint.sh --full" in step.get("run", ""))
-    assert gate["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
-    assert '--commit-sha "$RELEASE_REVISION"' in gate["run"]
+    lookup = next(step for step in quality["steps"] if step.get("id") == "previous-quality")
+    assert lookup["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
+    assert "head_sha: process.env.RELEASE_REVISION" in lookup["with"]["script"]
+    assert "choose(run, jobs, process.env.RELEASE_REVISION" in lookup["with"]["script"]
+    blocked = next(
+        step
+        for step in quality["steps"]
+        if step.get("name", "").startswith("Require existing complete exact-SHA")
+    )
+    assert "inputs.require_full_quality == true" in blocked["if"]
+    assert "steps.previous-quality.outcome != 'success'" in blocked["if"]
+    assert "steps.previous-quality.outputs.reuse != 'true'" in blocked["if"]
+    assert "exit 1" in blocked["run"]
     assert all("check-candidate" not in step.get("run", "") for step in quality["steps"])
     assert "needs.quality.result == 'success'" in workflow["jobs"]["publish"]["if"]
 
@@ -322,14 +342,19 @@ def test_release_v099_focused_exception_is_narrow_and_records_failed_and_impacte
     root = Path(__file__).resolve().parents[2]
     workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
     steps = workflow["jobs"]["quality"]["steps"]
-    full = next(step for step in steps if "lint.sh --full" in step.get("run", ""))
+    full = next(
+        step
+        for step in steps
+        if step.get("name", "").startswith("Require existing complete exact-SHA")
+    )
     focused = next(
         step for step in steps if step.get("name") == "Focused acceptance (full suite not rerun)"
     )
     # v0.9.10 later took its own explicit exception, recorded in its own step.
     assert full["if"].startswith(
-        "needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10' && ("
+        "inputs.require_full_quality == true && needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10' && ("
     )
+    assert not any("lint.sh --full" in step.get("run", "") for step in steps)
     assert focused["if"] == "needs.resolve.outputs.tag == 'v0.9.9'"
     assert focused["env"]["RELEASE_REVISION"] == "${{ needs.resolve.outputs.revision }}"
     command = focused["run"]
