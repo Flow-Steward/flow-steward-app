@@ -5,31 +5,28 @@ record exception text, raw method names and client-chosen identifiers, so
 fs-mcp removes it through the public (provisional) ``MCPServer.middleware``
 list and installs ``McpTraceMiddleware`` instead:
 
-* the parent is the W3C context the client SDK put in ``_meta`` (the client's
-  "MCP send ..." span), so a tool call nests under the calling workflow step;
+* the parent is the W3C context the client SDK put in ``_meta``: the calling
+  workflow step's span, since the SDK's own client span is never created;
 * the span is current while the request is handled and the previous context is
   restored on success, error and cancellation;
 * arguments, raw ``_meta`` and exception payloads never reach telemetry: only a
   bounded method name, a first-party tool name and a bounded ``error.type``.
 
-SDK spans themselves (scope ``mcp-python-sdk``) are exported only as CLIENT
-spans with ``mcp.method.name`` and ``jsonrpc.request.id``; a failure becomes a
-plain ``error.type`` category.
+The SDK's own spans (scope ``mcp-python-sdk``) are not exported: that scope
+gets a tracer that records nothing (``otel_export_guards.PassThroughTracer``).
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Mapping
 from typing import Any
 
 from core.infrastructure.observability import otel_instruments as instruments
 
-_ERROR_TYPE = "error.type"
 _METHOD_NAME = "mcp.method.name"
 
 MCP_SDK_SCOPE = "mcp-python-sdk"
-MCP_CLIENT_ATTRIBUTES = frozenset({_ERROR_TYPE, "jsonrpc.request.id", _METHOD_NAME})
 _SDK_MIDDLEWARE = "OpenTelemetryMiddleware"
 _METHOD = re.compile(r"[a-z]+(?:/[A-Za-z]+){0,2}")
 _TOOL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
@@ -118,23 +115,9 @@ def install_mcp_tracing(server: Any) -> None:
     chain.insert(0, McpTraceMiddleware())
 
 
-def normalize_client_span(span: Any, attributes: MutableMapping[str, Any]) -> str:
-    """Keep the SDK's span name; a failure becomes a bounded category."""
-    attributes.pop(_ERROR_TYPE, None)
-    status = getattr(span, "status", None)
-    if status is not None and getattr(status.status_code, "name", "") == "ERROR":
-        attributes[_ERROR_TYPE] = _ERROR_TYPE_OTHER
-    method = attributes.get(_METHOD_NAME)
-    if method is not None:
-        attributes[_METHOD_NAME] = method_label(method)
-    return str(getattr(span, "name", "") or "MCP send")
-
-
 __all__ = [
-    "MCP_CLIENT_ATTRIBUTES",
     "MCP_SDK_SCOPE",
     "McpTraceMiddleware",
     "install_mcp_tracing",
     "method_label",
-    "normalize_client_span",
 ]

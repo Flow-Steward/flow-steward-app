@@ -143,34 +143,61 @@ def test_notifications_and_unsafe_names_stay_bounded(telemetry: _Telemetry) -> N
     assert dict(span.attributes) == {"mcp.method.name": "other"}
 
 
-def test_sdk_client_spans_export_only_the_allowed_shape(telemetry: _Telemetry) -> None:
-    tracer = telemetry.tracer_provider.get_tracer("mcp-python-sdk")
-    with (
-        pytest.raises(RuntimeError),
-        tracer.start_as_current_span(
-            "MCP send tools/call list_projects",
-            kind=SpanKind.CLIENT,
-            attributes={
-                "mcp.method.name": "tools/call",
-                "jsonrpc.request.id": "3",
-                "mcp.session.id": "secret-session",
-            },
-        ),
-    ):
-        raise RuntimeError("secret detail")
-    with tracer.start_as_current_span("tools/call x", kind=SpanKind.SERVER):
+def _sdk_request(provider) -> tuple[dict, list]:
+    """Run the SDK's own client-span helper and injection under a step span."""
+    from mcp.shared import _otel as sdk_otel
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    step_tracer = provider.get_tracer(otel_instruments.FLOW_STEWARD_SCOPE)
+    sdk_tracer = provider.get_tracer(otel_mcp.MCP_SDK_SCOPE)
+    meta: dict = {}
+    original = sdk_otel._tracer
+    sdk_otel._tracer = sdk_tracer
+    try:
+        with (
+            step_tracer.start_as_current_span("fs.workflow.step") as step,
+            sdk_otel.otel_span("MCP send tools/call list_projects", kind=SpanKind.CLIENT),
+        ):
+            sdk_otel.inject_trace_context(meta)
+            step_span_id = format(step.get_span_context().span_id, "016x")
+    finally:
+        sdk_otel._tracer = original
+    provider.shutdown()
+    return {"meta": meta, "step_span_id": step_span_id}, list(exporter.get_finished_spans())
+
+
+def test_the_sdk_records_no_span_and_injects_the_calling_step() -> None:
+    from core.infrastructure.observability.otel_export_guards import (
+        ScopeSuppressingTracerProvider,
+    )
+
+    seen, spans = _sdk_request(ScopeSuppressingTracerProvider(shutdown_on_exit=False))
+
+    assert [span.name for span in spans] == ["fs.workflow.step"]
+    # fs-mcp parents its server span to this, which is exported.
+    assert seen["meta"]["traceparent"].split("-")[2] == seen["step_span_id"]
+
+
+def test_without_suppression_the_sdk_injects_its_own_client_span() -> None:
+    # The hazard: the injected parent is the SDK span, which must not be exported.
+    from opentelemetry.sdk.trace import TracerProvider
+
+    seen, spans = _sdk_request(TracerProvider(shutdown_on_exit=False))
+
+    sdk_span = next(span for span in spans if span.name.startswith("MCP send"))
+    assert seen["meta"]["traceparent"].split("-")[2] == format(sdk_span.context.span_id, "016x")
+    assert seen["meta"]["traceparent"].split("-")[2] != seen["step_span_id"]
+
+
+def test_the_export_policy_drops_any_sdk_span_that_is_recorded(telemetry: _Telemetry) -> None:
+    tracer = telemetry.tracer_provider.get_tracer(otel_mcp.MCP_SDK_SCOPE)
+    with tracer.start_as_current_span("MCP send tools/call x", kind=SpanKind.CLIENT):
         pass
 
-    (client,) = telemetry.finished()
-    assert client.kind == SpanKind.CLIENT
-    assert client.name == "MCP send tools/call list_projects"
-    assert dict(client.attributes) == {
-        "mcp.method.name": "tools/call",
-        "jsonrpc.request.id": "3",
-        "error.type": "_OTHER",
-    }
-    assert client.events == ()
-    assert client.status.description is None
+    assert telemetry.finished() == []
 
 
 def test_the_sync_runner_keeps_the_caller_context_in_its_thread() -> None:

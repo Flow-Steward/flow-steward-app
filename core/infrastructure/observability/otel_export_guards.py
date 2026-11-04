@@ -9,19 +9,33 @@ called.
   the guard a child would export the parent's cumulative state.
 * ``SanitizingSpanExporter``: finished spans are immutable, so the policy builds
   a reduced public ``ReadableSpan`` copy (or drops the span) before export.
+
+``ScopeSuppressingTracerProvider`` hands scopes that must not record spans at
+all a tracer that creates none (see ``PassThroughTracer``).
 """
 
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 from opentelemetry.sdk.metrics.export import MetricExporter, MetricExportResult, MetricsData
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
-from opentelemetry.trace import Link, SpanKind, Status, StatusCode
+from opentelemetry.trace import (
+    Link,
+    NonRecordingSpan,
+    Span,
+    SpanKind,
+    Status,
+    StatusCode,
+    Tracer,
+    get_current_span,
+    use_span,
+)
 
 from core.infrastructure.observability.otel_http import (
     FASTAPI_SCOPE,
@@ -29,11 +43,38 @@ from core.infrastructure.observability.otel_http import (
     normalize_server_span,
 )
 from core.infrastructure.observability.otel_instruments import FLOW_STEWARD_SCOPE
-from core.infrastructure.observability.otel_mcp import (
-    MCP_CLIENT_ATTRIBUTES,
-    MCP_SDK_SCOPE,
-    normalize_client_span,
-)
+from core.infrastructure.observability.otel_mcp import MCP_SDK_SCOPE
+
+# Scopes that never record a span. The MCP SDK wraps each outgoing request in
+# its own client span and injects that span's context into ``_meta``; dropping
+# the span only at export would leave fs-mcp's server span with a parent that is
+# never exported. Creating none keeps the caller's span current, so the SDK
+# injects it and the server span nests under the calling workflow step.
+SUPPRESSED_TRACER_SCOPES = frozenset({MCP_SDK_SCOPE})
+
+
+class PassThroughTracer(Tracer):
+    """Creates no span: every "new" span is the current context's, unchanged."""
+
+    def start_span(self, name: str, context: Any = None, *args: Any, **kwargs: Any) -> Span:
+        return NonRecordingSpan(get_current_span(context).get_span_context())
+
+    @contextmanager
+    def start_as_current_span(
+        self, name: str, context: Any = None, *args: Any, **kwargs: Any
+    ) -> Iterator[Span]:
+        span = self.start_span(name, context)
+        with use_span(span, end_on_exit=False):
+            yield span
+
+
+class ScopeSuppressingTracerProvider(TracerProvider):
+    """The SDK tracer provider, minus the scopes in ``SUPPRESSED_TRACER_SCOPES``."""
+
+    def get_tracer(self, instrumenting_module_name: str, *args: Any, **kwargs: Any) -> Tracer:
+        if instrumenting_module_name in SUPPRESSED_TRACER_SCOPES:
+            return PassThroughTracer()
+        return super().get_tracer(instrumenting_module_name, *args, **kwargs)
 
 
 class OwnerProcess:
@@ -212,12 +253,6 @@ DEFAULT_SPAN_EXPORT_POLICY = SpanExportPolicy(
             allowed_kinds=frozenset({SpanKind.SERVER}),
             normalize=normalize_server_span,
         ),
-        # Only the SDK's client spans: fs-mcp replaces its server middleware.
-        MCP_SDK_SCOPE: ScopeRule(
-            allowed_attributes=MCP_CLIENT_ATTRIBUTES,
-            allowed_kinds=frozenset({SpanKind.CLIENT}),
-            normalize=normalize_client_span,
-        ),
     }
 )
 
@@ -225,9 +260,12 @@ DEFAULT_SPAN_EXPORT_POLICY = SpanExportPolicy(
 __all__ = [
     "DEFAULT_SPAN_EXPORT_POLICY",
     "FLOW_STEWARD_SCOPE",
+    "SUPPRESSED_TRACER_SCOPES",
     "OwnerProcess",
+    "PassThroughTracer",
     "PidGuardedMetricExporter",
     "SanitizingSpanExporter",
     "ScopeRule",
+    "ScopeSuppressingTracerProvider",
     "SpanExportPolicy",
 ]

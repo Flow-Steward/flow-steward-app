@@ -66,7 +66,13 @@ one bounded shutdown runs on process stop and at exit. Forked children flush
 traces and logs explicitly before they exit.
 
 **MCP.** The MCP SDK middleware API used to remove its server span middleware is
-provisional in 2.x; the pinned version is covered by a test.
+provisional in 2.x; the pinned version is covered by a test. The SDK's own spans
+(scope `mcp-python-sdk`) are not exported. Its client span cannot simply be
+dropped at export, because the SDK injects that span's context into `_meta` and
+fs-mcp would then parent its server span to a span that never arrives. The
+tracer provider therefore hands that scope a tracer that creates no span: the
+calling workflow step stays current, the SDK injects it, and the server span
+nests under the step.
 
 ## Consequences
 

@@ -140,7 +140,7 @@ subprocesses are not instrumented.
 | `fs.workflow.step` | One attempt of a workflow step, including steps of parallel lanes. |
 | `chat {model}` | One model call (CLIENT). Carries the provider category, purpose, requested and response model, and token counts. |
 | `execute_tool {tool}` | One agent tool call. |
-| MCP spans | `fs-mcp` server spans, the MCP SDK client spans of the first-party `fs-mcp` path, and a `mcp {method}` span around each call to an external MCP server. |
+| MCP spans | `fs-mcp` server spans, nested under the workflow step that called the tool, and a `mcp {method}` span around each call to an external MCP server. The MCP SDK's own spans (scope `mcp-python-sdk`) are never recorded or exported. |
 
 A job carries its trace context from where it was created, so the worker's
 segment continues the API request, webhook or MCP call that started it, and a
