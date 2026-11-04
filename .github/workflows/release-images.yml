@@ -75,7 +75,7 @@ jobs:
           persist-credentials: false
       - name: Find an already successful exact-SHA cumulative gate
         id: previous-quality
-        if: needs.resolve.outputs.tag != 'v0.9.9'
+        if: needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10'
         continue-on-error: true
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
@@ -110,9 +110,9 @@ jobs:
             }
             core.setOutput('reuse', matched ? 'true' : 'false');
       - uses: ./.github/actions/prepare-quality
-        if: needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true'
+        if: needs.resolve.outputs.tag != 'v0.9.10' && (needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
       - name: Build the canonical disposable PostgreSQL image
-        if: needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true'
+        if: needs.resolve.outputs.tag != 'v0.9.10' && (needs.resolve.outputs.tag == 'v0.9.9' || steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -123,13 +123,31 @@ jobs:
           cache-from: type=gha,scope=quality-postgres-amd64
           cache-to: type=gha,scope=quality-postgres-amd64,mode=min
       - name: Complete exact-SHA Tier 2 and Tier 3 gate
-        if: needs.resolve.outputs.tag != 'v0.9.9' && (steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
+        if: needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10' && (steps.previous-quality.outcome != 'success' || steps.previous-quality.outputs.reuse != 'true')
         env:
           RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
         run: |
           set -o pipefail
           ./core/entrypoints/cli/scripts/lint.sh --full --fingerprint-source commit --commit-sha "$RELEASE_REVISION" \
             2>&1 | tee logs/quality/hosted/full.log
+      - name: Record the explicit v0.9.10 release exception (no Tier 3 or Sonar)
+        if: needs.resolve.outputs.tag == 'v0.9.10'
+        env:
+          RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$RELEASE_REVISION" ]]
+          [[ "$(cat VERSION)" == '0.9.10' ]]
+          mkdir -p logs/quality/hosted
+          {
+            echo 'Explicit user-authorized exception for v0.9.10: publish without Tier 3 and SonarQube.'
+            echo "Release revision: $RELEASE_REVISION"
+            echo 'Qualification: exception, NOT a successful cumulative quality gate.'
+            echo 'Previous Tier 3 remains FAILED: https://github.com/Flow-Steward/flow-steward-app/actions/runs/41787721654'
+            echo 'The OAuth timeout root cause is unproven; its single diagnostic passed 5/5 without changing assertions or timeout.'
+            echo 'The diagnostic-retention regression passed 60 focused contract tests; the unchanged product received independent browser acceptance.'
+            echo 'No full test suite, Tier 3 or Sonar is run by this release exception.'
+          } | tee logs/quality/hosted/explicit-v0910-release-exception.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Focused acceptance (full suite not rerun)
         if: needs.resolve.outputs.tag == 'v0.9.9'
         env:
@@ -370,7 +388,9 @@ jobs:
             const tag = process.env.RELEASE_TAG;
             const focusedNotice = tag === 'v0.9.9'
               ? `Focused acceptance (full suite not rerun) for revision ${process.env.FS_RELEASE_REVISION}. The v0.9.8 publication gate failed: https://github.com/Flow-Steward/flow-steward-app/actions/runs/41591208411. The user requested focused failed and impacted tests instead of another full gate. See the quality artifact for the selected paths and results: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}.`
-              : '';
+              : tag === 'v0.9.10'
+                ? `Explicit user-authorized release exception for revision ${process.env.FS_RELEASE_REVISION}: published without Tier 3 and SonarQube. This is not a successful cumulative quality gate. Previous Tier 3 failed: https://github.com/Flow-Steward/flow-steward-app/actions/runs/41787721654. OAuth timeout root cause remains unproven; its single diagnostic passed 5/5. The diagnostic-retention regression passed 60 focused contract tests; product browser acceptance was completed. See the release quality artifact for the exception record.`
+                : '';
             const evidence = JSON.parse(fs.readFileSync(process.env.FS_RELEASE_EVIDENCE, 'utf8'));
             const available = evidence.registries.filter(registry => registry.status === 'verified').map(registry => registry.namespace);
             const unavailable = evidence.registries.filter(registry => registry.status === 'incomplete').map(registry => registry.namespace);

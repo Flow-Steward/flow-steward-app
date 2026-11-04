@@ -108,7 +108,19 @@ if args[:1] == ["compose"]:
         done(int(os.environ.get("OAUTH_UP_STATUS", "0")))
     if action == "wait":
         done(int(os.environ.get("OAUTH_WAIT_STATUS", "0")), os.environ.get("OAUTH_WAIT_OUTPUT", "0"))
-    if action in ("logs", "ps"):
+    if action == "cp":
+        assert project in state["container"], "browser already removed"
+        assert args[8] == "oauth-browser:/app/logs/test-runs/playwright/.", args
+        status = int(os.environ.get("OAUTH_COPY_STATUS", "0"))
+        if not status:
+            destination = pathlib.Path(args[9])
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "error-context.md").write_text("actual failure page")
+            (destination / "trace.zip").write_bytes(b"fixture browser trace")
+        done(status)
+    if action == "logs":
+        done(output=args[-1] + " diagnostic")
+    if action == "ps":
         done()
 print("Unexpected fake Docker command: " + repr(args), file=sys.stderr)
 done(91)
@@ -308,6 +320,42 @@ def test_runner_preserves_failure_and_cleanup_contracts(
         assert state["container"] == state["network"] == state["volume"] == []
     if "OAUTH_IMAGE_RESIDUE" not in overrides:
         assert state["image"] == []
+
+
+@pytest.mark.parametrize(
+    "overrides,expected_status",
+    (
+        ({"OAUTH_WAIT_OUTPUT": "7"}, 1),
+        ({"OAUTH_UP_STATUS": "1"}, 1),
+        ({}, 0),
+        ({"OAUTH_WAIT_OUTPUT": "7", "OAUTH_COPY_STATUS": "19"}, 1),
+        ({"OAUTH_COPY_STATUS": "19"}, 0),
+    ),
+)
+def test_runner_retains_browser_evidence_before_cleanup_without_changing_result(
+    tmp_path: Path, overrides: dict[str, str], expected_status: int
+) -> None:
+    result, commands, state = _run_recorded_oauth_lane(tmp_path, overrides=overrides)
+
+    assert result.returncode == expected_status, result.stderr
+    copies = [args for args in commands if args[0] == "compose" and args[7] == "cp"]
+    assert len(copies) == 1, "browser evidence must survive the disposable container"
+    down_at = next(
+        i for i, args in enumerate(commands) if args[0] == "compose" and args[7] == "down"
+    )
+    assert commands.index(copies[0]) < down_at
+    retained = Path(copies[0][9])
+    assert retained.is_relative_to(tmp_path / "repo/logs/quality/hosted/oauth-browser")
+    assert retained.parent.name.startswith("fs-oauth-generic-contract-oauth-browser.")
+    for service in ("fs-app", "fs-mcp", "traefik", "oauth-browser-seed", "oauth-provider"):
+        assert (retained.parent / f"{service}.log").read_text().strip() == f"{service} diagnostic"
+    if overrides.get("OAUTH_COPY_STATUS"):
+        assert not (retained / "error-context.md").exists()
+        assert "Could not retain all OAuth browser diagnostics" in result.stderr
+    else:
+        assert (retained / "error-context.md").read_text() == "actual failure page"
+        assert (retained / "trace.zip").read_bytes() == b"fixture browser trace"
+    assert all(not values for values in state.values()), state
 
 
 @pytest.mark.parametrize(("pull_status", "ingress_present"), ((0, False), (37, False), (0, True)))
@@ -660,6 +708,18 @@ def test_rendered_compose_has_no_host_bind_or_published_port() -> None:
         text=True,
     )
     rendered = json.loads(result.stdout)
+    browser_command = rendered["services"]["oauth-browser"]["command"][-1]
+    invocations = [
+        line.strip()
+        for line in browser_command.splitlines()
+        if line.strip().startswith("npm run test:e2e -- ")
+    ]
+    assert invocations == [
+        "npm run test:e2e -- extension-oauth.spec.ts extension-consumers --trace retain-on-failure",
+        "npm run test:e2e -- extension-oauth.spec.ts --trace retain-on-failure",
+    ]
+    assert "--retries" not in browser_command
+    assert "--timeout" not in browser_command
     assert rendered["services"]["traefik"]["image"] == _canonical_traefik_image()
     seed_command = rendered["services"]["oauth-browser-seed"]["command"]
     seed_base_url = urlsplit(seed_command[seed_command.index("--base-url") + 1])

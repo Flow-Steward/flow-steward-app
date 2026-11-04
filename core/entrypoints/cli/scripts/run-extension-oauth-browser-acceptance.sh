@@ -65,6 +65,26 @@ for candidate_image in "${candidate_images[@]}"; do
     docker image ls --quiet --filter "reference=${candidate_image}"
 done
 rendered_compose=""
+stack_started=0
+
+capture_browser_diagnostics() {
+  local diagnostic_root diagnostic_dir diagnostic_service
+  local capture_status=0
+  diagnostic_root="${ROOT_DIR}/logs/quality/hosted/oauth-browser"
+  mkdir -p "${diagnostic_root}" || return 1
+  diagnostic_dir="$(mktemp -d "${diagnostic_root}/${PROJECT_NAME}.XXXXXX")" || return 1
+  for diagnostic_service in fs-app fs-mcp traefik oauth-browser-seed oauth-provider oauth-db-upgrade pg-fs oauth-browser; do
+    "${compose[@]}" logs --no-color --timestamps --tail 1200 "${diagnostic_service}" \
+      >"${diagnostic_dir}/${diagnostic_service}.log" 2>&1 || capture_status=1
+  done
+  mkdir -p "${diagnostic_dir}/playwright" || return 1
+  # Playwright output lives in the disposable browser container, not the audit
+  # container. Copy it before down removes both the browser and its writable layer.
+  "${compose[@]}" cp oauth-browser:/app/logs/test-runs/playwright/. \
+    "${diagnostic_dir}/playwright" >"${diagnostic_dir}/artifact-copy.log" 2>&1 || capture_status=1
+  echo "OAuth browser diagnostics retained in ${diagnostic_dir}." >&2
+  return "${capture_status}"
+}
 
 cleanup() {
   local attempt
@@ -108,6 +128,9 @@ remove_candidate_images() {
 cleanup_on_exit() {
   local cleanup_status=0
   local current_snapshot=""
+  if [[ "${stack_started}" -eq 1 ]]; then
+    capture_browser_diagnostics || echo "Could not retain all OAuth browser diagnostics." >&2
+  fi
   cleanup || cleanup_status=$?
   verify_cleanup || cleanup_status=$?
   if [[ -n "${rendered_compose}" ]]; then
@@ -229,6 +252,7 @@ docker build --pull=false --target frontend-development \
   --tag "${FS_OAUTH_ACCEPTANCE_FRONTEND_IMAGE}" \
   --file "${ROOT_DIR}/infra/docker/Dockerfile" "${ROOT_DIR}"
 
+stack_started=1
 if ! "${compose[@]}" up --detach --no-build --pull never oauth-browser; then
   # Captured before the cleanup trap removes the stack. Without this the only
   # evidence of a startup failure is "container X is unhealthy", and the run

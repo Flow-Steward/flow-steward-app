@@ -444,10 +444,11 @@ services:
           consumer_count=$$((consumer_count + 1))
           cp "$${spec}" "$${consumer_specs}/consumer-$${consumer_count}.spec.ts"
         done < /tmp/oauth-consumer-specs
+        # Capture the first failure even with retry=0; successful traces are discarded.
         if [ "$${consumer_count}" -gt 0 ]; then
-          npm run test:e2e -- extension-oauth.spec.ts extension-consumers
+          npm run test:e2e -- extension-oauth.spec.ts extension-consumers --trace retain-on-failure
         else
-          npm run test:e2e -- extension-oauth.spec.ts
+          npm run test:e2e -- extension-oauth.spec.ts --trace retain-on-failure
         fi
     volumes:
       - fs-frontend-node-modules:/app/assets/frontend/node_modules
