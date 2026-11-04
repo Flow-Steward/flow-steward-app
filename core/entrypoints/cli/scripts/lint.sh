@@ -2442,7 +2442,7 @@ assert_audit_test_isolation() {
   esac
   if [[ "${ARTIFACT_STORAGE_BACKEND:-}" != "local_fs" \
     || "${ARTIFACT_KEY_PREFIX:-}" != "audit/" \
-    || "${ARTIFACT_LOCAL_ROOT_DIR:-}" != "/tmp/flow-steward-audit-artifacts" ]]; then
+    || "${ARTIFACT_LOCAL_ROOT_DIR:-}" != "/run/flow-steward-audit-artifacts" ]]; then
     echo "[lint] Refusing tests: artifact writes are not isolated to the audit tmpfs prefix." >&2
     return 2
   fi

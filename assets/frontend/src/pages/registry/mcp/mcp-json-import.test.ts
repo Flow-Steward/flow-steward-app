@@ -127,4 +127,13 @@ describe("parseMcpJson", () => {
     expect(errorCode("not json at all")).toBe("invalid_json");
     expect(errorCode('{"theme": "dark"}')).toBe("no_servers");
   });
+
+  it.each([
+    ["/nested/sse////", true],
+    ["/nested/sse////child////", false],
+  ])("classifies trailing slashes without changing the path suffix: %s", (path, sse) => {
+    const result = parseMcpJson(JSON.stringify({ remote: { url: `https://example.test${path}` } }));
+    expect(result.servers.map((server) => server.name)).toEqual(sse ? [] : ["remote"]);
+    expect(result.skipped).toEqual(sse ? [{ name: "remote", reason: "sse" }] : []);
+  });
 });

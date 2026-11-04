@@ -172,7 +172,10 @@ function isSseTransport(server: JsonObject, url: string): boolean {
   const transport = stringFromUnknownValue(server.type || server.transport).toLowerCase();
   if (transport) return transport === "sse";
   try {
-    return new URL(url).pathname.replace(/\/+$/, "").endsWith("/sse");
+    const path = new URL(url).pathname;
+    let end = path.length;
+    while (end > 0 && path[end - 1] === "/") end -= 1;
+    return path.slice(0, end).endsWith("/sse");
   } catch {
     return false;
   }

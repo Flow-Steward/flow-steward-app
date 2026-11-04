@@ -80,6 +80,8 @@ OPENAI_CLI_MCP_JSON_TEMPLATE = (
     "    }\n  }\n}\n"
 )
 _TOKEN_IN_FILE = " It holds your token: keep it like a password, do not share it or put it in Git."
+_INSTALL_PLUGIN_TITLE_KEY = "react.agent_access.step_install_plugin"
+_INSTALL_PLUGIN_TITLE = "Install it"
 
 # External client products the user picks; Flow Steward runs none of them. Their names
 # appear only here (tests/unit/test_retired_executor_absence.py allows these lines).
@@ -246,8 +248,8 @@ def _install_marketplace(package_id: str, client_slug: str, cli: str, verb: str)
         return SetupStep(
             id="install_plugin",
             kind="command",
-            title_key="react.agent_access.step_install_plugin",
-            title="Install it",
+            title_key=_INSTALL_PLUGIN_TITLE_KEY,
+            title=_INSTALL_PLUGIN_TITLE,
             description_key="react.agent_access.step_install_copied_plugin_description",
             description=(
                 "Unpack the archive and move the folder it makes to your home folder. Then run "
@@ -262,8 +264,8 @@ def _install_marketplace(package_id: str, client_slug: str, cli: str, verb: str)
     return SetupStep(
         id="install_plugin",
         kind="command",
-        title_key="react.agent_access.step_install_plugin",
-        title="Install it",
+        title_key=_INSTALL_PLUGIN_TITLE_KEY,
+        title=_INSTALL_PLUGIN_TITLE,
         description_key="react.agent_access.step_install_kept_plugin_description",
         description=(
             "Unpack the archive, move the folder it makes to your home folder and keep it "
@@ -279,8 +281,8 @@ def _install_marketplace(package_id: str, client_slug: str, cli: str, verb: str)
 _INSTALL_PLUGIN_FOLDER = SetupStep(
     id="install_plugin",
     kind="notice",
-    title_key="react.agent_access.step_install_plugin",
-    title="Install it",
+    title_key=_INSTALL_PLUGIN_TITLE_KEY,
+    title=_INSTALL_PLUGIN_TITLE,
     description_key="react.agent_access.step_install_plugin_folder_description",
     description=(
         "Unpack the archive and move the folder it makes into plugins/local inside the .cursor "

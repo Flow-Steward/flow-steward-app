@@ -69,8 +69,8 @@ def candidate(tmp_path: Path, monkeypatch):
     # Model the canonical verifier, independently of the surrounding suite's
     # xdist scratch directories and pytest-cov subprocess configuration. These
     # checks use RecordingRunner, so they never write artifacts or spawn pytest.
-    monkeypatch.setenv("ARTIFACT_LOCAL_ROOT_DIR", "/tmp/flow-steward-audit-artifacts")
-    monkeypatch.setenv("FS_ARTIFACT_ROOT", "/tmp/flow-steward-audit-ops")
+    monkeypatch.setenv("ARTIFACT_LOCAL_ROOT_DIR", "/run/flow-steward-audit-artifacts")
+    monkeypatch.setenv("FS_ARTIFACT_ROOT", "/run/flow-steward-audit-ops")
     monkeypatch.setattr(backend_runtime, "_runtime_receipt_identity", lambda: "c" * 64)
     for key in (
         "PYTEST_ADDOPTS",

@@ -121,8 +121,8 @@ _CANONICAL_CONFIGURATION_PATHS = {
     "PLAYWRIGHT_BROWSERS_PATH": frozenset({"/ms-playwright"}),
     "PYTHONPATH": frozenset({"/app"}),
     "FS_STACK_ENV_FILE": frozenset({"/dev/null"}),
-    "ARTIFACT_LOCAL_ROOT_DIR": frozenset({"/tmp/flow-steward-audit-artifacts"}),  # nosec B108 - isolated-audit comparison value; no filesystem creation
-    "FS_ARTIFACT_ROOT": frozenset({"/tmp/flow-steward-audit-ops"}),  # nosec B108 - isolated-audit comparison value; no filesystem creation
+    "ARTIFACT_LOCAL_ROOT_DIR": frozenset({"/run/flow-steward-audit-artifacts"}),
+    "FS_ARTIFACT_ROOT": frozenset({"/run/flow-steward-audit-ops"}),
     "FS_ROOT_DIR": frozenset({"/app"}),
     "FS_SCRIPTS_DIR": frozenset({"/app/core/entrypoints/cli/scripts"}),
     "FS_DOCKER_DIR": frozenset({"/app/infra/docker"}),

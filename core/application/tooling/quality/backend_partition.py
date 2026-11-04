@@ -18,6 +18,8 @@ from typing import TypeGuard
 
 from core.application.tooling.quality.backend_partition_cache import cached_partition
 
+_PACKAGE_INIT = "__init__.py"
+_UNIT_TEST_ROOT = "tests/unit"
 _BUILTIN_FIXTURES = frozenset(
     [
         "self",
@@ -192,7 +194,7 @@ class _Analyzer:
             self.resolved[module] = result
             return result
         for index in range(1, len(parts) + 1):
-            package = self.root.joinpath(*parts[:index], "__init__.py")
+            package = self.root.joinpath(*parts[:index], _PACKAGE_INIT)
             if package.is_file():
                 result.add(package)
         module_path = self.root.joinpath(*parts).with_suffix(".py")
@@ -326,7 +328,7 @@ class _Analyzer:
                     return {self.unsafe_closures[path]}
                 dependencies, direct = self.analyze(path)
                 if direct:
-                    reason = f"{path.relative_to(self.root).as_posix()}: {sorted(direct)[0]}"
+                    reason = f"{path.relative_to(self.root).as_posix()}: {min(direct)}"
                     self.unsafe_closures[root] = reason
                     return {reason}
                 pending.extend(sorted(dependencies - seen, reverse=True))
@@ -389,7 +391,7 @@ class _Analyzer:
                 self.startup_analyses[path] = dependencies, reasons
             dependencies, reasons = self.startup_analyses[path]
             if reasons:
-                return {f"{path.relative_to(self.root)}: startup {sorted(reasons)[0]}"}
+                return {f"{path.relative_to(self.root)}: startup {min(reasons)}"}
             pending.extend(sorted(dependencies - seen))
         return set()
 
@@ -525,7 +527,7 @@ def _shared_context(
     requested.update(name for name, (path, node) in fixtures.items() if node.name in selected[path])
     seen: set[str] = set()
     while requested - seen:
-        name = sorted(requested - seen)[0]
+        name = min(requested - seen)
         seen.add(name)
         if name in _BUILTIN_FIXTURES or name in local_fixtures:
             continue
@@ -549,7 +551,7 @@ def _shared_context(
         selected[path].update(references & functions.keys())
         expanded: set[str] = set()
         while selected[path] - expanded:
-            name = sorted(selected[path] - expanded)[0]
+            name = min(selected[path] - expanded)
             expanded.add(name)
             function = functions[name]
             body.append(function)
@@ -576,22 +578,22 @@ def partition_backend_tests(root: Path) -> BackendTestPartition:
     independent: list[str] = []
     contracts: list[str] = []
     explanations: dict[str, tuple[str, ...]] = {}
-    modules = set((root / "tests/unit").rglob("test_*.py"))
-    modules.update((root / "tests/unit").rglob("*_test.py"))
+    modules = set((root / _UNIT_TEST_ROOT).rglob("test_*.py"))
+    modules.update((root / _UNIT_TEST_ROOT).rglob("*_test.py"))
     for test in sorted(modules):
-        if "stress" in test.relative_to(root / "tests/unit").parts:
+        if "stress" in test.relative_to(root / _UNIT_TEST_ROOT).parts:
             continue
         relative = test.relative_to(root).as_posix()
         tree = analyzer.tree(test)
         dependencies, reasons = analyzer.analyze(test)
         dependencies = set(dependencies)
         dependencies.update(
-            directory / "__init__.py"
+            directory / _PACKAGE_INIT
             for directory in test.parent.parents
-            if directory.is_relative_to(root) and (directory / "__init__.py").is_file()
+            if directory.is_relative_to(root) and (directory / _PACKAGE_INIT).is_file()
         )
-        if (test.parent / "__init__.py").is_file():
-            dependencies.add(test.parent / "__init__.py")
+        if (test.parent / _PACKAGE_INIT).is_file():
+            dependencies.add(test.parent / _PACKAGE_INIT)
         if tree is not None:
             shared_dependencies, shared_reasons = _shared_context(analyzer, test, tree)
             dependencies.update(shared_dependencies)
@@ -629,11 +631,11 @@ def main() -> int:
                 sort_keys=True,
             )
         )
-        return 0
-    selection = result.independent if args.group == "independent" else result.frontend_contract
-    if not selection:
-        parser.error(f"backend partition {args.group!r} contains no test modules")
-    print("\n".join(selection))
+    else:
+        selection = result.independent if args.group == "independent" else result.frontend_contract
+        if not selection:
+            parser.error(f"backend partition {args.group!r} contains no test modules")
+        print("\n".join(selection))
     return 0
 
 

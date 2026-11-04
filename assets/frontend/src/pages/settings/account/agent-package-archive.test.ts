@@ -1,5 +1,5 @@
 import { archiveEntries, buildArchive, packageFiles } from "@/pages/settings/account/agent-package-archive";
-import { blobBytes, readStoredZip } from "@/lib/utils/zip.test-helpers";
+import { blobBytes, readStoredZip } from "@/test/zip-helpers";
 
 const OPERATOR = "flow-steward-operator";
 const DEVELOPER = "flow-steward-developer";

@@ -55,8 +55,8 @@ def test_shipped_quickstart_defaults_allow_cross_sha_reuse(canonical_environment
         ("PYTHONHOME", "/external/python"),
         ("COVERAGE_RCFILE", "/external/coverage.ini"),
         ("COV_CORE_CONFIG", "/external/coverage.ini"),
-        ("ARTIFACT_LOCAL_ROOT_DIR", "/tmp/flow-steward-audit-artifacts/gw0"),
-        ("FS_ARTIFACT_ROOT", "/tmp/flow-steward-audit-ops/gw0"),
+        ("ARTIFACT_LOCAL_ROOT_DIR", "/run/flow-steward-audit-artifacts/gw0"),
+        ("FS_ARTIFACT_ROOT", "/run/flow-steward-audit-ops/gw0"),
         ("NODE_OPTIONS", "--require=/external/preload.js"),
         ("npm_config_userconfig", "/external/npmrc"),
         ("FS_PROJECT_CONFIG", "/external/project.yaml"),
@@ -196,9 +196,9 @@ def test_operational_candidate_and_workspace_identifiers_do_not_prevent_reuse(
 
 def test_known_isolated_resource_paths_do_not_force_candidate_scope(canonical_environment) -> None:
     canonical_environment.update(
-        ARTIFACT_LOCAL_ROOT_DIR="/tmp/flow-steward-audit-artifacts",
+        ARTIFACT_LOCAL_ROOT_DIR="/run/flow-steward-audit-artifacts",
         TARGET_PROJECT_PATH="/absolute/path/to/your/project",
-        FS_ARTIFACT_ROOT="/tmp/flow-steward-audit-ops",
+        FS_ARTIFACT_ROOT="/run/flow-steward-audit-ops",
         FS_STACK_ENV_FILE="/dev/null",
     )
 

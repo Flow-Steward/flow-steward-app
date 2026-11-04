@@ -4,7 +4,7 @@
  * templates for basic. The server resolves each one as an opaque secret input.
  */
 
-const INPUT_TEMPLATE = /^\{\{\s*state\.inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/;
+const INPUT_TEMPLATE = /^\{\{\s*state\.inputs\.([A-Za-z_]\w*)\s*\}\}$/;
 
 export function secretInputAuthRef(name: string): string {
   return name ? `{{ state.inputs.${name} }}` : "";
@@ -31,7 +31,12 @@ export function basicAuthRef(username: string, password: string): string {
 
 /** A free input name for a stored secret, derived from its name: `Shop API key` → `shop_api_key`. */
 export function storedSecretInputName(secretName: string, taken: string[]): string {
-  const base = secretName.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "secret";
+  const normalized = secretName.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "_");
+  let start = 0;
+  let end = normalized.length;
+  while (start < end && normalized[start] === "_") start += 1;
+  while (end > start && normalized[end - 1] === "_") end -= 1;
+  const base = normalized.slice(start, end) || "secret";
   const stem = (/^[a-z_]/.test(base) ? base : `secret_${base}`).slice(0, 56);
   const used = new Set(taken);
   if (!used.has(stem)) return stem;

@@ -63,7 +63,7 @@ export function ConnectionSchemaField({ field, draft, updateDraft }: ConnectionS
         )}
         <StoredSecretSelect
           fieldLabel={field.label}
-          onChange={(secretId) => updateDraft({ secret_choices: { ...(draft.secret_choices || {}), [field.key]: secretId } })}
+          onChange={(secretId) => updateDraft({ secret_choices: { ...draft.secret_choices, [field.key]: secretId } })}
           value={draft.secret_choices?.[field.key] ?? ""}
         />
       </>

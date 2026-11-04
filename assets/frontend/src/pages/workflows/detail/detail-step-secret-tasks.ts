@@ -16,7 +16,10 @@ export function createStepSecretTasks(): StepSecretTasks {
       else tasks.delete(key);
     },
     runAll: async () => {
-      for (const task of [...tasks.values()]) await task();
+      // Saving rerenders fields, whose effect cleanups change registrations.
+      // Keep every task present at the start of this save in the same batch.
+      const pendingTasks = [...tasks.values()];
+      for (const task of pendingTasks) await task();
       tasks.clear();
     },
   };

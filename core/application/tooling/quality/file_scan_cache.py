@@ -277,49 +277,49 @@ def main(argv: list[str] | None = None) -> int:
         if args.source is None or args.cache_root is None:
             parser.error("import requires --source and --cache-root")
         print(f"[file-cache] imported {import_manifest(args.source, args.cache_root)} file passes")
-        return 0
-    if args.files_from is None:
-        parser.error("--files-from is required")
-    cache = FileScanCache(
-        None if args.no_cache else args.cache_root or default_cache_root(),
-        tool=args.tool,
-        keys=args.key,
-        key_files=args.key_file,
-    )
-    paths = [
-        Path(line) for line in args.files_from.read_text(encoding="utf-8").splitlines() if line
-    ]
-    if args.action == "pending":
-        for path in cache.pending(paths):
-            print(path.as_posix())
-    elif args.action == "record":
-        cache.record(paths)
-    elif args.action == "snapshot":
-        if args.output is None:
-            parser.error("snapshot requires --output")
-        args.output.write_text(json.dumps(cache.snapshot(paths)), encoding="utf-8")
-    elif args.action == "export":
-        if args.output is None:
-            parser.error("export requires --output")
-        cache.export_manifest(paths, args.output)
     else:
-        if (
-            args.snapshot is None
-            or args.report is None
-            or args.baseline is None
-            or args.exit_code is None
-        ):
-            parser.error("record-scan requires snapshot, report, baseline and exit-code")
-        from core.application.tooling.quality.secret_scan import cache_scan_result
-
-        cache_scan_result(
-            cache,
-            json.loads(args.snapshot.read_text()),
-            paths,
-            args.exit_code,
-            args.report.read_text(),
-            args.baseline,
+        if args.files_from is None:
+            parser.error("--files-from is required")
+        cache = FileScanCache(
+            None if args.no_cache else args.cache_root or default_cache_root(),
+            tool=args.tool,
+            keys=args.key,
+            key_files=args.key_file,
         )
+        paths = [
+            Path(line) for line in args.files_from.read_text(encoding="utf-8").splitlines() if line
+        ]
+        if args.action == "pending":
+            for path in cache.pending(paths):
+                print(path.as_posix())
+        elif args.action == "record":
+            cache.record(paths)
+        elif args.action == "snapshot":
+            if args.output is None:
+                parser.error("snapshot requires --output")
+            args.output.write_text(json.dumps(cache.snapshot(paths)), encoding="utf-8")
+        elif args.action == "export":
+            if args.output is None:
+                parser.error("export requires --output")
+            cache.export_manifest(paths, args.output)
+        else:
+            if (
+                args.snapshot is None
+                or args.report is None
+                or args.baseline is None
+                or args.exit_code is None
+            ):
+                parser.error("record-scan requires snapshot, report, baseline and exit-code")
+            from core.application.tooling.quality.secret_scan import cache_scan_result
+
+            cache_scan_result(
+                cache,
+                json.loads(args.snapshot.read_text()),
+                paths,
+                args.exit_code,
+                args.report.read_text(),
+                args.baseline,
+            )
     return 0
 
 

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { HttpError } from "@/lib/http/errors";
-import { blobBytes, readStoredZip } from "@/lib/utils/zip.test-helpers";
+import { blobBytes, readStoredZip } from "@/test/zip-helpers";
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { AiAgentsSection } from "@/pages/settings/account/ai-agents";
 import {

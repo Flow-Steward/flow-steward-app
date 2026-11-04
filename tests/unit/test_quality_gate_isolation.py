@@ -37,7 +37,7 @@ def test_audit_runner_uses_disposable_infrastructure_namespaces() -> None:
     assert "@rabbitmq-audit:5672/flow_steward_audit" in environment["RABBITMQ_URL"]
     assert environment["ARTIFACT_STORAGE_BACKEND"] == "local_fs"
     assert environment["ARTIFACT_KEY_PREFIX"] == "audit/"
-    assert environment["ARTIFACT_LOCAL_ROOT_DIR"] == "/tmp/flow-steward-audit-artifacts"
+    assert environment["ARTIFACT_LOCAL_ROOT_DIR"] == "/run/flow-steward-audit-artifacts"
 
 
 def test_quality_gate_starts_cleans_and_guards_isolated_infrastructure() -> None:

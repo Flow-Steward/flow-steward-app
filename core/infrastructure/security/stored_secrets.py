@@ -108,7 +108,8 @@ class LocalStoredSecretReader:
         key = str(ref_key or "").strip()
         if not key:
             raise StoredSecretMissing(key)
-        if context.remaining_seconds() == 0.0 or self._conn is None:
+        remaining_seconds = context.remaining_seconds()
+        if (remaining_seconds is not None and remaining_seconds <= 0) or self._conn is None:
             raise StoredSecretUnavailable(key)
         if not context.account_id:
             # No trusted account: nothing to look up, and the query would fail

@@ -1,5 +1,5 @@
 import { crc32, createZip } from "@/lib/utils/zip";
-import { readStoredZip } from "@/lib/utils/zip.test-helpers";
+import { readStoredZip } from "@/test/zip-helpers";
 
 describe("createZip", () => {
   it("computes the standard CRC-32", () => {

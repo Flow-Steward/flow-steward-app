@@ -319,8 +319,8 @@ export function useDataConnectionsState() {
       existing_secret_keys: storedSecretKeys(
         connection.secret_refs_jsonb || {},
       ),
-      secret_choices: { ...(connection.secret_choices || {}) },
-      original_secret_choices: { ...(connection.secret_choices || {}) },
+      secret_choices: { ...connection.secret_choices },
+      original_secret_choices: { ...connection.secret_choices },
       original_connector_option_id: option?.option_id || "",
       original_connection_config: connectionConfig,
       original_metadata: metadata,

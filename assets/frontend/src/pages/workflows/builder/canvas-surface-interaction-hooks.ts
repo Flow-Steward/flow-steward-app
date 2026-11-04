@@ -65,7 +65,7 @@ type CanvasInteractionContext = {
   selectedEdgeId: string | null;
   closeTransientSurfaces: () => void;
   onInsertStep: BuilderSurfaceProps["onInsertStep"];
-  onInsertBeforeEntry?: BuilderSurfaceProps["onInsertBeforeEntry"];
+  onInsertBeforeEntry?: NonNullable<BuilderSurfaceProps["onInsertBeforeEntry"]>;
   beginPlacementGesture: (nodeIds: string[], dragging: boolean) => PlacementGesture | null;
   changeAnnotationNodes: ReturnType<typeof useCanvasNotes>["onNodesChange"];
   setManualPositions: StateSetter<Record<string, CanvasPosition>>;

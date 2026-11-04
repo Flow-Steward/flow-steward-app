@@ -777,8 +777,8 @@ services:
       FS_RABBITMQ_TRANSPORT_MODE: audit-local
       ARTIFACT_STORAGE_BACKEND: local_fs
       ARTIFACT_KEY_PREFIX: audit/
-      ARTIFACT_LOCAL_ROOT_DIR: /tmp/flow-steward-audit-artifacts
-      FS_ARTIFACT_ROOT: /tmp/flow-steward-audit-ops
+      ARTIFACT_LOCAL_ROOT_DIR: /run/flow-steward-audit-artifacts
+      FS_ARTIFACT_ROOT: /run/flow-steward-audit-ops
       MCP_URL: "http://127.0.0.1:9/mcp"
       FS_MEMORY_TEXT_SEARCH_BACKEND: ${FS_MEMORY_TEXT_SEARCH_BACKEND:-postgres_fts}
       FS_MEMORY_VECTOR_BACKEND: ${FS_MEMORY_VECTOR_BACKEND:-postgres_pgvector}
@@ -795,8 +795,8 @@ services:
       # worktree otherwise starts cold and reruns and redownloads everything.
       - quality-cache:/home/fs/.cache/flow-steward-quality
     tmpfs:
-      - /tmp/flow-steward-audit-artifacts
-      - /tmp/flow-steward-audit-ops
+      - /run/flow-steward-audit-artifacts:uid=1000,gid=1000,mode=0700
+      - /run/flow-steward-audit-ops:uid=1000,gid=1000,mode=0700
     depends_on:
       pg-audit:
         condition: service_healthy
