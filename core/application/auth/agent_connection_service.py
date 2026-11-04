@@ -194,6 +194,7 @@ class AgentConnectionService:
         return {
             "core_version": self.core_version,
             "client": client.label,
+            "package": package_id,
             "release_url": release_url,
             "package_archive": f"{package_id}-{version}.zip",
             "package_tarball": f"{package_id}-{version}.tar.gz",
@@ -223,6 +224,7 @@ class AgentConnectionService:
             "uses_mcp_url": "{mcp_url}" in step.template,
             "file_name": step.file_name,
             "archive_layout": step.archive_layout,
+            "manifest_dir": step.manifest_dir,
             "url": values.get(step.link, "") if step.link else "",
         }
 

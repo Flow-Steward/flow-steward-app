@@ -291,7 +291,7 @@ def test_package_carries_no_endpoint_token_or_server_configuration(package: str)
         assert not re.search(r"Bearer\s+[A-Za-z0-9._~+/-]{8,}", text), path
 
 
-def test_web_ui_bundle_is_the_operator_package_as_a_sync_leaves_it(tmp_path: Path) -> None:
+def test_web_ui_bundle_is_both_packages_as_a_sync_leaves_them(tmp_path: Path) -> None:
     sync = _sync_module()
     _copy_sources(tmp_path)
     # The bundle is written only into a checkout that has the web UI.
@@ -308,12 +308,19 @@ def test_web_ui_bundle_is_the_operator_package_as_a_sync_leaves_it(tmp_path: Pat
     assert sync.WEB_BUNDLE_FILE.as_posix() in sync.sync(tmp_path)
     assert sync.drift(tmp_path) == []
     bundle = _json(tmp_path / sync.WEB_BUNDLE_FILE)
-    shipped = {
-        path.relative_to(operator).as_posix(): path.read_text(encoding="utf-8")
-        for path in sorted(operator.rglob("*"))
-        if path.is_file() and "__pycache__" not in path.parts
+
+    def shipped(package: Path) -> dict[str, str]:
+        return {
+            path.relative_to(package).as_posix(): path.read_text(encoding="utf-8")
+            for path in sorted(package.rglob("*"))
+            if path.is_file() and "__pycache__" not in path.parts
+        }
+
+    developer = tmp_path / "docs/agent-skills/flow-steward-developer"
+    assert bundle["packages"] == {
+        "flow-steward-operator": shipped(operator),
+        "flow-steward-developer": shipped(developer),
     }
-    assert bundle["packages"] == {"flow-steward-operator": shipped}
     assert json.loads(bundle["marketplace"]) == _json(
         tmp_path / "docs/agent-skills/.claude-plugin/marketplace.json"
     )

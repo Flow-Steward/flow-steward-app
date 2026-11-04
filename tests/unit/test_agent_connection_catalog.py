@@ -119,24 +119,54 @@ def test_package_steps_name_a_known_layout_and_an_archive() -> None:
             for step in setup.steps:
                 if step.kind != "package":
                     assert not step.archive_layout, (client.id, step.id)
+                    assert not step.manifest_dir, (client.id, step.id)
                     continue
                 assert step.archive_layout in catalog.ARCHIVE_LAYOUTS, (client.id, step.id)
+                assert step.file_name.startswith(f"{setup.package_id}-"), (client.id, step.id)
                 assert step.file_name.endswith(".zip"), (client.id, step.id)
-                # Only a Claude plugin carries the server, and so the token, inside it.
-                carries_server = step.archive_layout == catalog.ARCHIVE_CLAUDE_MARKETPLACE
+                agents = step.archive_layout == catalog.ARCHIVE_AGENTS_MARKETPLACE
+                assert bool(step.manifest_dir) is agents, (client.id, step.id)
+                # A plugin carries the server, and so the token, exactly when the
+                # package works through MCP; the skills folder never does.
+                carries_server = setup.auth == catalog.AUTH_PERSONAL_TOKEN and (
+                    step.archive_layout != catalog.ARCHIVE_SKILLS_FOLDER
+                )
                 assert step.uses_token is carries_server, (client.id, step.id)
                 if carries_server:
                     filled = step.template.replace("{mcp_url}", "https://x/mcp").replace(
                         "{token}", "t"
                     )
-                    assert json.loads(filled)["flow-steward"]["headers"] == {
+                    server = json.loads(filled)["mcpServers"]["flow-steward"]
+                    assert server["url"] == "https://x/mcp"
+                    assert (server.get("headers") or server.get("http_headers")) == {
                         "Authorization": "Bearer t"
                     }
 
 
 def test_every_mcp_json_template_is_valid_json_with_the_token_header() -> None:
-    for template in (catalog.MCP_JSON_TEMPLATE, catalog.CURSOR_MCP_JSON_TEMPLATE):
+    templates = {
+        catalog.MCP_JSON_TEMPLATE: "headers",
+        catalog.CURSOR_MCP_JSON_TEMPLATE: "headers",
+        catalog.OPENAI_CLI_MCP_JSON_TEMPLATE: "http_headers",
+    }
+    for template, header_field in templates.items():
         filled = template.replace("{mcp_url}", "https://x/mcp").replace("{token}", "t")
         server = json.loads(filled)["mcpServers"]["flow-steward"]
         assert server["url"] == "https://x/mcp"
-        assert server["headers"] == {"Authorization": "Bearer t"}
+        assert server[header_field] == {"Authorization": "Bearer t"}
+
+
+def test_install_commands_are_the_same_on_every_system() -> None:
+    """No Downloads path, no unzip: the user unpacks the archive and the commands run from ~."""
+    for client in catalog.CLIENTS:
+        for setup in client.packages:
+            for step in setup.steps:
+                if step.kind != "command" or step.id != "install_plugin":
+                    continue
+                lines = step.template.splitlines()
+                assert lines[0] == "cd ~", (client.id, setup.package_id)
+                folder = next(s for s in setup.steps if s.kind == "package").file_name
+                assert f"./{folder.removesuffix('.zip')}" in lines[1], (client.id, lines)
+                assert lines[2].endswith(f"{setup.package_id}@{setup.package_id}")
+                assert "unzip" not in step.template
+                assert "Downloads" not in step.template

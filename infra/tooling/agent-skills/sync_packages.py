@@ -49,7 +49,7 @@ WEB_BUNDLE_FILE = Path(
     "assets/frontend/src/pages/settings/account/agent-skill-packages.generated.json"
 )
 #: The packages the AI agents page builds personal archives from.
-WEB_BUNDLE_PACKAGES = ("flow-steward-operator",)
+WEB_BUNDLE_PACKAGES = ("flow-steward-operator", "flow-steward-developer")
 #: Local leftovers that are never part of a package.
 _NOT_PACKAGE_FILES = ("__pycache__", ".DS_Store")
 AGENT_PLUGINS_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"

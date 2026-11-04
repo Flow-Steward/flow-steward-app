@@ -28974,18 +28974,6 @@ msgstr "Make the first request"
 msgid "react.agent_access.step_first_request_description"
 msgstr "Ask your agent this. It should answer from the MCP tools and report a permission error as an error."
 
-msgid "react.agent_access.step_download_marketplace"
-msgstr "Download the packages"
-
-msgid "react.agent_access.step_download_marketplace_description"
-msgstr "Download {archive} from the Flow Steward {core_version} release and extract it. Check it against the release's SHA256SUMS."
-
-msgid "react.agent_access.step_install_claude_plugin"
-msgstr "Install the plugin"
-
-msgid "react.agent_access.step_install_claude_plugin_description"
-msgstr "Replace the path with the extracted flow-steward-agent-skills folder."
-
 msgid "react.agent_access.step_download_package"
 msgstr "Download the package"
 
@@ -28997,18 +28985,6 @@ msgstr "Follow the install steps"
 
 msgid "react.agent_access.step_open_readme_description"
 msgstr "The package README has the install, update and removal steps for this client."
-
-msgid "react.agent_access.step_toml_config"
-msgstr "Add the server to ~/.codex/config.toml"
-
-msgid "react.agent_access.step_toml_config_description"
-msgstr "Add this section and keep the rest of the file. It holds your token: keep it like a password, do not share it or put it in Git."
-
-msgid "react.agent_access.step_cursor_config"
-msgstr "Add the server to ~/.cursor/mcp.json"
-
-msgid "react.agent_access.step_cursor_config_description"
-msgstr "Merge this entry into the file's mcpServers. It holds your token: keep it like a password, do not share it or put it in Git."
 
 msgid "react.agent_access.create_another_token_help"
 msgstr "The token above keeps working until it expires or you revoke it in step 5."
@@ -29040,38 +29016,32 @@ msgstr "Most clients take this JSON. If yours uses another format, keep the addr
 msgid "react.agent_access.step_other_config"
 msgstr "Add the server to the client's MCP settings"
 
-msgid "react.agent_access.step_install_cursor_plugin_description"
-msgstr "Run this in a terminal, then run Developer: Reload Window in Cursor. An organization admin may have to allow local plugin imports."
-
-msgid "react.agent_access.step_install_cursor_plugin"
-msgstr "Install it"
-
-msgid "react.agent_access.step_download_cursor_plugin_description"
-msgstr "The Operator plugin with its four skills."
-
-msgid "react.agent_access.step_download_cursor_plugin"
-msgstr "Download the plugin"
-
-msgid "react.agent_access.step_install_skills_description"
-msgstr "Run this in a terminal. {client} finds the skills in its next session. If the browser saved the file elsewhere, change the path."
-
-msgid "react.agent_access.step_install_skills"
-msgstr "Install them"
-
 msgid "react.agent_access.step_download_skills_description"
-msgstr "The four Operator skills, one folder each, for this client's skills folder."
+msgstr "The package's skills, one folder each, for your client's skills folder."
 
 msgid "react.agent_access.step_download_skills"
 msgstr "Download the skills"
 
-msgid "react.agent_access.step_install_personal_plugin_description"
-msgstr "Run this in a terminal and start a new session. If the browser saved the file elsewhere, change the first path. Installed it before? Remove the old one first: claude plugin marketplace remove flow-steward."
+msgid "react.agent_access.step_personal_plugin_description"
+msgstr "It holds the package's skills, this installation's address and your token, so there is nothing to configure. It holds your token: keep it like a password, do not share it or put it in Git."
 
-msgid "react.agent_access.step_install_personal_plugin"
+msgid "react.agent_access.step_download_plugin"
+msgstr "Download the plugin"
+
+msgid "react.agent_access.step_download_plugin_description"
+msgstr "It holds the package's skills. It needs no address and no token."
+
+msgid "react.agent_access.step_install_plugin"
 msgstr "Install it"
 
-msgid "react.agent_access.step_personal_plugin_description"
-msgstr "The plugin already holds this installation's address and your token, so there is nothing to configure. It holds your token: keep it like a password, do not share it or put it in Git."
+msgid "react.agent_access.step_install_copied_plugin_description"
+msgstr "Unpack the archive and move the folder it makes to your home folder. Then run this in a terminal (PowerShell on Windows) and start a new session. If the folder has another name, change it in the command. To install a newer download, run the same commands again. They need the {client} command-line tool."
+
+msgid "react.agent_access.step_install_kept_plugin_description"
+msgstr "Unpack the archive, move the folder it makes to your home folder and keep it there: {client} loads the plugin from it. Then run this in a terminal (PowerShell on Windows) and start a new session. If the folder has another name, change it in the command. To install a newer download, first run: claude plugin marketplace remove {package}"
+
+msgid "react.agent_access.step_install_plugin_folder_description"
+msgstr "Unpack the archive and move the folder it makes into plugins/local inside the .cursor folder of your home folder; create plugins/local if it is missing. On a Mac, press Cmd+Shift+. in Finder to see .cursor. Then run Developer: Reload Window in {client}. An organization admin may have to allow local plugin imports. To install a newer download, replace the folder."
 
 msgid "react.agent_access.step_personal_plugin"
 msgstr "Download your plugin"

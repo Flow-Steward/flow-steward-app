@@ -68,7 +68,7 @@ export function AgentSetupSteps({
     try {
       // Loaded on demand: the package files are bundled only into this chunk.
       const { buildArchive } = await import("@/pages/settings/account/agent-package-archive");
-      downloadBlob(step.file_name, buildArchive(step.archive_layout as ArchiveLayout, packageId, fillToken(step.content, secret, "")));
+      downloadBlob(step.file_name, buildArchive(step.archive_layout as ArchiveLayout, packageId, { servers: fillToken(step.content, secret, ""), manifestDir: step.manifest_dir }));
       setFeedback({ tone: "success", message: t("react.agent_access.downloaded", "Downloaded {name}.", { name: step.file_name }) });
     } catch {
       setFeedback({ tone: "danger", message: t("react.agent_access.download_failed", "The file could not be built. Reload the page and try again.") });

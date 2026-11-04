@@ -37,7 +37,7 @@ const mockedProjects = vi.mocked(fetchProjectsList);
 
 const MCP = "https://fs.example.com/mcp";
 const SECRET = "fs_pat_secret_value"; // pragma: allowlist secret
-const SERVERS = `{"flow-steward": {"type": "http", "url": "${MCP}", "headers": {"Authorization": "Bearer {token}"}}}`;
+const SERVERS = `{"mcpServers": {"flow-steward": {"type": "http", "url": "${MCP}", "headers": {"Authorization": "Bearer {token}"}}}}`;
 const CONFIG = `[mcp_servers.flow-steward]\nurl = "${MCP}"\nhttp_headers = { "Authorization" = "Bearer {token}" }\n`;
 
 function step(overrides: Partial<AgentSetupStep>): AgentSetupStep {
@@ -54,6 +54,7 @@ function step(overrides: Partial<AgentSetupStep>): AgentSetupStep {
     uses_mcp_url: false,
     file_name: "",
     archive_layout: "",
+    manifest_dir: "",
     url: "",
     ...overrides,
   };
@@ -71,8 +72,8 @@ function operator(overrides: Partial<AgentClientPackage> = {}): AgentClientPacka
     message_key: "",
     message: "",
     steps: [
-      step({ id: "personal_plugin", kind: "package", archive_layout: "claude_marketplace", file_name: "flow-steward-claude-code.zip", title: "Download your plugin", content: SERVERS, uses_token: true, uses_mcp_url: true }),
-      step({ id: "install_plugin", kind: "command", title: "Install it", content: "claude plugin install flow-steward-operator@flow-steward" }),
+      step({ id: "download_plugin", kind: "package", archive_layout: "claude_marketplace", file_name: "flow-steward-operator-claude-code.zip", title: "Download your plugin", content: SERVERS, uses_token: true, uses_mcp_url: true }),
+      step({ id: "install_plugin", kind: "command", title: "Install it", content: "claude plugin install flow-steward-operator@flow-steward-operator" }),
       step({ id: "mcp_config", kind: "file", file_name: "config.toml", title: "Add the server", content: CONFIG, uses_token: true, uses_mcp_url: true }),
     ],
     ...overrides,
@@ -162,7 +163,7 @@ describe("AiAgentsSection", () => {
     expect(screen.getByText(/agents and skills belong to the whole account/)).toBeInTheDocument();
     expect(screen.getByLabelText("Add the server")).toHaveTextContent(`url = "${MCP}"`);
     expect(screen.getByLabelText("Add the server")).toHaveTextContent("Bearer <your personal token>");
-    expect(screen.getByRole("button", { name: "Download flow-steward-claude-code.zip" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Download flow-steward-operator-claude-code.zip" })).toBeDisabled();
     expect(screen.getByText("The download is ready once the token is created.")).toBeInTheDocument();
   });
 
@@ -206,13 +207,13 @@ describe("AiAgentsSection", () => {
     try {
       await chooseLocalOperator();
       fireEvent.click(screen.getByRole("button", { name: "Create token" }));
-      const downloadButton = await screen.findByRole("button", { name: "Download flow-steward-claude-code.zip" });
+      const downloadButton = await screen.findByRole("button", { name: "Download flow-steward-operator-claude-code.zip" });
       await waitFor(() => expect(downloadButton).toBeEnabled());
       fireEvent.click(downloadButton);
       await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
-      expect(await screen.findByText("Downloaded flow-steward-claude-code.zip.")).toBeInTheDocument();
+      expect(await screen.findByText("Downloaded flow-steward-operator-claude-code.zip.")).toBeInTheDocument();
       const files = readStoredZip(await blobBytes(blobs[0]));
-      const manifest = JSON.parse(files.get("flow-steward/flow-steward-operator/.claude-plugin/plugin.json") || "{}");
+      const manifest = JSON.parse(files.get("flow-steward-operator/.claude-plugin/plugin.json") || "{}");
       expect(manifest.mcpServers["flow-steward"]).toEqual({ type: "http", url: MCP, headers: { Authorization: `Bearer ${SECRET}` } });
       expect(manifest.userConfig).toBeUndefined();
     } finally {
@@ -297,7 +298,7 @@ describe("AiAgentsSection", () => {
     expect(screen.getByText("This installation has no public address")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create token" })).toBeDisabled();
     expect(screen.queryByLabelText("Add the server")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Download flow-steward-claude-code/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Download flow-steward-operator-claude-code/ })).not.toBeInTheDocument();
   });
 
   it("Developer needs no token", async () => {

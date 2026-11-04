@@ -27920,18 +27920,6 @@ msgstr ""
 msgid "react.agent_access.step_first_request_description"
 msgstr ""
 
-msgid "react.agent_access.step_download_marketplace"
-msgstr ""
-
-msgid "react.agent_access.step_download_marketplace_description"
-msgstr ""
-
-msgid "react.agent_access.step_install_claude_plugin"
-msgstr ""
-
-msgid "react.agent_access.step_install_claude_plugin_description"
-msgstr ""
-
 msgid "react.agent_access.step_download_package"
 msgstr ""
 
@@ -27942,18 +27930,6 @@ msgid "react.agent_access.step_open_readme"
 msgstr ""
 
 msgid "react.agent_access.step_open_readme_description"
-msgstr ""
-
-msgid "react.agent_access.step_toml_config"
-msgstr ""
-
-msgid "react.agent_access.step_toml_config_description"
-msgstr ""
-
-msgid "react.agent_access.step_cursor_config"
-msgstr ""
-
-msgid "react.agent_access.step_cursor_config_description"
 msgstr ""
 
 msgid "react.agent_access.create_another_token_help"
@@ -27986,37 +27962,31 @@ msgstr ""
 msgid "react.agent_access.step_other_config"
 msgstr ""
 
-msgid "react.agent_access.step_install_cursor_plugin_description"
-msgstr ""
-
-msgid "react.agent_access.step_install_cursor_plugin"
-msgstr ""
-
-msgid "react.agent_access.step_download_cursor_plugin_description"
-msgstr ""
-
-msgid "react.agent_access.step_download_cursor_plugin"
-msgstr ""
-
-msgid "react.agent_access.step_install_skills_description"
-msgstr ""
-
-msgid "react.agent_access.step_install_skills"
-msgstr ""
-
 msgid "react.agent_access.step_download_skills_description"
 msgstr ""
 
 msgid "react.agent_access.step_download_skills"
 msgstr ""
 
-msgid "react.agent_access.step_install_personal_plugin_description"
-msgstr ""
-
-msgid "react.agent_access.step_install_personal_plugin"
-msgstr ""
-
 msgid "react.agent_access.step_personal_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_download_plugin"
+msgstr ""
+
+msgid "react.agent_access.step_download_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_install_plugin"
+msgstr ""
+
+msgid "react.agent_access.step_install_copied_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_install_kept_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_install_plugin_folder_description"
 msgstr ""
 
 msgid "react.agent_access.step_personal_plugin"

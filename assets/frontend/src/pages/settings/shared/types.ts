@@ -221,6 +221,7 @@ export type AgentSetupStep = {
   file_name: string;
   /** `package` steps: how the browser lays out the archive it builds. */
   archive_layout: string;
+  manifest_dir: string;
   url: string;
 };
 

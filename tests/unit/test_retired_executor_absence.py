@@ -170,14 +170,13 @@ ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
         f"### {_EXTERNAL_CODE_CLIENT}".lower().encode("utf-8"),
     },
     # Settings → Account → AI agents (task 4) names the external clients a user picks;
-    # the names live in these four constants of the wizard's client catalog only.
+    # the names live in these three constants of the wizard's client catalog only.
     Path("core/application/auth/agent_connection_catalog.py"): {
         line.lower().encode("utf-8")
         for line in (
             f'{_EXTERNAL_CODE_CLIENT.upper().replace(" ", "_")}_LABEL = "{_EXTERNAL_CODE_CLIENT}"',
             f'OPENAI_CLI_ID = "{_EXTERNAL_AGENT_RUNTIME}"',
             f'OPENAI_CLI_LABEL = "{_EXTERNAL_AGENT_RUNTIME.title()}"',
-            f'OPENAI_CLI_CONFIG_PATH = "~/.{_EXTERNAL_AGENT_RUNTIME}/config.toml"',
         )
     },
     Path("docs/extension-authoring-agent-playbook.md"): {

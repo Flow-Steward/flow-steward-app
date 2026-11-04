@@ -29396,18 +29396,6 @@ msgstr "Atlikite pirmą užklausą"
 msgid "react.agent_access.step_first_request_description"
 msgstr "Paklauskite agento štai ko. Jis turėtų atsakyti naudodamas MCP įrankius, o leidimo klaidą pranešti kaip klaidą."
 
-msgid "react.agent_access.step_download_marketplace"
-msgstr "Atsisiųskite paketus"
-
-msgid "react.agent_access.step_download_marketplace_description"
-msgstr "Atsisiųskite {archive} iš Flow Steward {core_version} leidimo ir išskleiskite. Patikrinkite pagal leidimo SHA256SUMS."
-
-msgid "react.agent_access.step_install_claude_plugin"
-msgstr "Įdiekite papildinį"
-
-msgid "react.agent_access.step_install_claude_plugin_description"
-msgstr "Pakeiskite kelią išskleisto aplanko flow-steward-agent-skills keliu."
-
 msgid "react.agent_access.step_download_package"
 msgstr "Atsisiųskite paketą"
 
@@ -29419,18 +29407,6 @@ msgstr "Atlikite diegimo veiksmus"
 
 msgid "react.agent_access.step_open_readme_description"
 msgstr "Paketo README pateikia šio kliento diegimo, atnaujinimo ir šalinimo veiksmus."
-
-msgid "react.agent_access.step_toml_config"
-msgstr "Įrašykite serverį į ~/.codex/config.toml"
-
-msgid "react.agent_access.step_toml_config_description"
-msgstr "Pridėkite šią sekciją ir palikite likusį failą. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
-
-msgid "react.agent_access.step_cursor_config"
-msgstr "Įrašykite serverį į ~/.cursor/mcp.json"
-
-msgid "react.agent_access.step_cursor_config_description"
-msgstr "Įterpkite šį įrašą į failo mcpServers. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
 
 msgid "react.agent_access.create_another_token_help"
 msgstr "Aukščiau esantis raktas veikia, kol baigsis jo galiojimas arba kol jį atšauksite 5 žingsnyje."
@@ -29462,38 +29438,32 @@ msgstr "Daugelis klientų priima šį JSON. Jei jūsiškis naudoja kitą format�
 msgid "react.agent_access.step_other_config"
 msgstr "Įrašykite serverį į kliento MCP nustatymus"
 
-msgid "react.agent_access.step_install_cursor_plugin_description"
-msgstr "Paleiskite tai terminale, tada Cursor paleiskite Developer: Reload Window. Organizacijos administratorius gali turėti leisti vietinių įskiepių importą."
-
-msgid "react.agent_access.step_install_cursor_plugin"
-msgstr "Įdiekite jį"
-
-msgid "react.agent_access.step_download_cursor_plugin_description"
-msgstr "Operator įskiepis su keturiais įgūdžiais."
-
-msgid "react.agent_access.step_download_cursor_plugin"
-msgstr "Atsisiųskite įskiepį"
-
-msgid "react.agent_access.step_install_skills_description"
-msgstr "Paleiskite tai terminale. {client} įgūdžius ras kitoje sesijoje. Jei naršyklė failą išsaugojo kitur, pakeiskite kelią."
-
-msgid "react.agent_access.step_install_skills"
-msgstr "Įdiekite juos"
-
 msgid "react.agent_access.step_download_skills_description"
-msgstr "Keturi Operator įgūdžiai, kiekvienas savo aplanke, šio kliento įgūdžių aplankui."
+msgstr "Paketo įgūdžiai, kiekvienas savo aplanke, jūsų kliento įgūdžių aplankui."
 
 msgid "react.agent_access.step_download_skills"
 msgstr "Atsisiųskite įgūdžius"
 
-msgid "react.agent_access.step_install_personal_plugin_description"
-msgstr "Paleiskite tai terminale ir pradėkite naują sesiją. Jei naršyklė failą išsaugojo kitur, pakeiskite pirmą kelią. Jau diegėte anksčiau? Pirmiausia pašalinkite senąjį: claude plugin marketplace remove flow-steward."
+msgid "react.agent_access.step_personal_plugin_description"
+msgstr "Jame yra paketo įgūdžiai, šios diegties adresas ir jūsų prieigos raktas, tad nieko konfigūruoti nereikia. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
 
-msgid "react.agent_access.step_install_personal_plugin"
+msgid "react.agent_access.step_download_plugin"
+msgstr "Atsisiųskite įskiepį"
+
+msgid "react.agent_access.step_download_plugin_description"
+msgstr "Jame yra paketo įgūdžiai. Jam nereikia nei adreso, nei prieigos rakto."
+
+msgid "react.agent_access.step_install_plugin"
 msgstr "Įdiekite jį"
 
-msgid "react.agent_access.step_personal_plugin_description"
-msgstr "Įskiepyje jau yra šios diegties adresas ir jūsų prieigos raktas, tad nieko konfigūruoti nereikia. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
+msgid "react.agent_access.step_install_copied_plugin_description"
+msgstr "Išpakuokite archyvą ir perkelkite gautą aplanką į savo namų aplanką. Tada paleiskite tai terminale („Windows“ – „PowerShell“) ir pradėkite naują seansą. Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, dar kartą paleiskite tas pačias komandas. Joms reikia {client} komandinės eilutės įrankio."
+
+msgid "react.agent_access.step_install_kept_plugin_description"
+msgstr "Išpakuokite archyvą, perkelkite gautą aplanką į savo namų aplanką ir palikite jį ten: {client} įkelia įskiepį iš jo. Tada paleiskite tai terminale („Windows“ – „PowerShell“) ir pradėkite naują seansą. Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, pirmiausia paleiskite: claude plugin marketplace remove {package}"
+
+msgid "react.agent_access.step_install_plugin_folder_description"
+msgstr "Išpakuokite archyvą ir perkelkite gautą aplanką į plugins/local aplanką, esantį jūsų namų aplanko .cursor aplanke; jei plugins/local nėra, sukurkite jį. „Mac“ kompiuteryje „Finder“ paspauskite Cmd+Shift+., kad pamatytumėte .cursor. Tada {client} paleiskite Developer: Reload Window. Organizacijos administratoriui gali tekti leisti vietinių įskiepių importą. Norėdami įdiegti naujesnį atsisiuntimą, pakeiskite aplanką."
 
 msgid "react.agent_access.step_personal_plugin"
 msgstr "Atsisiųskite savo įskiepį"

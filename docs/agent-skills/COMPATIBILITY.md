@@ -8,8 +8,10 @@ package version 1.0.0. Client documentation checked on 2026-10-31.
 Every setup connects to **your own** Flow Steward installation. No released
 package contains an address, a token or a demonstration server, and no catalog
 listing replaces your address with a fixed one. Only the files the AI agents
-page builds for you carry your address and token: the personal plugin, and
-the MCP settings it shows for the other clients.
+page builds for you carry your address and token: the personal plugins, and
+the MCP settings it shows for a client it builds no plugin for. Each plugin
+archive unpacks into one folder named after it, and the install commands are
+the same on macOS, Linux and Windows.
 
 ## Status legend
 
@@ -57,8 +59,8 @@ release's marketplace archive, or loaded for one session from a release zip.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All four skills; MCP tools through the server the plugin declares | Personal token: in the personal plugin from the AI agents page it is written into the plugin's server entry as `Authorization: Bearer`; the released plugin asks for it as the masked option `mcp_token`, kept in the system credential store | AI agents page: download the personal plugin, then `claude plugin marketplace add` and `claude plugin install` as the page shows; or the package README with `/plugin configure flow-steward-operator@flow-steward` | The released plugin's server starts only when both options are set; an existing manual server entry for the same installation should be removed; the personal plugin file holds the token | Yes | 1.0.0 and its three skills verified with CLI 2.1.222 (1); the 1.0.2 personal plugin installed, listed its four skills and connected its server with CLI 2.1.222 (2); update and removal of 1.0.1 and 1.0.2 not verified | No | No |
-| Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Yes, CLI 2.1.222 in an isolated profile (1) | No | No |
+| Operator | All four skills; MCP tools through the server the plugin declares | Personal token: in the personal plugin from the AI agents page it is written into the plugin's server entry as `Authorization: Bearer`; the released plugin asks for it as the masked option `mcp_token`, kept in the system credential store | AI agents page: download the personal plugin (`flow-steward-operator-claude-code.zip`, a marketplace named `flow-steward-operator`), unpack it, move the folder to your home folder, then from `~` run the page's `plugin marketplace add` and install commands; the same on every system (PowerShell on Windows); or the package README with `/plugin configure flow-steward-operator@flow-steward` | The unpacked folder must stay: the client loads the plugin from it; a newer download installs only after `claude plugin marketplace remove flow-steward-operator`; after removal the client keeps its cached copy with the token, so revoke the token on the AI agents page; an existing manual server entry for the same installation should be removed | Yes | 1.0.0 and its three skills verified with CLI 2.1.222 (1); the 1.0.2 personal plugin installed, updated with another token and removed with CLI 2.1.222 (2) | No | No |
+| Developer | All four skills; terminal and files | None | AI agents page: download `flow-steward-developer-claude-code.zip` and install it like the Operator plugin; or the package README | Needs Git, Docker and a Flow Steward checkout; the unpacked folder must stay | Yes | Yes, CLI 2.1.222 in an isolated profile (1) (2) | No | No |
 
 (1) Historical verification covered Operator 1.0.0 with three skills and
 Developer 1.0.0: `claude plugin validate` on both packages and the marketplace;
@@ -73,12 +75,16 @@ out of the settings file, survived the update and was deleted on uninstall.
 Skill listing inside a signed-in session and the interactive `/plugin
 configure` dialog were not run: the isolated profile has no sign-in.
 
-(2) On 2026-11-04 a personal plugin downloaded from the AI agents page of a
-local Compact installation was installed in an isolated profile with exactly the
-page's three commands: marketplace add and install succeeded, `details` listed
-the four skills, and `claude mcp list` showed the plugin's `flow-steward` server
-connected to the installation with the token the page created; the
-installation recorded the token's use. Update and removal were not run.
+(2) On 2026-11-04 the archives the AI agents page builds were installed in an
+isolated profile with exactly the page's commands, run from the home folder the
+unpacked folders were moved to. Operator: `details` listed the four skills and
+`claude mcp list` showed the plugin's `flow-steward` server connected to a local
+Compact installation with a token the page created. After `claude plugin
+marketplace remove flow-steward-operator`, the same commands installed a newer
+download and the server used its token. Developer: installed beside Operator,
+`details` listed its four skills. Removing both marketplaces removed both
+plugins and the server; the client's plugin cache kept the Operator copy with
+its token.
 
 ### Claude.ai and Cowork
 
@@ -95,15 +101,28 @@ directory.
 ### Codex
 
 CLI and the ChatGPT desktop app; the MCP connection is opened from your
-computer. Format: Agent Plugins `plugin.json` from a local marketplace (package
-README), or later from the OpenAI plugin directory. The IDE extension does not
+computer. Format: a local `.agents/plugins` marketplace (the AI agents page
+builds one with the client's own plugin manifest; the package README uses the
+Agent Plugins `plugin.json`), or later from the OpenAI plugin directory. The IDE extension does not
 support plugins, so neither package is offered there; cloud tasks are not
 claimed.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All four skills; MCP tools from a server you add yourself | Personal token in a static header: `http_headers` in `config.toml` (`bearer_token_env_var` also works) | AI agents page: the `[mcp_servers.flow-steward]` section with `url = "<your address>/mcp"` and `http_headers = { "Authorization" = "Bearer <token>" }` filled in, and the skills archive for `~/.agents/skills`; or the package README | The plugin carries no MCP server; `config.toml` then holds the token | Yes | Not verified: the client is not installed on the verification machine | No | No |
-| Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: the client is not installed on the verification machine | No | No |
+| Operator | All four skills; MCP tools through the server the plugin declares | Personal token in the plugin's server file as the static header `http_headers` | AI agents page: download the personal plugin (an `.agents/plugins` marketplace named `flow-steward-operator` whose plugin manifest points at its `.mcp.json`), unpack it, move the folder to your home folder, then from `~` run the page's `plugin marketplace add` and install commands; the same on every system (PowerShell on Windows); or the package README | The commands need the client's command-line tool; the unpacked folder may be deleted after install; a newer download installs with the same commands | Yes | Not verified: with the CLI 0.166 bundled in the ChatGPT desktop app, install, skill discovery, update with another token and removal ran (3), but no MCP tool call did | No | No |
+| Developer | All four skills; terminal and files | None | AI agents page: download the Developer plugin and install it like the Operator plugin; or the package README | Needs Git, Docker and a Flow Steward checkout | Yes | Yes, CLI 0.166 in an isolated profile (3) | No | No |
+
+(3) On 2026-11-04 the archives the AI agents page builds were installed with the
+CLI 0.166 bundled in the ChatGPT desktop app, in an isolated profile, with
+exactly the page's commands run from the home folder. Both plugins installed;
+the agent listed the four Operator and four Developer skills; `mcp list` showed
+the Operator plugin's `flow-steward` server with a static bearer header. Running
+the same commands for a newer download replaced the token in the installed copy.
+The server stayed after the unpacked folders were deleted. Removing both
+plugins and marketplaces left no server and no token behind. No MCP tool was
+called: the non-interactive mode refuses MCP calls that need approval. A
+plugin-root Agent Plugins `plugin.json` hides the server from the client, so the
+page's archive leaves it out and carries only the client's own manifest.
 
 ### ChatGPT
 
@@ -119,14 +138,14 @@ zip (Agent Plugins `plugin.json` with OpenAI metadata under `extensions`).
 ### Cursor
 
 Desktop app; the MCP connection is opened from your computer. Format: Cursor
-plugin (`.cursor-plugin/plugin.json`) copied to `~/.cursor/plugins/local/`;
-Cursor can also read the Agent Plugins `plugin.json`. Cloud Agents are not
-claimed.
+plugin (`.cursor-plugin/plugin.json`, with `mcp.json` beside it in a personal
+plugin) copied to `~/.cursor/plugins/local/`; Cursor can also read the Agent
+Plugins `plugin.json`. Cloud Agents are not claimed.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All four skills; MCP tools from a server you add yourself | Personal token in the MCP headers of `~/.cursor/mcp.json` (`${env:…}` also works) | AI agents page: a `flow-steward` entry with `"url": "<your address>/mcp"` and `"headers": {"Authorization": "Bearer <token>"}` filled in, and the plugin archive for `~/.cursor/plugins/local`; or the package README | The plugin carries no MCP server; `mcp.json` then holds the token; an organization admin may have to allow local plugin imports | Yes | Not verified: the client is not installed on the verification machine | No | No |
-| Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: the client is not installed on the verification machine | No | No |
+| Operator | All four skills; MCP tools through the server the plugin declares | Personal token in the plugin's `mcp.json` as `Authorization: Bearer` | AI agents page: download the personal plugin (`flow-steward-operator-cursor.zip`: the plugin folder with its `mcp.json`), unpack it and move the folder into `plugins/local` inside the `.cursor` folder of your home folder, then reload the window; or the package README | The plugin folder holds the token; an organization admin may have to allow local plugin imports | Yes | Not verified: the client is not installed on the verification machine | No | No |
+| Developer | All four skills; terminal and files | None | AI agents page: download the Developer plugin and install it like the Operator plugin; or the package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: the client is not installed on the verification machine | No | No |
 
 ### Gemini CLI
 
@@ -149,7 +168,7 @@ your computer and, if it can, reads skills from a folder. Format: the usual
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Operator | MCP tools; the skills where the client reads skill folders | Personal token in the `Authorization: Bearer` header of the server entry | AI agents page: `{"mcpServers": {"flow-steward": {"type": "http", "url": "<your address>/mcp", "headers": {"Authorization": "Bearer <token>"}}}}` filled in, and the skills archive | A client with another settings format needs the same address and header in its own form; the settings then hold the token | Yes | Not verified: depends on the client | — | — |
-| Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: depends on the client | — | — |
+| Developer | All four skills; terminal and files | None | AI agents page: the Developer skills archive; or the package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: depends on the client | — | — |
 
 ## Catalogs and what each one indexes
 
