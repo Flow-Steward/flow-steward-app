@@ -61,6 +61,7 @@ import {
   DsSelect,
   DsToast,
   MultiCombobox,
+  PageContainer,
   Pagination,
   RequiredLabel,
   RowActionMenu,
@@ -567,10 +568,10 @@ export function SettingsAccountPage() {
   }
 
   return (
-    <section className="fs-settings fs-settings-detail">
+    <PageContainer className="fs-page-sections" width="wide">
       <DsPageHeader description={t("react.settings.manage_your_profile_sign_in_details_and_personal_access_tokens", "Manage your profile, sign-in details and personal access tokens.")} title={t("auth.login.account_label", "Account")} />
       {renderAccountSettingsPanel()}
       {renderAccountDialogs()}
-    </section>
+    </PageContainer>
   );
 }

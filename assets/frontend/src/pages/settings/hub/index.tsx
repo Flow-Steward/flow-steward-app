@@ -23,6 +23,7 @@ import {
   DsPageHeader,
   DsSelect,
   DsTable,
+  PageContainer,
   type DsTableColumn,
 } from "@/components/shared/design-system";
 import { SettingsGeneralPage } from "@/pages/settings/general";
@@ -922,7 +923,7 @@ export function SettingsHubPage() {
   }
 
   return (
-    <section className="fs-settings">
+    <PageContainer className="fs-page-sections" width="wide">
       <DsPageHeader
         description={t("react.settings.platform_configuration_one_area_per_tab", "Platform configuration, one area per tab.")}
         action={
@@ -979,6 +980,6 @@ export function SettingsHubPage() {
           </div>
         ) : null}
       </section>
-    </section>
+    </PageContainer>
   );
 }

@@ -14,6 +14,7 @@ import {
   DsPageHeader,
   DsSelect,
   DsTable,
+  PageContainer,
   type DsTableColumn,
 } from "@/components/shared/design-system";
 import {
@@ -917,9 +918,9 @@ export function SettingsSecurityPage({
     return content;
   }
   return (
-    <section className="fs-settings">
+    <PageContainer className="fs-page-sections" width="wide">
       <DsPageHeader description={pageDescription} eyebrow={t("shell.nav.settings", "Settings")} title={pageTitle} />
       {content}
-    </section>
+    </PageContainer>
   );
 }

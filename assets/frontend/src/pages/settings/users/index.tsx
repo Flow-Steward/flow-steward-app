@@ -23,6 +23,7 @@ import {
 import {
   AdvancedTableFilters,
   DsAlert,
+  PageContainer,
   Pagination,
   RowActionMenu,
   Search,
@@ -47,7 +48,7 @@ type UserFilterUpdater = (
 function UsersAccessDenied() {
   const { t } = useI18n();
   return (
-    <section className="fs-settings">
+    <PageContainer className="fs-page-sections" width="wide">
       <DsPageHeader
         description={t("react.settings.manage_who_can_access_flow_steward_their_roles_and_how_they_sign_in", "Manage who can access Flow Steward, their roles and how they sign in.")}
         title={t("react.settings.users_access", "Users & access")}
@@ -58,7 +59,7 @@ function UsersAccessDenied() {
             {t("react.settings.you_do_not_have_permission_to_view_this_inventory_ask_an_administrator_to_update_your_role", "You do not have permission to view this inventory. Ask an administrator to update your role.")} </DsAlert>
         </div>
       </article>
-    </section>
+    </PageContainer>
   );
 }
 
@@ -504,7 +505,7 @@ export function SettingsUsersPage() {
   const closeConfirmation = () => setConfirmAction(null);
 
   return (
-    <section className="fs-settings">
+    <PageContainer className="fs-page-sections" width="wide">
       <DsPageHeader
         action={
           <button className="fs-button primary" onClick={openAdd} type="button">
@@ -562,6 +563,6 @@ export function SettingsUsersPage() {
         onConfirm={() => ignoreAsyncResult(confirmUserAction())}
         saving={saving}
       />
-    </section>
+    </PageContainer>
   );
 }
