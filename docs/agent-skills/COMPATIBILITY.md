@@ -57,7 +57,7 @@ release's marketplace archive, or loaded for one session from a release zip.
 
 | Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Operator | All four skills; MCP tools through the server the plugin declares | Personal token: in the personal plugin from the AI agents page it is written into the plugin's server entry as `Authorization: Bearer`; the released plugin asks for it as the masked option `mcp_token`, kept in the system credential store | AI agents page: download the personal plugin, then `claude plugin marketplace add` and `claude plugin install` as the page shows; or the package README with `/plugin configure flow-steward-operator@flow-steward` | The released plugin's server starts only when both options are set; an existing manual server entry for the same installation should be removed; the personal plugin file holds the token | Yes | 1.0.0 and its three skills verified with CLI 2.1.222 (1); 1.0.1, 1.0.2 and the migration skill not verified | No | No |
+| Operator | All four skills; MCP tools through the server the plugin declares | Personal token: in the personal plugin from the AI agents page it is written into the plugin's server entry as `Authorization: Bearer`; the released plugin asks for it as the masked option `mcp_token`, kept in the system credential store | AI agents page: download the personal plugin, then `claude plugin marketplace add` and `claude plugin install` as the page shows; or the package README with `/plugin configure flow-steward-operator@flow-steward` | The released plugin's server starts only when both options are set; an existing manual server entry for the same installation should be removed; the personal plugin file holds the token | Yes | 1.0.0 and its three skills verified with CLI 2.1.222 (1); the 1.0.2 personal plugin installed, listed its four skills and connected its server with CLI 2.1.222 (2); update and removal of 1.0.1 and 1.0.2 not verified | No | No |
 | Developer | All four skills; terminal and files | None | Package README | Needs Git, Docker and a Flow Steward checkout | Yes | Yes, CLI 2.1.222 in an isolated profile (1) | No | No |
 
 (1) Historical verification covered Operator 1.0.0 with three skills and
@@ -72,6 +72,13 @@ configured address and sent the configured token as `Bearer`; the token stayed
 out of the settings file, survived the update and was deleted on uninstall.
 Skill listing inside a signed-in session and the interactive `/plugin
 configure` dialog were not run: the isolated profile has no sign-in.
+
+(2) On 2026-11-04 a personal plugin downloaded from the AI agents page of a
+local Compact installation was installed in an isolated profile with exactly the
+page's three commands: marketplace add and install succeeded, `details` listed
+the four skills, and `claude mcp list` showed the plugin's `flow-steward` server
+connected to the installation with the token the page created; the
+installation recorded the token's use. Update and removal were not run.
 
 ### Claude.ai and Cowork
 
