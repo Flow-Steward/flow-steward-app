@@ -790,9 +790,11 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-checkbox-label.bare > .fs-checkbox-mark { margin-top: 0; }
 
 /* The label text, not the mark: a checkbox with no text — a table selection
-   cell — leaves the mark as the last child, and this would stretch it to 20px. */
+   cell — leaves the mark as the last child, and this would stretch it to 20px.
+   Being flex, it drops the space between the text and a badge after it, so the
+   gap puts that space back. */
 .fs-checkbox-label > span:last-child:not(.fs-checkbox-mark),
-.fs-radio-label > span:last-child:not(.fs-radio-mark) { display: inline-flex; align-items: center; min-height: var(--fs-space-250); }
+.fs-radio-label > span:last-child:not(.fs-radio-mark) { display: inline-flex; align-items: center; gap: var(--fs-space-075); min-height: var(--fs-space-250); }
 
 .fs-checkbox-label input,
 .fs-radio-label input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
