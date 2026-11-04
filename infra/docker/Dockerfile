@@ -346,6 +346,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/lifecycle/ core/infra
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/release/ core/infrastructure/release/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs db/schema/ db/schema/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs db/migrations/ db/migrations/
+COPY --chmod=u=rwX,go=rX --chown=fs:fs db/released_migrations.json db/released_migrations.json
 COPY --chmod=u=rwX,go=rX --chown=fs:fs db/seeds/ db/seeds/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs infra/docker/Dockerfile infra/docker/docker-compose.yaml infra/docker/docker-compose.prod.yaml infra/docker/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs VERSION VERSION

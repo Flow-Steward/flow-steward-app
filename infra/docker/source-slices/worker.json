@@ -1147,12 +1147,12 @@
       "consumer": "core.infrastructure.config.version runtime provenance"
     },
     {
-      "path": "core/infrastructure/config/flow_steward_env_manifest.json",
-      "consumer": "core.infrastructure.config.env_registry supported environment contract"
-    },
-    {
       "path": "core/application/orchestration/prompts/orchestrator_system.md",
       "consumer": "worker-owned orchestration system prompt loading"
+    },
+    {
+      "path": "core/infrastructure/config/flow_steward_env_manifest.json",
+      "consumer": "core.infrastructure.config.env_registry supported environment contract"
     },
     {
       "path": "core/infrastructure/extension_sdk/public/pyproject.toml",
@@ -1177,6 +1177,10 @@
     {
       "path": "db/migrations/20261104120000_secret_catalog_installation_wide.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/released_migrations.json",
+      "consumer": "core.application.tooling.db.upgrade_preflight._released_baselines supported upgrade source ledger"
     },
     {
       "path": "db/schema/001_schema_part_01.sql",
