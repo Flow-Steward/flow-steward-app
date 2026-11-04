@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from core.application.registry.db_store_workflows_mixin import WorkflowRevisionConflictError
 from core.application.workflows.workflow_canvas_annotation_contract import (
     CanvasAnnotation,
+    CanvasLayout,
     WorkflowAnnotationsRevisionConflictError,
 )
 from core.application.workflows.workflow_canvas_annotation_service import (
@@ -35,6 +36,11 @@ class AnnotationSave(BaseModel):
     annotation: CanvasAnnotation
     expected_revision: int | None = None
     expected_annotations_revision: int | None = None
+
+
+class CanvasLayoutSave(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    layout: CanvasLayout
 
 
 @contextmanager
@@ -77,6 +83,18 @@ def _annotation_request(request: Request, workflow_id: str, *, write: bool = Fal
         raise HTTPException(exc.status_code, exc.detail()) from exc
     if write:
         _refresh_workflow_cache_after_commit()
+
+
+@router.get("/{workflow_id}/canvas-layout")
+def get_canvas_layout(workflow_id: str, request: Request):
+    with _annotation_request(request, workflow_id) as (service, scope):
+        return service.get_layout(**scope)
+
+
+@router.put("/{workflow_id}/canvas-layout")
+def save_canvas_layout(workflow_id: str, body: CanvasLayoutSave, request: Request):
+    with _annotation_request(request, workflow_id, write=True) as (service, scope):
+        return service.save_layout(**scope, layout=body.layout.model_dump())
 
 
 @router.get("/{workflow_id}/annotations")

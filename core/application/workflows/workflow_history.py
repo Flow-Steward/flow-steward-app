@@ -32,7 +32,10 @@ from core.application.workflows.execution_graph import (
     Outcome,
     edge_identity,
 )
-from core.application.workflows.workflow_canvas_annotation_contract import ANNOTATIONS_SETTING
+from core.application.workflows.workflow_canvas_annotation_contract import (
+    ANNOTATIONS_SETTING,
+    CANVAS_LAYOUT_SETTING,
+)
 from core.application.workflows.workflow_definition_changes import (
     definition_from_workflow,
     removed_format_issues,
@@ -67,7 +70,7 @@ RESTORED_FIELDS = (
     "trigger",
 )
 #: Settings their own services own besides the graph. Restore keeps them current.
-CURRENT_SETTINGS_KEYS = (ANNOTATIONS_SETTING, "canvas_annotations_revision")
+CURRENT_SETTINGS_KEYS = (ANNOTATIONS_SETTING, "canvas_annotations_revision", CANVAS_LAYOUT_SETTING)
 #: Input fields that point at stored credentials and files, never taken from history.
 INPUT_AUTHORITY_KEYS = ("default_secret_ref", "default_configured", "sample_file")
 

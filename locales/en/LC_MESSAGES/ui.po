@@ -20942,6 +20942,9 @@ msgstr ""
 "Workflow discovery uses this metadata to identify when this workflow can be "
 "reused."
 
+msgid "react.workflows.workflow_entry_replaces_current"
+msgstr "Start runs it first; it then goes on to {step}."
+
 msgid "react.workflows.workflow_has_contract_issues"
 msgstr "Workflow has contract issues."
 
@@ -26833,6 +26836,9 @@ msgstr "Actions"
 
 msgid "react.workflows.palette_append_title"
 msgstr "Add after {source} · {outcome}"
+
+msgid "react.workflows.palette_before_entry_title"
+msgstr "Insert before {target}"
 
 msgid "react.workflows.palette_canvas"
 msgstr "Canvas"

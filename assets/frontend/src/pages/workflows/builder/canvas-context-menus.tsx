@@ -156,7 +156,7 @@ function removeStep(host: CanvasMenuHost, node: Node<StepNodeData>, targets: rea
   else host.remove(targets);
 }
 
-/** Duplicate, Disable / Enable and Delete: the step toolbar's More. */
+/** Duplicate, Disable / Enable, Make entry and Delete: the step toolbar's More. */
 export function stepMoreItems(host: CanvasMenuHost, nodeId: string): CanvasMenuItem[] {
   const { t } = host;
   const node = host.nodes.find((candidate) => candidate.id === nodeId);
@@ -168,7 +168,7 @@ export function stepMoreItems(host: CanvasMenuHost, nodeId: string): CanvasMenuI
   const items: CanvasMenuItem[] = [];
   const targets = host.selectedIds.includes(nodeId) ? [...host.selectedIds] : [nodeId];
   if (host.clipboard && editable) items.push({ key: "duplicate", label: t("react.workflows.duplicate", "Duplicate"), shortcut: "⌘D", onSelect: () => runOnSelection(host, targets, () => host.clipboard?.("duplicate")) });
-  if (editable && !hook) items.push(disableItem(host, node));
+  if (editable && !hook) items.push(disableItem(host, node), entryItem(host, node, { kind: "step", id: stepRefId(node) }, data.isEntry));
   if (editable) {
     const rules = ruleCount(data.step.automation_summary) || data.automationRules.length;
     items.push({ key: "delete", label: t("react.workflows.delete", "Delete"), danger: true,

@@ -352,6 +352,21 @@ class RegistryDBStoreWorkflowsMixin:
             )
         return next_revision
 
+    def save_workflow_canvas_layout(
+        self, workflow_id: str, *, account_id: str, layout: dict
+    ) -> bool:
+        """Write card positions only: no definition revision, changelog or runtime sync."""
+        with self._transaction() as cur:
+            cur.execute(
+                "UPDATE registry_workflows SET settings = "
+                "jsonb_set(COALESCE(settings, '{}'::jsonb), '{canvas_layout}', %s::jsonb), "
+                "updated_at = NOW() "
+                "WHERE workflow_id = %s AND deleted_at IS NULL "
+                "AND (account_id = %s OR account_id IS NULL)",
+                (json.dumps(layout), workflow_id, account_id),
+            )
+            return bool(cur.rowcount)
+
     def save_workflow(
         self,
         data: dict,
@@ -442,10 +457,11 @@ class RegistryDBStoreWorkflowsMixin:
                 "trigger = EXCLUDED.trigger",
                 # The UPDATE row lock protects presentation saved after the caller
                 # read its definition. Only the note writer may replace these keys.
-                "settings = (EXCLUDED.settings - 'canvas_annotations' - 'canvas_annotations_revision') "
+                "settings = (EXCLUDED.settings - 'canvas_annotations' - 'canvas_annotations_revision' "
+                "- 'canvas_layout') "
                 "|| (SELECT COALESCE(jsonb_object_agg(key, value), '{}'::jsonb) "
                 "FROM jsonb_each(registry_workflows.settings) "
-                "WHERE key IN ('canvas_annotations', 'canvas_annotations_revision'))",
+                "WHERE key IN ('canvas_annotations', 'canvas_annotations_revision', 'canvas_layout'))",
                 TAGS_EXCLUDED_TAGS_SQL,
             ]
             optional_columns = [

@@ -160,6 +160,21 @@ export function canvasPasteViewport(bounds: CanvasPasteRect, pane: CanvasPasteBo
 
 
 /**
+ * Bring a new copy into view without changing the zoom: the current view when
+ * the copy is already inside the pane, else the same zoom centred on it. A copy
+ * too large for the pane at this zoom falls back to fitting it.
+ */
+export function canvasRevealViewport(bounds: CanvasPasteRect, pane: CanvasPasteBounds, stage: Pick<DOMRect, "left" | "top">, current: { x: number; y: number; zoom: number }) {
+  if (canvasPasteBoundsVisible(bounds, pane, stage, current)) return current;
+  const centred = {
+    x: (pane.left + pane.right) / 2 - stage.left - (bounds.x + bounds.width / 2) * current.zoom,
+    y: (pane.top + pane.bottom) / 2 - stage.top - (bounds.y + bounds.height / 2) * current.zoom,
+    zoom: current.zoom,
+  };
+  return canvasPasteBoundsVisible(bounds, pane, stage, centred) ? centred : canvasPasteViewport(bounds, pane, stage);
+}
+
+/**
  * Where a root node goes so it sits in the middle of what the author sees, or
  * null when it cannot be placed there: a node inside a container keeps its
  * container layout, and an unmeasured canvas has no visible area yet.

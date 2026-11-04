@@ -30,6 +30,23 @@ it("honors explicit root entry for both genuine container kinds in the same cano
   expect(defaults.map((result) => result?.operations.some((operation) => operation.op === "set_entry"))).toEqual([false, false]);
 });
 
+it("puts a new root step before the first one: it becomes the entry and goes on to the old entry", () => {
+  const edge: WorkflowGraphEdge = { source: { kind: "step", id: "seed" }, outcome: { name: "success" }, target: { kind: "step", id: "done" } };
+  const preview = definition({ steps: [{ step_id: "seed", step_kind: "set_variable" }, { step_id: "done", step_kind: "stop_success" }], settings: { execution_graph: { schema_version: 1, entry: { kind: "step", id: "seed" }, edges: [edge] } } });
+  const result = build({ preview, choice, context: {}, createAsEntry: true });
+  expect(result?.operations).toEqual([
+    { op: "create_step", step: expect.objectContaining({ step_id: "wait", step_kind: "wait" }) },
+    { op: "set_entry", target: { kind: "step", id: "wait" } },
+    { op: "connect", edge: { source: { kind: "step", id: "wait" }, outcome: { name: "success" }, target: { kind: "step", id: "seed" } } },
+  ]);
+  const applied = result ? applyChangeOperations(preview, result.operations).definition : undefined;
+  expect(applied?.graph.entry).toEqual({ kind: "step", id: "wait" });
+  expect(applied && localDefinitionIssues(applied).filter((issue) => /reach/i.test(JSON.stringify(issue)))).toEqual([]);
+  // Without the choice the workflow keeps its entry (the earlier behaviour of a root Add step).
+  const plain = build({ preview, choice, context: {} });
+  expect(plain?.operations).toEqual([{ op: "create_step", step: expect.objectContaining({ step_id: "wait" }) }]);
+});
+
 it("retains the sequence Group owner on an explicit nested For each entry", () => {
   const preview = definition({ groups: [{ group_id: "once", body: { kind: "sequence", entry: { kind: "step", id: "seed" } } }], steps: [{ step_id: "seed", step_kind: "wait", group_id: "once" }] });
   const result = buildContainer({ preview, choice: { nodeKind: "for_each", catalogKey: "container:for_each", displayName: "For each" }, context: { groupId: "once" }, createAsEntry: true });

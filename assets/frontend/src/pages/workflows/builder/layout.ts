@@ -176,6 +176,9 @@ export type StartNodeData = {
   empty: boolean;
 };
 
+/** The visual connection from Start to the workflow's first step. */
+export const START_ENTRY_EDGE_ID = "visual:entry";
+
 export type CanvasEdgeData = {
   taken?: boolean;
   /** How often the run took this connection, when more than once (a loop). */
@@ -965,7 +968,7 @@ export function buildCanvasLayout(
   });
 
   if (canvasGraph.entry && nodes.some((node) => node.id === entryId)) {
-    canvasEdges.unshift({ id: "visual:entry", source: "visual:start", sourceHandle: "entry", target: entryId, targetHandle: canvasGraph.entry.kind === "step" ? "in" : "entry", type: "canvasEditable", selectable: false, deletable: false, style: { stroke: "var(--fs-workflow-edge)", strokeWidth: "var(--fs-workflow-edge-width)" } });
+    canvasEdges.unshift({ id: START_ENTRY_EDGE_ID, source: "visual:start", sourceHandle: "entry", target: entryId, targetHandle: canvasGraph.entry.kind === "step" ? "in" : "entry", type: "canvasEditable", selectable: false, deletable: false, style: { stroke: "var(--fs-workflow-edge)", strokeWidth: "var(--fs-workflow-edge-width)" } });
   }
   // React Flow requires parents before descendants; preserve sibling order.
   const ordered: typeof nodes = [];

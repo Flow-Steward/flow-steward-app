@@ -178,7 +178,14 @@ export function buildNewStepOperations({ preview, choice, context, expectedEdge,
   else {
     operations.push({ op: "create_step", step });
     if (insert) operations.push({ op: "connect", edge: { source: insert.source, outcome: insert.outcome, target: nodeRef("step", stepId) } });
-    else if ((placement.groupId || placement.forEachId) && (createAsEntry || placeLacksEntry(preview, placement))) {
+    else if (createAsEntry && !placement.groupId && !placement.forEachId) {
+      // Insert before the first step: the new step starts the run and goes on, along Next, to the old entry.
+      const previousEntry = preview.graph.entry;
+      operations.push({ op: "set_entry", target: nodeRef("step", stepId) });
+      if (previousEntry && stepPorts(step).some((port) => port.outcome.name === "success")) {
+        operations.push({ op: "connect", edge: { source: nodeRef("step", stepId), outcome: { name: "success" }, target: previousEntry } });
+      }
+    } else if ((placement.groupId || placement.forEachId) && (createAsEntry || placeLacksEntry(preview, placement))) {
       const emptyBody = placeIsEmpty(preview, placement);
       operations.push({ op: "set_entry", target: nodeRef("step", stepId), ...(placement.groupId ? { group_id: placement.groupId } : {}), ...(placement.forEachId ? { for_each_id: placement.forEachId } : {}), ...(placement.laneId ? { lane_id: placement.laneId } : {}) });
       // The only step of a body also ends it, so the new body is complete as it stands.

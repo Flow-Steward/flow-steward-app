@@ -30,7 +30,13 @@ def frozen_definition(workflow: Mapping[str, Any]) -> dict[str, Any]:
     definition = definition_from_workflow(workflow)
     settings = workflow.get("settings")
     settings = dict(settings) if isinstance(settings, Mapping) else {}
-    for key in (EXECUTION_GRAPH_SETTING, "canvas_annotations", "canvas_annotations_revision"):
+    # Presentation never belongs to what a run executes: notes and where the cards stand.
+    for key in (
+        EXECUTION_GRAPH_SETTING,
+        "canvas_annotations",
+        "canvas_annotations_revision",
+        "canvas_layout",
+    ):
         settings.pop(key, None)
     return {
         "workflow_id": str(workflow.get("workflow_id") or "").strip(),
