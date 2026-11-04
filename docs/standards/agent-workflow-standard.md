@@ -68,28 +68,28 @@ This standard applies to:
 
 ## Verification
 
-- `MUST` follow the three Docker verification tiers defined in `testing-standard.md`: Tier 1 locally, Tier 2 after every public branch push, Tier 3 before merge to main on hosted runners.
+- `MUST` follow the three Docker verification tiers and diff/dependency selection defined in `testing-standard.md`; a push, handoff, merge or publication does not request a complete tier.
 - `MUST` identify whether reported evidence is Tier 1, 2, or 3, or an additional audit check.
 
 AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `lint.sh --checks …`. Tier 1 is no exception: being focused does not mean running on the host. A host interpreter makes the result depend on the machine — Tier 1 could not run at all where `python3` is 3.14, and a host run of a suite passed while the same suite failed in the gate, because the gate substitutes the tree through `run-core-only-tests.sh`. `infra/tooling/quality/check-registry.json` is the single list of commands, and `tests/unit/tooling/quality/test_check_registry.py` fails if any check escapes the container.
 - `MUST` add a regression test for every bug fix and observe the expected failure before applying the fix.
-- `MUST` select targeted tests from changed behavior, owning tests, direct consumers, blast radius, and change-type requirements; start from `--test-paths auto` and add what the import graph cannot see.
+- `MUST` select targeted tests from the diff, owning tests, direct consumers and change-type requirements. Use `lint.sh --checks targeted-tests --test-paths "auto:<accepted-sha> concrete-file-or-node"` and add known dynamic, database and extension consumers. Frontend tests use reviewed `src/` file lists or a separate `auto:<ref>` invocation; select affected Tier 2 checks by registry ID.
 - `MUST` use fail-fast execution during sequential iteration and diagnose a failure before retrying it.
-- `MUST` keep Tier 1 focused cycles narrow and fail-fast, while the Tier 3 backend unit suite runs without `-x` or `--maxfail=1`, retains the complete failure list, and reports failures grouped by root cause for one coherent in-scope fix batch.
-- After a failed full gate, `MUST` verify the failed and affected tests against the failed candidate's SHA before requesting another cumulative gate. Follow the failure/retry procedure in `testing-standard.md`; do not use GitHub's rerun of the entire failed quality job as the edit/fix loop. Explicit user instructions limiting verification take precedence; report the remaining coverage accurately.
-- `MUST` obtain passing remote `lint.sh --fast` evidence after every pushed change, including point changes; intermediate commits may precede that remote result.
-- `MUST` obtain one clean `lint.sh --full` result from the final committed public candidate before merge to main. Intermediate handoff/PR reports explicitly identify Tier 3 when pending. Full Sonar remains required for substantial core changes, with the baseline transition described in the testing standard.
+- `MUST` keep focused cycles narrow and fail-fast. An explicitly requested complete Tier 3 backend suite runs without `-x` or `--maxfail=1`, retains the complete failure list, and groups failures by cause for one coherent fix batch.
+- After failure, timeout or interruption, `MUST` retain the log and candidate SHA and verify only failed/timed-out targets plus new impact against that SHA. Follow `testing-standard.md`; do not restart a complete tier or hosted quality job. Unknown and unrun coverage stays pending.
+- `MUST` verify a pushed change's affected behavior and report its selected checks; a push does not authorize a complete remote `--fast` gate.
+- `MUST` obtain a separate explicit request before any full, heavy, nightly or Sonar run. Handoff, merge, publication and substantial core edits do not authorize those runs; report unrun scopes accurately.
 - `MUST` treat quality evidence as valid only for its recorded fingerprint and, for commit-scoped checks, its exact commit SHA; input-scoped checks are valid for any commit with the same fingerprint (`testing-standard.md`, ADR 0036). Inspect remote run provenance; do not claim a public run checked a different private SHA.
-- `MUST` fetch and integrate current origin/main before expensive verification, recheck it afterward and immediately before merge; integrate and reverify if main advances beyond the candidate.
-- `MUST` let each internal tier verifier execute only its registry-owned delta; the final `--full` wrapper validates or refreshes exact-SHA Tier 2 before Tier 3 and then validates their cumulative evidence.
-- `MUST` start Tier 2 dependency audits before slower static checks and preserve their actual pass/fail evidence; deferred no-op checks are not valid evidence.
-- `MUST` require complete, current Tier 2 and Tier 3 evidence for the final SHA before declaring a candidate publishable (input-scoped checks matched through that SHA's fingerprint); `--full` succeeds only after that cumulative validation.
+- `MUST` resolve the accepted source SHA and target branch before verification, recheck before merge, and verify new impact when the candidate changes. A changed SHA does not request another complete gate.
+- `MUST` let each internal tier verifier execute only its registry-owned delta. When explicitly requested, `--full` validates or refreshes exact-SHA Tier 2 before Tier 3 and validates cumulative evidence; a targeted pass does not establish a full pass.
+- `MUST` preserve actual check-level pass/fail evidence and its fingerprint; deferred no-op checks are not valid evidence. Existing `--checks` selections do not promise per-file execution or per-target recovery from a full timeout.
+- `MUST` report the final release SHA, selected checks, achieved depth and unrun work. Publication does not implicitly request or require a new full gate; an explicitly requested full acceptance contract still requires complete matching evidence.
 - Additional deep audit checks `MAY` be requested through `lint.sh --checks`; `--audit` is a compatibility alias for the final committed gate.
-- Remote quality workflows are enabled for the public source (ADR 0053), alongside
-  documentation and tag-release workflows (ADR 0048). Official automated publication
-  `MUST` wait for its exact-SHA Docker quality gate and verification of the complete
-  canonical image-role/platform set in at least one configured registry. Unavailable
-  mirrors remain visible in evidence; invalid identities and digest conflicts fail closed.
+- GitHub quality execution `MUST` require a separate manual request; push, tag and
+  publication events do not authorize a quality run. Official publication `MUST`
+  preserve verification of the complete canonical image-role/platform set and source
+  provenance in at least one configured registry. Unavailable mirrors remain visible
+  in evidence; invalid identities and digest conflicts fail closed.
 - `MUST` report exact commands, achieved tier, candidate provenance, and blocked or unrun verification.
 - `MUST NOT` combine results from different commits or environments into one green result, except input-scoped evidence whose fingerprint matches the final tree.
 

@@ -106,52 +106,48 @@ npx --no-install eslint --fix <changed-ts-or-tsx-files>
 Do not use repository-wide formatting for a scoped change and do not stage
 formatter output automatically.
 
-During a fix cycle, run the regression and impacted tests with fail-fast behavior.
-`auto` derives the impacted tests from the diff against `main` (`auto:<ref>` for
-another base); add what the import graph cannot see by path:
+For ordinary work, including release preparation, select checks from the diff
+and known dependencies, then run the regression and related tests fail-fast.
+Use the accepted candidate SHA as the base and add concrete test paths/node IDs
+for dependencies the import graph cannot see:
 
 ```bash
-./core/entrypoints/cli/scripts/lint.sh --checks targeted-tests --test-paths "auto tests/unit/test_regression.py"
-./core/entrypoints/cli/scripts/lint.sh --checks frontend-targeted-tests --test-paths auto
+./core/entrypoints/cli/scripts/lint.sh --checks targeted-tests --test-paths "auto:<accepted-sha> tests/unit/test_regression.py::test_case"
+./core/entrypoints/cli/scripts/lint.sh --checks frontend-targeted-tests --test-paths "src/path/owning.test.tsx src/path/consumer.test.tsx"
 ```
 
-Tier 1 runs locally. After every public branch push, including point changes,
-the Remote quality pilot workflow runs:
+The frontend wrapper accepts either `auto:<ref>` or an explicit list, not both
+in one selection. Select affected Tier 2 checks by ID with `--checks`; their
+existing check-level input scopes and fingerprint reuse remain unchanged.
+This release's bare `lint.sh`, `--fast`, and `--full` select complete registry
+scopes; use explicit `--checks` commands for ordinary work.
 
-```bash
-./core/entrypoints/cli/scripts/lint.sh --fast
-```
-
-Local pre-commit hooks select the current commit's delta with `auto:HEAD`.
-Manual `auto` remains branch-wide against `main`; add explicit regression paths
-when needed. Incremental hook results do not replace the remote full gate.
-
-Before merging to main, fetch and integrate current origin/main, resolve
-conflicts and push the final committed candidate. Run one clean remote full gate:
-
-```bash
-./core/entrypoints/cli/scripts/lint.sh --full
-```
+Full, heavy, nightly and Sonar runs require a separate explicit request.
+Handoff, merge and publication never authorize them implicitly. GitHub quality
+execution must be requested manually; a push or release is not such a request.
+After failure or timeout, retain the log and candidate SHA and run only failed
+or timed-out targets plus new impact against that SHA. Report unknown and unrun
+coverage; do not restart the full gate automatically. See the canonical standards
+for selection, retry and evidence requirements.
 
 Tier 1 focused fix cycles stay narrow and fail-fast. The Tier 3 backend unit
-suite runs without `-x` or `--maxfail=1`, retains the complete failure list,
-and reports failures grouped by root cause so one coherent in-scope batch can
-be fixed before the next full run.
+suite, when explicitly requested, runs without `-x` or `--maxfail=1`, retains
+the complete failure list, and reports failures grouped by root cause before a
+scoped retry.
 
 AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `lint.sh --checks …`. Tier 1 is no exception: being focused does not mean running on the host. A host interpreter makes the result depend on the machine — Tier 1 could not run at all where `python3` is 3.14, and a host run of a suite passed while the same suite failed in the gate, because the gate substitutes the tree through `run-core-only-tests.sh`. `infra/tooling/quality/check-registry.json` is the single list of commands, and `tests/unit/tooling/quality/test_check_registry.py` fails if any check escapes the container.
 
-All tiers use Docker with one registry owner per check. Tier 1 stays local;
-Tier 2 and Tier 3 run on disposable standard GitHub-hosted Linux runners in the
-public source repository (ADR 0053). Recheck main after verification and
-immediately before merge; an updated candidate requires new matching evidence.
+All tiers use Docker with one registry owner per check. Local execution uses
+`fs-audit`; separately requested hosted checks must preserve the selected scope.
+Recheck main before merge; an updated candidate requires verification of its new
+impact and matching evidence.
 Reuse is fingerprint-bound; input-scoped Tier 2 checks reuse a pass across commits
 and worktrees through the `flow-steward-quality-cache` volume (ADR 0036). Final handoff and release evidence must describe the
-final commit SHA. Candidate publication requires complete green Tier 2 and Tier 3
-evidence for that same SHA; `--full` refreshes or reuses exact-SHA Tier 2 before
-the Tier 3 delta and succeeds only after cumulative validation. Documentation
-and tag-release Actions remain enabled (ADR 0048). An intermediate handoff/PR
-reports Tier 3 as pending when not yet run. Public results never verify a
-different private commit. Additional audit checks remain available through `--checks`.
+final commit SHA, selected checks, achieved coverage and pending work. A targeted
+pass is not a full pass. An explicitly requested `--full` still validates
+cumulative Tier 2 and Tier 3 evidence; publication does not request that run.
+Public results never verify a different private commit. Additional audit checks
+remain available through `--checks`.
 
 For a focused fix/verify cycle, selected checks remain available:
 
@@ -161,8 +157,6 @@ For a focused fix/verify cycle, selected checks remain available:
 ```
 
 Install hooks once per clone with `pre-commit install --hook-type pre-commit`.
-The hook runs affected Tier 1 checks. Tier 2 runs after push, and Tier 3 before
-merge. Substantial core changes also require full Sonar analysis; the disposable
-remote Sonar pilot does not replace the existing baseline until reconciled.
-See `docs/operations/remote-quality.md`. Local Docker gates remain available for
-diagnosis; all test tiers use the on-demand `fs-audit` container.
+The hook runs affected Tier 1 checks. Choose additional verification according to
+the canonical standards; all local test tiers use the on-demand `fs-audit`
+container.
