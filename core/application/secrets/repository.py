@@ -14,8 +14,6 @@ from typing import Any
 _SECRET_COLUMNS = (
     "id",
     "account_id",
-    "workspace_id",
-    "project_id",
     "name",
     "description",
     "storage_ref_key",
@@ -59,20 +57,10 @@ def project_scope(cur: Any, *, account_id: str, project_id: str) -> dict[str, An
     return _row(cur, ("project_id", "workspace_id"))
 
 
-def workspace_exists(cur: Any, *, account_id: str, workspace_id: str) -> bool:
-    cur.execute(
-        "SELECT 1 FROM workspaces WHERE id::text = %s AND account_id::text = %s",
-        (str(workspace_id), str(account_id)),
-    )
-    return cur.fetchone() is not None
-
-
 def insert_secret(
     cur: Any,
     *,
     account_id: str,
-    workspace_id: str,
-    project_id: str | None,
     name: str,
     description: str,
     actor: str,
@@ -82,18 +70,16 @@ def insert_secret(
     cur.execute(
         """
         INSERT INTO catalog_secrets AS s (
-            id, account_id, workspace_id, project_id, name, description, storage_ref_key,
+            id, account_id, name, description, storage_ref_key,
             created_by, metadata_updated_by, value_updated_by
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING s.id, s.account_id, s.name, s.description, s.storage_ref_key,
                s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
                s.value_updated_at, s.value_updated_by
         """,
         (
             secret_id,
             account_id,
-            workspace_id,
-            project_id,
             name,
             description,
             storage_ref_key or f"catalog_secret:{secret_id}",
@@ -113,7 +99,7 @@ def get_secret(
     if for_update:
         cur.execute(
             """
-            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+            SELECT s.id, s.account_id, s.name, s.description, s.storage_ref_key,
                s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
                s.value_updated_at, s.value_updated_by
               FROM catalog_secrets AS s
@@ -125,7 +111,7 @@ def get_secret(
     else:
         cur.execute(
             """
-            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+            SELECT s.id, s.account_id, s.name, s.description, s.storage_ref_key,
                s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
                s.value_updated_at, s.value_updated_by
               FROM catalog_secrets AS s
@@ -136,52 +122,20 @@ def get_secret(
     return _row(cur, _SECRET_COLUMNS)
 
 
-def list_secrets(
-    cur: Any, *, account_id: str, workspace_id: str | None, project_id: str | None
-) -> list[dict[str, Any]]:
-    """Secrets visible from one project (its own and its workspace's) or one workspace."""
-    # Fixed statements rather than one assembled from parts.
-    if project_id:
-        cur.execute(
-            """
-            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
-               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
-               s.value_updated_at, s.value_updated_by,
-                   (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
-              FROM catalog_secrets AS s
-             WHERE s.account_id::text = %s
-               AND (s.project_id::text = %s
-                    OR (s.project_id IS NULL AND s.workspace_id::text = %s))
-             ORDER BY lower(s.name), s.id
-            """,
-            (str(account_id), str(project_id), str(workspace_id or "")),
-        )
-    elif workspace_id:
-        cur.execute(
-            """
-            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
-               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
-               s.value_updated_at, s.value_updated_by,
-                   (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
-              FROM catalog_secrets AS s
-             WHERE s.account_id::text = %s AND s.workspace_id::text = %s
-             ORDER BY lower(s.name), s.id
-            """,
-            (str(account_id), str(workspace_id)),
-        )
-    else:
-        cur.execute(
-            """
-            SELECT s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
-               s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
-               s.value_updated_at, s.value_updated_by,
-                   (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
-              FROM catalog_secrets AS s
-             WHERE s.account_id::text = %s
-             ORDER BY lower(s.name), s.id
-            """,
-            (str(account_id),),
-        )
+def list_secrets(cur: Any, *, account_id: str) -> list[dict[str, Any]]:
+    """Every secret of the installation, with how many places use it."""
+    cur.execute(
+        """
+        SELECT s.id, s.account_id, s.name, s.description, s.storage_ref_key,
+           s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
+           s.value_updated_at, s.value_updated_by,
+               (SELECT count(*) FROM catalog_secret_bindings AS b WHERE b.secret_id = s.id)
+          FROM catalog_secrets AS s
+         WHERE s.account_id::text = %s
+         ORDER BY lower(s.name), s.id
+        """,
+        (str(account_id),),
+    )
     return _rows(cur, (*_SECRET_COLUMNS, "usage_count"))
 
 
@@ -194,7 +148,7 @@ def update_metadata(
            SET name = %s, description = %s,
                metadata_updated_at = now(), metadata_updated_by = %s
          WHERE s.id::text = %s AND s.account_id::text = %s
-        RETURNING s.id, s.account_id, s.workspace_id, s.project_id, s.name, s.description, s.storage_ref_key,
+        RETURNING s.id, s.account_id, s.name, s.description, s.storage_ref_key,
                s.created_at, s.created_by, s.metadata_updated_at, s.metadata_updated_by,
                s.value_updated_at, s.value_updated_by
         """,
@@ -239,6 +193,10 @@ _BINDING_COLUMNS = (
     "field_name",
     "created_at",
     "created_by",
+    "data_connection_id",
+    "mcp_connector_id",
+    "llm_provider_install_id",
+    "consumer_name",
 )
 
 
@@ -250,13 +208,27 @@ def bindings_for_secret(cur: Any, *, account_id: str, secret_id: str) -> list[di
                c.display_name AS connection_name, b.workflow_id,
                w.display_name AS workflow_name,
                COALESCE(c.project_id, b.consumer_project_id)::text AS project_id,
-               p.name AS project_name, b.field_name, b.created_at, b.created_by
+               p.name AS project_name, b.field_name, b.created_at, b.created_by,
+               b.data_connection_id, b.mcp_connector_id, b.llm_provider_install_id,
+               COALESCE(
+                   d.display_name,
+                   m.display_name,
+                   (SELECT NULLIF(ls.display_label, '') FROM llm_provider_sources AS ls
+                     WHERE ls.extension_install_id = b.llm_provider_install_id
+                     ORDER BY ls.created_at LIMIT 1),
+                   b.llm_provider_install_id
+               ) AS consumer_name
           FROM catalog_secret_bindings AS b
           LEFT JOIN project_connections AS c ON c.connection_id = b.project_connection_id
           LEFT JOIN registry_workflows AS w ON w.workflow_id = b.workflow_id
-          LEFT JOIN projects AS p ON p.id = COALESCE(c.project_id, b.consumer_project_id)
+          LEFT JOIN workspace_data_connections AS d ON d.connection_id = b.data_connection_id
+          LEFT JOIN mcp_connectors AS m ON m.connector_id = b.mcp_connector_id
+          LEFT JOIN projects AS p
+            ON p.id = COALESCE(c.project_id, b.consumer_project_id, m.project_id)
          WHERE b.secret_id::text = %s AND b.account_id::text = %s
-         ORDER BY b.consumer_kind, b.project_connection_id, b.workflow_id, b.field_name
+         ORDER BY b.consumer_kind, b.project_connection_id, b.workflow_id,
+                  b.data_connection_id, b.mcp_connector_id, b.llm_provider_install_id,
+                  b.field_name
         """,
         (str(secret_id), str(account_id)),
     )
@@ -304,6 +276,14 @@ def unbind_connection_field(
         (str(connection_id), field_name, str(account_id)),
     )
     return bool(getattr(cur, "rowcount", 0))
+
+
+def delete_binding(cur: Any, *, account_id: str, binding_id: Any) -> None:
+    """Remove one binding by its id (used when its secret is deleted)."""
+    cur.execute(
+        "DELETE FROM catalog_secret_bindings WHERE id::text = %s AND account_id::text = %s",
+        (str(binding_id), str(account_id)),
+    )
 
 
 def lock_connection(

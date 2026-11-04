@@ -26,6 +26,7 @@ from core.application.management.mcp_server_catalog import (
 )
 from core.application.management.mcp_server_catalog_install import (
     McpServerCatalogService,
+    resolve_header_choices,
     resolve_headers,
     resolve_remote_url,
 )
@@ -549,6 +550,39 @@ def test_an_api_token_install_stores_the_header_as_a_bearer_connector(created, s
     assert inp.oauth_config == {}
     assert inp.display_name == "monday.com (monday.com API token)"
     assert result["next_step"] == "sync"
+
+
+def test_an_api_token_install_may_send_a_stored_secret_instead(created, scope) -> None:
+    _service().install(
+        "monday",
+        remote_id="api-token",
+        item_revision=1,
+        scope=scope,
+        header_secret_choices={"authorization": {"secret_id": "s1", "prefix": "Bearer "}},
+    )
+    (inp,) = created.inputs
+    assert inp.auth_mode == "bearer"
+    assert inp.headers == {}
+    # The declared name, not the spelling the form sent.
+    assert {name: choice.model_dump() for name, choice in inp.header_secret_choices.items()} == {
+        "Authorization": {"secret_id": "s1", "prefix": "Bearer "}
+    }
+
+
+def test_a_stored_secret_only_for_a_declared_secret_header() -> None:
+    remote = _remote()
+    with pytest.raises(ServiceValidationError, match="cannot take a stored secret"):
+        resolve_header_choices(remote, {"X-Region": {"secret_id": "s1"}})
+    with pytest.raises(ServiceValidationError, match="cannot take a stored secret"):
+        resolve_header_choices(remote, {"X-Other": {"secret_id": "s1"}})
+    chosen = resolve_header_choices(remote, {"Authorization": {"secret_id": "s1"}})
+    # A chosen header satisfies a required one; typing it as well is refused.
+    assert resolve_headers(remote, {}, chosen) == {}
+    with pytest.raises(ServiceValidationError, match="both a typed value and a stored secret"):
+        resolve_headers(remote, {"Authorization": "Bearer t"}, chosen)
+    oauth = _remote(auth_mode="oauth2", client_registration="dcr")
+    with pytest.raises(ServiceValidationError, match="not used when you sign in with OAuth"):
+        resolve_header_choices(oauth, {"Authorization": {"secret_id": "s1"}})
 
 
 def test_a_changed_entry_is_refused_with_the_current_one(created, scope) -> None:

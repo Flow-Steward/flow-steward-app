@@ -12,7 +12,9 @@ request — and that a stale form is refused:
 * URL variables are checked against their declared choices and, after
   substitution, the host against ``allowed_hosts`` unless the catalog says the
   user defines the host (a self-hosted product);
-* only headers the server record declares are accepted.
+* only headers the server record declares are accepted; a declared secret header
+  may send a stored secret from the catalog instead of a typed value
+  (``header_secret_choices``, bound like the manual form's choices).
 
 A later catalog change never rewrites or removes a connector made here; the
 connector only remembers where it came from (``catalog_item_id``,
@@ -26,7 +28,10 @@ from collections.abc import Callable, Sequence
 from typing import Any
 from urllib.parse import urlsplit
 
-from core.application.management.command_models import McpConnectorCreateInput
+from core.application.management.command_models import (
+    McpConnectorCreateInput,
+    McpHeaderSecretChoice,
+)
 from core.application.management.errors import (
     ServiceConflictError,
     ServiceNotFoundError,
@@ -34,6 +39,10 @@ from core.application.management.errors import (
 )
 from core.application.management.mcp_connector_common import (
     _require_connector_mutation_access,
+)
+from core.application.management.mcp_connector_header_choices import (
+    normalize_header_choices,
+    reject_typed_overlap,
 )
 from core.application.management.mcp_connector_services import (
     McpConnectorCommandService,
@@ -105,8 +114,34 @@ def resolve_remote_url(remote: McpCatalogRemote, variables: dict[str, str]) -> s
     return url
 
 
-def resolve_headers(remote: McpCatalogRemote, headers: dict[str, str]) -> dict[str, str]:
-    """Only declared headers; required ones present; none of them for OAuth sign-in."""
+def resolve_header_choices(
+    remote: McpCatalogRemote, choices: dict[str, Any] | None
+) -> dict[str, McpHeaderSecretChoice]:
+    """Stored-secret choices, only for declared secret headers, under their declared names."""
+    declared = {header.name.lower(): header for header in remote.headers}
+    resolved: dict[str, McpHeaderSecretChoice] = {}
+    for name, choice in normalize_header_choices(choices).items():
+        header = declared.get(name.lower())
+        if header is None or not header.secret:
+            raise _invalid(
+                f"{name} cannot take a stored secret on this server", field=f"headers.{name}"
+            )
+        if remote.auth_mode == "oauth2" and header.name.lower() in _CREDENTIAL_HEADERS:
+            raise _invalid(
+                f"{header.name} is not used when you sign in with OAuth",
+                field=f"headers.{header.name}",
+            )
+        resolved[header.name] = choice
+    return resolved
+
+
+def resolve_headers(
+    remote: McpCatalogRemote,
+    headers: dict[str, str],
+    choices: dict[str, McpHeaderSecretChoice] | None = None,
+) -> dict[str, str]:
+    """Only declared headers; required ones present (typed or chosen); none for OAuth sign-in."""
+    chosen = choices or {}
     declared = {header.name.lower(): header for header in remote.headers}
     resolved: dict[str, str] = {}
     for name, value in (headers or {}).items():
@@ -124,16 +159,17 @@ def resolve_headers(remote: McpCatalogRemote, headers: dict[str, str]) -> dict[s
                 field=f"headers.{header.name}",
             )
         resolved[header.name] = text
+    reject_typed_overlap(resolved, chosen)
     if remote.auth_mode == "headers":
         for header in remote.headers:
-            if header.required and header.name not in resolved:
+            if header.required and header.name not in resolved and header.name not in chosen:
                 raise _invalid(f"{header.name} is required", field=f"headers.{header.name}")
-        if not resolved:
+        if not resolved and not chosen:
             raise _invalid("Enter the credentials this server asks for", field="headers")
     return resolved
 
 
-def _connector_auth_mode(remote: McpCatalogRemote, headers: dict[str, str]) -> str:
+def _connector_auth_mode(remote: McpCatalogRemote, headers: dict[str, Any]) -> str:
     if remote.auth_mode == "oauth2":
         return "oauth2"
     if remote.auth_mode == "headers":
@@ -243,6 +279,7 @@ class McpServerCatalogService:
         display_name: str = "",
         variables: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
+        header_secret_choices: dict[str, Any] | None = None,
         client_id: str = "",
         client_secret: str = "",
         enabled: bool = True,
@@ -263,7 +300,8 @@ class McpServerCatalogService:
         if remote is None:
             raise _invalid(f"{item.title} has no endpoint {remote_id!r}", field="remote_id")
         url = resolve_remote_url(remote, dict(variables or {}))
-        resolved_headers = resolve_headers(remote, dict(headers or {}))
+        chosen_headers = resolve_header_choices(remote, header_secret_choices)
+        resolved_headers = resolve_headers(remote, dict(headers or {}), chosen_headers)
         wants_client = bool(str(client_id or "").strip() or str(client_secret or "").strip())
         if wants_client and remote.auth_mode != "oauth2":
             raise _invalid("Client credentials are only used for OAuth sign-in", field="client_id")
@@ -300,8 +338,9 @@ class McpServerCatalogService:
                 description=item.summary,
                 transport="streamable_http",
                 base_url=url,
-                auth_mode=_connector_auth_mode(remote, resolved_headers),
+                auth_mode=_connector_auth_mode(remote, {**resolved_headers, **chosen_headers}),
                 headers=resolved_headers,
+                header_secret_choices=chosen_headers,
                 oauth_config=oauth_config,
                 enabled=enabled,
                 catalog_item_id=item.item_id,
@@ -361,4 +400,9 @@ class McpServerCatalogService:
         )
 
 
-__all__ = ["McpServerCatalogService", "resolve_headers", "resolve_remote_url"]
+__all__ = [
+    "McpServerCatalogService",
+    "resolve_header_choices",
+    "resolve_headers",
+    "resolve_remote_url",
+]

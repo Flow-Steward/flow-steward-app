@@ -9,6 +9,7 @@ import {
   actionVisibleForRow,
   badgeTone,
   componentQueryParamsForComponent,
+  connectionCatalogBindings,
   connectionSecretRefs,
   deriveHealthStatusFromChecks,
   formatGridValue,
@@ -16,6 +17,7 @@ import {
   manifestQueryValues,
   stringListFromUnknown,
   objectOrEmpty,
+  storedSecretChoiceKey,
   stringFrom,
   valueAtPath,
   visibleIfRows,
@@ -29,7 +31,7 @@ import { DsAlert, DsBadge } from "@/components/shared/design-system";
 import "@/pages/extensions/extension-manifest.css";
 
 import { renderConnectionRow } from "./extension-manifest-connections";
-import { ConnectionSecretFieldBinding } from "./extension-connection-secret-catalog";
+import { ConnectionStoredSecretField } from "./extension-connection-secret-catalog";
 import { connectionDataForValues, manifestFieldIsSecret, manifestFieldPath } from "./connection-form-support";
 import { manifestFieldName, renderManifestField } from "./extension-manifest-fields";
 import {
@@ -308,16 +310,18 @@ export function renderManifestComponent(
               const fieldPath = manifestFieldPath(field);
               // OAuth grant values belong to the platform, never to the catalog.
               if (oauthConnection || !fieldPath || !manifestFieldIsSecret(field, secretFieldPaths)) return rendered;
+              const choiceKey = storedSecretChoiceKey(fieldPath);
               return (
-                <div key={`${fieldPath}-with-catalog`}>
+                <ConnectionStoredSecretField
+                  boundSecretId={connectionCatalogBindings(objectOrEmpty(selectedRow).secret_refs)[fieldPath] ?? ""}
+                  choice={choiceKey in effectiveValues ? stringFrom(effectiveValues[choiceKey]) : undefined}
+                  field={fieldPath}
+                  fieldLabel={stringFrom(field.label || fieldPath)}
+                  key={`${fieldPath}-with-catalog`}
+                  onChoose={(secretId) => context.onFieldChange(componentId, choiceKey, secretId)}
+                >
                   {rendered}
-                  <ConnectionSecretFieldBinding
-                    field={fieldPath}
-                    fieldLabel={stringFrom(field.label || fieldPath)}
-                    projectId={context.projectId}
-                    row={selectedRow}
-                  />
-                </div>
+                </ConnectionStoredSecretField>
               );
             })}
           </div>

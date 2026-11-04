@@ -1,7 +1,7 @@
 """Catalog secrets in workflow inputs: binding, status and approval (ADR 0057, 2b).
 
 The workflow half of `SecretCatalogService`, kept in its own module; the service
-provides `_transaction`, `_owner_scope`, `_secret_in_scope` and `_audit`.
+provides `_transaction`, `_project_in_scope`, `_secret_in_scope` and `_audit`.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from core.application.secrets.authority import (
     require_approval_authority,
     require_secret_bind,
     require_secret_read_metadata,
+    require_secret_write,
 )
 
 
@@ -34,28 +35,21 @@ def _validated_field(value: Any) -> str:
     return validated(value)
 
 
-def secret_available_to(secret: dict[str, Any], *, project_id: str, workspace_id: str) -> bool:
-    from core.application.secrets.service import secret_available_to as available
-
-    return available(secret, project_id=project_id, workspace_id=workspace_id)
-
-
 class WorkflowSecretInputsMixin:
     """Bind, unbind, list and approve the catalog secrets of workflow secret inputs."""
 
     _transaction: Any
-    _owner_scope: Any
+    _project_in_scope: Any
     _secret_in_scope: Any
     _audit: Any
+    _store_value: Any
 
     def _workflow_in_project(
         self, conn: Any, cur: Any, scope: ScopeContext, workflow_id: Any, project_id: Any
     ) -> dict[str, Any]:
         from core.application.secrets.workflow_gate import current_definition, workflow_row
 
-        _workspace, owner_project = self._owner_scope(
-            cur, scope, project_id=project_id, workspace_id=None
-        )
+        owner_project = self._project_in_scope(cur, scope, project_id)
         cur.execute(
             """
             SELECT 1 FROM project_workflows
@@ -88,6 +82,36 @@ class WorkflowSecretInputsMixin:
             if isinstance(row, dict) and _text(row.get("type")).lower() == "secret"
         }
 
+    def _bind_input(
+        self,
+        cur: Any,
+        scope: ScopeContext,
+        found: dict[str, Any],
+        workflow_id: Any,
+        field: str,
+        secret_id: str,
+        actor: str,
+    ) -> None:
+        cur.execute(
+            """
+            INSERT INTO catalog_secret_bindings (
+                account_id, secret_id, consumer_kind, workflow_id, consumer_project_id,
+                field_name, created_by
+            ) VALUES (%s, %s, 'workflow_input', %s, %s, %s, %s)
+            ON CONFLICT (workflow_id, field_name)
+            DO UPDATE SET secret_id = EXCLUDED.secret_id,
+                          consumer_project_id = EXCLUDED.consumer_project_id,
+                          created_at = now(), created_by = EXCLUDED.created_by
+            """,
+            (scope.account_id, secret_id, _text(workflow_id), found["project_id"], field, actor),
+        )
+        self._audit(
+            cur,
+            scope,
+            "bind",
+            {"secret_id": secret_id, "workflow_id": _text(workflow_id), "field": field},
+        )
+
     def bind_workflow_input(
         self, workflow_id: Any, scope: ScopeContext, *, project_id: Any, field: Any, secret_id: Any
     ) -> dict[str, Any]:
@@ -102,45 +126,82 @@ class WorkflowSecretInputsMixin:
                     f"'{validated_field}' is not a secret input of this workflow"
                 )
             secret = self._secret_in_scope(cur, scope, secret_id, lock=True)
-            project = repository.project_scope(
-                cur, account_id=scope.account_id, project_id=found["project_id"]
-            )
-            if not project or not secret_available_to(
-                secret, project_id=project["project_id"], workspace_id=project["workspace_id"]
-            ):
+            self._bind_input(cur, scope, found, workflow_id, validated_field, secret["id"], actor)
+        return self.workflow_approval_status(workflow_id, scope, project_id=project_id)
+
+    def save_workflow_input_value(
+        self, workflow_id: Any, scope: ScopeContext, *, project_id: Any, field: Any, value: Any
+    ) -> dict[str, Any]:
+        """A value typed into a secret input: kept as a catalog secret and bound to it.
+
+        Like a value typed into a connection field, it is one catalog operation, never a
+        private copy, so it shows in Registry → Secrets and can be chosen elsewhere. A
+        bound secret that only this input uses gets the new value; one that other places
+        use keeps its value, and a new secret named after the workflow and the input is
+        created and bound instead.
+        """
+        from core.application.secrets.service import _MAX_NAME, _validated_value
+
+        require_secret_write(scope)
+        require_secret_bind(scope)
+        validated_field = _validated_field(field)
+        validated_value = _validated_value(value)
+        _kind, actor = actor_identity(scope)
+        with self._transaction() as (conn, cur):
+            found = self._workflow_in_project(conn, cur, scope, workflow_id, project_id)
+            if validated_field not in self._secret_input_names(found["workflow"]):
                 raise ServiceValidationError(
-                    "This secret is not available to the workflow's project"
+                    f"'{validated_field}' is not a secret input of this workflow"
                 )
             cur.execute(
                 """
-                INSERT INTO catalog_secret_bindings (
-                    account_id, secret_id, consumer_kind, workflow_id, consumer_project_id,
-                    field_name, created_by
-                ) VALUES (%s, %s, 'workflow_input', %s, %s, %s, %s)
-                ON CONFLICT (workflow_id, field_name)
-                DO UPDATE SET secret_id = EXCLUDED.secret_id,
-                              consumer_project_id = EXCLUDED.consumer_project_id,
-                              created_at = now(), created_by = EXCLUDED.created_by
+                SELECT b.secret_id::text,
+                       (SELECT count(*) FROM catalog_secret_bindings AS other
+                         WHERE other.secret_id = b.secret_id)
+                  FROM catalog_secret_bindings AS b
+                 WHERE b.consumer_kind = 'workflow_input' AND b.workflow_id = %s
+                   AND b.field_name = %s AND b.account_id::text = %s
+                 FOR UPDATE OF b
                 """,
-                (
-                    scope.account_id,
-                    secret["id"],
-                    _text(workflow_id),
-                    found["project_id"],
-                    validated_field,
-                    actor,
-                ),
+                (_text(workflow_id), validated_field, scope.account_id),
             )
-            self._audit(
+            row = cur.fetchone()
+            values = list(row.values()) if isinstance(row, dict) else list(row or [])
+            if values and int(values[1] or 0) == 1:
+                secret = self._secret_in_scope(cur, scope, values[0], lock=True)
+                self._store_value(
+                    conn,
+                    account_id=scope.account_id,
+                    storage_ref_key=secret["storage_ref_key"],
+                    value=validated_value,
+                )
+                repository.touch_value(
+                    cur, account_id=scope.account_id, secret_id=secret["id"], actor=actor
+                )
+                self._audit(cur, scope, "replace_value", {"secret_id": secret["id"]})
+                return self.workflow_approval_status(workflow_id, scope, project_id=project_id)
+            cur.execute(
+                "SELECT display_name FROM registry_workflows WHERE workflow_id = %s",
+                (_text(workflow_id),),
+            )
+            named = cur.fetchone()
+            display = named.get("display_name") if isinstance(named, dict) else (named or [""])[0]
+            label = _text(display) or _text(workflow_id)
+            secret = repository.insert_secret(
                 cur,
-                scope,
-                "bind",
-                {
-                    "secret_id": secret["id"],
-                    "workflow_id": _text(workflow_id),
-                    "field": validated_field,
-                },
+                account_id=scope.account_id,
+                name=f"{label} / {validated_field}"[:_MAX_NAME],
+                description="",
+                actor=actor,
             )
+            self._store_value(
+                conn,
+                account_id=scope.account_id,
+                storage_ref_key=secret["storage_ref_key"],
+                value=validated_value,
+            )
+            self._audit(cur, scope, "create", {"secret_id": secret["id"]})
+            self._bind_input(cur, scope, found, workflow_id, validated_field, secret["id"], actor)
         return self.workflow_approval_status(workflow_id, scope, project_id=project_id)
 
     def unbind_workflow_input(
@@ -246,9 +307,7 @@ class WorkflowSecretInputsMixin:
         """
         require_secret_read_metadata(scope)
         with self._transaction() as (conn, cur):
-            _workspace, owner_project = self._owner_scope(
-                cur, scope, project_id=project_id, workspace_id=None
-            )
+            owner_project = self._project_in_scope(cur, scope, project_id)
             cur.execute(
                 """
                 SELECT pw.workflow_id, COALESCE(w.display_name, pw.workflow_id) AS display_name

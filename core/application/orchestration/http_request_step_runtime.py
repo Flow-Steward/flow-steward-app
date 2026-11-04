@@ -8,6 +8,11 @@ from urllib.parse import urlparse
 
 import httpx
 
+from core.application.orchestration.http_request_auth import (
+    _input_auth_headers_and_object,
+    _presented_input_auth,
+    _validate_static_https_auth_origin,
+)
 from core.application.orchestration.http_response_decoding import (
     RESPONSE_TEXT_EXCERPT_CHARS,
     _bounded_prefix,
@@ -177,55 +182,6 @@ def _reject_blocked_response_peer(response: httpx.Response) -> None:
             f"http_request step url host '{parsed.hostname or ''}' connected to disallowed address '{peer_host}'",
             request=response.request,
         )
-
-
-def _effective_port(parsed: Any) -> int:
-    if parsed.port:
-        return int(parsed.port)
-    return 443 if str(parsed.scheme).lower() == "https" else 80
-
-
-def _origin_tuple(url: str) -> tuple[str, str, int]:
-    parsed = urlparse(str(url or ""))
-    host = str(parsed.hostname or "").strip()
-    return (
-        str(parsed.scheme or "").lower(),
-        host.encode("idna").decode("ascii").lower(),
-        _effective_port(parsed),
-    )
-
-
-def _template_in_authority_or_scheme(url_template: str) -> bool:
-    text = str(url_template or "").strip()
-    marker = "{{"
-    scheme_idx = text.find("://")
-    if scheme_idx < 0:
-        return marker in text
-    authority = text[scheme_idx + 3 :].split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
-    return marker in text[:scheme_idx] or marker in authority
-
-
-def _validate_static_https_auth_origin(
-    url_template: str, rendered_url: str
-) -> tuple[str, str, int]:
-    if _template_in_authority_or_scheme(url_template):
-        raise ValueError("authenticated http_request url scheme and authority must be static")
-    literal = urlparse(str(url_template or "").strip())
-    if str(literal.scheme or "").lower() != "https":
-        raise ValueError("authenticated http_request url must use https")
-    if literal.username or literal.password:
-        raise ValueError("authenticated http_request url must not contain userinfo")
-    if not literal.hostname:
-        raise ValueError("authenticated http_request url requires a host")
-    origin = _origin_tuple(url_template)
-    rendered = urlparse(str(rendered_url or "").strip())
-    if rendered.username or rendered.password:
-        raise ValueError("authenticated http_request rendered url must not contain userinfo")
-    if _origin_tuple(rendered_url) != origin:
-        raise ValueError(
-            "authenticated http_request rendered url origin does not match configured origin"
-        )
-    return origin
 
 
 def _redact_request_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -652,11 +608,15 @@ def _execute_http_request_step(
     secret_boundary.public_control(
         render_http_value(config.get("artifact_filename"), runtime_state)
     )
+    auth_ref = str(config.get("auth_ref") or "").strip()
+    input_auth = _presented_input_auth(auth_mode=auth_mode, auth_ref=auth_ref, state=runtime_state)
     presented = {
         "headers": render_http_value(config.get("headers") or {}, runtime_state),
         "query_params": render_http_value(config.get("query_params") or {}, runtime_state),
         "body": render_http_value(_request_body_template(config), runtime_state),
     }
+    if input_auth is not None:
+        presented["auth"] = input_auth
     if has_http_secret(presented):
         secret_boundary.has_references = True
         secret_boundary.check_origin(
@@ -668,11 +628,12 @@ def _execute_http_request_step(
     rendered_body = dispatch["body"]
     public_payload = secret_boundary.metadata(presented)
 
-    auth_headers, auth_obj = _resolve_auth_headers_and_object(
-        auth_mode=auth_mode,
-        auth_ref=str(config.get("auth_ref") or "").strip(),
-        state=runtime_state,
-    )
+    if input_auth is not None:
+        auth_headers, auth_obj = _input_auth_headers_and_object(auth_mode, dispatch["auth"])
+    else:
+        auth_headers, auth_obj = _resolve_auth_headers_and_object(
+            auth_mode=auth_mode, auth_ref=auth_ref, state=runtime_state
+        )
     merged_headers = {**rendered_headers, **auth_headers}
     if not any(str(key).lower() == "accept-encoding" for key in merged_headers):
         merged_headers["Accept-Encoding"] = "gzip, deflate"

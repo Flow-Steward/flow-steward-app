@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -237,20 +236,31 @@ class ExtensionInstallRuntimeService:
         runtime_snapshot: dict[str, Any],
     ) -> str:
         try:
-            from core.application.auth.secrets import decrypt_secret
+            from core.application.settings import llm_provider_catalog_refs as catalog_refs
             from core.application.settings import llm_provider_extension_repository as llm_store
             from core.application.settings.llm_provider_extension_service import credential_ref_key
 
             logger_connection = getattr(self._context.logger(), "conn", None)
+            chosen_refs: Any = {}
             if runtime_snapshot:
                 ref_key = _normalize_text(runtime_snapshot.get("credential_secret_ref"))
                 ciphertext = str(runtime_snapshot.get("encrypted_value") or "")
+                chosen_refs = runtime_snapshot.get(catalog_refs.CATALOG_REFS_KEY)
             elif logger_connection is not None:
                 ref_key, ciphertext = llm_store.get_install_current_credential_snapshot(
                     logger_connection,
                     account_id=account_id,
                     extension_install_id=install_record.install_id,
                 )
+                try:
+                    chosen_refs = catalog_refs.read_catalog_refs(
+                        logger_connection,
+                        account_id=account_id,
+                        install_id=install_record.install_id,
+                    )
+                except Exception:
+                    # A chosen name keeps no typed copy, so nothing stale is used.
+                    chosen_refs = {}
             else:
                 ref_key, ciphertext = "", ""
             if not ref_key and not runtime_snapshot and logger_connection is not None:
@@ -260,13 +270,15 @@ class ExtensionInstallRuntimeService:
                     account_id=account_id,
                     ref_key=ref_key,
                 )
-            if ciphertext:
-                credentials = json.loads(decrypt_secret(ciphertext))
-                return str(
-                    credentials.get("runtime_bearer_token", "")
-                    if isinstance(credentials, dict)
-                    else ""
-                ).strip()
+            if ciphertext or chosen_refs:
+                # The runtime bearer may itself be a stored secret (ADR 0057).
+                credentials = catalog_refs.effective_credentials(
+                    logger_connection,
+                    account_id=account_id,
+                    ciphertext=ciphertext,
+                    catalog_refs=chosen_refs,
+                )
+                return str(credentials.get("runtime_bearer_token", "") or "").strip()
         except Exception:
             return ""
         return ""

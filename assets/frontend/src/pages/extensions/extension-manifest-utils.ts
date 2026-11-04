@@ -432,6 +432,31 @@ export function manifestAnchorDomId(pageId: unknown, anchorId: unknown): string 
 }
 
 /** The secret fields a saved connection already holds, by field path. */
+/**
+ * The form value that holds a stored secret chosen for a credential field (ADR 0057):
+ * the field's path behind a prefix no manifest field can use. Present means the person
+ * chose ("" = type a value instead); absent means the field keeps what it has.
+ */
+export const STORED_SECRET_CHOICE_PREFIX = "__stored_secret__:"; // pragma: allowlist secret - a form value prefix
+
+export function storedSecretChoiceKey(path: string): string {
+  return `${STORED_SECRET_CHOICE_PREFIX}${path}`;
+}
+
+/** Field → catalog secret id, as the connection's refs projection records it. */
+export function connectionCatalogBindings(value: unknown): Record<string, string> {
+  let refs: unknown = value;
+  if (typeof refs === "string") {
+    try { refs = JSON.parse(refs); } catch { refs = {}; }
+  }
+  const catalog = objectOrEmpty(objectOrEmpty(refs).catalog);
+  return Object.fromEntries(
+    Object.entries(catalog)
+      .map(([field, id]) => [stringFrom(field), stringFrom(id)] as const)
+      .filter(([field, id]) => Boolean(field && id)),
+  );
+}
+
 export function connectionSecretRefs(value: unknown): Record<string, string> {
   const refs = objectOrEmpty(objectOrEmpty(value).refs);
   return Object.fromEntries(

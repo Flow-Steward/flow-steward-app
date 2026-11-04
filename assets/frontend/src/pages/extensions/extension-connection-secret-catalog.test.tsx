@@ -1,17 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { HttpError } from "@/lib/http/errors";
 import {
   approveConnectionSecretUse,
-  bindConnectionFieldSecret,
   fetchConnectionSecretApproval,
-  unbindConnectionFieldSecret,
   type SecretApprovalStatus,
 } from "@/pages/projects/connections/api";
 import { createCatalogSecret, fetchCatalogSecrets } from "@/pages/registry/secrets/api";
-import { ConnectionSecretApprovalStatus, ConnectionSecretFieldBinding } from "./extension-connection-secret-catalog";
+import { ConnectionSecretApprovalStatus, ConnectionStoredSecretField } from "./extension-connection-secret-catalog";
 import type { ManifestRenderContext } from "./extension-manifest-render-model";
 import { renderManifestComponent } from "./extension-manifest-renderer";
 
@@ -22,15 +20,13 @@ vi.mock("@/pages/projects/connections/api", () => ({
   unbindConnectionFieldSecret: vi.fn(),
 }));
 vi.mock("@/pages/registry/secrets/api", () => ({
-  catalogSecretsQueryKey: (projectId: string) => ["secrets", "project", projectId],
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
   fetchCatalogSecrets: vi.fn(),
   createCatalogSecret: vi.fn(),
 }));
 
 const mockedStatus = vi.mocked(fetchConnectionSecretApproval);
 const mockedApprove = vi.mocked(approveConnectionSecretUse);
-const mockedBind = vi.mocked(bindConnectionFieldSecret);
-const mockedUnbind = vi.mocked(unbindConnectionFieldSecret);
 const mockedSecrets = vi.mocked(fetchCatalogSecrets);
 const mockedCreate = vi.mocked(createCatalogSecret);
 
@@ -59,63 +55,63 @@ function renderWithClient(node: ReactNode) {
   return render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
 }
 
-describe("ConnectionSecretFieldBinding", () => {
+describe("ConnectionStoredSecretField", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedSecrets.mockResolvedValue([
-      { id: "s1", name: "Shop token", description: "", owner: "project", workspace_id: "w1", project_id: "p1" },
-      { id: "s2", name: "Shared token", description: "", owner: "workspace", workspace_id: "w1", project_id: null },
+      { id: "s1", name: "Shop token", description: "" },
+      { id: "s2", name: "Shared token", description: "Mail" },
     ]);
-    mockedBind.mockResolvedValue(approval());
-    mockedUnbind.mockResolvedValue(approval({ status: "not_required", secrets: [] }));
   });
 
-  it("asks for a saved connection before a stored secret can be chosen", () => {
-    render(<ConnectionSecretFieldBinding field="api_token" fieldLabel="API token" projectId="p1" row={null} />);
-
-    expect(screen.getByText(/After the connection is saved/)).toBeInTheDocument();
-  });
-
-  it("asks the catalog nothing until the person chooses to use an existing secret, then binds it", async () => {
-    renderWithClient(<ConnectionSecretFieldBinding field="api_token" fieldLabel="API token" projectId="p1" row={unboundRow} />);
-    expect(mockedSecrets).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Use an existing secret" }));
-    const choose = await screen.findByRole("combobox", { name: "Stored secret for API token" });
+  it("offers the stored secrets in the field itself, on a new connection too", async () => {
+    const onChoose = vi.fn();
+    renderWithClient(
+      <ConnectionStoredSecretField boundSecretId="" choice={undefined} field="api_token" fieldLabel="API token" onChoose={onChoose}>
+        <input aria-label="API token" />
+      </ConnectionStoredSecretField>,
+    );
+    expect(screen.getByLabelText("API token")).toBeInTheDocument();
+    const choose = screen.getByRole("combobox", { name: "Stored secret for API token" });
     await waitFor(() => expect(choose).toBeEnabled());
     fireEvent.click(choose);
+    // A long list is searchable: typing narrows it to the matching secrets.
+    fireEvent.change(await screen.findByLabelText("Stored secret for API token Search"), { target: { value: "shared" } });
+    await waitFor(() => expect(screen.queryByRole("option", { name: /^Shop token/ })).not.toBeInTheDocument());
     fireEvent.click(await screen.findByRole("option", { name: /^Shared token/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Use this secret" }));
-
-    await waitFor(() => expect(mockedBind).toHaveBeenCalledWith("p1", "c1", "api_token", "s2"));
-    expect(screen.getByRole("link", { name: /Manage stored secrets/ })).toHaveAttribute("href", "/registry/secrets");
+    expect(onChoose).toHaveBeenCalledWith("s2");
   });
 
-  it("creates a project secret in place for a connection field and binds it", async () => {
-    mockedCreate.mockResolvedValue({ id: "s9", name: "New token", description: "", owner: "project", workspace_id: "w1", project_id: "p1" });
-    renderWithClient(<ConnectionSecretFieldBinding field="api_token" fieldLabel="API token" projectId="p1" row={unboundRow} />);
-    fireEvent.click(screen.getByRole("button", { name: "Use an existing secret" }));
+  it("hides the typed value while a stored secret is chosen and says it applies on save", async () => {
+    const onChoose = vi.fn();
+    renderWithClient(
+      <ConnectionStoredSecretField boundSecretId="" choice="s1" field="api_token" fieldLabel="API token" onChoose={onChoose}>
+        <input aria-label="API token" />
+      </ConnectionStoredSecretField>,
+    );
+    expect(screen.queryByLabelText("API token")).not.toBeInTheDocument();
+    expect(screen.getByText("Applied when you save the connection.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop using the stored secret for API token" }));
+    expect(onChoose).toHaveBeenCalledWith("");
+  });
 
-    fireEvent.change(await screen.findByLabelText("Secret name"), { target: { value: "New token" } });
-    fireEvent.change(screen.getByLabelText("Value of the new secret for API token"), { target: { value: "typed-value" } });
-    const create = screen.getByRole("button", { name: "Create and use" });
-    await waitFor(() => expect(create).toBeEnabled());
-    fireEvent.click(create);
+  it("creates a secret in the standard dialog and chooses it", async () => {
+    mockedCreate.mockResolvedValue({ id: "s9", name: "New token", description: "" });
+    const onChoose = vi.fn();
+    renderWithClient(
+      <ConnectionStoredSecretField boundSecretId="" choice={undefined} field="api_token" fieldLabel="API token" onChoose={onChoose}>
+        <input aria-label="API token" />
+      </ConnectionStoredSecretField>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "New secret for API token" }));
+    const dialog = await screen.findByRole("dialog", { name: "New secret" });
+    fireEvent.change(within(dialog).getByLabelText("Value"), { target: { value: "typed-value" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create secret" }));
 
     await waitFor(() =>
-      expect(mockedCreate).toHaveBeenCalledWith({ name: "New token", description: "", value: "typed-value", project_id: "p1" }),
+      expect(mockedCreate).toHaveBeenCalledWith({ name: "API token", description: "", value: "typed-value" }),
     );
-    await waitFor(() => expect(mockedBind).toHaveBeenCalledWith("p1", "c1", "api_token", "s9"));
-  });
-
-  it("shows the bound secret and removes the binding", async () => {
-    renderWithClient(<ConnectionSecretFieldBinding field="api_token" fieldLabel="API token" projectId="p1" row={boundRow} />);
-
-    expect(await screen.findByText("Shop token")).toBeInTheDocument();
-    expect(screen.getByText(/replaces this stored secret's value everywhere/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Stop using the stored secret for API token" }));
-
-    await waitFor(() => expect(mockedUnbind).toHaveBeenCalledWith("p1", "c1", "api_token"));
+    await waitFor(() => expect(onChoose).toHaveBeenCalledWith("s9"));
   });
 });
 
@@ -168,9 +164,7 @@ describe("ConnectionSecretApprovalStatus", () => {
 describe("connection form with stored secrets", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedSecrets.mockResolvedValue([
-      { id: "s1", name: "Shop token", description: "", owner: "project", workspace_id: "w1", project_id: "p1" },
-    ]);
+    mockedSecrets.mockResolvedValue([{ id: "s1", name: "Shop token", description: "" }]);
     mockedStatus.mockResolvedValue(approval());
   });
 
@@ -208,8 +202,39 @@ describe("connection form with stored secrets", () => {
     expect(await screen.findByText("stored secrets need approval")).toBeInTheDocument();
     expect(screen.getByTestId("connection-secret-binding-api_token")).toBeInTheDocument();
     expect(screen.queryByTestId("connection-secret-binding-display_name")).not.toBeInTheDocument();
+    // The bound secret is shown as the field's choice; switching to typing is a form change.
     expect(await screen.findByText("Shop token")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop using the stored secret for API token" }));
+    expect(onFieldChange).toHaveBeenCalledWith("shop", "__stored_secret__:api_token", "");
+  });
 
+  it("types a value into a credential field that uses no stored secret", () => {
+    const onFieldChange = vi.fn();
+    const row = { ...unboundRow, extension_id: "fixture.shop", connection_type: "shop_api" };
+    const context = {
+      busy: false, canManageProject: true, connectionCreationBlockedReason: "", callbacks: [], callbackStatuses: {},
+      componentErrors: {}, componentQueryData: {}, componentQueryParams: {}, extensionId: "fixture.shop",
+      extensionInstallId: "", extensionReleaseId: "", extensionDescriptorSha256: "",
+      formValuesByComponent: { shop: { connection_id: "c1" } }, oauthConnectionTypes: [], projectConnections: [row],
+      projectId: "p1", projectState: [], onCallbackSetup: vi.fn(), onComponentQueryParamsChange: vi.fn(),
+      onConnectionDelete: vi.fn(), onConnectionOAuth: vi.fn(), onConnectionOAuthDisconnect: vi.fn(), onConnectionSave: vi.fn(),
+      onConnectionSelect: vi.fn(), onFieldChange, onExternalResourcePickerBootstrap: async () => ({}), onManifestAction: vi.fn(),
+      onProjectStateDelete: vi.fn(), onProjectStateSave: vi.fn(), onProjectStateSelect: vi.fn(),
+    } satisfies ManifestRenderContext;
+    renderWithClient(
+      <>
+        {renderManifestComponent(
+          {
+            component_id: "shop",
+            type: "connection_form",
+            title: "Shop connections",
+            data: { connection_type: "shop_api", secret_fields: ["api_token"] },
+            fields: [{ path: "api_token", label: "API token", widget: "secret" }],
+          },
+          context,
+        )}
+      </>,
+    );
     fireEvent.change(screen.getByLabelText("API token"), { target: { value: "typed" } });
     expect(onFieldChange).toHaveBeenCalledWith("shop", "api_token", "typed");
   });

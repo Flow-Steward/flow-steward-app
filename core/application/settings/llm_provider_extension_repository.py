@@ -850,7 +850,9 @@ def get_install_runtime_credential_snapshot(
                        source.credential_secret_ref,
                        install.config_jsonb ->> 'llm_provider_credential_secret_ref'
                    ) AS credential_secret_ref,
-                   secret.encrypted_value
+                   secret.encrypted_value,
+                   install.config_jsonb -> 'llm_provider_catalog_refs'
+                       AS llm_provider_catalog_refs
               FROM extension_installs AS install
          LEFT JOIN LATERAL (
                    SELECT credential_secret_ref

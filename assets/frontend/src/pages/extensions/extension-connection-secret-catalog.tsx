@@ -1,39 +1,22 @@
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 import { DsAlert, DsBadge, DsValueChip } from "@/components/shared/design-system-primitives";
 import { Button } from "@/components/ui/button";
 import { isHttpError } from "@/lib/http/errors";
-import { objectOrEmpty, stringFrom } from "@/pages/extensions/extension-manifest-utils";
-import {
-  approveConnectionSecretUse,
-  bindConnectionFieldSecret,
-  fetchConnectionSecretApproval,
-  unbindConnectionFieldSecret,
-} from "@/pages/projects/connections/api";
-import { CatalogSecretPicker } from "@/pages/registry/secrets/catalog-secret-picker";
+import { connectionCatalogBindings, stringFrom } from "@/pages/extensions/extension-manifest-utils";
+import { approveConnectionSecretUse, fetchConnectionSecretApproval } from "@/pages/projects/connections/api";
+import { StoredSecretSelect } from "@/pages/registry/secrets/stored-secret-select";
 
 /**
  * Catalog secrets in an extension connection's credential fields (ADR 0057).
  *
- * Choosing a stored secret binds it through its own request; typing a value in
- * the field keeps saving through the connection's secrets endpoint as before.
+ * A chosen stored secret is bound when the connection is saved; a typed value keeps
+ * saving through the connection's secrets endpoint as before.
  */
-
-/** Field → catalog secret id, as the connection's refs projection records it. */
-function catalogBindings(row: Record<string, unknown> | null | undefined): Record<string, string> {
-  let refs: unknown = row?.secret_refs;
-  if (typeof refs === "string") {
-    try { refs = JSON.parse(refs); } catch { refs = {}; }
-  }
-  const catalog = objectOrEmpty(objectOrEmpty(refs).catalog);
-  return Object.fromEntries(
-    Object.entries(catalog).map(([field, id]) => [field, stringFrom(id)] as const).filter(([field, id]) => Boolean(field && id)),
-  );
-}
 
 function useConnectionSecretRefresh(projectId: string) {
   const queryClient = useQueryClient();
@@ -46,87 +29,42 @@ function useConnectionSecretRefresh(projectId: string) {
   };
 }
 
-type ConnectionSecretFieldBindingProps = Readonly<{
-  projectId: string;
-  /** The saved connection, or null while the form creates a new one. */
-  row: Record<string, unknown> | null | undefined;
+type ConnectionStoredSecretFieldProps = Readonly<{
   field: string;
   fieldLabel: string;
+  /** The stored secret the saved connection uses for this field, or "". */
+  boundSecretId: string;
+  /** The person's choice in this form: undefined keeps the saved one. */
+  choice: string | undefined;
+  onChoose: (secretId: string) => void;
+  /** The typed-value control, shown while no stored secret is chosen. */
+  children: ReactNode;
 }>;
 
 /**
- * Next to a credential field: use a stored secret from the catalog instead of
- * typing one. Nothing here talks to the server until the person asks for it or
- * the field already uses a stored secret.
+ * A credential field of an extension connection: choose a stored secret from the
+ * catalog, or type a value. The choice is part of the form and is bound when the
+ * connection is saved, new connections included (ADR 0057).
  */
-export function ConnectionSecretFieldBinding({ projectId, row, field, fieldLabel }: ConnectionSecretFieldBindingProps) {
+export function ConnectionStoredSecretField({ field, fieldLabel, boundSecretId, choice, onChoose, children }: ConnectionStoredSecretFieldProps) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const connectionId = stringFrom(row?.connection_id);
-  const boundSecretId = catalogBindings(row)[field] ?? "";
-  if (!projectId || !field) return null;
-  if (!connectionId) {
-    return (
-      <p className="fs-field-helper">
-        {t("react.extensions.secret_catalog.save_first", "After the connection is saved, you can use a stored secret for this field instead.")}
-      </p>
-    );
-  }
-  if (!boundSecretId && !open) {
-    return (
-      <div>
-        <Button onClick={() => setOpen(true)} size="sm" type="button" variant="ghost">
-          <KeyRound className="h-3.5 w-3.5" />
-          {t("react.extensions.secret_catalog.use_existing", "Use an existing secret")}
-        </Button>
-      </div>
-    );
-  }
-  return (
-    <ConnectionSecretFieldPicker
-      boundSecretId={boundSecretId}
-      connectionId={connectionId}
-      field={field}
-      fieldLabel={fieldLabel}
-      projectId={projectId}
-    />
-  );
-}
-
-function ConnectionSecretFieldPicker({
-  projectId,
-  connectionId,
-  field,
-  fieldLabel,
-  boundSecretId,
-}: Readonly<{ projectId: string; connectionId: string; field: string; fieldLabel: string; boundSecretId: string }>) {
-  const { t } = useI18n();
-  const refresh = useConnectionSecretRefresh(projectId);
-  const bind = useMutation({
-    mutationFn: (secretId: string) => bindConnectionFieldSecret(projectId, connectionId, field, secretId),
-    onSuccess: refresh,
-  });
-  const unbind = useMutation({
-    mutationFn: () => unbindConnectionFieldSecret(projectId, connectionId, field),
-    onSuccess: refresh,
-  });
+  const value = choice ?? boundSecretId;
+  const changed = choice !== undefined && choice !== boundSecretId;
   return (
     <div data-testid={`connection-secret-binding-${field}`}>
-      {boundSecretId ? (
-        <p className="fs-field-helper">
-          {t("react.extensions.secret_catalog.bound_help", "A value typed above replaces this stored secret's value everywhere it is used.")}
-        </p>
-      ) : null}
-      {/* Created in place as a project secret and bound at once (ADR 0057). */}
-      <CatalogSecretPicker
-        allowCreate
-        boundSecretId={boundSecretId}
-        busy={bind.isPending || unbind.isPending}
-        error={bind.error || unbind.error}
+      {/* The typed-value control carries the field's label; while a stored secret is chosen the label stays. */}
+      {value ? <span className="fs-field-label">{fieldLabel}</span> : children}
+      <StoredSecretSelect
         fieldLabel={fieldLabel}
-        onChoose={(secretId) => bind.mutateAsync(secretId)}
-        onRemove={() => unbind.mutate()}
-        projectId={projectId}
+        helper={
+          changed
+            ? t("react.extensions.secret_catalog.applied_on_save", "Applied when you save the connection.")
+            : value
+              ? t("react.extensions.secret_catalog.uses_stored", "Uses this stored secret. Replace its value in Registry → Secrets.")
+              : undefined
+        }
+        onChange={onChoose}
+        value={value}
       />
     </div>
   );
@@ -143,7 +81,7 @@ type ConnectionSecretApprovalStatusProps = Readonly<{
  */
 export function ConnectionSecretApprovalStatus({ projectId, row }: ConnectionSecretApprovalStatusProps) {
   const connectionId = stringFrom(row.connection_id);
-  const bindingsKey = JSON.stringify(catalogBindings(row));
+  const bindingsKey = JSON.stringify(connectionCatalogBindings(row.secret_refs));
   // A connection that uses no stored secret has nothing to approve and asks nothing.
   if (!projectId || !connectionId || bindingsKey === "{}") return null;
   return <ConnectionSecretApproval bindingsKey={bindingsKey} connectionId={connectionId} projectId={projectId} row={row} />;

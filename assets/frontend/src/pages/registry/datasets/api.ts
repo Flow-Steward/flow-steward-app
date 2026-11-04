@@ -85,6 +85,8 @@ export type DataConnectionRecord = {
   connection_config_jsonb?: Record<string, unknown>;
   secret_refs_jsonb?: Record<string, unknown>;
   metadata_jsonb?: Record<string, unknown>;
+  /** Secret field -> the stored secret it uses (ADR 0057); names only, never values. */
+  secret_choices?: Record<string, string>;
 };
 
 export type DataConnectionPayload = {
@@ -99,6 +101,8 @@ export type DataConnectionPayload = {
   connection_config_jsonb?: Record<string, unknown>;
   secret_refs_jsonb?: Record<string, unknown>;
   metadata_jsonb?: Record<string, unknown>;
+  /** Secret field -> stored secret id chosen instead of a typed value; "" stops using it. */
+  secret_choices?: Record<string, string>;
 };
 
 export type ProjectDatasetCatalog = {
@@ -235,6 +239,11 @@ function normalizeDataConnection(row: Record<string, unknown>): DataConnectionRe
     connection_config_jsonb: isRecord(row.connection_config_jsonb) ? row.connection_config_jsonb : {},
     secret_refs_jsonb: isRecord(row.secret_refs_jsonb) ? row.secret_refs_jsonb : {},
     metadata_jsonb: isRecord(row.metadata_jsonb) ? row.metadata_jsonb : {},
+    secret_choices: isRecord(row.secret_choices)
+      ? Object.fromEntries(
+          Object.entries(row.secret_choices).map(([field, id]) => [field, firstStringFromUnknownValue([id, ""])] as const),
+        )
+      : {},
   };
 }
 

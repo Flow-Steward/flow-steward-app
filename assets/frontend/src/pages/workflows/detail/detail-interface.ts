@@ -39,6 +39,11 @@ export type WorkflowInterfaceFieldDraft = {
   secretDraft?: string;
   /** What to do with this secret when the workflow is saved. */
   secretAction?: "set" | "clear" | "";
+  /**
+   * A stored secret chosen for an input the saved workflow does not declare yet. It is
+   * bound by its own request right after the save creates the input (ADR 0057).
+   */
+  catalogSecretId?: string;
   /** For a file input: the stored file test runs use when they pass none. */
   sampleFile?: WorkflowSampleFile | null;
   /** A file picked to replace it, uploaded when the workflow is saved. */

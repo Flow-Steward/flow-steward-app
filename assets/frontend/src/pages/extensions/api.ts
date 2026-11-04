@@ -478,7 +478,13 @@ export async function fetchLlmProviderSources(): Promise<LlmProviderSource[]> {
 
 export async function saveLlmProviderCredentials(
   installId: string,
-  payload: { secrets: Record<string, string>; connection_config?: Record<string, string>; remote_base_url?: string },
+  payload: {
+    secrets: Record<string, string>;
+    connection_config?: Record<string, string>;
+    remote_base_url?: string;
+    /** Provider secret name -> stored secret id (ADR 0057); "" stops using the stored secret. */
+    secret_choices?: Record<string, string>;
+  },
 ) {
   // `verification_invalidated` is true only when the key or an effective
   // setting changed; re-saving the same settings keeps verified models.
@@ -492,7 +498,8 @@ export async function saveLlmProviderCredentials(
 /** Which provider secrets are saved (names only, never values) and the last check. */
 export type LlmProviderConnectionStatus = {
   install_id: string;
-  saved_secrets: { name: string; saved_at?: string | null }[];
+  /** `stored_secret` names the secret from Registry → Secrets the field uses (id and name, never the value). */
+  saved_secrets: { name: string; saved_at?: string | null; stored_secret?: { id: string; name: string } }[];
   /** `status` is "ok" or a safe error category such as "authentication_error". */
   last_check: { status: string; checked_at?: string | null } | null;
 };

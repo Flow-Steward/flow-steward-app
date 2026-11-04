@@ -25,9 +25,18 @@ from core.application.management.mcp_connector_common import (
     _service_scope,
     _utc_now_iso,
 )
+from core.application.management.mcp_connector_header_choices import (
+    bind_created_choices,
+    choice_state,
+    choices_view,
+    create_choices,
+    header_names_after,
+    plan_update_choices,
+    typed_only_row,
+    write_connector_header_refs,
+)
 from core.application.management.mcp_connector_header_secrets import (
     HEADER_SECRET_REFS_FIELD,
-    connector_header_names,
     resolve_connector_headers,
     save_connector_header_secrets,
 )
@@ -48,6 +57,7 @@ from core.infrastructure.db.db_pool import (
 from .command_models import McpConnectorCreateInput, McpConnectorUpdateInput
 from .errors import (
     ServiceConflictError,
+    ServiceForbiddenError,
     ServiceNotFoundError,
     ServiceUnavailableError,
     ServiceValidationError,
@@ -169,7 +179,10 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
             "created_at": now_iso,
             "updated_at": now_iso,
         }
-        _validate_oauth_headers(str(row["auth_mode"]), row["headers"])
+        choices = create_choices(scope, inp.header_secret_choices, typed_headers=inp.headers)
+        _validate_oauth_headers(
+            str(row["auth_mode"]), {**(row["headers"] or {}), **dict.fromkeys(choices, "")}
+        )
         _connector_rpc_url(row)
 
         row.pop("headers")
@@ -184,9 +197,24 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
                     headers=inp.headers,
                 )
                 self._insert_connector(persistence, row)
+                if choices:  # a binding names the row, so it follows the insert
+                    row[HEADER_SECRET_REFS_FIELD] = bind_created_choices(
+                        persistence, scope, row, choices
+                    )
+                    self._update_connector_row(
+                        persistence,
+                        connector_id,
+                        {HEADER_SECRET_REFS_FIELD: row[HEADER_SECRET_REFS_FIELD]},
+                        account_id=account_id,
+                        project_id=project_id,
+                        tenant_id=tenant_id,
+                    )
+        except (ServiceForbiddenError, ServiceNotFoundError, ServiceValidationError):
+            raise  # a refused or unknown stored-secret choice is the caller's error
         except Exception as exc:
             logger.exception("Failed to persist MCP connector %s", connector_id)
             raise ServiceUnavailableError("Failed to persist MCP connector") from exc
+        row["header_secret_choices"] = choices_view(choice_state(choices))
         return McpConnectorView(**_sanitize_connector_row_for_view(row))
 
     def update_connector(
@@ -327,6 +355,15 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
         if not headers_mode and inp.headers is not None:
             updates["headers"] = dict(inp.headers)
 
+        choices = plan_update_choices(
+            bl,
+            scope,
+            existing,
+            requested=inp.header_secret_choices,
+            headers_mode=headers_mode,
+            typed_headers=updates.get("headers"),
+        )
+
         existing_auth_mode_for_transition = _normalize_auth_mode(
             str(existing.get("auth_mode") or "none")
         )
@@ -338,13 +375,14 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
             and requested_auth_mode_for_transition in {"none", "oauth2"}
             and existing_auth_mode_for_transition != requested_auth_mode_for_transition
             and "headers" not in updates
+            and not choices.requested
         ):
             raise ServiceValidationError(
                 "Switching away from credential headers requires headers_mode clear or replace"
             )
 
         auth_mode_for_headers = str(updates.get("auth_mode") or existing.get("auth_mode") or "")
-        headers_for_validation = updates.get("headers", connector_header_names(existing))
+        headers_for_validation = header_names_after(choices, existing, updates.get("headers"))
         _validate_oauth_headers(auth_mode_for_headers, headers_for_validation)
 
         if requested_namespace_prefix is not None:
@@ -411,19 +449,22 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
 
         if "headers" in updates:
             try:
-                unchanged_headers = updates["headers"] == resolve_connector_headers(bl, existing)
+                unchanged_headers = updates["headers"] == resolve_connector_headers(
+                    bl, typed_only_row(choices, existing)
+                )
             except ServiceUnavailableError:
                 unchanged_headers = False
             if unchanged_headers:
                 del updates["headers"]
+        header_refs_changed = "headers" in updates or choices.changed
 
         updated = {**existing, **updates}
-        if any(key in updates for key in {"transport", "base_url", "auth_mode", "headers"}):
+        if header_refs_changed or {"transport", "base_url", "auth_mode"} & set(updates):
             _connector_rpc_url(updated)
 
         existing_auth_mode = _normalize_auth_mode(str(existing.get("auth_mode") or "none"))
         updated_auth_mode = _normalize_auth_mode(str(updated.get("auth_mode") or "none"))
-        binding_fields_changed = "headers" in updates or any(
+        binding_fields_changed = header_refs_changed or any(
             key in updates and existing.get(key) != updated.get(key)
             for key in ("transport", "base_url", "auth_mode")
         )
@@ -498,14 +539,15 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
                     updates["status"] = "degraded"
                 updated = {**existing, **updates}
 
-            if "headers" in updates:
-                updates[HEADER_SECRET_REFS_FIELD] = save_connector_header_secrets(
+            if header_refs_changed:
+                updates[HEADER_SECRET_REFS_FIELD] = write_connector_header_refs(
                     persistence,
-                    connector_id=connector_id,
-                    account_id=account_id,
-                    project_id=project_id,
-                    tenant_id=tenant_id,
-                    headers=updates.pop("headers"),
+                    scope,
+                    choices,
+                    existing=existing,
+                    lineage=(connector_id, account_id, project_id, tenant_id),
+                    typed_headers=updates.pop("headers", None),
+                    save_typed=save_connector_header_secrets,
                 )
                 updated.pop("headers", None)
                 updated[HEADER_SECRET_REFS_FIELD] = updates[HEADER_SECRET_REFS_FIELD]
@@ -556,6 +598,7 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
                 or updated
             )
 
+        updated["header_secret_choices"] = choices_view(choice_state(choices.final))
         return McpConnectorView(**_sanitize_connector_row_for_view(updated))
 
     def check_health(

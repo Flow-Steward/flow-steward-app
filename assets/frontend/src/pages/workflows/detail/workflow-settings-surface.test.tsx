@@ -93,6 +93,12 @@ function fixture(options: FixtureOptions = {}) {
       Object.assign(detail, patch, { revision: detail.revision + 1 });
       return json(detail);
     }
+    // In a project a typed secret value is kept as a catalog secret bound to the input;
+    // the catalog write leaves the workflow revision alone.
+    if (method === "PUT" && /\/secret-bindings\/[^/]+\/value$/.test(path)) {
+      if (options.failSecretOnce) { options.failSecretOnce = false; return json({ detail: "Secret store unavailable" }, 503); }
+      return json({ workflow_id: workflowId, status: "approval_required", fingerprint: "sha256:fixture", secrets: [], destinations: [], dynamic_http_steps: [], approved_destinations: [] });
+    }
     if (method === "PUT" && /\/inputs\/.*\/(secret|sample-file)$/.test(path)) {
       const secret = path.endsWith("/secret");
       if (secret && options.failSecretOnce) { options.failSecretOnce = false; return json({ detail: "Secret store unavailable" }, 503); }
@@ -144,12 +150,13 @@ function fixture(options: FixtureOptions = {}) {
       if (path === `/api/projects/${projectId}/workflows/${workflowId}/secret-approval`) {
         return json({
           workflow_id: workflowId, status: "approval_required", fingerprint: "sha256:fixture",
-          secrets: [{ field: "token", secret_id: "catalog-token" }], destinations: [],
+          // A stored secret bound to another input: "token" itself takes a typed value.
+          secrets: [{ field: "other_token", secret_id: "catalog-token" }], destinations: [],
           dynamic_http_steps: [], approved_destinations: [],
         });
       }
-      if (path === "/api/secrets" && url.searchParams.get("project_id") === projectId) {
-        return json({ secrets: [{ id: "catalog-token", name: "Fixture token", description: "", owner: "project", workspace_id: "w1", project_id: projectId }] });
+      if (path === "/api/secrets") {
+        return json({ secrets: [{ id: "catalog-token", name: "Fixture token", description: "" }] });
       }
     }
     unexpected.push(`${method} ${path}`);
@@ -336,18 +343,19 @@ it.each(["failSecretOnce", "failFileOnce"] as const)("retains rejected %s action
     await user.upload(inputControl("workflow_interface_expected_inputs_1_default"), new File(["sample"], "sample.txt", { type: "text/plain" }));
     await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await screen.findByText(/Workflow settings saved. Not applied:/);
-    expect(state.requested.filter(({ method }) => method === "PUT").map(({ path }) => path.split("/").at(-1))).toEqual(["secret", "sample-file"]);
+    expect(state.requested.filter(({ method }) => method === "PUT").map(({ path }) => path.split("/").at(-1))).toEqual(["value", "sample-file"]);
     const firstPatch = state.requested.find(({ method }) => method === "PATCH");
     expect(JSON.stringify(firstPatch?.body)).not.toContain("test-secret-only");
-    expect(state.detail.revision).toBe(9);
+    expect(state.detail.revision).toBe(failure === "failSecretOnce" ? 9 : 8);
     await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await screen.findByText("Workflow settings saved.");
     const writes = state.requested.filter(({ method }) => method !== "GET");
-    expect(writes.map(({ method, path }) => method === "PATCH" ? "PATCH" : path.split("/").at(-1))).toEqual(["PATCH", "secret", "sample-file", "PATCH", failure === "failSecretOnce" ? "secret" : "sample-file"]);
-    expect(state.detail.revision).toBe(11);
-    // The bound catalog secret and its pending approval were on screen; a save neither rebinds nor approves.
+    expect(writes.map(({ method, path }) => method === "PATCH" ? "PATCH" : path.split("/").at(-1))).toEqual(["PATCH", "value", "sample-file", "PATCH", failure === "failSecretOnce" ? "value" : "sample-file"]);
+    expect(state.detail.revision).toBe(10);
+    // The typed value went to the catalog; a save never approves the use of secrets.
     expect(screen.getByTestId("workflow-secret-approval")).toHaveTextContent("approval required");
-    expect(state.requested.filter(({ path }) => /secret-(bindings|approval)/.test(path)).every(({ method }) => method === "GET")).toBe(true);
+    expect(state.requested.filter(({ path }) => /secret-approval/.test(path)).every(({ method }) => method === "GET")).toBe(true);
+    expect(state.requested.filter(({ method, path }) => method !== "GET" && /secret-bindings/.test(path)).every(({ path }) => path.endsWith("/value"))).toBe(true);
     expectNoGraphReads(state.requested); expect(state.unexpected).toEqual([]);
   } finally { view.dispose(); }
 });

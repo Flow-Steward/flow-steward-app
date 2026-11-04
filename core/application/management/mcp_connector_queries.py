@@ -12,6 +12,10 @@ from core.application.management.mcp_connector_common import (
     _sanitize_connector_row_for_view,
     _service_scope,
 )
+from core.application.management.mcp_connector_header_secrets import (
+    connector_header_catalog_refs,
+    connector_header_secret_choices,
+)
 from core.application.management.scope import ScopeContext
 
 from .errors import (
@@ -20,6 +24,13 @@ from .errors import (
 )
 from .mcp_connector_store import McpConnectorStore
 from .query_models import McpConnectorListView, McpConnectorView
+
+
+def _with_header_secret_choices(bl: Any, row: dict[str, Any]) -> dict[str, Any]:
+    """The row plus which headers use a stored secret; queried only when one does."""
+    if not connector_header_catalog_refs(row) or not hasattr(bl, "cursor"):
+        return row
+    return {**row, "header_secret_choices": connector_header_secret_choices(bl, row)}
 
 
 class McpConnectorQueryService:
@@ -50,7 +61,7 @@ class McpConnectorQueryService:
         connectors = [
             McpConnectorView(
                 **_sanitize_connector_row_for_view(
-                    row,
+                    _with_header_secret_choices(bl, row),
                     include_deleted_actor=include_deleted_actor,
                 )
             )
@@ -92,7 +103,7 @@ class McpConnectorQueryService:
             raise ServiceNotFoundError(f"MCP connector '{connector_id}' not found")
         return McpConnectorView(
             **_sanitize_connector_row_for_view(
-                row,
+                _with_header_secret_choices(bl, row),
                 include_deleted_actor=principal_type_has_minimum_role(
                     scope.principal_type,
                     "admin",

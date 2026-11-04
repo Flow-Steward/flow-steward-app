@@ -15,7 +15,7 @@ export function mcpFormErrorField(error: unknown): McpFormErrorField {
   const nested = record(payload.error);
   const raw = firstStringFromUnknownValue([payload.field, nested.field]).trim().toLowerCase();
   if (["base_url", "endpoint", "transport"].includes(raw)) return "endpoint";
-  if (["headers", "header"].includes(raw)) return "headers";
+  if (["headers", "header", "header_secret_choices"].includes(raw) || raw.startsWith("headers.")) return "headers";
   if (raw === "requested_scopes") return "requested_scopes";
   if (["authorization_parameters", "oauth_config"].includes(raw)) return "authorization_parameters";
   if (raw === "refresh_token_required") return "refresh_token_required";

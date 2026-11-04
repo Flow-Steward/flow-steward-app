@@ -255,7 +255,7 @@ def stand(create_database, monkeypatch):  # noqa: F811
 def _catalog_input(stand: Stand, workflow_id: str) -> tuple[dict, str]:
     """A bound, approved catalog secret; returns the secret and its storage key."""
     secret = stand.service.create_secret(
-        _human(), name="Partner key", value=VALUE, project_id=stand.project_id
+        _human(), name="Partner key", value=VALUE
     )
     status = stand.service.bind_workflow_input(
         workflow_id, _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
@@ -472,7 +472,7 @@ def test_redelivery_and_retry_of_one_job_are_checked_again_against_its_pin(stand
 def test_a_computed_path_keeps_its_origin_and_a_computed_host_needs_rules(stand) -> None:
     stand.save("wf_path", step=_http_step(url="https://api.partner.test/{{ state.inputs.target }}"))
     secret = stand.service.create_secret(
-        _human(), name="Path key", value=VALUE, project_id=stand.project_id
+        _human(), name="Path key", value=VALUE
     )
     status = stand.service.bind_workflow_input(
         "wf_path", _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
@@ -545,7 +545,7 @@ def test_a_computed_path_keeps_its_origin_and_a_computed_host_needs_rules(stand)
 def _catalog_input_for_computed_host(stand: Stand, workflow_id: str) -> tuple[dict, str]:
     """A bound catalog secret, approved with an explicit exact destination."""
     secret = stand.service.create_secret(
-        _human(), name=f"{workflow_id} key", value=VALUE, project_id=stand.project_id
+        _human(), name=f"{workflow_id} key", value=VALUE
     )
     status = stand.service.bind_workflow_input(
         workflow_id, _human(), project_id=stand.project_id, field="api_key", secret_id=secret["id"]
@@ -633,7 +633,7 @@ def test_a_computed_origin_never_opens_for_non_catalog_references(stand, monkeyp
 def test_binding_and_approval_need_their_own_authority(stand) -> None:
     stand.save("wf_scopes")
     secret = stand.service.create_secret(
-        _human(), name="Scoped key", value=VALUE, project_id=stand.project_id
+        _human(), name="Scoped key", value=VALUE
     )
     with pytest.raises(ServiceForbiddenError):
         stand.service.bind_workflow_input(
@@ -1143,7 +1143,7 @@ def _secret_routes_client(stand: Stand, scope: ScopeContext):
 def test_only_an_interactive_operator_approves_through_the_route(stand, scope, allowed) -> None:
     stand.save("wf_route_approve")
     secret = stand.service.create_secret(
-        _human(), name="Route key", value=VALUE, project_id=stand.project_id
+        _human(), name="Route key", value=VALUE
     )
     status = stand.service.bind_workflow_input(
         "wf_route_approve",
@@ -1170,7 +1170,6 @@ def test_one_exact_scope_reaches_each_catalog_write_through_the_routes(stand) ->
             "name": "Token-made",
             "description": "",
             "value": VALUE,
-            "project_id": str(stand.project_id),
         },
     )
     assert created.status_code == 200, created.text
@@ -1207,9 +1206,10 @@ def test_one_exact_scope_reaches_each_catalog_write_through_the_routes(stand) ->
     assert writer.delete(f"/api/secrets/{secret_id}").status_code == 200
 
 
-def test_a_secret_binds_only_within_its_project_or_workspace(stand) -> None:
-    """Project A, project B of the same workspace, a project of another workspace, and
-    another account: for a workflow input and for a connection field alike."""
+def test_a_secret_binds_in_every_project_of_its_account_only(stand) -> None:
+    """A secret belongs to the installation: project A, project B of the same workspace
+    and a project of another workspace all bind it; another account never sees it. For
+    a workflow input and for a connection field alike."""
     from core.application.management.errors import ServiceNotFoundError
     from tests.integration.test_secret_catalog_postgres import _connection
 
@@ -1253,21 +1253,12 @@ def test_a_secret_binds_only_within_its_project_or_workspace(stand) -> None:
     for project in (project_b, project_c):
         stand.store.add_project_workflow_binding(project, "wf_scope")
     service = stand.service
-    project_secret = service.create_secret(
-        _human(), name="A only", value=VALUE, project_id=stand.project_id
-    )
-    workspace_secret = service.create_secret(
-        _human(),
-        name="Workspace A",
-        value=VALUE,
-        workspace_id=_workspace_of(stand, stand.project_id),
-    )
+    shared_secret = service.create_secret(_human(), name="Shared", value=VALUE)
     foreign = ScopeContext(
         account_id=other_account, principal_type="operator", auth_source="local", actor_id="other"
     )
-    foreign_secret = service.create_secret(
-        foreign, name="Other account", value=VALUE, project_id=foreign_project
-    )
+    foreign_secret = service.create_secret(foreign, name="Other account", value=VALUE)
+    assert foreign_project
 
     def bind_input(project: str, secret_id: str) -> None:
         service.bind_workflow_input(
@@ -1280,32 +1271,58 @@ def test_a_secret_binds_only_within_its_project_or_workspace(stand) -> None:
         )
 
     for bind in (bind_input, bind_field):
-        # A project secret reaches no other project, even in its workspace.
-        with pytest.raises(ServiceValidationError, match="not available"):
-            bind(project_b, project_secret["id"])
-        # A workspace secret reaches no project of another workspace.
-        with pytest.raises(ServiceValidationError, match="not available"):
-            bind(project_c, workspace_secret["id"])
         # Another account's secret does not exist for this caller.
         with pytest.raises(ServiceNotFoundError):
             bind(project_b, foreign_secret["id"])
         assert _bindings(stand) == []
-        # A workspace secret is shared with every project of that workspace.
-        bind(project_b, workspace_secret["id"])
-        assert _bindings(stand) == [workspace_secret["id"]]
+        # One secret serves every project, in any workspace of the account. A workflow
+        # input has one binding (the last project's); each connection has its own.
+        for project in (stand.project_id, project_b, project_c):
+            bind(project, shared_secret["id"])
+        expected = 1 if bind is bind_input else 3
+        assert _bindings(stand) == [shared_secret["id"]] * expected
         with stand.conn.cursor() as cur:
             cur.execute("DELETE FROM catalog_secret_bindings")
-
-
-def _workspace_of(stand: Stand, project_id: str) -> str:
-    with stand.conn.cursor() as cur:
-        cur.execute(
-            "SELECT workspace_id::text FROM projects WHERE id::text = %s", (str(project_id),)
-        )
-        return cur.fetchone()[0]
 
 
 def _bindings(stand: Stand) -> list[str]:
     with stand.conn.cursor() as cur:
         cur.execute("SELECT secret_id::text FROM catalog_secret_bindings ORDER BY 1")
         return [row[0] for row in cur.fetchall()]
+
+
+def test_a_typed_input_value_is_kept_as_a_catalog_secret_and_reused(stand) -> None:
+    """A value typed into a secret input shows in the catalog; a secret other places use
+    is never overwritten by it."""
+    stand.save("wf_typed")
+    service = stand.service
+
+    service.save_workflow_input_value(
+        "wf_typed", _human(), project_id=stand.project_id, field="api_key", value="first"
+    )
+    typed = [row for row in service.list_secrets(_human()) if row["name"] == "wf_typed / api_key"]
+    assert len(typed) == 1 and typed[0]["usage_count"] == 1
+    assert _bindings(stand) == [typed[0]["id"]]
+
+    # Only this input uses it: a new typed value replaces its value, no new secret.
+    service.save_workflow_input_value(
+        "wf_typed", _human(), project_id=stand.project_id, field="api_key", value="second"
+    )
+    again = [row for row in service.list_secrets(_human()) if row["name"] == "wf_typed / api_key"]
+    assert [row["id"] for row in again] == [typed[0]["id"]]
+
+    # Chosen elsewhere too: the next typed value gets a secret of its own.
+    stand.save("wf_other")
+    service.bind_workflow_input(
+        "wf_other", _human(), project_id=stand.project_id, field="api_key", secret_id=typed[0]["id"]
+    )
+    service.save_workflow_input_value(
+        "wf_typed", _human(), project_id=stand.project_id, field="api_key", value="third"
+    )
+    after = [row for row in service.list_secrets(_human()) if row["name"] == "wf_typed / api_key"]
+    assert len(after) == 2
+    assert typed[0]["id"] in _bindings(stand)
+    with pytest.raises(ServiceForbiddenError):
+        service.save_workflow_input_value(
+            "wf_typed", _human("viewer"), project_id=stand.project_id, field="api_key", value="x"
+        )

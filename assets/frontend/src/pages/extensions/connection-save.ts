@@ -6,10 +6,14 @@ import {
   stringListFromUnknown,
   objectOrEmpty,
   connectionSecretRefs,
+  connectionCatalogBindings,
   manifestActionOutcome,
+  storedSecretChoiceKey,
 } from "@/pages/extensions/extension-manifest-utils";
 import { executeExtensionAction } from "@/pages/extensions/api";
 import {
+  bindConnectionFieldSecret,
+  unbindConnectionFieldSecret,
   saveProjectConnectionSecrets,
   updateProjectConnection,
   createProjectConnection,
@@ -53,7 +57,25 @@ type ConnectionSavePreparation = {
   secrets: Record<string, string>;
   secretFields: Set<string>;
   selectedId: string;
+  /** Credential field → stored secret the person chose; "" stops using one. */
+  storedSecretChoices: Record<string, string>;
 };
+
+/** The stored secrets chosen in the form for the visible credential fields. */
+function storedSecretChoices(
+  fields: Record<string, unknown>[],
+  fieldValues: Record<string, unknown>,
+  secretFields: Set<string>,
+): Record<string, string> {
+  const choices: Record<string, string> = {};
+  for (const field of fields) {
+    const path = manifestFieldPath(field);
+    const key = storedSecretChoiceKey(path);
+    if (!path || !manifestFieldIsSecret(field, secretFields) || !(key in fieldValues)) continue;
+    choices[path] = stringFrom(fieldValues[key]);
+  }
+  return choices;
+}
 
 function configuredConnectionFields(
   configFields: string[],
@@ -106,11 +128,14 @@ function collectConnectionSecrets(
   fieldValues: Record<string, unknown>,
   secretFields: Set<string>,
   existingRefs: Record<string, string>,
+  choices: Record<string, string>,
 ): Record<string, string> {
   const secrets: Record<string, string> = {};
   for (const field of fields) {
     const path = manifestFieldPath(field);
     if (!manifestFieldIsSecret(field, secretFields)) continue;
+    // A chosen stored secret is bound after the save; nothing typed is stored for it.
+    if (choices[path]) continue;
     const secretValue = stringFrom(fieldValues[path]);
     if (secretValue) secrets[path] = secretValue;
     if (!existingRefs[path] && secretValue) existingRefs[path] = path;
@@ -127,6 +152,7 @@ function validateRequiredConnectionFields({
   requiredSecretFields,
   secretFields,
   secrets,
+  choices,
 }: {
   config: Record<string, unknown>;
   existingRefs: Record<string, string>;
@@ -136,15 +162,16 @@ function validateRequiredConnectionFields({
   requiredSecretFields: Set<string>;
   secretFields: Set<string>;
   secrets: Record<string, string>;
+  choices: Record<string, string>;
 }, t: I18nContextValue["t"] = fallbackContext.t) {
   for (const field of fields) {
     const path = manifestFieldPath(field);
     if (!field.required && !requiredSecretFields.has(path)) continue;
     const configured = stringFrom(fieldValues[path] ?? config[path]);
-    const hasExistingSecret = allTrue([
-      manifestFieldIsSecret(field, secretFields),
-      Boolean(existingRefs[path]),
-    ]);
+    const secretField = manifestFieldIsSecret(field, secretFields);
+    // "" in the choices stops using the stored secret: the field then needs a typed value.
+    const keepsExisting = Boolean(existingRefs[path]) && choices[path] !== "";
+    const hasExistingSecret = allTrue([secretField, anyTrue([keepsExisting, Boolean(choices[path])])]);
     if (!configured && !hasExistingSecret) {
       throw new RequiredFieldError(
         t("react.extensions.display_field_required", "{field} is required.", { field: stringFrom(field.label || path, t("react.extensions.required_field", "Required field")) }),
@@ -153,7 +180,7 @@ function validateRequiredConnectionFields({
     }
   }
   for (const path of requiredSecretFields) {
-    if (anyTrue([fieldByPath.has(path), Boolean(existingRefs[path]), Boolean(secrets[path])])) continue;
+    if (anyTrue([fieldByPath.has(path), Boolean(existingRefs[path]), Boolean(secrets[path]), Boolean(choices[path])])) continue;
     throw new RequiredFieldError(t("react.extensions.display_field_required", "{field} is required.", { field: path }), path);
   }
 }
@@ -196,8 +223,10 @@ export function prepareConnectionSave({
   const fieldByPath = new Map(fields.map((field) => [manifestFieldPath(field), field]));
   const configuredFields = configuredConnectionFields(configFields, fields, fieldByPath, secretFields);
   applyConnectionConfigValues({ config, configuredFields, data, fields, fieldValues, secretFields });
-  const secrets = collectConnectionSecrets(fields, fieldValues, secretFields, existingRefs);
+  const choices = storedSecretChoices(fields, fieldValues, secretFields);
+  const secrets = collectConnectionSecrets(fields, fieldValues, secretFields, existingRefs, choices);
   validateRequiredConnectionFields({
+    choices,
     config,
     existingRefs,
     fieldByPath,
@@ -219,6 +248,7 @@ export function prepareConnectionSave({
     secrets,
     secretFields,
     selectedId,
+    storedSecretChoices: choices,
   };
 }
 
@@ -416,6 +446,32 @@ async function saveConnectionSecretsWhenPresent(
   await saveProjectConnectionSecrets(projectId, connectionId, secrets);
 }
 
+/**
+ * Stop using the stored secrets the person replaced with "type a value instead". Runs
+ * before the typed values are saved: a value typed into a field that still uses a
+ * stored secret would replace that secret's value everywhere it is used.
+ */
+async function releaseStoredSecretChoices(projectId: string, preparation: ConnectionSavePreparation) {
+  const bound = connectionCatalogBindings(preparation.existing?.secret_refs);
+  for (const [field, secretId] of Object.entries(preparation.storedSecretChoices)) {
+    if (!secretId && bound[field]) await unbindConnectionFieldSecret(projectId, preparation.selectedId, field);
+  }
+}
+
+/** Bind the stored secrets chosen in the form, one request per changed field. */
+async function applyStoredSecretChoices(
+  projectId: string,
+  connectionId: string,
+  preparation: ConnectionSavePreparation,
+) {
+  const bound = connectionCatalogBindings(preparation.existing?.secret_refs);
+  for (const [field, secretId] of Object.entries(preparation.storedSecretChoices)) {
+    if (secretId && secretId !== bound[field]) {
+      await bindConnectionFieldSecret(projectId, connectionId, field, secretId);
+    }
+  }
+}
+
 export async function persistPreparedConnection({
   onAuthorization,
   onConnectionCreated,
@@ -435,7 +491,9 @@ export async function persistPreparedConnection({
 }, t: I18nContextValue["t"] = fallbackContext.t): Promise<string> {
   if (preparation.existing) {
     await updateProjectConnection(projectId, preparation.selectedId, payload);
+    await releaseStoredSecretChoices(projectId, preparation);
     await saveConnectionSecretsWhenPresent(projectId, preparation.selectedId, preparation.secrets);
+    await applyStoredSecretChoices(projectId, preparation.selectedId, preparation);
     return preparation.selectedId;
   }
   const created = await createProjectConnection(projectId, payload);
@@ -443,6 +501,7 @@ export async function persistPreparedConnection({
   if (!connectionId) throw new Error(t("react.extensions.connection_was_created_without_a_connection_id", "Connection was created without a connection id."));
   onConnectionCreated(connectionId);
   await saveConnectionSecretsWhenPresent(projectId, connectionId, preparation.secrets);
+  await applyStoredSecretChoices(projectId, connectionId, preparation);
   await updateProjectConnection(projectId, connectionId, { enabled: true });
   const oauthIntent = stringFrom(preparation.data.oauth_intent);
   if (preparation.oauthConnection && oauthIntent) {

@@ -19,6 +19,12 @@ import {
   type WorkflowInterfaceFieldDraft,
 } from "@/pages/workflows/detail/detail-helpers";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { HttpError } from "@/lib/http/errors";
+import {
+  bindWorkflowInputSecret,
+  saveWorkflowInputSecretValue,
+  unbindWorkflowInputSecret,
+} from "@/pages/workflows/shared/workflow-secret-catalog-api";
 import {
   clearWorkflowInputSampleFile,
   clearWorkflowInputSecret,
@@ -34,14 +40,21 @@ function responseRevision(value: unknown, fallback: number): number {
   return Number.isInteger(revision) && revision > 0 ? revision : fallback;
 }
 
+/**
+ * Typed secret values of the inputs. In a project a typed value is kept as a catalog
+ * secret bound to the input, so it shows in Registry → Secrets and can be chosen
+ * elsewhere (ADR 0057); without one it stays the workflow's own default.
+ */
 export async function applyWorkflowInputSecretActions({
   workflowId,
   initialRevision,
   rows,
+  projectId = "",
 }: {
   workflowId: string;
   initialRevision: number;
   rows: WorkflowInterfaceFieldDraft[];
+  projectId?: string;
 }, t: I18nContextValue["t"] = fallbackContext.t): Promise<{
   revision: number;
   applied: string[];
@@ -56,6 +69,16 @@ export async function applyWorkflowInputSecretActions({
       continue;
     }
     try {
+      if (projectId && action === "set") {
+        await saveWorkflowInputSecretValue(projectId, workflowId, row.name, String(row.secretDraft ?? ""));
+        applied.push(row.name);
+        continue;
+      }
+      if (projectId && action === "clear") {
+        await unbindWorkflowInputSecret(projectId, workflowId, row.name).catch((error: unknown) => {
+          if (!(error instanceof HttpError && error.status === 404)) throw error;
+        });
+      }
       const response =
         action === "set"
           ? await setWorkflowInputSecret({
@@ -82,6 +105,38 @@ export async function applyWorkflowInputSecretActions({
     }
   }
   return { revision, applied, failures };
+}
+
+/** Bind the stored secrets chosen for new secret inputs, now that the save declared them. */
+async function applyWorkflowInputCatalogChoices({
+  projectId,
+  workflowId,
+  rows,
+}: {
+  projectId: string;
+  workflowId: string;
+  rows: WorkflowInterfaceFieldDraft[];
+}, t: I18nContextValue["t"] = fallbackContext.t): Promise<{ applied: string[]; failures: SecretActionFailure[] }> {
+  const applied: string[] = [];
+  const failures: SecretActionFailure[] = [];
+  for (const row of rows) {
+    const secretId = String(row.catalogSecretId || "").trim();
+    if (!secretId || String(row.type || "").trim() !== "secret" || !row.name.trim()) continue;
+    if (!projectId) {
+      failures.push({ name: row.name, message: t("react.workflows.secret_catalog.needs_project", "Open this workflow from a project to use a stored secret for this input.") });
+      continue;
+    }
+    try {
+      await bindWorkflowInputSecret(projectId, workflowId, row.name, secretId);
+      applied.push(row.name);
+    } catch (error) {
+      failures.push({
+        name: row.name,
+        message: error instanceof Error && error.message.trim() ? error.message.trim() : t("react.workflows.secret_update_failed", "Secret update failed."),
+      });
+    }
+  }
+  return { applied, failures };
 }
 
 /** Upload or remove the test files picked in the editor, one request each. */
@@ -153,6 +208,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     workflowId,
     workflowInterfaceControlIdPrefix,
     workflowRecord,
+    projectId,
   } = ctx;
 
   const [workflowFormDirty, setWorkflowFormDirty] = useState(false);
@@ -225,14 +281,20 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     workflowBuilderSafeForAutoUseDraft,
     setWorkflowBuilderSafeForAutoUseDraft,
   ] = useState(false);
-  async function handleSaveWorkflowSettings() {
+  /**
+   * Save the workflow settings. `inputRowsOverride` saves these input rows instead of
+   * the editor's, for a caller that adds an input and saves in one step (the HTTP
+   * step's stored-secret choice) before React has applied its state update.
+   */
+  async function handleSaveWorkflowSettings(inputRowsOverride?: WorkflowInterfaceFieldDraft[]) {
+    const inputRows = Array.isArray(inputRowsOverride) ? inputRowsOverride : workflowInterfaceInputsDraft;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (!normalizedWorkflowId) {
       return;
     }
     setSaveNotice("");
     const firstBlankInput = workflowInterfaceInputModeDraft === "fields"
-      ? workflowInterfaceInputsDraft.find((row) => !row.name.trim())
+      ? inputRows.find((row) => !row.name.trim())
       : undefined;
     const firstBlankOutput = workflowInterfaceOutputsDraft.find((row) => !row.name.trim());
     const firstBlankNameTab = firstBlankInput ? "inputs" : firstBlankOutput ? "outputs" : "";
@@ -283,7 +345,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
           ? existingCallableSettings.expected_inputs : [];
       } else {
         callableContract.expected_inputs = workflowFieldPayload(
-          workflowInterfaceInputsDraft,
+          inputRows,
           t,
         );
       }
@@ -329,13 +391,20 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
       const secretResult = await applyWorkflowInputSecretActions({
         workflowId: normalizedWorkflowId,
         initialRevision: responseRevision(savedWorkflow, Number(workflowRecord.revision) + 1),
-        rows: workflowInterfaceInputsDraft,
+        rows: inputRows,
+        projectId: firstStringFromUnknownValue([projectId, ""]),
       }, t);
       const sampleFileResult = await applyWorkflowInputSampleFileActions({
         workflowId: normalizedWorkflowId,
         initialRevision: secretResult.revision,
-        rows: workflowInterfaceInputsDraft,
+        rows: inputRows,
       }, t);
+      const catalogResult = await applyWorkflowInputCatalogChoices({
+        projectId: firstStringFromUnknownValue([projectId, ""]),
+        workflowId: normalizedWorkflowId,
+        rows: inputRows,
+      }, t);
+      const appliedCatalog = new Set(catalogResult.applied);
       const appliedSecrets = new Set(secretResult.applied);
       const appliedSampleFiles = new Set(sampleFileResult.applied);
       setWorkflowInterfaceInputsDraft((current) =>
@@ -343,6 +412,9 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
           let next = row;
           if (appliedSecrets.has(row.name)) {
             next = { ...next, secretAction: "", secretDraft: "" };
+          }
+          if (appliedCatalog.has(row.name)) {
+            next = { ...next, catalogSecretId: "" };
           }
           if (appliedSampleFiles.has(row.name)) {
             next = { ...next, sampleFileAction: "", sampleFileDraft: null };
@@ -354,6 +426,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
       await refetchWorkflowSurfaces();
       const notApplied = [
         ...secretResult.failures.map((failure) => `secret ${failure.name}: ${failure.message}`),
+        ...catalogResult.failures.map((failure) => `secret ${failure.name}: ${failure.message}`),
         ...sampleFileResult.failures.map(
           (failure) => t("react.workflows.display_test_file_failure", "test file {name}: {message}", { name: failure.name, message: failure.message }),
         ),

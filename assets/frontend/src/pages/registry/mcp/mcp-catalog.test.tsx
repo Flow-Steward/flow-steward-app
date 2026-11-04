@@ -23,6 +23,11 @@ import { useHasCapability } from "@/lib/auth/capabilities";
 
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
 vi.mock("@/pages/projects/list/api", () => ({ fetchProjectsList: vi.fn() }));
+vi.mock("@/pages/registry/secrets/api", () => ({
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
+  fetchCatalogSecrets: vi.fn().mockResolvedValue([{ id: "s1", name: "monday token", description: "" }]),
+  createCatalogSecret: vi.fn(),
+}));
 vi.mock("@/pages/registry/mcp/api", () => ({
   MCP_CATALOG_QUERY_KEY: ["registry", "mcp", "catalog"],
   fetchMcpCatalog: vi.fn(),
@@ -569,6 +574,35 @@ describe("McpCatalogPanel", () => {
     );
   });
 
+  it("sends a declared secret header from a stored secret instead of a typed value", async () => {
+    const user = userEvent.setup();
+    mockedInstall.mockResolvedValue(installResult("monday", "sync"));
+    showPanel();
+
+    await user.click(within(await screen.findByRole("article", { name: "monday.com" })).getByRole("button", { name: "Connect" }));
+    const dialog = screen.getByRole("dialog", { name: "monday.com" });
+    await user.click(within(dialog).getByRole("combobox", { name: "Connect with" }));
+    await user.click(screen.getByRole("option", { name: /monday.com API token/u }));
+    const choose = within(dialog).getByRole("combobox", { name: "Stored secret for Authorization" });
+    await waitFor(() => expect(choose).toBeEnabled());
+    await user.click(choose);
+    await user.click(await screen.findByRole("option", { name: /^monday token/u }));
+    expect(within(dialog).queryByRole("textbox", { name: /^Prefix/u })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Install" }));
+
+    await waitFor(() =>
+      expect(mockedInstall).toHaveBeenCalledWith(
+        "monday",
+        expect.objectContaining({
+          remote_id: "api-token",
+          headers: {},
+          header_secret_choices: { Authorization: { secret_id: "s1", prefix: "Bearer " } },
+        }),
+        PROJECT,
+      ),
+    );
+  });
+
   it("exposes required and optional catalog header semantics", async () => {
     const user = userEvent.setup();
     serve([item({ item_id: "headers", title: "Headers", remotes: [remote({
@@ -668,7 +702,7 @@ describe("McpCatalogPanel", () => {
     expect(within(dialog).getByLabelText("API key")).toBeRequired();
     await user.type(within(dialog).getByLabelText(/Freshdesk subdomain/u), "acme");
     expect(within(dialog).getByLabelText(/Instance path/u)).toHaveValue("mcp"); // no label: the name, readable
-    await user.type(within(dialog).getByLabelText(/API key/u), "key-1");
+    await user.type(within(dialog).getByLabelText("API key", { selector: "input" }), "key-1");
     await user.click(within(dialog).getByRole("button", { name: "Install" }));
 
     await waitFor(() =>

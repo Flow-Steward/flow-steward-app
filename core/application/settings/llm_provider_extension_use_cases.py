@@ -8,8 +8,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from core.application.settings import llm_provider_catalog_refs as catalog_refs
 from core.application.settings import llm_provider_connection_status as connection_status
 from core.application.settings import llm_provider_extension_repository as store
+from core.application.settings.llm_provider_secret_choices import apply_secret_choices
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,15 @@ def require_provider_secrets(contract: Any, secrets: dict[str, Any]) -> None:
         raise LlmProviderExtensionError(
             422, "Enter the required key: " + ", ".join(llm_field_label(f) for f in missing)
         )
+
+
+def normalized_secret_choices(value: dict[str, Any] | None) -> dict[str, str]:
+    """secret name -> catalog secret id; ``""`` means stop using the stored secret."""
+    return {
+        str(name).strip(): str(secret_id or "").strip()
+        for name, secret_id in (value or {}).items()
+        if str(name).strip()
+    }
 
 
 def without_cleared_fields(value: dict[str, Any]) -> dict[str, Any]:
@@ -301,11 +312,20 @@ class LlmProviderExtensionUseCases:
         secrets: dict[str, Any],
         connection_config: dict[str, Any],
         remote_base_url: str = "",
+        secret_choices: dict[str, Any] | None = None,
+        scope: Any = None,
     ) -> dict[str, Any]:
-        from core.application.auth.secrets import decrypt_secret, encrypt_secret
+        """Save typed secrets, stored-secret choices, settings and the runtime endpoint.
+
+        ``secret_choices`` maps a provider secret name to a catalog secret id
+        (ADR 0057); ``""`` stops using the stored secret. A chosen secret is read
+        by its storage key at every use, so replacing its value needs no save here.
+        """
+        from core.application.auth.secrets import encrypt_secret
         from core.application.settings.llm_provider_extension_service import (
             credential_ref_key,
             encode_credentials,
+            llm_field_label,
             require_llm_provider_connection_config,
         )
         from core.infrastructure.db import model_provider_store
@@ -322,7 +342,18 @@ class LlmProviderExtensionUseCases:
             raise LlmProviderExtensionError(
                 422, "remote_base_url applies only to a remote_https install"
             )
-        if not secrets and not connection_config and not remote_base_url:
+        choices = normalized_secret_choices(secret_choices)
+        typed_names = {
+            str(name).strip() for name, value in secrets.items() if str(value or "").strip()
+        }
+        both = sorted(typed_names & {name for name, secret_id in choices.items() if secret_id})
+        if both:
+            raise LlmProviderExtensionError(
+                422,
+                "Choose a stored secret or type a value, not both: "
+                + ", ".join(llm_field_label(name) for name in both),
+            )
+        if not secrets and not connection_config and not remote_base_url and not choices:
             raise LlmProviderExtensionError(422, "Nothing to save: enter a setting or a key first.")
         base_ref_key = credential_ref_key(canonical_id)
         with transaction_connection(self.conn) as transaction_conn:
@@ -359,16 +390,15 @@ class LlmProviderExtensionUseCases:
             )
             if ciphertext:
                 try:
-                    decoded = json.loads(decrypt_secret(ciphertext))
-                except Exception as exc:
-                    raise LlmProviderExtensionError(
-                        409, "Stored extension credentials are unavailable"
-                    ) from exc
-                if not isinstance(decoded, dict):
-                    raise LlmProviderExtensionError(
-                        409, "Stored extension credentials are unavailable"
+                    # Only the typed values: a save never needs a chosen value.
+                    existing_credentials = catalog_refs.effective_credentials(
+                        transaction_conn,
+                        account_id=account_id,
+                        ciphertext=ciphertext,
+                        catalog_refs={},
                     )
-                existing_credentials = decoded
+                except catalog_refs.StoredCredentialsUnavailableError as exc:
+                    raise LlmProviderExtensionError(409, exc.detail) from exc
             existing_config = install_config.get("llm_provider_connection_config", {})
             if not isinstance(existing_config, dict):
                 existing_config = {}
@@ -392,18 +422,38 @@ class LlmProviderExtensionUseCases:
                 )
                 if str(field).strip()
             }
-            if {str(key).strip() for key in secrets} - declared_secrets:
+            if ({str(key).strip() for key in secrets} | set(choices)) - declared_secrets:
                 raise LlmProviderExtensionError(
                     422, "This provider has no such key; reload the page and try again"
                 )
-            merged = {**existing_credentials, **secrets}
-            require_provider_secrets(contract, merged)
-            credentials_changed = bool(secrets) and merged != existing_credentials
+            existing_refs = catalog_refs.catalog_refs_from(install_config)
+            chosen_refs = apply_secret_choices(
+                transaction_conn,
+                scope,
+                account_id=account_id,
+                install_id=canonical_id,
+                existing_refs=existing_refs,
+                choices=choices,
+                typed_names=typed_names,
+            )
+            # A name that uses a stored secret keeps no typed copy.
+            merged = {
+                name: value
+                for name, value in {**existing_credentials, **secrets}.items()
+                if name not in chosen_refs
+            }
+            require_provider_secrets(
+                contract, {**merged, **dict.fromkeys(chosen_refs, "stored secret")}
+            )
+            blob_changed = merged != existing_credentials
+            choices_changed = chosen_refs != existing_refs
+            credentials_changed = blob_changed or choices_changed
+            write_blob = bool(secrets) or blob_changed
             config_changed = effective_connection_config(
                 contract, effective_config
             ) != effective_connection_config(contract, existing_config)
             runtime_changed = bool(remote_base_url) and remote_base_url != current_runtime_url
-            if credentials_changed:
+            if blob_changed:
                 ref_key = credential_ref_for_save(
                     base_ref_key,
                     credentials_changed=True,
@@ -430,13 +480,22 @@ class LlmProviderExtensionUseCases:
                     account_id=account_id,
                     extension_install_id=canonical_id,
                 )
-            if secrets:
+            newly_chosen = [
+                name for name, key in chosen_refs.items() if existing_refs.get(name) != key
+            ]
+            if typed_names or newly_chosen:
                 connection_status.record_saved_secrets(
                     transaction_conn,
                     account_id=account_id,
                     extension_install_id=canonical_id,
-                    names=[name for name, value in secrets.items() if str(value or "").strip()],
+                    names=[*typed_names, *newly_chosen],
                 )
+            if choices_changed:
+                with transaction_conn.cursor() as cur:
+                    catalog_refs.write_catalog_refs(
+                        cur, account_id=account_id, install_id=canonical_id, refs=chosen_refs
+                    )
+            if write_blob:
                 model_provider_store.upsert_secret_ref(
                     transaction_conn,
                     account_id=account_id,
@@ -476,7 +535,7 @@ class LlmProviderExtensionUseCases:
                     account_id=account_id,
                     source_id=source_id,
                     credential_secret_ref=(
-                        ref_key if secrets else str(source.get("credential_secret_ref") or "")
+                        ref_key if write_blob else str(source.get("credential_secret_ref") or "")
                     ),
                 )
                 stored_config = source.get("connection_config_jsonb")
@@ -491,7 +550,7 @@ class LlmProviderExtensionUseCases:
                         }
                     ),
                 )
-            if credentials_changed and ref_key not in previous_refs:
+            if blob_changed and ref_key not in previous_refs:
                 store.delete_install_credential_refs_except(
                     transaction_conn,
                     account_id=account_id,
@@ -520,11 +579,20 @@ class LlmProviderExtensionUseCases:
             saved_names = connection_status.saved_secret_names(
                 read_conn, account_id=account_id, extension_install_id=canonical_id
             )
+            chosen_refs = catalog_refs.catalog_refs_from(install_config)
+            chosen = (
+                catalog_refs.chosen_secrets(
+                    read_conn, account_id=account_id, install_id=canonical_id
+                )
+                if chosen_refs
+                else {}
+            )
         return connection_status.connection_status_payload(
             install_id=canonical_id,
             contract=contract,
             install_config=install_config,
-            saved_names=saved_names,
+            saved_names=saved_names | set(chosen_refs),
+            stored_secrets={name: chosen[name] for name in chosen_refs if name in chosen},
         )
 
     def _record_failed_check(self, account_id: str, install_id: str, category: str) -> None:
@@ -553,7 +621,6 @@ class LlmProviderExtensionUseCases:
         *,
         connection_config: dict[str, Any],
     ) -> dict[str, Any]:
-        from core.application.auth.secrets import decrypt_secret
         from core.application.settings import llm_provider_extension_service as service
         from core.infrastructure.db.db_pool import transaction_connection
 
@@ -653,14 +720,18 @@ class LlmProviderExtensionUseCases:
             ).strip() or service.credential_ref_key(canonical_id)
             ciphertext = str(install_snapshot.get("encrypted_value") or "")
             existing_source_config = install_snapshot.get("connection_config_jsonb")
-            credentials: dict[str, Any] = {}
-            if ciphertext:
-                try:
-                    decoded = json.loads(decrypt_secret(ciphertext))
-                    if isinstance(decoded, dict):
-                        credentials = decoded
-                except Exception:
-                    credentials = {}
+            credentials_error = ""
+            try:
+                # Typed values plus the current value of each chosen stored secret.
+                credentials = catalog_refs.effective_credentials(
+                    snapshot_conn,
+                    account_id=account_id,
+                    ciphertext=ciphertext,
+                    catalog_refs=install_snapshot.get(catalog_refs.CATALOG_REFS_KEY),
+                )
+            except catalog_refs.StoredCredentialsUnavailableError as exc:
+                credentials_error = exc.detail
+                credentials = {}
             if not isinstance(existing_source_config, dict):
                 existing_source_config = {}
             if not connection_config:
@@ -694,6 +765,8 @@ class LlmProviderExtensionUseCases:
             contract, connection_config
         ) != effective_connection_config(contract, previous_config)
         try:
+            if credentials_error:
+                raise LlmProviderExtensionError(409, credentials_error)
             credentials = validate_json_object_secrets(contract, credentials)
             require_provider_secrets(contract, credentials)
         except LlmProviderExtensionError:

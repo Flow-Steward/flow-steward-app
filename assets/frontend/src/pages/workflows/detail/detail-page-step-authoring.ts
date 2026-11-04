@@ -1,12 +1,13 @@
 import { useAgentStepDrafts } from "./detail-agent-step-drafts";
 import { agentParticipants, agentPreviewBinding } from "./detail-agent-step-fields";
 import { useWorkflowLeaveGuard } from "@/pages/workflows/detail/detail-leave-guard";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchWorkflowStepContractPreview, fetchWorkflowTransformActions } from "@/pages/workflows/shared/api";
 import { useWorkflowTriggersController } from "@/pages/workflows/detail/detail-triggers-controller";
 import { useWorkflowSettingsController } from "@/pages/workflows/detail/detail-workflow-settings-controller";
 import { useHttpRequestIntent } from "./detail-http-request-intent";
+import { createStepSecretTasks } from "./detail-step-secret-tasks";
 import { useWorkflowStepActions, type StepFormSaveState } from "@/pages/workflows/detail/detail-step-actions";
 import { useWorkflowStepOptionsController } from "@/pages/workflows/detail/detail-step-options-controller";
 import { groupDraftFromRow } from "@/pages/workflows/detail/detail-drawer-controller";
@@ -84,6 +85,7 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     workflowId,
     workflowInterfaceControlIdPrefix,
     workflowRecord,
+    projectId: selectedProjectId,
   });
   const triggers = useWorkflowTriggersController({
     drawerMode,
@@ -227,12 +229,23 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     stepOverrideDraft,
     workflowId: stepWorkflowId,
   });
+  const [stepSecretTasks] = useState(createStepSecretTasks);
+  const registerStepSecretTask = stepSecretTasks.register;
   const stepActions = {
     ...stepActionsController,
-    handleSaveStep: (...args: Parameters<typeof stepActionsController.handleSaveStep>) => {
-      if (inHook && !hookScope.isChildAuthorityCurrent()) return Promise.resolve();
+    handleSaveStep: async (...args: Parameters<typeof stepActionsController.handleSaveStep>) => {
+      if (inHook && !hookScope.isChildAuthorityCurrent()) return;
+      // Values typed into a step's secret fields are kept as stored secrets first, the
+      // way a connection keeps them when it is saved; the step then saves its references.
+      try {
+        await stepSecretTasks.runAll();
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : String(error));
+        return;
+      }
       return stepActionsController.handleSaveStep(...args);
     },
+    registerStepSecretTask,
   };
   const { setStepFormSaveState, stepFormSaveState } = stepActions;
   useEffect(() => {

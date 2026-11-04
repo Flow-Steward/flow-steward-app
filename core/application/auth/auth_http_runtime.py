@@ -89,6 +89,13 @@ _CATALOG_WRITE_SCOPES: tuple[tuple[str, re.Pattern[str], str], ...] = (
     ("DELETE", _CATALOG_SECRET_RE, _SECRET_WRITE_SCOPE),
     ("PUT", re.compile(r"^/api/secrets/[^/]+/value$"), _SECRET_WRITE_SCOPE),
     ("PUT", _SECRET_BINDING_RE, _SECRET_BIND_SCOPE),
+    # A value typed into a workflow secret input becomes a catalog secret bound to it:
+    # the service also needs bind, as saving a connection's typed values does.
+    (
+        "PUT",
+        re.compile(r"^/api/projects/[^/]+/workflows/[^/]+/secret-bindings/[^/]+/value$"),
+        _SECRET_WRITE_SCOPE,
+    ),
     ("DELETE", _SECRET_BINDING_RE, _SECRET_BIND_SCOPE),
 )
 

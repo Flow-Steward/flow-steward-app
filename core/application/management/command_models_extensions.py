@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .query_models import (
     AuthAccountMembershipView,
@@ -190,6 +190,34 @@ class ExtensionGeneratedJobResultView(ViewModel):
     visibility: str = "private"
 
 
+class McpHeaderSecretChoice(BaseModel):
+    """A request header that sends a catalog secret (ADR 0057) instead of a typed value.
+
+    ``prefix`` is a literal sent before the value, for example ``"Bearer "`` for
+    ``Authorization``. It is configuration, never a secret.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    secret_id: str = Field(min_length=1, max_length=64)
+    prefix: str = Field(default="", max_length=32)
+
+    @field_validator("secret_id")
+    @classmethod
+    def _secret_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("secret_id is required")
+        return normalized
+
+    @field_validator("prefix")
+    @classmethod
+    def _prefix(cls, value: str) -> str:
+        if any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("prefix must not contain control characters or line breaks")
+        return value
+
+
 class McpConnectorCreateInput(ViewModel):
     display_name: str
     description: str = ""
@@ -197,6 +225,8 @@ class McpConnectorCreateInput(ViewModel):
     base_url: str
     auth_mode: str = "none"
     headers: dict[str, str] = Field(default_factory=dict)
+    #: Headers that send a catalog secret: ``{header_name: choice}``.
+    header_secret_choices: dict[str, McpHeaderSecretChoice] = Field(default_factory=dict)
     oauth_config: dict[str, Any] = Field(default_factory=dict)
     allowlisted_tools: list[str] = Field(default_factory=list)
     namespace_prefix: str = ""
@@ -216,6 +246,8 @@ class McpConnectorUpdateInput(ViewModel):
     auth_mode: str | None = None
     headers: dict[str, str] | None = None
     headers_mode: Literal["keep", "replace", "clear"] | None = None
+    #: ``None`` keeps the current choices; a mapping is the complete new set.
+    header_secret_choices: dict[str, McpHeaderSecretChoice] | None = None
     oauth_config: dict[str, Any] | None = None
     allowlisted_tools: list[str] | None = None
     namespace_prefix: str | None = None

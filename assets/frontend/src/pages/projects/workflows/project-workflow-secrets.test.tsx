@@ -29,7 +29,7 @@ vi.mock("@/pages/workflows/shared/workflow-secret-catalog-api", () => ({
   ],
 }));
 vi.mock("@/pages/registry/secrets/api", () => ({
-  catalogSecretsQueryKey: (projectId: string) => ["secrets", "project", projectId],
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
   fetchCatalogSecrets: vi.fn(),
   createCatalogSecret: vi.fn(),
 }));
@@ -63,7 +63,7 @@ describe("ProjectWorkflowSecrets", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(fetchCatalogSecrets).mockResolvedValue([
-      { id: "s1", name: "Partner key", description: "", owner: "project", workspace_id: "w1", project_id: "p1" },
+      { id: "s1", name: "Partner key", description: "" },
     ]);
     vi.mocked(fetchProjectWorkflowSecretApprovals).mockResolvedValue([{ ...status(), display_name: "Send order" }]);
     vi.mocked(fetchWorkflowSecretApproval).mockImplementation(async (_projectId, workflowId) => {

@@ -45,6 +45,7 @@ import {
   type McpSettingsDraft,
   RESERVED_OAUTH_PARAMETER_IDENTITIES,
   keyValueObject,
+  changedSecretHeaderChoices,
   settingsDraftFromConnector,
   isValidHttpEndpoint,
 } from "./mcp-detail-page-helpers";
@@ -82,6 +83,7 @@ export function useMcpDetailState() {
   const settingsNameRef = useRef<HTMLInputElement>(null);
   const settingsEndpointRef = useRef<HTMLInputElement>(null);
   const settingsHeadersRef = useRef<HTMLFieldSetElement>(null);
+  const settingsSecretHeadersRef = useRef<HTMLFieldSetElement>(null);
   const settingsRequestedScopesRef = useRef<HTMLFieldSetElement>(null);
   const settingsAuthorizationParametersRef = useRef<HTMLFieldSetElement>(null);
   const settingsRefreshTokenRequiredRef = useRef<HTMLFieldSetElement>(null);
@@ -500,7 +502,9 @@ export function useMcpDetailState() {
       const target = {
         name: settingsNameRef.current,
         endpoint: settingsEndpointRef.current,
-        headers: settingsHeadersRef.current?.querySelector<HTMLInputElement>("[aria-invalid='true']") || settingsHeadersRef.current,
+        headers: settingsHeadersRef.current?.querySelector<HTMLInputElement>("[aria-invalid='true']")
+          || settingsSecretHeadersRef.current?.querySelector<HTMLInputElement>("[aria-invalid='true']")
+          || settingsHeadersRef.current,
         requested_scopes: settingsRequestedScopesRef.current?.querySelector<HTMLInputElement>("[aria-invalid='true']") || settingsRequestedScopesRef.current,
         authorization_parameters: settingsAuthorizationParametersRef.current?.querySelector<HTMLInputElement>("[aria-invalid='true']") || settingsAuthorizationParametersRef.current,
         refresh_token_required: settingsRefreshTokenRequiredRef.current,
@@ -534,6 +538,23 @@ export function useMcpDetailState() {
     let replacementHeaders: Record<string, string> | undefined;
     try {
       replacementHeaders = keyValueObject(settingsDraft.replacement_headers, undefined, undefined, t);
+    } catch (error) {
+      setSettingsValidationError(
+        "headers",
+        error instanceof Error ? error.message : t("react.registry.invalid_replacement_header_row", "Invalid replacement header row."),
+      );
+      return;
+    }
+    let secretHeaderChoices: ReturnType<typeof changedSecretHeaderChoices>;
+    try {
+      secretHeaderChoices = settingsDraft.headers_mode === "clear"
+        ? undefined
+        : changedSecretHeaderChoices(
+          settingsDraft.secret_headers,
+          connector?.header_secret_choices,
+          t("react.registry.mcp_secret_header", "Stored-secret header"),
+          t,
+        );
     } catch (error) {
       setSettingsValidationError(
         "headers",
@@ -584,6 +605,7 @@ export function useMcpDetailState() {
       ...(settingsDraft.headers_mode === "clear"
         ? { headers_mode: "clear" as const }
         : {}),
+      ...(secretHeaderChoices ? { header_secret_choices: secretHeaderChoices } : {}),
     };
     saveSettingsMutation.mutate(payload);
   }
@@ -642,6 +664,7 @@ export function useMcpDetailState() {
     settingsAuthorizationParametersRef,
     settingsRefreshTokenRequiredRef,
     settingsHeadersRef,
+    settingsSecretHeadersRef,
     settingsError,
     authModeIsOauth,
     oauthStatus,

@@ -12,6 +12,7 @@ from core.application.management.mcp_connector_common import (
 )
 from core.application.management.mcp_connector_header_secrets import (
     delete_connector_header_secrets,
+    unbind_connector_catalog_secrets,
 )
 from core.infrastructure.db.psycopg_runtime import sql
 
@@ -321,6 +322,9 @@ class McpConnectorStore:
                     account_id=str(account_id),
                     project_id=str(project_id),
                     tenant_id=str(tenant_id),
+                )
+                unbind_connector_catalog_secrets(
+                    bl, connector_id=connector_id, account_id=str(account_id)
                 )
             with bl.cursor() as cur:
                 cur.execute(query, tuple(params))

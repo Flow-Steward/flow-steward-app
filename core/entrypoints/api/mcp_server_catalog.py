@@ -19,6 +19,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import JSONResponse, Response
 
+from core.application.management.command_models import McpHeaderSecretChoice
 from core.application.management.errors import ServiceError, ServiceValidationError
 from core.application.management.mcp_connector_common import accessible_project_ids
 from core.application.management.mcp_server_catalog import (
@@ -39,6 +40,10 @@ class McpCatalogInstallRequest(BaseModel):
     display_name: str = Field(default="", max_length=200)
     variables: dict[str, str] = Field(default_factory=dict)
     headers: dict[str, str] = Field(default_factory=dict)
+    #: Declared secret headers that send a stored secret instead of a typed value.
+    header_secret_choices: dict[str, McpHeaderSecretChoice] = Field(
+        default_factory=dict, max_length=20
+    )
     client_id: str = Field(default="", max_length=2000)
     client_secret: str = Field(default="", max_length=4000)
     enabled: bool = True
@@ -146,6 +151,7 @@ def create_mcp_server_catalog_router(
                 display_name=body.display_name,
                 variables=body.variables,
                 headers=body.headers,
+                header_secret_choices=body.header_secret_choices,
                 client_id=body.client_id,
                 client_secret=body.client_secret,
                 enabled=body.enabled,

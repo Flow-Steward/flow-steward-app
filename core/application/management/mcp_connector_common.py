@@ -615,6 +615,7 @@ _MCP_CONNECTOR_VIEW_FIELDS = {
     "catalog_item_id",
     "catalog_remote_id",
     "catalog_item_revision",
+    "header_secret_choices",
 }
 
 
@@ -684,6 +685,17 @@ def _sanitize_connector_row_for_view(
         "granted_scopes": _normalize_string_list(token.get("granted_scopes")),
         "connected_identity": str(payload.get("oauth_connected_identity") or "").strip(),
         "last_error": str(payload.get("oauth_last_error") or "").strip(),
+    }
+    # Which headers send a stored secret: names, secret ids and prefixes, set by the
+    # caller from the bindings. Never a value, never a storage key.
+    choices = payload.get("header_secret_choices")
+    payload["header_secret_choices"] = {
+        str(name): {
+            "secret_id": str((choice or {}).get("secret_id") or ""),
+            "prefix": str((choice or {}).get("prefix") or ""),
+        }
+        for name, choice in (choices.items() if isinstance(choices, dict) else [])
+        if isinstance(choice, dict)
     }
     return {key: payload.get(key) for key in _MCP_CONNECTOR_VIEW_FIELDS if key in payload}
 

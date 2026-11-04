@@ -544,3 +544,86 @@ def test_store_failures_are_classified_and_stop_before_the_request(
     assert result["definitely_no_external_effect"] is True
     assert boundary_io.captured == []
     assert _FIXTURE_KEY not in json.dumps(result)
+
+
+def _auth_config(mode: str, ref: str):
+    return {
+        "method": "GET",
+        "url": "https://example.test/fixture",
+        "headers": {"X-Ordinary": "kept"},
+        "auth_mode": mode,
+        "auth_ref": ref,
+    }
+
+
+def test_bearer_auth_reference_to_a_secret_input_resolves_only_for_dispatch(boundary_io):
+    state = _state(SecretReference(name="login", ref_key=_FIXTURE_KEY))
+
+    result = runtime.execute_http_request_step(
+        config=_auth_config("bearer", "{{ state.inputs.login }}"), state=state
+    )
+
+    sent = boundary_io.captured[0]
+    assert sent["headers"]["Authorization"] == f"Bearer {_FIXTURE_VALUE}"
+    assert sent["auth"] is None
+    assert result["ok"] is True
+    for forbidden in (_FIXTURE_VALUE, _FIXTURE_KEY, "flow-steward.secret-ref.v1"):
+        assert forbidden not in json.dumps(result)
+    assert boundary_io.read.call_args.kwargs == {
+        "account_id": "fixture-account",
+        "ref_key": _FIXTURE_KEY,
+    }
+
+
+def test_basic_auth_reference_takes_username_and_password_from_secret_inputs(boundary_io):
+    login = SecretReference(name="login", ref_key=_FIXTURE_KEY)
+    state = _state(login)
+    state["inputs"]["password"] = login
+
+    result = runtime.execute_http_request_step(
+        config=_auth_config("basic", "{{ state.inputs.login }}:{{ state.inputs.password }}"),
+        state=state,
+    )
+
+    auth = boundary_io.captured[0]["auth"]
+    assert isinstance(auth, httpx.BasicAuth)
+    assert result["ok"] is True
+    assert _FIXTURE_VALUE not in json.dumps(result)
+
+
+def test_an_auth_reference_to_an_ordinary_input_is_refused_before_the_request(boundary_io):
+    state = _state(SecretReference(name="login", ref_key=_FIXTURE_KEY))
+    state["inputs"]["plain"] = "typed-in-the-clear"
+
+    result = runtime.execute_http_request_step(
+        config=_auth_config("bearer", "{{ state.inputs.plain }}"), state=state
+    )
+
+    assert result["ok"] is False
+    assert boundary_io.captured == []
+    boundary_io.read.assert_not_called()
+
+
+def test_a_secret_input_auth_reference_keeps_the_literal_https_origin_rule(boundary_io):
+    state = _state(SecretReference(name="login", ref_key=_FIXTURE_KEY))
+    state["host"] = "example.test"
+    config = _auth_config("bearer", "{{ state.inputs.login }}")
+    config["url"] = "https://{{ state.host }}/fixture"
+
+    # Basic and bearer auth refuse a computed origin before anything is rendered.
+    with pytest.raises(ValueError, match="static"):
+        runtime.execute_http_request_step(config=config, state=state)
+
+    assert boundary_io.captured == []
+    boundary_io.read.assert_not_called()
+
+
+def test_a_basic_auth_reference_splits_on_the_colon_outside_templates():
+    from core.application.orchestration.http_request_auth import _split_basic_auth_ref
+
+    assert _split_basic_auth_ref("{{ state.inputs.a }}:{{ state.inputs.b }}") == (
+        "{{ state.inputs.a }}",
+        "{{ state.inputs.b }}",
+    )
+    assert _split_basic_auth_ref("user_key:pass_key") == ("user_key", "pass_key")
+    assert _split_basic_auth_ref("{{ state.inputs.a }}") == ("{{ state.inputs.a }}", "")

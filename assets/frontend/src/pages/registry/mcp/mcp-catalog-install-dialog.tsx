@@ -4,8 +4,9 @@ import { DsAlert, DsCheckbox, DsDialog, DsSelect, SensitiveInput } from "@/compo
 import { useI18n } from "@/lib/i18n/useI18n";
 import { isHttpError } from "@/lib/http/errors";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { installMcpCatalogItem, MCP_CATALOG_QUERY_KEY, type McpCatalogInstallResult, type McpCatalogItem, type McpCatalogRemote, type McpCatalogVariable } from "./api";
-import { keyValueObject, type KeyValueRow, RESERVED_OAUTH_PARAMETER_IDENTITIES } from "./key-value-rows";
+import { StoredSecretSelect } from "@/pages/registry/secrets/stored-secret-select";
+import { installMcpCatalogItem, MCP_CATALOG_QUERY_KEY, type McpCatalogHeader, type McpCatalogInstallResult, type McpCatalogItem, type McpCatalogRemote, type McpCatalogVariable, type McpHeaderSecretChoice } from "./api";
+import { defaultHeaderSecretPrefix, headerSecretHelper, keyValueObject, type KeyValueRow, RESERVED_OAUTH_PARAMETER_IDENTITIES } from "./key-value-rows";
 import { KeyValueRepeater } from "./mcp-list-page-components";
 import { rowsFromRecord, type ScopeRow, scopeRows } from "./mcp-list-page-helpers";
 import { McpCatalogIcon, ExternalAnchor } from "./mcp-catalog-presentation";
@@ -40,6 +41,43 @@ function remoteDefaults(remote: McpCatalogRemote | undefined): Record<string, st
   return values;
 }
 
+/** A declared header's typed value; hidden while a stored secret is chosen for it. */
+function CatalogHeaderValue({
+  header,
+  onChange,
+  required,
+  value,
+}: Readonly<{
+  header: McpCatalogHeader;
+  onChange: (value: string) => void;
+  required: boolean;
+  value: string;
+}>) {
+  const id = `mcp-catalog-header-${header.name}`;
+  if (header.secret) {
+    return (
+      <SensitiveInput
+        ariaLabel={header.label || header.name}
+        aria-required={required || undefined}
+        autoComplete="off"
+        className="fs-input"
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    );
+  }
+  return (
+    <input
+      aria-required={required || undefined}
+      className="fs-input"
+      id={id}
+      onChange={(event) => onChange(event.target.value)}
+      value={value}
+    />
+  );
+}
+
 /**
  * The install form: what the catalog already knows is shown, not asked. The
  * user picks an endpoint when there is more than one, fills the variables and
@@ -71,6 +109,8 @@ export function McpCatalogInstallDialog({
   const [displayName, setDisplayName] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>(() => remoteDefaults(item.remotes[0]));
   const [headers, setHeaders] = useState<Record<string, string>>({});
+  // A declared secret header may send a stored secret instead of a typed value.
+  const [secretChoices, setSecretChoices] = useState<Record<string, McpHeaderSecretChoice>>({});
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [error, setError] = useState("");
@@ -89,6 +129,7 @@ export function McpCatalogInstallDialog({
     setRemoteId(nextId);
     setVariables(remoteDefaults(next));
     setHeaders({});
+    setSecretChoices({});
     setScopes(scopeRows(next?.auth.requested_scopes ?? []));
     setParameters(rowsFromRecord(next?.auth.authorization_parameters));
     setRefreshRequired(Boolean(next?.auth.refresh_token_required));
@@ -112,7 +153,8 @@ export function McpCatalogInstallDialog({
           item_revision: current.revision,
           display_name: displayName.trim(),
           variables,
-          headers: Object.fromEntries(Object.entries(headers).filter(([, value]) => value.trim())),
+          headers: Object.fromEntries(Object.entries(headers).filter(([name, value]) => value.trim() && !secretChoices[name])),
+          ...(Object.keys(secretChoices).length ? { header_secret_choices: secretChoices } : {}),
           client_id: usesClient ? clientId.trim() : "",
           client_secret: usesClient ? clientSecret : "",
           ...(usesOauth
@@ -301,25 +343,26 @@ export function McpCatalogInstallDialog({
               {header.label || header.name}
               {header.required || remote?.auth.mode === "headers" ? <span aria-hidden="true" className="fs-required"> *</span> : null}
             </label>
-            {header.secret ? (
-              <SensitiveInput
-                ariaLabel={header.label || header.name}
-                aria-required={header.required || remote?.auth.mode === "headers" || undefined}
-                autoComplete="off"
-                className="fs-input"
-                id={`mcp-catalog-header-${header.name}`}
-                onChange={(event) => setHeaders((values) => ({ ...values, [header.name]: event.target.value }))}
-                value={headers[header.name] ?? ""}
-              />
-            ) : (
-              <input
-                aria-required={header.required || remote?.auth.mode === "headers" || undefined}
-                className="fs-input"
-                id={`mcp-catalog-header-${header.name}`}
-                onChange={(event) => setHeaders((values) => ({ ...values, [header.name]: event.target.value }))}
+            {secretChoices[header.name] ? null : (
+              <CatalogHeaderValue
+                header={header}
+                onChange={(value) => setHeaders((values) => ({ ...values, [header.name]: value }))}
+                required={header.required || remote?.auth.mode === "headers"}
                 value={headers[header.name] ?? ""}
               />
             )}
+            {header.secret ? (
+              <StoredSecretSelect
+                fieldLabel={header.label || header.name}
+                onChange={(secretId) => setSecretChoices((values) => {
+                  const rest = Object.fromEntries(Object.entries(values).filter(([name]) => name !== header.name));
+                  if (!secretId) return rest;
+                  return { ...rest, [header.name]: { secret_id: secretId, prefix: defaultHeaderSecretPrefix(header.name) } };
+                })}
+                helper={secretChoices[header.name] ? headerSecretHelper({ key: header.name }, t) : undefined}
+                value={secretChoices[header.name]?.secret_id ?? ""}
+              />
+            ) : null}
             {header.description ? <span className="fs-field-helper">{header.description}</span> : null}
           </div>
         ))}

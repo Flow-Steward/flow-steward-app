@@ -16,7 +16,11 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 from core.application.management import project_connection_secrets
-from core.application.management.errors import ServiceConflictError, ServiceForbiddenError
+from core.application.management.errors import (
+    ServiceConflictError,
+    ServiceForbiddenError,
+    ServiceNotFoundError,
+)
 from core.application.management.scope import ScopeContext
 from core.application.secrets.approval_gate import SecretConfigurationUnapproved
 from core.application.secrets.service import SecretCatalogService
@@ -241,8 +245,16 @@ def test_the_move_keeps_values_binds_and_approves_once(create_database) -> None:
     conn = _connect(dsn)
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT name, storage_ref_key, project_id::text FROM catalog_secrets")
-            assert cur.fetchall() == [("Shop / api_token", key, project)]
+            cur.execute("SELECT name, storage_ref_key FROM catalog_secrets")
+            assert cur.fetchall() == [("Shop / api_token", key)]
+            # The move made the secret the project's; the next file makes it the installation's.
+            cur.execute(
+                "SELECT count(*) FROM catalog_secrets"
+                " WHERE project_id IS NOT NULL OR workspace_id IS NOT NULL"
+            )
+            assert cur.fetchone()[0] == 0
+            cur.execute("SELECT project_connection_id FROM catalog_secret_bindings")
+            assert cur.fetchall() == [(connection_id,)]
             cur.execute(
                 "SELECT count(*) FROM catalog_secret_bindings WHERE project_connection_id = %s",
                 (missing,),
@@ -561,5 +573,149 @@ def test_a_ledger_that_holds_a_prefix_of_the_ordered_files_is_a_supported_source
             if "missing_migrations" in issue.get("details", {})
         ] == []
         assert report["pending_migrations"] == dropped
+    finally:
+        conn.close()
+
+
+def test_a_used_secret_is_deleted_with_its_bindings_after_the_confirmed_plan(
+    create_database,
+) -> None:
+    conn, _project_id, connection_id, service = _catalog_db(create_database)
+    try:
+        service.save_connection_values(connection_id, _human(), values={"api_token": "v"})
+        secret_id = _row(conn, connection_id)["secret_refs"]["catalog"]["api_token"]
+        with pytest.raises(ServiceConflictError):
+            service.delete_secret(secret_id, _human())
+
+        plan = service.delete_plan(secret_id, _human())
+        assert [(u["consumer_kind"], u["connection_id"], u["field"]) for u in plan["usages"]] == [
+            ("project_connection", connection_id, "api_token")
+        ]
+        with pytest.raises(ServiceForbiddenError):
+            service.delete_secret(secret_id, _human("viewer"), plan_revision=plan["revision"])
+        # Deleting with the plan also unbinds, which a write-only token may not do.
+        with pytest.raises(ServiceForbiddenError):
+            service.delete_secret(
+                secret_id, _token("secrets:write"), plan_revision=plan["revision"]
+            )
+        with pytest.raises(ServiceConflictError) as stale:
+            service.delete_secret(secret_id, _human(), plan_revision="0" * 64)
+        assert stale.value.payload["details"] == {"stale_plan": True}
+
+        result = service.delete_secret(secret_id, _human(), plan_revision=plan["revision"])
+
+        assert result == {"deleted": True, "id": secret_id, "removed_bindings": 1}
+        refs = _row(conn, connection_id)["secret_refs"]
+        assert "catalog" not in refs
+        assert "api_token" not in (refs.get("refs") or {})
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM secret_refs WHERE ref_key = %s",
+                (f"catalog_secret:{secret_id}",),
+            )
+            assert cur.fetchone()[0] == 0, "the stored value is gone with the secret"
+            cur.execute(
+                "SELECT count(*) FROM catalog_secret_bindings WHERE secret_id::text = %s",
+                (secret_id,),
+            )
+            assert cur.fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_one_secret_serves_every_project_and_only_unrestricted_callers_change_it(
+    create_database,
+) -> None:
+    conn, project_id, connection_id, service = _catalog_db(create_database)
+    try:
+        with conn.cursor() as cur:
+            other_project = _project(cur, "beta")
+            other_connection = _connection(cur, other_project, label="Other", refs={})
+        secret = service.create_secret(_human(), name="Mail key", value="a")
+        assert "project_id" not in secret and "owner" not in secret
+
+        # The same secret binds to connections of two projects.
+        service.bind_connection_field(
+            connection_id, _human(), field="api_token", secret_id=secret["id"]
+        )
+        service.bind_connection_field(
+            other_connection, _human(), field="api_token", secret_id=secret["id"]
+        )
+        detail = service.get_secret(secret["id"], _human())
+        assert {usage["project_id"] for usage in detail["usages"]} == {project_id, other_project}
+
+        restricted = ScopeContext(
+            account_id=ACCOUNT,
+            principal_type="operator",
+            auth_source="local",
+            actor_id="person",
+            allowed_project_ids=frozenset({project_id}),
+        )
+        # Every project sees the same list, a restricted caller too.
+        assert secret["id"] in {row["id"] for row in service.list_secrets(restricted)}
+        # A value other projects use is not changed by a caller limited to one project.
+        for change in (
+            lambda: service.replace_value(secret["id"], restricted, value="b"),
+            lambda: service.update_metadata(secret["id"], restricted, name="x"),
+            lambda: service.create_secret(restricted, name="New", value="c"),
+        ):
+            with pytest.raises(ServiceNotFoundError):
+                change()
+    finally:
+        conn.close()
+
+
+def test_a_data_connection_reads_a_chosen_secret_by_its_catalog_key(create_database) -> None:
+    """The connection keeps the secret's own storage key, the Secrets page lists the use,
+    and a confirmed delete leaves the connection without a key to it."""
+    from core.application.registry.data_connection_catalog import (
+        apply_secret_choices,
+        secret_choices_by_connection,
+    )
+
+    conn, _project_id, _connection_id, service = _catalog_db(create_database)
+    try:
+        with conn.cursor() as cur:
+            tenant = "00000000-0000-0000-0000-000000000001"
+            cur.execute(
+                "INSERT INTO workspace_data_connections (connection_id, tenant_id, account_id,"
+                " workspace_id, display_name, secret_refs_jsonb)"
+                " VALUES ('dc_orders', %s, %s, %s, 'Orders DB',"
+                " '{\"refs\": {\"password\": \"project_connection:dc_orders:password\"}}')",
+                (tenant, ACCOUNT, WORKSPACE),
+            )
+        secret = service.create_secret(_human(), name="Orders DB password", value="pw")
+        apply_secret_choices(
+            conn, scope=_human(), connection_id="dc_orders", choices={"password": secret["id"]},
+            typed=set(),
+        )
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT secret_refs_jsonb->'refs'->>'password' FROM workspace_data_connections"
+                " WHERE connection_id = 'dc_orders'"
+            )
+            assert cur.fetchone()[0] == f"catalog_secret:{secret['id']}"
+            assert secret_choices_by_connection(
+                cur, account_id=ACCOUNT, connection_ids=["dc_orders"]
+            ) == {"dc_orders": {"password": secret["id"]}}
+
+        plan = service.delete_plan(secret["id"], _human())
+        assert [(u["consumer_kind"], u["consumer_id"], u["consumer_name"], u["field"])
+                for u in plan["usages"]] == [("data_connection", "dc_orders", "Orders DB", "password")]
+        with pytest.raises(ServiceForbiddenError):
+            apply_secret_choices(
+                conn, scope=_token("secrets:write"), connection_id="dc_orders",
+                choices={"password": secret["id"]}, typed=set(),
+            )
+
+        service.delete_secret(secret["id"], _human(), plan_revision=plan["revision"])
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT secret_refs_jsonb FROM workspace_data_connections"
+                " WHERE connection_id = 'dc_orders'"
+            )
+            assert cur.fetchone()[0] == {"refs": {}}
+            cur.execute("SELECT count(*) FROM catalog_secret_bindings")
+            assert cur.fetchone()[0] == 0
     finally:
         conn.close()

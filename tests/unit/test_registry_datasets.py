@@ -176,6 +176,8 @@ class FakeDatasetDB:
         payload: dict,
         *,
         secret_values: dict[str, str],
+        secret_choices: dict[str, str] | None = None,
+        scope: object = None,
         author: str = "admin",
     ) -> dict:
         self.atomic_connection_save_calls.append(
@@ -323,6 +325,10 @@ class FakeDatasetDB:
                 if data_type == "uuid":
                     return {"data_type": "uuid", "udt_name": "uuid"}
                 return {"data_type": data_type, "udt_name": data_type}
+
+            def fetchall(self):
+                # No stored-secret bindings in this fixture (ADR 0057 choices).
+                return []
 
         yield _Cursor(self.connection_id_data_type)
 

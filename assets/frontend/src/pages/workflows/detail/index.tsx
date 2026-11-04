@@ -647,6 +647,13 @@ function WorkflowDetailPageContent({
     secretCatalogWorkflowId: workflowId,
     secretCatalogProjectId: selectedProjectId,
     secretCatalogRevision: serverRevision,
+    // An HTTP step's stored-secret auth adds a secret input to this workflow; a hook
+    // child's step edits another workflow and gets no such shortcut.
+    secretInputsEditable: !inHook,
+    workflowInterfaceInputsDraft: settings.workflowInterfaceInputsDraft,
+    setWorkflowInterfaceInputsDraft: settings.setWorkflowInterfaceInputsDraft,
+    handleSaveWorkflowSettings: settings.handleSaveWorkflowSettings,
+    registerStepSecretTask: stepActions.registerStepSecretTask,
     workflowInterfaceControlIdPrefix,
     workflowInterfaceNameValidationAttempted: settings.workflowInterfaceNameValidationAttempted,
     workflowInterfaceOutputsDraft: settings.workflowInterfaceOutputsDraft,

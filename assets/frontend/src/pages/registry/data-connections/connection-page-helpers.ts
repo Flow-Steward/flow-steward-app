@@ -21,6 +21,10 @@ export type ConnectionDraft = {
   touched_connection_fields?: string[];
   secret_values: Record<string, string>;
   existing_secret_keys: string[];
+  /** Secret field -> stored secret chosen in this form; "" stops using one. */
+  secret_choices?: Record<string, string>;
+  /** The stored secrets the saved connection uses, by field. */
+  original_secret_choices?: Record<string, string>;
   original_connector_option_id?: string;
   original_connection_config?: Record<string, unknown>;
   original_metadata?: Record<string, unknown>;

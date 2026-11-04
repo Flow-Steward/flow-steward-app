@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from core.application.extensions.direct_effect_recovery_models import DirectEffectResolutionRef
 from core.application.extensions.identity import normalize_extension_id
+from core.application.management.command_models_extensions import McpHeaderSecretChoice
 from core.application.management.project_policy_validation import (
     ProjectConcurrencyCap,
     ProjectPolicyConfidence,
@@ -746,6 +747,8 @@ class McpConnectorCreateRequest(BaseModel):
     base_url: str
     auth_mode: str = "none"
     headers: dict[str, str] = Field(default_factory=dict)
+    #: Headers that send a stored secret from the catalog instead of a typed value.
+    header_secret_choices: dict[str, McpHeaderSecretChoice] = Field(default_factory=dict)
     oauth_config: dict[str, Any] = Field(default_factory=dict)
     allowlisted_tools: list[str] = Field(default_factory=list)
     namespace_prefix: str = ""
@@ -762,6 +765,8 @@ class McpConnectorUpdateRequest(BaseModel):
     auth_mode: str | None = None
     headers: dict[str, str] | None = None
     headers_mode: Literal["keep", "replace", "clear"] | None = None
+    #: Omitted keeps the current choices; an object is the complete new set.
+    header_secret_choices: dict[str, McpHeaderSecretChoice] | None = None
     oauth_config: dict[str, Any] | None = None
     allowlisted_tools: list[str] | None = None
     namespace_prefix: str | None = None

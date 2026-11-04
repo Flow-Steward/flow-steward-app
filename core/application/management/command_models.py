@@ -314,6 +314,9 @@ from .command_models_extensions import (
     McpConnectorUpdateInput as McpConnectorUpdateInput,
 )
 from .command_models_extensions import (
+    McpHeaderSecretChoice as McpHeaderSecretChoice,
+)
+from .command_models_extensions import (
     ProjectConnectionDeleteResultView as ProjectConnectionDeleteResultView,
 )
 from .command_models_extensions import (

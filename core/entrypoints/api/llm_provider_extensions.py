@@ -21,6 +21,7 @@ def create_api_llm_provider_extensions_router(
     require_authenticated_user,
     auth_admin_roles,
     api_error_response,
+    request_scope=None,
 ) -> APIRouter:
     router = APIRouter(
         tags=["llm-provider-extensions"],
@@ -43,6 +44,19 @@ def create_api_llm_provider_extensions_router(
             require_authenticated_user(request, required_roles=auth_admin_roles)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail="Admin role required") from exc
+
+    def secret_scope(request: Request):
+        """The caller's scope for binding stored secrets; None when it cannot be built.
+
+        Only a save that binds or unbinds a stored secret needs it; that save then
+        refuses without it.
+        """
+        if request_scope is None:
+            return None
+        try:
+            return request_scope(request)
+        except Exception:
+            return None
 
     def use_cases() -> LlmProviderExtensionUseCases:
         try:
@@ -107,6 +121,8 @@ def create_api_llm_provider_extensions_router(
                 secrets=body.secrets,
                 connection_config=body.connection_config,
                 remote_base_url=body.remote_base_url,
+                secret_choices=body.secret_choices,
+                scope=secret_scope(request),
             )
 
         return await invoke(request, operation)

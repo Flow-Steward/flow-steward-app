@@ -146,5 +146,6 @@ def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fing
         MIGRATION,
         "20261103090000_retired_agent_type.sql",
         "20261103090000_secret_catalog.sql",
+        "20261104120000_secret_catalog_installation_wide.sql",
     ]
     assert status["needs_upgrade"] is True

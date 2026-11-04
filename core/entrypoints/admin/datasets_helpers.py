@@ -31,6 +31,7 @@ from core.entrypoints.admin.datasets_models import (
     DataConnectionSave,
     DatasetQueryTemplateAction,
 )
+from core.entrypoints.admin.datasets_secret_choices import requested_secret_choices
 
 DATASET_NOT_FOUND_MESSAGE = "Dataset not found"
 DATA_CONNECTION_STORAGE_IS_NOT_AVAILABLE_VALUE = "Data connection storage is not available"
@@ -912,10 +913,8 @@ def _data_connection_payload(db, body: DataConnectionSave, *, scope: Any) -> dic
     existing_secret_refs = _existing_secret_refs(
         (existing or {}).get("secret_refs_jsonb") or (existing or {}).get("secret_refs")
     )
-    _validate_connection_secrets(
-        schema=secret_schema,
-        secret_values=secret_values,
-        existing_refs=existing_secret_refs,
+    secret_choices = requested_secret_choices(
+        raw.get("secret_choices"), secret_schema, secret_values, existing_secret_refs
     )
     return {
         "connection_id": connection_id,
@@ -942,6 +941,7 @@ def _data_connection_payload(db, body: DataConnectionSave, *, scope: Any) -> dic
         "secret_refs_jsonb": {"refs": existing_secret_refs} if existing_secret_refs else {},
         "metadata_jsonb": metadata,
         "_pending_secret_values": secret_values,
+        "_secret_choices": secret_choices,
     }
 
 

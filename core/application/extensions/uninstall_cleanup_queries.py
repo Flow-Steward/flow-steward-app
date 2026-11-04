@@ -203,8 +203,13 @@ class ExtensionUninstallCleanupQueries:
             refs = dict(dict(row.get("secret_refs_jsonb") or {}).get("refs") or {})
             ref_keys = [str(value or "").strip() for value in refs.values()]
             if ref_keys:
+                # A catalog secret chosen for the connection belongs to the catalog
+                # and outlives it (ADR 0057); only the connection's own values go.
                 cur.execute(
-                    "DELETE FROM secret_refs WHERE account_id::text = %s AND ref_key = ANY(%s)",
+                    "DELETE FROM secret_refs WHERE account_id::text = %s AND ref_key = ANY(%s)"
+                    " AND NOT EXISTS (SELECT 1 FROM catalog_secrets AS catalog"
+                    " WHERE catalog.account_id = secret_refs.account_id"
+                    " AND catalog.storage_ref_key = secret_refs.ref_key)",
                     (str(row.get("account_id") or "").strip(), ref_keys),
                 )
 
@@ -278,6 +283,20 @@ class ExtensionUninstallCleanupQueries:
                     (context.account_id, base_ref, base_ref, base_ref),
                 )
             self._record_removed(cur, removed_data, "llm_credential_ref")
+        if getattr(bl, "_table_exists", lambda *_args: False)("catalog_secret_bindings"):
+            # Stored secrets the provider install chose (ADR 0057): the uses go, the
+            # secrets stay in Registry → Secrets.
+            if target.include_consumer_accounts:
+                cur.execute(
+                    "DELETE FROM catalog_secret_bindings WHERE consumer_kind = 'llm_provider' AND llm_provider_install_id = %s",
+                    (state.install_id,),
+                )
+            else:
+                cur.execute(
+                    "DELETE FROM catalog_secret_bindings WHERE consumer_kind = 'llm_provider' AND llm_provider_install_id = %s AND account_id::text = %s",
+                    (state.install_id, str(context.account_id)),
+                )
+            self._record_removed(cur, removed_data, "llm_catalog_secret_bindings")
         if getattr(bl, "_table_exists", lambda *_args: False)("dataset_query_templates"):
             cur.execute(
                 "DELETE FROM dataset_query_templates WHERE validation_result_jsonb->'projection_bridge'->>'install_id' = %s",

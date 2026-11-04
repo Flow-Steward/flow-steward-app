@@ -57,7 +57,12 @@ export type McpConnectorRecord = {
   catalog_item_id: string;
   catalog_remote_id: string;
   catalog_item_revision: number;
+  /** Headers that send a stored secret: the secret's id and the literal prefix. Never a value. */
+  header_secret_choices: Record<string, McpHeaderSecretChoice>;
 };
+
+/** A request header that sends a catalog secret, e.g. Authorization = "Bearer " + secret. */
+export type McpHeaderSecretChoice = { secret_id: string; prefix: string };
 
 export type McpConnectorPayload = {
   display_name?: string;
@@ -66,6 +71,8 @@ export type McpConnectorPayload = {
   auth_mode?: string;
   headers?: Record<string, string>;
   headers_mode?: "keep" | "replace" | "clear";
+  /** On create: the chosen headers. On update: omitted keeps them; an object is the complete new set. */
+  header_secret_choices?: Record<string, McpHeaderSecretChoice>;
   oauth_config?: Record<string, unknown>;
   namespace_prefix?: string;
   description?: string;
@@ -192,6 +199,19 @@ function normalizeOAuthStatus(value: unknown, fallbackStatus = "not_configured")
   };
 }
 
+function normalizeHeaderSecretChoices(value: unknown): Record<string, McpHeaderSecretChoice> {
+  if (!isRecord(value)) return {};
+  const choices: Record<string, McpHeaderSecretChoice> = {};
+  for (const [name, choice] of Object.entries(value)) {
+    if (!isRecord(choice)) continue;
+    const secretId = firstStringFromUnknownValue([choice.secret_id, ""]).trim();
+    if (!name.trim() || !secretId) continue;
+    // The prefix is literal: "Bearer " keeps its space.
+    choices[name] = { secret_id: secretId, prefix: typeof choice.prefix === "string" ? choice.prefix : "" };
+  }
+  return choices;
+}
+
 function normalizeConnector(value: Record<string, unknown>): McpConnectorRecord {
   const authStatus = firstStringFromUnknownValue([value.auth_status, "not_configured"]).trim() || "not_configured";
   return {
@@ -236,6 +256,7 @@ function normalizeConnector(value: Record<string, unknown>): McpConnectorRecord 
     catalog_item_id: firstStringFromUnknownValue([value.catalog_item_id, ""]).trim(),
     catalog_remote_id: firstStringFromUnknownValue([value.catalog_remote_id, ""]).trim(),
     catalog_item_revision: typeof value.catalog_item_revision === "number" ? value.catalog_item_revision : 0,
+    header_secret_choices: normalizeHeaderSecretChoices(value.header_secret_choices),
   };
 }
 
@@ -458,6 +479,8 @@ export type McpCatalogInstallPayload = {
   display_name?: string;
   variables?: Record<string, string>;
   headers?: Record<string, string>;
+  /** Declared secret headers that send a stored secret instead of a typed value. */
+  header_secret_choices?: Record<string, McpHeaderSecretChoice>;
   client_id?: string;
   client_secret?: string;
   /** The OAuth settings the form showed, as the user left them. */

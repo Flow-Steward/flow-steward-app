@@ -309,7 +309,6 @@ def workflow_bindings(cur: Any, *, account_id: str, workflow_id: str) -> list[di
     cur.execute(
         """
         SELECT b.field_name AS field, b.secret_id::text AS secret_id, s.storage_ref_key,
-               s.project_id::text AS project_id, s.workspace_id::text AS workspace_id,
                b.consumer_project_id::text AS consumer_project_id
           FROM catalog_secret_bindings AS b
           JOIN catalog_secrets AS s ON s.id = b.secret_id
@@ -323,8 +322,6 @@ def workflow_bindings(cur: Any, *, account_id: str, workflow_id: str) -> list[di
         "field",
         "secret_id",
         "storage_ref_key",
-        "project_id",
-        "workspace_id",
         "consumer_project_id",
     )
     # A dict cursor (the registry store's) and a tuple cursor give the same rows.
@@ -463,7 +460,7 @@ def _catalog_secret(cur: Any, ref_key: str) -> dict[str, str] | None:
     """The catalog secret a storage key belongs to, in any account; None when it is not one."""
     cur.execute(
         """
-        SELECT id::text, account_id::text, project_id::text, workspace_id::text
+        SELECT id::text, account_id::text
           FROM catalog_secrets
          WHERE storage_ref_key = %s
         """,
@@ -473,14 +470,14 @@ def _catalog_secret(cur: Any, ref_key: str) -> dict[str, str] | None:
     if row is None:
         return None
     values = list(row.values()) if isinstance(row, dict) else list(row)
-    keys = ("id", "account_id", "project_id", "workspace_id")
+    keys = ("id", "account_id")
     return {key: _text(value) for key, value in zip(keys, values, strict=False)}
 
 
 def run_approval(conn: Any, cur: Any, *, job_id: str, ref_key: str) -> tuple[dict, str]:
     """(approval, job project) that let this job read a catalog secret; raises otherwise.
 
-    Everything comes from the host database: the job's pin, the secret's owner, the
+    Everything comes from the host database: the job's pin, the secret's account, the
     workflow's current bindings and approval. Run state contributes only the job id,
     which steps cannot write.
     """
@@ -491,12 +488,6 @@ def run_approval(conn: Any, cur: Any, *, job_id: str, ref_key: str) -> tuple[dic
         raise SecretConfigurationUnapproved()
     job = load_run_job(cur, job_id) if _text(job_id) else None
     if job is None or job.definition is None or job.account_id != secret["account_id"]:
-        raise SecretConfigurationUnapproved()
-    if secret["project_id"]:
-        available = secret["project_id"] == job.project_id
-    else:
-        available = bool(job.workspace_id) and secret["workspace_id"] == job.workspace_id
-    if not available:
         raise SecretConfigurationUnapproved()
     if ref_key not in run_secret_authority(conn, cur, job_id=job.job_id).stored_ref_keys:
         raise SecretConfigurationUnapproved()

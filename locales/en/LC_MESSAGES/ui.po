@@ -29576,3 +29576,267 @@ msgstr "Approve use of secrets for {name}"
 
 msgid "react.extensions.secret_catalog.approve"
 msgstr "Approve use of secrets"
+
+msgid "react.registry.secrets.actions_for"
+msgstr "Actions for {value0}"
+
+msgid "react.registry.secrets.add_description"
+msgstr "Store a value once and choose it in connections and workflow inputs. It is never shown again."
+
+msgid "react.registry.secrets.close_dialog"
+msgstr "Close"
+
+msgid "react.registry.secrets.count"
+msgstr "Secrets: {value0}"
+
+msgid "react.registry.secrets.created_message"
+msgstr "Secret {value0} created."
+
+msgid "react.registry.secrets.delete_acknowledge"
+msgstr "Remove the secret from these places and delete it"
+
+msgid "react.registry.secrets.delete_description"
+msgstr "The stored value is deleted for good."
+
+msgid "react.registry.secrets.delete_failed"
+msgstr "Not deleted"
+
+msgid "react.registry.secrets.delete_title"
+msgstr "Delete {value0}?"
+
+msgid "react.registry.secrets.delete_unused"
+msgstr "Nothing uses this secret."
+
+msgid "react.registry.secrets.delete_used_help"
+msgstr "These connections and workflow inputs lose this secret and need another value before they run."
+
+msgid "react.registry.secrets.delete_used_title"
+msgstr "Used in {value0} place(s)"
+
+msgid "react.registry.secrets.delete_with_uses"
+msgstr "Delete and remove its uses"
+
+msgid "react.registry.secrets.deleted"
+msgstr "Secret {value0} deleted."
+
+msgid "react.registry.secrets.done"
+msgstr "Done"
+
+msgid "react.registry.secrets.edit"
+msgstr "Edit details"
+
+msgid "react.registry.secrets.edit_description"
+msgstr "Rename the secret or change its description. The value stays as it is."
+
+msgid "react.registry.secrets.edit_title"
+msgstr "Edit {value0}"
+
+msgid "react.registry.secrets.empty"
+msgstr "No secrets yet. Create one with New secret."
+
+msgid "react.registry.secrets.filter_unused"
+msgstr "Not used"
+
+msgid "react.registry.secrets.filter_used"
+msgstr "In use"
+
+msgid "react.registry.secrets.load_failed"
+msgstr "Could not load secrets"
+
+msgid "react.registry.secrets.loading"
+msgstr "Loading secrets…"
+
+msgid "react.registry.secrets.name_placeholder"
+msgstr "e.g. Shop API key"
+
+msgid "react.registry.secrets.name_required"
+msgstr "Enter a name."
+
+msgid "react.registry.secrets.no_match"
+msgstr "No secret matches these filters."
+
+msgid "react.registry.secrets.owner_kind_project"
+msgstr "Project"
+
+msgid "react.registry.secrets.owner_kind_workspace"
+msgstr "Workspace"
+
+msgid "react.registry.secrets.plan_changed"
+msgstr "Its uses changed"
+
+msgid "react.registry.secrets.plan_changed_help"
+msgstr "Review the current list and confirm again."
+
+msgid "react.registry.secrets.plan_failed"
+msgstr "Could not load where this secret is used"
+
+msgid "react.registry.secrets.project_required"
+msgstr "Choose a project."
+
+msgid "react.registry.secrets.replace_description"
+msgstr "Everything that uses this secret gets the new value. The old one cannot be shown."
+
+msgid "react.registry.secrets.replace_title"
+msgstr "Replace the value of {value0}"
+
+msgid "react.registry.secrets.search"
+msgstr "Search secrets"
+
+msgid "react.registry.secrets.search_placeholder"
+msgstr "Search secrets…"
+
+msgid "react.registry.secrets.updated"
+msgstr "Secret {value0} updated."
+
+msgid "react.registry.secrets.usage"
+msgstr "Use"
+
+msgid "react.registry.secrets.used_count"
+msgstr "{value0} place(s)"
+
+msgid "react.registry.secrets.value_changed_column"
+msgstr "Value changed"
+
+msgid "react.registry.secrets.value_helper"
+msgstr "Stored encrypted. Nobody can read it back, only replace it."
+
+msgid "react.registry.secrets.value_replaced"
+msgstr "The value of {value0} was replaced."
+
+msgid "react.registry.secrets.value_required"
+msgstr "Enter the value."
+
+msgid "react.extensions.secret_catalog.applied_on_save"
+msgstr "Applied when you save the connection."
+
+msgid "react.extensions.secret_catalog.uses_stored"
+msgstr "Uses this stored secret. Replace its value in Registry → Secrets."
+
+msgid "react.registry.secrets.add_description_shared"
+msgstr "Store a value once and choose it wherever a key or password is asked for, in any project. It is never shown again."
+
+msgid "react.registry.secrets.page_description_shared"
+msgstr "Create a secret once and choose it wherever a key or password is asked for, in any project. Replace it here and everything that uses it gets the new value. Stored values are never shown again."
+
+msgid "react.secret_catalog.new_for"
+msgstr "New secret for {field}"
+
+msgid "react.secret_catalog.none_yet"
+msgstr "No stored secrets yet"
+
+msgid "react.secret_catalog.type_instead"
+msgstr "Type a value instead"
+
+msgid "react.workflows.http_auth_choose_input"
+msgstr "Choose a secret input"
+
+msgid "react.workflows.http_auth_help_inputs"
+msgstr "Bearer sends one secret input; basic sends a username and a password input. Authenticated requests require a literal HTTPS origin."
+
+msgid "react.workflows.http_auth_input_for"
+msgstr "Secret input for {field}"
+
+msgid "react.workflows.http_auth_legacy"
+msgstr "A project secret key. Clear it to choose a stored secret instead."
+
+msgid "react.workflows.http_auth_no_inputs"
+msgstr "This workflow has no secret input yet"
+
+msgid "react.workflows.http_auth_none"
+msgstr "Choose bearer or basic to send a secret."
+
+msgid "react.workflows.http_auth_password"
+msgstr "Password"
+
+msgid "react.workflows.http_auth_readiness_input"
+msgstr "Choose the secret this authentication mode sends."
+
+msgid "react.workflows.http_auth_stored_help"
+msgstr "Or choose a stored secret: a secret input that uses it is added to this workflow and saved."
+
+msgid "react.workflows.http_auth_token"
+msgstr "Token"
+
+msgid "react.workflows.http_auth_username"
+msgstr "Username"
+
+msgid "react.workflows.secret_catalog.bound_on_save"
+msgstr "Used for this input once you save the workflow settings."
+
+msgid "react.workflows.secret_catalog.choose_help"
+msgstr "Choose a stored secret instead of typing a value."
+
+msgid "react.workflows.secret_catalog.new_input"
+msgstr "this input"
+
+msgid "react.workflows.typed_secret_kept_in_catalog"
+msgstr "Saving the workflow keeps this value as a secret in Registry → Secrets, so you can choose it elsewhere. It is never shown again."
+
+msgid "react.registry.mcp_add_secret_header"
+msgstr "Add header from a stored secret"
+
+msgid "react.registry.mcp_header_secret_helper"
+msgstr "Sent as the prefix followed by the stored secret. The value never reaches the browser."
+
+msgid "react.registry.mcp_header_secret_prefix"
+msgstr "Prefix (optional)"
+
+msgid "react.registry.mcp_header_secret_prefix_for"
+msgstr "Prefix before the stored secret for {field}"
+
+msgid "react.registry.mcp_header_secret_prefix_limit"
+msgstr "{label} prefixes must be 32 characters or fewer."
+
+msgid "react.registry.mcp_secret_header"
+msgstr "Stored-secret header"
+
+msgid "react.registry.mcp_secret_header_key"
+msgstr "Stored-secret header name"
+
+msgid "react.registry.mcp_secret_headers"
+msgstr "Headers from stored secrets"
+
+msgid "react.registry.mcp_secret_headers_helper"
+msgstr "Replace a value in Registry → Secrets; it applies at the next request."
+
+msgid "react.registry.secrets.usage_data_connection"
+msgstr "Data connection"
+
+msgid "react.registry.secrets.usage_llm_provider"
+msgstr "LLM provider"
+
+msgid "react.registry.secrets.usage_mcp"
+msgstr "MCP connector"
+
+msgid "react.workflows.secret_catalog.bound_help"
+msgstr "Uses this stored secret. Runs can use it after a person approves the workflow's use of secrets."
+
+msgid "react.workflows.http_auth_value_for"
+msgstr "Value of {field}"
+
+msgid "react.workflows.http_auth_keep_value"
+msgstr "Use this value"
+
+msgid "react.workflows.http_auth_uses_stored"
+msgstr "Uses this stored secret. Replace its value in Registry → Secrets."
+
+msgid "react.workflows.http_auth_value_help"
+msgstr "A value typed here is kept as a stored secret, so you can choose it elsewhere."
+
+msgid "react.workflows.http_auth_help_secrets"
+msgstr "Bearer sends one secret; basic sends a username and a password. Authenticated requests require a literal HTTPS origin."
+
+msgid "react.registry.mcp_header_value_from_secret"
+msgstr "From the stored secret below"
+
+msgid "react.registry.mcp_header_secret_key_required"
+msgstr "Enter the header name for the stored secret."
+
+msgid "react.registry.mcp_header_secret_bearer_helper"
+msgstr "Sent as “Bearer” and the stored secret: keep only the token in the secret. The value never reaches the browser."
+
+msgid "react.registry.mcp_header_secret_value_helper"
+msgstr "Sent as the stored secret's value. The value never reaches the browser."
+
+msgid "react.workflows.http_auth_value_on_save"
+msgstr "Saving the step keeps a typed value as a stored secret, so you can choose it elsewhere."

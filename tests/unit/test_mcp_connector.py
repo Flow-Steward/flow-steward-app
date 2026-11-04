@@ -164,6 +164,7 @@ _MCP_CONNECTOR_HTTP_FIELDS = {
     "catalog_item_id",
     "catalog_remote_id",
     "catalog_item_revision",
+    "header_secret_choices",
 }
 
 

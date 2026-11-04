@@ -391,6 +391,8 @@ class McpConnectorView(ViewModel):
     catalog_item_id: str = ""
     catalog_remote_id: str = ""
     catalog_item_revision: int = 0
+    #: Headers that send a stored secret: ``{header: {"secret_id", "prefix"}}``. No values.
+    header_secret_choices: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class McpConnectorListView(ViewModel):

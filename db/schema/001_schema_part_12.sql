@@ -177,13 +177,16 @@ CREATE INDEX idx_oauth_authorizations_expires ON public.oauth_authorizations (ex
 
 -- Secret catalog (ADR 0055): identity, metadata, bindings and approved use of shared
 -- secrets. Values stay in secret_refs under storage_ref_key. platform_upgrade_phases
--- records the data phases of database upgrade (ADR 0054). Keep this block and
--- db/migrations/20261103090000_secret_catalog.sql identical apart from IF NOT EXISTS.
+-- records the data phases of database upgrade (ADR 0054). This block is
+-- db/migrations/20261103090000_secret_catalog.sql without IF NOT EXISTS, after
+-- 20261104120000_secret_catalog_installation_wide.sql emptied the owner columns.
 CREATE TABLE public.catalog_secrets (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE RESTRICT,
-    workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE RESTRICT,
-    project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
+    -- Unused since 20261104120000: a secret belongs to the installation. Kept, empty,
+    -- because db/migrations/20261103090000_secret_catalog.sql names them.
+    workspace_id uuid,
+    project_id uuid,
     name text NOT NULL CHECK (char_length(btrim(name)) BETWEEN 1 AND 200),
     description text DEFAULT ''::text NOT NULL CHECK (char_length(description) <= 2000),
     storage_ref_key text NOT NULL CHECK (char_length(storage_ref_key) BETWEEN 1 AND 512),
@@ -201,25 +204,36 @@ CREATE TABLE public.catalog_secret_bindings (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     account_id uuid NOT NULL,
     secret_id uuid NOT NULL,
-    consumer_kind text NOT NULL
-        CHECK (consumer_kind = ANY (ARRAY['project_connection'::text, 'workflow_input'::text])),
+    consumer_kind text NOT NULL,
     project_connection_id text REFERENCES public.project_connections(connection_id) ON DELETE CASCADE,
     workflow_id text REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE,
     consumer_project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
+    data_connection_id text REFERENCES public.workspace_data_connections(connection_id) ON DELETE CASCADE,
+    mcp_connector_id text REFERENCES public.mcp_connectors(connector_id) ON DELETE CASCADE,
+    llm_provider_install_id text,
     field_name text NOT NULL
         CHECK (char_length(btrim(field_name)) BETWEEN 1 AND 200 AND field_name NOT LIKE '\_oauth\_%'),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by text DEFAULT ''::text NOT NULL,
     CONSTRAINT catalog_secret_bindings_secret_fkey FOREIGN KEY (secret_id, account_id)
         REFERENCES public.catalog_secrets(id, account_id) ON DELETE RESTRICT,
+    CONSTRAINT catalog_secret_bindings_consumer_kind_check CHECK (consumer_kind = ANY (ARRAY[
+        'project_connection'::text, 'workflow_input'::text, 'data_connection'::text,
+        'mcp_connector'::text, 'llm_provider'::text])),
     CONSTRAINT catalog_secret_bindings_consumer_check CHECK (
-        (consumer_kind = 'project_connection'
-            AND project_connection_id IS NOT NULL AND workflow_id IS NULL)
-        OR (consumer_kind = 'workflow_input'
-            AND workflow_id IS NOT NULL AND consumer_project_id IS NOT NULL
-            AND project_connection_id IS NULL)),
+        num_nonnulls(project_connection_id, workflow_id, data_connection_id,
+                     mcp_connector_id, llm_provider_install_id) = 1
+        AND ((consumer_kind = 'project_connection' AND project_connection_id IS NOT NULL)
+          OR (consumer_kind = 'workflow_input'
+              AND workflow_id IS NOT NULL AND consumer_project_id IS NOT NULL)
+          OR (consumer_kind = 'data_connection' AND data_connection_id IS NOT NULL)
+          OR (consumer_kind = 'mcp_connector' AND mcp_connector_id IS NOT NULL)
+          OR (consumer_kind = 'llm_provider' AND llm_provider_install_id IS NOT NULL))),
     CONSTRAINT catalog_secret_bindings_connection_field_key UNIQUE (project_connection_id, field_name),
-    CONSTRAINT catalog_secret_bindings_workflow_field_key UNIQUE (workflow_id, field_name)
+    CONSTRAINT catalog_secret_bindings_workflow_field_key UNIQUE (workflow_id, field_name),
+    CONSTRAINT catalog_secret_bindings_data_connection_field_key UNIQUE (data_connection_id, field_name),
+    CONSTRAINT catalog_secret_bindings_mcp_connector_field_key UNIQUE (mcp_connector_id, field_name),
+    CONSTRAINT catalog_secret_bindings_llm_provider_field_key UNIQUE (llm_provider_install_id, field_name)
 );
 
 CREATE TABLE public.catalog_secret_approvals (

@@ -87,14 +87,8 @@ function SecretDefaultControl(props: Readonly<DefaultControlProps & { catalog?: 
   const { catalog, configured, controlId, controlName, row, updateRow } = props;
   const savedName = savedSecretInputName(row);
   const draft = String(row.secretDraft ?? "");
-  return (
-    <div className="mt-2 rounded border border-[var(--fs-border-default)] bg-[var(--fs-bg-surface)] p-2 text-xs text-[var(--fs-text-primary)]">
-      <p className="flex items-center gap-2">
-        <span>{t("react.workflows.default_value", "Default value")}</span>
-        <span className={configured ? "text-[var(--fs-status-success)]" : "text-[var(--fs-text-tertiary)]"}>
-          {configured ? t("react.workflows.configured", "configured") : t("react.workflows.not_configured", "not configured")}
-        </span>
-      </p>
+  const typedControl = (
+    <>
       <input
         autoComplete="off"
         className={DEFAULT_FIELD_CLASS}
@@ -112,16 +106,34 @@ function SecretDefaultControl(props: Readonly<DefaultControlProps & { catalog?: 
         <button className="rounded border border-[var(--fs-border-default)] px-2 py-1 text-[11px] text-[var(--fs-text-primary)] disabled:opacity-40" disabled={!configured} onClick={() => updateRow({ secretAction: "clear", secretDraft: "" })} type="button">
           {t("settings.common.clear", "Clear")}</button>
       </div>
-      <p className="mt-1 text-[11px] text-[var(--fs-text-tertiary)]">{t("react.workflows.stored_encrypted_and_never_shown_again_saving_the_workflow_applies_the_change", "Stored encrypted and never shown again. Saving the workflow applies the change.")}</p>
+      <p className="mt-1 text-[11px] text-[var(--fs-text-tertiary)]">
+        {catalog?.projectId
+          ? t("react.workflows.typed_secret_kept_in_catalog", "Saving the workflow keeps this value as a secret in Registry → Secrets, so you can choose it elsewhere. It is never shown again.")
+          : t("react.workflows.stored_encrypted_and_never_shown_again_saving_the_workflow_applies_the_change", "Stored encrypted and never shown again. Saving the workflow applies the change.")}
+      </p>
+    </>
+  );
+  return (
+    <div className="mt-2 rounded border border-[var(--fs-border-default)] bg-[var(--fs-bg-surface)] p-2 text-xs text-[var(--fs-text-primary)]">
+      <p className="flex items-center gap-2">
+        <span>{t("react.workflows.default_value", "Default value")}</span>
+        <span className={configured ? "text-[var(--fs-status-success)]" : "text-[var(--fs-text-tertiary)]"}>
+          {configured ? t("react.workflows.configured", "configured") : t("react.workflows.not_configured", "not configured")}
+        </span>
+      </p>
       {catalog ? (
         <WorkflowInputSecretBinding
           field={savedName || textOrEmpty(row.name)}
+          onPendingChange={(catalogSecretId) => updateRow({ catalogSecretId })}
+          pendingSecretId={row.catalogSecretId ?? ""}
           projectId={catalog.projectId}
           revision={catalog.revision}
           saved={Boolean(savedName)}
           workflowId={catalog.workflowId}
-        />
-      ) : null}
+        >
+          {typedControl}
+        </WorkflowInputSecretBinding>
+      ) : typedControl}
     </div>
   );
 }

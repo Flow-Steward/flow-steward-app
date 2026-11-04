@@ -74,6 +74,7 @@ export function RegistryMcpDetailPage() {
     settingsAuthorizationParametersRef,
     settingsRefreshTokenRequiredRef,
     settingsHeadersRef,
+    settingsSecretHeadersRef,
     settingsError,
     authModeIsOauth,
     oauthStatus,
@@ -222,6 +223,13 @@ export function RegistryMcpDetailPage() {
             <Fact label={t("extensions.runtime.status", "Status")} value={mcpStatusLabel(choose(Boolean(connector?.enabled), connector?.status ?? "", "disabled"), t)} />
             <Fact label={t("settings.mcp.fields.transport", "Transport")} value={connector?.transport || "—"} />
             <Fact label={t("react.registry.auth_mode", "Auth Mode")} value={connector?.auth_mode || "—"} />
+            {renderWhen(Object.keys(connector?.header_secret_choices ?? {}).length > 0, (
+              <Fact
+                helper={t("react.registry.mcp_secret_headers_helper", "Replace a value in Registry → Secrets; it applies at the next request.")}
+                label={t("react.registry.mcp_secret_headers", "Headers from stored secrets")}
+                value={Object.keys(connector?.header_secret_choices ?? {}).join(", ")}
+              />
+            ))}
             <Fact label={t("react.registry.auth_status", "Auth Status")} value={mcpStatusLabel(connector?.auth_status || "—", t)} />
             <Fact label={t("react.registry.namespace_prefix", "Namespace Prefix")} value={connector?.namespace_prefix || "—"} />
             <Fact code full label={t("react.registry.endpoint", "Endpoint")} value={connector?.base_url || "—"} />
@@ -396,6 +404,19 @@ export function RegistryMcpDetailPage() {
                 {storedHeadersMessage(settingsDraft.headers_mode, t)}
               </span>
             </div>
+            {renderWhen(settingsDraft.headers_mode !== "clear", (
+              <KeyValueEditor
+                addLabel={t("react.registry.mcp_add_secret_header", "Add header from a stored secret")}
+                keyAriaLabel={t("react.registry.mcp_secret_header_key", "Stored-secret header name")}
+                label={t("react.registry.mcp_secret_headers", "Headers from stored secrets")}
+                onChange={(secret_headers) => setSettingsDraft((current) => patchSettingsDraft(current, { secret_headers }))}
+                rows={settingsDraft.secret_headers}
+                serverInvalid={settingsErrorField === "headers"}
+                storedSecrets
+                valueAriaLabel={t("project_edit.fields.value", "Value")}
+                wrapperRef={settingsSecretHeadersRef}
+              />
+            ))}
             <div className="fs-field">
               <label className="fs-field-label" htmlFor="mcp-settings-namespace">{t("react.registry.namespace_prefix", "Namespace Prefix")}</label>
               <input

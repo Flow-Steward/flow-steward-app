@@ -139,8 +139,14 @@ def connection_status_payload(
     contract: Any,
     install_config: Any,
     saved_names: set[str],
+    stored_secrets: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, Any]:
-    """The panel's view: saved secret names with times, and the last check."""
+    """The panel's view: saved secret names with times, and the last check.
+
+    A name that uses a secret from Registry → Secrets also carries that secret's
+    id and name (``stored_secret``), never its value.
+    """
+    chosen = stored_secrets or {}
     config = install_config if isinstance(install_config, dict) else {}
     saved_times = config.get(SAVED_SECRETS_KEY)
     saved_times = saved_times if isinstance(saved_times, dict) else {}
@@ -150,7 +156,15 @@ def connection_status_payload(
     return {
         "install_id": install_id,
         "saved_secrets": [
-            {"name": name, "saved_at": str(saved_times.get(name) or "") or None}
+            {
+                "name": name,
+                "saved_at": str(saved_times.get(name) or "") or None,
+                **(
+                    {"stored_secret": {"id": chosen[name]["id"], "name": chosen[name]["name"]}}
+                    if name in chosen
+                    else {}
+                ),
+            }
             for name in declared_secret_names(contract)
             if name in saved_names
         ],

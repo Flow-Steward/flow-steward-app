@@ -310,7 +310,7 @@ export function RegistryMcpPage() {
               value={draft.auth_mode}
             />
           </div>
-          <KeyValueRepeater label={t("react.registry.headers", "Headers")} onChange={(headers) => setDraft((current) => ({ ...current, headers }))} rows={draft.headers} sensitiveValues serverInvalid={modalErrorField === "headers"} wrapperRef={createHeadersRef} />
+          <KeyValueRepeater label={t("react.registry.headers", "Headers")} onChange={(headers) => setDraft((current) => ({ ...current, headers }))} rows={draft.headers} sensitiveValues serverInvalid={modalErrorField === "headers"} storedSecrets wrapperRef={createHeadersRef} />
           <fieldset
             aria-describedby={modalErrorField === "requested_scopes" ? "mcp-create-error" : undefined}
             aria-label={t("react.registry.requested_scopes", "Requested scopes")}

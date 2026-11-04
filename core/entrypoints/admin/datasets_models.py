@@ -54,6 +54,8 @@ class DataConnectionSave(BaseModel):
     connection_config_jsonb: dict = Field(default_factory=dict)
     secret_refs_jsonb: dict = Field(default_factory=dict)
     metadata_jsonb: dict = Field(default_factory=dict)
+    #: secret field -> catalog secret id chosen instead of a typed value ("" stops using it)
+    secret_choices: dict[str, str] = Field(default_factory=dict)
 
 
 class ProjectDatasetAssignment(BaseModel):

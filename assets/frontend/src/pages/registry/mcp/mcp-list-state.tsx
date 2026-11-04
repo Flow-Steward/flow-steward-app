@@ -28,7 +28,7 @@ import { useHasCapability } from "@/lib/auth/capabilities";
 
 import { mcpFormErrorField } from "@/pages/registry/mcp/form-errors";
 
-import { RESERVED_OAUTH_PARAMETER_IDENTITIES, keyValueObject } from "./key-value-rows";
+import { type HeaderSecretChoice, RESERVED_OAUTH_PARAMETER_IDENTITIES, keyValueObject, keyValueSecretChoices } from "./key-value-rows";
 import { mcpStatusLabel } from "./mcp-status-label";
 import { type McpJsonServer } from "./mcp-json-import";
 
@@ -363,9 +363,11 @@ export function useMcpListState() {
       return;
     }
     let headers: Record<string, string> = {};
+    let headerSecretChoices: Record<string, HeaderSecretChoice> = {};
     const oauthConfig: Record<string, unknown> = {};
     try {
       headers = keyValueObject(draft.headers, t("react.registry.mcp_final_header", "Header"), undefined, t);
+      headerSecretChoices = keyValueSecretChoices(draft.headers, t("react.registry.mcp_final_header", "Header"), t);
     } catch (error) {
       setCreateValidationError(
         "headers",
@@ -409,6 +411,7 @@ export function useMcpListState() {
       enabled: draft.enabled,
     };
     if (Object.keys(oauthConfig).length > 0) payload.oauth_config = oauthConfig;
+    if (Object.keys(headerSecretChoices).length > 0) payload.header_secret_choices = headerSecretChoices;
     createMutation.mutate({ payload, projectId: draft.project_id });
   }
 

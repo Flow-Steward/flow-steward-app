@@ -1,7 +1,7 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { type ReactNode } from "react";
 
-import { keyValueObject as serializeKeyValueRows, type KeyValueRow } from "../key-value-rows";
+import { keyValueObject as serializeKeyValueRows, keyValueSecretChoices, type HeaderSecretChoice, type KeyValueRow } from "../key-value-rows";
 
 export { keyValueRowProblem, RESERVED_OAUTH_PARAMETER_IDENTITIES, type KeyValueRow } from "../key-value-rows";
 
@@ -111,6 +111,8 @@ export type McpSettingsDraft = {
   enabled: boolean;
   headers_mode: "keep" | "replace" | "clear";
   replacement_headers: KeyValueRow[];
+  /** Headers that send a stored secret; prefilled from the connector (ids and prefixes only). */
+  secret_headers: KeyValueRow[];
   requested_scopes: string[];
   authorization_parameters: KeyValueRow[];
   refresh_token_required: boolean;
@@ -159,7 +161,7 @@ export function updateSettingsAuthMode(
     ...current,
     auth_mode: authMode,
     ...(clearsCredentialHeaders
-      ? { headers_mode: "clear" as const, replacement_headers: [] }
+      ? { headers_mode: "clear" as const, replacement_headers: [], secret_headers: [] }
       : {}),
   };
 }
@@ -184,7 +186,7 @@ export function updateStoredHeadersMode(
   return {
     ...current,
     headers_mode: mode,
-    ...(mode === "clear" ? { replacement_headers: [] } : {}),
+    ...(mode === "clear" ? { replacement_headers: [], secret_headers: [] } : {}),
   };
 }
 
@@ -198,6 +200,34 @@ export function keyValueObject(
   return Object.keys(result).length ? result : undefined;
 }
 
+/** The rows of the headers a connector sends from stored secrets. */
+export function secretHeaderRows(choices: Record<string, HeaderSecretChoice> | undefined): KeyValueRow[] {
+  return Object.entries(choices ?? {}).map(([key, choice], index) => ({
+    id: index + 1,
+    key,
+    value: "",
+    secretId: choice.secret_id,
+    prefix: choice.prefix,
+  }));
+}
+
+/**
+ * The stored-secret choices to send on save: undefined when they did not change
+ * (the server keeps them), else the complete new set. Throws a row problem.
+ */
+export function changedSecretHeaderChoices(
+  rows: KeyValueRow[],
+  saved: Record<string, HeaderSecretChoice> | undefined,
+  label: string,
+  t: I18nContextValue["t"] = fallbackContext.t,
+): Record<string, HeaderSecretChoice> | undefined {
+  const choices = keyValueSecretChoices(rows, label, t);
+  const normalize = (value: Record<string, HeaderSecretChoice>) => JSON.stringify(
+    Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+  );
+  return normalize(choices) === normalize(saved ?? {}) ? undefined : choices;
+}
+
 export function settingsDraftFromConnector(connector: {
   display_name: string;
   base_url: string;
@@ -209,6 +239,7 @@ export function settingsDraftFromConnector(connector: {
   oauth_requested_scopes: string[];
   oauth_authorization_parameters: Record<string, string>;
   oauth_refresh_token_required: boolean;
+  header_secret_choices?: Record<string, HeaderSecretChoice>;
 }): McpSettingsDraft {
   return {
     display_name: connector.display_name,
@@ -222,6 +253,7 @@ export function settingsDraftFromConnector(connector: {
     // Connector headers can contain credentials. Replacement is explicit and is
     // intentionally never prefilled from a detail response.
     replacement_headers: [],
+    secret_headers: secretHeaderRows(connector.header_secret_choices),
     requested_scopes: connector.oauth_requested_scopes,
     authorization_parameters: Object.entries(connector.oauth_authorization_parameters).map(([key, value], index) => ({ id: index + 1, key, value })),
     refresh_token_required: connector.oauth_refresh_token_required,

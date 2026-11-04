@@ -25,8 +25,7 @@ authoring are not part of that domain.
 ### Model
 
 - **`catalog_secrets`** holds the identity and metadata of one secret:
-  - a stable `id`, `account_id`, `workspace_id`;
-  - `project_id`: null for a workspace secret, set for a project secret;
+  - a stable `id` and `account_id`;
   - name, description;
   - `storage_ref_key`;
   - who changed the value last, and when;
@@ -41,6 +40,12 @@ authoring are not part of that domain.
 - **`catalog_secret_bindings`** records one consumer field using one secret. It is the
   only source of truth for usage. The secret is a foreign key with
   `ON DELETE RESTRICT`, so a used secret cannot be deleted even by concurrent calls.
+  Deleting a used secret is a confirmed plan: `GET /api/secrets/{id}/delete-plan`
+  lists its bindings with a revision over exactly that set, and
+  `DELETE /api/secrets/{id}?plan_revision=` removes those bindings (rewriting each
+  connection's projection) and the secret in one transaction. A changed set refuses
+  with `stale_plan`; without a revision a used secret is still refused. The confirmed
+  delete also unbinds, so it needs bind authority besides write.
   The consumer is a typed foreign key (in 2a, `project_connection_id` with
   `ON DELETE CASCADE`), so deleting a consumer removes its bindings in the same
   transaction and never deletes the secret.
@@ -54,15 +59,20 @@ authoring are not part of that domain.
 
 ### Availability
 
-| Secret | May be bound to |
-| --- | --- |
-| Project secret | a resource of the same project |
-| Workspace secret | a resource of that workspace or of a project in it |
-| Other workspace or account | never |
+A secret belongs to the installation (its account), not to a project or a workspace.
+Every project may choose it, and one secret serves connections and workflow inputs of
+any number of projects. Bindings still record the consumer and the consumer's project,
+so the Secrets page shows where each secret is used. Another account's secret never
+exists for a caller. Secrets created before 20261104 belonged to a project or a
+workspace; `20261104120000_secret_catalog_installation_wide.sql` empties those two
+columns and drops their foreign keys, keeping every secret, value and binding. The
+columns stay, unused, until the 1.0 baseline, because the earlier released migration
+names them and runs after `db/schema/` on a fresh install.
 
-The rule is checked on the server when a binding is created and again when a value is
-read. Moving a resource to another project re-checks every binding and is refused,
-with the list of conflicts, when one would break.
+Because a secret serves every project, a caller restricted to some projects or
+workspaces (a project-scoped token) may list secrets and bind them to its own
+consumers, but may not create a standalone secret, replace a value, edit metadata or
+delete one.
 
 ### Authority
 
@@ -81,7 +91,7 @@ with the list of conflicts, when one would break.
   for token delegation) checks for them before `admin:all` and wildcards. `admin:all`,
   `*:*`, `secrets:*`, `*:bind` and `*:write` do not grant them, and no existing token
   receives them.
-- Saving a value straight into a connection field creates a project secret and binds
+- Saving a value straight into a connection field creates a secret and binds
   it. That is a create plus a bind, so it needs both rights. For a human, operator is
   enough, which keeps the operator's existing authority over connection credentials.
 
@@ -159,9 +169,10 @@ with the list of conflicts, when one would break.
   state a step can write and a storage key presented in launch inputs grant nothing.
 - **Every stored read is checked against the job's pin.** Before a catalog value is
   read, the HTTP and connector boundaries look up the job's pinned definition, the
-  workflow's current bindings and approval, and the secret's owner. The read is refused
-  unless the pinned definition is approved, the secret is available to the job's
-  project, the job holds the key, and the request goes to an approved destination. An
+  workflow's current bindings and approval, and the secret's account. The read is refused
+  unless the pinned definition is approved, the secret belongs to the job's account, the
+  job holds the key (bound for the job's project), and the request goes to an approved
+  destination. An
   edit after enqueue changes neither what the run executes nor what it may read; a new
   run of the edited definition reads nothing until it is approved. Redelivery, retry
   and resume of one job are checked again against the same pin; a restart is a new job
@@ -195,6 +206,43 @@ with the list of conflicts, when one would break.
   but their binding controls are disabled with the rest of the locked definition. The
   project's Workflows tab offers binding and approval for every linked workflow
   without the builder; the server checks role and interactive session for both.
+
+### Data connections
+
+A secret field of a workspace data connection may use a stored secret: the connection's
+`secret_refs_jsonb.refs` keeps the secret's own storage key, written with the
+`data_connection` binding, and the connection reads the value by that key when it
+connects. A value typed later ends the field's binding; uninstall cleanup never
+deletes a catalog value. Only an administrator configures a data connection, with no
+separate approval step.
+
+### LLM provider installs
+
+An LLM provider extension's secret fields (an API key, a runtime bearer) may each use
+a stored secret instead of a typed value. The install keeps `{secret name: storage
+key}` under `llm_provider_catalog_refs` in its config, written in the same
+transaction as the `llm_provider` binding, and drops any typed copy of that name.
+Every reader (save, status, model discovery, model calls, the runtime handshake)
+overlays the values read by those keys at use time and fails closed when one is
+missing, so a replaced value reaches the provider at its next call. A changed choice
+invalidates verified models like a changed key; binding needs bind authority on top of
+the admin role, and a confirmed delete of the secret removes the name from the map and
+leaves the typed values alone.
+
+### MCP connector headers
+
+A request header of an MCP connector (Registry → MCP: the create and edit forms and
+the catalog install form) may send a catalog secret instead of a typed value, with an
+optional literal prefix of at most 32 characters and no line breaks
+(`Authorization` = `"Bearer "` + secret). The choice is a binding of kind
+`mcp_connector` plus its projection in `header_secret_refs_jsonb`
+(`{"catalog_ref": <storage key>, "prefix": ...}` beside the typed values' own keys),
+written in the transaction that writes the connector; the value is read
+account-scoped through the stored-secret reader only when the key is a catalog
+secret of the connector's account, fails closed like a missing typed value, and never
+reaches the browser. Choosing, changing or removing one needs bind authority, with no
+separate approval step: only an operator configures a connector and its endpoint,
+and moving the connector to Trash removes its bindings.
 
 ### OAuth stays outside
 

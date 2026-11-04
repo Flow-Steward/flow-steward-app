@@ -11,14 +11,23 @@ class RegistryDBStoreDatasetsMixin:
         data: dict,
         *,
         secret_values: dict[str, str],
+        secret_choices: dict[str, str] | None = None,
+        scope: Any = None,
         author: str = "admin",
     ) -> dict:
-        """Persist credentials and their owning connection in one transaction."""
+        """Persist credentials and their owning connection in one transaction.
+
+        `secret_choices` binds a secret field to a catalog secret (ADR 0057): the field's
+        ref becomes the secret's storage key, so a replaced value reaches the connection
+        at its next use; "" stops using it. A typed value for a field ends its binding.
+        """
         from core.application.management.project_connection_secrets import (
             save_connection_secrets,
         )
 
         payload = dict(data)
+        # The admin route leaves the chosen stored secrets in the payload.
+        secret_choices = dict(payload.pop("_secret_choices", None) or secret_choices or {})
         existing_refs = self._json_object(payload.get("secret_refs_jsonb")).get("refs") or {}
         if not isinstance(existing_refs, dict):
             existing_refs = {}
@@ -36,7 +45,21 @@ class RegistryDBStoreDatasetsMixin:
                 payload["secret_refs_jsonb"] = {"refs": {**existing_refs, **saved_refs}}
             else:
                 payload["secret_refs_jsonb"] = {"refs": existing_refs} if existing_refs else {}
-            return self.save_workspace_data_connection(payload, author=author)
+            saved_row = self.save_workspace_data_connection(payload, author=author)
+            if secret_choices or secret_values:
+                from core.application.registry.data_connection_catalog import apply_secret_choices
+
+                apply_secret_choices(
+                    self._get_tx_conn(),
+                    scope=scope,
+                    connection_id=str(payload.get("connection_id") or "").strip(),
+                    choices=dict(secret_choices or {}),
+                    typed=set(secret_values),
+                )
+                reread = getattr(self, "get_workspace_data_connection", None)
+                if callable(reread):
+                    saved_row = reread(str(payload.get("connection_id") or "").strip()) or saved_row
+            return saved_row
 
     def get_extension_registry_projection(
         self,

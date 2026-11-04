@@ -1,5 +1,5 @@
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, ShieldCheck } from "lucide-react";
@@ -8,8 +8,8 @@ import { DsAlert, DsBadge, DsValueChip } from "@/components/shared/design-system
 import { DsSelect } from "@/components/shared/design-system-selects";
 import { Button } from "@/components/ui/button";
 import { isHttpError } from "@/lib/http/errors";
-import { catalogSecretsQueryKey, fetchCatalogSecrets } from "@/pages/registry/secrets/api";
-import { CatalogSecretPicker } from "@/pages/registry/secrets/catalog-secret-picker";
+import { CATALOG_SECRETS_QUERY_KEY, fetchCatalogSecrets } from "@/pages/registry/secrets/api";
+import { StoredSecretSelect } from "@/pages/registry/secrets/stored-secret-select";
 import {
   approveWorkflowSecretUse,
   bindWorkflowInputSecret,
@@ -20,6 +20,10 @@ import {
   type WorkflowSecretReceiver,
   workflowSecretApprovalQueryKey,
 } from "@/pages/workflows/shared/workflow-secret-catalog-api";
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : "";
+}
 
 /**
  * Catalog secrets in a workflow's secret inputs (ADR 0057).
@@ -56,21 +60,54 @@ type WorkflowInputSecretBindingProps = Readonly<{
   field: string;
   /** Whether this row is a secret input of the saved workflow under the same name. */
   saved: boolean;
+  /** For an input the saved workflow does not declare yet: the stored secret chosen for it. */
+  pendingSecretId?: string;
+  onPendingChange?: (secretId: string) => void;
+  /** The typed-value control: shown while no stored secret is chosen, as in a connection. */
+  children?: ReactNode;
 }>;
 
-/** The stored secret a secret input uses, chosen from the project's catalog. */
+/**
+ * A secret input's value: a stored secret chosen from the catalog, or a value typed
+ * in (the children). Choosing one hides the typed control; "Type a value instead"
+ * brings it back, the same way a connection's credential field works.
+ */
 export function WorkflowInputSecretBinding(props: WorkflowInputSecretBindingProps) {
   const { t } = useI18n();
   if (!props.projectId || !props.workflowId) {
-    return <p className="fs-field-helper mt-1">{t("react.workflows.secret_catalog.needs_project", "Open this workflow from a project to use a stored secret for this input.")}</p>;
+    return (
+      <>
+        {props.children}
+        <p className="fs-field-helper mt-1">{t("react.workflows.secret_catalog.needs_project", "Open this workflow from a project to use a stored secret for this input.")}</p>
+      </>
+    );
   }
   if (!props.saved || !props.field) {
-    return <p className="fs-field-helper mt-1">{t("react.workflows.secret_catalog.save_first", "Save the workflow to choose a stored secret for this input.")}</p>;
+    if (!props.onPendingChange) {
+      return (
+        <>
+          {props.children}
+          <p className="fs-field-helper mt-1">{t("react.workflows.secret_catalog.save_first", "Save the workflow to choose a stored secret for this input.")}</p>
+        </>
+      );
+    }
+    const pending = props.pendingSecretId ?? "";
+    return (
+      <div data-testid={`workflow-input-secret-binding-${props.field || "new"}`}>
+        {pending ? null : props.children}
+        <StoredSecretSelect
+          fieldLabel={props.field || t("react.workflows.secret_catalog.new_input", "this input")}
+          helper={pending ? t("react.workflows.secret_catalog.bound_on_save", "Used for this input once you save the workflow settings.") : undefined}
+          onChange={props.onPendingChange}
+          value={pending}
+        />
+      </div>
+    );
   }
   return <WorkflowInputSecretPicker {...props} />;
 }
 
-function WorkflowInputSecretPicker({ projectId, workflowId, revision, field }: WorkflowInputSecretBindingProps) {
+function WorkflowInputSecretPicker({ projectId, workflowId, revision, field, children }: WorkflowInputSecretBindingProps) {
   const { t } = useI18n();
   const status = useWorkflowSecretApproval(projectId, workflowId, revision);
   const writeStatus = useStatusWriter(projectId, workflowId, revision);
@@ -83,21 +120,21 @@ function WorkflowInputSecretPicker({ projectId, workflowId, revision, field }: W
     onSuccess: writeStatus,
   });
   const boundSecretId = status.data?.secrets.find((row) => row.field === field)?.secret_id ?? "";
+  const failure = errorText(bind.error || unbind.error || status.error);
   return (
-    <div className="mt-2 border-t border-subtle pt-2" data-testid={`workflow-input-secret-binding-${field}`}>
-      <p className="font-medium fs-ink-primary">{t("react.workflows.secret_catalog.title", "Stored secret")}</p>
-      <p className="fs-field-helper mt-1">
-        {t("react.workflows.secret_catalog.help", "A chosen stored secret is used instead of the value above. Runs can use it only after a person approves the workflow's use of secrets.")}
-      </p>
-      <CatalogSecretPicker
-        allowCreate
-        boundSecretId={boundSecretId}
-        busy={bind.isPending || unbind.isPending || status.isLoading}
-        error={bind.error || unbind.error || status.error}
+    <div data-testid={`workflow-input-secret-binding-${field}`}>
+      {boundSecretId ? null : children}
+      <StoredSecretSelect
+        disabled={bind.isPending || unbind.isPending || status.isLoading}
         fieldLabel={field}
-        onChoose={(secretId) => bind.mutateAsync(secretId)}
-        onRemove={() => unbind.mutate()}
-        projectId={projectId}
+        helper={
+          failure
+          || (boundSecretId
+            ? t("react.workflows.secret_catalog.bound_help", "Uses this stored secret. Runs can use it after a person approves the workflow's use of secrets.")
+            : undefined)
+        }
+        onChange={(secretId) => (secretId ? bind.mutate(secretId) : unbind.mutate())}
+        value={boundSecretId}
       />
     </div>
   );
@@ -236,8 +273,8 @@ function WorkflowSecretApprovalCard({ projectId, workflowId, revision, unsavedCh
   const [conflict, setConflict] = useState(false);
   const status = useWorkflowSecretApproval(projectId, workflowId, revision);
   const catalog = useQuery({
-    queryKey: catalogSecretsQueryKey(projectId),
-    queryFn: () => fetchCatalogSecrets(projectId),
+    queryKey: CATALOG_SECRETS_QUERY_KEY,
+    queryFn: fetchCatalogSecrets,
     enabled: Boolean(status.data?.secrets.length),
   });
   const writeStatus = useStatusWriter(projectId, workflowId, revision);

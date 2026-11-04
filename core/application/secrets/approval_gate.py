@@ -2,8 +2,7 @@
 
 The check reloads the connection from the database rather than trusting the row a
 caller holds, recomputes the executable projection with the one implementation in
-`projection`, re-checks that every bound secret is still available to the
-connection's project, and compares the fingerprint with the approval. It runs
+`projection`, re-checks that every bound secret still exists, and compares the fingerprint with the approval. It runs
 before any value is read.
 """
 
@@ -86,17 +85,12 @@ def require_approved_connection_use(
             **current,
             **{key: connection[key] for key in DISPATCH_FIELDS if key in connection},
         }
-        project = repository.project_scope(
-            cur, account_id=account_id, project_id=_text(current.get("project_id"))
-        )
-        for secret_id in bindings.values():
-            secret = repository.get_secret(cur, account_id=account_id, secret_id=secret_id)
-            if not secret or not project or not _available(secret, project):
-                raise SecretConfigurationUnapproved()
         storage_keys = {}
         for field, secret_id in bindings.items():
             secret = repository.get_secret(cur, account_id=account_id, secret_id=secret_id)
-            storage_keys[field] = (secret or {}).get("storage_ref_key")
+            if not secret:
+                raise SecretConfigurationUnapproved()
+            storage_keys[field] = secret.get("storage_ref_key")
         release = repository.install_release(
             cur, install_id=_text(current.get("extension_install_id"))
         )
@@ -120,12 +114,6 @@ def require_approved_connection_use(
             raise SecretConfigurationUnapproved()
     if not approval or approval.get("fingerprint") != fingerprint:
         raise SecretConfigurationUnapproved()
-
-
-def _available(secret: dict[str, Any], project: dict[str, Any]) -> bool:
-    if _text(secret.get("project_id")):
-        return _text(secret.get("project_id")) == _text(project.get("project_id"))
-    return _text(secret.get("workspace_id")) == _text(project.get("workspace_id"))
 
 
 __all__ = [

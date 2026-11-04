@@ -624,9 +624,6 @@ describe("WorkflowStepKindSmartSetup http_request builder", () => {
       target: { value: "response.json" },
     });
     chooseSetupOption(screen.getByRole("combobox", { name: "Auth mode" }), "bearer");
-    fireEvent.change(screen.getByRole("textbox", { name: "Auth reference" }), {
-      target: { value: "secret:http-token" },
-    });
 
     expect(replaceStepKindConfigField).toHaveBeenCalledWith(
       "http_request",
@@ -652,11 +649,19 @@ describe("WorkflowStepKindSmartSetup http_request builder", () => {
       "auth_mode",
       "bearer",
     );
-    expect(replaceStepKindConfigField).toHaveBeenCalledWith(
-      "http_request",
-      "auth_ref",
-      "secret:http-token",
-    );
+  });
+
+  it("keeps a legacy project secret key editable as text", () => {
+    const { replaceStepKindConfigField } = renderHttpRequestSetup({
+      auth_mode: "bearer",
+      auth_ref: "http-token",
+      method: "GET",
+    });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Auth reference" }), {
+      target: { value: "secret:http-token" },
+    });
+    expect(replaceStepKindConfigField).toHaveBeenCalledWith("http_request", "auth_ref", "secret:http-token");
   });
 });
 

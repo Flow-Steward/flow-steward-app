@@ -84,6 +84,12 @@ vi.mock("@/pages/extensions/api", () => ({
 }));
 
 vi.mock("@/lib/auth/use-is-admin", () => ({ useIsAdmin: vi.fn() }));
+// The LLM provider panel offers stored secrets next to each provider secret.
+vi.mock("@/pages/registry/secrets/api", () => ({
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
+  fetchCatalogSecrets: vi.fn(async () => []),
+  createCatalogSecret: vi.fn(),
+}));
 
 vi.mock("@/pages/extensions/extension-oauth-api", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();

@@ -340,6 +340,7 @@
     "core/application/management/mcp_connector_client.py",
     "core/application/management/mcp_connector_common.py",
     "core/application/management/mcp_connector_deletion.py",
+    "core/application/management/mcp_connector_header_choices.py",
     "core/application/management/mcp_connector_header_secrets.py",
     "core/application/management/mcp_connector_http.py",
     "core/application/management/mcp_connector_oauth_contract.py",
@@ -486,6 +487,7 @@
     "core/application/orchestration/guardrails/semantic_context.py",
     "core/application/orchestration/guardrails/semantic_reasoning.py",
     "core/application/orchestration/helpers.py",
+    "core/application/orchestration/http_request_auth.py",
     "core/application/orchestration/http_request_step_runtime.py",
     "core/application/orchestration/http_response_decoding.py",
     "core/application/orchestration/http_secret_boundary.py",
@@ -578,6 +580,7 @@
     "core/application/registry/contract_validation_workflow.py",
     "core/application/registry/contract_validation_workflow_readiness.py",
     "core/application/registry/data_connection_binding.py",
+    "core/application/registry/data_connection_catalog.py",
     "core/application/registry/dataset_query_limits.py",
     "core/application/registry/db_store.py",
     "core/application/registry/db_store_agent_contract_mixin.py",
@@ -658,6 +661,7 @@
     "core/application/secrets/approval_gate.py",
     "core/application/secrets/authority.py",
     "core/application/secrets/projection.py",
+    "core/application/secrets/reference_consumers.py",
     "core/application/secrets/repository.py",
     "core/application/secrets/run_authority.py",
     "core/application/secrets/service.py",
@@ -669,6 +673,7 @@
     "core/application/settings/embedding_credentials.py",
     "core/application/settings/embedding_repository.py",
     "core/application/settings/llm_capability_verifier.py",
+    "core/application/settings/llm_provider_catalog_refs.py",
     "core/application/settings/llm_provider_extension_repository.py",
     "core/application/settings/llm_provider_extension_service.py",
     "core/application/settings/llm_provider_model_repository.py",
@@ -1167,6 +1172,10 @@
     },
     {
       "path": "db/migrations/20261103090000_secret_catalog.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261104120000_secret_catalog_installation_wide.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

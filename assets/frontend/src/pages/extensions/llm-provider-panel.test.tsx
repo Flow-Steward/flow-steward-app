@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -11,7 +11,13 @@ import {
   saveLlmProviderCredentials,
   setLlmProviderModelEnabled,
 } from "@/pages/extensions/api";
+import { fetchCatalogSecrets } from "@/pages/registry/secrets/api";
 
+vi.mock("@/pages/registry/secrets/api", () => ({
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
+  fetchCatalogSecrets: vi.fn(),
+  createCatalogSecret: vi.fn(),
+}));
 vi.mock("@/pages/extensions/api", () => ({
   fetchLlmProviderSources: vi.fn(),
   fetchLlmProviderStatus: vi.fn(),
@@ -25,6 +31,7 @@ const mockedFetchStatus = vi.mocked(fetchLlmProviderStatus);
 const mockedRefreshModels = vi.mocked(refreshLlmProviderModels);
 const mockedSaveCredentials = vi.mocked(saveLlmProviderCredentials);
 const mockedSetModelEnabled = vi.mocked(setLlmProviderModelEnabled);
+const mockedCatalogSecrets = vi.mocked(fetchCatalogSecrets);
 
 function renderPanel(
   contract: Record<string, unknown> = { required_provider_secrets: ["api_key"] },
@@ -81,6 +88,7 @@ describe("LlmProviderPanel", () => {
     mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [{ name: "api_key" }], last_check: null });
     mockedSaveCredentials.mockResolvedValue({} as never);
     mockedSetModelEnabled.mockResolvedValue({} as never);
+    mockedCatalogSecrets.mockResolvedValue([]);
   });
 
   it("keeps a JSON secret private until explicitly edited and preserves its exact multiline value", async () => {
@@ -1134,6 +1142,78 @@ describe("LlmProviderPanel", () => {
     await user.clear(field);
     await user.click(screen.getByRole("button", { name: "Discover models" }));
     await waitFor(() => expect(mockedRefreshModels).toHaveBeenCalledWith("install-1", { tenant: "" }));
+  });
+
+  describe("stored secrets (ADR 0057)", () => {
+    const storedSecrets = [
+      { id: "s1", name: "OpenRouter key", description: "" },
+      { id: "s2", name: "Spare key", description: "" },
+    ];
+
+    it("chooses a stored secret for a required key instead of typing it", async () => {
+      mockedCatalogSecrets.mockResolvedValue(storedSecrets as never);
+      mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
+      renderPanel({ required_provider_secrets: ["api_key"] }, { installEnabled: false });
+      await screen.findByText("No API key saved");
+      expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+
+      const choose = screen.getByRole("combobox", { name: "Stored secret for API key" });
+      await waitFor(() => expect(choose).toBeEnabled());
+      fireEvent.click(choose);
+      fireEvent.click(await screen.findByRole("option", { name: /^OpenRouter key/ }));
+
+      // The typed input goes away; the field keeps its label.
+      expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
+      expect(within(screen.getByTestId("llm-secret-stored-api_key")).getByText("API key")).toBeVisible();
+      expect(screen.getByText("Applied when you save the connection.")).toBeVisible();
+      const save = screen.getByRole("button", { name: "Save connection" });
+      expect(save).toBeEnabled();
+      fireEvent.click(save);
+      await waitFor(() => expect(mockedSaveCredentials).toHaveBeenCalledWith("install-1", expect.objectContaining({
+        secrets: {},
+        secret_choices: { api_key: "s1" }, // pragma: allowlist secret - a form key / test id, not a secret
+      })));
+    });
+
+    it("shows a saved stored secret and does not send an unchanged choice", async () => {
+      mockedCatalogSecrets.mockResolvedValue(storedSecrets as never);
+      mockedFetchStatus.mockResolvedValue({
+        install_id: "install-1",
+        saved_secrets: [{ name: "api_key", stored_secret: { id: "s1", name: "OpenRouter key" } }],
+        last_check: null,
+      });
+      renderPanel({ required_provider_secrets: ["api_key"] }, { installEnabled: false });
+      await screen.findByText("Uses this stored secret. Replace its value in Registry → Secrets.");
+      expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
+      const save = screen.getByRole("button", { name: "Save connection" });
+      expect(save).toBeEnabled();
+      fireEvent.click(save);
+      await waitFor(() => expect(mockedSaveCredentials).toHaveBeenCalled());
+      expect(mockedSaveCredentials.mock.calls[0][1]).not.toHaveProperty("secret_choices");
+    });
+
+    it("needs a typed key after switching a saved stored secret back to typing", async () => {
+      const user = userEvent.setup();
+      mockedCatalogSecrets.mockResolvedValue(storedSecrets as never);
+      mockedFetchStatus.mockResolvedValue({
+        install_id: "install-1",
+        saved_secrets: [{ name: "api_key", stored_secret: { id: "s1", name: "OpenRouter key" } }],
+        last_check: null,
+      });
+      renderPanel({ required_provider_secrets: ["api_key"] }, { installEnabled: false });
+      await screen.findByText("Uses this stored secret. Replace its value in Registry → Secrets.");
+      fireEvent.click(screen.getByRole("button", { name: "Stop using the stored secret for API key" }));
+
+      const key = screen.getByLabelText("API key");
+      expect(key).toHaveAttribute("type", "password");
+      expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+      await user.type(key, "example-key");
+      await user.click(screen.getByRole("button", { name: "Save connection" }));
+      await waitFor(() => expect(mockedSaveCredentials).toHaveBeenCalledWith("install-1", expect.objectContaining({
+        secrets: { api_key: "example-key" }, // pragma: allowlist secret - a form key / test id, not a secret
+        secret_choices: { api_key: "" },
+      })));
+    });
   });
 
 });

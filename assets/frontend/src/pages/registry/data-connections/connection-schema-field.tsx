@@ -1,5 +1,6 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { DsSelect, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
+import { StoredSecretSelect } from "@/pages/registry/secrets/stored-secret-select";
 import { type ConnectionFormField } from "./data-connection-helpers";
 import { type ConnectionDraft, connectionFieldInputType } from "./connection-page-helpers";
 
@@ -50,12 +51,22 @@ export function ConnectionSchemaField({ field, draft, updateDraft }: ConnectionS
         value={value}
       />
     ) : field.storage === "secret" ? (
-      <SensitiveInput
-        ariaLabel={field.label}
-        className="fs-input"
-        onChange={(event) => changeValue(event.target.value)}
-        value={value}
-      />
+      <>
+        {/* A chosen stored secret stands for the field; typing is for one of its own. */}
+        {draft.secret_choices?.[field.key] ? null : (
+          <SensitiveInput
+            ariaLabel={field.label}
+            className="fs-input"
+            onChange={(event) => changeValue(event.target.value)}
+            value={value}
+          />
+        )}
+        <StoredSecretSelect
+          fieldLabel={field.label}
+          onChange={(secretId) => updateDraft({ secret_choices: { ...(draft.secret_choices || {}), [field.key]: secretId } })}
+          value={draft.secret_choices?.[field.key] ?? ""}
+        />
+      </>
     ) : field.type === "object" || field.type === "array" ? (
       // These values are JSON, and `valueForSchemaField` parses them as such.
       // A single-line input cannot hold them legibly.

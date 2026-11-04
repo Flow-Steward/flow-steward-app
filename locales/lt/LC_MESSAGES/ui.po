@@ -29998,3 +29998,267 @@ msgstr "Patvirtinti paslapčių naudojimą ryšiui {name}"
 
 msgid "react.extensions.secret_catalog.approve"
 msgstr "Patvirtinti paslapčių naudojimą"
+
+msgid "react.registry.secrets.actions_for"
+msgstr "{value0} veiksmai"
+
+msgid "react.registry.secrets.add_description"
+msgstr "Išsaugokite reikšmę vieną kartą ir pasirinkite ją ryšiuose bei darbo eigų įvestyse. Ji daugiau niekada nerodoma."
+
+msgid "react.registry.secrets.close_dialog"
+msgstr "Uždaryti"
+
+msgid "react.registry.secrets.count"
+msgstr "Paslaptys: {value0}"
+
+msgid "react.registry.secrets.created_message"
+msgstr "Paslaptis {value0} sukurta."
+
+msgid "react.registry.secrets.delete_acknowledge"
+msgstr "Pašalinti paslaptį iš šių vietų ir ją ištrinti"
+
+msgid "react.registry.secrets.delete_description"
+msgstr "Išsaugota reikšmė ištrinama visam laikui."
+
+msgid "react.registry.secrets.delete_failed"
+msgstr "Neištrinta"
+
+msgid "react.registry.secrets.delete_title"
+msgstr "Ištrinti {value0}?"
+
+msgid "react.registry.secrets.delete_unused"
+msgstr "Ši paslaptis niekur nenaudojama."
+
+msgid "react.registry.secrets.delete_used_help"
+msgstr "Šie ryšiai ir darbo eigų įvestys neteks šios paslapties, ir prieš paleidžiant joms reikės kitos reikšmės."
+
+msgid "react.registry.secrets.delete_used_title"
+msgstr "Naudojama vietose: {value0}"
+
+msgid "react.registry.secrets.delete_with_uses"
+msgstr "Ištrinti ir pašalinti naudojimą"
+
+msgid "react.registry.secrets.deleted"
+msgstr "Paslaptis {value0} ištrinta."
+
+msgid "react.registry.secrets.done"
+msgstr "Atlikta"
+
+msgid "react.registry.secrets.edit"
+msgstr "Redaguoti duomenis"
+
+msgid "react.registry.secrets.edit_description"
+msgstr "Pervadinkite paslaptį arba pakeiskite jos aprašymą. Reikšmė lieka ta pati."
+
+msgid "react.registry.secrets.edit_title"
+msgstr "Redaguoti {value0}"
+
+msgid "react.registry.secrets.empty"
+msgstr "Paslapčių dar nėra. Sukurkite ją mygtuku „Nauja paslaptis“."
+
+msgid "react.registry.secrets.filter_unused"
+msgstr "Nenaudojama"
+
+msgid "react.registry.secrets.filter_used"
+msgstr "Naudojama"
+
+msgid "react.registry.secrets.load_failed"
+msgstr "Nepavyko įkelti paslapčių"
+
+msgid "react.registry.secrets.loading"
+msgstr "Įkeliamos paslaptys…"
+
+msgid "react.registry.secrets.name_placeholder"
+msgstr "pvz., Parduotuvės API raktas"
+
+msgid "react.registry.secrets.name_required"
+msgstr "Įveskite pavadinimą."
+
+msgid "react.registry.secrets.no_match"
+msgstr "Nė viena paslaptis neatitinka šių filtrų."
+
+msgid "react.registry.secrets.owner_kind_project"
+msgstr "Projektas"
+
+msgid "react.registry.secrets.owner_kind_workspace"
+msgstr "Darbo sritis"
+
+msgid "react.registry.secrets.plan_changed"
+msgstr "Naudojimas pasikeitė"
+
+msgid "react.registry.secrets.plan_changed_help"
+msgstr "Peržiūrėkite dabartinį sąrašą ir patvirtinkite dar kartą."
+
+msgid "react.registry.secrets.plan_failed"
+msgstr "Nepavyko įkelti, kur ši paslaptis naudojama"
+
+msgid "react.registry.secrets.project_required"
+msgstr "Pasirinkite projektą."
+
+msgid "react.registry.secrets.replace_description"
+msgstr "Viskas, kas naudoja šią paslaptį, gaus naują reikšmę. Senos parodyti negalima."
+
+msgid "react.registry.secrets.replace_title"
+msgstr "Pakeisti {value0} reikšmę"
+
+msgid "react.registry.secrets.search"
+msgstr "Ieškoti paslapčių"
+
+msgid "react.registry.secrets.search_placeholder"
+msgstr "Ieškoti paslapčių…"
+
+msgid "react.registry.secrets.updated"
+msgstr "Paslaptis {value0} atnaujinta."
+
+msgid "react.registry.secrets.usage"
+msgstr "Naudojimas"
+
+msgid "react.registry.secrets.used_count"
+msgstr "Vietų: {value0}"
+
+msgid "react.registry.secrets.value_changed_column"
+msgstr "Reikšmė pakeista"
+
+msgid "react.registry.secrets.value_helper"
+msgstr "Saugoma užšifruota. Niekas negali jos perskaityti, tik pakeisti."
+
+msgid "react.registry.secrets.value_replaced"
+msgstr "{value0} reikšmė pakeista."
+
+msgid "react.registry.secrets.value_required"
+msgstr "Įveskite reikšmę."
+
+msgid "react.extensions.secret_catalog.applied_on_save"
+msgstr "Pritaikoma, kai išsaugote ryšį."
+
+msgid "react.extensions.secret_catalog.uses_stored"
+msgstr "Naudojama ši išsaugota paslaptis. Jos reikšmę pakeiskite skiltyje Registras → Paslaptys."
+
+msgid "react.registry.secrets.add_description_shared"
+msgstr "Išsaugokite reikšmę vieną kartą ir pasirinkite ją visur, kur prašoma rakto ar slaptažodžio, bet kuriame projekte. Ji daugiau niekada nerodoma."
+
+msgid "react.registry.secrets.page_description_shared"
+msgstr "Sukurkite paslaptį vieną kartą ir pasirinkite ją visur, kur prašoma rakto ar slaptažodžio, bet kuriame projekte. Pakeiskite ją čia, ir visa, kas ją naudoja, gaus naują reikšmę. Išsaugotos reikšmės daugiau niekada nerodomos."
+
+msgid "react.secret_catalog.new_for"
+msgstr "Nauja paslaptis laukui {field}"
+
+msgid "react.secret_catalog.none_yet"
+msgstr "Išsaugotų paslapčių dar nėra"
+
+msgid "react.secret_catalog.type_instead"
+msgstr "Įvesti reikšmę"
+
+msgid "react.workflows.http_auth_choose_input"
+msgstr "Pasirinkite slaptą įvestį"
+
+msgid "react.workflows.http_auth_help_inputs"
+msgstr "Bearer siunčia vieną slaptą įvestį; basic siunčia naudotojo vardo ir slaptažodžio įvestis. Autentifikuotoms užklausoms reikia fiksuoto HTTPS adreso."
+
+msgid "react.workflows.http_auth_input_for"
+msgstr "Slapta įvestis laukui {field}"
+
+msgid "react.workflows.http_auth_legacy"
+msgstr "Projekto paslapties raktas. Išvalykite jį, kad pasirinktumėte išsaugotą paslaptį."
+
+msgid "react.workflows.http_auth_no_inputs"
+msgstr "Šis darbo srautas dar neturi slaptos įvesties"
+
+msgid "react.workflows.http_auth_none"
+msgstr "Pasirinkite bearer arba basic, kad būtų siunčiama paslaptis."
+
+msgid "react.workflows.http_auth_password"
+msgstr "Slaptažodis"
+
+msgid "react.workflows.http_auth_readiness_input"
+msgstr "Pasirinkite paslaptį, kurią siunčia šis autentifikavimo būdas."
+
+msgid "react.workflows.http_auth_stored_help"
+msgstr "Arba pasirinkite išsaugotą paslaptį: ją naudojanti slapta įvestis pridedama prie šio darbo srauto ir išsaugoma."
+
+msgid "react.workflows.http_auth_token"
+msgstr "Prieigos raktas"
+
+msgid "react.workflows.http_auth_username"
+msgstr "Naudotojo vardas"
+
+msgid "react.workflows.secret_catalog.bound_on_save"
+msgstr "Naudojama šiai įvesčiai, kai išsaugosite darbo srauto nustatymus."
+
+msgid "react.workflows.secret_catalog.choose_help"
+msgstr "Pasirinkite išsaugotą paslaptį, užuot įvedę reikšmę."
+
+msgid "react.workflows.secret_catalog.new_input"
+msgstr "šiai įvesčiai"
+
+msgid "react.workflows.typed_secret_kept_in_catalog"
+msgstr "Išsaugojus darbo srautą ši reikšmė laikoma kaip paslaptis skiltyje Registras → Paslaptys, todėl ją galėsite pasirinkti ir kitur. Ji daugiau niekada nerodoma."
+
+msgid "react.registry.mcp_add_secret_header"
+msgstr "Pridėti antraštę iš išsaugotos paslapties"
+
+msgid "react.registry.mcp_header_secret_helper"
+msgstr "Siunčiama kaip priešdėlis ir po jo išsaugota paslaptis. Reikšmė niekada nepasiekia naršyklės."
+
+msgid "react.registry.mcp_header_secret_prefix"
+msgstr "Priešdėlis (neprivalomas)"
+
+msgid "react.registry.mcp_header_secret_prefix_for"
+msgstr "Priešdėlis prieš išsaugotą paslaptį laukui {field}"
+
+msgid "react.registry.mcp_header_secret_prefix_limit"
+msgstr "{label} priešdėliai turi būti ne ilgesni nei 32 simboliai."
+
+msgid "react.registry.mcp_secret_header"
+msgstr "Antraštė iš išsaugotos paslapties"
+
+msgid "react.registry.mcp_secret_header_key"
+msgstr "Antraštės iš išsaugotos paslapties pavadinimas"
+
+msgid "react.registry.mcp_secret_headers"
+msgstr "Antraštės iš išsaugotų paslapčių"
+
+msgid "react.registry.mcp_secret_headers_helper"
+msgstr "Pakeiskite reikšmę skiltyje Registras → Paslaptys; ji pritaikoma kitai užklausai."
+
+msgid "react.registry.secrets.usage_data_connection"
+msgstr "Duomenų ryšys"
+
+msgid "react.registry.secrets.usage_llm_provider"
+msgstr "LLM tiekėjas"
+
+msgid "react.registry.secrets.usage_mcp"
+msgstr "MCP jungtis"
+
+msgid "react.workflows.secret_catalog.bound_help"
+msgstr "Naudojama ši išsaugota paslaptis. Vykdymai gali ją naudoti, kai žmogus patvirtina darbo srauto paslapčių naudojimą."
+
+msgid "react.workflows.http_auth_value_for"
+msgstr "Lauko {field} reikšmė"
+
+msgid "react.workflows.http_auth_keep_value"
+msgstr "Naudoti šią reikšmę"
+
+msgid "react.workflows.http_auth_uses_stored"
+msgstr "Naudojama ši išsaugota paslaptis. Jos reikšmę pakeiskite skiltyje Registras → Paslaptys."
+
+msgid "react.workflows.http_auth_value_help"
+msgstr "Čia įvesta reikšmė išsaugoma kaip paslaptis, todėl ją galėsite pasirinkti ir kitur."
+
+msgid "react.workflows.http_auth_help_secrets"
+msgstr "Bearer siunčia vieną paslaptį; basic siunčia naudotojo vardą ir slaptažodį. Autentifikuotoms užklausoms reikia fiksuoto HTTPS adreso."
+
+msgid "react.registry.mcp_header_value_from_secret"
+msgstr "Iš žemiau pasirinktos paslapties"
+
+msgid "react.registry.mcp_header_secret_key_required"
+msgstr "Įveskite antraštės pavadinimą išsaugotai paslapčiai."
+
+msgid "react.registry.mcp_header_secret_bearer_helper"
+msgstr "Siunčiama kaip „Bearer“ ir išsaugota paslaptis: paslaptyje laikykite tik prieigos raktą. Reikšmė niekada nepasiekia naršyklės."
+
+msgid "react.registry.mcp_header_secret_value_helper"
+msgstr "Siunčiama išsaugotos paslapties reikšmė. Reikšmė niekada nepasiekia naršyklės."
+
+msgid "react.workflows.http_auth_value_on_save"
+msgstr "Išsaugojus žingsnį įvesta reikšmė laikoma kaip paslaptis, todėl ją galėsite pasirinkti ir kitur."

@@ -99,6 +99,14 @@ export async function bindWorkflowInputSecret(projectId: string, workflowId: str
   );
 }
 
+/** A value typed into a secret input: the server keeps it as a catalog secret bound to the input. */
+export async function saveWorkflowInputSecretValue(projectId: string, workflowId: string, field: string, value: string) {
+  return fetchJson<WorkflowSecretApprovalStatus>(
+    `${workflowPath(projectId, workflowId)}/secret-bindings/${encodeURIComponent(field)}/value`,
+    { method: "PUT", body: JSON.stringify({ value }) },
+  );
+}
+
 export async function unbindWorkflowInputSecret(projectId: string, workflowId: string, field: string) {
   return fetchJson<WorkflowSecretApprovalStatus>(
     `${workflowPath(projectId, workflowId)}/secret-bindings/${encodeURIComponent(field)}`,

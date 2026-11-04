@@ -319,6 +319,8 @@ export function useDataConnectionsState() {
       existing_secret_keys: storedSecretKeys(
         connection.secret_refs_jsonb || {},
       ),
+      secret_choices: { ...(connection.secret_choices || {}) },
+      original_secret_choices: { ...(connection.secret_choices || {}) },
       original_connector_option_id: option?.option_id || "",
       original_connection_config: connectionConfig,
       original_metadata: metadata,
@@ -358,7 +360,12 @@ export function useDataConnectionsState() {
       else delete connectionConfig[field.key];
     }
     const secretRefs: Record<string, unknown> = {};
+    const secretChoices: Record<string, string> = {};
     for (const field of selectedSecretFields) {
+      const chosen = draft.secret_choices?.[field.key];
+      const original = draft.original_secret_choices?.[field.key] || "";
+      if (chosen !== undefined && chosen !== original) secretChoices[field.key] = chosen;
+      if (chosen) continue;
       const rawValue = draft.secret_values[field.key] || "";
       if (draft.connection_id && !rawValue.trim()) {
         continue;
@@ -377,6 +384,7 @@ export function useDataConnectionsState() {
       tags: csvStrings(draft.tags_csv),
       connection_config_jsonb: connectionConfig,
       secret_refs_jsonb: secretRefs,
+      ...(Object.keys(secretChoices).length ? { secret_choices: secretChoices } : {}),
       metadata_jsonb: selectedConnectorOption
         ? {
             ...(sameConnector ? draft.original_metadata : {}),
@@ -541,6 +549,9 @@ export function useDataConnectionsState() {
         ? draft.connection_values[field.key]
         : draft.secret_values[field.key];
     if (value?.trim()) {
+      return false;
+    }
+    if (field.storage === "secret" && draft.secret_choices?.[field.key]) {
       return false;
     }
     // Editing an existing connection does not resend a stored secret, so a

@@ -20,6 +20,7 @@ from core.application.management.mcp_connector_common import (
 )
 from core.application.management.mcp_connector_header_secrets import (
     delete_connector_header_secrets,
+    unbind_connector_catalog_secrets,
 )
 from core.application.management.scope import ScopeContext
 from core.application.registry.active_workflow_dependencies import (
@@ -278,6 +279,9 @@ class McpConnectorDeletionMixin:
                 account_id=account_id,
                 project_id=project_id,
                 tenant_id=tenant_id,
+            )
+            unbind_connector_catalog_secrets(
+                cur.connection, connector_id=connector_id, account_id=account_id
             )
             cur.execute(
                 """UPDATE mcp_connectors

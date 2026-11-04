@@ -45,7 +45,7 @@ export function httpReadinessDisplay(config: Record<string, unknown>, t: Transla
   if (!Array.isArray(config.expected_statuses) || !config.expected_statuses.length || !config.expected_statuses.every((code) => Number.isInteger(code) && code >= 100 && code <= 599)) {
     messages.expected_statuses = t("react.workflows.http_status_readiness", "Running requires a nonempty list of integer HTTP statuses from 100 to 599.");
   }
-  if (stringFromUnknownValue(config.auth_mode || "none").trim().toLowerCase() !== "none" && !stringFromUnknownValue(config.auth_ref).trim()) messages.auth_ref = t("react.workflows.http_auth_readiness", "This authentication mode needs a project secret reference before running.");
+  if (stringFromUnknownValue(config.auth_mode || "none").trim().toLowerCase() !== "none" && !stringFromUnknownValue(config.auth_ref).trim()) messages.auth_ref = t("react.workflows.http_auth_readiness_input", "Choose the secret this authentication mode sends.");
   return messages;
 }
 export function httpIssueField(path: string, stepId: string): HttpField | undefined {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
@@ -27,7 +27,7 @@ vi.mock("@/pages/workflows/shared/workflow-secret-catalog-api", () => ({
   ],
 }));
 vi.mock("@/pages/registry/secrets/api", () => ({
-  catalogSecretsQueryKey: (projectId: string) => ["secrets", "project", projectId],
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
   fetchCatalogSecrets: vi.fn(),
   createCatalogSecret: vi.fn(),
 }));
@@ -39,8 +39,8 @@ const mockedUnbind = vi.mocked(unbindWorkflowInputSecret);
 const mockedSecrets = vi.mocked(fetchCatalogSecrets);
 const mockedCreate = vi.mocked(createCatalogSecret);
 
-function secret(id: string, name: string, owner: "project" | "workspace" = "project") {
-  return { id, name, description: "", owner, workspace_id: "w1", project_id: owner === "project" ? "p1" : null };
+function secret(id: string, name: string) {
+  return { id, name, description: "" };
 }
 
 function status(overrides: Partial<WorkflowSecretApprovalStatus> = {}): WorkflowSecretApprovalStatus {
@@ -71,13 +71,13 @@ async function pick(name: RegExp, option: RegExp) {
 describe("WorkflowInputSecretBinding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedSecrets.mockResolvedValue([secret("s1", "Shop token"), secret("s2", "Shared token", "workspace")]);
+    mockedSecrets.mockResolvedValue([secret("s1", "Shop token"), secret("s2", "Shared token")]);
     mockedStatus.mockResolvedValue(status());
     mockedBind.mockResolvedValue(status({ secrets: [{ field: "api_token", secret_id: "s2" }] }));
     mockedUnbind.mockResolvedValue(status({ status: "not_required", secrets: [] }));
   });
 
-  it("asks for a save first and requests nothing for an input the saved workflow does not declare", () => {
+  it("asks for a save first when the editor cannot hold a pending choice", () => {
     renderWithClient(<WorkflowInputSecretBinding field="api_token" projectId="p1" saved={false} workflowId="wf1" />);
 
     expect(screen.getByText(/Save the workflow to choose a stored secret/)).toBeInTheDocument();
@@ -85,37 +85,74 @@ describe("WorkflowInputSecretBinding", () => {
     expect(mockedSecrets).not.toHaveBeenCalled();
   });
 
-  it("shows the bound secret, binds another one and removes the binding through its own requests", async () => {
+  it("keeps a stored secret chosen for a new input until the save binds it", async () => {
+    const onPendingChange = vi.fn();
+    const { rerender } = renderWithClient(
+      <WorkflowInputSecretBinding field="api_token" onPendingChange={onPendingChange} pendingSecretId="" projectId="p1" saved={false} workflowId="wf1" />,
+    );
+    await pick(/Stored secret for api_token/, /^Shared token/);
+    expect(onPendingChange).toHaveBeenCalledWith("s2");
+    expect(mockedBind).not.toHaveBeenCalled();
+    expect(mockedStatus).not.toHaveBeenCalled();
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const chosenId = "s2";
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <WorkflowInputSecretBinding field="api_token" onPendingChange={onPendingChange} pendingSecretId={chosenId} projectId="p1" saved={false} workflowId="wf1" />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/once you save the workflow settings/)).toBeInTheDocument();
+  });
+
+  it("shows the bound secret of a saved input, binds another one and removes the binding", async () => {
     renderWithClient(<WorkflowInputSecretBinding field="api_token" projectId="p1" saved workflowId="wf1" />);
 
     expect(await screen.findByText("Shop token")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Manage stored secrets/ })).toHaveAttribute("href", "/registry/secrets");
-
     await pick(/Stored secret for api_token/, /^Shared token/);
-    fireEvent.click(screen.getByRole("button", { name: "Use instead" }));
     await waitFor(() => expect(mockedBind).toHaveBeenCalledWith("p1", "wf1", "api_token", "s2"));
 
     fireEvent.click(await screen.findByRole("button", { name: /Stop using the stored secret for api_token/ }));
     await waitFor(() => expect(mockedUnbind).toHaveBeenCalledWith("p1", "wf1", "api_token"));
   });
 
-  it("creates a project secret in place and binds it", async () => {
+  it("hides the typed value while a stored secret is bound, like a connection field", async () => {
+    renderWithClient(
+      <WorkflowInputSecretBinding field="api_token" projectId="p1" saved workflowId="wf1">
+        <input aria-label="Typed default" />
+      </WorkflowInputSecretBinding>,
+    );
+    expect(await screen.findByText("Shop token")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Typed default")).not.toBeInTheDocument();
+  });
+
+  it("shows the typed value next to the choice while nothing is bound", async () => {
+    mockedStatus.mockResolvedValue(status({ status: "not_required", secrets: [] }));
+    renderWithClient(
+      <WorkflowInputSecretBinding field="api_token" projectId="p1" saved workflowId="wf1">
+        <input aria-label="Typed default" />
+      </WorkflowInputSecretBinding>,
+    );
+    expect(await screen.findByLabelText("Typed default")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Stored secret for api_token" })).toBeInTheDocument();
+  });
+
+  it("creates a secret in the standard dialog and binds it to a saved input", async () => {
     mockedStatus.mockResolvedValue(status({ status: "not_required", secrets: [] }));
     mockedCreate.mockResolvedValue(secret("s9", "New token"));
     renderWithClient(<WorkflowInputSecretBinding field="api_token" projectId="p1" saved workflowId="wf1" />);
-    await waitFor(() => expect(mockedSecrets).toHaveBeenCalledWith("p1"));
-
-    fireEvent.change(screen.getByLabelText("Secret name"), { target: { value: "New token" } });
-    fireEvent.change(screen.getByLabelText("Value of the new secret for api_token"), { target: { value: "typed-value" } });
-    const create = screen.getByRole("button", { name: "Create and use" });
-    await waitFor(() => expect(create).toBeEnabled());
-    fireEvent.click(create);
+    const newSecret = screen.getByRole("button", { name: "New secret for api_token" });
+    // The picker waits for the binding status before it offers anything.
+    await waitFor(() => expect(newSecret).toBeEnabled());
+    fireEvent.click(newSecret);
+    const dialog = await screen.findByRole("dialog", { name: "New secret" });
+    fireEvent.change(within(dialog).getByLabelText("Value"), { target: { value: "typed-value" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create secret" }));
 
     await waitFor(() =>
-      expect(mockedCreate).toHaveBeenCalledWith({ name: "New token", description: "", value: "typed-value", project_id: "p1" }),
+      expect(mockedCreate).toHaveBeenCalledWith({ name: "api_token", description: "", value: "typed-value" }),
     );
     await waitFor(() => expect(mockedBind).toHaveBeenCalledWith("p1", "wf1", "api_token", "s9"));
-    expect(screen.getByLabelText("Value of the new secret for api_token")).toHaveValue("");
   });
 });
 

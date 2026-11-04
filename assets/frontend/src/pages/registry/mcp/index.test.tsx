@@ -20,6 +20,12 @@ vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
 
 vi.mock("@/pages/projects/list/api", () => ({ fetchProjectsList: vi.fn() }));
 
+vi.mock("@/pages/registry/secrets/api", () => ({
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
+  fetchCatalogSecrets: vi.fn().mockResolvedValue([{ id: "s1", name: "Docs token", description: "" }]),
+  createCatalogSecret: vi.fn(),
+}));
+
 vi.mock("@/pages/registry/mcp/api", () => ({
   checkMcpConnectorHealth: vi.fn(),
   createMcpConnector: vi.fn(),
@@ -339,6 +345,33 @@ describe("RegistryMcpPage", () => {
     expect(mockedCreateMcpConnector.mock.calls[0]?.[0]).not.toHaveProperty(
       "allowlisted_tools",
     );
+  });
+
+  it("sends a header from a stored secret with its prefix, never a typed value", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "New MCP" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Docs MCP");
+    await user.type(screen.getByRole("textbox", { name: "Endpoint" }), "https://docs.example/mcp");
+    await user.click(screen.getByRole("button", { name: "Add headers row" }));
+    await user.type(screen.getByRole("textbox", { name: "Headers key" }), "Authorization");
+    const choose = screen.getByRole("combobox", { name: "Stored secret for Authorization" });
+    await waitFor(() => expect(choose).toBeEnabled());
+    await user.click(choose);
+    await user.click(await screen.findByRole("option", { name: /^Docs token/u }));
+
+    // The value comes from the stored secret; the system adds "Bearer " for Authorization.
+    expect(screen.getByRole("textbox", { name: "Headers value" })).toBeDisabled();
+    expect(screen.queryByRole("textbox", { name: /^Prefix/u })).not.toBeInTheDocument();
+    expect(screen.getByText(/Sent as “Bearer” and the stored secret/u)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save MCP" }));
+
+    await waitFor(() => expect(mockedCreateMcpConnector).toHaveBeenCalled());
+    expect(mockedCreateMcpConnector.mock.calls[0]?.[0]).toMatchObject({
+      headers: {},
+      header_secret_choices: { Authorization: { secret_id: "s1", prefix: "Bearer " } },
+    });
   });
 
   it("fills the create form from pasted JSON configuration and saves it", async () => {

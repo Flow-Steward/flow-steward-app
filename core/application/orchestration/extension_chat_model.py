@@ -405,24 +405,21 @@ class ExtensionChatModel(BaseChatModel):
             "action_definitions": descriptor.get("action_definitions"),
             "query_definitions": descriptor.get("query_definitions"),
         }
-        credentials: dict[str, Any] = {}
-        ciphertext = str(snapshot.get("encrypted_value") or "")
-        if ciphertext:
-            from core.application.auth.secrets import decrypt_secret
+        from core.application.settings import llm_provider_catalog_refs as catalog_refs
 
-            try:
-                parsed = json.loads(decrypt_secret(ciphertext))
-            except Exception as exc:
-                raise ExtensionLLMError(
-                    f"authentication_error: invalid credentials for extension provider "
-                    f"'{self.provider_key}'"
-                ) from exc
-            if not isinstance(parsed, dict):
-                raise ExtensionLLMError(
-                    f"authentication_error: invalid credentials for extension provider "
-                    f"'{self.provider_key}'"
-                )
-            credentials = parsed
+        try:
+            # Typed values plus each chosen stored secret, read now (ADR 0057).
+            credentials = catalog_refs.effective_credentials(
+                bl.conn,
+                account_id=self.account_id,
+                ciphertext=str(snapshot.get("encrypted_value") or ""),
+                catalog_refs=snapshot.get(catalog_refs.CATALOG_REFS_KEY),
+            )
+        except catalog_refs.StoredCredentialsUnavailableError as exc:
+            raise ExtensionLLMError(
+                f"authentication_error: invalid credentials for extension provider "
+                f"'{self.provider_key}'"
+            ) from exc
         # The invocation layer separates a remote runtime's own bearer from the
         # provider's secrets; both travel here in one encrypted payload.
         connection_config = snapshot.get("connection_config_jsonb")

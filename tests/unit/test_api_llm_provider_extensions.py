@@ -222,6 +222,8 @@ def test_credentials_route_passes_remote_runtime_url_separately(monkeypatch) -> 
         secrets,
         connection_config,
         remote_base_url,
+        secret_choices,
+        scope,
     ):
         calls.append(
             {
@@ -229,6 +231,7 @@ def test_credentials_route_passes_remote_runtime_url_separately(monkeypatch) -> 
                 "secrets": secrets,
                 "connection_config": connection_config,
                 "remote_base_url": remote_base_url,
+                "secret_choices": secret_choices,
             }
         )
         return {"status": "saved"}
@@ -251,6 +254,7 @@ def test_credentials_route_passes_remote_runtime_url_separately(monkeypatch) -> 
             "secrets": {},
             "connection_config": {"upstream_base_url": "https://upstream.example"},
             "remote_base_url": "https://runtime.example",
+            "secret_choices": {},
         }
     ]
 

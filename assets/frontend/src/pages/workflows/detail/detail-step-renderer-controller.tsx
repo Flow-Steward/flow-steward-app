@@ -392,6 +392,13 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
     stepFileResultRows: stepFileResults(stepKindDraft, stepOverrideObject, connectorOutputRows),
     stepReturnedFiles,
     workflowId,
+    secretCatalogProjectId: ctx.secretCatalogProjectId,
+    secretCatalogWorkflowId: ctx.secretCatalogWorkflowId,
+    secretInputsEditable: Boolean(ctx.secretInputsEditable),
+    workflowInterfaceInputsDraft: ctx.workflowInterfaceInputsDraft,
+    setWorkflowInterfaceInputsDraft: ctx.setWorkflowInterfaceInputsDraft,
+    handleSaveWorkflowSettings: ctx.handleSaveWorkflowSettings,
+    registerStepSecretTask: ctx.registerStepSecretTask,
   };
 
   function renderStepKindSmartSetup() {

@@ -5,9 +5,6 @@ export type CatalogSecret = {
   id: string;
   name: string;
   description: string;
-  owner: "project" | "workspace";
-  workspace_id: string;
-  project_id: string | null;
   usage_count?: number;
   created_at?: string | null;
   created_by?: string;
@@ -29,18 +26,31 @@ export type CatalogSecretUsage = {
   project_id?: string | null;
   project_name?: string;
   field: string;
+  /** A data connection, MCP connector or LLM provider install that reads the secret. */
+  consumer_id?: string | null;
+  consumer_name?: string;
 };
 
-/** The project's catalog list, shared with Registry → Secrets so one refresh serves both. */
-export function catalogSecretsQueryKey(projectId: string) {
-  return ["secrets", "project", projectId];
+/**
+ * The installation's secrets. Every project may use every secret, so Registry →
+ * Secrets and each picker share this one list, and one refresh serves them all.
+ */
+export const CATALOG_SECRETS_QUERY_KEY = ["secrets", "all"] as const;
+
+export async function fetchCatalogSecrets() {
+  const payload = await fetchJson<{ secrets?: CatalogSecret[] }>("/api/secrets");
+  return Array.isArray(payload?.secrets) ? payload.secrets : [];
 }
 
-export async function fetchCatalogSecrets(projectId: string) {
-  const payload = await fetchJson<{ secrets?: CatalogSecret[] }>(
-    `/api/secrets?project_id=${encodeURIComponent(projectId)}`,
-  );
-  return Array.isArray(payload?.secrets) ? payload.secrets : [];
+/** What deleting a secret would unbind; `revision` names exactly this list. */
+export type CatalogSecretDeletePlan = {
+  secret: CatalogSecret;
+  usages: CatalogSecretUsage[];
+  revision: string;
+};
+
+export async function fetchCatalogSecretDeletePlan(secretId: string) {
+  return fetchJson<CatalogSecretDeletePlan>(`/api/secrets/${encodeURIComponent(secretId)}/delete-plan`);
 }
 
 export async function fetchCatalogSecret(secretId: string) {
@@ -51,8 +61,6 @@ export async function createCatalogSecret(payload: {
   name: string;
   description: string;
   value: string;
-  project_id?: string;
-  workspace_id?: string;
 }) {
   return fetchJson<CatalogSecret>("/api/secrets", { method: "POST", body: JSON.stringify(payload) });
 }
@@ -71,6 +79,11 @@ export async function replaceCatalogSecretValue(secretId: string, value: string)
   });
 }
 
-export async function deleteCatalogSecret(secretId: string) {
-  return fetchJson<{ deleted: boolean }>(`/api/secrets/${encodeURIComponent(secretId)}`, { method: "DELETE" });
+/** With the confirmed plan's revision a used secret is deleted together with its bindings. */
+export async function deleteCatalogSecret(secretId: string, planRevision?: string) {
+  const query = planRevision ? `?plan_revision=${encodeURIComponent(planRevision)}` : "";
+  return fetchJson<{ deleted: boolean; removed_bindings?: number }>(
+    `/api/secrets/${encodeURIComponent(secretId)}${query}`,
+    { method: "DELETE" },
+  );
 }

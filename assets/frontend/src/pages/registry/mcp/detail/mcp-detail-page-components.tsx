@@ -2,7 +2,9 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { type ChangeEvent, type RefObject } from "react";
 
 import { SensitiveInput } from "@/components/shared/design-system";
+import { StoredSecretSelect } from "@/pages/registry/secrets/stored-secret-select";
 
+import { withHeaderSecretChoice, headerSecretHelper } from "../key-value-rows";
 import { type KeyValueRow, keyValueRowProblem } from "./mcp-detail-page-helpers";
 
 /** A key-value fact: the published field pair, label over value. The design
@@ -41,6 +43,7 @@ export function KeyValueEditor({
   reservedKeys,
   serverInvalid = false,
   sensitiveValues = false,
+  storedSecrets = false,
   valueAriaLabel,
   wrapperRef,
 }: Readonly<{
@@ -52,6 +55,8 @@ export function KeyValueEditor({
   reservedKeys?: ReadonlySet<string>;
   serverInvalid?: boolean;
   sensitiveValues?: boolean;
+  /** Every row sends a stored secret chosen below; the system adds "Bearer " for Authorization. */
+  storedSecrets?: boolean;
   valueAriaLabel: string;
   wrapperRef: RefObject<HTMLFieldSetElement | null>;
 }>) {
@@ -85,6 +90,23 @@ export function KeyValueEditor({
           placeholder: t("project_edit.fields.value", "Value"),
           value: row.value,
         };
+        const fieldLabel = row.key.trim() || label;
+        let valueCell = sensitiveValues
+          ? <SensitiveInput ariaLabel={valueAriaLabel} {...valueProps} />
+          : <input aria-label={valueAriaLabel} {...valueProps} />;
+        if (storedSecrets) {
+          // The stored secret chosen below provides the value; the system adds "Bearer ".
+          valueCell = (
+            <input
+              aria-describedby={describedBy}
+              aria-label={valueAriaLabel}
+              className={inputClass}
+              disabled
+              placeholder={t("react.registry.mcp_header_value_from_secret", "From the stored secret below")}
+              value=""
+            />
+          );
+        }
         return (
           <div className={`fs-form-grid fs-mcp-key-value-row${invalid ? " fs-mcp-invalid-row" : ""}`} key={row.id}>
             <input
@@ -96,13 +118,19 @@ export function KeyValueEditor({
               placeholder={t("react.registry.key", "Key")}
               value={row.key}
             />
-            {sensitiveValues ? (
-              <SensitiveInput ariaLabel={valueAriaLabel} {...valueProps} />
-            ) : (
-              <input aria-label={valueAriaLabel} {...valueProps} />
-            )}
+            {valueCell}
             <button className="fs-button secondary" onClick={() => onChange(rows.filter((item) => item.id !== row.id))} type="button">{t("extensions.repeater.remove", "Remove")}</button>
             {problem ? <span className="fs-field-error" id={errorId}>{problem}</span> : null}
+            {storedSecrets ? (
+              <div className="col-span-full">
+                <StoredSecretSelect
+                  fieldLabel={fieldLabel}
+                  helper={row.secretId ? headerSecretHelper(row, t) : undefined}
+                  onChange={(secretId) => onChange(rows.map((item) => item.id === row.id ? withHeaderSecretChoice(item, secretId) : item))}
+                  value={row.secretId ?? ""}
+                />
+              </div>
+            ) : null}
           </div>
         );
       })}

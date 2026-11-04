@@ -28521,3 +28521,267 @@ msgstr ""
 
 msgid "react.registry.typed_json_value"
 msgstr ""
+
+msgid "react.registry.secrets.actions_for"
+msgstr ""
+
+msgid "react.registry.secrets.add_description"
+msgstr ""
+
+msgid "react.registry.secrets.close_dialog"
+msgstr ""
+
+msgid "react.registry.secrets.count"
+msgstr ""
+
+msgid "react.registry.secrets.created_message"
+msgstr ""
+
+msgid "react.registry.secrets.delete_acknowledge"
+msgstr ""
+
+msgid "react.registry.secrets.delete_description"
+msgstr ""
+
+msgid "react.registry.secrets.delete_failed"
+msgstr ""
+
+msgid "react.registry.secrets.delete_title"
+msgstr ""
+
+msgid "react.registry.secrets.delete_unused"
+msgstr ""
+
+msgid "react.registry.secrets.delete_used_help"
+msgstr ""
+
+msgid "react.registry.secrets.delete_used_title"
+msgstr ""
+
+msgid "react.registry.secrets.delete_with_uses"
+msgstr ""
+
+msgid "react.registry.secrets.deleted"
+msgstr ""
+
+msgid "react.registry.secrets.done"
+msgstr ""
+
+msgid "react.registry.secrets.edit"
+msgstr ""
+
+msgid "react.registry.secrets.edit_description"
+msgstr ""
+
+msgid "react.registry.secrets.edit_title"
+msgstr ""
+
+msgid "react.registry.secrets.empty"
+msgstr ""
+
+msgid "react.registry.secrets.filter_unused"
+msgstr ""
+
+msgid "react.registry.secrets.filter_used"
+msgstr ""
+
+msgid "react.registry.secrets.load_failed"
+msgstr ""
+
+msgid "react.registry.secrets.loading"
+msgstr ""
+
+msgid "react.registry.secrets.name_placeholder"
+msgstr ""
+
+msgid "react.registry.secrets.name_required"
+msgstr ""
+
+msgid "react.registry.secrets.no_match"
+msgstr ""
+
+msgid "react.registry.secrets.owner_kind_project"
+msgstr ""
+
+msgid "react.registry.secrets.owner_kind_workspace"
+msgstr ""
+
+msgid "react.registry.secrets.plan_changed"
+msgstr ""
+
+msgid "react.registry.secrets.plan_changed_help"
+msgstr ""
+
+msgid "react.registry.secrets.plan_failed"
+msgstr ""
+
+msgid "react.registry.secrets.project_required"
+msgstr ""
+
+msgid "react.registry.secrets.replace_description"
+msgstr ""
+
+msgid "react.registry.secrets.replace_title"
+msgstr ""
+
+msgid "react.registry.secrets.search"
+msgstr ""
+
+msgid "react.registry.secrets.search_placeholder"
+msgstr ""
+
+msgid "react.registry.secrets.updated"
+msgstr ""
+
+msgid "react.registry.secrets.usage"
+msgstr ""
+
+msgid "react.registry.secrets.used_count"
+msgstr ""
+
+msgid "react.registry.secrets.value_changed_column"
+msgstr ""
+
+msgid "react.registry.secrets.value_helper"
+msgstr ""
+
+msgid "react.registry.secrets.value_replaced"
+msgstr ""
+
+msgid "react.registry.secrets.value_required"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.applied_on_save"
+msgstr ""
+
+msgid "react.extensions.secret_catalog.uses_stored"
+msgstr ""
+
+msgid "react.registry.secrets.add_description_shared"
+msgstr ""
+
+msgid "react.registry.secrets.page_description_shared"
+msgstr ""
+
+msgid "react.secret_catalog.new_for"
+msgstr ""
+
+msgid "react.secret_catalog.none_yet"
+msgstr ""
+
+msgid "react.secret_catalog.type_instead"
+msgstr ""
+
+msgid "react.workflows.http_auth_choose_input"
+msgstr ""
+
+msgid "react.workflows.http_auth_help_inputs"
+msgstr ""
+
+msgid "react.workflows.http_auth_input_for"
+msgstr ""
+
+msgid "react.workflows.http_auth_legacy"
+msgstr ""
+
+msgid "react.workflows.http_auth_no_inputs"
+msgstr ""
+
+msgid "react.workflows.http_auth_none"
+msgstr ""
+
+msgid "react.workflows.http_auth_password"
+msgstr ""
+
+msgid "react.workflows.http_auth_readiness_input"
+msgstr ""
+
+msgid "react.workflows.http_auth_stored_help"
+msgstr ""
+
+msgid "react.workflows.http_auth_token"
+msgstr ""
+
+msgid "react.workflows.http_auth_username"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.bound_on_save"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.choose_help"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.new_input"
+msgstr ""
+
+msgid "react.workflows.typed_secret_kept_in_catalog"
+msgstr ""
+
+msgid "react.registry.mcp_add_secret_header"
+msgstr ""
+
+msgid "react.registry.mcp_header_secret_helper"
+msgstr ""
+
+msgid "react.registry.mcp_header_secret_prefix"
+msgstr ""
+
+msgid "react.registry.mcp_header_secret_prefix_for"
+msgstr ""
+
+msgid "react.registry.mcp_header_secret_prefix_limit"
+msgstr ""
+
+msgid "react.registry.mcp_secret_header"
+msgstr ""
+
+msgid "react.registry.mcp_secret_header_key"
+msgstr ""
+
+msgid "react.registry.mcp_secret_headers"
+msgstr ""
+
+msgid "react.registry.mcp_secret_headers_helper"
+msgstr ""
+
+msgid "react.registry.secrets.usage_data_connection"
+msgstr ""
+
+msgid "react.registry.secrets.usage_llm_provider"
+msgstr ""
+
+msgid "react.registry.secrets.usage_mcp"
+msgstr ""
+
+msgid "react.workflows.secret_catalog.bound_help"
+msgstr ""
+
+msgid "react.workflows.http_auth_value_for"
+msgstr ""
+
+msgid "react.workflows.http_auth_keep_value"
+msgstr ""
+
+msgid "react.workflows.http_auth_uses_stored"
+msgstr ""
+
+msgid "react.workflows.http_auth_value_help"
+msgstr ""
+
+msgid "react.workflows.http_auth_help_secrets"
+msgstr ""
+
+msgid "react.registry.mcp_header_value_from_secret"
+msgstr ""
+
+msgid "react.registry.mcp_header_secret_key_required"
+msgstr ""
+
+msgid "react.registry.mcp_header_secret_bearer_helper"
+msgstr ""
+
+msgid "react.registry.mcp_header_secret_value_helper"
+msgstr ""
+
+msgid "react.workflows.http_auth_value_on_save"
+msgstr ""

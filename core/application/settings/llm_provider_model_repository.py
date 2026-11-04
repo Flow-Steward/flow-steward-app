@@ -44,7 +44,9 @@ def get_model_runtime_snapshot(
                        source.credential_secret_ref,
                        install.config_jsonb ->> 'llm_provider_credential_secret_ref'
                    ) AS credential_secret_ref,
-                   secret.encrypted_value
+                   secret.encrypted_value,
+                   install.config_jsonb -> 'llm_provider_catalog_refs'
+                       AS llm_provider_catalog_refs
               FROM extension_installs AS install
               JOIN extension_releases AS release
                 ON release.release_id = install.release_id

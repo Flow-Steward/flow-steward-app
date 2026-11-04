@@ -22,6 +22,7 @@ import {
   type LlmProviderConnectionStatus,
   type LlmProviderModel,
 } from "@/pages/extensions/api";
+import { StoredSecretSelect } from "@/pages/registry/secrets/stored-secret-select";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { invalidateModelRoutingQueries, providerErrorMessage } from "@/lib/utils/model-provider-state";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
@@ -216,6 +217,9 @@ export function LlmProviderPanel({
   const supplier = stringFromUnknownValue(contract.supplier_label).trim();
   const client = useQueryClient();
   const [secrets, setSecrets] = useState<Record<string, string>>({});
+  // The person's stored-secret choice per secret field (ADR 0057); a missing
+  // name keeps the saved choice, "" means type a value instead.
+  const [secretChoices, setSecretChoices] = useState<Record<string, string>>({});
   const [shownJsonSecrets, setShownJsonSecrets] = useState<ReadonlySet<string>>(new Set());
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [remoteBaseUrl, setRemoteBaseUrl] = useState("");
@@ -233,6 +237,11 @@ export function LlmProviderPanel({
   });
   const savedSecretNames = useMemo(
     () => new Set((connection.data?.saved_secrets || []).map((secret) => secret.name)),
+    [connection.data],
+  );
+  const savedStoredSecretIds = useMemo(
+    () => Object.fromEntries((connection.data?.saved_secrets || []).flatMap((secret) =>
+      secret.stored_secret?.id ? [[secret.name, secret.stored_secret.id]] : [])) as Record<string, string>,
     [connection.data],
   );
   const lastCheck = connection.isSuccess ? checkView(connection.data?.last_check ?? null, t) : null;
@@ -337,9 +346,16 @@ export function LlmProviderPanel({
       return true;
     }
   })), [secretFormats, secretNames, secrets]);
+  const chosenSecretId = (name: string) => secretChoices[name] ?? savedStoredSecretIds[name] ?? "";
+  // Choices that differ from what is saved; only these are sent.
+  const changedSecretChoices = Object.fromEntries(
+    Object.entries(secretChoices).filter(([name, secretId]) => secretId !== (savedStoredSecretIds[name] ?? "")),
+  );
   const requiredSecretsMissing = requiredSecretNames.some((name) =>
     secretNames.includes(name) && !String(secrets[name] || "").trim()
-    && (!connection.isSuccess || !savedSecretNames.has(name)),
+    && !chosenSecretId(name)
+    // Switching a saved stored secret back to a typed value needs the value.
+    && (!connection.isSuccess || !savedSecretNames.has(name) || Boolean(savedStoredSecretIds[name])),
   );
   const secretInputBlocked = requiredSecretsMissing || invalidJsonSecrets.size > 0;
   const configErrors = useMemo(() => {
@@ -418,8 +434,10 @@ export function LlmProviderPanel({
         secrets: populatedSecrets,
         connection_config: savedConfig,
         ...(usesRemoteRuntime ? { remote_base_url: remoteBaseUrl.trim() } : {}),
+        ...(Object.keys(changedSecretChoices).length ? { secret_choices: changedSecretChoices } : {}),
       });
       setSecrets({});
+      setSecretChoices({});
       const unchanged = saved?.changed === false
         || (saved?.changed === undefined && saved?.verification_invalidated === false);
       saveMessage = unchanged
@@ -529,7 +547,8 @@ export function LlmProviderPanel({
         {secretNames.map((name, index) => {
           const helpId = secretHelp[name] ? `llm-secret-help-${name}` : undefined;
           const labelId = `${fieldLabelPrefix}-secret-${index}`;
-          const saved = savedSecretNames.has(name);
+          // A saved stored secret the person switched back to typing no longer counts.
+          const saved = savedSecretNames.has(name) && !(savedStoredSecretIds[name] && secretChoices[name] === "");
           // Only names come back from the server: whether a value is saved,
           // never the value. "No key saved" when the field matters.
           const savedText = saved
@@ -546,6 +565,34 @@ export function LlmProviderPanel({
           const shown = shownJsonSecrets.has(name);
           const updateSecret = (value: string) => setSecrets((current) => ({ ...current, [name]: value }));
           const placeholder = saved ? t("react.extensions.saved_enter_a_new_value0_to_replace_it", "Saved. Enter a new {value0} to replace it", { value0: secretNoun(name, t) }) : fieldLabel(name, t);
+          const storedSecretId = chosenSecretId(name);
+          const storedSecretPicker = (
+            <StoredSecretSelect
+              disabled={mutationPending}
+              fieldLabel={fieldLabel(name, t)}
+              helper={name in changedSecretChoices
+                ? t("react.extensions.secret_catalog.applied_on_save", "Applied when you save the connection.")
+                : storedSecretId
+                  ? t("react.extensions.secret_catalog.uses_stored", "Uses this stored secret. Replace its value in Registry → Secrets.")
+                  : undefined}
+              onChange={(secretId) => {
+                setSecretChoices((current) => ({ ...current, [name]: secretId }));
+                // A stored secret replaces whatever was typed into the field.
+                setSecrets((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== name)));
+              }}
+              value={storedSecretId}
+            />
+          );
+          if (storedSecretId) {
+            // The field keeps its label; the typed input is hidden while a stored secret is chosen.
+            return (
+              <div className="fs-field" data-testid={`llm-secret-stored-${name}`} key={name}>
+                {renderFieldName(name, requiredSecretNames.includes(name), labelId, t)}
+                {storedSecretPicker}
+                {helpId ? <span className="fs-field-helper" id={helpId}>{secretHelp[name]}</span> : null}
+              </div>
+            );
+          }
           return (
             <div className="fs-field" key={name}>
               {renderFieldName(name, requiredSecretNames.includes(name), labelId, t)}
@@ -566,6 +613,7 @@ export function LlmProviderPanel({
               {savedId ? <span className={!saved && requiredSecretNames.includes(name) ? "fs-field-helper error" : "fs-field-helper"} id={savedId}>{savedText}</span> : null}
               {helpId ? <span className="fs-field-helper" id={helpId}>{secretHelp[name]}</span> : null}
               {errorId ? <span className="fs-field-helper error" id={errorId}>{t("react.extensions.json_secret_invalid", "Enter a valid JSON object.")}</span> : null}
+              {storedSecretPicker}
             </div>
           );
         })}

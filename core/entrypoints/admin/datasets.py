@@ -82,6 +82,7 @@ from core.entrypoints.admin.datasets_models import (
     DatasetSave,
     ProjectDatasetAssignment,
 )
+from core.entrypoints.admin.datasets_secret_choices import save_error, with_secret_choices
 
 _MESSAGE_WORKSPACE_NOT_FOUND = "Workspace not found"
 
@@ -327,6 +328,7 @@ def list_workspace_data_connections(
     rows = [row for row in rows if _scope_matches_row(row, scope)]
     connector_catalog = _connector_catalog_by_id(db, scope=scope)
     rows = [{**row, **_data_connection_query_capability(row, connector_catalog)} for row in rows]
+    rows = with_secret_choices(db, scope, rows)
     return {"connections": rows, "count": len(rows)}
 
 
@@ -351,10 +353,11 @@ def create_workspace_data_connection(request: Request, body: DataConnectionSave)
         row = save_connection_with_secrets(
             payload,
             secret_values=pending_secret_values,
+            scope=scope,
             author=str(getattr(scope, "actor_id", "") or "admin").strip() or "admin",
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (ServiceError, ValueError) as exc:
+        raise save_error(exc) from exc
     return {"status": "created", "connection": row, "connection_id": payload["connection_id"]}
 
 

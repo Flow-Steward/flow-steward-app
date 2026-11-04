@@ -79,7 +79,7 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
     onSelectTab(next === "triggers" ? "webhook" : next);
   }
   const settings = useWorkflowSettingsController({
-    workflowId, workflowRecord, workflowInterfaceControlIdPrefix, setDrawerTab: changeDrawerTab, setSaveNotice: ignoreSaveNotice, setSaveError, setSaveConflict, drawerMode: "workflow-settings",
+    workflowId, workflowRecord, workflowInterfaceControlIdPrefix, projectId: selectedProjectId, setDrawerTab: changeDrawerTab, setSaveNotice: ignoreSaveNotice, setSaveError, setSaveConflict, drawerMode: "workflow-settings",
     setSavingWorkflowSurface: (value: string) => {
       if (value === "workflow") {
         setSaveError("");

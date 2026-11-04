@@ -33,6 +33,14 @@ vi.mock("@/pages/registry/mcp/api", () => ({
   updateMcpConnector: vi.fn(),
 }));
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
+vi.mock("@/pages/registry/secrets/api", () => ({
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
+  fetchCatalogSecrets: vi.fn().mockResolvedValue([
+    { id: "s1", name: "Docs token", description: "" },
+    { id: "s2", name: "Other token", description: "" },
+  ]),
+  createCatalogSecret: vi.fn(),
+}));
 
 const mockedCheckMcpConnectorHealth = vi.mocked(checkMcpConnectorHealth);
 const mockedDisconnectMcpConnectorOAuth = vi.mocked(disconnectMcpConnectorOAuth);
@@ -520,6 +528,76 @@ describe("RegistryMcpDetailPage", () => {
         },
       }, "project-1");
     });
+  });
+
+  it("names the headers that use a stored secret and edits the choice", async () => {
+    const user = userEvent.setup();
+    mockedFetchMcpConnector.mockResolvedValue(
+      connectorFixture({
+        auth_mode: "bearer",
+        header_secret_choices: { Authorization: { secret_id: "s1", prefix: "Bearer " } },
+      }) as never,
+    );
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Flow Steward MCP" });
+    expect(screen.getByText("Headers from stored secrets")).toBeInTheDocument();
+    expect(screen.getAllByText("Authorization").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Edit settings" }));
+    const group = screen.getByRole("group", { name: "Headers from stored secrets" });
+    expect(within(group).getByRole("textbox", { name: "Stored-secret header name" })).toHaveValue("Authorization");
+    expect(within(group).queryByRole("textbox", { name: /^Prefix/u })).not.toBeInTheDocument();
+    // Another stored secret for the same header: the system keeps "Bearer " before it.
+    const choose = within(group).getByRole("combobox", { name: "Stored secret for Authorization" });
+    await waitFor(() => expect(choose).toBeEnabled());
+    await user.click(choose);
+    await user.click(await screen.findByRole("option", { name: /^Other token/u }));
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() => expect(mockedUpdateMcpConnector).toHaveBeenCalled());
+    expect(mockedUpdateMcpConnector.mock.calls[0]?.[1]).toMatchObject({
+      header_secret_choices: { Authorization: { secret_id: "s2", prefix: "Bearer " } },
+    });
+    expect(mockedUpdateMcpConnector.mock.calls[0]?.[1]).not.toHaveProperty("headers");
+  });
+
+  it("stops using a stored secret by removing its header row", async () => {
+    const user = userEvent.setup();
+    mockedFetchMcpConnector.mockResolvedValue(
+      connectorFixture({
+        auth_mode: "bearer",
+        header_secret_choices: { Authorization: { secret_id: "s1", prefix: "Bearer " } },
+      }) as never,
+    );
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Flow Steward MCP" });
+    await user.click(screen.getByRole("button", { name: "Edit settings" }));
+    const group = screen.getByRole("group", { name: "Headers from stored secrets" });
+    await user.click(within(group).getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() => expect(mockedUpdateMcpConnector).toHaveBeenCalled());
+    expect(mockedUpdateMcpConnector.mock.calls[0]?.[1]?.header_secret_choices).toEqual({});
+  });
+
+  it("keeps stored-secret choices out of a save that did not change them", async () => {
+    const user = userEvent.setup();
+    mockedFetchMcpConnector.mockResolvedValue(
+      connectorFixture({
+        auth_mode: "bearer",
+        header_secret_choices: { Authorization: { secret_id: "s1", prefix: "Bearer " } },
+      }) as never,
+    );
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Flow Steward MCP" });
+    await user.click(screen.getByRole("button", { name: "Edit settings" }));
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() => expect(mockedUpdateMcpConnector).toHaveBeenCalled());
+    expect(mockedUpdateMcpConnector.mock.calls[0]?.[1]).not.toHaveProperty("header_secret_choices");
   });
 
   it("explicitly clears masked stored headers without exposing their values", async () => {

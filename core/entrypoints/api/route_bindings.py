@@ -574,6 +574,7 @@ def register_api_routes(
         require_authenticated_user=require_authenticated_user,
         auth_admin_roles=auth_admin_roles,
         api_error_response=api_error_response,
+        request_scope=request_scope,
     )
     app.include_router(api_llm_provider_extensions_router)
 

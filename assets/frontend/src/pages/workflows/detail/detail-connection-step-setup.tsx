@@ -19,6 +19,8 @@ import {
 } from "@/pages/workflows/detail/detail-helpers";
 import { useId, type ReactNode } from "react";
 import { HttpMapField, HttpStatusesField, HttpValueField } from "./detail-http-request-value-fields";
+import { HttpAuthSecretField } from "./detail-http-auth-secret";
+import type { WorkflowInterfaceFieldDraft } from "./detail-interface";
 import { httpReadinessDisplay, type HttpField } from "./detail-http-request-fields";
 import { useHttpRequestIntent, type HttpFieldFeedback } from "./detail-http-request-intent";
 import { numericDraftFromInput, numericInputValue, stepNumericFieldErrors } from "./detail-step-numeric-fields";
@@ -576,6 +578,20 @@ export function HttpRequestStepSetup({ ctx, inputClass }: Readonly<{ ctx: Workfl
     httpIntent.touchField(field);
     storeHttpField(kind, field, value);
   };
+  const registrar = ctx.registerStepSecretTask;
+  const saveTaskRegistrar = typeof registrar === "function" ? registrar : undefined;
+  // A stored secret chosen for auth becomes a secret input of this workflow, saved at once.
+  const addBoundInput = ctx.secretInputsEditable && ctx.secretCatalogWorkflowId && typeof ctx.handleSaveWorkflowSettings === "function"
+    ? async (row: WorkflowInterfaceFieldDraft) => {
+      // An unnamed row someone started in the inputs editor is not saved with it, so
+      // the save neither refuses nor opens the settings tab for an unrelated field.
+      const current = (Array.isArray(ctx.workflowInterfaceInputsDraft) ? ctx.workflowInterfaceInputsDraft : [])
+        .filter((item: WorkflowInterfaceFieldDraft) => item.name.trim());
+      const rows = [...current, row];
+      ctx.setWorkflowInterfaceInputsDraft(rows);
+      await ctx.handleSaveWorkflowSettings(rows);
+    }
+    : undefined;
 
       const responseMode = textOrEmpty(stepKindConfig.response_mode) || "inline";
       const maxResponseBytes = numericInputValue(stepKindConfig.max_response_bytes);
@@ -761,27 +777,26 @@ export function HttpRequestStepSetup({ ctx, inputClass }: Readonly<{ ctx: Workfl
               />
             {renderMessage("auth_mode")}
             </label>
-            <label data-http-field="auth_ref" className="block text-xs text-[var(--fs-text-secondary)]">
+            <div data-http-field="auth_ref" className="block text-xs text-[var(--fs-text-secondary)]">
               {String(stepKindConfig.auth_mode || "none").trim().toLowerCase() !== "none" ? <RequiredLabel>{t("react.workflows.auth_reference", "Auth reference")}</RequiredLabel> : <span>{t("react.workflows.auth_reference", "Auth reference")}</span>}
-              <input
-                className={inputClass}
-                onChange={(event) =>
-                  replaceStepKindConfigField(
-                    "http_request",
-                    "auth_ref",
-                    event.target.value,
-                  )
-                }
-                placeholder={t("react.workflows.secret_name", "secret name")}
-                aria-label={t("react.workflows.auth_reference", "Auth reference")}
-                aria-required={String(stepKindConfig.auth_mode || "none").trim().toLowerCase() !== "none"}
-                aria-invalid={Boolean(messages.auth_ref)}
-                aria-describedby={messages.auth_ref ? messageId("auth_ref") : undefined}
-                value={textOrEmpty(stepKindConfig.auth_ref)}
-              />
+              {String(stepKindConfig.auth_mode || "none").trim().toLowerCase() === "none" ? (
+                <span className="fs-field-helper block">{t("react.workflows.http_auth_none", "Choose bearer or basic to send a secret.")}</span>
+              ) : <HttpAuthSecretField
+                addBoundInput={addBoundInput}
+                authMode={String(stepKindConfig.auth_mode || "none").trim().toLowerCase()}
+                authRef={textOrEmpty(stepKindConfig.auth_ref)}
+                describedBy={messages.auth_ref ? messageId("auth_ref") : undefined}
+                inputClass={inputClass}
+                inputs={Array.isArray(ctx.workflowInterfaceInputsDraft) ? ctx.workflowInterfaceInputsDraft : []}
+                invalid={Boolean(messages.auth_ref)}
+                projectId={ctx.secretInputsEditable ? textOrEmpty(ctx.secretCatalogProjectId) : ""}
+                registerSaveTask={saveTaskRegistrar}
+                workflowId={ctx.secretInputsEditable ? textOrEmpty(ctx.secretCatalogWorkflowId) : ""}
+                onAuthRefChange={(next) => replaceStepKindConfigField("http_request", "auth_ref", next)}
+              />}
             {renderMessage("auth_ref")}
-              <span className="fs-field-helper">{t("react.workflows.http_auth_help", "Use project secret references. Bearer uses one reference; basic uses username:password references. Authenticated requests require a literal HTTPS origin.")}</span>
-            </label>
+              <span className="fs-field-helper">{t("react.workflows.http_auth_help_secrets", "Bearer sends one secret; basic sends a username and a password. Authenticated requests require a literal HTTPS origin.")}</span>
+            </div>
           </div>
           <HttpMapField field="headers" label={t("react.registry.headers", "Headers")} value={stepKindConfig.headers} intent={httpIntent} renderVariableInput={renderWorkflowVariableInput} message={messages.headers} onChange={(value) => storeHttpField("http_request", "headers", value)} />
           <HttpMapField field="query_params" label={t("react.workflows.display_query_parameters", "Query parameters")} value={stepKindConfig.query_params} intent={httpIntent} renderVariableInput={renderWorkflowVariableInput} message={messages.query_params} onChange={(value) => storeHttpField("http_request", "query_params", value)} />

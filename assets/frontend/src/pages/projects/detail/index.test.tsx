@@ -60,7 +60,7 @@ vi.mock("@/pages/workflows/shared/workflow-secret-catalog-api", () => ({
 }));
 
 vi.mock("@/pages/registry/secrets/api", () => ({
-  catalogSecretsQueryKey: (projectId: string) => ["secrets", "project", projectId],
+  CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
   fetchCatalogSecrets: vi.fn().mockResolvedValue([]),
   createCatalogSecret: vi.fn(),
 }));
