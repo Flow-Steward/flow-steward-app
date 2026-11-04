@@ -14,6 +14,12 @@ person edits are elsewhere; this tool writes the rest from them:
   `docs/agent-skills/.claude-plugin/marketplace.json`.
 - The package icon `assets/icon.svg` is the product favicon on a square canvas.
 
+- `assets/frontend/src/pages/settings/account/agent-skill-packages.generated.json`
+  is the Operator package as text for the web UI: the AI agents page builds a
+  personal archive from it in the browser, with the installation's address and
+  the user's token, which never travel to the server. It is written only into a
+  checkout that has the web UI.
+
 `gemini-extension.json` is rendered only into release archives
 (`build_release.py`), because no gallery indexes this repository.
 
@@ -38,6 +44,14 @@ SOURCES_FILE = SKILLS_DIR / "packages.json"
 PACKAGES = ("flow-steward-operator", "flow-steward-developer")
 MARKETPLACE_FILE = SKILLS_DIR / ".claude-plugin" / "marketplace.json"
 PACKAGE_ICON = Path("assets/icon.svg")
+WEB_UI_PACKAGE_JSON = Path("assets/frontend/package.json")
+WEB_BUNDLE_FILE = Path(
+    "assets/frontend/src/pages/settings/account/agent-skill-packages.generated.json"
+)
+#: The packages the AI agents page builds personal archives from.
+WEB_BUNDLE_PACKAGES = ("flow-steward-operator",)
+#: Local leftovers that are never part of a package.
+_NOT_PACKAGE_FILES = ("__pycache__", ".DS_Store")
 AGENT_PLUGINS_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 OPENAI_EXTENSION = "com.openai"
 _VIEWBOX = re.compile(rb'viewBox="0 0 ([0-9.]+) ([0-9.]+)"')
@@ -212,7 +226,42 @@ def generated_files(repo_root: Path = REPO_ROOT) -> dict[str, bytes]:
             cursor_manifest(sources, package)
         )
         files[(root / PACKAGE_ICON).as_posix()] = icon
+    if (repo_root / WEB_UI_PACKAGE_JSON).is_file():
+        files[WEB_BUNDLE_FILE.as_posix()] = web_bundle(repo_root, files)
     return files
+
+
+def web_bundle(repo_root: Path, generated: dict[str, bytes]) -> bytes:
+    """The web UI's copy of each bundled package, as its files will be after a sync."""
+    packages: dict[str, dict[str, str]] = {}
+    for package in WEB_BUNDLE_PACKAGES:
+        root = SKILLS_DIR / package
+        tree = {
+            relative: content
+            for relative, content in _tree(repo_root / root).items()
+            if not any(part in _NOT_PACKAGE_FILES for part in relative.split("/"))
+        }
+        for name in shared_skill_names(repo_root):
+            prefix = f"skills/{name}/"
+            tree = {key: value for key, value in tree.items() if not key.startswith(prefix)}
+            tree.update(
+                {
+                    prefix + key: value
+                    for key, value in _tree(repo_root / SHARED_SKILLS / name).items()
+                }
+            )
+        package_prefix = root.as_posix() + "/"
+        for relative, content in generated.items():
+            if relative.startswith(package_prefix):
+                tree[relative.removeprefix(package_prefix)] = content
+        packages[package] = {key: tree[key].decode("utf-8") for key in sorted(tree)}
+    return _json_bytes(
+        {
+            "generated_by": "infra/tooling/agent-skills/sync_packages.py",
+            "marketplace": generated[MARKETPLACE_FILE.as_posix()].decode("utf-8"),
+            "packages": packages,
+        }
+    )
 
 
 def drift(repo_root: Path = REPO_ROOT) -> list[str]:

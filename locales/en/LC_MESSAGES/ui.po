@@ -28830,12 +28830,6 @@ msgstr "{client} uses a personal access token from your account. It can never do
 msgid "react.agent_access.access_level"
 msgstr "What the agent may do"
 
-msgid "react.agent_access.preset_exceeds_authority"
-msgstr "Not available: it is more than your role allows."
-
-msgid "react.agent_access.admin_all_title"
-msgstr "admin:all is full access"
-
 msgid "react.agent_access.projects_help"
 msgstr "Empty means every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account and are not limited by project."
 
@@ -28859,18 +28853,6 @@ msgstr "This token already exists; its secret was shown once"
 
 msgid "react.agent_access.secret_already_shown_copy"
 msgstr "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token below and create a new one."
-
-msgid "react.agent_access.secret_once_title"
-msgstr "Copy the token now"
-
-msgid "react.agent_access.secret_once_copy"
-msgstr "It is filled into the setup below and shown only on this page, once. It disappears when you leave or hide it."
-
-msgid "react.agent_access.hide_token"
-msgstr "Hide the token"
-
-msgid "react.agent_access.start_over"
-msgstr "Start over"
 
 msgid "react.agent_access.title"
 msgstr "AI agents"
@@ -29004,18 +28986,6 @@ msgstr "Install the plugin"
 msgid "react.agent_access.step_install_claude_plugin_description"
 msgstr "Replace the path with the extracted flow-steward-agent-skills folder."
 
-msgid "react.agent_access.step_configure_claude_plugin"
-msgstr "Enter the address and the token"
-
-msgid "react.agent_access.step_configure_claude_plugin_description"
-msgstr "Run this in a session of the client and enter the two values below. The client keeps the token in your system credential store."
-
-msgid "react.agent_access.value_mcp_address"
-msgstr "Flow Steward MCP address"
-
-msgid "react.agent_access.value_personal_token"
-msgstr "Flow Steward personal access token"
-
 msgid "react.agent_access.step_download_package"
 msgstr "Download the package"
 
@@ -29032,19 +29002,79 @@ msgid "react.agent_access.step_toml_config"
 msgstr "Add the server to ~/.codex/config.toml"
 
 msgid "react.agent_access.step_toml_config_description"
-msgstr "Add this section and keep the rest of the file. It names the variable that holds the token, not the token."
-
-msgid "react.agent_access.step_token_environment"
-msgstr "Make the token available to the client"
-
-msgid "react.agent_access.step_token_environment_description"
-msgstr "Set the variable where the client starts, for example in your shell profile. Anyone who can read it can use the token."
+msgstr "Add this section and keep the rest of the file. It holds your token: keep it like a password, do not share it or put it in Git."
 
 msgid "react.agent_access.step_cursor_config"
 msgstr "Add the server to ~/.cursor/mcp.json"
 
 msgid "react.agent_access.step_cursor_config_description"
-msgstr "Merge this entry into the file's mcpServers. Cursor reads the token from the variable, so the file holds no secret."
+msgstr "Merge this entry into the file's mcpServers. It holds your token: keep it like a password, do not share it or put it in Git."
+
+msgid "react.agent_access.create_another_token_help"
+msgstr "The token above keeps working until it expires or you revoke it in step 5."
+
+msgid "react.agent_access.create_another_token"
+msgstr "Create another token"
+
+msgid "react.agent_access.token_ready_copy"
+msgstr "Download or copy what step 4 shows: nothing else to fill in. This page shows the token only now; after you leave, create another one if you need it."
+
+msgid "react.agent_access.token_ready_title"
+msgstr "The token is created and already in the setup below"
+
+msgid "react.agent_access.package_after_token"
+msgstr "The download is ready once the token is created."
+
+msgid "react.agent_access.download_failed"
+msgstr "The file could not be built. Reload the page and try again."
+
+msgid "react.agent_access.downloaded"
+msgstr "Downloaded {name}."
+
+msgid "react.agent_access.client_other_description"
+msgstr "A client that is not listed: one that connects to an MCP server over HTTP and, if it can, reads skills from a folder."
+
+msgid "react.agent_access.step_other_config_description"
+msgstr "Most clients take this JSON. If yours uses another format, keep the address and the Authorization header. It holds your token: keep it like a password, do not share it or put it in Git."
+
+msgid "react.agent_access.step_other_config"
+msgstr "Add the server to the client's MCP settings"
+
+msgid "react.agent_access.step_install_cursor_plugin_description"
+msgstr "Run this in a terminal, then run Developer: Reload Window in Cursor. An organization admin may have to allow local plugin imports."
+
+msgid "react.agent_access.step_install_cursor_plugin"
+msgstr "Install it"
+
+msgid "react.agent_access.step_download_cursor_plugin_description"
+msgstr "The Operator plugin with its four skills."
+
+msgid "react.agent_access.step_download_cursor_plugin"
+msgstr "Download the plugin"
+
+msgid "react.agent_access.step_install_skills_description"
+msgstr "Run this in a terminal. {client} finds the skills in its next session. If the browser saved the file elsewhere, change the path."
+
+msgid "react.agent_access.step_install_skills"
+msgstr "Install them"
+
+msgid "react.agent_access.step_download_skills_description"
+msgstr "The four Operator skills, one folder each, for this client's skills folder."
+
+msgid "react.agent_access.step_download_skills"
+msgstr "Download the skills"
+
+msgid "react.agent_access.step_install_personal_plugin_description"
+msgstr "Run this in a terminal and start a new session. If the browser saved the file elsewhere, change the first path. Installed it before? Remove the old one first: claude plugin marketplace remove flow-steward."
+
+msgid "react.agent_access.step_install_personal_plugin"
+msgstr "Install it"
+
+msgid "react.agent_access.step_personal_plugin_description"
+msgstr "The plugin already holds this installation's address and your token, so there is nothing to configure. It holds your token: keep it like a password, do not share it or put it in Git."
+
+msgid "react.agent_access.step_personal_plugin"
+msgstr "Download your plugin"
 
 msgid "react.agent_access.step_gemini_add"
 msgstr "Add the server"

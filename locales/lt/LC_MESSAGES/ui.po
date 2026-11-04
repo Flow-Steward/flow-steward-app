@@ -29252,12 +29252,6 @@ msgstr "{client} naudoja jūsų paskyros asmeninį prieigos raktą. Jis niekada 
 msgid "react.agent_access.access_level"
 msgstr "Ką agentas gali daryti"
 
-msgid "react.agent_access.preset_exceeds_authority"
-msgstr "Nepasiekiama: viršija tai, ką leidžia jūsų vaidmuo."
-
-msgid "react.agent_access.admin_all_title"
-msgstr "admin:all yra visiška prieiga"
-
 msgid "react.agent_access.projects_help"
 msgstr "Tuščia reiškia visus jums pasiekiamus projektus. Pasirinkus projektus, paleidimai, užduotys ir darbo eigos apribojami jais; agentai ir įgūdžiai priklauso visai paskyrai ir projektu neribojami."
 
@@ -29281,18 +29275,6 @@ msgstr "Šis prieigos raktas jau yra; jo slaptoji reikšmė parodyta vieną kart
 
 msgid "react.agent_access.secret_already_shown_copy"
 msgstr "Šis bandymas prieigos raktą sukūrė anksčiau, o slaptosios reikšmės nebegalima parodyti dar kartą. Jei jos neišsaugojote, atšaukite prieigos raktą žemiau ir sukurkite naują."
-
-msgid "react.agent_access.secret_once_title"
-msgstr "Nukopijuokite prieigos raktą dabar"
-
-msgid "react.agent_access.secret_once_copy"
-msgstr "Jis įrašytas į toliau pateiktus nustatymus ir rodomas tik šiame puslapyje, vieną kartą. Jis dings, kai išeisite arba jį paslėpsite."
-
-msgid "react.agent_access.hide_token"
-msgstr "Paslėpti prieigos raktą"
-
-msgid "react.agent_access.start_over"
-msgstr "Pradėti iš naujo"
 
 msgid "react.agent_access.title"
 msgstr "DI agentai"
@@ -29426,18 +29408,6 @@ msgstr "Įdiekite papildinį"
 msgid "react.agent_access.step_install_claude_plugin_description"
 msgstr "Pakeiskite kelią išskleisto aplanko flow-steward-agent-skills keliu."
 
-msgid "react.agent_access.step_configure_claude_plugin"
-msgstr "Įveskite adresą ir prieigos raktą"
-
-msgid "react.agent_access.step_configure_claude_plugin_description"
-msgstr "Paleiskite tai kliento seanse ir įveskite dvi toliau pateiktas reikšmes. Klientas prieigos raktą laiko jūsų sistemos kredencialų saugykloje."
-
-msgid "react.agent_access.value_mcp_address"
-msgstr "Flow Steward MCP adresas"
-
-msgid "react.agent_access.value_personal_token"
-msgstr "Flow Steward asmeninis prieigos raktas"
-
 msgid "react.agent_access.step_download_package"
 msgstr "Atsisiųskite paketą"
 
@@ -29454,19 +29424,79 @@ msgid "react.agent_access.step_toml_config"
 msgstr "Įrašykite serverį į ~/.codex/config.toml"
 
 msgid "react.agent_access.step_toml_config_description"
-msgstr "Pridėkite šią sekciją ir palikite likusį failą. Joje nurodytas kintamasis su prieigos raktu, ne pats raktas."
-
-msgid "react.agent_access.step_token_environment"
-msgstr "Padarykite prieigos raktą pasiekiamą klientui"
-
-msgid "react.agent_access.step_token_environment_description"
-msgstr "Nustatykite kintamąjį ten, kur klientas paleidžiamas, pavyzdžiui, apvalkalo profilyje. Kiekvienas, galintis jį perskaityti, gali naudoti prieigos raktą."
+msgstr "Pridėkite šią sekciją ir palikite likusį failą. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
 
 msgid "react.agent_access.step_cursor_config"
 msgstr "Įrašykite serverį į ~/.cursor/mcp.json"
 
 msgid "react.agent_access.step_cursor_config_description"
-msgstr "Įterpkite šį įrašą į failo mcpServers. Cursor prieigos raktą skaito iš kintamojo, todėl faile slaptos reikšmės nėra."
+msgstr "Įterpkite šį įrašą į failo mcpServers. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
+
+msgid "react.agent_access.create_another_token_help"
+msgstr "Aukščiau esantis raktas veikia, kol baigsis jo galiojimas arba kol jį atšauksite 5 žingsnyje."
+
+msgid "react.agent_access.create_another_token"
+msgstr "Sukurti kitą prieigos raktą"
+
+msgid "react.agent_access.token_ready_copy"
+msgstr "Atsisiųskite arba nukopijuokite tai, ką rodo 4 žingsnis: daugiau nieko pildyti nereikia. Šis puslapis raktą rodo tik dabar; išėję, jei reikės, sukurkite naują."
+
+msgid "react.agent_access.token_ready_title"
+msgstr "Prieigos raktas sukurtas ir jau įrašytas į nustatymus žemiau"
+
+msgid "react.agent_access.package_after_token"
+msgstr "Atsisiųsti bus galima, kai prieigos raktas bus sukurtas."
+
+msgid "react.agent_access.download_failed"
+msgstr "Failo sukurti nepavyko. Perkraukite puslapį ir bandykite dar kartą."
+
+msgid "react.agent_access.downloaded"
+msgstr "Atsisiųsta: {name}."
+
+msgid "react.agent_access.client_other_description"
+msgstr "Sąraše nesantis klientas: jungiasi prie MCP serverio per HTTP ir, jei moka, skaito įgūdžius iš aplanko."
+
+msgid "react.agent_access.step_other_config_description"
+msgstr "Daugelis klientų priima šį JSON. Jei jūsiškis naudoja kitą formatą, palikite adresą ir Authorization antraštę. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
+
+msgid "react.agent_access.step_other_config"
+msgstr "Įrašykite serverį į kliento MCP nustatymus"
+
+msgid "react.agent_access.step_install_cursor_plugin_description"
+msgstr "Paleiskite tai terminale, tada Cursor paleiskite Developer: Reload Window. Organizacijos administratorius gali turėti leisti vietinių įskiepių importą."
+
+msgid "react.agent_access.step_install_cursor_plugin"
+msgstr "Įdiekite jį"
+
+msgid "react.agent_access.step_download_cursor_plugin_description"
+msgstr "Operator įskiepis su keturiais įgūdžiais."
+
+msgid "react.agent_access.step_download_cursor_plugin"
+msgstr "Atsisiųskite įskiepį"
+
+msgid "react.agent_access.step_install_skills_description"
+msgstr "Paleiskite tai terminale. {client} įgūdžius ras kitoje sesijoje. Jei naršyklė failą išsaugojo kitur, pakeiskite kelią."
+
+msgid "react.agent_access.step_install_skills"
+msgstr "Įdiekite juos"
+
+msgid "react.agent_access.step_download_skills_description"
+msgstr "Keturi Operator įgūdžiai, kiekvienas savo aplanke, šio kliento įgūdžių aplankui."
+
+msgid "react.agent_access.step_download_skills"
+msgstr "Atsisiųskite įgūdžius"
+
+msgid "react.agent_access.step_install_personal_plugin_description"
+msgstr "Paleiskite tai terminale ir pradėkite naują sesiją. Jei naršyklė failą išsaugojo kitur, pakeiskite pirmą kelią. Jau diegėte anksčiau? Pirmiausia pašalinkite senąjį: claude plugin marketplace remove flow-steward."
+
+msgid "react.agent_access.step_install_personal_plugin"
+msgstr "Įdiekite jį"
+
+msgid "react.agent_access.step_personal_plugin_description"
+msgstr "Įskiepyje jau yra šios diegties adresas ir jūsų prieigos raktas, tad nieko konfigūruoti nereikia. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
+
+msgid "react.agent_access.step_personal_plugin"
+msgstr "Atsisiųskite savo įskiepį"
 
 msgid "react.agent_access.step_gemini_add"
 msgstr "Pridėkite serverį"

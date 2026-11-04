@@ -105,9 +105,9 @@ export function AiAgentsSection() {
 
   function chooseClient(id: string) {
     setClientId(id);
-    const next = setup?.clients.find((item) => item.id === id);
-    const operator = next?.packages.find((item) => item.package_id === "flow-steward-operator");
-    setPackageId(operator?.available ? operator.package_id : "");
+    const usable = setup?.clients.find((item) => item.id === id)?.packages.filter((item) => item.available) || [];
+    const operator = usable.find((item) => item.package_id === "flow-steward-operator");
+    setPackageId(operator?.package_id || (usable.length === 1 ? usable[0].package_id : ""));
   }
 
   function startOver() {
@@ -156,7 +156,6 @@ export function AiAgentsSection() {
   const blockers = client?.mcp_blockers || [];
   const mcpBlocked = Boolean(packageMeta?.needs_mcp && blockers.length);
   const loaded: AgentAccessSetup = setup;
-  const selectedPreset = loaded.presets.find((preset) => preset.id === presetId);
   const result = issue.kind === "done" ? issue.result : null;
 
   function renderAccess() {
@@ -174,15 +173,14 @@ export function AiAgentsSection() {
         {blockers.map((code) => { const notice = blockerNotice(code, t); return <DsAlert key={code} title={notice.title} tone="danger">{notice.copy}</DsAlert>; })}
         <fieldset className="fs-field" disabled={locked}>
           <legend className="fs-field-label">{t("react.agent_access.access_level", "What the agent may do")}</legend>
-          {loaded.presets.map((preset) => (
+          {/* Only what this user can choose; an option they cannot pick is not shown. */}
+          {loaded.presets.filter((preset) => preset.available).map((preset) => (
             <div className="fs-field" key={preset.id}>
-              <DsRadio checked={presetId === preset.id} disabled={!preset.available} name="agent-access-preset" onChange={() => setPresetId(preset.id)} value={preset.id}>{oauthPresetLabel(preset.id, t)}</DsRadio>
+              <DsRadio checked={presetId === preset.id} name="agent-access-preset" onChange={() => setPresetId(preset.id)} value={preset.id}>{oauthPresetLabel(preset.id, t)}</DsRadio>
               <span className="fs-field-helper">{oauthPresetDescription(preset.id, t)} <code className="fs-value-chip">{preset.scopes.join(", ")}</code></span>
-              {preset.available ? null : <span className="fs-field-helper">{t("react.agent_access.preset_exceeds_authority", "Not available: it is more than your role allows.")}</span>}
             </div>
           ))}
         </fieldset>
-        {selectedPreset?.id === "full_authoring" ? <DsAlert title={t("react.agent_access.admin_all_title", "admin:all is full access")} tone="warning">{oauthPresetDescription("full_authoring", t)}</DsAlert> : null}
         <div className="fs-field">
           <span className="fs-field-label">{t("react.oauth.column_projects", "Projects")}</span>
           <MultiCombobox ariaLabel={t("react.oauth.column_projects", "Projects")} disabled={locked || projectsQuery.isLoading} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
@@ -220,12 +218,12 @@ export function AiAgentsSection() {
             </DsAlert>
           ) : null}
           {secret ? (
-            <DsAlert title={t("react.agent_access.secret_once_title", "Copy the token now")} tone="warning">
-              <p>{t("react.agent_access.secret_once_copy", "It is filled into the setup below and shown only on this page, once. It disappears when you leave or hide it.")}</p>
-              <div className="fs-footer-actions"><button className="fs-button ghost" onClick={() => setSecret("")} type="button">{t("react.agent_access.hide_token", "Hide the token")}</button></div>
+            <DsAlert title={t("react.agent_access.token_ready_title", "The token is created and already in the setup below")} tone="success">
+              {t("react.agent_access.token_ready_copy", "Download or copy what step 4 shows: nothing else to fill in. This page shows the token only now; after you leave, create another one if you need it.")}
             </DsAlert>
           ) : null}
-          <div className="fs-footer-actions"><button className="fs-button ghost" onClick={startOver} type="button">{t("react.agent_access.start_over", "Start over")}</button></div>
+          <div className="fs-footer-actions"><button className="fs-button ghost" onClick={startOver} type="button">{t("react.agent_access.create_another_token", "Create another token")}</button></div>
+          <span className="fs-field-helper">{t("react.agent_access.create_another_token_help", "The token above keeps working until it expires or you revoke it in step 5.")}</span>
         </>
       );
     }
@@ -257,11 +255,12 @@ export function AiAgentsSection() {
         <DsCard description={t("react.agent_access.package_description", "The package teaches the agent how to work with Flow Steward. It holds no address and no token.")} title={t("react.agent_access.step2_title", "2. Package")}>
           <fieldset className="fs-field" disabled={locked}>
             <legend className="fs-field-label">{t("react.agent_access.choose_package", "What will you do with the agent?")}</legend>
-            {client.packages.map((item) => {
+            {/* A package this client cannot use is not shown. */}
+            {client.packages.filter((item) => item.available).map((item) => {
               const meta = setup.packages.find((pkg) => pkg.id === item.package_id);
               return (
                 <div className="fs-field" key={item.package_id}>
-                  <DsRadio checked={packageId === item.package_id} disabled={!item.available} name="agent-access-package" onChange={() => setPackageId(item.package_id)} value={item.package_id}>{meta?.display_name || item.package_id} {!item.available || item.verified ? null : <DsBadge tone="orange">{t("react.agent_access.not_verified", "Not verified in this client")}</DsBadge>}</DsRadio>
+                  <DsRadio checked={packageId === item.package_id} name="agent-access-package" onChange={() => setPackageId(item.package_id)} value={item.package_id}>{meta?.display_name || item.package_id} {item.verified ? null : <DsBadge tone="orange">{t("react.agent_access.not_verified", "Not verified in this client")}</DsBadge>}</DsRadio>
                   <span className="fs-field-helper">{meta ? t(meta.description_key, meta.description) : ""}</span>
                   {item.message_key ? <span className="fs-field-helper">{t(item.message_key, item.message)}</span> : null}
                 </div>
@@ -274,7 +273,7 @@ export function AiAgentsSection() {
       {client && choice ? (
         <DsCard description={packageMeta?.needs_mcp ? t("react.agent_access.setup_description", "The address is this installation's public MCP address.") : t("react.agent_access.setup_description_no_mcp", "This package does not connect to this installation, so no token is needed.")} title={t("react.agent_access.step4_title", "4. Set up {client}", { client: client.label })}>
           {/* Blocked: only the package steps; no address to paste and no token to use. */}
-          <AgentSetupSteps secret={secret} steps={mcpBlocked ? steps.filter((step) => !step.uses_mcp_url && !step.uses_token) : steps} />
+          <AgentSetupSteps packageId={choice.package_id} secret={secret} steps={mcpBlocked ? steps.filter((step) => !step.uses_mcp_url && !step.uses_token) : steps} />
         </DsCard>
       ) : null}
       {client && choice && packageMeta?.needs_mcp && !mcpBlocked ? (

@@ -222,6 +222,7 @@ class AgentConnectionService:
             "uses_token": step.uses_token,
             "uses_mcp_url": "{mcp_url}" in step.template,
             "file_name": step.file_name,
+            "archive_layout": step.archive_layout,
             "url": values.get(step.link, "") if step.link else "",
         }
 

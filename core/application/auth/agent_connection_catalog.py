@@ -34,9 +34,50 @@ TOKEN_PLACEHOLDER = "{token}"
 #: A copy field that holds nothing but the MCP endpoint URL.
 MCP_URL_TEMPLATE = "{mcp_url}"
 
+#: ``package`` steps: how the browser lays out the archive it builds from the package
+#: files bundled with the web UI. The server never sees the archive or the token.
+#: A marketplace folder whose plugin declares the MCP server from the step's template.
+ARCHIVE_CLAUDE_MARKETPLACE = "claude_marketplace"
+#: The package folder as it is (a client plugin folder).
+ARCHIVE_PLUGIN_FOLDER = "plugin_folder"
+#: The skill folders alone, for a client's skills directory.
+ARCHIVE_SKILLS_FOLDER = "skills_folder"
+ARCHIVE_LAYOUTS = frozenset(
+    {ARCHIVE_CLAUDE_MARKETPLACE, ARCHIVE_PLUGIN_FOLDER, ARCHIVE_SKILLS_FOLDER}
+)
+
+#: The server entry with this installation's address and the user's token.
+_MCP_SERVER_ENTRY = (
+    '"flow-steward": {\n'
+    '      "type": "http",\n'
+    '      "url": "{mcp_url}",\n'
+    '      "headers": {"Authorization": "Bearer {token}"}\n'
+    "    }"
+)
+#: ``mcpServers`` of a Claude plugin manifest (a ``package`` step's template).
+MCP_SERVERS_TEMPLATE = "{\n    " + _MCP_SERVER_ENTRY + "\n}\n"
+#: Cursor's ``~/.cursor/mcp.json``: a remote entry without ``type``.
+CURSOR_MCP_JSON_TEMPLATE = (
+    '{\n  "mcpServers": {\n    "flow-steward": {\n'
+    '      "url": "{mcp_url}",\n'
+    '      "headers": {"Authorization": "Bearer {token}"}\n'
+    "    }\n  }\n}\n"
+)
+#: The usual ``mcp.json`` shape most MCP clients read.
+MCP_JSON_TEMPLATE = '{\n  "mcpServers": {\n    ' + _MCP_SERVER_ENTRY + "\n  }\n}\n"
+#: Where the wizard's install commands expect the browser's download.
+_DOWNLOADS = "~/Downloads"
+_TOKEN_IN_FILE = " It holds your token: keep it like a password, do not share it or put it in Git."
+
 # External client products the user picks; Flow Steward runs none of them. Their names
 # appear only here (tests/unit/test_retired_executor_absence.py allows these lines).
 CLAUDE_CODE_LABEL = "Claude Code"
+#: Personal archives the browser builds (``package`` steps).
+CLAUDE_CODE_ARCHIVE = "flow-steward-claude-code.zip"
+CURSOR_ARCHIVE = "flow-steward-cursor.zip"
+SKILLS_ARCHIVE = "flow-steward-skills.zip"
+#: Where the Claude Code install command keeps the extracted marketplace folder.
+_PLUGIN_HOME = "~/.flow-steward-agent"
 OPENAI_CLI_ID = "codex"
 OPENAI_CLI_LABEL = "Codex"
 OPENAI_CLI_CONFIG_PATH = "~/.codex/config.toml"
@@ -61,7 +102,8 @@ class SetupStep:
     """One thing the user does: download, run a command, add a file, paste a value."""
 
     id: str
-    #: ``link`` (open the release or README), ``command``, ``file``, ``value`` or ``notice``.
+    #: ``link`` (open the release or README), ``command``, ``file``, ``value``, ``notice``
+    #: or ``package`` (an archive the browser builds; ``file_name`` names it).
     kind: str
     title_key: str
     title: str
@@ -73,6 +115,8 @@ class SetupStep:
     link: str = ""
     #: The release file the description names as ``{archive}``.
     archive: str = ""
+    #: ``package`` steps: one of :data:`ARCHIVE_LAYOUTS`.
+    archive_layout: str = ""
 
     @property
     def uses_token(self) -> bool:
@@ -114,7 +158,7 @@ PACKAGES: tuple[AgentSkillPackage, ...] = (
     AgentSkillPackage(
         id=OPERATOR_PACKAGE_ID,
         display_name="Flow Steward Operator",
-        version="1.0.1",
+        version="1.0.2",
         short_description="Build and run automations",
         needs_mcp=True,
         description_key="react.agent_access.package_operator_description",
@@ -193,18 +237,33 @@ _OPEN_README = SetupStep(
     description="The package README has the install, update and removal steps for this client.",
 )
 
-_TOKEN_ENVIRONMENT = SetupStep(
-    id="token_environment",
-    kind="command",
-    title_key="react.agent_access.step_token_environment",
-    title="Make the token available to the client",
-    description_key="react.agent_access.step_token_environment_description",
-    description=(
-        "Set the variable where the client starts, for example in your shell profile. "
-        "Anyone who can read it can use the token."
-    ),
-    template='export FLOW_STEWARD_TOKEN="{token}"',
-)
+
+def _skills_download(file_name: str) -> SetupStep:
+    return SetupStep(
+        id="download_skills",
+        kind="package",
+        archive_layout=ARCHIVE_SKILLS_FOLDER,
+        file_name=file_name,
+        title_key="react.agent_access.step_download_skills",
+        title="Download the skills",
+        description_key="react.agent_access.step_download_skills_description",
+        description="The four Operator skills, one folder each, for this client's skills folder.",
+    )
+
+
+def _install_skills(folder: str) -> SetupStep:
+    return SetupStep(
+        id="install_skills",
+        kind="command",
+        title_key="react.agent_access.step_install_skills",
+        title="Install them",
+        description_key="react.agent_access.step_install_skills_description",
+        description=(
+            "Run this in a terminal. {client} finds the skills in its next session. If the "
+            "browser saved the file elsewhere, change the path."
+        ),
+        template=f"unzip -o {_DOWNLOADS}/{SKILLS_ARCHIVE} -d {folder}",
+    )
 
 
 def _local_developer(anchor: str, *, archive: str) -> ClientPackageSetup:
@@ -234,35 +293,39 @@ CLIENTS: tuple[AgentClient, ...] = (
                 verified=False,
                 readme_anchor="claude-code",
                 steps=(
-                    _DOWNLOAD_MARKETPLACE,
-                    _install_claude_code(OPERATOR_PACKAGE_ID),
                     SetupStep(
-                        id="configure_plugin",
+                        id="personal_plugin",
+                        kind="package",
+                        archive_layout=ARCHIVE_CLAUDE_MARKETPLACE,
+                        file_name=CLAUDE_CODE_ARCHIVE,
+                        template=MCP_SERVERS_TEMPLATE,
+                        title_key="react.agent_access.step_personal_plugin",
+                        title="Download your plugin",
+                        description_key="react.agent_access.step_personal_plugin_description",
+                        description=(
+                            "The plugin already holds this installation's address and your "
+                            "token, so there is nothing to configure." + _TOKEN_IN_FILE
+                        ),
+                    ),
+                    SetupStep(
+                        id="install_plugin",
                         kind="command",
-                        title_key="react.agent_access.step_configure_claude_plugin",
-                        title="Enter the address and the token",
+                        title_key="react.agent_access.step_install_personal_plugin",
+                        title="Install it",
                         description_key=(
-                            "react.agent_access.step_configure_claude_plugin_description"
+                            "react.agent_access.step_install_personal_plugin_description"
                         ),
                         description=(
-                            "Run this in a session of the client and enter the two values below. "
-                            "The client keeps the token in your system credential store."
+                            "Run this in a terminal and start a new session. If the browser "
+                            "saved the file elsewhere, change the first path. Installed it "
+                            "before? Remove the old one first: claude plugin marketplace "
+                            "remove flow-steward."
                         ),
-                        template=f"/plugin configure {OPERATOR_PACKAGE_ID}@flow-steward",
-                    ),
-                    SetupStep(
-                        id="mcp_url",
-                        kind="value",
-                        title_key="react.agent_access.value_mcp_address",
-                        title="Flow Steward MCP address",
-                        template=MCP_URL_TEMPLATE,
-                    ),
-                    SetupStep(
-                        id="mcp_token",
-                        kind="value",
-                        title_key="react.agent_access.value_personal_token",
-                        title="Flow Steward personal access token",
-                        template=TOKEN_PLACEHOLDER,
+                        template=(
+                            f"unzip -o {_DOWNLOADS}/{CLAUDE_CODE_ARCHIVE} -d {_PLUGIN_HOME}\n"
+                            f"claude plugin marketplace add {_PLUGIN_HOME}/flow-steward\n"
+                            f"claude plugin install {OPERATOR_PACKAGE_ID}@flow-steward"
+                        ),
                     ),
                 ),
             ),
@@ -291,8 +354,6 @@ CLIENTS: tuple[AgentClient, ...] = (
                 verified=False,
                 readme_anchor=OPENAI_CLI_ID,
                 steps=(
-                    _download_package("package_archive"),
-                    _OPEN_README,
                     SetupStep(
                         id="mcp_config",
                         kind="file",
@@ -300,17 +361,16 @@ CLIENTS: tuple[AgentClient, ...] = (
                         title_key="react.agent_access.step_toml_config",
                         title=f"Add the server to {OPENAI_CLI_CONFIG_PATH}",
                         description_key="react.agent_access.step_toml_config_description",
-                        description=(
-                            "Add this section and keep the rest of the file. It names the "
-                            "variable that holds the token, not the token."
-                        ),
+                        description="Add this section and keep the rest of the file."
+                        + _TOKEN_IN_FILE,
                         template=(
                             "[mcp_servers.flow-steward]\n"
                             'url = "{mcp_url}"\n'
-                            'bearer_token_env_var = "FLOW_STEWARD_TOKEN"\n'
+                            'http_headers = { "Authorization" = "Bearer {token}" }\n'
                         ),
                     ),
-                    _TOKEN_ENVIRONMENT,
+                    _skills_download(SKILLS_ARCHIVE),
+                    _install_skills("~/.agents/skills"),
                 ),
             ),
             _local_developer(OPENAI_CLI_ID, archive="package_archive"),
@@ -331,8 +391,6 @@ CLIENTS: tuple[AgentClient, ...] = (
                 verified=False,
                 readme_anchor="cursor",
                 steps=(
-                    _download_package("package_archive"),
-                    _OPEN_README,
                     SetupStep(
                         id="mcp_config",
                         kind="file",
@@ -340,22 +398,36 @@ CLIENTS: tuple[AgentClient, ...] = (
                         title_key="react.agent_access.step_cursor_config",
                         title="Add the server to ~/.cursor/mcp.json",
                         description_key="react.agent_access.step_cursor_config_description",
-                        description=(
-                            "Merge this entry into the file's mcpServers. Cursor reads the "
-                            "token from the variable, so the file holds no secret."
-                        ),
-                        template=(
-                            "{\n"
-                            '  "mcpServers": {\n'
-                            '    "flow-steward": {\n'
-                            '      "url": "{mcp_url}",\n'
-                            '      "headers": {"Authorization": "Bearer ${env:FLOW_STEWARD_TOKEN}"}\n'
-                            "    }\n"
-                            "  }\n"
-                            "}\n"
-                        ),
+                        description="Merge this entry into the file's mcpServers." + _TOKEN_IN_FILE,
+                        template=CURSOR_MCP_JSON_TEMPLATE,
                     ),
-                    _TOKEN_ENVIRONMENT,
+                    SetupStep(
+                        id="download_plugin",
+                        kind="package",
+                        archive_layout=ARCHIVE_PLUGIN_FOLDER,
+                        file_name=CURSOR_ARCHIVE,
+                        title_key="react.agent_access.step_download_cursor_plugin",
+                        title="Download the plugin",
+                        description_key=(
+                            "react.agent_access.step_download_cursor_plugin_description"
+                        ),
+                        description="The Operator plugin with its four skills.",
+                    ),
+                    SetupStep(
+                        id="install_plugin",
+                        kind="command",
+                        title_key="react.agent_access.step_install_cursor_plugin",
+                        title="Install it",
+                        description_key=(
+                            "react.agent_access.step_install_cursor_plugin_description"
+                        ),
+                        description=(
+                            "Run this in a terminal, then run Developer: Reload Window in "
+                            "Cursor. An organization admin may have to allow local plugin "
+                            "imports."
+                        ),
+                        template=f"unzip -o {_DOWNLOADS}/{CURSOR_ARCHIVE} -d ~/.cursor/plugins/local",
+                    ),
                 ),
             ),
             _local_developer("cursor", archive="package_archive"),
@@ -396,6 +468,43 @@ CLIENTS: tuple[AgentClient, ...] = (
                 ),
             ),
             _local_developer("gemini-cli", archive="package_tarball"),
+        ),
+    ),
+    AgentClient(
+        id="other",
+        label="Another MCP client",
+        connection=CONNECTION_LOCAL,
+        matrix_section="Another MCP client",
+        description_key="react.agent_access.client_other_description",
+        description=(
+            "A client that is not listed: one that connects to an MCP server over HTTP and, "
+            "if it can, reads skills from a folder."
+        ),
+        packages=(
+            ClientPackageSetup(
+                package_id=OPERATOR_PACKAGE_ID,
+                offered=True,
+                auth=AUTH_PERSONAL_TOKEN,
+                verified=False,
+                readme_anchor="individual-skills",
+                steps=(
+                    SetupStep(
+                        id="mcp_config",
+                        kind="file",
+                        file_name="mcp.json",
+                        title_key="react.agent_access.step_other_config",
+                        title="Add the server to the client's MCP settings",
+                        description_key="react.agent_access.step_other_config_description",
+                        description=(
+                            "Most clients take this JSON. If yours uses another format, keep "
+                            "the address and the Authorization header." + _TOKEN_IN_FILE
+                        ),
+                        template=MCP_JSON_TEMPLATE,
+                    ),
+                    _skills_download(SKILLS_ARCHIVE),
+                ),
+            ),
+            _local_developer("individual-skills", archive="package_archive"),
         ),
     ),
     AgentClient(
@@ -538,15 +647,22 @@ def client_package_setup(client: AgentClient, package_id: str) -> ClientPackageS
 
 
 __all__ = [
+    "ARCHIVE_CLAUDE_MARKETPLACE",
+    "ARCHIVE_LAYOUTS",
+    "ARCHIVE_PLUGIN_FOLDER",
+    "ARCHIVE_SKILLS_FOLDER",
     "AUTH_NONE",
     "AUTH_OAUTH",
     "AUTH_PERSONAL_TOKEN",
     "CLIENTS",
     "CONNECTION_CLOUD",
     "CONNECTION_LOCAL",
+    "CURSOR_MCP_JSON_TEMPLATE",
     "DEVELOPER_PACKAGE_ID",
     "FIRST_REQUEST_STEP",
     "MARKETPLACE_ARCHIVE",
+    "MCP_JSON_TEMPLATE",
+    "MCP_SERVERS_TEMPLATE",
     "OPERATOR_PACKAGE_ID",
     "PACKAGES",
     "REPOSITORY_URL",

@@ -208,7 +208,7 @@ export type McpOAuthSetting = {
 /** Settings → Account → AI agents (task 4): one setup step the wizard renders. */
 export type AgentSetupStep = {
   id: string;
-  kind: "link" | "command" | "file" | "value" | "notice";
+  kind: "link" | "command" | "file" | "value" | "notice" | "package";
   title_key: string;
   title: string;
   description_key: string;
@@ -219,6 +219,8 @@ export type AgentSetupStep = {
   uses_token: boolean;
   uses_mcp_url: boolean;
   file_name: string;
+  /** `package` steps: how the browser lays out the archive it builds. */
+  archive_layout: string;
   url: string;
 };
 

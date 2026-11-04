@@ -111,3 +111,32 @@ def test_every_text_has_a_translation_key() -> None:
         assert client.description_key.startswith("react.agent_access.")
         for setup in client.packages:
             assert bool(setup.message_key) == bool(setup.message)
+
+
+def test_package_steps_name_a_known_layout_and_an_archive() -> None:
+    for client in catalog.CLIENTS:
+        for setup in client.packages:
+            for step in setup.steps:
+                if step.kind != "package":
+                    assert not step.archive_layout, (client.id, step.id)
+                    continue
+                assert step.archive_layout in catalog.ARCHIVE_LAYOUTS, (client.id, step.id)
+                assert step.file_name.endswith(".zip"), (client.id, step.id)
+                # Only a Claude plugin carries the server, and so the token, inside it.
+                carries_server = step.archive_layout == catalog.ARCHIVE_CLAUDE_MARKETPLACE
+                assert step.uses_token is carries_server, (client.id, step.id)
+                if carries_server:
+                    filled = step.template.replace("{mcp_url}", "https://x/mcp").replace(
+                        "{token}", "t"
+                    )
+                    assert json.loads(filled)["flow-steward"]["headers"] == {
+                        "Authorization": "Bearer t"
+                    }
+
+
+def test_every_mcp_json_template_is_valid_json_with_the_token_header() -> None:
+    for template in (catalog.MCP_JSON_TEMPLATE, catalog.CURSOR_MCP_JSON_TEMPLATE):
+        filled = template.replace("{mcp_url}", "https://x/mcp").replace("{token}", "t")
+        server = json.loads(filled)["mcpServers"]["flow-steward"]
+        assert server["url"] == "https://x/mcp"
+        assert server["headers"] == {"Authorization": "Bearer t"}

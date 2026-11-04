@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { HttpError } from "@/lib/http/errors";
+import { blobBytes, readStoredZip } from "@/lib/utils/zip.test-helpers";
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { AiAgentsSection } from "@/pages/settings/account/ai-agents";
 import {
@@ -36,6 +37,8 @@ const mockedProjects = vi.mocked(fetchProjectsList);
 
 const MCP = "https://fs.example.com/mcp";
 const SECRET = "fs_pat_secret_value"; // pragma: allowlist secret
+const SERVERS = `{"flow-steward": {"type": "http", "url": "${MCP}", "headers": {"Authorization": "Bearer {token}"}}}`;
+const CONFIG = `[mcp_servers.flow-steward]\nurl = "${MCP}"\nhttp_headers = { "Authorization" = "Bearer {token}" }\n`;
 
 function step(overrides: Partial<AgentSetupStep>): AgentSetupStep {
   return {
@@ -50,6 +53,7 @@ function step(overrides: Partial<AgentSetupStep>): AgentSetupStep {
     uses_token: false,
     uses_mcp_url: false,
     file_name: "",
+    archive_layout: "",
     url: "",
     ...overrides,
   };
@@ -67,9 +71,9 @@ function operator(overrides: Partial<AgentClientPackage> = {}): AgentClientPacka
     message_key: "",
     message: "",
     steps: [
-      download,
-      step({ id: "mcp_url", title: "Flow Steward MCP address", content: MCP, uses_mcp_url: true }),
-      step({ id: "mcp_token", title: "Flow Steward personal access token", content: "{token}", uses_token: true }),
+      step({ id: "personal_plugin", kind: "package", archive_layout: "claude_marketplace", file_name: "flow-steward-claude-code.zip", title: "Download your plugin", content: SERVERS, uses_token: true, uses_mcp_url: true }),
+      step({ id: "install_plugin", kind: "command", title: "Install it", content: "claude plugin install flow-steward-operator@flow-steward" }),
+      step({ id: "mcp_config", kind: "file", file_name: "config.toml", title: "Add the server", content: CONFIG, uses_token: true, uses_mcp_url: true }),
     ],
     ...overrides,
   };
@@ -149,25 +153,27 @@ describe("AiAgentsSection", () => {
     mockedTokens.mockResolvedValue({ tokens: [], total: 0, page: 1, per_page: 25, total_pages: 1 } as never);
   });
 
-  it("lists the clients the server describes and offers presets capped by the role", async () => {
+  it("lists the clients the server describes and shows only the presets the role allows", async () => {
     await chooseLocalOperator();
     expect(screen.getByRole("radio", { name: /ChatGPT/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Monitor and run workflows/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Full authoring/ })).toBeDisabled();
-    expect(screen.getByText("Not available: it is more than your role allows.")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Full authoring/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/more than your role allows/)).not.toBeInTheDocument();
     expect(screen.getByText(/agents and skills belong to the whole account/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Flow Steward MCP address")).toHaveTextContent(MCP);
-    expect(screen.getByLabelText("Flow Steward personal access token")).toHaveTextContent("<your personal token>");
+    expect(screen.getByLabelText("Add the server")).toHaveTextContent(`url = "${MCP}"`);
+    expect(screen.getByLabelText("Add the server")).toHaveTextContent("Bearer <your personal token>");
+    expect(screen.getByRole("button", { name: "Download flow-steward-claude-code.zip" })).toBeDisabled();
+    expect(screen.getByText("The download is ready once the token is created.")).toBeInTheDocument();
   });
 
-  it("explains admin:all when full authoring is chosen", async () => {
+  it("describes admin:all once, next to its choice", async () => {
     mockedSetup.mockResolvedValue(setupPayload({ presets: [
       { id: "operational", scopes: ["projects.read"], available: true, reason: "", subset_of_preset: false },
       { id: "full_authoring", scopes: ["admin:all"], available: true, reason: "", subset_of_preset: false },
     ] }));
     await chooseLocalOperator();
     fireEvent.click(screen.getByRole("radio", { name: /Full authoring/ }));
-    expect(screen.getByText("admin:all is full access")).toBeInTheDocument();
+    expect(screen.getAllByText(/admin:all is full access/)).toHaveLength(1);
   });
 
   it("sends one request for a double click and fills the token in once", async () => {
@@ -180,13 +186,51 @@ describe("AiAgentsSection", () => {
     expect(mockedIssue).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Creating…" })).toBeDisabled();
     resolve(created());
-    expect(await screen.findByLabelText("Flow Steward personal access token")).toHaveTextContent(SECRET);
+    expect(await screen.findByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`);
     const [key, request] = mockedIssue.mock.calls[0];
     expect(key).toMatch(/^[\w-]{16,}$/);
     expect(request).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator", preset: "operational", expiry_days: 30, project_ids: [] });
     expect(await screen.findByText("Not used yet")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Hide the token" }));
-    expect(screen.getByLabelText("Flow Steward personal access token")).not.toHaveTextContent(SECRET);
+    expect(screen.getByText("The token is created and already in the setup below")).toBeInTheDocument();
+    expect(screen.queryByText("Copy the token now")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hide the token" })).not.toBeInTheDocument();
+  });
+
+  it("downloads a plugin that already holds the address and the token", async () => {
+    mockedIssue.mockResolvedValue(created());
+    const blobs: Blob[] = [];
+    const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+    URL.createObjectURL = vi.fn((blob: Blob) => { blobs.push(blob); return "blob:plugin"; });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    try {
+      await chooseLocalOperator();
+      fireEvent.click(screen.getByRole("button", { name: "Create token" }));
+      const downloadButton = await screen.findByRole("button", { name: "Download flow-steward-claude-code.zip" });
+      await waitFor(() => expect(downloadButton).toBeEnabled());
+      fireEvent.click(downloadButton);
+      await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText("Downloaded flow-steward-claude-code.zip.")).toBeInTheDocument();
+      const files = readStoredZip(await blobBytes(blobs[0]));
+      const manifest = JSON.parse(files.get("flow-steward/flow-steward-operator/.claude-plugin/plugin.json") || "{}");
+      expect(manifest.mcpServers["flow-steward"]).toEqual({ type: "http", url: MCP, headers: { Authorization: `Bearer ${SECRET}` } });
+      expect(manifest.userConfig).toBeUndefined();
+    } finally {
+      click.mockRestore();
+      URL.createObjectURL = original.create;
+      URL.revokeObjectURL = original.revoke;
+    }
+  });
+
+  it("creates another token on request, starting from an empty setup", async () => {
+    mockedIssue.mockResolvedValue(created());
+    await chooseLocalOperator();
+    fireEvent.click(screen.getByRole("button", { name: "Create token" }));
+    expect(await screen.findByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`);
+    expect(screen.getByText("The token above keeps working until it expires or you revoke it in step 5.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create another token" }));
+    expect(screen.getByLabelText("Add the server")).toHaveTextContent("Bearer <your personal token>");
+    expect(screen.getByRole("button", { name: "Create token" })).toBeEnabled();
   });
 
   it("after a lost response asks about the same attempt and never shows the secret again", async () => {
@@ -203,7 +247,7 @@ describe("AiAgentsSection", () => {
     expect(mockedIssue).toHaveBeenCalledTimes(2);
     expect(mockedIssue.mock.calls[1][0]).toBe(mockedIssue.mock.calls[0][0]);
     expect(mockedIssue.mock.calls[1][1]).toEqual(mockedIssue.mock.calls[0][1]);
-    expect(screen.getByLabelText("Flow Steward personal access token")).toHaveTextContent("<your personal token>");
+    expect(screen.getByLabelText("Add the server")).toHaveTextContent("<your personal token>");
   });
 
   it("a refusal creates nothing, and the next click is a new attempt", async () => {
@@ -237,9 +281,10 @@ describe("AiAgentsSection", () => {
     expect(await screen.findByText("A public HTTPS address is required")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
     expect(screen.queryByText("Add Flow Steward as a custom MCP connector")).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Flow Steward Developer/ })).toBeDisabled();
-    expect(screen.getByRole("radio", { name: /Flow Steward Developer/ })).not.toHaveAccessibleName(/Not verified/);
-    expect(screen.getByText("Not published")).toBeInTheDocument();
+    // A package this client cannot use is not offered as a choice at all.
+    expect(screen.queryByRole("radio", { name: /Flow Steward Developer/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Not published")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Flow Steward Operator/ })).toBeChecked();
   });
 
   it("names a missing public address as the blocker for a local client", async () => {
@@ -251,7 +296,8 @@ describe("AiAgentsSection", () => {
     await chooseLocalOperator();
     expect(screen.getByText("This installation has no public address")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create token" })).toBeDisabled();
-    expect(screen.queryByLabelText("Flow Steward MCP address")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Add the server")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Download flow-steward-claude-code/ })).not.toBeInTheDocument();
   });
 
   it("Developer needs no token", async () => {

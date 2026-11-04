@@ -27776,12 +27776,6 @@ msgstr ""
 msgid "react.agent_access.access_level"
 msgstr ""
 
-msgid "react.agent_access.preset_exceeds_authority"
-msgstr ""
-
-msgid "react.agent_access.admin_all_title"
-msgstr ""
-
 msgid "react.agent_access.projects_help"
 msgstr ""
 
@@ -27804,18 +27798,6 @@ msgid "react.agent_access.secret_already_shown_title"
 msgstr ""
 
 msgid "react.agent_access.secret_already_shown_copy"
-msgstr ""
-
-msgid "react.agent_access.secret_once_title"
-msgstr ""
-
-msgid "react.agent_access.secret_once_copy"
-msgstr ""
-
-msgid "react.agent_access.hide_token"
-msgstr ""
-
-msgid "react.agent_access.start_over"
 msgstr ""
 
 msgid "react.agent_access.title"
@@ -27950,18 +27932,6 @@ msgstr ""
 msgid "react.agent_access.step_install_claude_plugin_description"
 msgstr ""
 
-msgid "react.agent_access.step_configure_claude_plugin"
-msgstr ""
-
-msgid "react.agent_access.step_configure_claude_plugin_description"
-msgstr ""
-
-msgid "react.agent_access.value_mcp_address"
-msgstr ""
-
-msgid "react.agent_access.value_personal_token"
-msgstr ""
-
 msgid "react.agent_access.step_download_package"
 msgstr ""
 
@@ -27980,16 +27950,76 @@ msgstr ""
 msgid "react.agent_access.step_toml_config_description"
 msgstr ""
 
-msgid "react.agent_access.step_token_environment"
-msgstr ""
-
-msgid "react.agent_access.step_token_environment_description"
-msgstr ""
-
 msgid "react.agent_access.step_cursor_config"
 msgstr ""
 
 msgid "react.agent_access.step_cursor_config_description"
+msgstr ""
+
+msgid "react.agent_access.create_another_token_help"
+msgstr ""
+
+msgid "react.agent_access.create_another_token"
+msgstr ""
+
+msgid "react.agent_access.token_ready_copy"
+msgstr ""
+
+msgid "react.agent_access.token_ready_title"
+msgstr ""
+
+msgid "react.agent_access.package_after_token"
+msgstr ""
+
+msgid "react.agent_access.download_failed"
+msgstr ""
+
+msgid "react.agent_access.downloaded"
+msgstr ""
+
+msgid "react.agent_access.client_other_description"
+msgstr ""
+
+msgid "react.agent_access.step_other_config_description"
+msgstr ""
+
+msgid "react.agent_access.step_other_config"
+msgstr ""
+
+msgid "react.agent_access.step_install_cursor_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_install_cursor_plugin"
+msgstr ""
+
+msgid "react.agent_access.step_download_cursor_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_download_cursor_plugin"
+msgstr ""
+
+msgid "react.agent_access.step_install_skills_description"
+msgstr ""
+
+msgid "react.agent_access.step_install_skills"
+msgstr ""
+
+msgid "react.agent_access.step_download_skills_description"
+msgstr ""
+
+msgid "react.agent_access.step_download_skills"
+msgstr ""
+
+msgid "react.agent_access.step_install_personal_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_install_personal_plugin"
+msgstr ""
+
+msgid "react.agent_access.step_personal_plugin_description"
+msgstr ""
+
+msgid "react.agent_access.step_personal_plugin"
 msgstr ""
 
 msgid "react.agent_access.step_gemini_add"

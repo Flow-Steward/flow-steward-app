@@ -9,6 +9,7 @@ real tables, including two concurrent requests of one attempt.
 from __future__ import annotations
 
 import contextlib
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -238,17 +239,80 @@ def test_steps_are_filled_except_the_token(world) -> None:
     view = _service(store).setup_view(_user())
     local = next(client for client in view["clients"] if client["id"] == OPENAI_CLI_ID)
     steps = {step["id"]: step for step in local["packages"][0]["steps"]}
-    assert 'url = "https://fs.example.com/mcp"' in steps["mcp_config"]["content"]
-    assert steps["mcp_config"]["uses_token"] is False
-    assert steps["token_environment"]["content"] == 'export FLOW_STEWARD_TOKEN="{token}"'
-    assert steps["download_package"]["values"]["archive"] == "flow-steward-operator-1.0.1.zip"
-    assert steps["download_package"]["url"].endswith("/releases/tag/v0.9.6")
-    assert steps["open_readme"]["url"].endswith(
-        f"/blob/v0.9.6/docs/agent-skills/flow-steward-operator/README.md#{OPENAI_CLI_ID}"
+    # The config the user pastes already carries the token; only the browser fills it.
+    assert steps["mcp_config"]["content"] == (
+        "[mcp_servers.flow-steward]\n"
+        'url = "https://fs.example.com/mcp"\n'
+        'http_headers = { "Authorization" = "Bearer {token}" }\n'
+    )
+    assert steps["mcp_config"]["uses_token"] is True
+    assert "token_environment" not in steps
+    assert "FLOW_STEWARD_TOKEN" not in str(view)
+    assert steps["download_skills"]["kind"] == "package"
+    assert steps["download_skills"]["archive_layout"] == "skills_folder"
+    assert steps["download_skills"]["uses_token"] is False
+    assert steps["install_skills"]["content"] == (
+        "unzip -o ~/Downloads/flow-steward-skills.zip -d ~/.agents/skills"
     )
     cursor = next(client for client in view["clients"] if client["id"] == "cursor")
     cursor_config = next(s for s in cursor["packages"][0]["steps"] if s["id"] == "mcp_config")
-    assert "${env:FLOW_STEWARD_TOKEN}" in cursor_config["content"]
+    assert json.loads(cursor_config["content"].replace("{token}", "fs_pat_x")) == {
+        "mcpServers": {
+            "flow-steward": {
+                "url": "https://fs.example.com/mcp",
+                "headers": {"Authorization": "Bearer fs_pat_x"},
+            }
+        }
+    }
+    developer = {step["id"]: step for step in local["packages"][1]["steps"]}
+    assert developer["download_package"]["values"]["archive"] == "flow-steward-developer-1.0.0.zip"
+    assert developer["download_package"]["url"].endswith("/releases/tag/v0.9.6")
+    assert developer["open_readme"]["url"].endswith(
+        f"/blob/v0.9.6/docs/agent-skills/flow-steward-developer/README.md#{OPENAI_CLI_ID}"
+    )
+
+
+def test_claude_code_gets_a_personal_plugin_with_the_address_and_a_token_slot(world) -> None:
+    store, _table = world
+    view = _service(store).setup_view(_user())
+    claude = next(client for client in view["clients"] if client["id"] == "claude_code")
+    steps = {step["id"]: step for step in claude["packages"][0]["steps"]}
+    plugin = steps["personal_plugin"]
+    assert (plugin["kind"], plugin["archive_layout"]) == ("package", "claude_marketplace")
+    assert plugin["file_name"] == "flow-steward-claude-code.zip"
+    assert plugin["uses_token"] is True
+    assert json.loads(plugin["content"].replace("{token}", "fs_pat_x")) == {
+        "flow-steward": {
+            "type": "http",
+            "url": "https://fs.example.com/mcp",
+            "headers": {"Authorization": "Bearer fs_pat_x"},
+        }
+    }
+    assert steps["install_plugin"]["content"].splitlines() == [
+        "unzip -o ~/Downloads/flow-steward-claude-code.zip -d ~/.flow-steward-agent",
+        "claude plugin marketplace add ~/.flow-steward-agent/flow-steward",
+        "claude plugin install flow-steward-operator@flow-steward",
+    ]
+    assert steps["install_plugin"]["uses_token"] is False
+
+
+def test_another_client_gets_plain_mcp_json_with_the_token(world) -> None:
+    store, _table = world
+    view = _service(store).setup_view(_user())
+    other = next(client for client in view["clients"] if client["id"] == "other")
+    assert other["connection"] == "local"
+    operator = other["packages"][0]
+    assert operator["auth"] == "personal_token"
+    config = next(step for step in operator["steps"] if step["id"] == "mcp_config")
+    assert json.loads(config["content"].replace("{token}", "fs_pat_x")) == {
+        "mcpServers": {
+            "flow-steward": {
+                "type": "http",
+                "url": "https://fs.example.com/mcp",
+                "headers": {"Authorization": "Bearer fs_pat_x"},
+            }
+        }
+    }
 
 
 @pytest.mark.parametrize(

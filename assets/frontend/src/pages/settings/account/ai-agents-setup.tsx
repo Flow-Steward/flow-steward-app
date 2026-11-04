@@ -6,6 +6,7 @@ import { DsAlert, DsBadge, DsDialog, DsToast } from "@/components/shared/design-
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import type { ArchiveLayout } from "@/pages/settings/account/agent-package-archive";
 import { fetchAgentAccessToken, revokePersonalToken } from "@/pages/settings/shared/api";
 import type { AgentAccessToken, AgentSetupStep } from "@/pages/settings/shared/types";
 
@@ -24,9 +25,9 @@ function formatDay(value: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
 }
 
-function downloadText(fileName: string, text: string) {
+function downloadBlob(fileName: string, blob: Blob) {
   // A blob handle, never the content in a URL; the file never leaves this browser.
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;
@@ -44,9 +45,10 @@ function stepDescription(step: AgentSetupStep, t: Translate) {
 
 /** Steps 4 and 5 of the wizard: what to do in the client, as the server described it. */
 export function AgentSetupSteps({
+  packageId = "",
   secret,
   steps,
-}: Readonly<{ secret: string; steps: AgentSetupStep[] }>) {
+}: Readonly<{ packageId?: string; secret: string; steps: AgentSetupStep[] }>) {
   const { t } = useI18n();
   const [feedback, setFeedback] = useState<{ tone: "success" | "danger"; message: string } | null>(null);
   const placeholder = t("react.agent_access.token_placeholder", "<your personal token>");
@@ -58,6 +60,18 @@ export function AgentSetupSteps({
       setFeedback({ tone: "success", message: t("react.agent_access.copied", "Copied.") });
     } catch {
       setFeedback({ tone: "danger", message: t("react.agent_access.copy_failed", "Could not copy. Select the text and copy it manually.") });
+    }
+    globalThis.setTimeout(() => setFeedback(null), 2400);
+  }
+
+  async function downloadArchive(step: AgentSetupStep) {
+    try {
+      // Loaded on demand: the package files are bundled only into this chunk.
+      const { buildArchive } = await import("@/pages/settings/account/agent-package-archive");
+      downloadBlob(step.file_name, buildArchive(step.archive_layout as ArchiveLayout, packageId, fillToken(step.content, secret, "")));
+      setFeedback({ tone: "success", message: t("react.agent_access.downloaded", "Downloaded {name}.", { name: step.file_name }) });
+    } catch {
+      setFeedback({ tone: "danger", message: t("react.agent_access.download_failed", "The file could not be built. Reload the page and try again.") });
     }
     globalThis.setTimeout(() => setFeedback(null), 2400);
   }
@@ -75,7 +89,14 @@ export function AgentSetupSteps({
           <li className="fs-panel-group" key={step.id}>
             <h3 className="fs-panel-title">{stepTitle(step, t)}</h3>
             {description ? <p className="fs-field-helper">{description}</p> : null}
-            {step.kind === "link" ? (
+            {step.kind === "package" ? (
+              <>
+                {waitsForToken ? <span className="fs-field-helper">{t("react.agent_access.package_after_token", "The download is ready once the token is created.")}</span> : null}
+                <div className="fs-footer-actions">
+                  <button className="fs-button primary" disabled={waitsForToken} onClick={() => ignoreAsyncResult(downloadArchive(step))} type="button">{t("react.agent_access.download_file", "Download {name}", { name: step.file_name })}</button>
+                </div>
+              </>
+            ) : step.kind === "link" ? (
               <div className="fs-footer-actions">
                 <a className="fs-button" href={step.url} rel="noreferrer noopener" target="_blank">
                   {step.url.includes("/releases/") ? t("react.agent_access.open_release", "Open the release") : t("react.agent_access.open_readme", "Open the README")}
@@ -88,7 +109,7 @@ export function AgentSetupSteps({
                 <div className="fs-footer-actions">
                   <button className="fs-button" disabled={waitsForToken} onClick={() => ignoreAsyncResult(copy(text))} type="button">{t("react.agent_access.copy", "Copy")}</button>
                   {step.kind === "file" && step.file_name ? (
-                    <button className="fs-button ghost" disabled={waitsForToken} onClick={() => downloadText(step.file_name, text)} type="button">{t("react.agent_access.download_file", "Download {name}", { name: step.file_name })}</button>
+                    <button className="fs-button ghost" disabled={waitsForToken} onClick={() => downloadBlob(step.file_name, new Blob([text], { type: "text/plain;charset=utf-8" }))} type="button">{t("react.agent_access.download_file", "Download {name}", { name: step.file_name })}</button>
                   ) : null}
                 </div>
               </>

@@ -289,3 +289,36 @@ def test_package_carries_no_endpoint_token_or_server_configuration(package: str)
         assert "http://" not in text, path
         assert not re.search(r"\blocalhost\b|\b\d{1,3}(?:\.\d{1,3}){3}\b", text), path
         assert not re.search(r"Bearer\s+[A-Za-z0-9._~+/-]{8,}", text), path
+
+
+def test_web_ui_bundle_is_the_operator_package_as_a_sync_leaves_it(tmp_path: Path) -> None:
+    sync = _sync_module()
+    _copy_sources(tmp_path)
+    # The bundle is written only into a checkout that has the web UI.
+    assert sync.WEB_BUNDLE_FILE.as_posix() not in sync.generated_files(tmp_path)
+    web_ui = tmp_path / sync.WEB_UI_PACKAGE_JSON
+    web_ui.parent.mkdir(parents=True, exist_ok=True)
+    web_ui.write_text("{}\n", encoding="utf-8")
+    operator = tmp_path / "docs/agent-skills/flow-steward-operator"
+    (operator / ".claude-plugin" / "plugin.json").write_text("{}\n", encoding="utf-8")
+    pycache = operator / "skills" / "flow-steward-migrate-workflow" / "scripts" / "__pycache__"
+    pycache.mkdir()
+    (pycache / "n8n.cpython-312.pyc").write_bytes(b"\0")
+
+    assert sync.WEB_BUNDLE_FILE.as_posix() in sync.sync(tmp_path)
+    assert sync.drift(tmp_path) == []
+    bundle = _json(tmp_path / sync.WEB_BUNDLE_FILE)
+    shipped = {
+        path.relative_to(operator).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(operator.rglob("*"))
+        if path.is_file() and "__pycache__" not in path.parts
+    }
+    assert bundle["packages"] == {"flow-steward-operator": shipped}
+    assert json.loads(bundle["marketplace"]) == _json(
+        tmp_path / "docs/agent-skills/.claude-plugin/marketplace.json"
+    )
+
+    (operator / "README.md").write_text("changed\n", encoding="utf-8")
+    assert sync.drift(tmp_path) == [
+        f"{sync.WEB_BUNDLE_FILE.as_posix()}: differs from what docs/agent-skills/packages.json renders"
+    ]
