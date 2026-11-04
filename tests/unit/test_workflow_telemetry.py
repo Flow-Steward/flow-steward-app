@@ -214,6 +214,56 @@ def test_interrupt_pauses_without_error_or_payload(telemetry: _Telemetry) -> Non
         assert "s3cr3t" not in span.to_json()
 
 
+def test_interrupt_pauses_the_segment_whose_state_still_reads_in_progress(
+    telemetry: _Telemetry,
+) -> None:
+    # A real interrupt ends the root run with the state it had, not a paused status.
+    from langgraph.errors import GraphInterrupt
+    from langgraph.types import Interrupt
+
+    callback = _callback()
+    callback.on_chain_start(inputs={}, run_id="root", name="LangGraph")
+    _node(callback, "node-1", "execute_step", _dispatched_payload("wait"))
+    callback.on_chain_error(
+        error=GraphInterrupt([Interrupt(value={}, id="i-1")]), run_id="node-1", name="execute_step"
+    )
+    callback.on_chain_end(outputs={"status": "in_progress"}, run_id="root", name="LangGraph")
+
+    assert telemetry.span("fs.workflow.segment").attributes["fs.outcome"] == "paused"
+
+
+def _result(status: str, attempt: int = 1) -> dict:
+    return {
+        "agent_messages": [
+            {"step_id": "s1", "step_execution_id": "exec-1", "attempt": attempt, "status": status}
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    ("outputs", "outcome"),
+    [
+        (_result("fail"), "error"),
+        (_result("pass"), "ok"),
+        (_result("skipped"), "skipped"),
+        # An earlier attempt's failure does not decide this attempt.
+        ({"agent_messages": [*_result("fail", 0)["agent_messages"]]}, "ok"),
+        ({}, "ok"),
+    ],
+)
+def test_a_step_outcome_comes_from_its_own_result_message(
+    telemetry: _Telemetry, outputs: dict, outcome: str
+) -> None:
+    callback = _callback()
+    callback.on_chain_start(inputs={}, run_id="root", name="LangGraph")
+    _node(callback, "node-1", "execute_step", _dispatched_payload("http_request"))
+    callback.on_chain_end(outputs=outputs, run_id="node-1", name="execute_step")
+
+    step = telemetry.span("fs.workflow.step")
+    assert step.attributes["fs.outcome"] == outcome
+    assert (step.status.status_code is StatusCode.ERROR) == (outcome == "error")
+
+
 def test_failed_step_has_bounded_error_and_no_exception_text(telemetry: _Telemetry) -> None:
     callback = _callback()
     callback.on_chain_start(inputs={}, run_id="root", name="LangGraph")

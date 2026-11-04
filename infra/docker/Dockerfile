@@ -222,6 +222,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
 # The logger callback's telemetry facade; the OpenTelemetry API itself stays
 # out of this image and every call is a no-op without it.
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
+    core/infrastructure/observability/otel_bootstrap.py \
     core/infrastructure/observability/otel_config.py \
     core/infrastructure/observability/otel_environment.py \
     core/infrastructure/observability/otel_instruments.py \

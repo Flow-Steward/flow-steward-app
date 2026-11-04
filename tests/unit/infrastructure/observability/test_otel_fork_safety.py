@@ -137,3 +137,63 @@ def test_without_the_policy_the_sdk_adds_process_metadata_after_fork(
     _, child = _resource_after_fork(tmp_path)
 
     assert "process.pid" in child
+
+
+def _child_captures(_inherited_lock, path: Path) -> None:
+    from core.infrastructure.observability import otel_instruments
+
+    otel_instruments.begin_child_capture()
+    otel_instruments.drain_child_capture()
+    path.write_text("done", encoding="utf-8")
+    os._exit(0)
+
+
+def _child_tries_inherited_lock(lock, path: Path) -> None:
+    path.write_text(str(lock.acquire(timeout=1)), encoding="utf-8")
+    os._exit(0)
+
+
+def _fork_while_a_parent_thread_holds_the_lock(target, path: Path) -> bool:
+    """Run *target* in a forked child while another thread holds the lock; True if it hung."""
+    import threading
+
+    from core.infrastructure.observability import otel_instruments
+
+    held, release = threading.Event(), threading.Event()
+
+    def hold_lock() -> None:
+        with otel_instruments._lock:
+            held.set()
+            release.wait(10)
+
+    holder = threading.Thread(target=hold_lock)
+    holder.start()
+    held.wait(5)
+    process = multiprocessing.get_context("fork").Process(
+        target=target, args=(otel_instruments._lock, path)
+    )
+    try:
+        process.start()
+        process.join(timeout=5)
+        return process.exitcode is None
+    finally:
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=5)
+        release.set()
+        holder.join(timeout=5)
+
+
+def test_a_lock_held_by_a_parent_thread_stays_held_in_the_child(tmp_path: Path) -> None:
+    # The hazard: the child gets the lock as it was, with no thread to release it.
+    path = tmp_path / "child.txt"
+    assert not _fork_while_a_parent_thread_holds_the_lock(_child_tries_inherited_lock, path)
+    assert path.read_text(encoding="utf-8") == "False"
+
+
+def test_child_capture_does_not_wait_for_a_lock_held_by_a_parent_thread(tmp_path: Path) -> None:
+    path = tmp_path / "child.txt"
+    assert not _fork_while_a_parent_thread_holds_the_lock(_child_captures, path), (
+        "the forked child waited on the parent's lock"
+    )
+    assert path.read_text(encoding="utf-8") == "done"

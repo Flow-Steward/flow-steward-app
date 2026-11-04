@@ -277,6 +277,9 @@ class ExtensionChatModel(BaseChatModel):
         continuation = _bounded_continuation(message.get("continuation"))
         if continuation is not None:
             response_metadata["continuation"] = continuation
+        if usage is not None:
+            # Readers of the message alone (step replay) see a partial count too.
+            response_metadata[LLM_OUTPUT_USAGE_KEY] = usage.as_dict()
         ai_message = AIMessage(
             content=message.get("content") if message.get("content") is not None else "",
             tool_calls=_response_tool_calls(message.get("tool_calls")),

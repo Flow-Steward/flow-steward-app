@@ -31,6 +31,12 @@ def metric_header_lines(*, suffix: str, help_text: str, metric_type: str) -> lis
 
 
 def active_lease_count(bl) -> int:
+    count = _active_leases(bl)
+    return 0 if count is None else count
+
+
+def _active_leases(bl) -> int | None:
+    """The active lease count, or ``None`` when the database could not be asked."""
     lease_lister = getattr(bl, "list_project_execution_leases", None)
     if callable(lease_lister):
         try:
@@ -45,7 +51,7 @@ def active_lease_count(bl) -> int:
                 cur.execute("SELECT COUNT(*) FROM project_execution_slots WHERE expires_at > now()")
                 return int((cur.fetchone() or [0])[0] or 0)
     except Exception:
-        return 0
+        return None
     return 0
 
 
@@ -60,13 +66,18 @@ class InstallationSnapshot:
     ready_queue_depth: int = -1
     # ``None`` when the SLO source returned something other than a mapping.
     slo: dict[str, Any] | None = field(default_factory=dict)
+    # False when the query failed: the zeros above then mean "unknown", which
+    # ``/metrics`` prints as 0 and the OTLP export leaves out.
+    counts_available: bool = True
+    leases_available: bool = True
 
 
 def collect_installation_snapshot(
     bl, *, get_ready_queue_depth: Callable[[], int]
 ) -> InstallationSnapshot:
     project_count = 0
-    active_leases = 0
+    active_leases: int | None = None
+    counts_available = True
     ready_queue_depth = -1
     job_status_counts: dict[str, int] = {}
     try:
@@ -83,9 +94,9 @@ def collect_installation_snapshot(
             for row in cur.fetchall() or []:
                 status_value = str(row[0] or "").strip() or "unknown"
                 job_status_counts[status_value] = int(row[1] or 0)
-            active_leases = active_lease_count(bl)
+            active_leases = _active_leases(bl)
     except Exception:
-        pass
+        counts_available = False
     try:
         ready_queue_depth = get_ready_queue_depth()
     except Exception:
@@ -100,9 +111,11 @@ def collect_installation_snapshot(
     return InstallationSnapshot(
         project_count=project_count,
         job_status_counts=job_status_counts,
-        active_leases=active_leases,
+        active_leases=active_leases or 0,
         ready_queue_depth=ready_queue_depth,
         slo=slo_payload if isinstance(slo_payload, dict) else None,
+        counts_available=counts_available,
+        leases_available=active_leases is not None,
     )
 
 

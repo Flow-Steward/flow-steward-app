@@ -126,8 +126,10 @@ semantic-conventions mode is pinned to the stable `http` conventions.
 
 Each role reports `service.name` as `flow-steward-app`, `flow-steward-worker`,
 `flow-steward-control` or `flow-steward-mcp`, with `service.version` and an
-SDK-generated `service.instance.id`. The CLI, the extension installer and
-extension subprocesses are not instrumented.
+SDK-generated `service.instance.id`. The CLI applies the same `OTEL_*`
+policy before it loads any library and flushes for at most 2 seconds on exit,
+but starts no exporter of its own. The extension installer and extension
+subprocesses are not instrumented.
 
 ### Traces
 

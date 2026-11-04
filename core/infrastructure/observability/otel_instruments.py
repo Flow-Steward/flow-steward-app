@@ -92,6 +92,16 @@ _capture: list[tuple[str, float, dict[str, str]]] | None = None
 _capture_pid: int | None = None
 
 
+def _renew_lock_in_child() -> None:
+    # A fork copies the lock as it was: held, if another thread of the parent was
+    # recording, with no thread left in the child to release it.
+    global _lock
+    _lock = threading.Lock()
+
+
+os.register_at_fork(after_in_child=_renew_lock_in_child)
+
+
 def _signal_enabled(signal: str) -> bool:
     state = current_telemetry()
     return bool(state is not None and getattr(state.settings, signal).enabled)
