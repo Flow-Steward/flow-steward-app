@@ -17,16 +17,25 @@ def _workflow() -> dict:
     return yaml.safe_load((ROOT / ".github/workflows/remote-quality.yml").read_text())
 
 
+def _declared_events(workflow: dict) -> set[str]:
+    # PyYAML's YAML 1.1 loader represents the unquoted `on` key as True.
+    return set(workflow.get("on", workflow.get(True, {})))
+
+
+def test_remote_quality_declares_only_manual_dispatch() -> None:
+    assert _declared_events(_workflow()) == {"workflow_dispatch"}
+
+
 @pytest.mark.parametrize(
     ("ref", "event", "mode", "expected"),
     [
-        (MEASUREMENT_REF, "push", "", ["secret_scan"]),
+        (MEASUREMENT_REF, "push", "", []),
         (MEASUREMENT_REF, "workflow_dispatch", "tier2", ["secret_scan"]),
         (MEASUREMENT_REF, "workflow_dispatch", "release", ["secret_scan"]),
         (MEASUREMENT_REF, "workflow_dispatch", "release-sonar", ["secret_scan"]),
         (MEASUREMENT_REF, "workflow_dispatch", "parallel-diagnostic", ["secret_scan"]),
         ("feature/ordinary-change", "workflow_dispatch", "secret-scan-only", ["secret_scan"]),
-        ("feature/ordinary-change", "push", "", ["quality"]),
+        ("feature/ordinary-change", "push", "", []),
         ("feature/ordinary-change", "workflow_dispatch", "tier2", ["quality"]),
     ],
 )
@@ -34,7 +43,11 @@ def test_scanner_measurement_cannot_select_a_full_gate(
     ref: str, event: str, mode: str, expected: list[str]
 ) -> None:
     workflow = _workflow()
-    conditions = {name: job["if"] for name, job in workflow["jobs"].items()}
+    conditions = (
+        {name: job["if"] for name, job in workflow["jobs"].items()}
+        if event in _declared_events(workflow)
+        else {}
+    )
     context = {
         "github": {
             "repository": "Flow-Steward/flow-steward-app",
