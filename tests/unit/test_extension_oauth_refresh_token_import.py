@@ -51,7 +51,7 @@ from core.infrastructure.extension_runtime.oauth_transport import (
 
 CONFIGURATION_ID = "33333333-3333-4333-8333-333333333333"
 PASTED = "pasted-refresh-token-canary"
-CLIENT_SECRET = "client-secret-canary"
+CLIENT_SECRET = "client-secret-canary"  # pragma: allowlist secret
 
 
 def _credential_fields() -> list[dict[str, Any]]:
@@ -199,7 +199,7 @@ def test_minimal_import_provider_compiles_without_redirect_keys() -> None:
                 "algorithm": "hmac_sha256",
                 "digest": "hex",
                 "message": "sorted_query_excluding_signature",
-                "secret_source": "client_secret",
+                "secret_source": "client_secret",  # pragma: allowlist secret
                 "subject_parameter": "tenant",
                 "subject_binding": "tenant",
             },
@@ -287,9 +287,11 @@ def _manifest_fixture() -> dict[str, Any]:
 #: Computed on public main 5764b4d, before the refresh-token flow existed. An
 #: authorization-code provider must compile to exactly these bytes, or every
 #: existing configuration would be sent through release reconciliation.
-_BASELINE_FIXTURE_FINGERPRINT = "9a2fb10e0db788368bf0ce32ded169a23de68ad40ddd4141a81edab0e804e839"
+_BASELINE_FIXTURE_FINGERPRINT = (
+    "9a2fb10e0db788368bf0ce32ded169a23de68ad40ddd4141a81edab0e804e839"  # pragma: allowlist secret
+)
 _BASELINE_FIXTURE_RENDERED_SHA256 = (
-    "7145db6dce6cf9a94c02d567111129bc46d6558473857313e698e27dd219af9f"
+    "7145db6dce6cf9a94c02d567111129bc46d6558473857313e698e27dd219af9f"  # pragma: allowlist secret
 )
 
 
