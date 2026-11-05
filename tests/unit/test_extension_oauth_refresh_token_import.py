@@ -30,6 +30,7 @@ from core.application.extensions.oauth_contract import (
     provider_revocation_fingerprint,
     provider_security_fingerprint,
 )
+from core.application.extensions.oauth_grant_commit import OAuthGrant
 from core.application.extensions.oauth_refresh_token_import import (
     OAuthRefreshTokenImport,
     OAuthRefreshTokenImportService,
@@ -43,6 +44,7 @@ from core.application.management.errors import (
     ServiceValidationError,
 )
 from core.application.management.scope import ScopeContext
+from core.entrypoints.api.extension_oauth import parse_refresh_token_import
 from core.infrastructure.extension_runtime.oauth_transport import (
     OAuthErrorCode,
     OAuthProviderError,
@@ -457,9 +459,24 @@ class _Repository:
         self.created: list[dict[str, Any]] = []
         self.updated: list[dict[str, Any]] = []
         self.post_connect_updates: list[dict[str, Any]] = []
+        self.invalid_client_marks: list[dict[str, Any]] = []
+        self.configuration_reads = 0
+        #: Bump the configuration revision once it has been read this many times.
+        self.bump_configuration_after_reads = 0
 
     def get_configuration_for_scope_for_update(self, **_scope: Any) -> dict[str, Any]:
         self.events.append("lock_configuration")
+        self.configuration_reads += 1
+        if self.bump_configuration_after_reads and (
+            self.configuration_reads > self.bump_configuration_after_reads
+        ):
+            self.configuration["configuration_revision"] = 99
+        return copy.deepcopy(self.configuration)
+
+    def mark_configuration_invalid_client(self, **scope: Any) -> dict[str, Any] | None:
+        self.events.append("mark_configuration_invalid_client")
+        self.invalid_client_marks.append(copy.deepcopy(scope))
+        self.configuration["status"] = "needs_attention"
         return copy.deepcopy(self.configuration)
 
     def lock_oauth_install_for_update(self, **_scope: Any) -> dict[str, Any]:
@@ -1003,3 +1020,256 @@ def test_runtime_refresh_works_unchanged_on_an_imported_connection() -> None:
     assert resolved == {"access_token": "second-access"}
     assert refresh_calls[0]["refresh_token"] == PASTED
     assert refresh_calls[0]["endpoint"].url == "https://identity.example.test/token"
+
+
+# --- review fixes -----------------------------------------------------------
+
+
+def _replace_command(**overrides: Any) -> OAuthRefreshTokenImport:
+    return _command(
+        existing_connection_id="connection-existing", connection_credential_revision=5, **overrides
+    )
+
+
+def _bound_repository(descriptor: dict[str, Any]) -> _Repository:
+    repository = _Repository(descriptor)
+    repository.connections["connection-existing"]["connection_config"]["oauth"] = {
+        "lifecycle_status": "connected",
+        "subject": "account-old",
+        "verified_display_name": "Old account",
+    }
+    return repository
+
+
+def _post_connect_returning(subject: str, *, health: str = "ok", error_code: str | None = None):
+    def post_connect(**_values: Any) -> dict[str, Any]:
+        if health != "ok":
+            return {"status": "failed", "response": {"ok": False, "error_code": error_code}}
+        return {
+            "status": "succeeded",
+            "response": {"result": {"subject": subject, "safe_metadata": {}, "health": "ok"}},
+        }
+
+    return post_connect
+
+
+def test_replacement_verified_as_another_account_keeps_the_old_subject() -> None:
+    descriptor = _descriptor()
+    repository = _bound_repository(descriptor)
+    service, _store, _calls = _service(
+        repository, descriptor, post_connect=_post_connect_returning("account-other")
+    )
+
+    result = service.import_refresh_token(_scope(), "install-a", "console", _replace_command())
+
+    assert result.outcome == "needs_attention"
+    assert result.connection_id == "connection-existing"
+    # While post-connect runs the connection still names its account, and Core
+    # remembers which one it must stay bound to.
+    pending = repository.updated[0]["connection_config"]["oauth"]
+    assert pending["subject"] == "account-old"
+    assert pending["replaced_subject"] == "account-old"
+    recorded = repository.post_connect_updates[0]
+    assert recorded["connection_config"]["oauth"]["subject"] == "account-old"
+    assert recorded["connection_config"]["oauth"]["lifecycle_status"] == "needs_attention"
+    assert recorded["connection_config"]["oauth"]["last_error_code"] == "subject_changed"
+    assert "replaced_subject" not in recorded["connection_config"]["oauth"]
+    assert recorded["last_error"] == "subject_changed"
+    assert recorded["runtime_status"] == "unavailable"
+    assert recorded["display_name"] == "Primary account"
+
+
+def test_replacement_verified_as_the_same_account_connects() -> None:
+    descriptor = _descriptor()
+    repository = _bound_repository(descriptor)
+    service, _store, _calls = _service(
+        repository, descriptor, post_connect=_post_connect_returning("account-old")
+    )
+
+    result = service.import_refresh_token(_scope(), "install-a", "console", _replace_command())
+
+    assert result.outcome == "connected"
+    oauth = repository.post_connect_updates[0]["connection_config"]["oauth"]
+    assert oauth["subject"] == "account-old"
+    assert oauth["lifecycle_status"] == "connected"
+    assert "replaced_subject" not in oauth
+
+
+def test_failed_verification_of_an_imported_replacement_keeps_the_old_subject() -> None:
+    descriptor = _descriptor()
+    repository = _bound_repository(descriptor)
+    service, _store, _calls = _service(
+        repository,
+        descriptor,
+        post_connect=_post_connect_returning(
+            "", health="failed", error_code="provider_unavailable"
+        ),
+    )
+
+    result = service.import_refresh_token(_scope(), "install-a", "console", _replace_command())
+
+    assert result.outcome == "needs_attention"
+    oauth = repository.post_connect_updates[0]["connection_config"]["oauth"]
+    assert oauth["subject"] == "account-old"
+    assert oauth["last_error_code"] == "provider_unavailable"
+
+
+def test_unknown_settings_keys_are_refused_even_when_the_schema_allows_extras() -> None:
+    descriptor = _descriptor()
+    schema = descriptor["runtime"]["extension_contract_v2"]["connection_types"][0]["config_schema"]
+    schema["additionalProperties"] = True
+    repository = _Repository(descriptor)
+    service, _store, calls = _service(repository, descriptor)
+
+    with pytest.raises(ServiceValidationError) as raised:
+        service.import_refresh_token(
+            _scope(),
+            "install-a",
+            "console",
+            _command(connection_config={"account_ref": "a", "region": "north", "extra": "x"}),
+        )
+
+    assert raised.value.payload == {
+        "error": "invalid_connection_config",
+        "field": "connection_config.extra",
+    }
+    assert calls == []
+
+
+def test_a_type_without_config_schema_accepts_no_settings() -> None:
+    descriptor = _descriptor()
+    descriptor["runtime"]["extension_contract_v2"]["connection_types"][0].pop("config_schema")
+    repository = _Repository(descriptor)
+    service, _store, calls = _service(repository, descriptor)
+
+    with pytest.raises(ServiceValidationError) as raised:
+        service.import_refresh_token(
+            _scope(), "install-a", "console", _command(connection_config={"account_ref": "a"})
+        )
+
+    assert raised.value.payload == {
+        "error": "invalid_connection_config",
+        "field": "connection_config",
+    }
+    assert calls == []
+    result = service.import_refresh_token(
+        _scope(), "install-a", "console", _command(connection_config={})
+    )
+    assert result.outcome == "connected"
+    assert set(repository.created[0]["connection_config"]) == {"oauth"}
+
+
+def test_replacement_replaces_declared_settings_and_keeps_undeclared_ones() -> None:
+    descriptor = _descriptor()
+    repository = _Repository(descriptor)
+    repository.connections["connection-existing"]["connection_config"]["legacy_key"] = "kept"
+    service, _store, _calls = _service(repository, descriptor)
+
+    service.import_refresh_token(
+        _scope(),
+        "install-a",
+        "console",
+        _replace_command(connection_config={"account_ref": "acct-2", "region": "north"}),
+    )
+
+    config = repository.updated[0]["connection_config"]
+    assert config["legacy_key"] == "kept"
+    assert config["account_ref"] == "acct-2"
+    assert config["region"] == "north"
+
+
+def test_stale_lineage_before_the_exchange_spends_no_token() -> None:
+    descriptor = _descriptor()
+    repository = _Repository(descriptor)
+    # The first read builds the state; the configuration changes before the
+    # pre-exchange check reads it again.
+    repository.bump_configuration_after_reads = 1
+    service, token_store, calls = _service(repository, descriptor)
+
+    with pytest.raises(ServiceConflictError) as raised:
+        service.import_refresh_token(_scope(), "install-a", "console", _command())
+
+    assert raised.value.payload == {"error": "oauth_import_conflict"}
+    assert calls == []
+    assert token_store.writes == []
+
+
+def test_failed_commit_after_a_rotating_exchange_says_the_token_may_be_gone() -> None:
+    descriptor = _descriptor()
+    repository = _Repository(descriptor)
+
+    def rotate_then_race(**_values: Any) -> dict[str, Any]:
+        repository.connections["connection-existing"]["credential_revision"] = 6
+        return {
+            "access_token": "access-token-canary",
+            "refresh_token": "rotated-refresh-token",
+            "token_type": "bearer",
+        }
+
+    service, _store, _calls = _service(repository, descriptor, refresh=rotate_then_race)
+
+    with pytest.raises(ServiceConflictError) as raised:
+        service.import_refresh_token(_scope(), "install-a", "console", _replace_command())
+
+    assert raised.value.payload == {"error": "oauth_import_conflict_token_rotated"}
+    assert "rotated-refresh-token" not in str(raised.value)
+
+
+def test_omitted_scope_records_only_the_required_scopes() -> None:
+    descriptor = _descriptor(required_scopes=["read"])
+    descriptor["runtime"]["extension_contract_v2"]["connection_types"][0]["auth"]["scopes"][
+        "optional"
+    ] = ["write"]
+    repository = _Repository(descriptor)
+    service, _store, _calls = _service(repository, descriptor)
+
+    service.import_refresh_token(_scope(), "install-a", "console", _command())
+
+    assert repository.created[0]["oauth_granted_scopes"] == ["read"]
+    assert repository.created[0]["oauth_requested_scopes"] == ["read", "write"]
+
+
+def test_invalid_client_marks_the_configuration_and_keeps_412() -> None:
+    descriptor = _descriptor()
+    repository = _Repository(descriptor)
+
+    def refuse(**_values: Any) -> dict[str, Any]:
+        raise OAuthProviderError(OAuthErrorCode.INVALID_CLIENT, OAuthProviderOperation.REFRESH)
+
+    service, token_store, _calls = _service(repository, descriptor, refresh=refuse)
+
+    with pytest.raises(ServicePreconditionError) as raised:
+        service.import_refresh_token(_scope(), "install-a", "console", _command())
+
+    assert raised.value.status_code == 412
+    assert raised.value.payload["error"] == "oauth_invalid_client"
+    assert repository.invalid_client_marks[0]["expected_configuration_revision"] == 4
+    assert token_store.writes == []
+
+
+def test_grant_repr_and_parse_errors_never_carry_the_token() -> None:
+    grant = OAuthGrant(
+        token_response={"access_token": "access-canary", "refresh_token": PASTED},
+        requested_scopes=[],
+        granted_scopes=[],
+        connection_id="connection-a",
+        fallback_refresh_token=PASTED,
+    )
+    assert PASTED not in repr(grant)
+    assert "access-canary" not in str(grant)
+
+    with pytest.raises(ServiceValidationError) as raised:
+        parse_refresh_token_import(
+            {
+                "configuration_id": CONFIGURATION_ID,
+                "connection_type": "console_account",
+                "display_name": "Primary",
+                "refresh_token": PASTED,
+                "existing_connection_id": "connection-a",
+            }
+        )
+    error = raised.value
+    assert error.payload == {"error": "invalid_request"}
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    assert PASTED not in str(error)

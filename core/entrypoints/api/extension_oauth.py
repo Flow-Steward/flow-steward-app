@@ -108,6 +108,23 @@ async def _read_bounded_request_body(request: Request) -> bytes:
     return body
 
 
+def parse_refresh_token_import(value: Any) -> OAuthRefreshTokenImport:
+    """The import command, or a bare refusal that carries nothing of the input.
+
+    A pydantic error holds the submitted values, the refresh token among them,
+    so it is neither chained nor left as the implicit context: the refusal is
+    raised outside the handler that caught it.
+    """
+    try:
+        return OAuthRefreshTokenImport.model_validate(value)
+    except ValidationError:
+        pass
+    raise ServiceValidationError(
+        "Invalid OAuth refresh-token import request",
+        payload={"error": "invalid_request"},
+    )
+
+
 def build_extension_oauth_callback_handler(logger: Any) -> Callable[..., Any]:
     service = create_extension_oauth_callback_service(logger)
 
@@ -272,17 +289,6 @@ def create_extension_oauth_router(
                 payload={"error": "invalid_request"},
             ) from exc
 
-    def refresh_token_import(value: Any) -> OAuthRefreshTokenImport:
-        try:
-            return OAuthRefreshTokenImport.model_validate(value)
-        except ValidationError as exc:
-            # Deliberately the bare code: a validation message could quote the
-            # submitted refresh token.
-            raise ServiceValidationError(
-                "Invalid OAuth refresh-token import request",
-                payload={"error": "invalid_request"},
-            ) from exc
-
     def retry_request(value: Any) -> OAuthPostConnectRetryRequest:
         try:
             return OAuthPostConnectRetryRequest.model_validate(value)
@@ -385,7 +391,7 @@ def create_extension_oauth_router(
 
         def operation():
             logger, scope = scoped(request, project_id, operator=True)
-            command = refresh_token_import(body)
+            command = parse_refresh_token_import(body)
             return (
                 build_refresh_token_import_service(logger)
                 .import_refresh_token(scope, install_id, provider_id, command)
@@ -623,4 +629,5 @@ __all__ = [
     "OAuthPostConnectRetryRequest",
     "build_extension_oauth_callback_handler",
     "create_extension_oauth_router",
+    "parse_refresh_token_import",
 ]

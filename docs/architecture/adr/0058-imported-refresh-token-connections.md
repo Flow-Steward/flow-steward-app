@@ -93,3 +93,21 @@ uninstall lifecycle. What is missing is one way to start a grant.
   confirms, never the settings the user typed.
 - Existing authorization-code providers are unaffected: their compiled flow and
   security fingerprint stay byte-identical.
+- A provider that rotates the refresh token on every exchange can retire the pasted
+  token even when the grant is then not committed (the configuration or connection
+  changed between the exchange and the commit). Core re-checks the lineage
+  immediately before the exchange to keep that window small, and when a commit
+  fails after a response that carried a new refresh token it answers with the
+  distinct `oauth_import_conflict_token_rotated`, telling the operator that a new
+  token may be needed.
+- Replacing a grant keeps the connection bound to the subject it had. If the
+  post-connect action verifies a different subject, Core keeps the old one and
+  marks the connection `needs_attention` with the closed code `subject_changed`;
+  the same rule now applies to a redirect reauthorization whose provider does not
+  sign its callback (a signed callback is already held to its subject). A failed
+  verification of an imported replacement keeps the old subject as well.
+- Only settings the connection type's `config_schema` declares are accepted and
+  stored; a type without one accepts none. Replacing a grant replaces the declared
+  settings and leaves any other existing key of `connection_config` untouched.
+- An `invalid_client` answer during an import marks the configuration
+  `needs_attention`, as runtime refresh and the callback do.

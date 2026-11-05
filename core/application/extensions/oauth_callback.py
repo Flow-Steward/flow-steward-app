@@ -147,33 +147,10 @@ class OAuthCallbackService:
             outcome = "authorization_denied"
         else:
             outcome = "provider_unavailable"
-        if code is OAuthErrorCode.INVALID_CLIENT:
-            try:
-                with self._transaction_factory():
-                    current = _locked_install_provider(
-                        state, repository=self._repository, install_loader=self._install_loader
-                    )
-                    if current is None:
-                        raise ValueError(_MESSAGE_STALE_INSTALL)
-                    _, locked_provider = current
-                    scope = _repository_scope(state)
-                    configuration = _mapping(
-                        self._repository.get_configuration_for_scope_for_update(**scope)
-                    )
-                    if not _configuration_matches(configuration, state, locked_provider):
-                        raise ValueError(_MESSAGE_STALE_CONFIGURATION)
-                    updated = self._repository.mark_configuration_invalid_client(
-                        **scope,
-                        expected_configuration_revision=int(
-                            state.get("configuration_revision") or 0
-                        ),
-                    )
-                    if updated is None:
-                        raise ValueError(_MESSAGE_STALE_CONFIGURATION)
-            except Exception:
-                return OAuthCallbackResult(
-                    outcome="restart_required", return_page_id=return_page_id
-                )
+        if code is OAuthErrorCode.INVALID_CLIENT and not self._grant_committer.mark_invalid_client(
+            state
+        ):
+            return OAuthCallbackResult(outcome="restart_required", return_page_id=return_page_id)
         definite = code in _DEFINITE_REFUSAL_CODES and not granted
         if preserved_connection_id and not definite:
             # The grant may have landed. The connection still exists and is still
@@ -385,19 +362,19 @@ class OAuthCallbackService:
         if dispatched is None:
             return OAuthCallbackResult(outcome="restart_required")
         invocation, expected_revision, state = dispatched
-        result = oauth_post_connect_result_from_invocation(invocation)
-        if not _apply_post_connect(
+        recorded = _apply_post_connect(
             state=state,
             connection_id=connection_id,
             expected_revision=expected_revision,
-            result=result,
+            result=oauth_post_connect_result_from_invocation(invocation),
             repository=self._repository,
             transaction_factory=self._transaction_factory,
             install_loader=self._install_loader,
-        ):
+        )
+        if recorded is None:
             return OAuthCallbackResult(outcome="restart_required")
         return OAuthCallbackResult(
-            outcome=_post_connect_outcome(result), connection_id=connection_id
+            outcome=_post_connect_outcome(recorded), connection_id=connection_id
         )
 
     def _pre_exchange(

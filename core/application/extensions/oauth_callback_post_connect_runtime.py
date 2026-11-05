@@ -11,6 +11,7 @@ from core.application.extensions.oauth_contract import (
     provider_revocation_fingerprint,
     provider_security_fingerprint,
 )
+from core.application.extensions.oauth_contract_models import FLOW_REFRESH_TOKEN_IMPORT
 from core.application.extensions.oauth_post_connect import (
     OAuthPostConnectResult,
 )
@@ -24,6 +25,7 @@ from .oauth_callback_policy import (
     _MESSAGE_STALE_INSTALL,
     _configuration_matches,
     _connection_matches,
+    _effective_post_connect_result,
     _mapping,
     _operational_state,
     _post_connect_config,
@@ -42,7 +44,8 @@ def _apply_post_connect(
     repository: OAuthCallbackRepository,
     transaction_factory: Callable[[], AbstractContextManager[Any]],
     install_loader: Callable[[str, str], Mapping[str, Any] | None],
-) -> bool:
+) -> OAuthPostConnectResult | None:
+    """Record a post-connect result; the result actually recorded, or None if stale."""
     try:
         with transaction_factory():
             current = _locked_install_provider(
@@ -69,7 +72,14 @@ def _apply_post_connect(
                 expected_revision=expected_revision,
             ):
                 raise ValueError(_MESSAGE_STALE_CONNECTION)
-            connection_config, display_name = _post_connect_config(connection, result)
+            effective = _effective_post_connect_result(connection, result)
+            # An imported grant was never consented to on the provider's screen,
+            # so a failed verification keeps the account the connection had.
+            connection_config, display_name = _post_connect_config(
+                connection,
+                effective,
+                keep_identity_on_failure=_text(state.get("flow_type")) == FLOW_REFRESH_TOKEN_IMPORT,
+            )
             saved = repository.update_oauth_post_connect(
                 connection_id=connection_id,
                 account_id=_text(state.get("account_id")),
@@ -83,15 +93,15 @@ def _apply_post_connect(
                 display_name=display_name,
                 connection_config=connection_config,
                 **_operational_state(
-                    ready=result.health == "ok",
-                    error_code=result.error_code,
+                    ready=effective.health == "ok",
+                    error_code=effective.error_code,
                 ),
             )
             if not saved:
                 raise ValueError("stale post-connect")
     except Exception:
-        return False
-    return True
+        return None
+    return effective
 
 
 def _dispatch_post_connect(

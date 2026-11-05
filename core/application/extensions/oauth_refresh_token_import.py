@@ -21,6 +21,8 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 
 from core.application.auth.principal import principal_type_has_minimum_role
 from core.application.extensions.connection_partition_validation import (
+    ConnectionPartitionSchemaRejected,
+    connection_partition_schema,
     validate_connection_partition,
 )
 from core.application.extensions.oauth_authorization import (
@@ -222,13 +224,41 @@ class OAuthRefreshTokenImportService:
     @staticmethod
     def _validated_settings(
         descriptor: dict[str, Any], *, connection_type: str, settings: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], frozenset[str]]:
+        """The submitted settings, held to exactly what the connection type declares.
+
+        Returns the settings and the declared keys. Only declared keys are ever
+        stored or replaced: a type without a config_schema accepts no settings,
+        and a key the schema does not name is refused rather than kept, whatever
+        `additionalProperties` says.
+        """
         if "oauth" in settings:
             raise ServiceValidationError(
                 "connection_config.oauth is owned by the platform",
                 payload={
                     "error": "oauth_connection_config_reserved",
                     "field": "connection_config.oauth",
+                },
+            )
+        try:
+            schema = connection_partition_schema(
+                descriptor, connection_type=connection_type, partition="config"
+            )
+        except ConnectionPartitionSchemaRejected:
+            schema = {}
+        properties = schema.get("properties") if isinstance(schema, dict) else None
+        declared = frozenset(
+            key for key in (properties if isinstance(properties, dict) else {}) if key != "oauth"
+        )
+        undeclared = sorted(key for key in settings if key not in declared)
+        if undeclared:
+            raise ServiceValidationError(
+                "Connection settings name a field the connection type does not declare",
+                payload={
+                    "error": "invalid_connection_config",
+                    "field": f"connection_config.{undeclared[0]}"
+                    if declared
+                    else "connection_config",
                 },
             )
         errors = validate_connection_partition(
@@ -242,7 +272,7 @@ class OAuthRefreshTokenImportService:
                 "Connection settings do not match the connection type",
                 payload={"error": "invalid_connection_config", "field": field},
             )
-        return dict(settings)
+        return dict(settings), declared
 
     def import_refresh_token(
         self,
@@ -310,7 +340,7 @@ class OAuthRefreshTokenImportService:
                 connection_type=command.connection_type,
                 provider_id=normalized_provider_id,
             )
-            settings = self._validated_settings(
+            settings, declared_settings = self._validated_settings(
                 descriptor,
                 connection_type=command.connection_type,
                 settings=command.connection_config,
@@ -365,6 +395,24 @@ class OAuthRefreshTokenImportService:
                 ),
             }
 
+        required_scopes = _required_connection_scopes(
+            descriptor,
+            connection_type=command.connection_type,
+            provider_id=normalized_provider_id,
+        )
+        if required_scopes is None:
+            raise ServiceValidationError(
+                "Installed OAuth connection scope contract is invalid",
+                payload={"error": "invalid_oauth_provider_contract"},
+            )
+        # A provider may rotate the refresh token on this very call, so a state
+        # that could never commit must not reach it. The commit repeats the
+        # same checks under its own lock; this only narrows the window.
+        if not self._grant_committer.lineage_is_current(state):
+            raise ServiceConflictError(
+                "The OAuth configuration changed while connecting; try again",
+                payload={"error": "oauth_import_conflict"},
+            )
         client_id, client_secret = credentials
         try:
             token_response = self._refresh_access_token(
@@ -378,28 +426,21 @@ class OAuthRefreshTokenImportService:
         except OAuthProviderError as exc:
             # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- only the closed OAuthErrorCode value is logged, never the token.
             _logger.warning("OAuth refresh-token import failed: code=%s", exc.code.value)
+            if exc.code is OAuthErrorCode.INVALID_CLIENT:
+                # The same record runtime refresh and the callback make, so the
+                # configuration shows it needs repair. The route is operator-only.
+                self._grant_committer.mark_invalid_client(state)
             raise _provider_refusal(provider, exc.code) from None
         except Exception:
             raise _provider_refusal(provider, OAuthErrorCode.PROVIDER_UNAVAILABLE) from None
 
-        required_scopes = _required_connection_scopes(
-            descriptor,
-            connection_type=command.connection_type,
-            provider_id=normalized_provider_id,
-        )
-        if required_scopes is None:
-            raise ServiceValidationError(
-                "Installed OAuth connection scope contract is invalid",
-                payload={"error": "invalid_oauth_provider_contract"},
-            )
         # Nothing was requested from the provider, so an omitted `scope` can only
-        # stand for the declared requirement. When there is none, no grant is
-        # recorded: an empty list is the truth, a list of optional scopes would
-        # be invented.
+        # stand for the declared requirement — never for optional scopes, which
+        # would be invented. With no requirement, no grant is recorded at all.
         try:
             granted_scopes = _scopes(
                 token_response.get("scope"),
-                fallback=requested_scopes if required_scopes else [],
+                fallback=sorted(required_scopes),
                 provider=provider,
             )
         except ValueError:
@@ -423,12 +464,23 @@ class OAuthRefreshTokenImportService:
                 connection_id=connection_id,
                 fallback_refresh_token=refresh_token,
                 connection_settings=settings,
+                replaced_setting_keys=declared_settings,
+                keep_identity_until_verified=True,
             ),
             return_page_id=None,
         )
         if not result.connection_id or result.outcome not in _IMPORT_OUTCOMES:
             # The commit found the configuration, install or connection changed
-            # under it. Nothing was written; the operator can simply try again.
+            # under it, and nothing was written. If the provider answered with a
+            # new refresh token it may already have retired the pasted one, so
+            # the operator is told a fresh token may be needed.
+            rotated = str(token_response.get("refresh_token") or "")
+            if rotated and rotated != refresh_token:
+                raise ServiceConflictError(
+                    "The configuration changed while connecting and the provider "
+                    "may have rotated the refresh token; issue a new one if retrying fails",
+                    payload={"error": "oauth_import_conflict_token_rotated"},
+                )
             raise ServiceConflictError(
                 "The OAuth configuration changed while connecting; try again",
                 payload={"error": "oauth_import_conflict"},

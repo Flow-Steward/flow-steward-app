@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.application.extensions.oauth_configuration_secrets import (
@@ -36,6 +36,7 @@ from .oauth_callback_policy import (
     _MESSAGE_STALE_CONFIGURATION,
     _MESSAGE_STALE_CONNECTION,
     _MESSAGE_STALE_INSTALL,
+    _REPLACED_SUBJECT,
     _VERIFIED_IDENTITY_FIELDS,
     _configuration_matches,
     _connection_matches,
@@ -82,15 +83,24 @@ def oauth_client_credentials(
 class OAuthGrant:
     """A token set a provider has just issued, ready to become a connection."""
 
-    token_response: Mapping[str, Any]
+    #: Carries the tokens; kept out of every repr so no log line or traceback
+    #: built from a grant can show them.
+    token_response: Mapping[str, Any] = field(repr=False)
     requested_scopes: list[str]
     granted_scopes: list[str]
     connection_id: str
     #: Stored when the response carries no refresh token. None keeps the refresh
     #: token the connection being replaced already holds.
-    fallback_refresh_token: str | None = None
-    #: Replaces every non-`oauth` key of connection_config. None keeps them.
+    fallback_refresh_token: str | None = field(default=None, repr=False)
+    #: New values for the settings named in `replaced_setting_keys`. None keeps
+    #: every existing setting.
     connection_settings: Mapping[str, Any] | None = None
+    #: The settings the connection type declares. Only these are replaced; a key
+    #: the declaration does not name is left as it is.
+    replaced_setting_keys: frozenset[str] = frozenset()
+    #: Keep the verified identity while a replacement waits for post-connect.
+    #: The redirect flow clears it, as it always has; an import keeps it.
+    keep_identity_until_verified: bool = False
 
 
 class OAuthGrantCommitter:
@@ -134,22 +144,71 @@ class OAuthGrantCommitter:
             return_page_id=return_page_id,
         )
 
+    def _locked_lineage(
+        self, state: dict[str, Any]
+    ) -> tuple[OAuthProviderContract, dict[str, str], dict[str, Any]]:
+        """The provider, scope and configuration, once install and lineage check out."""
+        current = _locked_install_provider(
+            state, repository=self._repository, install_loader=self._install_loader
+        )
+        if current is None:
+            raise ValueError(_MESSAGE_STALE_INSTALL)
+        _, locked_provider = current
+        scope = _repository_scope(state)
+        configuration = _mapping(self._repository.get_configuration_for_scope_for_update(**scope))
+        if not _configuration_matches(configuration, state, locked_provider):
+            raise ValueError(_MESSAGE_STALE_CONFIGURATION)
+        return locked_provider, scope, configuration
+
+    def lineage_is_current(self, state: dict[str, Any]) -> bool:
+        """Whether a commit of this state would pass its lineage checks right now.
+
+        Run immediately before a provider call that may rotate a token, so a
+        state that could never commit does not spend one. The commit repeats
+        every check under its own lock; this only narrows the window.
+        """
+        try:
+            with self._transaction_factory():
+                self._locked_lineage(state)
+                existing_connection_id = _text(state.get("existing_connection_id"))
+                if existing_connection_id:
+                    connection = _mapping(
+                        self._repository.lock_connection(
+                            connection_id=existing_connection_id,
+                            **_repository_scope(state),
+                            connection_type=_text(state.get("connection_type")),
+                        )
+                    )
+                    expected = int(
+                        _mapping(state.get("intent_payload")).get("connection_credential_revision")
+                        or 0
+                    )
+                    if not _connection_matches(connection, state, expected_revision=expected):
+                        raise ValueError(_MESSAGE_STALE_CONNECTION)
+        except Exception:
+            return False
+        return True
+
+    def mark_invalid_client(self, state: dict[str, Any]) -> bool:
+        """Record that the provider refused this configuration's client credentials."""
+        try:
+            with self._transaction_factory():
+                _, scope, _ = self._locked_lineage(state)
+                updated = self._repository.mark_configuration_invalid_client(
+                    **scope,
+                    expected_configuration_revision=int(state.get("configuration_revision") or 0),
+                )
+                if updated is None:
+                    raise ValueError(_MESSAGE_STALE_CONFIGURATION)
+        except Exception:
+            return False
+        return True
+
     def _commit(self, *, state: dict[str, Any], grant: OAuthGrant) -> tuple[str, bool]:
         connection_id = grant.connection_id
         existing_connection_id = _text(state.get("existing_connection_id"))
         with self._transaction_factory():
-            current = _locked_install_provider(
-                state, repository=self._repository, install_loader=self._install_loader
-            )
-            if current is None:
-                raise ValueError(_MESSAGE_STALE_INSTALL)
-            _, locked_provider = current
-            scope = _repository_scope(state)
-            configuration = _mapping(
-                self._repository.get_configuration_for_scope_for_update(**scope)
-            )
-            if not _configuration_matches(configuration, state, locked_provider):
-                raise ValueError(_MESSAGE_STALE_CONFIGURATION)
+            locked_provider, scope, _ = self._locked_lineage(state)
 
             connection: dict[str, Any] = {}
             expected_connection_revision = 0
@@ -211,9 +270,24 @@ class OAuthGrantCommitter:
             post_connect_pending = bool(
                 self._invoke_post_connect is not None and locked_provider.post_connect_action_id
             )
+            # A replacement remembers the subject the connection is bound to, so
+            # a post-connect result for a different account is refused rather
+            # than adopted. A provider that signs its callback is already held
+            # to its subject before the exchange, so it needs no reminder.
+            replaced_subject = _text(existing_oauth.get("subject")) or _text(
+                existing_oauth.get(_REPLACED_SUBJECT)
+            )
+            pending_oauth.pop(_REPLACED_SUBJECT, None)
             if post_connect_pending:
-                for field in _VERIFIED_IDENTITY_FIELDS:
-                    pending_oauth.pop(field, None)
+                if not grant.keep_identity_until_verified:
+                    for identity_field in _VERIFIED_IDENTITY_FIELDS:
+                        pending_oauth.pop(identity_field, None)
+                if (
+                    existing_connection_id
+                    and replaced_subject
+                    and locked_provider.callback_verification is None
+                ):
+                    pending_oauth[_REPLACED_SUBJECT] = replaced_subject
             oauth_config: dict[str, Any] = {
                 **pending_oauth,
                 "lifecycle_status": (
@@ -233,11 +307,15 @@ class OAuthGrantCommitter:
             verified_subject = _state_origin(state)
             if locked_provider.callback_verification is not None and verified_subject:
                 oauth_config["subject"] = verified_subject
-            settings = (
-                existing_config
-                if grant.connection_settings is None
-                else dict(grant.connection_settings)
-            )
+            if grant.connection_settings is None:
+                settings = existing_config
+            else:
+                settings = {
+                    key: value
+                    for key, value in existing_config.items()
+                    if key != "oauth" and key not in grant.replaced_setting_keys
+                }
+                settings.update(grant.connection_settings)
             connection_config = {**settings, "oauth": oauth_config}
             connection_values = {
                 "connection_id": connection_id,
@@ -300,23 +378,23 @@ class OAuthGrantCommitter:
                 return_page_id=return_page_id,
             )
         invocation, committed_revision, state = dispatched
-        post_connect_result = oauth_post_connect_result_from_invocation(invocation)
-        if not _apply_post_connect(
+        recorded = _apply_post_connect(
             state=state,
             connection_id=connection_id,
             expected_revision=committed_revision,
-            result=post_connect_result,
+            result=oauth_post_connect_result_from_invocation(invocation),
             repository=self._repository,
             transaction_factory=self._transaction_factory,
             install_loader=self._install_loader,
-        ):
+        )
+        if recorded is None:
             return OAuthCallbackResult(
                 outcome="restart_required",
                 connection_id=connection_id,
                 return_page_id=return_page_id,
             )
         return OAuthCallbackResult(
-            outcome=_post_connect_outcome(post_connect_result),
+            outcome=_post_connect_outcome(recorded),
             connection_id=connection_id,
             return_page_id=return_page_id,
         )

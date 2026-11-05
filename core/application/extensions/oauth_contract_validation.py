@@ -92,6 +92,9 @@ OAUTH_ERROR_CODES = {
     "provider_unavailable",
     "malformed_response",
     "internal_failure",
+    # A replacement grant verified as a different account than the connection's
+    # (ADR 0058); an extension may point help at it like any other code.
+    "subject_changed",
 }
 
 
