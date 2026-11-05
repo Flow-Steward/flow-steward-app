@@ -5164,6 +5164,9 @@ msgstr "Patikrinta ir parengta autorizacijai."
 msgid "react.extensions.oauth_import_conflict"
 msgstr "Šis ryšys pasikeitė, kol jį redagavote. Atnaujinkite puslapį ir bandykite dar kartą."
 
+msgid "react.extensions.oauth_import_conflict_token_rotated"
+msgstr "Paskyra neprijungta, nes tuo metu pasikeitė konfigūracija, o teikėjas galėjo pakeisti šį atnaujinimo raktą. Jei pakartotinis bandymas nepavyks, išduokite naują atnaujinimo raktą."
+
 msgid "react.extensions.oauth_import_connected"
 msgstr "Paskyra prijungta."
 
@@ -5199,6 +5202,9 @@ msgstr "Pakeisti atnaujinimo raktą"
 
 msgid "react.extensions.oauth_import_replace_value0"
 msgstr "Pakeisti {value0} atnaujinimo raktą"
+
+msgid "react.extensions.oauth_import_revision_missing"
+msgstr "Šio ryšio dabartinė versija nežinoma, todėl jo atnaujinimo rakto čia pakeisti negalima. Atnaujinkite puslapį ir bandykite dar kartą."
 
 msgid "react.extensions.oauth_import_scope_required"
 msgstr "Šis atnaujinimo raktas nesuteikia prieigos, kurios reikia šiam ryšiui. Išduokite naują raktą su reikiama prieiga."

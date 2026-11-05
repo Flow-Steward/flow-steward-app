@@ -102,7 +102,9 @@ function oauthConnectionRowView(
       "authorization_required",
       "disconnected",
       "reconnect_required",
-    ].includes(lifecycle),
+    ].includes(lifecycle)
+      // A rejected or mismatched imported token is repaired by pasting another.
+      || (isRefreshTokenImportProvider(provider) && lifecycle === "needs_attention" && !retryableLifecycle),
     retryablePostConnect:
       retryableLifecycle && isConfigurationReady(configuration),
   };

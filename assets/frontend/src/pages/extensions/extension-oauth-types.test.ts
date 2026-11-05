@@ -71,7 +71,8 @@ describe("compiled OAuth manifest projection", () => {
 
     const providers = oauthProvidersFromManifest({ oauth_providers: [imported, redirect] });
 
-    expect(providers).toEqual([imported]);
+    // Normalized: every optional collection is present on the declaration.
+    expect(providers).toEqual([{ ...imported, error_help_anchors: {} }]);
     expect(isRefreshTokenImportProvider(providers[0])).toBe(true);
     expect(isRefreshTokenImportProvider({ flow: { type: "authorization_code" } })).toBe(false);
     expect(isRefreshTokenImportProvider({})).toBe(false);

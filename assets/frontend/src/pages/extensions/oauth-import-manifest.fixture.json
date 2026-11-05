@@ -1,0 +1,212 @@
+{
+  "compiled": {
+    "connection_types": [
+      {
+        "auth": {
+          "provider_id": "console",
+          "scopes": {
+            "optional": [],
+            "required": []
+          },
+          "type": "oauth2"
+        },
+        "config_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "account_ref": {
+              "minLength": 1,
+              "title": "Account reference",
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_ref"
+          ],
+          "type": "object"
+        },
+        "connection_type_id": "console_account",
+        "display_name": "Console account"
+      }
+    ],
+    "extension_id": "fixture.oauth-import",
+    "oauth_providers": [
+      {
+        "credential_fields": [
+          {
+            "browser_exposable": false,
+            "change_policy": "reauthorization_required",
+            "field_id": "client_id",
+            "help_text": "Enter the application client ID.",
+            "label": "Client ID",
+            "required": true,
+            "secret": false,
+            "validation": {
+              "max_length": 512,
+              "min_length": 1
+            },
+            "value_type": "text"
+          },
+          {
+            "browser_exposable": false,
+            "change_policy": "runtime_revalidate",
+            "field_id": "client_secret",
+            "help_text": "Enter the application client secret.",
+            "label": "Client secret",
+            "required": true,
+            "secret": true,
+            "validation": {
+              "max_length": 4096,
+              "min_length": 1
+            },
+            "value_type": "secret"
+          }
+        ],
+        "description": "Connect with a refresh token issued in the provider console.",
+        "display_name": "Console Identity",
+        "flow": {
+          "type": "refresh_token_import"
+        },
+        "help_page_id": "oauth_help",
+        "post_connect_action_id": "verify_identity",
+        "provider_id": "console",
+        "setup_page_id": "oauth_setup",
+        "token_endpoint": {
+          "client_auth_method": "client_secret_post",
+          "url": "https://identity.example.test/token"
+        }
+      }
+    ],
+    "ui_manifest": {
+      "pages": [
+        {
+          "components": [],
+          "page_id": "oauth_setup",
+          "title": "Setup"
+        },
+        {
+          "components": [],
+          "page_id": "oauth_help",
+          "title": "Help"
+        },
+        {
+          "components": [
+            {
+              "data": {
+                "connection_type": "console_account",
+                "oauth_provider_id": "console",
+                "test_action": "test_connection"
+              },
+              "type": "connection_form"
+            }
+          ],
+          "page_id": "accounts",
+          "title": "Accounts"
+        }
+      ],
+      "version": "1"
+    }
+  },
+  "projected": {
+    "connection_types": [
+      {
+        "auth": {
+          "provider_id": "console",
+          "scopes": {
+            "optional": [],
+            "required": []
+          },
+          "type": "oauth2"
+        },
+        "config_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "account_ref": {
+              "minLength": 1,
+              "title": "Account reference",
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_ref"
+          ],
+          "type": "object"
+        },
+        "connection_type_id": "console_account",
+        "display_name": "Console account"
+      }
+    ],
+    "extension_id": "fixture.oauth-import",
+    "oauth_providers": [
+      {
+        "authorization_intents": [],
+        "credential_fields": [
+          {
+            "field_id": "client_id",
+            "help_text": "Enter the application client ID.",
+            "label": "Client ID",
+            "required": true,
+            "secret": false,
+            "validation": {
+              "max_length": 512,
+              "min_length": 1
+            },
+            "value_type": "text"
+          },
+          {
+            "field_id": "client_secret",
+            "help_text": "Enter the application client secret.",
+            "label": "Client secret",
+            "required": true,
+            "secret": true,
+            "validation": {
+              "max_length": 4096,
+              "min_length": 1
+            },
+            "value_type": "secret"
+          }
+        ],
+        "description": "Connect with a refresh token issued in the provider console.",
+        "display_name": "Console Identity",
+        "flow": {
+          "type": "refresh_token_import"
+        },
+        "help_page_id": "oauth_help",
+        "provider_id": "console",
+        "setup_page_id": "oauth_setup",
+        "token_endpoint": {
+          "client_auth_method": "client_secret_post",
+          "url": "https://identity.example.test/token"
+        }
+      }
+    ],
+    "ui_manifest": {
+      "pages": [
+        {
+          "components": [],
+          "page_id": "oauth_setup",
+          "title": "Setup"
+        },
+        {
+          "components": [],
+          "page_id": "oauth_help",
+          "title": "Help"
+        },
+        {
+          "components": [
+            {
+              "data": {
+                "connection_type": "console_account",
+                "oauth_provider_id": "console",
+                "test_action": "test_connection"
+              },
+              "type": "connection_form"
+            }
+          ],
+          "page_id": "accounts",
+          "title": "Accounts"
+        }
+      ],
+      "version": "1"
+    }
+  }
+}

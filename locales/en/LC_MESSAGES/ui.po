@@ -5074,6 +5074,9 @@ msgstr "Verified and ready for authorization."
 msgid "react.extensions.oauth_import_conflict"
 msgstr "This connection changed while you were editing. Refresh the page and try again."
 
+msgid "react.extensions.oauth_import_conflict_token_rotated"
+msgstr "The account was not connected because the configuration changed meanwhile, and the provider may have replaced this refresh token. If trying again fails, issue a new refresh token."
+
 msgid "react.extensions.oauth_import_connected"
 msgstr "Account connected."
 
@@ -5109,6 +5112,9 @@ msgstr "Replace refresh token"
 
 msgid "react.extensions.oauth_import_replace_value0"
 msgstr "Replace refresh token for {value0}"
+
+msgid "react.extensions.oauth_import_revision_missing"
+msgstr "This connection's current version is unknown, so its refresh token cannot be replaced here. Refresh the page and try again."
 
 msgid "react.extensions.oauth_import_scope_required"
 msgstr "This refresh token does not grant the access this connection needs. Issue a new one with the required access."

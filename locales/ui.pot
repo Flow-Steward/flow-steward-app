@@ -4914,6 +4914,9 @@ msgstr ""
 msgid "react.extensions.oauth_import_conflict"
 msgstr ""
 
+msgid "react.extensions.oauth_import_conflict_token_rotated"
+msgstr ""
+
 msgid "react.extensions.oauth_import_connected"
 msgstr ""
 
@@ -4948,6 +4951,9 @@ msgid "react.extensions.oauth_import_replace"
 msgstr ""
 
 msgid "react.extensions.oauth_import_replace_value0"
+msgstr ""
+
+msgid "react.extensions.oauth_import_revision_missing"
 msgstr ""
 
 msgid "react.extensions.oauth_import_scope_required"

@@ -79,6 +79,15 @@ function string(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * Providers as the setup page uses them, every optional collection present.
+ *
+ * The compiled manifest an administrator receives names no
+ * `authorization_intents` at all for a `refresh_token_import` provider (it has
+ * no redirect), and the projected one carries an empty list. Both must yield
+ * the same declaration, so arrays and maps are normalized here rather than
+ * assumed by every component that reads them.
+ */
 export function oauthProvidersFromManifest(value: unknown): OAuthProviderDeclaration[] {
   return rows(object(value).oauth_providers)
     .filter((provider) => {
@@ -102,7 +111,20 @@ export function oauthProvidersFromManifest(value: unknown): OAuthProviderDeclara
         )
         && intents.every((intent) => string(intent.intent_id)),
       );
-    }) as OAuthProviderDeclaration[];
+    })
+    .map((provider) => ({
+      ...provider,
+      error_help_anchors: Object.fromEntries(
+        Object.entries(object(provider.error_help_anchors))
+          .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      ),
+      ...(Object.keys(object(provider.flow)).length ? { flow: object(provider.flow) } : {}),
+      credential_fields: rows(provider.credential_fields),
+      authorization_intents: rows(provider.authorization_intents).map((intent) => ({
+        ...intent,
+        user_inputs: rows(intent.user_inputs),
+      })),
+    })) as unknown as OAuthProviderDeclaration[];
 }
 
 export function oauthConnectionTypesFromManifest(value: unknown): OAuthConnectionTypeDeclaration[] {

@@ -1,8 +1,14 @@
+import type { ComponentProps } from "react";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { AuthContext } from "@/lib/auth/context";
 import { HttpError } from "@/lib/http/errors";
+import { ExtensionDetailPanel } from "@/pages/extensions/extension-detail-panel";
+import { oauthProvidersFromManifest } from "@/pages/extensions/extension-oauth-types";
+import pinnedManifests from "@/pages/extensions/oauth-import-manifest.fixture.json";
 import {
   ensureExtensionOAuthRedirectUri,
   fetchExtensionOAuthConfigurations,
@@ -232,5 +238,160 @@ describe("refresh-token import connections", () => {
         screen.queryByRole("form", { name: "Replace refresh token for Existing account" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("refuses to replace a token when the row carries no valid credential revision", async () => {
+    const user = userEvent.setup();
+    renderImport({
+      connections: [
+        {
+          connection_id: "connection-existing",
+          display_name: "Existing account",
+          extension_install_id: "install-a",
+          oauth_provider_id: "console",
+          oauth_configuration_id: configuration.configuration_id,
+          connection_type: "console_account",
+          connection_config: { account_ref: "acct-old", oauth: { lifecycle_status: "authorization_required" } },
+        },
+      ],
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Replace refresh token for Existing account" }),
+    );
+    const form = screen.getByRole("form", { name: "Replace refresh token for Existing account" });
+    await user.type(refreshTokenInput(form), PASTED);
+
+    expect(within(form).getByRole("button", { name: "Replace refresh token" })).toBeDisabled();
+    expect(within(form).getByRole("alert")).toHaveTextContent("current version is unknown");
+    expect(mockedImport).not.toHaveBeenCalled();
+  });
+
+  it("sends only the declared settings, so a key it cannot render is never cleared", async () => {
+    const user = userEvent.setup();
+    renderImport({
+      connections: [
+        {
+          connection_id: "connection-existing",
+          display_name: "Existing account",
+          extension_install_id: "install-a",
+          oauth_provider_id: "console",
+          oauth_configuration_id: configuration.configuration_id,
+          connection_type: "console_account",
+          credential_revision: 3,
+          connection_config: {
+            account_ref: "acct-old",
+            legacy_key: "kept-by-the-server",
+            oauth: { lifecycle_status: "needs_attention", last_error_code: "subject_changed" },
+          },
+        },
+      ],
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Replace refresh token for Existing account" }),
+    );
+    const form = screen.getByRole("form", { name: "Replace refresh token for Existing account" });
+    await user.type(refreshTokenInput(form), PASTED);
+    await user.click(within(form).getByRole("button", { name: "Replace refresh token" }));
+
+    await waitFor(() => expect(mockedImport).toHaveBeenCalledTimes(1));
+    expect(mockedImport.mock.calls[0][1].connection_config).toEqual({ account_ref: "acct-old" });
+    expect(mockedImport.mock.calls[0][1].connection_credential_revision).toBe(3);
+  });
+});
+
+describe("the Connection page renders the manifest shapes Core actually emits", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedConfigurations.mockResolvedValue([configuration]);
+  });
+
+  it("normalizes a compiled import provider that names no intents", () => {
+    const compiled = pinnedManifests.compiled.oauth_providers[0] as Record<string, unknown>;
+    expect(compiled).not.toHaveProperty("authorization_intents");
+
+    const [provider] = oauthProvidersFromManifest(pinnedManifests.compiled);
+
+    expect(provider.authorization_intents).toEqual([]);
+    expect(provider.error_help_anchors).toEqual({});
+    expect(provider.flow).toEqual({ type: "refresh_token_import" });
+  });
+
+  it.each([
+    ["admin", "compiled"],
+    ["operator", "projected"],
+  ] as const)("renders the paste form for an %s from the %s manifest", async (role, shape) => {
+    const manifest = pinnedManifests[shape];
+    const pages = manifest.ui_manifest.pages as Record<string, unknown>[];
+    const accounts = pages.find((page) => page.page_id === "accounts");
+    const noop = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={{ session: { roles: [role] } } as never}>
+          <ExtensionDetailPanel
+            {...({
+              activationBlockedReason: "",
+              connectionCreationBlockedReason: "",
+              busyById: {},
+              callbackStatuses: {},
+              callbacksQuery: {},
+              componentErrors: {},
+              componentQueryData: {},
+              componentQueryParams: {},
+              detailStatus: "",
+              formValuesByComponent: {},
+              handleCallbackSetup: noop,
+              handleExternalResourcePickerBootstrap: async () => ({}),
+              handleHealthCheck: noop,
+              healthStatus: "",
+              handleManifestAction: noop,
+              handleProjectSelection: noop,
+              handleToggle: noop,
+              handleUninstall: noop,
+              archiveLifecycleAvailable: true,
+              onConnectionDelete: noop,
+              onConnectionOAuth: noop,
+              onConnectionOAuthDisconnect: noop,
+              pendingDisconnect: null,
+              onConnectionOAuthDisconnectConfirm: noop,
+              onConnectionOAuthDisconnectCancel: noop,
+              onOAuthConnectionsChanged: noop,
+              onConnectionSave: noop,
+              onConnectionSelect: noop,
+              onProjectStateDelete: noop,
+              onProjectStateSave: noop,
+              onProjectStateSelect: noop,
+              pageRequiresProject: false,
+              projectConnections: [],
+              projectConnectionsQuery: { isError: false, isPending: false, refetch: async () => undefined },
+              projectOptions: [],
+              projectState: [],
+              projectsQuery: { error: null, isError: false },
+              rememberedProjectId: "",
+              setActiveExtensionPageId: noop,
+              setComponentQueryParams: noop,
+              setFormValuesByComponent: noop,
+              onFieldCorrected: noop,
+            } as unknown as ComponentProps<typeof ExtensionDetailPanel>)}
+            activeManifestPage={accounts}
+            detailExtension={{ active: true, display_name: "Fixture", extension_id: manifest.extension_id } as never}
+            extensionInstallId="install-a"
+            manifestPages={pages}
+            manifestQuery={{ data: manifest, isError: false, isLoading: false }}
+            oauthConnectionTypes={["console_account"]}
+            oauthProviderReadiness={{ console: "ready" }}
+            selectedProjectId="project-a"
+          />
+        </AuthContext.Provider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Connect an account" })).toBeVisible();
+    expect(screen.getAllByLabelText("Refresh token")[0]).toBeInTheDocument();
+    expect(screen.getByLabelText(/Account reference/u)).toBeInTheDocument();
+    expect(mockedRedirect).not.toHaveBeenCalled();
   });
 });
