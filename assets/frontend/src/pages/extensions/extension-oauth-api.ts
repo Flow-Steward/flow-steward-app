@@ -68,6 +68,28 @@ export type OAuthAuthorizationStartResult = {
   redirect_uri: string;
 };
 
+/** Connect from a refresh token issued in the provider's console (ADR 0058). */
+export type OAuthRefreshTokenImportCommand = {
+  configuration_id: string;
+  connection_type: string;
+  display_name: string;
+  /** Write-only: sent once, never returned. */
+  refresh_token: string;
+  connection_config: Record<string, unknown>;
+  existing_connection_id?: string;
+  connection_credential_revision?: number;
+};
+
+export type OAuthRefreshTokenImportResult = {
+  outcome: "connected" | "needs_attention" | "authorization_required" | "restart_required";
+  connection_id: string;
+  connection_type: string;
+  help_target?: {
+    page_id: string;
+    anchor?: string;
+  };
+};
+
 export type OAuthPostConnectRetryResult = {
   outcome:
     | "connected"
@@ -130,6 +152,16 @@ export function startExtensionOAuthAuthorization(
   command: OAuthAuthorizationStart,
 ) {
   return fetchJson<OAuthAuthorizationStartResult>(`${prefix(scope)}/authorization`, {
+    method: "POST",
+    body: JSON.stringify(command),
+  });
+}
+
+export function importExtensionOAuthRefreshToken(
+  scope: ExtensionOAuthScope,
+  command: OAuthRefreshTokenImportCommand,
+) {
+  return fetchJson<OAuthRefreshTokenImportResult>(`${prefix(scope)}/connections/import`, {
     method: "POST",
     body: JSON.stringify(command),
   });

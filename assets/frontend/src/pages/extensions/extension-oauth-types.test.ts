@@ -1,4 +1,5 @@
 import {
+  isRefreshTokenImportProvider,
   oauthConnectionTypesFromManifest,
   oauthProvidersFromManifest,
 } from "@/pages/extensions/extension-oauth-types";
@@ -45,5 +46,34 @@ describe("compiled OAuth manifest projection", () => {
   it("fails closed for raw or incomplete declarations", () => {
     expect(oauthProvidersFromManifest({ oauth_providers: [{ provider_id: "partial" }] })).toEqual([]);
     expect(oauthConnectionTypesFromManifest({ connection_types: "contracts/connections.yaml" })).toEqual([]);
+  });
+
+  it("keeps an import provider without intents and still drops a redirect provider without them", () => {
+    const credentialFields = [
+      {
+        field_id: "client_id",
+        value_type: "text",
+        required: true,
+        secret: false,
+        label: "Client ID",
+        help_text: "Declared help",
+      },
+    ];
+    const imported = {
+      provider_id: "console",
+      display_name: "Console",
+      setup_page_id: "oauth_setup",
+      flow: { type: "refresh_token_import" },
+      credential_fields: credentialFields,
+      authorization_intents: [],
+    };
+    const redirect = { ...imported, provider_id: "redirect", flow: { type: "authorization_code" } };
+
+    const providers = oauthProvidersFromManifest({ oauth_providers: [imported, redirect] });
+
+    expect(providers).toEqual([imported]);
+    expect(isRefreshTokenImportProvider(providers[0])).toBe(true);
+    expect(isRefreshTokenImportProvider({ flow: { type: "authorization_code" } })).toBe(false);
+    expect(isRefreshTokenImportProvider({})).toBe(false);
   });
 });

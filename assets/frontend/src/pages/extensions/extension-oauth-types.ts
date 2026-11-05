@@ -34,9 +34,18 @@ export type OAuthProviderDeclaration = {
   setup_page_id: string;
   help_page_id?: string;
   error_help_anchors?: Readonly<Record<string, string>>;
+  /** `authorization_code` redirects; `refresh_token_import` takes a pasted token (ADR 0058). */
+  flow?: { type?: string; pkce?: string };
   credential_fields: readonly OAuthCredentialFieldDeclaration[];
   authorization_intents: readonly OAuthAuthorizationIntentDeclaration[];
 };
+
+export const REFRESH_TOKEN_IMPORT_FLOW = "refresh_token_import";
+
+/** A provider whose grant starts from a refresh token the operator pastes. */
+export function isRefreshTokenImportProvider(provider: Pick<OAuthProviderDeclaration, "flow">): boolean {
+  return provider.flow?.type === REFRESH_TOKEN_IMPORT_FLOW;
+}
 
 export type OAuthConnectionTypeDeclaration = {
   connection_type_id: string;
@@ -50,6 +59,8 @@ export type OAuthConnectionTypeDeclaration = {
       optional?: readonly string[];
     };
   };
+  /** The connection's non-secret settings, validated by the server on save. */
+  config_schema?: Record<string, unknown>;
 };
 
 function object(value: unknown): Record<string, unknown> {
@@ -73,12 +84,14 @@ export function oauthProvidersFromManifest(value: unknown): OAuthProviderDeclara
     .filter((provider) => {
       const credentialFields = rows(provider.credential_fields);
       const intents = rows(provider.authorization_intents);
+      // An import provider has no redirect and so no authorization intents.
+      const imported = string(object(provider.flow).type) === REFRESH_TOKEN_IMPORT_FLOW;
       return Boolean(
         string(provider.provider_id)
         && string(provider.display_name)
         && string(provider.setup_page_id)
         && credentialFields.length
-        && intents.length
+        && (intents.length || imported)
         && credentialFields.every((field) =>
           string(field.field_id)
           && string(field.value_type)

@@ -5161,6 +5161,48 @@ msgstr "Atnaujinta: {name}, iš {old} į {new}."
 msgid "react.extensions.oauth_final_verified_guidance"
 msgstr "Patikrinta ir parengta autorizacijai."
 
+msgid "react.extensions.oauth_import_conflict"
+msgstr "Šis ryšys pasikeitė, kol jį redagavote. Atnaujinkite puslapį ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_connected"
+msgstr "Paskyra prijungta."
+
+msgid "react.extensions.oauth_import_connecting"
+msgstr "Jungiama…"
+
+msgid "react.extensions.oauth_import_failed"
+msgstr "Paskyros prijungti nepavyko. Patikrinkite reikšmes ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_invalid_client"
+msgstr "Teikėjas nepriėmė šios konfigūracijos kliento prisijungimo duomenų. Pataisykite konfigūraciją sąrankoje ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_provider_unavailable"
+msgstr "Nepavyko pasiekti teikėjo. Bandykite vėliau."
+
+msgid "react.extensions.oauth_import_refresh_token"
+msgstr "Atnaujinimo raktas"
+
+msgid "react.extensions.oauth_import_refresh_token_format"
+msgstr "Įklijuokite atnaujinimo raktą tiksliai taip, kaip jis buvo išduotas, be tarpų."
+
+msgid "react.extensions.oauth_import_refresh_token_help"
+msgstr "Įklijuokite teikėjo konsolėje išduotą atnaujinimo raktą. Jis saugomas užšifruotas ir daugiau nerodomas."
+
+msgid "react.extensions.oauth_import_refresh_token_rejected"
+msgstr "Teikėjas nepriėmė šio atnaujinimo rakto. Patikrinkite jį ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_refresh_token_required"
+msgstr "Atnaujinimo raktas yra privalomas."
+
+msgid "react.extensions.oauth_import_replace"
+msgstr "Pakeisti atnaujinimo raktą"
+
+msgid "react.extensions.oauth_import_replace_value0"
+msgstr "Pakeisti {value0} atnaujinimo raktą"
+
+msgid "react.extensions.oauth_import_scope_required"
+msgstr "Šis atnaujinimo raktas nesuteikia prieigos, kurios reikia šiam ryšiui. Išduokite naują raktą su reikiama prieiga."
+
 msgid "react.extensions.oauth_redirect_uri"
 msgstr "OAuth peradresavimo URI"
 
