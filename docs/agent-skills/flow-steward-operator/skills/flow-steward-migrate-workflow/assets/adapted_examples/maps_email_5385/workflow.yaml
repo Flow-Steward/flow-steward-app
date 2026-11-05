@@ -1842,8 +1842,7 @@ dependencies:
     metadata:
       binding_required: true
       reference_kind: template_local_symbol_not_a_real_installation_id
-      extension_id: flowsteward.google-workspace
-      published_version: 0.3.1
+      # Resolve this symbol with map_existing to a discovered registry action.
       operation_id: append_google_sheet_rows
       contract_evidence: logs/workflow-migration/batch-15/workspace-operations.yaml
       installed_argument_schema: unverified; function_name dispatch and result.* output

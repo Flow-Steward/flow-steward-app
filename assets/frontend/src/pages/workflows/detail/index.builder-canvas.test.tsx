@@ -323,6 +323,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     expectBlankRoutingEditorAndFill(kind);
     fireEvent.change(screen.getByRole("textbox", { name: "Step label" }), { target: { value: label } });
     fireEvent.click(screen.getByRole("button", { name: "Update new step" }));
+    expect(await screen.findByRole("button", { name: "Updated" })).toBeDisabled();
     expect(postedChangeSets()).toEqual([]);
 
     mockedFetchWorkflowDetail.mockResolvedValue(appliedDetail);
@@ -687,6 +688,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Step kind" }), { target: { value: kind } });
     expectBlankRoutingEditorAndFill(kind);
     fireEvent.click(screen.getByRole("button", { name: "Add step to changes" }));
+    await screen.findByRole("button", { name: "Update new step" });
     expect(postedChangeSets()).toEqual([]);
 
     mockedFetchWorkflowDetail.mockResolvedValue(appliedDetail);

@@ -992,6 +992,7 @@ describe("WorkflowsBuilderPage", () => {
     // The choice created the canonical local node already. Saving its fields
     // updates that staged create operation and retains its generated identity.
     fireEvent.click(await screen.findByRole("button", { name: "Update new step" }));
+    expect(await screen.findByRole("button", { name: "Updated" })).toBeDisabled();
   }
 
   it("adds a root step to the unapplied structure, dry-runs it, and warns before leaving with it", async () => {

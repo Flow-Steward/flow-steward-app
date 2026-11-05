@@ -889,7 +889,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-app:0.9.10",
+      "default": "flow-steward-app:0.9.11",
       "owner": "images"
     },
     {
@@ -2226,7 +2226,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-control:0.9.10",
+      "default": "flow-steward-control:0.9.11",
       "owner": "images"
     },
     {
@@ -3359,7 +3359,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-frontend:0.9.10",
+      "default": "flow-steward-frontend:0.9.11",
       "owner": "images",
       "notes": "Optional development frontend image; production application images already contain the built frontend shell."
     },
@@ -6541,7 +6541,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-worker:0.9.10",
+      "default": "flow-steward-worker:0.9.11",
       "owner": "images"
     },
     {
@@ -6936,7 +6936,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-mcp:0.9.10",
+      "default": "flow-steward-mcp:0.9.11",
       "owner": "images"
     },
     {

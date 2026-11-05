@@ -15,6 +15,7 @@ from core.application.management.errors import ServiceNotFoundError
 from core.application.management.scope import ScopeContext
 
 from .command_context import ExtensionCommandContext
+from .command_install_projection import _denied_token
 from .lifecycle_ports import require_role as _require_role
 from .service_support import (
     _normalize_text,
@@ -355,10 +356,10 @@ class ExtensionInstallRuntimeService:
             project_id=command.project_id,
         )
         if denial_reason:
-            return self._denied_token(command, install=install, reason=denial_reason)
+            return _denied_token(command, install=install, reason=denial_reason)
         secret = _token_secret()
         if not secret:
-            return self._denied_token(
+            return _denied_token(
                 command,
                 install=install,
                 reason="Runtime token signing secret is not configured",
@@ -375,20 +376,6 @@ class ExtensionInstallRuntimeService:
         from core.application.management.guards import require_project_access
 
         require_project_access(scope, project)
-
-    @staticmethod
-    def _denied_token(
-        command: ExtensionRuntimeTokenInput,
-        *,
-        install: Any,
-        reason: str,
-    ) -> ExtensionRuntimeTokenResultView:
-        return ExtensionRuntimeTokenResultView(
-            issued=False,
-            install_id=install.install_id,
-            ttl_seconds=max(0, int(command.ttl_seconds or 0)),
-            reason=reason,
-        )
 
     @staticmethod
     def _mint_token(

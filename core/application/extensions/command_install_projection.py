@@ -2,11 +2,30 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.application.management.command_models import (
+    ExtensionRuntimeTokenInput,
+    ExtensionRuntimeTokenResultView,
+)
 from core.application.management.errors import ServiceConflictError
 
 from .command_context import ExtensionCommandContext
 from .extension_runtime import ExtensionRegistryProjectionRecord
 from .service_support import _normalize_text
+
+
+def _denied_token(
+    command: ExtensionRuntimeTokenInput,
+    *,
+    install: Any,
+    reason: str,
+) -> ExtensionRuntimeTokenResultView:
+    """Project a refused runtime-token command without changing its TTL or reason."""
+    return ExtensionRuntimeTokenResultView(
+        issued=False,
+        install_id=install.install_id,
+        ttl_seconds=max(0, int(command.ttl_seconds or 0)),
+        reason=reason,
+    )
 
 
 class ExtensionInstallProjectionService:

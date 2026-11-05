@@ -103,8 +103,9 @@ def test_policy_update_role_matrix(client, role, expected_status):
 Each executable quality check has one owning tier in
 `infra/tooling/quality/check-registry.json`. Higher tiers execute their delta;
 they do not rerun checks owned by lower tiers. A matching fingerprint may reuse
-checksummed evidence. All tiers run in Docker through the canonical registry;
-final verification must identify the exact commit SHA and candidate environment.
+checksummed evidence. All tiers run in local Docker through the canonical registry
+by default. Explicitly requested hosted runs use the same container and registry.
+Final verification must identify the exact commit SHA and candidate environment.
 Ordinary verification, including release preparation, `MUST` select checks from
 the diff and known dependency chains. Full, heavy, nightly and Sonar runs require
 a separate explicit request; handoff, merge and publication do not authorize
@@ -220,6 +221,7 @@ Ordinary Tier 3 selects affected registry-owned checks through existing `--check
 ### Release verification
 
 - `MUST` verify the release diff and known related behavior, recording the final SHA, exact commands, selected checks and unrun coverage. Publication `MUST NOT` start or require a new full gate implicitly.
+- Release-version, image-default and packaged database-artifact changes `MUST` include focused version-consistency and affected migration/image-packaging contracts in Tier 1 before any separately requested broad gate, including `tests/unit/test_platform_version_consistency.py`.
 - When the user explicitly requests complete Tier 2/Tier 3 acceptance, only complete matching evidence may be called a full pass. The Tier 3 delta or a targeted pass alone cannot establish it; a failed full gate stays failed after a partial retry.
 - `MUST` run integration/E2E and candidate smoke checks when required by the changed runtime contract, recording image digests, compose project, and environment.
 - Additional deep audit checks `MAY` be selected explicitly with `lint.sh --checks`; they are not a fourth tier or a GitHub prerequisite.
