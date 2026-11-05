@@ -600,6 +600,30 @@ For OAuth-backed connections:
 - Put access tokens in runtime secrets.
 - Do not expose refresh tokens to extension handlers.
 
+When the provider issues the refresh token in its own console (no redirect the
+platform can take part in), declare the provider with
+`flow: {type: refresh_token_import}` instead (ADR 0058). Such a provider declares
+`display_name`, `description`, `setup_page_id`, `help_page_id`, `credential_fields`
+and `token_endpoint`, optionally `error_help_anchors`, `post_connect_action_id` and
+`revocation_endpoint`, and nothing about a redirect: `authorization_endpoint`,
+`callback_id`, `authorization_intents`, `origin_binding`, `code_exchange`,
+`callback_verification`, `scope_separator` and `flow.pkce` are refused, and
+`unique_subject_per_configuration` must stay false. Its connection types may leave
+`scopes.required` empty; Core then records no granted scopes. The operator pastes
+the token into the setup page together with the connection type's `config_schema`
+settings; Core exchanges it once with `grant_type=refresh_token`, stores it
+encrypted, and refreshes it afterwards exactly like an authorization-code grant.
+A page's `connection_form` for such a provider names `oauth_provider_id` and
+`connection_type` and no `oauth_intent`.
+
+- Never ask for the refresh token or the client secret as an ordinary connection
+  secret, and never mint access tokens in extension code.
+- Make the `post_connect_action_id` action verify the entered settings: its target
+  carries `connection.config` (the settings plus the closed `oauth` fields) and
+  `connection.secrets.access_token`, so it can confirm with the provider which
+  account the token is for. The settings the operator typed are not identity.
+- Keep provider names, endpoints and fields in the extension; Core stays neutral.
+
 Runtime handlers should read only the connection-scoped secret values they need
 from `action.target.connection.secrets`.
 
