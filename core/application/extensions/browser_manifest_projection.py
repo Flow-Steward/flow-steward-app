@@ -68,15 +68,19 @@ def _public_oauth_providers(raw_providers: Any) -> list[dict[str, Any]]:
                 "setup_page_id",
                 "help_page_id",
                 "error_help_anchors",
-                # Tells the setup page whether to show an authorize button or a
-                # paste-token form (ADR 0058). The type only, never a credential.
-                "flow",
                 "authorization_endpoint",
                 "token_endpoint",
                 "revocation_endpoint",
             )
             if key in raw_provider
         }
+        # The flow type tells the setup page whether to show an authorize button
+        # or a paste-token form (ADR 0058). The type only: the rest of the flow
+        # is protocol detail the browser has no use for.
+        raw_flow = raw_provider.get("flow")
+        flow_type = raw_flow.get("type") if isinstance(raw_flow, dict) else None
+        if isinstance(flow_type, str) and flow_type:
+            provider["flow"] = {"type": flow_type}
         credential_fields: list[dict[str, Any]] = []
         for raw_field in raw_provider.get("credential_fields") or []:
             if not isinstance(raw_field, dict):
