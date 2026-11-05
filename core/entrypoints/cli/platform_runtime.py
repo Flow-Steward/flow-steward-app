@@ -174,12 +174,9 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
             raise ValueError("backup-verify requires --backup")
         command = ["backup", "verify", str(args.backup)]
     elif args.operation == "release-upgrade":
-        command = [
-            "release",
-            "upgrade",
-            "--timeout-seconds",
-            str(args.timeout_seconds or 60),
-        ]
+        command = ["release", "upgrade"]
+        if args.timeout_seconds is not None:
+            command.extend(("--timeout-seconds", str(args.timeout_seconds)))
         if args.target_version:
             command.extend(("--target-version", args.target_version))
         if args.dry_run:

@@ -50,13 +50,15 @@ def test_platform_runtime_accepts_only_fixed_operations() -> None:
         "backups/restore/compact.json",
         "--confirm",
     ]
+    release_without_timeout = _parser().parse_args(["release-upgrade"])
+    assert _canonical_argv(release_without_timeout) == ["release", "upgrade"]
     release = _parser().parse_args(
         [
             "release-upgrade",
             "--target-version",
             "1.2.3",
             "--timeout-seconds",
-            "120",
+            "600",
             "--dry-run",
             "--confirm",
             "--json",
@@ -71,7 +73,7 @@ def test_platform_runtime_accepts_only_fixed_operations() -> None:
         "release",
         "upgrade",
         "--timeout-seconds",
-        "120",
+        "600",
         "--target-version",
         "1.2.3",
         "--dry-run",

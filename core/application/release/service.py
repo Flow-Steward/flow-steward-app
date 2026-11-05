@@ -84,7 +84,7 @@ class ReleaseUpgradeRequest(_ClosedModel):
 
     target_version: str = ""
     dry_run: bool = False
-    timeout_seconds: int = Field(default=60, ge=1, le=3600)
+    timeout_seconds: int = Field(default=180, ge=1, le=3600)
 
     @model_validator(mode="after")
     def validate_target_version(self) -> Self:
@@ -132,7 +132,9 @@ class PreparedReleaseUpgrade(_ClosedModel):
     deployment_profile: DeploymentProfile
     platform: ReleasePlatform
     dry_run: bool = False
-    timeout_seconds: int = Field(default=60, ge=1, le=3600)
+    timeout_seconds: int = Field(
+        default=ReleaseUpgradeRequest.model_fields["timeout_seconds"].default, ge=1, le=3600
+    )
 
     @model_validator(mode="after")
     def validate_origin_binding(self) -> Self:

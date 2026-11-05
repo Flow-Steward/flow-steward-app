@@ -165,7 +165,7 @@ def _app() -> tuple[Any, _Runtime]:
     return build_click_app(ServiceRegistry(cast(Any, runtime)), SimpleNamespace()), runtime
 
 
-def _real_service_app(*, outcome: str) -> Any:
+def _real_service_app(*, outcome: str, expected_timeout_seconds: int = 180) -> Any:
     installed = _release_identity("1.0.0")
     target = _release_identity("2.0.0")
     published = PublishedRelease(
@@ -205,7 +205,7 @@ def _real_service_app(*, outcome: str) -> Any:
     class Activator:
         def activate(self, release, *, timeout_seconds, **_kwargs):
             assert release == target
-            assert timeout_seconds == 60
+            assert timeout_seconds == expected_timeout_seconds
             if outcome == "migration_required":
                 return ReleaseResult(
                     status="migration_required",
@@ -261,7 +261,9 @@ def test_release_specs_are_exact_and_closed() -> None:
         "dry_run": "--dry-run",
         "timeout_seconds": "--timeout-seconds",
     }
-    assert upgrade.fields[2].default == 60
+    assert upgrade.fields[2].default == 180
+    assert ReleaseUpgradeRequest().timeout_seconds == 180
+    assert PreparedReleaseUpgrade.model_fields["timeout_seconds"].default == 180
     assert upgrade.fields[2].advanced is True
 
 
@@ -342,7 +344,14 @@ def test_release_json_reports_unsupported_host_architecture_actionably(
     assert "Linux amd64 or arm64" in error["hint"]
 
 
-def test_upgrade_requires_review_and_forwards_exact_typed_request() -> None:
+@pytest.mark.parametrize(
+    ("timeout_args", "expected_timeout_seconds"),
+    [((), 180), (("--timeout-seconds", "600"), 600)],
+    ids=["default", "explicit"],
+)
+def test_upgrade_requires_review_and_forwards_exact_typed_request(
+    timeout_args: tuple[str, ...], expected_timeout_seconds: int
+) -> None:
     app, runtime = _app()
     runner = CliRunner()
 
@@ -357,8 +366,7 @@ def test_upgrade_requires_review_and_forwards_exact_typed_request() -> None:
             "upgrade",
             "--target-version",
             "2.0.0",
-            "--timeout-seconds",
-            "90",
+            *timeout_args,
             "--non-interactive",
             "--confirm",
             "--json",
@@ -374,7 +382,7 @@ def test_upgrade_requires_review_and_forwards_exact_typed_request() -> None:
     request = runtime.release_service.calls[-1][1]
     assert isinstance(request, PreparedReleaseUpgrade)
     assert request.target_release.version == "2.0.0"
-    assert request.timeout_seconds == 90
+    assert request.timeout_seconds == expected_timeout_seconds
     assert request.dry_run is False
 
 
@@ -472,10 +480,17 @@ def test_real_release_service_migration_json_keeps_maintenance_enabled() -> None
     assert "maintenance disable" not in json.dumps(details)
 
 
-def test_real_release_service_success_json_reports_target_as_current() -> None:
+@pytest.mark.parametrize(
+    ("timeout_args", "expected_timeout_seconds"),
+    [((), 180), (("--timeout-seconds", "600"), 600)],
+    ids=["default", "explicit"],
+)
+def test_real_release_service_success_json_reports_target_as_current(
+    timeout_args: tuple[str, ...], expected_timeout_seconds: int
+) -> None:
     result = CliRunner().invoke(
-        _real_service_app(outcome="upgraded"),
-        ["release", "upgrade", "--non-interactive", "--confirm", "--json"],
+        _real_service_app(outcome="upgraded", expected_timeout_seconds=expected_timeout_seconds),
+        ["release", "upgrade", *timeout_args, "--non-interactive", "--confirm", "--json"],
     )
 
     assert result.exit_code == 0, result.output
@@ -484,12 +499,19 @@ def test_real_release_service_success_json_reports_target_as_current() -> None:
     assert payload["current_release"]["version"] == "2.0.0"
 
 
-def test_release_preview_preserves_the_exact_typed_execution_input() -> None:
+@pytest.mark.parametrize(
+    ("timeout_kwargs", "expected_timeout_seconds"),
+    [({}, 180), ({"timeout_seconds": 600}, 600)],
+    ids=["default", "explicit"],
+)
+def test_release_preview_preserves_the_exact_typed_execution_input(
+    timeout_kwargs: dict[str, int], expected_timeout_seconds: int
+) -> None:
     import asyncio
 
     runtime = _Runtime()
     registry = ServiceRegistry(cast(Any, runtime))
-    request = ReleaseUpgradeRequest(target_version="2.0.0", dry_run=True)
+    request = ReleaseUpgradeRequest(target_version="2.0.0", dry_run=True, **timeout_kwargs)
 
     prepared = asyncio.run(registry.build_plan("release.upgrade.preview", request))
 
@@ -497,6 +519,8 @@ def test_release_preview_preserves_the_exact_typed_execution_input() -> None:
     assert isinstance(prepared.execution_input, PreparedReleaseUpgrade)
     assert prepared.execution_input.target_release.version == "2.0.0"
     assert prepared.execution_input.dry_run is True
+    assert request.timeout_seconds == expected_timeout_seconds
+    assert prepared.execution_input.timeout_seconds == expected_timeout_seconds
     assert prepared.review["active_environment"] == "development (unchanged)"
     assert prepared.review["backup_gate"] == "verified before the first mutation"
     assert prepared.review["next_steps"] == ["flow-steward maintenance disable --confirm"]
