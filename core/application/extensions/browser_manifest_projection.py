@@ -68,6 +68,9 @@ def _public_oauth_providers(raw_providers: Any) -> list[dict[str, Any]]:
                 "setup_page_id",
                 "help_page_id",
                 "error_help_anchors",
+                # Tells the setup page whether to show an authorize button or a
+                # paste-token form (ADR 0058). The type only, never a credential.
+                "flow",
                 "authorization_endpoint",
                 "token_endpoint",
                 "revocation_endpoint",

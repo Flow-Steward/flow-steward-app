@@ -4,6 +4,9 @@ from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from typing import Any
 
+from core.application.extensions.oauth_connection_runtime_config import (
+    runtime_connection_config,
+)
 from core.application.extensions.oauth_contract import (
     provider_revocation_fingerprint,
     provider_security_fingerprint,
@@ -123,6 +126,7 @@ def _dispatch_post_connect(
                     "authorization_revision": configuration.get("authorization_revision"),
                     "provider_security_fingerprint": provider_security_fingerprint(provider),
                     "callback_id": provider.callback_id,
+                    "flow_type": provider.flow_type,
                 }
                 if refresh_state
                 else state
@@ -174,6 +178,11 @@ def _dispatch_post_connect(
                         "connection_id": connection_id,
                         "connection": {
                             "connection_id": connection_id,
+                            # The same non-secret projection an ordinary operation
+                            # receives, so the action can check settings the
+                            # operator entered (an account or a region, say)
+                            # against what the provider says the token is for.
+                            "config": runtime_connection_config(connection),
                             "secrets": {"access_token": access_token},
                         },
                     },

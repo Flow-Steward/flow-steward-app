@@ -9,33 +9,7 @@ from core.infrastructure.db import project_connection_store
 from core.infrastructure.db.db_pool import transaction_connection
 
 from .lifecycle_ports import require_project_access
-
-_RUNTIME_OAUTH_CONFIG_FIELDS = frozenset(
-    {
-        "authorization_intent_id",
-        "last_error_code",
-        "lifecycle_status",
-        "safe_metadata",
-        "subject",
-        "token_type",
-        "verified_display_name",
-        "verified_email",
-    }
-)
-
-
-def _runtime_connection_config(connection: dict[str, Any]) -> dict[str, Any]:
-    """Project only closed, non-secret connection metadata to an extension action."""
-    raw = connection.get("connection_config")
-    config = dict(raw) if isinstance(raw, dict) else {}
-    raw_oauth = config.get("oauth")
-    oauth = dict(raw_oauth) if isinstance(raw_oauth, dict) else {}
-    return {
-        **{key: value for key, value in config.items() if key != "oauth"},
-        "oauth": {
-            key: value for key, value in oauth.items() if key in _RUNTIME_OAUTH_CONFIG_FIELDS
-        },
-    }
+from .oauth_connection_runtime_config import runtime_connection_config
 
 
 def _browser_oauth_configuration(bl: Any, *, connection: dict[str, Any]) -> dict[str, str]:
@@ -365,7 +339,7 @@ def _direct_action_connection_target(
         and str(connection.get("oauth_provider_id") or "").strip()
     )
     if extension_oauth:
-        runtime_config = _runtime_connection_config(connection)
+        runtime_config = runtime_connection_config(connection)
         browser_target = {
             "connection_id": str(connection.get("connection_id") or "").strip(),
             "account_id": str(connection.get("account_id") or "").strip(),

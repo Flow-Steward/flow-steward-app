@@ -351,6 +351,7 @@ def _validate_oauth_scopes(
     *,
     path: str,
     errors: list[dict[str, str]],
+    allow_empty_required: bool = False,
 ) -> None:
     if not isinstance(value, dict):
         _error(
@@ -370,7 +371,9 @@ def _validate_oauth_scopes(
         path=f"{path}.optional",
         errors=errors,
     )
-    if not required_scopes:
+    # A provider whose refresh token is pasted (ADR 0058) may grant without
+    # naming scopes; Core then records none rather than inventing them.
+    if not required_scopes and not allow_empty_required:
         _error(
             errors,
             path=f"{path}.required",
@@ -435,6 +438,7 @@ def _validate_connection_type_auth(
     oauth_provider_ids: set[str],
     idx: int,
     errors: list[dict[str, str]],
+    import_oauth_provider_ids: frozenset[str] = frozenset(),
 ) -> None:
     auth_value = connection_type.get("auth")
     if auth_value in (None, ""):
@@ -474,6 +478,7 @@ def _validate_connection_type_auth(
             auth.get("scopes"),
             path=f"{path_prefix}.scopes",
             errors=errors,
+            allow_empty_required=provider_id in import_oauth_provider_ids,
         )
         return
 

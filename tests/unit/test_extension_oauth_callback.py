@@ -929,6 +929,15 @@ def test_post_connect_runs_after_grant_commit_under_install_barrier_with_only_ac
         "connection_id": "connection-new",
         "connection": {
             "connection_id": "connection-new",
+            # The non-secret projection an ordinary operation receives: the
+            # extension's settings plus the closed oauth fields, nothing else.
+            "config": {
+                "oauth": {
+                    "lifecycle_status": "post_connect_pending",
+                    "token_type": "Bearer",
+                    "authorization_intent_id": "connect",
+                }
+            },
             "secrets": {"access_token": "access-token-canary"},
         },
     }

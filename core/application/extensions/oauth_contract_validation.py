@@ -13,6 +13,9 @@ from core.application.extensions.extension_contract_v2_common import (
     _normalize_lower,
 )
 from core.application.extensions.oauth_contract_models import (
+    FLOW_AUTHORIZATION_CODE,
+    FLOW_REFRESH_TOKEN_IMPORT,
+    OAUTH_FLOW_TYPES,
     ORIGIN_LABEL_CHARSETS,
     OAuthCallbackVerification,
     OAuthCodeExchangeProfile,
@@ -140,6 +143,21 @@ PROVIDER_KEYS = {
 
 
 FLOW_KEYS = {"pkce", "type"}
+
+
+#: Keys a `refresh_token_import` provider must not declare. Each one describes a
+#: redirect, a callback, a tenant host or an exchange profile, and an imported
+#: refresh token has none of those (ADR 0058). Refusing them, rather than
+#: ignoring them, keeps an author from shipping a rule that never runs.
+IMPORT_FLOW_FORBIDDEN_KEYS = (
+    "authorization_endpoint",
+    "authorization_intents",
+    "callback_id",
+    "callback_verification",
+    "code_exchange",
+    "origin_binding",
+    "scope_separator",
+)
 
 
 CREDENTIAL_FIELD_KEYS = {
@@ -351,6 +369,61 @@ def _reject_unknown_keys(
             message=f"Unknown OAuth contract key '{key}'",
             code="unknown_oauth_contract_key",
         )
+
+
+def _flow_scoped_row(
+    errors: list[dict[str, str]],
+    *,
+    raw: dict[str, Any],
+    path: str,
+) -> tuple[str, dict[str, Any]]:
+    """The provider's flow type and the declaration the rest of compilation reads.
+
+    An import provider is checked for every redirect-only key here, once, and
+    those keys are then dropped, so the shared checks downstream neither demand
+    them nor report them a second time.
+    """
+    flow_value = raw.get("flow")
+    flow = flow_value if isinstance(flow_value, dict) else {}
+    _reject_unknown_keys(errors, path=f"{path}.flow", value=flow, allowed=FLOW_KEYS)
+    flow_type = _normalize_lower(flow.get("type"))
+    if flow_type not in OAUTH_FLOW_TYPES:
+        _error(
+            errors,
+            path=f"{path}.flow",
+            message="OAuth providers require the authorization_code or refresh_token_import flow",
+            code="invalid_oauth_flow",
+        )
+        return FLOW_AUTHORIZATION_CODE, raw
+    if flow_type != FLOW_REFRESH_TOKEN_IMPORT:
+        return flow_type, raw
+    if "pkce" in flow:
+        _error(
+            errors,
+            path=f"{path}.flow.pkce",
+            message="An imported refresh token has no redirect for PKCE to protect",
+            code="invalid_oauth_flow",
+        )
+    for key in IMPORT_FLOW_FORBIDDEN_KEYS:
+        if key in raw:
+            _error(
+                errors,
+                path=f"{path}.{key}",
+                message=f"'{key}' does not apply to the refresh_token_import flow",
+                code="oauth_key_not_allowed_for_flow",
+            )
+    if raw.get("unique_subject_per_configuration") is True:
+        # The subject is known only once the post-connect action has run, which
+        # is after the grant it would have to serialize.
+        _error(
+            errors,
+            path=f"{path}.unique_subject_per_configuration",
+            message="unique_subject_per_configuration must be false for refresh_token_import",
+            code="invalid_oauth_unique_subject",
+        )
+    return flow_type, {
+        key: value for key, value in raw.items() if key not in IMPORT_FLOW_FORBIDDEN_KEYS
+    }
 
 
 def _valid_oauth_id(value: str) -> bool:

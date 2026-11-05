@@ -23,6 +23,7 @@ from core.application.extensions.extension_contract_v2_common import (
     _error,
     _normalize_lower,
 )
+from core.application.extensions.oauth_contract_models import FLOW_REFRESH_TOKEN_IMPORT
 
 
 def _validate_ids_and_references(
@@ -35,6 +36,13 @@ def _validate_ids_and_references(
         id_field="provider_id",
         path_prefix="extension_contract_v2.oauth_providers",
         errors=errors,
+    )
+    # Providers arrive here already compiled, so a declared flow is the closed one.
+    import_oauth_provider_ids = frozenset(
+        _as_text(row.get("provider_id"))
+        for row in contract["oauth_providers"]
+        if isinstance(row.get("flow"), dict)
+        and _normalize_lower(row["flow"].get("type")) == FLOW_REFRESH_TOKEN_IMPORT
     )
     connection_ids = _collect_ids(
         contract["connection_types"],
@@ -86,6 +94,7 @@ def _validate_ids_and_references(
             oauth_provider_ids=oauth_provider_ids,
             idx=idx,
             errors=errors,
+            import_oauth_provider_ids=import_oauth_provider_ids,
         )
         for field_name in ("config_schema", "secret_schema", "ingress_schema"):
             schema = connection_type.get(field_name)

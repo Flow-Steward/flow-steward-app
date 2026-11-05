@@ -48,6 +48,8 @@ _MESSAGE_INSTALLED_OAUTH_CONNECTION_SCOPE_CONTRACT_IS_INVALID = (
     "Installed OAuth connection scope contract is invalid"
 )
 _MESSAGE_CONNECTION_NOT_FOUND = "Connection not found"
+_MESSAGE_CONFIGURATION_NOT_READY = "OAuth configuration is not ready"
+_MESSAGE_UNSUPPORTED_FLOW = "This OAuth provider connects by importing a refresh token"
 
 _AUTHORIZATION_TTL = timedelta(minutes=10)
 _MAX_AUTHORIZATION_URL_LENGTH = 8192
@@ -107,7 +109,7 @@ class OAuthProviderSetupStatus(BaseModel):
     callback_registration_ready: bool
 
 
-class OAuthAuthorizationRepository(Protocol):
+class OAuthConnectionLocker(Protocol):
     @property
     def get_configuration_for_scope_for_update(
         self,
@@ -116,8 +118,179 @@ class OAuthAuthorizationRepository(Protocol):
     @property
     def lock_connection(self) -> Callable[..., dict[str, Any] | None]: ...
 
+
+class OAuthAuthorizationRepository(OAuthConnectionLocker, Protocol):
     @property
     def create_state(self) -> Callable[..., dict[str, Any] | None]: ...
+
+
+def require_authorizable_configuration(
+    configuration: Mapping[str, Any],
+    *,
+    provider: OAuthProviderContract,
+    release_id: str,
+    configuration_id: str,
+    account_id: str,
+    secret_present: Callable[..., bool],
+) -> None:
+    """Refuse a configuration a grant cannot be started from, for every flow.
+
+    The caller holds the configuration lock. Release, security fingerprint,
+    status and every required credential are checked here once, so the redirect
+    flow and the refresh-token import (ADR 0058) cannot drift apart.
+    """
+    if (
+        not release_id
+        or str(configuration.get("extension_release_id") or "").strip() != release_id
+        or str(configuration.get("provider_security_fingerprint") or "").strip()
+        != provider_security_fingerprint(provider)
+    ):
+        raise ServicePreconditionError(
+            "OAuth configuration requires release reconciliation",
+            payload={"error": "oauth_release_transition_required"},
+        )
+    if str(configuration.get("status") or "").strip() not in {
+        "ready_for_authorization",
+        "verified",
+    }:
+        raise ServicePreconditionError(
+            _MESSAGE_CONFIGURATION_NOT_READY,
+            payload={"error": "oauth_configuration_not_ready"},
+        )
+    non_secret_config = configuration.get("non_secret_config")
+    non_secret_config = non_secret_config if isinstance(non_secret_config, Mapping) else {}
+    secret_refs = configuration.get("secret_refs")
+    secret_refs = secret_refs if isinstance(secret_refs, Mapping) else {}
+    nested_refs = secret_refs.get("refs")
+    secret_refs = nested_refs if isinstance(nested_refs, Mapping) else {}
+    for field in provider.credential_fields:
+        if not field.required:
+            continue
+        if field.secret:
+            ref_key = str(secret_refs.get(field.field_id) or "").strip()
+            expected_ref = configuration_secret_ref_key(configuration_id, field.field_id)
+            available = bool(
+                ref_key == expected_ref and secret_present(account_id=account_id, ref_key=ref_key)
+            )
+        else:
+            available = bool(str(non_secret_config.get(field.field_id) or "").strip())
+        if not available:
+            raise ServicePreconditionError(
+                _MESSAGE_CONFIGURATION_NOT_READY,
+                payload={"error": "oauth_configuration_not_ready"},
+            )
+
+
+def lock_replaceable_connection(
+    repository: OAuthConnectionLocker,
+    *,
+    connection_id: str,
+    repository_scope: Mapping[str, str],
+    connection_type: str,
+    release_id: str,
+    expected_fingerprint: str,
+) -> Mapping[str, Any]:
+    """Lock a connection whose grant is about to be replaced, or refuse.
+
+    It must belong to exactly this install, provider, configuration, release and
+    connection type, and must not be in the middle of a disconnect.
+    """
+    connection = repository.lock_connection(
+        connection_id=connection_id,
+        **repository_scope,
+        connection_type=connection_type,
+    )
+    if not connection:
+        raise ServiceNotFoundError(_MESSAGE_CONNECTION_NOT_FOUND)
+    expected_connection_scope = {
+        "connection_id": connection_id,
+        "tenant_id": repository_scope["tenant_id"],
+        "account_id": repository_scope["account_id"],
+        "project_id": repository_scope["project_id"],
+        "extension_install_id": repository_scope["extension_install_id"],
+        "extension_id": repository_scope["extension_id"],
+        "oauth_provider_id": repository_scope["provider_id"],
+        "oauth_configuration_id": repository_scope["configuration_id"],
+        "oauth_extension_release_id": release_id,
+        "oauth_provider_security_fingerprint": expected_fingerprint,
+        "connection_type": connection_type,
+    }
+    if any(
+        str(connection.get(key) or "").strip() != expected
+        for key, expected in expected_connection_scope.items()
+    ):
+        raise ServiceNotFoundError(_MESSAGE_CONNECTION_NOT_FOUND)
+    if int(connection.get("credential_revision") or 0) < 1:
+        raise ServiceNotFoundError(_MESSAGE_CONNECTION_NOT_FOUND)
+    connection_config = connection.get("connection_config")
+    oauth_config = (
+        connection_config.get("oauth") if isinstance(connection_config, Mapping) else None
+    )
+    lifecycle_status = str(
+        oauth_config.get("lifecycle_status") if isinstance(oauth_config, Mapping) else ""
+    ).strip()
+    if connection.get("enabled") is not True or lifecycle_status == "disconnecting":
+        raise ServicePreconditionError(
+            "OAuth connection disconnect is in progress",
+            payload={"error": "oauth_connection_disconnect_in_progress"},
+        )
+    return connection
+
+
+def requested_connection_scopes(
+    descriptor: dict[str, Any],
+    *,
+    connection_type: str,
+    provider_id: str,
+) -> list[str]:
+    # Accepts a section declared inline or resolved from a bundle file; a
+    # referenced one leaves a filename here and used to read as "no types".
+    rows = contract_section(descriptor, "connection_types")
+    matches = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and str(row.get("connection_type_id") or "").strip() == connection_type
+    ]
+    if len(matches) != 1:
+        raise ServiceValidationError(
+            "Unknown OAuth connection type",
+            payload={"error": "unknown_oauth_connection_type", "field": "connection_type"},
+        )
+    auth = matches[0].get("auth")
+    if not isinstance(auth, dict) or str(auth.get("type") or "").lower() != "oauth2":
+        raise ServiceValidationError(
+            "Connection type does not use OAuth",
+            payload={"error": "invalid_oauth_connection_type", "field": "connection_type"},
+        )
+    if str(auth.get("provider_id") or "").strip() != provider_id:
+        raise ServiceValidationError(
+            "Connection type does not use this OAuth provider",
+            payload={"error": "invalid_oauth_connection_type", "field": "connection_type"},
+        )
+    scopes = auth.get("scopes")
+    if not isinstance(scopes, dict):
+        raise ServiceValidationError(
+            _MESSAGE_INSTALLED_OAUTH_CONNECTION_SCOPE_CONTRACT_IS_INVALID,
+            payload={"error": "invalid_oauth_provider_contract"},
+        )
+    result: list[str] = []
+    for group in ("required", "optional"):
+        values = scopes.get(group)
+        if not isinstance(values, list):
+            raise ServiceValidationError(
+                _MESSAGE_INSTALLED_OAUTH_CONNECTION_SCOPE_CONTRACT_IS_INVALID,
+                payload={"error": "invalid_oauth_provider_contract"},
+            )
+        for value in values:
+            normalized = str(value or "").strip()
+            if not normalized or normalized in result:
+                raise ServiceValidationError(
+                    _MESSAGE_INSTALLED_OAUTH_CONNECTION_SCOPE_CONTRACT_IS_INVALID,
+                    payload={"error": "invalid_oauth_provider_contract"},
+                )
+            result.append(normalized)
+    return result
 
 
 def _default_state_token() -> str:
@@ -214,6 +387,14 @@ class OAuthAuthorizationService:
         return provider
 
     @staticmethod
+    def _require_redirect_flow(provider: OAuthProviderContract) -> None:
+        if provider.is_refresh_token_import:
+            raise ServiceValidationError(
+                _MESSAGE_UNSUPPORTED_FLOW,
+                payload={"error": "unsupported_oauth_flow"},
+            )
+
+    @staticmethod
     def _return_page_owns_intent(
         descriptor: dict[str, Any],
         *,
@@ -245,63 +426,6 @@ class OAuthAuthorizationService:
             ):
                 return True
         return False
-
-    @classmethod
-    def _requested_scopes(
-        cls,
-        descriptor: dict[str, Any],
-        *,
-        connection_type: str,
-        provider_id: str,
-    ) -> list[str]:
-        # Accepts a section declared inline or resolved from a bundle file; a
-        # referenced one leaves a filename here and used to read as "no types".
-        rows = contract_section(descriptor, "connection_types")
-        matches = [
-            row
-            for row in rows
-            if isinstance(row, dict)
-            and str(row.get("connection_type_id") or "").strip() == connection_type
-        ]
-        if len(matches) != 1:
-            raise ServiceValidationError(
-                "Unknown OAuth connection type",
-                payload={"error": "unknown_oauth_connection_type", "field": "connection_type"},
-            )
-        auth = matches[0].get("auth")
-        if not isinstance(auth, dict) or str(auth.get("type") or "").lower() != "oauth2":
-            raise ServiceValidationError(
-                "Connection type does not use OAuth",
-                payload={"error": "invalid_oauth_connection_type", "field": "connection_type"},
-            )
-        if str(auth.get("provider_id") or "").strip() != provider_id:
-            raise ServiceValidationError(
-                "Connection type does not use this OAuth provider",
-                payload={"error": "invalid_oauth_connection_type", "field": "connection_type"},
-            )
-        scopes = auth.get("scopes")
-        if not isinstance(scopes, dict):
-            raise ServiceValidationError(
-                _MESSAGE_INSTALLED_OAUTH_CONNECTION_SCOPE_CONTRACT_IS_INVALID,
-                payload={"error": "invalid_oauth_provider_contract"},
-            )
-        result: list[str] = []
-        for group in ("required", "optional"):
-            values = scopes.get(group)
-            if not isinstance(values, list):
-                raise ServiceValidationError(
-                    _MESSAGE_INSTALLED_OAUTH_CONNECTION_SCOPE_CONTRACT_IS_INVALID,
-                    payload={"error": "invalid_oauth_provider_contract"},
-                )
-            for value in values:
-                normalized = str(value or "").strip()
-                if not normalized or normalized in result:
-                    raise ServiceValidationError(
-                        _MESSAGE_INSTALLED_OAUTH_CONNECTION_SCOPE_CONTRACT_IS_INVALID,
-                        payload={"error": "invalid_oauth_provider_contract"},
-                    )
-                result.append(normalized)
-        return result
 
     @staticmethod
     def _authorization_origin(
@@ -465,7 +589,7 @@ class OAuthAuthorizationService:
         extension_id = str(initial_install.get("extension_id") or "").strip()
         if not extension_id:
             raise ServiceNotFoundError(_MESSAGE_OAUTH_PROVIDER_NOT_FOUND)
-        self._provider(initial_descriptor, normalized_provider_id)
+        self._require_redirect_flow(self._provider(initial_descriptor, normalized_provider_id))
         repository_scope = {
             **scope_values,
             "extension_install_id": normalized_install_id,
@@ -488,6 +612,7 @@ class OAuthAuthorizationService:
             if str(install.get("extension_id") or "").strip() != extension_id:
                 raise ServiceNotFoundError(_MESSAGE_OAUTH_PROVIDER_NOT_FOUND)
             provider = self._provider(descriptor, normalized_provider_id)
+            self._require_redirect_flow(provider)
             if (
                 OAUTH_ID_RE.fullmatch(command.return_page_id) is None
                 or command.return_page_id not in declared_ui_page_ids(descriptor)
@@ -505,54 +630,19 @@ class OAuthAuthorizationService:
                 )
             release_id = str(install.get("release_id") or "").strip()
             expected_fingerprint = provider_security_fingerprint(provider)
-            if (
-                not release_id
-                or str(configuration.get("extension_release_id") or "").strip() != release_id
-                or str(configuration.get("provider_security_fingerprint") or "").strip()
-                != expected_fingerprint
-            ):
-                raise ServicePreconditionError(
-                    "OAuth configuration requires release reconciliation",
-                    payload={"error": "oauth_release_transition_required"},
-                )
-            if str(configuration.get("status") or "").strip() not in {
-                "ready_for_authorization",
-                "verified",
-            }:
-                raise ServicePreconditionError(
-                    "OAuth configuration is not ready",
-                    payload={"error": "oauth_configuration_not_ready"},
-                )
+            require_authorizable_configuration(
+                configuration,
+                provider=provider,
+                release_id=release_id,
+                configuration_id=str(command.configuration_id),
+                account_id=scope_values["account_id"],
+                secret_present=self._secret_present,
+            )
             non_secret_config = configuration.get("non_secret_config")
             non_secret_config = non_secret_config if isinstance(non_secret_config, Mapping) else {}
-            secret_refs = configuration.get("secret_refs")
-            secret_refs = secret_refs if isinstance(secret_refs, Mapping) else {}
-            nested_refs = secret_refs.get("refs")
-            secret_refs = nested_refs if isinstance(nested_refs, Mapping) else {}
-            for field in provider.credential_fields:
-                if not field.required:
-                    continue
-                if field.secret:
-                    ref_key = str(secret_refs.get(field.field_id) or "").strip()
-                    expected_ref = configuration_secret_ref_key(
-                        str(command.configuration_id), field.field_id
-                    )
-                    available = bool(
-                        ref_key == expected_ref
-                        and self._secret_present(
-                            account_id=scope_values["account_id"], ref_key=ref_key
-                        )
-                    )
-                else:
-                    available = bool(str(non_secret_config.get(field.field_id) or "").strip())
-                if not available:
-                    raise ServicePreconditionError(
-                        "OAuth configuration is not ready",
-                        payload={"error": "oauth_configuration_not_ready"},
-                    )
             client_id = str(non_secret_config.get("client_id") or "").strip()
 
-            requested_scopes = self._requested_scopes(
+            requested_scopes = requested_connection_scopes(
                 descriptor,
                 connection_type=command.connection_type,
                 provider_id=normalized_provider_id,
@@ -561,50 +651,15 @@ class OAuthAuthorizationService:
             connection_credential_revision: int | None = None
             effective_intent_inputs: dict[str, Any] = dict(command.intent_inputs)
             if existing_connection_id:
-                connection = self._repository.lock_connection(
+                connection = lock_replaceable_connection(
+                    self._repository,
                     connection_id=existing_connection_id,
-                    **repository_scope,
+                    repository_scope=repository_scope,
                     connection_type=command.connection_type,
+                    release_id=release_id,
+                    expected_fingerprint=expected_fingerprint,
                 )
-                if not connection:
-                    raise ServiceNotFoundError(_MESSAGE_CONNECTION_NOT_FOUND)
-                expected_connection_scope = {
-                    "connection_id": existing_connection_id,
-                    "tenant_id": scope_values["tenant_id"],
-                    "account_id": scope_values["account_id"],
-                    "project_id": scope_values["project_id"],
-                    "extension_install_id": normalized_install_id,
-                    "extension_id": extension_id,
-                    "oauth_provider_id": normalized_provider_id,
-                    "oauth_configuration_id": str(command.configuration_id),
-                    "oauth_extension_release_id": release_id,
-                    "oauth_provider_security_fingerprint": expected_fingerprint,
-                    "connection_type": command.connection_type,
-                }
-                if any(
-                    str(connection.get(key) or "").strip() != expected
-                    for key, expected in expected_connection_scope.items()
-                ):
-                    raise ServiceNotFoundError(_MESSAGE_CONNECTION_NOT_FOUND)
                 connection_credential_revision = int(connection.get("credential_revision") or 0)
-                if connection_credential_revision < 1:
-                    raise ServiceNotFoundError(_MESSAGE_CONNECTION_NOT_FOUND)
-                connection_config = connection.get("connection_config")
-                oauth_config = (
-                    connection_config.get("oauth")
-                    if isinstance(connection_config, Mapping)
-                    else None
-                )
-                lifecycle_status = str(
-                    oauth_config.get("lifecycle_status")
-                    if isinstance(oauth_config, Mapping)
-                    else ""
-                ).strip()
-                if connection.get("enabled") is not True or lifecycle_status == "disconnecting":
-                    raise ServicePreconditionError(
-                        "OAuth connection disconnect is in progress",
-                        payload={"error": "oauth_connection_disconnect_in_progress"},
-                    )
                 effective_intent_inputs = self._reconnect_intent_inputs(
                     provider=provider,
                     command=command,
@@ -732,6 +787,7 @@ class OAuthAuthorizationService:
         if not extension_id:
             raise ServiceNotFoundError(_MESSAGE_OAUTH_PROVIDER_NOT_FOUND)
         provider = self._provider(descriptor, normalized_provider_id)
+        self._require_redirect_flow(provider)
         with self._transaction_factory():
             current_install, current_descriptor = self._load_install(
                 install_id=normalized_install_id,
@@ -773,6 +829,10 @@ class OAuthAuthorizationService:
         )
         extension_id = str(install.get("extension_id") or "").strip()
         provider = self._provider(descriptor, str(provider_id or "").strip())
+        if provider.is_refresh_token_import:
+            # Nothing to register: an imported grant never comes back through a
+            # callback, so the provider is as ready as its configuration.
+            return OAuthProviderSetupStatus(callback_registration_ready=True)
         ready = False
         try:
             ready = bool(
@@ -788,9 +848,14 @@ class OAuthAuthorizationService:
 
 
 __all__ = [
+    "OAuthAuthorizationRepository",
     "OAuthAuthorizationService",
     "OAuthAuthorizationStart",
     "OAuthAuthorizationStartResult",
+    "OAuthConnectionLocker",
     "OAuthProviderSetupStatus",
     "OAuthRedirectURIResult",
+    "lock_replaceable_connection",
+    "requested_connection_scopes",
+    "require_authorizable_configuration",
 ]

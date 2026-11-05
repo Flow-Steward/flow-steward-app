@@ -19,6 +19,9 @@ from core.application.extensions.oauth_configuration import (
     OAuthConfigurationImpact,
     OAuthConfigurationView,
 )
+from core.application.extensions.oauth_refresh_token_import import (
+    OAuthRefreshTokenImportResult,
+)
 from core.application.management.errors import (
     ServicePreconditionError,
     ServiceUnavailableError,
@@ -32,6 +35,7 @@ from core.infrastructure.runtime.extension_oauth_db_adapters import (
     create_extension_oauth_callback_service,
     create_extension_oauth_configuration_service,
     create_extension_oauth_connection_lifecycle_service,
+    create_extension_oauth_refresh_token_import_service,
 )
 
 
@@ -168,8 +172,27 @@ class FakeCallbackService:
         )
 
 
+class FakeRefreshTokenImportService:
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, str, str, object]] = []
+
+    def import_refresh_token(self, scope, install_id, provider_id, command):
+        self.calls.append((scope, install_id, provider_id, command))
+        if command.connection_config.get("region") == "invalid":
+            raise ServiceValidationError(
+                "Connection settings do not match the connection type",
+                payload={"error": "invalid_connection_config", "field": "connection_config.region"},
+            )
+        return OAuthRefreshTokenImportResult(
+            outcome="connected",
+            connection_id="connection-imported",
+            connection_type=command.connection_type,
+        )
+
+
 def _client(*, role="operator", account="acct-1", project_account="acct-1"):
     service = FakeService()
+    service.import_service = FakeRefreshTokenImportService()
     logger = SimpleNamespace(
         get_project=lambda project_id: {"id": project_id, "account_id": project_account},
         get_extension_install_for_operator=lambda install_id, **_kwargs: {
@@ -198,6 +221,7 @@ def _client(*, role="operator", account="acct-1", project_account="acct-1"):
             authorization_service_factory=lambda _logger: service.authorization_service,
             callback_service_factory=lambda _logger: service.callback_service,
             connection_lifecycle_service_factory=lambda _logger: service,
+            refresh_token_import_service_factory=lambda _logger: service.import_service,
             service_error_response=lambda exc: JSONResponse(
                 exc.payload, status_code=exc.status_code
             ),
@@ -908,6 +932,7 @@ def test_production_oauth_save_and_callback_factories_pin_pooled_connections(
         create_extension_oauth_authorization_service(logger),
         create_extension_oauth_callback_service(logger),
         create_extension_oauth_connection_lifecycle_service(logger),
+        create_extension_oauth_refresh_token_import_service(logger),
     )
 
     assert not hasattr(proxy, "transaction")
@@ -931,3 +956,76 @@ def test_reconcile_release_route_moves_the_configuration_and_needs_an_operator()
     refused = viewer.post(f"{BASE}/{CONFIGURATION_ID}/reconcile-release")
     assert refused.status_code == 403
     assert viewer_service.calls == []
+
+
+IMPORT_TOKEN = "pasted-refresh-token-canary"
+
+
+def _import_body(**overrides):
+    body = {
+        "configuration_id": CONFIGURATION_ID,
+        "connection_type": "console_account",
+        "display_name": "Primary account",
+        "refresh_token": IMPORT_TOKEN,
+        "connection_config": {"account_ref": "acct-1", "region": "south"},
+    }
+    body.update(overrides)
+    return body
+
+
+def test_refresh_token_import_route_is_operator_only_and_never_echoes_the_token() -> None:
+    client, service = _client()
+
+    response = client.post(f"{OAUTH_BASE}/connections/import", json=_import_body())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "outcome": "connected",
+        "connection_id": "connection-imported",
+        "connection_type": "console_account",
+    }
+    assert IMPORT_TOKEN not in response.text
+    scope, install_id, provider_id, command = service.import_service.calls[0]
+    assert (scope.project_id, install_id, provider_id) == ("project-1", "install-1", "example")
+    assert command.refresh_token.get_secret_value() == IMPORT_TOKEN
+    assert IMPORT_TOKEN not in repr(command)
+
+    viewer, viewer_service = _client(role="viewer")
+    denied = viewer.post(f"{OAUTH_BASE}/connections/import", json=_import_body())
+    assert denied.status_code == 403
+    assert viewer_service.import_service.calls == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _import_body(surprise=True),
+        _import_body(existing_connection_id="connection-1"),
+        _import_body(refresh_token=[IMPORT_TOKEN]),
+        _import_body(connection_config="not-an-object"),
+    ],
+)
+def test_refresh_token_import_rejects_malformed_bodies_without_echo(body) -> None:
+    client, service = _client()
+
+    response = client.post(f"{OAUTH_BASE}/connections/import", json=body)
+
+    assert response.status_code == 400
+    assert response.json() == {"error": "invalid_request"}
+    assert IMPORT_TOKEN not in response.text
+    assert service.import_service.calls == []
+
+
+def test_refresh_token_import_maps_service_validation_payload() -> None:
+    client, _service = _client()
+
+    response = client.post(
+        f"{OAUTH_BASE}/connections/import",
+        json=_import_body(connection_config={"account_ref": "a", "region": "invalid"}),
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": "invalid_connection_config",
+        "field": "connection_config.region",
+    }
