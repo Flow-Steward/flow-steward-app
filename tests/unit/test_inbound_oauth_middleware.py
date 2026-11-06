@@ -210,6 +210,7 @@ def test_introspection_needs_no_forward_secret(monkeypatch) -> None:
         ("GET", "/api/auth/oauth-grants"),
         ("POST", "/api/oauth/authorizations/x/decision"),
         ("PUT", "/api/settings/mcp-oauth"),
+        ("POST", "/api/settings/mcp-oauth/platform-clients"),
     ],
 )
 def test_oauth_token_cannot_mint_list_or_manage_credentials(monkeypatch, method, path) -> None:

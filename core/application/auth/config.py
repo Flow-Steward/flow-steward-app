@@ -185,6 +185,8 @@ AUTH_ADMIN_ONLY_PATTERNS = (
     re.compile(r"^/api/auth/service-accounts(?:/|$)"),
     # ADR 0047 decision 16: the account switch for inbound OAuth.
     re.compile(r"^/api/settings/mcp-oauth$"),
+    # ADR 0061 decision 2: platform OAuth clients are created and revoked by an admin.
+    re.compile(r"^/api/settings/mcp-oauth/platform-clients(?:/|$)"),
     re.compile(r"^/api/projects/[^/]+/providers(?:/|$)"),
     # Project workflow management is admin-only for writes (e.g. PUT workflow
     # bindings), but the read-only diagnostics — contract / validate / suggestions
