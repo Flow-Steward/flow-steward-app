@@ -97,7 +97,17 @@ def test_frontend_shell_bootstrap_does_not_use_synchronous_xhr() -> None:
 
 
 def test_frontend_bootstrap_loads_platform_kit_from_static_mount() -> None:
+    loader = Path("assets/frontend/src/app/platform-kit-loader.ts").read_text(encoding="utf-8")
+
+    assert '"/static/platform-kit/index.js"' in loader
+    assert "/app/static/platform-kit/" not in loader
+
+
+def test_frontend_renders_before_platform_kit_loads() -> None:
+    """A blank page waited for ~30 unhashed Platform Kit modules; the app must render first."""
     source = Path("assets/frontend/src/main.tsx").read_text(encoding="utf-8")
 
-    assert '"/static/platform-kit/index.js"' in source
-    assert "/app/static/platform-kit/" not in source
+    assert "platform-kit/index.js" not in source
+    assert "await import" not in source
+    render_at = source.index("createRoot(rootElement).render(")
+    assert source.index("loadPlatformKitInBackground();") > render_at
