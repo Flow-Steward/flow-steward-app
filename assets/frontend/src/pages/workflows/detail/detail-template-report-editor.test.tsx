@@ -143,6 +143,58 @@ describe("ReportDefinitionEditor", () => {
     const table = screen.getByRole("listitem", { name: "Table region_table" });
     expect(within(table).getByRole("combobox", { name: "Field of Region" })).toHaveAttribute("list");
   });
+
+  describe("with ids an object inherits", () => {
+    const inherited: ReportDefinition = {
+      ...stored,
+      datasets: [{ id: "constructor", source: { input: "regions" } }],
+      components: [
+        { id: "constructor", type: "metric", label: "Total", value: { input: "kpis" }, format: { type: "number" } },
+        {
+          id: "region_table",
+          type: "table",
+          caption: "Regions",
+          dataset: "constructor",
+          columns: [{ id: "region", field: "region", label: "Region", format: { type: "text" } }],
+          empty_text: "No rows.",
+        },
+      ],
+    };
+    const typedInputs = [
+      { name: "kpis", type: "object", source: "state.outputs.kpis" },
+      { name: "regions", type: "array", source: "state.outputs.regions" },
+    ];
+
+    it("edits a component and a rows source named constructor without server issues", () => {
+      render(<ReportDefinitionEditor inputClass="" inputs={typedInputs} onChange={vi.fn()} value={inherited} />);
+      expect(screen.getByRole("listitem", { name: "Key number constructor" })).toBeInTheDocument();
+      expect(screen.getByRole("listitem", { name: "Table region_table" })).toBeInTheDocument();
+      expect(screen.queryAllByRole("status")).toEqual([]);
+    });
+
+    it("shows server issues on a component and a rows source named constructor", () => {
+      const base = "workflow.steps.build.override.template.report";
+      render(
+        <ReportDefinitionEditor
+          inputClass=""
+          inputs={typedInputs}
+          onChange={vi.fn()}
+          stepId="build"
+          validationIssues={[
+            { path: `${base}.components[0].value.input`, message: "kpis is missing" },
+            { path: `${base}.datasets[0].source`, message: "regions is not rows" },
+          ]}
+          value={inherited}
+          variablePaths={["state.outputs.regions.region"]}
+        />,
+      );
+      const metric = screen.getByRole("listitem", { name: "Key number constructor" });
+      expect(within(metric).getByRole("status")).toHaveTextContent("kpis is missing");
+      expect(screen.getByText("regions is not rows")).toBeInTheDocument();
+      const table = screen.getByRole("listitem", { name: "Table region_table" });
+      expect(within(table).getByRole("combobox", { name: "Field of Region" })).toHaveAttribute("list");
+    });
+  });
 });
 
 function structuredCloneSafe<T>(value: T): T {

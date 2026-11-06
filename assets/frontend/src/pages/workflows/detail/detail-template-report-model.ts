@@ -310,10 +310,10 @@ export function rowFieldSuggestions(
 }
 
 export type ReportIssueMap = {
-  /** Messages per component id, at any depth. */
-  components: Record<string, string[]>;
+  /** Messages per component id, at any depth. A map, so any valid id is only its own key. */
+  components: Map<string, string[]>;
   /** Messages per rows source id. */
-  datasets: Record<string, string[]>;
+  datasets: Map<string, string[]>;
   /** Messages about the report as a whole (title, language, time zone, size). */
   report: string[];
 };
@@ -334,6 +334,12 @@ function componentAt(components: readonly DefinitionComponent[], rest: string): 
   }
 }
 
+function appendTo(map: Map<string, string[]>, key: string, message: string): void {
+  const list = map.get(key);
+  if (list) list.push(message);
+  else map.set(key, [message]);
+}
+
 /**
  * The server's validation issues of this step's report, placed on the
  * component or rows source their path names. Paths follow schema v1 section 7:
@@ -344,7 +350,7 @@ export function reportIssuesByPlace(
   stepId: string,
   definition: ReportDefinition,
 ): ReportIssueMap {
-  const result: ReportIssueMap = { components: {}, datasets: {}, report: [] };
+  const result: ReportIssueMap = { components: new Map(), datasets: new Map(), report: [] };
   if (!Array.isArray(issues) || !stepId) return result;
   const prefix = `workflow.steps.${stepId}.override.template.report`;
   for (const raw of issues) {
@@ -356,8 +362,8 @@ export function reportIssuesByPlace(
     const dataset = /^datasets\[(\d+)\]/.exec(rest);
     const datasetId = dataset ? definition.datasets?.[Number(dataset[1])]?.id : undefined;
     const component = componentAt(definition.components, rest);
-    if (datasetId) (result.datasets[datasetId] ??= []).push(message);
-    else if (component) (result.components[component.id] ??= []).push(message);
+    if (datasetId) appendTo(result.datasets, datasetId, message);
+    else if (component) appendTo(result.components, component.id, message);
     else result.report.push(message);
   }
   return result;

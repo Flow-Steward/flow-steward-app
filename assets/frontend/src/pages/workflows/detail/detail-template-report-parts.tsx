@@ -107,7 +107,9 @@ export function FormatFields({
                 "minimum_fraction_digits",
               ) as ReportFormat;
               const raw = event.target.value;
-              onChange(raw === "" ? rest : { ...rest, maximum_fraction_digits: Math.min(6, Math.max(0, Number(raw))) });
+              const digits = Math.min(6, Math.max(0, Number(raw)));
+              // Only number, percent and currency formats reach this field.
+              onChange(raw === "" ? rest : ({ ...rest, maximum_fraction_digits: digits } as ReportFormat));
             }}
             type="number"
             value={digits ?? ""}

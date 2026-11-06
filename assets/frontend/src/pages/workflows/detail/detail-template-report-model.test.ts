@@ -147,9 +147,37 @@ describe("report definition model", () => {
       { path: `${base}.components[9]`, message: "gone" },
     ];
     expect(reportIssuesByPlace(issues, "build", definition)).toEqual({
-      components: { total: ["unknown input"], inner: ["bad format"] },
-      datasets: { regions: ["not rows"] },
+      components: new Map([
+        ["total", ["unknown input"]],
+        ["inner", ["bad format"]],
+      ]),
+      datasets: new Map([["regions", ["not rows"]]]),
       report: ["bad locale", "gone"],
     });
+  });
+
+  it("keys issues by any valid id, including names an object inherits", () => {
+    const definition: ReportDefinition = {
+      schema_version: 1,
+      title: "R",
+      locale: "en-US",
+      time_zone: "UTC",
+      datasets: [{ id: "constructor", source: { input: "regions" } }],
+      components: [{ id: "constructor", type: "metric", label: "T", value: { input: "kpis" }, format: { type: "number" } }],
+    };
+    const base = "workflow.steps.build.override.template.report";
+    const placed = reportIssuesByPlace(
+      [
+        { path: `${base}.components[0].value.input`, message: "unknown input" },
+        { path: `${base}.datasets[0].source`, message: "not rows" },
+      ],
+      "build",
+      definition,
+    );
+    expect(placed.components.get("constructor")).toEqual(["unknown input"]);
+    expect(placed.datasets.get("constructor")).toEqual(["not rows"]);
+    const none = reportIssuesByPlace(undefined, "build", definition);
+    expect(none.components.get("constructor")).toBeUndefined();
+    expect(none.datasets.get("constructor")).toBeUndefined();
   });
 });

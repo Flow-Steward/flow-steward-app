@@ -40,9 +40,9 @@ export type ListContext = {
   takenIds: readonly string[];
   inputClass: string;
   /** Known row fields per rows source id, from typed variable discovery. */
-  fieldSuggestions: Readonly<Record<string, readonly string[]>>;
+  fieldSuggestions: ReadonlyMap<string, readonly string[]>;
   /** The server's last validation messages per component id. */
-  serverIssues: Readonly<Record<string, readonly string[]>>;
+  serverIssues: ReadonlyMap<string, readonly string[]>;
 };
 
 function useTypeLabels(): Record<ComponentType, string> {
@@ -165,7 +165,7 @@ function ComponentFields({
   const { t } = useI18n();
   const suggestionsId = useId();
   const rowFields =
-    component.type === "table" || component.type === "chart" ? (ctx.fieldSuggestions[component.dataset] ?? []) : [];
+    component.type === "table" || component.type === "chart" ? (ctx.fieldSuggestions.get(component.dataset) ?? []) : [];
   const listId = rowFields.length ? suggestionsId : undefined;
   switch (component.type) {
     case "text":
@@ -411,12 +411,12 @@ export function ComponentList({
                   onRemove={() => onChange(removeAt(components, index))}
                 />
               </div>
-              {problems.length || ctx.serverIssues[component.id]?.length ? (
+              {problems.length || ctx.serverIssues.get(component.id)?.length ? (
                 <ul className="space-y-1 text-xs fs-ink-attention" role="status">
                   {problems.map((problem) => (
                     <li key={problem}>{problemLabels[problem]}</li>
                   ))}
-                  {(ctx.serverIssues[component.id] ?? []).map((message) => (
+                  {(ctx.serverIssues.get(component.id) ?? []).map((message) => (
                     <li key={`server-${message}`}>{message}</li>
                   ))}
                 </ul>

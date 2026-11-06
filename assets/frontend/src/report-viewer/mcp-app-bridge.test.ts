@@ -25,8 +25,12 @@ function fakeView() {
   return { view: view as unknown as Window, posted, deliver, listening: () => listener !== null };
 }
 
-function handlers(): BridgeHandlers & { [K in keyof BridgeHandlers]: ReturnType<typeof vi.fn> } {
-  return { onToolResult: vi.fn(), onHostContext: vi.fn(), onCancelled: vi.fn() };
+function handlers() {
+  return {
+    onToolResult: vi.fn<BridgeHandlers["onToolResult"]>(),
+    onHostContext: vi.fn<BridgeHandlers["onHostContext"]>(),
+    onCancelled: vi.fn<BridgeHandlers["onCancelled"]>(),
+  } satisfies BridgeHandlers;
 }
 
 const APP = { name: "viewer", version: "1" };

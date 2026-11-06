@@ -31,7 +31,7 @@ function DatasetRows({
   onChange,
   serverIssues,
 }: Readonly<{
-  serverIssues: Readonly<Record<string, readonly string[]>>;
+  serverIssues: ReadonlyMap<string, readonly string[]>;
   datasets: readonly DefinitionDataset[];
   inputs: readonly ReportInput[];
   inputClass: string;
@@ -76,7 +76,7 @@ function DatasetRows({
                     )}
               </p>
             ) : null}
-            {(serverIssues[dataset.id] ?? []).map((message) => (
+            {(serverIssues.get(dataset.id) ?? []).map((message) => (
               <p className="text-xs fs-ink-attention" key={message} role="status">
                 {message}
               </p>
@@ -183,7 +183,7 @@ export function ReportDefinitionEditor({
             takenIds: componentIds(definition.components),
             inputClass,
             serverIssues: serverIssues.components,
-            fieldSuggestions: Object.fromEntries(
+            fieldSuggestions: new Map(
               datasets.map((dataset) => [dataset.id, rowFieldSuggestions(dataset, inputs, variablePaths)]),
             ),
           }}
