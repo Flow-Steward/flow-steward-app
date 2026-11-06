@@ -105,7 +105,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0057](0057-secret-catalog.md) | Secret Catalog, Bindings and Approved Use | Accepted |
 | [0058](0058-imported-refresh-token-connections.md) | Connections From an Imported Refresh Token | Accepted (amends 0023) |
 | [0060](0060-owned-agent-resource-lifecycle.md) | Journal-owned disposable agent resource lifecycle | Accepted |
-| [0061](0061-microsoft-365-copilot-connection.md) | Connecting Microsoft 365 Copilot to the MCP server | Accepted |
+| [0063](0063-microsoft-365-copilot-connection.md) | Connecting Microsoft 365 Copilot to the MCP server | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

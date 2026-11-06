@@ -28,7 +28,7 @@ function activeClient(view: PlatformClientsView | undefined, preset: string): Pl
 }
 
 /**
- * A `platform` step (ADR 0061): an administrator registers the platform's OAuth
+ * A `platform` step (ADR 0063): an administrator registers the platform's OAuth
  * client here, copies the values the platform's own registration asks for, pastes
  * back the registration ID it returns, and downloads the agent package. Everyone
  * else sees who does this step.
@@ -108,7 +108,7 @@ export function PlatformClientStep({
     try {
       // Loaded on demand: the package files are bundled only into this chunk.
       const { buildM365Package } = await import("@/pages/settings/account/m365-agent-package");
-      downloadBlob(step.file_name, buildM365Package({ mcpUrl, clientId, referenceId }, packageVersion));
+      downloadBlob(step.file_name, await buildM365Package({ mcpUrl, clientId, referenceId }, packageVersion));
       show({ tone: "success", message: t("react.agent_access.downloaded", "Downloaded {name}.", { name: step.file_name }) });
     } catch {
       show({ tone: "danger", message: t("react.agent_access.download_failed", "The file could not be built. Reload the page and try again.") });

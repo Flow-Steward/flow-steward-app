@@ -196,7 +196,7 @@ gets 403.
 Owner default, questions file row 2. `client_id` is an HTTPS URL; the
 authorization server fetches the document itself.
 
-Amended by [ADR 0061](0061-microsoft-365-copilot-connection.md) decision 2: an
+Amended by [ADR 0063](0063-microsoft-365-copilot-connection.md) decision 2: an
 administrator can also register a public platform client from a fixed preset
 (Microsoft 365 Copilot); its opaque `client_id` and preset redirect URIs replace
 the CIMD fetch, and everything after the client check stays as written here.

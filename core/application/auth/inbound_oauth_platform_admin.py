@@ -1,4 +1,4 @@
-"""Admin operations on platform OAuth clients (ADR 0061 decision 2).
+"""Admin operations on platform OAuth clients (ADR 0063 decision 2).
 
 An administrator lists, creates and revokes the account's platform clients and
 reads the values the platform's own registration asks for (for Microsoft 365:

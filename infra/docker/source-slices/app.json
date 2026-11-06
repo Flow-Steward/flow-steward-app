@@ -49,6 +49,8 @@
     "core/application/auth/first_admin.py",
     "core/application/auth/first_admin_repository.py",
     "core/application/auth/inbound_oauth_clients.py",
+    "core/application/auth/inbound_oauth_platform_admin.py",
+    "core/application/auth/inbound_oauth_platform_clients.py",
     "core/application/auth/inbound_oauth_policy.py",
     "core/application/auth/inbound_oauth_repository.py",
     "core/application/auth/inbound_oauth_service.py",

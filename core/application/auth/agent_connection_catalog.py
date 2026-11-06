@@ -118,7 +118,7 @@ class SetupStep:
     #: ``link`` (open the release or README), ``command``, ``file``, ``value``, ``notice``,
     #: ``package`` (an archive the browser builds; ``file_name`` names it) or
     #: ``platform`` (an administrator registers a platform OAuth client from
-    #: ``platform_preset`` and the browser builds the client's package, ADR 0061).
+    #: ``platform_preset`` and the browser builds the client's package, ADR 0063).
     kind: str
     title_key: str
     title: str

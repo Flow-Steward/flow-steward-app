@@ -1,4 +1,4 @@
-"""Admin-registered platform OAuth clients on real PostgreSQL (ADR 0061 decision 2).
+"""Admin-registered platform OAuth clients on real PostgreSQL (ADR 0063 decision 2).
 
 A Microsoft 365 Copilot registration signs in with an opaque client id and the
 preset's fixed redirect URI, may omit ``resource``, and stops working, with its
@@ -7,10 +7,18 @@ grants, when an admin revokes it. Everything after the client check is ADR 0047.
 
 from __future__ import annotations
 
+import dataclasses
+import threading
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from typing import Any
 from urllib.parse import urlsplit
 
+import psycopg
 import pytest
 
+from core.application.auth import inbound_oauth_platform_clients as platform_clients
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.inbound_oauth_platform_admin import (
     create_platform_client,
@@ -124,7 +132,7 @@ def test_a_platform_client_signs_in_without_resource_and_gets_tokens(
 def test_the_installation_binding_holds_through_exchange_and_refresh(
     world, platform_client
 ) -> None:
-    # ADR 0061 decision 3: a missing resource binds the grant; the token endpoint
+    # ADR 0063 decision 3: a missing resource binds the grant; the token endpoint
     # refuses a different one and an omitted one keeps the stored binding.
     service = world.service()
     other = "https://other.example/mcp"
@@ -302,3 +310,172 @@ def test_only_an_admin_manages_platform_clients_over_http(http) -> None:
     revoked = admin.post(f"{path}/{client_id}/revoke", headers={"x-csrf-token": CSRF})
     assert revoked.status_code == 200, revoked.text
     assert revoked.json()["clients"][0]["revoked_at"]
+
+
+# ---------------------------------------------------------------------------
+# Concurrency (ADR 0063): a second connection holds the account's lock in the
+# middle of a change; the call under test runs in a thread with its own store,
+# and the test proceeds only once PostgreSQL reports that call blocked behind the
+# holder. The interleaving is the one the database observed, not a timed guess.
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def _holder() -> Iterator[psycopg.Connection]:
+    conn = psycopg.connect(resolve_test_db_dsn())
+    try:
+        yield conn
+    finally:
+        conn.rollback()
+        conn.close()
+
+
+class _Call:
+    """One service call in its own thread, with its own store and connection."""
+
+    def __init__(self, world, run: Callable[[InboundOAuthService], Any]) -> None:
+        from core.infrastructure.db.platform_stores import PlatformIdentityStore
+
+        self.store = PlatformIdentityStore(world.dsn)
+        self.service = dataclasses.replace(world.service(), bl=self.store)
+        self.result: Any = None
+        self.error: BaseException | None = None
+        self.thread = threading.Thread(target=self._run, args=(run,), daemon=True)
+
+    def _run(self, run: Callable[[InboundOAuthService], Any]) -> None:
+        try:
+            self.result = run(self.service)
+        except BaseException as error:  # reported to the test thread
+            self.error = error
+
+    def start(self) -> _Call:
+        self.thread.start()
+        return self
+
+    def join(self) -> _Call:
+        self.thread.join(timeout=30)
+        assert not self.thread.is_alive(), "the call never finished"
+        connection = getattr(self.store, "_direct_conn", None)
+        if connection is not None:
+            connection.close()
+        return self
+
+
+def _wait_until_blocked_by(holder: psycopg.Connection, count: int = 1) -> None:
+    """Return once ``count`` backends wait on a lock the holder owns."""
+    observer = psycopg.connect(resolve_test_db_dsn(), autocommit=True)
+    try:
+        deadline = time.monotonic() + 30
+        while True:
+            blocked = observer.execute(
+                "SELECT count(*) FROM pg_stat_activity WHERE %s = ANY(pg_blocking_pids(pid))",
+                (holder.info.backend_pid,),
+            ).fetchone()[0]
+            if blocked >= count:
+                return
+            assert time.monotonic() < deadline, "the call did not wait for the lock"
+            time.sleep(0.01)  # polling an observed state, not ordering by time
+    finally:
+        observer.close()
+
+
+def _registrations(world) -> list[dict[str, Any]]:
+    rows = world.sql(
+        "SELECT setting_value_jsonb FROM system_settings WHERE account_id = %s AND setting_key = %s",
+        (DEFAULT_ACCOUNT_ID, PLATFORM_CLIENTS_SETTING_KEY),
+    )
+    return list(rows[0][0]["clients"]) if rows else []
+
+
+def test_concurrent_changes_never_undo_a_revocation_or_lose_a_registration(
+    world, platform_client
+) -> None:
+    def create(service: InboundOAuthService) -> Any:
+        return create_platform_client(service, DEFAULT_ACCOUNT_ID, "microsoft_365", actor="b")
+
+    with _holder() as holder:
+        # The holder is an admin revoking the first client, mid-transaction.
+        platform_clients.revoke(
+            holder, DEFAULT_ACCOUNT_ID, platform_client, revoked_by="a", now=world.service().clock()
+        )
+        first = _Call(world, create).start()
+        second = _Call(world, create).start()
+        _wait_until_blocked_by(holder, count=2)
+        holder.commit()
+    first.join()
+    second.join()
+    assert first.error is None and second.error is None, (first.error, second.error)
+
+    rows = _registrations(world)
+    assert len(rows) == 3
+    revoked = next(row for row in rows if row["client_id"] == platform_client)
+    assert revoked["revoked_at"], "a concurrent create wrote back a stale list"
+    assert sum(1 for row in rows if not row["revoked_at"]) == 2
+
+
+def test_the_first_registration_of_an_account_is_serialized_too(world) -> None:
+    # No settings row exists yet; the lock does not depend on one.
+    def create(service: InboundOAuthService) -> Any:
+        return create_platform_client(service, DEFAULT_ACCOUNT_ID, "microsoft_365", actor="b")
+
+    with _holder() as holder:
+        platform_clients.lock_registrations(holder, DEFAULT_ACCOUNT_ID)
+        calls = [_Call(world, create).start() for _ in range(2)]
+        _wait_until_blocked_by(holder, count=2)
+        holder.commit()
+    for call in calls:
+        call.join()
+        assert call.error is None, call.error
+    assert len(_registrations(world)) == 2
+
+
+def test_no_token_is_issued_across_a_revocation(world, platform_client) -> None:
+    service = world.service()
+    # A grant with a refresh token, and a code approved but not yet exchanged.
+    code, verifier, _request = code_from(world, service, params=_platform_params(platform_client))
+    tokens = exchange(
+        service, code, verifier, client_id=platform_client, redirect_uri=TEAMS_REDIRECT
+    )
+    pending_code, pending_verifier, _request = code_from(
+        world, service, params=_platform_params(platform_client)
+    )
+
+    def exchange_pending(call_service: InboundOAuthService) -> Any:
+        return exchange(
+            call_service,
+            pending_code,
+            pending_verifier,
+            client_id=platform_client,
+            redirect_uri=TEAMS_REDIRECT,
+        )
+
+    def refresh(call_service: InboundOAuthService) -> Any:
+        return call_service.token(
+            {
+                "grant_type": "refresh_token",
+                "refresh_token": tokens["refresh_token"],
+                "client_id": platform_client,
+            }
+        )
+
+    with _holder() as holder:
+        # The revocation has updated the registration and the existing grants but
+        # not committed; issuance must wait for it, then see it.
+        platform_clients.revoke(
+            holder, DEFAULT_ACCOUNT_ID, platform_client, revoked_by="a", now=service.clock()
+        )
+        exchanged = _Call(world, exchange_pending).start()
+        refreshed = _Call(world, refresh).start()
+        _wait_until_blocked_by(holder, count=2)
+        holder.commit()
+    exchanged.join()
+    refreshed.join()
+
+    for call in (exchanged, refreshed):
+        assert isinstance(call.error, OAuthProtocolError), call.result
+        assert call.error.error == "invalid_grant"
+    live = world.sql(
+        "SELECT count(*) FROM oauth_grants WHERE client_id = %s AND revoked_at IS NULL",
+        (platform_client,),
+    )
+    assert live == [(0,)]

@@ -1,5 +1,5 @@
 /**
- * The Microsoft 365 Copilot agent package of the AI agents page (ADR 0061), built in the browser.
+ * The Microsoft 365 Copilot agent package of the AI agents page (ADR 0063), built in the browser.
  *
  * One zip a Microsoft 365 administrator uploads: the app manifest (schema 1.30) at the
  * root with its two icons, a declarative agent (schema 1.9) with the Operator
@@ -11,8 +11,13 @@
  * The package holds no secret: the registration ID only tells Microsoft which of the
  * tenant's own registrations to sign in with.
  */
-import { crc32, createZip, type ZipEntry } from "@/lib/utils/zip";
+import { createZip, type ZipEntry } from "@/lib/utils/zip";
 
+// Microsoft's two icons, rendered once from the canonical brand mark
+// (docs/agent-skills/flow-steward-operator/assets/icon.svg): 192×192 colour on
+// white, and 32×32 white on transparent.
+import colorIconUrl from "@/design-system/assets/brand/microsoft-365-color-192.png";
+import outlineIconUrl from "@/design-system/assets/brand/microsoft-365-outline-32.png";
 import { packageFiles } from "@/pages/settings/account/agent-package-archive";
 
 const OPERATOR_PACKAGE_ID = "flow-steward-operator";
@@ -153,139 +158,36 @@ function mcpPlugin(mcpUrl: string, referenceId: string): string {
   });
 }
 
-export function m365PackageEntries(options: M365PackageOptions, version: string): ZipEntry[] {
+export type M365Icons = Readonly<{ color: Uint8Array; outline: Uint8Array }>;
+
+export function m365PackageEntries(options: M365PackageOptions, version: string, icons: M365Icons): ZipEntry[] {
   const mcp = httpsUrl(options.mcpUrl);
   const referenceId = normalizedReferenceId(options.referenceId);
   if (!referenceId) throw new Error("The OAuth client registration ID is missing or malformed.");
   const { entries, folders } = skillEntries();
   return [
     { path: "manifest.json", content: appManifest(appIdFor(options.clientId), mcp.origin, version) },
-    { path: "color.png", content: brandIcon(192, false) },
-    { path: "outline.png", content: brandIcon(32, true) },
+    { path: "color.png", content: icons.color },
+    { path: "outline.png", content: icons.outline },
     { path: "declarativeAgent.json", content: declarativeAgent(folders) },
     { path: "ai-plugin.json", content: mcpPlugin(mcp.href, referenceId) },
     ...entries,
   ];
 }
 
-export function buildM365Package(options: M365PackageOptions, version: string): Blob {
-  const bytes = createZip(m365PackageEntries(options, version));
+async function assetBytes(url: string): Promise<Uint8Array> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`The icon ${url} could not be loaded.`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/** The two icons, from the web UI's own assets. */
+export async function loadM365Icons(): Promise<M365Icons> {
+  const [color, outline] = await Promise.all([assetBytes(colorIconUrl), assetBytes(outlineIconUrl)]);
+  return { color, outline };
+}
+
+export async function buildM365Package(options: M365PackageOptions, version: string): Promise<Blob> {
+  const bytes = createZip(m365PackageEntries(options, version, await loadM365Icons()));
   return new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: "application/zip" });
-}
-
-// ---------------------------------------------------------------------------
-// Icons: Microsoft wants a 192×192 colour icon and a 32×32 white outline icon on a
-// transparent background. Drawn here so the package needs no binary asset.
-// ---------------------------------------------------------------------------
-
-type Rgb = readonly [number, number, number];
-const GRADIENT_FROM: Rgb = [0x12, 0x68, 0xc9];
-const GRADIENT_TO: Rgb = [0x2b, 0xa3, 0x8c];
-
-/** Distance from (x, y) to the segment a–b. */
-function segmentDistance(x: number, y: number, ax: number, ay: number, bx: number, by: number): number {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const along = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
-  return Math.hypot(x - (ax + along * dx), y - (ay + along * dy));
-}
-
-/** Whether a point of the unit square is on the mark: two nodes joined by a link. */
-function onMark(x: number, y: number): boolean {
-  return (
-    Math.hypot(x - 0.3, y - 0.66) <= 0.15
-    || Math.hypot(x - 0.7, y - 0.34) <= 0.19
-    || segmentDistance(x, y, 0.3, 0.66, 0.7, 0.34) <= 0.06
-  );
-}
-
-/** RGBA pixels of the icon, 4×4 supersampled. */
-export function iconPixels(size: number, outline: boolean): Uint8Array {
-  const pixels = new Uint8Array(size * size * 4);
-  const samples = 4;
-  // The colour icon keeps the mark inside its central safe area.
-  const [from, span] = outline ? [0.04, 0.92] : [0.22, 0.56];
-  for (let row = 0; row < size; row += 1) {
-    for (let column = 0; column < size; column += 1) {
-      let covered = 0;
-      for (let sy = 0; sy < samples; sy += 1) {
-        for (let sx = 0; sx < samples; sx += 1) {
-          const x = ((column + (sx + 0.5) / samples) / size - from) / span;
-          const y = ((row + (sy + 0.5) / samples) / size - from) / span;
-          if (onMark(x, y)) covered += 1;
-        }
-      }
-      const coverage = covered / (samples * samples);
-      const offset = (row * size + column) * 4;
-      if (outline) {
-        pixels.set([255, 255, 255, Math.round(coverage * 255)], offset);
-        continue;
-      }
-      const mix = (row + column) / (2 * (size - 1));
-      const background = GRADIENT_FROM.map((value, index) => value + (GRADIENT_TO[index] - value) * mix);
-      const color = background.map((value) => Math.round(value + (255 - value) * coverage));
-      pixels.set([color[0], color[1], color[2], 255], offset);
-    }
-  }
-  return pixels;
-}
-
-function concat(parts: readonly Uint8Array[]): Uint8Array {
-  const out = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
-  let offset = 0;
-  for (const part of parts) {
-    out.set(part, offset);
-    offset += part.length;
-  }
-  return out;
-}
-
-function uint32(value: number): Uint8Array {
-  return new Uint8Array([(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]);
-}
-
-function chunk(type: string, data: Uint8Array): Uint8Array {
-  const body = concat([new TextEncoder().encode(type), data]);
-  return concat([uint32(data.length), body, uint32(crc32(body))]);
-}
-
-/** A zlib stream of stored (uncompressed) deflate blocks of at most 65,535 bytes. */
-export function zlibStored(data: Uint8Array): Uint8Array {
-  const parts: Uint8Array[] = [new Uint8Array([0x78, 0x01])];
-  let offset = 0;
-  do {
-    const part = data.subarray(offset, offset + 0xffff);
-    offset += part.length;
-    const last = offset >= data.length ? 1 : 0;
-    parts.push(new Uint8Array([last, part.length & 0xff, part.length >>> 8, ~part.length & 0xff, (~part.length >>> 8) & 0xff]), part);
-  } while (offset < data.length);
-  let a = 1;
-  let b = 0;
-  for (const byte of data) {
-    a = (a + byte) % 65521;
-    b = (b + a) % 65521;
-  }
-  parts.push(uint32(((b << 16) | a) >>> 0));
-  return concat(parts);
-}
-
-/** An 8-bit RGBA PNG. */
-export function encodePng(size: number, rgba: Uint8Array): Uint8Array {
-  const stride = size * 4;
-  const rows = new Uint8Array(size * (stride + 1));
-  for (let row = 0; row < size; row += 1) {
-    // Filter byte 0 (none) leads each row.
-    rows.set(rgba.subarray(row * stride, (row + 1) * stride), row * (stride + 1) + 1);
-  }
-  const header = concat([uint32(size), uint32(size), new Uint8Array([8, 6, 0, 0, 0])]);
-  return concat([
-    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk("IHDR", header),
-    chunk("IDAT", zlibStored(rows)),
-    chunk("IEND", new Uint8Array()),
-  ]);
-}
-
-function brandIcon(size: number, outline: boolean): Uint8Array {
-  return encodePng(size, iconPixels(size, outline));
 }

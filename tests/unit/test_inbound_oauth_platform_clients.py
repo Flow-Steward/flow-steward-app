@@ -1,14 +1,18 @@
-"""Platform OAuth client presets and identifiers (ADR 0061 decision 2)."""
+"""Platform OAuth client presets and identifiers (ADR 0063 decision 2)."""
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
 from core.application.auth import inbound_oauth_platform_clients as platform_clients
 from core.application.auth.enforce import is_admin_only_route
 from core.application.auth.inbound_oauth_clients import validate_client_id
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_a_new_client_id_is_opaque_and_recognised() -> None:
@@ -68,3 +72,14 @@ def test_the_management_routes_are_admin_only() -> None:
     assert is_admin_only_route("/api/settings/mcp-oauth/platform-clients")
     assert is_admin_only_route("/api/settings/mcp-oauth/platform-clients/x/revoke")
     assert not is_admin_only_route("/api/settings/mcp-oauth/platform-clientsx")
+
+
+@pytest.mark.parametrize("role", ["app", "compact"])
+def test_the_runtimes_that_serve_oauth_ship_the_platform_modules(role: str) -> None:
+    # The app (and Compact, which runs it) serves /oauth/* and the admin routes.
+    manifest = json.loads(
+        (REPO_ROOT / "infra/docker/source-slices" / f"{role}.json").read_text(encoding="utf-8")
+    )
+    paths = set(manifest["static_paths"])
+    assert "core/application/auth/inbound_oauth_platform_clients.py" in paths
+    assert "core/application/auth/inbound_oauth_platform_admin.py" in paths

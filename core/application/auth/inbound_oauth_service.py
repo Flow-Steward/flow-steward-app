@@ -106,7 +106,7 @@ class ConsentError(Exception):
 
 
 def _client_kind(client_id: str) -> str:
-    """``platform`` for an admin-registered client (ADR 0061), ``cimd`` otherwise."""
+    """``platform`` for an admin-registered client (ADR 0063), ``cimd`` otherwise."""
     return "platform" if platform_clients.is_platform_client_id(client_id) else "cimd"
 
 
@@ -289,7 +289,7 @@ class InboundOAuthService:
             return self._error_page(readiness.blockers[0])
         platform = platform_clients.is_platform_client_id(client_id)
         if platform:
-            # ADR 0061 decision 2: an admin-registered client, redirect URIs from its preset.
+            # ADR 0063 decision 2: an admin-registered client, redirect URIs from its preset.
             redirect_uris = self._platform_redirect_uris(client_id, "client_id" in duplicated)
             if redirect_uris is None:
                 self._audit("oauth_client_rejected", status="denied", client_kind="platform")
@@ -339,7 +339,7 @@ class InboundOAuthService:
             return redirect_error("invalid_request")
         raw_resource = values.get("resource", "")
         if not raw_resource and platform:
-            # ADR 0061 decision 3: a platform client that sends no resource is bound
+            # ADR 0063 decision 3: a platform client that sends no resource is bound
             # to this installation's MCP resource; a resource it does send must match.
             raw_resource = readiness.resource
         if not raw_resource:
@@ -645,6 +645,8 @@ class InboundOAuthService:
         code_hash: str,
         now: datetime,
     ) -> _ExchangeResult:
+        # ADR 0063: before any row lock, so a revocation cannot interleave.
+        platform_clients.lock_for_issuance(conn, client_id)
         consumed = repo.consume_code(conn, code_hash, now)
         if consumed is None:
             known = repo.find_code(conn, code_hash)
@@ -733,6 +735,8 @@ class InboundOAuthService:
         token_hash: str,
         now: datetime,
     ) -> _ExchangeResult:
+        # ADR 0063: before the grant row lock, the order a revocation takes them in.
+        platform_clients.lock_for_issuance(conn, client_id)
         grant_id = repo.refresh_token_grant_id(conn, token_hash)
         if grant_id is None:
             return _ExchangeResult(error=OAuthProtocolError("invalid_grant"))

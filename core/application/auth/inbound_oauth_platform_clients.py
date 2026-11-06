@@ -1,4 +1,4 @@
-"""Admin-registered platform OAuth clients for the MCP server (ADR 0061 decision 2).
+"""Admin-registered platform OAuth clients for the MCP server (ADR 0063 decision 2).
 
 A platform such as Microsoft 365 Copilot cannot publish a Client ID Metadata
 Document; it signs in with a client id an administrator registered beforehand.
@@ -11,6 +11,12 @@ Registrations live in the account's ``system_settings`` row
 ``mcp_oauth_platform_clients``. The ``oauth_clients`` row that grants reference
 is written on demand from the registration, like a CIMD cache entry, so the
 retention cleanup of unused client rows stays harmless.
+
+Every change to an account's registrations, and every token issued to one of its
+platform clients, runs under the account's transaction-scoped advisory lock:
+changes take it exclusively, code exchange and refresh share it. A change never
+works from a stale list, and a revocation never finishes while a token is being
+issued to the client it revokes. Both take the lock before any grant row lock.
 """
 
 from __future__ import annotations
@@ -33,6 +39,8 @@ _CLIENT_ID_PATTERN = re.compile(r"fs-platform-[a-z0-9]{2,16}-[0-9a-f]{32}")
 CLIENT_ROW_LIFETIME = timedelta(days=1)
 #: At most this many registrations per account, revoked ones included.
 MAX_REGISTRATIONS = 20
+_LOCK_EXCLUSIVE_SQL = "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))"
+_LOCK_SHARED_SQL = "SELECT pg_advisory_xact_lock_shared(hashtextextended(%s, 0))"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +50,7 @@ class PlatformPreset:
     slug: str
     name: str
     redirect_uris: tuple[str, ...]
-    #: Whether a missing ``resource`` binds to this installation (ADR 0061 decision 3).
+    #: Whether a missing ``resource`` binds to this installation (ADR 0063 decision 3).
     implies_resource: bool
 
 
@@ -118,6 +126,27 @@ def _save_registrations(
         )
 
 
+def _lock_key(account_id: str) -> str:
+    return f"inbound-oauth-platform-clients:{account_id}"
+
+
+def lock_registrations(conn: Any, account_id: str, *, shared: bool = False) -> None:
+    """Hold the account's registration lock until the transaction ends."""
+    with conn.cursor() as cur:
+        cur.execute(_LOCK_SHARED_SQL if shared else _LOCK_EXCLUSIVE_SQL, (_lock_key(account_id),))
+
+
+def lock_for_issuance(conn: Any, client_id: str) -> None:
+    """Share the lock of the account that owns ``client_id`` before a token is issued.
+
+    The owning account never changes, so finding it before the lock is safe; every
+    check after this call reads the registration as a revocation left it.
+    """
+    registration = find_registration(conn, client_id)
+    if registration is not None:
+        lock_registrations(conn, str(registration["account_id"]), shared=True)
+
+
 def find_registration(conn: Any, client_id: str) -> dict[str, Any] | None:
     """The registration of ``client_id`` in any account, with its ``account_id``."""
     if not is_platform_client_id(client_id):
@@ -171,6 +200,7 @@ def register(
     preset = PLATFORM_PRESETS.get(preset_id)
     if preset is None:
         raise PlatformClientError("unknown_preset")
+    lock_registrations(conn, account_id)
     rows = load_registrations(conn, account_id)
     if len(rows) >= MAX_REGISTRATIONS:
         raise PlatformClientError("too_many_platform_clients", 409)
@@ -187,6 +217,7 @@ def register(
 
 def revoke(conn: Any, account_id: str, client_id: str, *, revoked_by: str, now: datetime) -> int:
     """Revoke a registration and every live grant it holds; return the grant count."""
+    lock_registrations(conn, account_id)
     rows = load_registrations(conn, account_id)
     target = next((row for row in rows if row.get("client_id") == client_id), None)
     if target is None:
@@ -214,6 +245,8 @@ __all__ = [
     "find_registration",
     "is_platform_client_id",
     "load_registrations",
+    "lock_for_issuance",
+    "lock_registrations",
     "new_platform_client_id",
     "preset_of",
     "register",

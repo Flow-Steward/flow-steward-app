@@ -102,6 +102,7 @@ describe("PlatformClientStep", () => {
     });
     Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const fetchIcon = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array([137, 80, 78, 71])));
     renderStep();
     const download = await screen.findByRole("button", { name: "Download flow-steward-operator-m365-copilot.zip" });
     expect(download).toBeDisabled();
@@ -114,7 +115,9 @@ describe("PlatformClientStep", () => {
     expect(created).toHaveLength(1);
     expect(created[0].type).toBe("application/zip");
     expect(click).toHaveBeenCalled();
+    expect(fetchIcon).toHaveBeenCalledTimes(2);
     click.mockRestore();
+    fetchIcon.mockRestore();
   });
 
   it("revokes the client after a confirmation", async () => {

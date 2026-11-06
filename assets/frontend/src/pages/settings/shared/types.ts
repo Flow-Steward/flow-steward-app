@@ -157,7 +157,7 @@ export type OAuthConsentClient = {
   client_id: string;
   client_name: string;
   client_host: string;
-  /** `platform`: registered by an administrator of this installation (ADR 0061). */
+  /** `platform`: registered by an administrator of this installation (ADR 0063). */
   client_kind?: "platform" | "cimd";
   redirect_uri: string;
   redirect_uri_host: string;
@@ -302,7 +302,7 @@ export type AgentAccessIssueResult = {
   secret_already_shown: boolean;
 };
 
-/** An admin-registered platform OAuth client (ADR 0061). */
+/** An admin-registered platform OAuth client (ADR 0063). */
 export type PlatformClient = {
   client_id: string;
   preset: string;

@@ -1,4 +1,4 @@
-# ADR 0061: Connecting Microsoft 365 Copilot to the MCP server
+# ADR 0063: Connecting Microsoft 365 Copilot to the MCP server
 
 - Status: Accepted for implementation (the owner approved the proposed setup on
   2026-11-06: agent package recommended, admin connector as the alternative,
@@ -113,6 +113,12 @@ The first preset is Microsoft 365:
   revocation and audit are exactly ADR 0047's.
 - Registrations are per installation (account-scoped where accounts apply),
   listed, and revocable; revoking one revokes its grants.
+- Changes to an account's registrations are serialized by the account's
+  transaction-scoped advisory lock (the existing `pg_advisory_xact_lock` pattern),
+  which needs no settings row to exist. Code exchange and refresh for a platform
+  client share that lock, taken before any grant row lock: a revocation either
+  finishes before a token is issued, which then fails, or waits for it and
+  revokes the new grant with the others.
 - CIMD stays the only path for ChatGPT and Claude.ai; dynamic client
   registration stays off.
 
