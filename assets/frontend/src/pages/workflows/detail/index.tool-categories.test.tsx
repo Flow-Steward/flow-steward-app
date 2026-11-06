@@ -151,17 +151,17 @@ it("keeps a saved disabled MCP source and action visible but unselectable", asyn
   renderPage();
   await user.click(await screen.findByRole("button", { name: /Saved docs/i }));
 
-  const source = screen.getByRole("combobox", { name: "Tool" });
+  const source = screen.getByRole("combobox", { name: "MCP server" });
   await user.click(source);
-  const sourceOptions = screen.getByRole("listbox", { name: "Tool options" });
+  const sourceOptions = screen.getByRole("listbox", { name: "MCP server options" });
   const disabledSourceOption = within(sourceOptions).getByRole("option", { name: "Disabled Docs" });
   expect(disabledSourceOption).toBeDisabled();
   await user.click(disabledSourceOption);
   expect(source).toHaveTextContent("Disabled Docs");
 
-  const action = screen.getByRole("combobox", { name: "Action" });
+  const action = screen.getByRole("combobox", { name: "Tool" });
   await user.click(action);
-  const actionOptions = screen.getByRole("listbox", { name: "Action options" });
+  const actionOptions = screen.getByRole("listbox", { name: "Tool options" });
   const disabledActionOption = within(actionOptions).getByRole("option", { name: "Search docs" });
   expect(disabledActionOption).toBeDisabled();
   await user.click(disabledActionOption);
