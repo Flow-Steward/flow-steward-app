@@ -151,17 +151,39 @@ def preview_reports(value: Any) -> Any:
     return value
 
 
-def omit_reports(value: Any) -> Any:
-    """A copy of ``value`` without nested reports, for state patches in messages.
-
-    A patch replays state, so a preview there would pass for the value; the
-    report is left out instead and state keeps the only full copy.
-    """
+def contains_report(value: Any) -> bool:
+    """Whether a report sits anywhere inside ``value``."""
+    if is_report(value):
+        return True
     if isinstance(value, Mapping):
-        return {key: omit_reports(item) for key, item in value.items() if not is_report(item)}
+        return any(contains_report(item) for item in value.values())
     if isinstance(value, list):
-        return [omit_reports(item) for item in value if not is_report(item)]
-    return value
+        return any(contains_report(item) for item in value)
+    return False
+
+
+REPORT_PREVIEWS_KEY = "report_previews"
+
+
+def split_report_previews(artifacts: Mapping[str, Any]) -> dict[str, Any]:
+    """Message artifacts with every report-bearing value moved under ``report_previews``.
+
+    A key whose value holds a report anywhere is removed whole and shown, with
+    its reports replaced by previews, only under ``report_previews``. No data
+    key of the message ever carries a preview where the value used to be, so a
+    reader that takes message artifacts as data finds the value absent rather
+    than altered. Values without a report stay exactly as they were.
+    """
+    kept: dict[str, Any] = {}
+    previews: dict[str, Any] = {}
+    for key, value in artifacts.items():
+        if contains_report(value):
+            previews[key] = preview_reports(value)
+        else:
+            kept[key] = value
+    if previews:
+        kept[REPORT_PREVIEWS_KEY] = previews
+    return kept
 
 
 def replace_report_output(outputs: Any, report_output: str | None) -> Any:
@@ -177,12 +199,14 @@ def replace_report_output(outputs: Any, report_output: str | None) -> Any:
 
 __all__ = [
     "REPORT_KIND",
+    "REPORT_PREVIEWS_KEY",
     "SUMMARY_MAX_CHARS",
+    "contains_report",
     "fallback_summary",
     "is_report",
-    "omit_reports",
     "preview_reports",
     "render_segments",
     "replace_report_output",
     "report_preview",
+    "split_report_previews",
 ]

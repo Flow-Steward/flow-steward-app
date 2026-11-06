@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import json
 from typing import Any
 
 import pytest
@@ -9,6 +11,9 @@ import pytest
 from core.application.orchestration.invoke_workflow_step_node_results import (
     _collect_child_outputs,
 )
+from core.application.registry.workflow_contract import WorkflowInterface
+from core.application.registry.workflow_contract_service import collect_runtime_outputs
+from core.application.workflow_documents import contains_report, split_report_previews
 from tests.unit.test_invoke_workflow_step_node import (  # noqa: F401  (autouse fixture)
     _application_submission_repositories,
 )
@@ -59,7 +64,6 @@ MARKER = "ROW-MARKER-c51d"
 
 
 def _marked_report() -> dict[str, Any]:
-    import json
     from pathlib import Path
 
     from core.application.workflow_documents import compile_report
@@ -75,10 +79,7 @@ def _marked_report() -> dict[str, Any]:
     return compile_report(definition, inputs["declared_inputs"], values)
 
 
-@pytest.mark.parametrize("target", ["state.outputs.child_report", "child_report"])
-def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeypatch, target):
-    import json
-
+def _run_invoke(monkeypatch, *, child_outputs: dict[str, Any], output_mapping: dict[str, str]):
     from core.application.orchestration import invoke_workflow_step_node as node
     from tests.unit.test_invoke_workflow_step_node import (
         _base_state,
@@ -87,7 +88,6 @@ def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeyp
         _install_runtime_stubs,
     )
 
-    report = _marked_report()
     _install_runtime_stubs(
         monkeypatch,
         workflows={
@@ -98,7 +98,8 @@ def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeyp
                     "callable": {
                         "enabled": True,
                         "expected_outputs": [
-                            {"name": "sales_report", "type": "object", "required": True}
+                            {"name": name, "type": "json", "required": True}
+                            for name in child_outputs
                         ],
                         "report_output": "sales_report",
                     }
@@ -109,7 +110,7 @@ def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeyp
     captured = _capture_append_messages(monkeypatch, node)
     final_contract = {
         "ok": True,
-        "outputs": {"sales_report": report},
+        "outputs": child_outputs,
         "interface": {"enabled": True, "report_output": "sales_report"},
     }
 
@@ -128,7 +129,7 @@ def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeyp
             "invoke_workflow": {
                 "workflow_id": "wf_child",
                 "input_mapping": {"task_summary": "state.task_summary"},
-                "output_mapping": {"sales_report": target},
+                "output_mapping": output_mapping,
             }
         },
     }
@@ -144,18 +145,93 @@ def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeyp
             "completed",
         ),
     )
-
-    result = node.invoke_workflow_step_node(_base_state(step))
-
+    state = _base_state(step)
+    before = copy.deepcopy({key: state.get(key) for key in ("outputs", "workflow_data")})
+    result = node.invoke_workflow_step_node(state)
+    after = {key: state.get(key) for key in ("outputs", "workflow_data")}
+    assert after == before, "the parent's canonical state must not be modified in place"
     message = captured[-1]
     assert message["status"] == "pass", (message.get("summary"), message.get("errors"))
+    return result, message
+
+
+@pytest.mark.parametrize("target", ["state.outputs.child_report", "child_report"])
+def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeypatch, target):
+    report = _marked_report()
+    result, message = _run_invoke(
+        monkeypatch,
+        child_outputs={"sales_report": report},
+        output_mapping={"sales_report": target},
+    )
     assert MARKER not in json.dumps(message, default=str)
     if target.startswith("state."):
         assert result["outputs"]["child_report"] == report
-    previews = [
-        value
-        for value in message["artifacts"].values()
-        if isinstance(value, dict) and value.get("kind") == "fs.report"
-    ]
+    artifacts = message["artifacts"]
+    assert not contains_report(
+        {key: value for key, value in artifacts.items() if key != "report_previews"}
+    )
+    previews = artifacts["report_previews"]
     assert previews
-    assert all(preview["datasets"][0]["row_count"] == 200 for preview in previews)
+    for preview in previews.values():
+        assert preview["kind"] == "fs.report"
+        assert preview["datasets"][0]["row_count"] == 200
+
+
+def test_a_mixed_list_is_left_out_whole_and_never_published_shortened(monkeypatch):
+    report = _marked_report()
+    bundle = [report, "kept"]
+    result, message = _run_invoke(
+        monkeypatch,
+        child_outputs={"sales_report": report, "bundle": bundle, "note": "plain"},
+        output_mapping={
+            "sales_report": "state.outputs.child_report",
+            "bundle": "state.outputs.bundle",
+            "note": "state.outputs.note",
+        },
+    )
+    # Canonical state receives every value exactly.
+    assert result["outputs"]["child_report"] == report
+    assert result["outputs"]["bundle"] == [report, "kept"]
+    assert result["outputs"]["note"] == "plain"
+
+    artifacts = message["artifacts"]
+    assert MARKER not in json.dumps(message, default=str)
+    patch = artifacts["_state_patch"]
+    assert not contains_report(patch)
+    assert patch["outputs"] == {"note": "plain"}
+    assert "bundle" not in artifacts
+    preview_bundle = artifacts["report_previews"]["bundle"]
+    assert len(preview_bundle) == 2
+    assert preview_bundle[1] == "kept"
+
+    # Without canonical state the message fallback publishes only exact values:
+    # no shortened array and no preview standing in for the report.
+    interface = WorkflowInterface.from_settings(
+        {
+            "callable": {
+                "enabled": True,
+                "expected_outputs": [
+                    {"name": "bundle", "type": "array", "required": False},
+                    {"name": "note", "type": "string", "required": False},
+                    {"name": "child_report", "type": "object", "required": False},
+                ],
+            }
+        },
+        steps=[],
+    )
+    outputs, _artifacts = collect_runtime_outputs(
+        {"outputs": {}, "agent_messages": [message]}, interface=interface
+    )
+    assert outputs == {"note": "plain"}
+
+
+def test_contains_report_and_split_previews() -> None:
+    report = {"kind": "fs.report", "schema_version": 1, "title": "T", "datasets": []}
+    assert contains_report({"a": [1, {"b": report}]})
+    assert not contains_report({"a": [1, {"b": {"kind": "other"}}]})
+    split = split_report_previews({"keep": [1, 2], "mixed": [report, "x"], "plain": "p"})
+    assert split["keep"] == [1, 2]
+    assert split["plain"] == "p"
+    assert "mixed" not in split
+    assert split["report_previews"]["mixed"][1] == "x"
+    assert split["report_previews"]["mixed"][0]["kind"] == "fs.report"

@@ -16,24 +16,26 @@ from core.application.workflow_documents.report_rules import map_strings
 from core.application.workflow_documents.report_snapshot import validate_report_snapshot
 from core.application.workflow_documents.report_summary import (
     REPORT_KIND,
+    contains_report,
     is_report,
-    omit_reports,
     preview_reports,
     replace_report_output,
     report_preview,
+    split_report_previews,
 )
 
 __all__ = [
     "REPORT_KIND",
     "ReportError",
     "compile_report",
+    "contains_report",
     "is_report",
     "map_strings",
-    "omit_reports",
     "prefix_issues",
     "preview_reports",
     "replace_report_output",
     "report_preview",
+    "split_report_previews",
     "validate_report_definition",
     "validate_report_snapshot",
 ]

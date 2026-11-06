@@ -12,6 +12,7 @@ from core.application.orchestration.invoke_workflow_step_node_results import (
     _artifact_key_for_state_target,
     _set_nested_state_update,
 )
+from core.application.workflow_documents import contains_report, split_report_previews
 
 if TYPE_CHECKING:
     from core.application.orchestration.state import OrchestratorState
@@ -313,6 +314,12 @@ def complete_child_invocation_result(
             return {"agent_messages": [*(state.get("agent_messages") or []), message]}
         mapped_artifacts["hook"] = hook_plan.summary()
         mapped_artifacts["hook_output"] = hook_output
+    # The message's state patch replays state, so it is built from the same
+    # writes minus any value holding a report: such a value is left out whole,
+    # never shortened or replaced by a preview (ADR 0059 decision 11).
+    patch_updates: dict[str, Any] = (
+        {} if contains_report(state_updates) else copy.deepcopy(state_updates)
+    )
 
     for child_output_name, target in output_mapping.items():
         child_key = str(child_output_name or "").strip()
@@ -336,6 +343,13 @@ def complete_child_invocation_result(
                 state_target=target_key,
                 value=value,
             )
+            if not contains_report(value):
+                _set_nested_state_update(
+                    state=state,
+                    updates=patch_updates,
+                    state_target=target_key,
+                    value=copy.deepcopy(value),
+                )
         else:
             mapped_artifacts[target_key] = value
 
@@ -358,6 +372,13 @@ def complete_child_invocation_result(
                 state_target=target_key,
                 value=value,
             )
+            if not contains_report(value):
+                _set_nested_state_update(
+                    state=state,
+                    updates=patch_updates,
+                    state_target=target_key,
+                    value=copy.deepcopy(value),
+                )
         else:
             mapped_artifacts[target_key] = value
 
@@ -397,14 +418,13 @@ def complete_child_invocation_result(
     if state_updates:
         for key, value in state_updates.items():
             mapped_artifacts.setdefault(key, value)
-    # A forwarded child report stays whole in the parent's state (state_updates)
-    # but the message carries only its preview, and its state patch leaves it
-    # out (ADR 0059 decision 11).
-    from core.application.workflow_documents import omit_reports, preview_reports
-
-    mapped_artifacts = preview_reports(mapped_artifacts)
-    if state_updates:
-        mapped_artifacts["_state_patch"] = omit_reports(copy.deepcopy(state_updates))
+    # A forwarded child report stays whole in the parent's state
+    # (state_updates). In the message every report-bearing value moves under
+    # report_previews, and the state patch is dropped if a report still reached
+    # it through a copied parent branch.
+    mapped_artifacts = split_report_previews(mapped_artifacts)
+    if patch_updates and not contains_report(patch_updates):
+        mapped_artifacts["_state_patch"] = patch_updates
 
     emit_event(
         state,
