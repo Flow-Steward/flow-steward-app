@@ -394,32 +394,51 @@ def _checked_port(raw: Mapping[str, Any], path: str) -> tuple[dict[str, Any], di
     return edge["source"], edge["outcome"]
 
 
-def _secret_refs(callable_obj: Mapping[str, Any]) -> dict[str, Any]:
+#: Input fields only their dedicated endpoints write (secret values, test files).
+_INPUT_AUTHORITY_FIELDS = ("default_secret_ref", "sample_file")
+
+
+def _input_rows(callable_obj: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     rows = callable_obj.get("expected_inputs")
-    return {
-        _text(row.get("name")): row.get("default_secret_ref")
-        for row in (rows if isinstance(rows, list) else [])
-        if isinstance(row, Mapping) and row.get("default_secret_ref")
-    }
+    return [row for row in rows if isinstance(row, Mapping)] if isinstance(rows, list) else []
 
 
-def _refuse_secret_reference_changes(
-    base: Mapping[str, Any], changed: Mapping[str, Any], path: str
-) -> None:
-    """A secret input's stored reference is written only by the secret input path.
+def _with_input_authority(
+    base: Mapping[str, Any], changed: dict[str, Any], path: str
+) -> dict[str, Any]:
+    """``changed`` with input authority taken from the stored Interface only.
 
-    An Interface patch may keep, drop or rename around a reference, but it can
-    never point an input at a reference that input did not already hold.
+    Secret references and test-run files are set by their own endpoints. An
+    Interface change keeps the stored same-field, same-type authority (a public
+    row never carries it, so an ordinary read-edit round trip must not drop
+    it) and refuses any value the caller supplies that differs from it. A secret
+    input never takes a plaintext default.
     """
-    before = _secret_refs(base)
-    for name, ref in _secret_refs(changed).items():
-        if before.get(name) != ref:
+    from core.application.registry.workflow_secret_defaults import preserve_secret_references
+
+    for index, row in enumerate(_input_rows(changed)):
+        row_type = _text(row.get("type")).lower()
+        if row_type == "secret" and row.get("default") is not None:
             raise _refuse(
-                "workflow.change.secret_reference_forbidden",
-                f"Input '{name}': set secret values through the workflow's secret input "
-                "settings, not an Interface change",
-                path,
+                "workflow.interface.secret_default_plaintext",
+                f"Secret input '{_text(row.get('name'))}' cannot carry a default value; set "
+                "it through the workflow's secret input settings",
+                f"{path}[{index}].default",
             )
+    preserved = preserve_secret_references({"callable": changed}, {"callable": dict(base)})
+    merged = dict(preserved.get("callable") or changed)
+    kept_rows = _input_rows(merged)
+    for index, row in enumerate(_input_rows(changed)):
+        kept = kept_rows[index] if index < len(kept_rows) else {}
+        for field in _INPUT_AUTHORITY_FIELDS:
+            if field in row and row.get(field) != kept.get(field):
+                raise _refuse(
+                    "workflow.change.input_authority_forbidden",
+                    f"Input '{_text(row.get('name'))}': {field} is set by its own endpoint, "
+                    "not by an Interface change",
+                    f"{path}[{index}].{field}",
+                )
+    return merged
 
 
 class _ChangeSet:
@@ -662,10 +681,9 @@ class _ChangeSet:
                 current.pop(key, None)
             else:
                 current[key] = copy.deepcopy(value)
-        _refuse_secret_reference_changes(
+        self.definition.callable = _with_input_authority(
             self.definition.base_callable or {}, current, f"{path}.patch.expected_inputs"
         )
-        self.definition.callable = current
 
     def _move_step(self, operation: Mapping[str, Any], path: str) -> None:
         """Change a step's membership; every edge it had is dropped.

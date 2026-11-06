@@ -199,7 +199,20 @@ def _interface_issues(definition: _Definition) -> list[dict[str, Any]]:
     interface = WorkflowInterface.from_settings(
         {"callable": definition.callable}, steps=definition.steps
     )
-    return [dict(issue) for issue in interface.definition_issues()]
+    issues = [dict(issue) for issue in interface.definition_issues()]
+    # ``definition_issues`` says nothing about a disabled Interface, but a
+    # plaintext secret default must never be stored either way.
+    for index, row in enumerate([] if interface.enabled else interface.expected_inputs):
+        if row.is_secret and row.default is not None:
+            issues.append(
+                {
+                    "code": "workflow.interface.secret_default_plaintext",
+                    "message": f"Secret field '{row.name}' cannot carry a default value",
+                    "path": f"workflow.callable.expected_inputs[{index}].default",
+                    "severity": "error",
+                }
+            )
+    return issues
 
 
 def _readiness_issues(
