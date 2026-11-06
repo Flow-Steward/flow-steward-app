@@ -23,6 +23,13 @@ Source-of-truth policy:
 - Record approved architectural exceptions or new architectural patterns in ADRs.
 - Treat existing architecture/testing research docs as supporting references, not as competing rule sets.
 
+For temporary environments and task completion, follow
+[Owned Runtime Resource Cleanup](docs/standards/agent-workflow-standard.md#owned-runtime-resource-cleanup)
+before creating resources and before handing work off. This is the canonical ownership,
+retention, and cleanup contract for all agents. Use the
+[managed resource lifecycle](docs/operations/agent-resource-cleanup.md) when launching tasks
+that create disposable resources.
+
 ## Target Repository Structure
 
 Flow Steward is converging to one clean-slate repository layout for first release.

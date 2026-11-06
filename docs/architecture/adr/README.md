@@ -104,6 +104,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0056](0056-pre-1.0-released-database-upgrades.md) | Database Upgrades of Released Installations Before 1.0 | Accepted |
 | [0057](0057-secret-catalog.md) | Secret Catalog, Bindings and Approved Use | Accepted |
 | [0058](0058-imported-refresh-token-connections.md) | Connections From an Imported Refresh Token | Proposed (amends 0023) |
+| [0060](0060-owned-agent-resource-lifecycle.md) | Journal-owned disposable agent resource lifecycle | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;
