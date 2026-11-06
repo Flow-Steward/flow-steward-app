@@ -1,7 +1,8 @@
 # ADR 0059: Workflow Report Documents
 
-- Status: Proposed (checkpoint 2A of the component workflow reports epic; no
-  production code may depend on it until the owner approves it)
+- Status: Accepted (checkpoint 2A of the component workflow reports epic;
+  approved by the owner on 2026-11-06 together with the schema and the six
+  recommendations below, at `18660259`)
 - Date: 2026-11-06
 - Related: [ADR 0033](0033-workflow-authoring-application-boundary.md),
   [ADR 0040](0040-attempt-output-contract-receipts.md),
@@ -127,7 +128,7 @@ are validated after compiling and at the workflow boundary. Every limit
 (components, depth, datasets, rows, columns, series, text, summary, definition
 and snapshot size) fails with an error and a field path. Nothing is truncated,
 sampled or coerced to fit. Numbers must be finite; strings are never parsed as
-numbers. The v1 limits are proposals until the owner approves them. The MCP
+numbers. The v1 limits are approved as written (recommendation 1). The MCP
 Apps spike (task 1) only checks that delivery is feasible; production delivery
 budgets per host are measured and set by the delivery task (task 3), and may be
 lower than these limits, never higher.
@@ -289,7 +290,7 @@ the 0.9.12 version bump on top of that main:
    Its minimal bundle has empty settings and its guidance covers groups,
    for-each and hooks. Report authoring needs Interface guidance added there.
 7. **Kept test outputs are capped at 256,000 bytes**
-   (`workflow_kept_test_outputs.py:23`), below the proposed 1 MiB snapshot.
+   (`workflow_kept_test_outputs.py:23`), below the 1 MiB snapshot limit.
 8. **Template inputs already validate types** (`text`, `number`, `boolean`,
    `object`, `array`, `json`), so a report binding can be checked against its
    input's declared type at authoring time. Those checks reject a top-level
@@ -322,8 +323,7 @@ the 0.9.12 version bump on top of that main:
   in state may be written again by every later checkpoint that rewrites the
   same state channel. Checkpoint 2B measures checkpoint growth for a
   maximum-size snapshot followed by several steps and, if growth is material,
-  places the report step last or lowers the limit before the limits leave
-  proposal status.
+  places the report step last or lowers the limit, recording the change here.
 - `jsonschema` (already a runtime dependency), Babel (already a runtime
   dependency) for locale and currency checks, and the existing time zone helpers
   are sufficient. No new dependency is added.
@@ -380,11 +380,10 @@ the 0.9.12 version bump on top of that main:
 - **Truncating rows or text to fit.** A report that silently omits data is worse
   than a failed run.
 
-## Open questions and proposed recommendations
+## Resolved questions
 
-The recommendations below are **Proposed**, for one owner approval together
-with this ADR. They are not accepted decisions, and they do not authorize
-production code.
+The owner approved the recommendations below together with this ADR; they are
+part of the accepted decision.
 
 1. **Limits.** *Recommendation:* approve the v1 domain limits as written in the
    schema (section 6). Host delivery ceilings are not domain limits; task 3

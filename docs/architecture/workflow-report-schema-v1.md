@@ -1,9 +1,9 @@
 # Workflow Report Schema v1
 
-- Status: Proposed (checkpoint 2A; pending owner approval together with
-  [ADR 0059](adr/0059-workflow-report-documents.md))
+- Status: Accepted (checkpoint 2A; approved by the owner on 2026-11-06
+  together with [ADR 0059](adr/0059-workflow-report-documents.md))
 - Date: 2026-11-06
-- Owner package (planned): `core/application/workflow_documents/`
+- Owner package: `core/application/workflow_documents/`
 
 This document is the authoritative contract for two JSON documents:
 
@@ -434,9 +434,9 @@ workflow, must pass it). Besides the JSON Schema it checks:
 
 JSON parsing for validation rejects `NaN` and `±Infinity` tokens.
 
-## 6. Limits (proposed)
+## 6. Limits
 
-These are domain limits for v1, **proposed until the owner approves them**. The
+These are the approved domain limits for v1. The
 MCP Apps spike (task 1) only checks whether delivery is feasible; production
 delivery budgets per host are measured and set by task 3, which may set lower
 delivery ceilings per host but does not raise these. Exceeding any limit is an error with
