@@ -105,6 +105,11 @@ class ConsentError(Exception):
         self.message = message or code
 
 
+def _client_kind(client_id: str) -> str:
+    """``platform`` for an admin-registered client (ADR 0061), ``cimd`` otherwise."""
+    return "platform" if platform_clients.is_platform_client_id(client_id) else "cimd"
+
+
 @dataclass(frozen=True, slots=True)
 class AuthorizeOutcome:
     """Where ``/oauth/authorize`` sends the browser, and the cookie it sets, if any."""
@@ -436,9 +441,7 @@ class InboundOAuthService:
                 "client_host": host_of(client_id),
                 # A platform client was registered by an administrator of this
                 # installation; it publishes no identity document of its own.
-                "client_kind": (
-                    "platform" if platform_clients.is_platform_client_id(client_id) else "cimd"
-                ),
+                "client_kind": _client_kind(client_id),
                 "redirect_uri": redirect_uri,
                 "redirect_uri_host": host_of(redirect_uri),
                 "redirect_uri_loopback": is_loopback_redirect_uri(redirect_uri),
@@ -830,6 +833,7 @@ class InboundOAuthService:
             "client_id": client_id,
             "client_name": str(row.get("client_name_snapshot") or "") or host_of(client_id),
             "client_host": host_of(client_id),
+            "client_kind": _client_kind(client_id),
             "preset": str(row.get("preset") or ""),
             "scopes": repo.json_list(row.get("scopes_jsonb")),
             "allowed_project_ids": repo.json_list(row.get("allowed_project_ids_jsonb")),

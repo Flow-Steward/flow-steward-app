@@ -146,8 +146,17 @@ function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; vi
         <dl className="fs-field">
           <dt className="fs-field-label">{t("react.oauth.app_name", "Name")}</dt>
           <dd>{clientLabel}</dd>
-          <dt className="fs-field-label">{t("react.oauth.app_published_by", "Identity published by")}</dt>
-          <dd><DsValueChip>{view.client.client_host}</DsValueChip></dd>
+          {view.client.client_kind === "platform" ? (
+            <>
+              <dt className="fs-field-label">{t("react.oauth.app_registered_by", "Registered by")}</dt>
+              <dd>{t("react.oauth.app_registered_by_admin", "An administrator of this Flow Steward installation")}</dd>
+            </>
+          ) : (
+            <>
+              <dt className="fs-field-label">{t("react.oauth.app_published_by", "Identity published by")}</dt>
+              <dd><DsValueChip>{view.client.client_host}</DsValueChip></dd>
+            </>
+          )}
           <dt className="fs-field-label">{t("react.oauth.app_returns_to", "Returns to")}</dt>
           <dd><DsValueChip>{view.client.redirect_uri_host}</DsValueChip></dd>
         </dl>

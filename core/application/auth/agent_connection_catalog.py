@@ -83,6 +83,10 @@ _TOKEN_IN_FILE = " It holds your token: keep it like a password, do not share it
 _INSTALL_PLUGIN_TITLE_KEY = "react.agent_access.step_install_plugin"
 _INSTALL_PLUGIN_TITLE = "Install it"
 
+#: ``platform`` steps for Microsoft 365 Copilot: the preset of
+#: ``inbound_oauth_platform_clients`` an administrator registers.
+MICROSOFT_365_PRESET = "microsoft_365"
+
 # External client products the user picks; Flow Steward runs none of them. Their names
 # appear only here (tests/unit/test_retired_executor_absence.py allows these lines).
 CLAUDE_CODE_LABEL = "Claude Code"
@@ -111,8 +115,10 @@ class SetupStep:
     """One thing the user does: download, run a command, add a file, paste a value."""
 
     id: str
-    #: ``link`` (open the release or README), ``command``, ``file``, ``value``, ``notice``
-    #: or ``package`` (an archive the browser builds; ``file_name`` names it).
+    #: ``link`` (open the release or README), ``command``, ``file``, ``value``, ``notice``,
+    #: ``package`` (an archive the browser builds; ``file_name`` names it) or
+    #: ``platform`` (an administrator registers a platform OAuth client from
+    #: ``platform_preset`` and the browser builds the client's package, ADR 0061).
     kind: str
     title_key: str
     title: str
@@ -128,6 +134,8 @@ class SetupStep:
     archive_layout: str = ""
     #: :data:`ARCHIVE_AGENTS_MARKETPLACE` steps: the client's plugin manifest folder.
     manifest_dir: str = ""
+    #: ``platform`` steps: the platform client preset an administrator registers.
+    platform_preset: str = ""
 
     @property
     def uses_token(self) -> bool:
@@ -640,6 +648,92 @@ CLIENTS: tuple[AgentClient, ...] = (
             ),
         ),
     ),
+    AgentClient(
+        id="microsoft_365_copilot",
+        label="Microsoft 365 Copilot",
+        connection=CONNECTION_CLOUD,
+        matrix_section="Microsoft 365 Copilot",
+        description_key="react.agent_access.client_m365_description",
+        description=(
+            "Copilot Chat for work accounts in Microsoft 365, Teams and Outlook, as an agent "
+            "your organisation's administrator adds."
+        ),
+        packages=(
+            ClientPackageSetup(
+                package_id=OPERATOR_PACKAGE_ID,
+                offered=True,
+                auth=AUTH_OAUTH,
+                verified=False,
+                steps=(
+                    SetupStep(
+                        id="admin_setup",
+                        kind="notice",
+                        title_key="react.agent_access.step_m365_admins",
+                        title="Two administrators set this up once",
+                        description_key="react.agent_access.step_m365_admins_description",
+                        description=(
+                            "A Flow Steward administrator registers Microsoft 365 below; a "
+                            "Microsoft 365 administrator registers the sign-in in the Teams "
+                            "Developer Portal and uploads the agent. After that, people add the "
+                            "agent in Copilot and sign in to Flow Steward the first time they "
+                            "use it."
+                        ),
+                    ),
+                    SetupStep(
+                        id="platform_client",
+                        kind="platform",
+                        platform_preset=MICROSOFT_365_PRESET,
+                        template=MCP_URL_TEMPLATE,
+                        file_name="flow-steward-operator-m365-copilot.zip",
+                        title_key="react.agent_access.step_m365_package",
+                        title="Register the sign-in and build the agent",
+                        description_key="react.agent_access.step_m365_package_description",
+                        description=(
+                            "Create the Microsoft 365 client here, enter its values in the Teams "
+                            "Developer Portal under Tools > OAuth client registration, paste the "
+                            "registration ID it gives back, and download the agent package."
+                        ),
+                    ),
+                    SetupStep(
+                        id="upload_agent",
+                        kind="notice",
+                        title_key="react.agent_access.step_m365_upload",
+                        title="Upload the agent in Microsoft 365",
+                        description_key="react.agent_access.step_m365_upload_description",
+                        description=(
+                            "In the Microsoft 365 admin center open Agents, choose Upload custom "
+                            "agent and pick the downloaded zip, then make it available to the "
+                            "people who need it. To try it alone first, upload it in Teams under "
+                            "Apps > Manage your apps > Upload a custom app."
+                        ),
+                    ),
+                    SetupStep(
+                        id="federated_connector",
+                        kind="value",
+                        template=MCP_URL_TEMPLATE,
+                        title_key="react.agent_access.step_m365_connector",
+                        title="Or connect it without the agent",
+                        description_key="react.agent_access.step_m365_connector_description",
+                        description=(
+                            "With Microsoft 365 Copilot licences, an administrator can instead "
+                            "add a custom connector (admin center > Copilot > Connectors > "
+                            "Connect to MCP server) with this address and the same registration. "
+                            "Copilot then answers in its own words, without the agent's "
+                            "instructions or report view."
+                        ),
+                    ),
+                ),
+            ),
+            ClientPackageSetup(
+                package_id=DEVELOPER_PACKAGE_ID,
+                offered=False,
+                auth=AUTH_NONE,
+                verified=False,
+                message_key="react.agent_access.reason_no_terminal_m365",
+                message="Copilot Chat has no terminal or file access for this package.",
+            ),
+        ),
+    ),
 )
 
 #: The request the user makes first, the same for every client with MCP access.
@@ -688,6 +782,7 @@ __all__ = [
     "FIRST_REQUEST_STEP",
     "MARKETPLACE_ARCHIVE",
     "MCP_JSON_TEMPLATE",
+    "MICROSOFT_365_PRESET",
     "OPENAI_CLI_MCP_JSON_TEMPLATE",
     "OPENAI_CLI_PLUGIN_MANIFEST_DIR",
     "OPERATOR_PACKAGE_ID",

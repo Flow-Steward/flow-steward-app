@@ -30316,3 +30316,138 @@ msgstr "MCP serveris"
 
 msgid "react.workflows.choose_mcp_server"
 msgstr "Pasirinkite MCP serverį"
+
+msgid "react.agent_access.platform_admin_only_title"
+msgstr "Šį žingsnį atlieka administratorius"
+
+msgid "react.agent_access.platform_admin_only_copy"
+msgstr "Paprašykite Flow Steward administratoriaus šiame puslapyje užregistruoti Microsoft 365 ir sukurti agentą. Kai jūsų organizacija pridės agentą, atidarykite jį Copilot ir prisijunkite prie Flow Steward, kai bus paprašyta."
+
+msgid "react.agent_access.platform_unavailable"
+msgstr "Nepavyko įkelti Microsoft 365 registracijos"
+
+msgid "react.agent_access.platform_loading"
+msgstr "Įkeliama registracija…"
+
+msgid "react.agent_access.platform_action_failed"
+msgstr "Pakeitimas neišsaugotas."
+
+msgid "react.agent_access.portal_client_id"
+msgstr "Client ID"
+
+msgid "react.agent_access.portal_base_url"
+msgstr "Base URL"
+
+msgid "react.agent_access.portal_authorization_endpoint"
+msgstr "Authorization endpoint"
+
+msgid "react.agent_access.portal_token_endpoint"
+msgstr "Token endpoint"
+
+msgid "react.agent_access.portal_refresh_endpoint"
+msgstr "Refresh endpoint"
+
+msgid "react.agent_access.portal_scope"
+msgstr "Scope"
+
+msgid "react.agent_access.portal_client_secret"
+msgstr "Client secret"
+
+msgid "react.agent_access.portal_leave_empty"
+msgstr "Palikite tuščią"
+
+msgid "react.agent_access.portal_pkce"
+msgstr "Enable PKCE"
+
+msgid "react.agent_access.portal_on"
+msgstr "Įjungta"
+
+msgid "react.agent_access.portal_restrict_app"
+msgstr "Restrict usage by app"
+
+msgid "react.agent_access.portal_any_app"
+msgstr "Any Teams app"
+
+msgid "react.agent_access.platform_create_help"
+msgstr "Flow Steward suteikia Microsoft 365 atskirą kliento ID. Microsoft grąžina žmones tik savo dokumentuotu adresu, ir niekas negali įrašyti kito."
+
+msgid "react.agent_access.platform_redirect"
+msgstr "Microsoft grąžina žmones į:"
+
+msgid "react.agent_access.platform_create"
+msgstr "Sukurti Microsoft 365 klientą"
+
+msgid "react.agent_access.platform_revoked_count"
+msgstr "Anksčiau atšaukta: {value1}"
+
+msgid "react.agent_access.platform_not_ready_title"
+msgstr "Debesijos DI programos neparuoštos"
+
+msgid "react.agent_access.platform_not_ready_copy"
+msgstr "Pirmiausia ištaisykite tai, ką nurodo 3 žingsnis: Microsoft reikia viešo šio diegimo HTTPS adreso."
+
+msgid "react.agent_access.portal_title"
+msgstr "Teams Developer Portal"
+
+msgid "react.agent_access.portal_help"
+msgstr "Atidarykite Tools > OAuth client registration > New OAuth client registration ir įveskite šias reikšmes. Lauke Restrict usage by org pasirinkite savo organizaciją."
+
+msgid "react.agent_access.copy_value"
+msgstr "Kopijuoti: {name}"
+
+msgid "react.agent_access.reference_id"
+msgstr "OAuth client registration ID"
+
+msgid "react.agent_access.reference_id_help"
+msgstr "Developer Portal jį parodo išsaugojus registraciją. Tai ne paslaptis: jis nurodo Microsoft, su kuria registracija agentas prisijungia."
+
+msgid "react.agent_access.platform_revoke_help"
+msgstr "Atšaukus iš karto nutraukiami visi Microsoft 365 prisijungimai prie šio diegimo. Norėdami vėl prisijungti, sukurkite naują klientą ir naują registraciją."
+
+msgid "react.agent_access.platform_revoke"
+msgstr "Atšaukti Microsoft 365 klientą"
+
+msgid "react.agent_access.platform_revoke_confirm"
+msgstr "Atšaukti Microsoft 365 klientą?"
+
+msgid "react.agent_access.platform_revoke_copy"
+msgstr "Visi agento naudotojai iš karto praranda prieigą, o agento paketas nustoja veikti."
+
+msgid "react.oauth.app_registered_by"
+msgstr "Užregistravo"
+
+msgid "react.oauth.app_registered_by_admin"
+msgstr "Šio Flow Steward diegimo administratorius"
+
+msgid "react.oauth.app_registered_by_admin_short"
+msgstr "Užregistravo administratorius"
+
+msgid "react.agent_access.client_m365_description"
+msgstr "Copilot Chat darbo paskyroms Microsoft 365, Teams ir Outlook kaip agentas, kurį prideda jūsų organizacijos administratorius."
+
+msgid "react.agent_access.step_m365_admins"
+msgstr "Du administratoriai tai nustato vieną kartą"
+
+msgid "react.agent_access.step_m365_admins_description"
+msgstr "Flow Steward administratorius toliau užregistruoja Microsoft 365, o Microsoft 365 administratorius užregistruoja prisijungimą Teams Developer Portal ir įkelia agentą. Po to žmonės prideda agentą Copilot ir pirmą kartą jį naudodami prisijungia prie Flow Steward."
+
+msgid "react.agent_access.step_m365_package"
+msgstr "Užregistruokite prisijungimą ir sukurkite agentą"
+
+msgid "react.agent_access.step_m365_package_description"
+msgstr "Čia sukurkite Microsoft 365 klientą, įveskite jo reikšmes Teams Developer Portal skiltyje Tools > OAuth client registration, įklijuokite gautą registracijos ID ir atsisiųskite agento paketą."
+
+msgid "react.agent_access.step_m365_upload"
+msgstr "Įkelkite agentą į Microsoft 365"
+
+msgid "react.agent_access.step_m365_upload_description"
+msgstr "Microsoft 365 administravimo centre atidarykite Agents, pasirinkite Upload custom agent ir atsisiųstą zip failą, tada padarykite jį prieinamą tiems, kam jo reikia. Norėdami pirmiausia išbandyti patys, įkelkite jį Teams skiltyje Apps > Manage your apps > Upload a custom app."
+
+msgid "react.agent_access.step_m365_connector"
+msgstr "Arba prijunkite be agento"
+
+msgid "react.agent_access.step_m365_connector_description"
+msgstr "Turėdamas Microsoft 365 Copilot licencijas, administratorius vietoj to gali pridėti pasirinktinę jungtį (administravimo centras > Copilot > Connectors > Connect to MCP server) su šiuo adresu ir ta pačia registracija. Tada Copilot atsako savais žodžiais, be agento instrukcijų ir ataskaitos rodinio."
+
+msgid "react.agent_access.reason_no_terminal_m365"
+msgstr "Copilot Chat neturi terminalo ir prieigos prie failų, reikalingų šiam paketui."

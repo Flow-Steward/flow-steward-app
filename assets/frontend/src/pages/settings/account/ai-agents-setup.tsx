@@ -7,6 +7,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { ArchiveLayout } from "@/pages/settings/account/agent-package-archive";
+import { PlatformClientStep } from "@/pages/settings/account/ai-agents-platform";
 import { fetchAgentAccessToken, revokePersonalToken } from "@/pages/settings/shared/api";
 import type { AgentAccessToken, AgentSetupStep } from "@/pages/settings/shared/types";
 
@@ -46,9 +47,10 @@ function stepDescription(step: AgentSetupStep, t: Translate) {
 /** Steps 4 and 5 of the wizard: what to do in the client, as the server described it. */
 export function AgentSetupSteps({
   packageId = "",
+  packageVersion = "",
   secret,
   steps,
-}: Readonly<{ packageId?: string; secret: string; steps: AgentSetupStep[] }>) {
+}: Readonly<{ packageId?: string; packageVersion?: string; secret: string; steps: AgentSetupStep[] }>) {
   const { t } = useI18n();
   const [feedback, setFeedback] = useState<{ tone: "success" | "danger"; message: string } | null>(null);
   const placeholder = t("react.agent_access.token_placeholder", "<your personal token>");
@@ -89,7 +91,9 @@ export function AgentSetupSteps({
           <li className="fs-panel-group" key={step.id}>
             <h3 className="fs-panel-title">{stepTitle(step, t)}</h3>
             {description ? <p className="fs-field-helper">{description}</p> : null}
-            {step.kind === "package" ? (
+            {step.kind === "platform" ? (
+              <PlatformClientStep mcpUrl={step.content} packageVersion={packageVersion} step={step} />
+            ) : step.kind === "package" ? (
               <>
                 {waitsForToken ? <span className="fs-field-helper">{t("react.agent_access.package_after_token", "The download is ready once the token is created.")}</span> : null}
                 <div className="fs-footer-actions">

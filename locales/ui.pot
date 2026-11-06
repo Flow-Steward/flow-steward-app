@@ -28839,3 +28839,138 @@ msgstr ""
 
 msgid "react.workflows.choose_mcp_server"
 msgstr ""
+
+msgid "react.agent_access.platform_admin_only_title"
+msgstr ""
+
+msgid "react.agent_access.platform_admin_only_copy"
+msgstr ""
+
+msgid "react.agent_access.platform_unavailable"
+msgstr ""
+
+msgid "react.agent_access.platform_loading"
+msgstr ""
+
+msgid "react.agent_access.platform_action_failed"
+msgstr ""
+
+msgid "react.agent_access.portal_client_id"
+msgstr ""
+
+msgid "react.agent_access.portal_base_url"
+msgstr ""
+
+msgid "react.agent_access.portal_authorization_endpoint"
+msgstr ""
+
+msgid "react.agent_access.portal_token_endpoint"
+msgstr ""
+
+msgid "react.agent_access.portal_refresh_endpoint"
+msgstr ""
+
+msgid "react.agent_access.portal_scope"
+msgstr ""
+
+msgid "react.agent_access.portal_client_secret"
+msgstr ""
+
+msgid "react.agent_access.portal_leave_empty"
+msgstr ""
+
+msgid "react.agent_access.portal_pkce"
+msgstr ""
+
+msgid "react.agent_access.portal_on"
+msgstr ""
+
+msgid "react.agent_access.portal_restrict_app"
+msgstr ""
+
+msgid "react.agent_access.portal_any_app"
+msgstr ""
+
+msgid "react.agent_access.platform_create_help"
+msgstr ""
+
+msgid "react.agent_access.platform_redirect"
+msgstr ""
+
+msgid "react.agent_access.platform_create"
+msgstr ""
+
+msgid "react.agent_access.platform_revoked_count"
+msgstr ""
+
+msgid "react.agent_access.platform_not_ready_title"
+msgstr ""
+
+msgid "react.agent_access.platform_not_ready_copy"
+msgstr ""
+
+msgid "react.agent_access.portal_title"
+msgstr ""
+
+msgid "react.agent_access.portal_help"
+msgstr ""
+
+msgid "react.agent_access.copy_value"
+msgstr ""
+
+msgid "react.agent_access.reference_id"
+msgstr ""
+
+msgid "react.agent_access.reference_id_help"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke_help"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke_confirm"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke_copy"
+msgstr ""
+
+msgid "react.oauth.app_registered_by"
+msgstr ""
+
+msgid "react.oauth.app_registered_by_admin"
+msgstr ""
+
+msgid "react.oauth.app_registered_by_admin_short"
+msgstr ""
+
+msgid "react.agent_access.client_m365_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_admins"
+msgstr ""
+
+msgid "react.agent_access.step_m365_admins_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_package"
+msgstr ""
+
+msgid "react.agent_access.step_m365_package_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_upload"
+msgstr ""
+
+msgid "react.agent_access.step_m365_upload_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_connector"
+msgstr ""
+
+msgid "react.agent_access.step_m365_connector_description"
+msgstr ""
+
+msgid "react.agent_access.reason_no_terminal_m365"
+msgstr ""

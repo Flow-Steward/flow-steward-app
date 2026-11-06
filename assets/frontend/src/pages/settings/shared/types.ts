@@ -157,6 +157,8 @@ export type OAuthConsentClient = {
   client_id: string;
   client_name: string;
   client_host: string;
+  /** `platform`: registered by an administrator of this installation (ADR 0061). */
+  client_kind?: "platform" | "cimd";
   redirect_uri: string;
   redirect_uri_host: string;
   redirect_uri_loopback: boolean;
@@ -184,6 +186,7 @@ export type OAuthGrant = {
   client_id: string;
   client_name: string;
   client_host: string;
+  client_kind?: "platform" | "cimd";
   preset: string;
   scopes: string[];
   allowed_project_ids: string[];
@@ -208,7 +211,7 @@ export type McpOAuthSetting = {
 /** Settings → Account → AI agents (task 4): one setup step the wizard renders. */
 export type AgentSetupStep = {
   id: string;
-  kind: "link" | "command" | "file" | "value" | "notice" | "package";
+  kind: "link" | "command" | "file" | "value" | "notice" | "package" | "platform";
   title_key: string;
   title: string;
   description_key: string;
@@ -222,6 +225,8 @@ export type AgentSetupStep = {
   /** `package` steps: how the browser lays out the archive it builds. */
   archive_layout: string;
   manifest_dir: string;
+  /** `platform` steps: the platform OAuth client preset an administrator registers. */
+  platform_preset?: string;
   url: string;
 };
 
@@ -295,4 +300,32 @@ export type AgentAccessIssueResult = {
   /** The one-time secret; empty on a replay of the same attempt. */
   secret: string;
   secret_already_shown: boolean;
+};
+
+/** An admin-registered platform OAuth client (ADR 0061). */
+export type PlatformClient = {
+  client_id: string;
+  preset: string;
+  name: string;
+  created_at: string | null;
+  created_by: string;
+  revoked_at: string | null;
+};
+
+/** What the platform's own OAuth registration asks for (Teams Developer Portal for Microsoft 365). */
+export type PlatformPortalValues = {
+  base_url: string;
+  authorization_endpoint: string;
+  token_endpoint: string;
+  refresh_endpoint: string;
+  scope: string;
+  pkce: boolean;
+  client_secret: string;
+};
+
+export type PlatformClientsView = {
+  presets: Array<{ id: string; name: string; redirect_uris: string[] }>;
+  clients: PlatformClient[];
+  portal: PlatformPortalValues | null;
+  readiness: { ready: boolean; blockers: string[] };
 };
