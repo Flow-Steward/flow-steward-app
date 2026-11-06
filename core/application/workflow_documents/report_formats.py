@@ -11,7 +11,7 @@ import math
 import re
 from collections.abc import Mapping
 from datetime import date, datetime
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import MAX_EMAX, MIN_EMIN, ROUND_HALF_EVEN, Context, Decimal, localcontext
 from functools import lru_cache
 from typing import Any
 from zoneinfo import ZoneInfo, available_timezones
@@ -133,6 +133,13 @@ def time_zone_known(name: Any) -> bool:
 # --- plain rendering (schema v1 section 4.1) -------------------------------
 
 
+#: Exact decimal arithmetic over every finite double: the largest has 309
+#: integer digits, the smallest subnormal 1074 fraction digits, and a percent
+#: adds two more. With this precision ``quantize`` and ``* 100`` never round
+#: away digits or raise, so the rendering is the same on every runtime.
+_PLAIN_CONTEXT = Context(prec=1_500, rounding=ROUND_HALF_EVEN, Emax=MAX_EMAX, Emin=MIN_EMIN)
+
+
 def _decimal(value: int | float) -> Decimal:
     if isinstance(value, float):
         return Decimal(repr(value))
@@ -141,14 +148,15 @@ def _decimal(value: int | float) -> Decimal:
 
 def plain_number(value: int | float, fmt: Mapping[str, Any]) -> str:
     """Positional decimal: no grouping, no exponent, round half to even."""
-    amount = _decimal(value)
-    if fmt.get("type") == "percent":
-        amount *= 100
-    high = fmt.get("maximum_fraction_digits")
-    if isinstance(high, int):
-        amount = amount.quantize(Decimal(1).scaleb(-high), rounding=ROUND_HALF_EVEN)
-    if amount == 0:
-        amount = abs(amount)
+    with localcontext(_PLAIN_CONTEXT):
+        amount = _decimal(value)
+        if fmt.get("type") == "percent":
+            amount *= 100
+        high = fmt.get("maximum_fraction_digits")
+        if isinstance(high, int):
+            amount = amount.quantize(Decimal(1).scaleb(-high))
+        if amount == 0:
+            amount = abs(amount)
     whole, _, fraction = format(amount, "f").partition(".")
     fraction = fraction.rstrip("0")
     low = fmt.get("minimum_fraction_digits")
