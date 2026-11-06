@@ -372,12 +372,18 @@ class OAuthProviderContract:
         Deliberately a separate payload rather than the authorization-code one
         with empty values: that one must stay byte-identical for every existing
         provider, and an import provider has no callback, intents, redirect
-        endpoint or exchange profile whose change could matter.
+        endpoint or exchange-request profile whose change could matter. How it
+        reads the token response does matter, so that part is included.
         """
         result: dict[str, Any] = {
             "provider_id": self.provider_id,
             "flow": self.flow_dict(),
+            "scope_separator": self.scope_separator,
             "unique_subject_per_configuration": self.unique_subject_per_configuration,
+            "token_response": {
+                "implicit_token_type": self.code_exchange.implicit_token_type,
+                "required_response_fields": list(self.code_exchange.required_response_fields),
+            },
             "credential_fields": [
                 row.security_dict()
                 for row in sorted(self.credential_fields, key=lambda item: item.field_id)

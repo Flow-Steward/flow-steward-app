@@ -465,9 +465,10 @@ runtime:
         #   subject_binding: tenant_origin
       # A provider whose console issues the refresh token (ADR 0058). There is no
       # redirect, so it declares no authorization_endpoint, callback_id,
-      # authorization_intents, origin_binding, code_exchange,
-      # callback_verification, scope_separator or flow.pkce (each is refused), and
-      # unique_subject_per_configuration must be absent or false. The operator
+      # authorization_intents, origin_binding, callback_verification or flow.pkce,
+      # and of code_exchange only implicit_token_type and required_response_fields
+      # (everything else is refused); scope_separator works as for any provider,
+      # and unique_subject_per_configuration must be absent or false. The operator
       # pastes the refresh token with the connection's config_schema settings;
       # Core exchanges it once at token_endpoint with grant_type=refresh_token and
       # the client credentials below, then stores and refreshes it like any grant.

@@ -39,14 +39,19 @@ uninstall lifecycle. What is missing is one way to start a grant.
 
 2. **What the manifest declares for it.** An import provider declares
    `display_name`, `description`, `setup_page_id`, `help_page_id`,
-   `credential_fields` (the client credentials, unchanged), `token_endpoint`, and
-   optionally `error_help_anchors`, `post_connect_action_id` and
-   `revocation_endpoint`. It must not declare `authorization_endpoint`,
-   `callback_id`, `authorization_intents`, `origin_binding`, `code_exchange`,
-   `callback_verification`, `scope_separator` or `pkce`, and
-   `unique_subject_per_configuration` must be false: there is no redirect, no
-   callback, no tenant host and no protocol variance to describe, and a subject is
-   known only after the post-connect action runs. A connection type bound to an
+   `credential_fields` (the client credentials, unchanged), `token_endpoint`
+   (including its `client_auth_method`), and optionally `error_help_anchors`,
+   `post_connect_action_id`, `revocation_endpoint`, `scope_separator`, and the
+   token-response half of `code_exchange` (`implicit_token_type`,
+   `required_response_fields`). It is not narrower than an authorization-code
+   provider in anything the token endpoint does: refresh reads the response
+   through the same profile for both flows. It must not declare
+   `authorization_endpoint`, `callback_id`, `authorization_intents`,
+   `origin_binding`, `callback_verification`, `pkce`, or the request half of
+   `code_exchange` (`include_grant_type`, `include_redirect_uri`,
+   `static_parameters`), and `unique_subject_per_configuration` must be false:
+   there is no redirect, no callback, no tenant host and no code exchange to
+   describe, and a subject is known only after the post-connect action runs. A connection type bound to an
    import provider may leave `scopes.required` empty; when it is empty, Core
    records no granted scopes rather than inventing them.
 
@@ -81,6 +86,41 @@ uninstall lifecycle. What is missing is one way to start a grant.
    page can show a paste-token form instead of an authorize button. The refresh
    token is a write-only field and is never returned.
 
+## Which authorization shapes this covers
+
+The point of the decision is that the next provider needs a manifest, not a Core
+change. Every shape below is handled by an existing, provider-neutral mechanism:
+
+- **Redirect with an authorization code** (eBay user tokens, Etsy, Mercado Libre,
+  Allegro, Stripe Connect, Google, Microsoft and most SaaS): `authorization_code`,
+  ADR 0023/0024. Single-use, rotating refresh tokens (Mercado Libre) are already
+  stored on every refresh.
+- **Refresh token issued in the provider's console** (Amazon SP-API private
+  applications, and any console that hands out a long-lived refresh token):
+  `refresh_token_import`, this ADR.
+- **The application's own credentials only, no user** (OAuth client credentials:
+  Walmart Marketplace, eBay application tokens, PayPal REST; service accounts):
+  there is no user grant to protect, and the client credentials are the whole
+  credential, exactly like an API key. The connection type uses `static_secret`,
+  and the extension requests and caches its token itself. This is not a gap in
+  ADR 0023's boundary; it is outside OAuth delegation.
+- **Requests signed with the application secret** (TikTok Shop, AliExpress, Temu
+  and similar open platforms): the secret must sign every request, so it is a
+  `static_secret` connection; an access token issued by such a platform is one
+  more secret of the same connection.
+- **A long-lived API key or access token** (Stripe keys, Shopify custom-app tokens,
+  most payment gateways): `api_key` or `static_secret`.
+
+Not covered, each deliberately, and each would be one more value of the closed
+flow vocabulary rather than provider code in Core:
+
+- a console that issues a one-time **authorization code** to paste instead of a
+  refresh token (Zoho Self Client);
+- an imported grant on a **tenant-specific host**, which would need
+  `origin_binding` with the host taken from operator input before anything has
+  verified it;
+- the **device authorization** grant.
+
 ## Consequences
 
 - A provider whose console issues refresh tokens can be supported by an extension
@@ -92,7 +132,10 @@ uninstall lifecycle. What is missing is one way to start a grant.
   works. Identity (a seller or account ID) is whatever the post-connect action
   confirms, never the settings the user typed.
 - Existing authorization-code providers are unaffected: their compiled flow and
-  security fingerprint stay byte-identical.
+  security fingerprint stay byte-identical. An import provider's fingerprint
+  covers its token endpoint, credential fields, scope separator and
+  token-response profile, so changing any of them needs approval like any other
+  security-impacting change.
 - A provider that rotates the refresh token on every exchange can retire the pasted
   token even when the grant is then not committed (the configuration or connection
   changed between the exchange and the commit). Core re-checks the lineage

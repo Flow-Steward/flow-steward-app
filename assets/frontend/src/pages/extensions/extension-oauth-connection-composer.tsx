@@ -226,7 +226,7 @@ export function ConnectionComposer({
           }
           : {}),
       }));
-      // The token is write-only: once sent it is never kept in the page.
+      // The token is write-only: once it is stored it is never kept in the page.
       setRefreshToken("");
       await onConnectionsChanged?.();
       if (result.outcome === "connected") {
@@ -244,6 +244,13 @@ export function ConnectionComposer({
       const payload = isHttpError(error_) ? record(error_.payload) : {};
       const code = text(payload.error);
       const field = text(payload.field).replace(/^connection_config\./u, "");
+      // A token the provider refused, or may have just rotated away, is of no
+      // further use, so it leaves the page. Any other refusal keeps it: a console
+      // may show a refresh token only once, and fixing a setting or the client
+      // credentials must not cost the operator a new one.
+      if (code === "oauth_refresh_token_rejected" || code === "oauth_import_conflict_token_rotated") {
+        setRefreshToken("");
+      }
       if (code === "invalid_oauth_refresh_token" || code === "oauth_refresh_token_rejected") {
         setError("");
         applyErrors({

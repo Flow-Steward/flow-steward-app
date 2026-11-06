@@ -193,6 +193,32 @@ describe("refresh-token import connections", () => {
       await screen.findByText("The provider did not accept this refresh token. Check it and try again."),
     ).toBeVisible();
     expect(document.body).not.toHaveTextContent(new RegExp(PASTED));
+    // A refused token is of no further use, so it leaves the page.
+    expect(refreshTokenInput().value).toBe("");
+  });
+
+  it("keeps the token when the refusal concerns the client credentials, not the token", async () => {
+    const user = userEvent.setup();
+    mockedImport.mockRejectedValue(
+      new HttpError({
+        payload: { error: "oauth_invalid_client", help_anchor: "app-credentials" },
+        status: 412,
+        url: "/api/test",
+      }),
+    );
+    renderImport();
+
+    await screen.findByRole("heading", { name: "Connect an account" });
+    await user.type(screen.getByLabelText(/Connection name/u), "Primary account");
+    await user.type(refreshTokenInput(), PASTED);
+    await user.type(screen.getByLabelText(/Account reference/u), "acct-1");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+
+    await waitFor(() => expect(mockedImport).toHaveBeenCalledTimes(1));
+    // A console may show a token only once; fixing the configuration must not
+    // cost the operator a new one.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled());
+    expect(refreshTokenInput().value).toBe(PASTED);
   });
 
   it("replaces the token of an existing connection with its revision and stored settings", async () => {

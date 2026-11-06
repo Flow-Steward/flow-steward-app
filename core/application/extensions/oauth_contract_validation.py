@@ -149,18 +149,24 @@ FLOW_KEYS = {"pkce", "type"}
 
 
 #: Keys a `refresh_token_import` provider must not declare. Each one describes a
-#: redirect, a callback, a tenant host or an exchange profile, and an imported
-#: refresh token has none of those (ADR 0058). Refusing them, rather than
-#: ignoring them, keeps an author from shipping a rule that never runs.
+#: redirect, a callback or a tenant host, and an imported refresh token has none
+#: of those (ADR 0058). Refusing them, rather than ignoring them, keeps an author
+#: from shipping a rule that never runs. `scope_separator` stays allowed: it says
+#: how granted scopes in the token response are read.
 IMPORT_FLOW_FORBIDDEN_KEYS = (
     "authorization_endpoint",
     "authorization_intents",
     "callback_id",
     "callback_verification",
-    "code_exchange",
     "origin_binding",
-    "scope_separator",
 )
+
+
+#: The part of `code_exchange` that describes the token response. Refresh reads
+#: the response through it whatever the flow, so an import provider may declare
+#: it; the request-body toggles and static parameters belong to the code
+#: exchange alone and stay refused.
+IMPORT_CODE_EXCHANGE_KEYS = frozenset({"implicit_token_type", "required_response_fields"})
 
 
 CREDENTIAL_FIELD_KEYS = {
@@ -415,6 +421,16 @@ def _flow_scoped_row(
                 message=f"'{key}' does not apply to the refresh_token_import flow",
                 code="oauth_key_not_allowed_for_flow",
             )
+    exchange = raw.get("code_exchange")
+    if isinstance(exchange, dict):
+        for key in sorted(set(exchange) - IMPORT_CODE_EXCHANGE_KEYS):
+            if key in CODE_EXCHANGE_KEYS:
+                _error(
+                    errors,
+                    path=f"{path}.code_exchange.{key}",
+                    message=f"'{key}' does not apply to the refresh_token_import flow",
+                    code="oauth_key_not_allowed_for_flow",
+                )
     if raw.get("unique_subject_per_configuration") is True:
         # The subject is known only once the post-connect action has run, which
         # is after the grant it would have to serialize.

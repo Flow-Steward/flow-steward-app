@@ -193,7 +193,6 @@ def test_minimal_import_provider_compiles_without_redirect_keys() -> None:
                 "label": {"charset": "lowercase_alnum", "min_length": 1, "max_length": 10},
             },
         ),
-        ("code_exchange", {"include_grant_type": False}),
         (
             "callback_verification",
             {
@@ -206,7 +205,6 @@ def test_minimal_import_provider_compiles_without_redirect_keys() -> None:
                 "subject_binding": "tenant",
             },
         ),
-        ("scope_separator", "comma"),
     ],
 )
 def test_import_provider_refuses_every_redirect_only_key(key: str, value: Any) -> None:
@@ -221,6 +219,70 @@ def test_import_provider_refuses_every_redirect_only_key(key: str, value: Any) -
         for row in result["errors"]
         if row["code"] == "oauth_key_not_allowed_for_flow"
     } == {(f"extension_contract_v2.oauth_providers[0].{key}", "oauth_key_not_allowed_for_flow")}
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("include_grant_type", False),
+        ("include_redirect_uri", False),
+        ("static_parameters", {"audience": "api"}),
+    ],
+)
+def test_import_provider_refuses_the_request_half_of_code_exchange(key: str, value: Any) -> None:
+    provider = _import_provider()
+    provider["code_exchange"] = {key: value, "implicit_token_type": "bearer"}
+
+    result = validate_extension_contract_v2(_descriptor(provider))
+
+    assert result["valid"] is False
+    assert {
+        row["path"] for row in result["errors"] if row["code"] == "oauth_key_not_allowed_for_flow"
+    } == {f"extension_contract_v2.oauth_providers[0].code_exchange.{key}"}
+
+
+def test_import_provider_declares_how_its_token_response_reads() -> None:
+    """A provider is not narrower for being imported: the response profile and the
+    scope separator that refresh relies on are declarable, and both are part of
+    what a grant depends on."""
+    provider = _import_provider()
+    provider["scope_separator"] = "comma"
+    provider["code_exchange"] = {
+        "implicit_token_type": "bearer",
+        "required_response_fields": ["access_token", "expires_in"],
+    }
+
+    result = validate_extension_contract_v2(_descriptor(provider))
+
+    assert result["valid"] is True, result["errors"]
+    compiled = compile_oauth_providers(_descriptor(provider))[0]
+    assert compiled.scope_separator == "comma"
+    assert compiled.code_exchange.implicit_token_type == "bearer"
+    assert compiled.code_exchange.required_response_fields == ("access_token", "expires_in")
+    baseline = compile_oauth_providers(_descriptor())[0]
+    assert compiled.to_dict()["security_fingerprint"] != baseline.to_dict()["security_fingerprint"]
+
+
+def test_import_exchange_reads_the_response_through_the_declared_profile() -> None:
+    provider = _import_provider()
+    provider["scope_separator"] = "comma"
+    provider["code_exchange"] = {"implicit_token_type": "bearer"}
+    descriptor = _descriptor(provider, required_scopes=["read"])
+    repository = _Repository(descriptor)
+    service, _store, calls = _service(
+        repository,
+        descriptor,
+        refresh=lambda **_values: {
+            "access_token": "access-token-canary",
+            "expires_in": 3600,
+            "scope": "read,write",
+        },
+    )
+
+    service.import_refresh_token(_scope(), "install-a", "console", _command())
+
+    assert calls[0]["implicit_token_type"] == "bearer"
+    assert repository.created[0]["oauth_granted_scopes"] == ["read", "write"]
 
 
 def test_import_provider_refuses_pkce_and_unique_subject() -> None:
