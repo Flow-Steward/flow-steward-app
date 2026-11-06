@@ -158,30 +158,47 @@ leave room for renderer-local filters. A refresh is a future, separately
 authorized operation that starts a new run and produces a new snapshot; stored
 snapshots are immutable.
 
-### 11. Privacy invariant: diagnostics never carry the report
+### 11. Privacy invariant: previews and model-visible projections carry only a summary
 
-The canonical `workflow_outputs` in run state and in
-`job.meta.workflow_outputs` stays complete; it is the report's only store.
-Every other projection of a run carries at most a bounded report summary:
-`kind`, `schema_version`, `title`, `summary_text`, component count and the row
-count of each dataset — never the snapshot, its datasets or rows.
+The invariant separates where the report is a declared output from where it is
+only a preview or reaches a model. The bounded report summary is `kind`,
+`schema_version`, `title`, `summary_text`, component count and the row count of
+each dataset — never the snapshot, its datasets or rows.
 
-This covers, on success and on failure alike:
+**Full structured output, unchanged (the contract of decision 4).** The report
+output keeps its exact ReportSnapshot value, never replaced by a summary, in:
+
+- the canonical `workflow_outputs` in run state and in
+  `job.meta.workflow_outputs` (the report's only store);
+- a child workflow's outputs forwarded through Invoke to its parent;
+- the authorized regular API `workflow_result` (`PublicWorkflowResultV1.outputs`,
+  built by `build_public_result` and returned by the job status, job detail and
+  `GET /api/jobs/{id}/result` reads under existing scope and workflow-access
+  checks), as declared by the public output schema.
+
+**Bounded summary only, on success and on failure alike:**
 
 - terminal events emitted by the validation node (`emit_event` details on the
   pass and fail paths) and the `proof_of_work` record, which today embed the
   whole `workflow_outputs` (`validation_node.py`, around lines 255, 271, 289
   and 309);
 - step messages and string previews (decision 9);
-- every diagnostic read that reaches a model: MCP `job_result`, `job_events`,
+- every model-visible MCP projection: `job_result`, `job_events`,
   `job_messages`, `job_logs`, `job_trace`, `job_runtime_journal`,
-  `job_incident` and `job_errors`, and the HTTP routes behind them, including
-  nested raw fields (`details`, `artifacts`, `payload`, `raw`, journal entries)
-  that could rebuild the payload.
+  `job_incident` and `job_errors`, including nested raw fields (`details`,
+  `artifacts`, `payload`, `raw`, journal entries) that could rebuild the
+  payload, and the model-visible `content` and `structuredContent` of the
+  report tool itself.
 
-Only the dedicated report read (task 3) returns the snapshot, and only to a
-report viewer, outside model-visible content. A failed boundary validation
-reports error codes and paths for the report output, not its values.
+MCP adapters do not serialize a raw API response that contains a report
+output. They receive an application-owned, model-safe projection in which the
+selected report output is already replaced by its summary; task 3 chooses how
+the adapter obtains it (for example a model-safe projection of the same
+application query exposed to the MCP API client) and keeps the adapter thin.
+The report viewer receives the full snapshot only through the delivery channel
+the spike selects (currently tool-result `_meta`, which hosts do not show to
+the model). A failed boundary validation reports error codes and paths for the
+report output, not its values.
 
 ## Verified against code
 
@@ -282,6 +299,15 @@ the 0.9.12 version bump on top of that main:
    context by presence (schema section 2.3); neither existing helper changes.
 9. **The repository's `canonical_json_bytes` escapes non-ASCII**, so size limits
    are measured with `ensure_ascii=False` compact JSON instead.
+10. **The regular API result is redacted by key name.** The job status read
+    returns `PublicWorkflowResultV1.model_validate(redact(...))`
+    (`query_services_job_core_mixin.py:619`). `credential_redaction.redact`
+    replaces the value of every key matching `session`, `token`, `secret`,
+    `password`, `cookie` and similar with the string `"[REDACTED]"`, and rewrites
+    credential-like text in string values. A report row key such as `sessions`
+    or `tokens_used`, both ordinary analytics columns, would therefore turn a
+    number into a string and the returned snapshot would no longer match the
+    declared ReportSnapshot schema (recommendation 6).
 
 ## Consequences
 
@@ -328,8 +354,9 @@ the 0.9.12 version bump on top of that main:
 | Edit sessions | `core/application/workflows/workflow_edit_session_contract.py`, `workflow_definition_service.py:324-420` | carry the Interface operation; judge Interface issues with structural and readiness issues |
 | Interface summaries | `core/application/workflows/workflow_contract_summary.py`, `knowledge_projection_builder.py:238-293`, `canvas_graph_service.py:222` | carry or show the report selection |
 | Terminal events (2B) | `core/application/orchestration/validation_node.py` (`emit_event` details on pass and fail, `proof_of_work`) | replace the selected report output with its bounded summary (decision 11); the canonical `workflow_outputs` passed to terminal persistence stays complete |
-| MCP read path (task 3) | `core/application/reports/job_result_bundle.py`, `core/entrypoints/mcp/server_job_tools.py:46` | keep the snapshot out of model-visible content |
-| Diagnostic projections (task 3 verifies) | `core/entrypoints/mcp/server_job_tools.py` (`job_events`, `job_messages`, `job_logs`, `job_trace`, `job_runtime_journal`, `job_incident`, `job_errors`) and their `/api/jobs/{id}/…` routes | prove with a large fixture report that none of them, including nested raw fields, returns snapshot datasets or rows |
+| Regular API result (2B) | `core/application/jobs/workflow_run_projection.py` (`build_public_result`), `core/application/management/query_services_job_core_mixin.py` (`workflow_result`) | return the full report output as declared (decision 11); key-name `redact()` must not alter the selected report output (recommendation 6) |
+| MCP read path (task 3) | `core/application/reports/job_result_bundle.py`, `core/entrypoints/mcp/server_job_tools.py:46` | the MCP adapter gets an application-owned model-safe projection, not the raw bundle; the regular HTTP bundle stays full |
+| Model-visible projections (task 3 verifies) | `core/entrypoints/mcp/server_job_tools.py` (`job_result`, `job_events`, `job_messages`, `job_logs`, `job_trace`, `job_runtime_journal`, `job_incident`, `job_errors`) | prove with a large fixture report that none of them, including nested raw fields, returns snapshot datasets or rows, while the regular API `workflow_result` still returns the full snapshot |
 | Product UI (tasks 3–4) | `assets/frontend/src/pages/workflows/detail/detail-template-step.tsx:21-22`, `detail-workflow-settings-controller.ts:330-355` | format list, report editor, output selection; the controller already preserves unknown `callable` keys, so a renamed output leaves a stale selection that save must reject |
 | User and agent docs | `docs/user/workflows.md`, `docs/agent-skills/flow-steward-operator/skills/flow-steward-migrate-workflow/references/full-yaml-assembly.md` | describe the report format |
 
@@ -390,3 +417,12 @@ production code.
 5. **Summary locale.** *Recommendation:* `summary_text` stays locale-independent
    plain text (schema sections 4.1 and 4.2). Rendered values in the product and
    in MCP Apps are formatted by the snapshot's `locale` and `time_zone`.
+6. **Redaction of the report output.** *Recommendation:* dataset field names
+   and component keys inside a ReportSnapshot are data, not credential keys.
+   Credential-pattern redaction of string values (`redact_text`) is applied
+   once, by the compiler, before snapshot validation, so the validated, stored
+   and returned snapshots are equal. Read paths (`workflow_result`, test-run
+   payloads, export) do not apply key-name redaction inside the selected report
+   output, and 2B proves equality with a fixture whose rows use `sessions` and
+   `tokens_used`. The alternative — rejecting report keys the redactor would mask
+   — is not recommended, because those keys are common analytics columns.
