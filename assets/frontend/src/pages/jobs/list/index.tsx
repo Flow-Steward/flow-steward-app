@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { RefreshCw, Search } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -9,7 +10,10 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { readStoredWorkspaceId } from "@/lib/utils/workspace-selection";
-import { fetchJobsList, jobStatusParams, type JobListItem, type JobsListResponse } from "@/pages/jobs/list/api";
+import { fetchJobsList, jobStatusParams, trashJob, type JobListItem, type JobsListResponse } from "@/pages/jobs/list/api";
+import { PeriodFilter } from "@/components/shared/period-filter";
+import { expandPeriod, type PeriodValue } from "@/lib/time/period";
+import { todayIn } from "@/lib/time/calendar-days";
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { fetchWorkflows } from "@/pages/workflows/shared/api";
 import { fetchExtensions } from "@/pages/extensions/api";
@@ -133,6 +137,16 @@ function hideAcknowledgedFromUrl(value: string | null): boolean {
   return ["1", "true"].includes(String(value || "").trim().toLowerCase());
 }
 
+function periodFromUrl(params: URLSearchParams): PeriodValue {
+  const preset = params.get("period");
+  if (preset === "today" || preset === "last7" || preset === "last30") return { kind: "preset", preset };
+  const from = params.get("from_date") || "";
+  const to = params.get("to_date") || "";
+  const validDay = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day)
+    && !Number.isNaN(Date.parse(day)) && new Date(day).toISOString().slice(0, 10) === day;
+  return validDay(from) && validDay(to) && from <= to ? { kind: "custom", from, to } : { kind: "all" };
+}
+
 function normalizeWorkflowId(job: Record<string, unknown>): string {
   return firstStringFromUnknownValue([job.selected_workflow, job.workflow_id, ""]).trim();
 }
@@ -226,8 +240,11 @@ export function JobsListPage() {
   const { t } = useI18n();
   const auth = useAuth();
   const userTimezone = useUserTimezone();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const period = periodFromUrl(searchParams);
+  const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));
   const urlWorkflowFilter = firstStringFromUnknownValue([searchParams.get("workflow_id"), ""]).trim();
   // Dashboard metric cards deep-link here with a status, the same way workflow
   // links already do. It seeds the filter once; the user's own choice wins after.
@@ -266,7 +283,15 @@ export function JobsListPage() {
   const syncFiltersAndGridRef = useRef<() => void>(() => undefined);
   const refreshJobsRef = useRef<() => Promise<void>>(async () => undefined);
   const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const bulkBusyRef = useRef(false);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(selectedWorkspaceIdFromStorage);
+  const filterScope = JSON.stringify([deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate]);
+  const selectionScopeRef = useRef({ key: filterScope, generation: 0 });
+  if (selectionScopeRef.current.key !== filterScope) {
+    selectionScopeRef.current = { key: filterScope, generation: selectionScopeRef.current.generation + 1 };
+  }
 
   const roleFlags = useMemo(() => {
     const roles = new Set((auth.session?.user?.roles || auth.session?.roles || [])
@@ -560,6 +585,7 @@ export function JobsListPage() {
   }
 
   async function bulkJobAction(actionId: string, itemIds: string[]) {
+    if (bulkBusyRef.current) return;
     const ids = itemIds.map((itemId) => normalizeEntityId(itemId)).filter(isTruthy);
     if (!ids.length) {
       return;
@@ -581,8 +607,36 @@ export function JobsListPage() {
       if (!globalThis.confirm(t("react.jobs.confirm_delete_selected", "Delete {count} selected jobs?", { count: ids.length }))) {
         return;
       }
-      clearGridSelection();
-      await refreshJobs();
+      const selectionGeneration = selectionScopeRef.current.generation;
+      bulkBusyRef.current = true;
+      setBulkBusy(true);
+      setActionError("");
+      const failed: string[] = [];
+      const errors: string[] = [];
+      try {
+        for (const jobId of ids) {
+          try {
+            await trashJob(jobId);
+          } catch (error) {
+            failed.push(jobId);
+            errors.push(`${jobId}: ${error instanceof Error ? error.message : t("react.jobs.trash_failed", "Could not move job to Trash.")}`);
+          }
+        }
+        if (selectionScopeRef.current.generation === selectionGeneration) setSelectedJobs(new Set(failed));
+        if (failed.length < ids.length) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["workflows", "stats"] }),
+            queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+            queryClient.invalidateQueries({ queryKey: ["trash"] }),
+            queryClient.invalidateQueries({ queryKey: ["dashboard", "summary"] }),
+          ]);
+        }
+        await refreshJobsRef.current();
+        setActionError(errors.join("; "));
+      } finally {
+        bulkBusyRef.current = false;
+        setBulkBusy(false);
+      }
     }
   }
 
@@ -608,6 +662,8 @@ export function JobsListPage() {
       if (deferredSearch.trim()) {
         params.set("search", deferredSearch.trim());
       }
+      if (fromDate) params.set("from_date", fromDate);
+      if (toDate) params.set("to_date", toDate);
       const payload = await fetchJson<JobsListResponse>(`/api/jobs?${params.toString()}`);
       applyJobsData(payload);
       return true;
@@ -628,6 +684,8 @@ export function JobsListPage() {
         workflowId: workflowFilter || null,
         search: deferredSearch,
         workspaceId: selectedWorkspaceId || null,
+        fromDate,
+        toDate,
       });
       applyJobsData(payload);
       setLoadError("");
@@ -706,7 +764,11 @@ export function JobsListPage() {
 
   useEffect(() => {
     ignoreAsyncResult(refreshJobsRef.current());
-  }, [deferredSearch, hideAcknowledged, page, perPage, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter]);
+  }, [deferredSearch, hideAcknowledged, page, perPage, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate]);
+
+  useEffect(() => {
+    setSelectedJobs(new Set());
+  }, [deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate]);
 
   // Every chosen status group stays in the URL, so a reload or a shared link
   // keeps it; a link that named stored statuses is rewritten to their groups.
@@ -884,9 +946,29 @@ export function JobsListPage() {
           {loadError}
         </DsAlert>
       ) : null}
+      {actionError ? <DsAlert title={t("react.jobs.jobs_could_not_be_trashed", "Some jobs could not be moved to Trash")} tone="danger">{actionError}</DsAlert> : null}
 
       <article className="fs-card fs-table-card" id="jobs-table-view">
         <div className="fs-table-toolbar">
+          <PeriodFilter
+            portal
+            allLabel={t("react.jobs.all_runs", "All runs")}
+            ariaLabel={t("react.jobs.job_period", "Job period")}
+            value={period}
+            onChange={(value) => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("period");
+              next.delete("from_date");
+              next.delete("to_date");
+              if (value.kind === "preset") next.set("period", value.preset);
+              if (value.kind === "custom") {
+                next.set("from_date", value.from);
+                next.set("to_date", value.to);
+              }
+              setPage(1);
+              setSearchParams(next, { replace: true });
+            }}
+          />
           <AdvancedTableFilters
             fields={[
               { key: "project_filter", label: t("events.columns.project", "Project"), options: filterOptions.projects },
@@ -975,6 +1057,7 @@ export function JobsListPage() {
         />
         <BulkActionBar
           actions={jobBulkActions}
+          busy={bulkBusy}
           count={selectedJobs.size}
           onAction={(actionId) => ignoreAsyncResult(bulkJobAction(actionId, [...selectedJobs]))}
           onClear={() => setSelectedJobs(new Set())}

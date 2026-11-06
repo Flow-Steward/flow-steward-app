@@ -30316,3 +30316,15 @@ msgstr "MCP serveris"
 
 msgid "react.workflows.choose_mcp_server"
 msgstr "Pasirinkite MCP serverį"
+
+msgid "react.jobs.all_runs"
+msgstr "Visi vykdymai"
+
+msgid "react.jobs.job_period"
+msgstr "Užduočių laikotarpis"
+
+msgid "react.jobs.jobs_could_not_be_trashed"
+msgstr "Kai kurių užduočių nepavyko perkelti į šiukšlinę"
+
+msgid "react.jobs.trash_failed"
+msgstr "Nepavyko perkelti užduoties į šiukšlinę."

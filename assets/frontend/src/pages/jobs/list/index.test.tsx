@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { interpolate } from "@/lib/i18n/interpolate";
 
@@ -90,7 +91,7 @@ function jobsRequests(): URLSearchParams[] {
     .map((url) => new URL(url, "https://flow-steward.test").searchParams);
 }
 
-function renderJobsListPage(entry = "/jobs", locale: "en" | "lt" = "en", overrides: Record<string, string> = {}) {
+function renderJobsListPage(entry = "/jobs", locale: "en" | "lt" = "en", overrides: Record<string, string> = {}, client = new QueryClient()) {
   const messages: Record<string, string> = { ...(locale === "lt" ? {
     "react.jobs.confirm_cancel_selected": "Atšaukti pasirinktas užduotis ({count})?",
     "react.jobs.confirm_delete_selected": "Ištrinti pasirinktas užduotis ({count})?",
@@ -99,17 +100,110 @@ function renderJobsListPage(entry = "/jobs", locale: "en" | "lt" = "en", overrid
     "react.jobs.generated_workflow_run_label": "Darbo eigos vykdymas",
   } : {}), ...overrides };
   return render(
+    <QueryClientProvider client={client}>
     <I18nContext.Provider value={{ ...fallbackContext, locale, messages, t: (key, text = "", params) => interpolate(messages[key] || text, params) }}>
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route element={<><JobsListPage /><LocationProbe /></>} path="/jobs" />
         <Route element={<div>job detail page</div>} path="/jobs/:jobId" />
       </Routes>
-    </MemoryRouter></I18nContext.Provider>,
+    </MemoryRouter></I18nContext.Provider></QueryClientProvider>,
   );
 }
 
 describe("JobsListPage", () => {
+  it("keeps the current period and selection when a previous-scope deletion finishes", async () => {
+    const confirm = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
+    let rejectDelete: (error: Error) => void = () => undefined;
+    const deletion = new Promise<never>((_resolve, reject) => { rejectDelete = reject; });
+    mockedFetchJson.mockImplementation(async (url, options) => {
+      if (options?.method === "DELETE") return deletion;
+      const filtered = String(url).includes("from_date=2026-03-01");
+      return { jobs: [{ id: filtered ? "new-scope" : "old-scope", status: "failed" }], total: 1 } as never;
+    });
+    renderJobsListPage();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select old-scope" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Selected" }));
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/api/jobs/old-scope", { method: "DELETE" }));
+    expect(screen.getByRole("button", { name: "Delete Selected" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /^Job period:/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Custom range" }));
+    fireEvent.change(screen.getByLabelText("Custom range, first day"), { target: { value: "2026-03-01" } });
+    fireEvent.change(screen.getByLabelText("Custom range, last day"), { target: { value: "2026-03-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(await screen.findByRole("checkbox", { name: "Select new-scope" })).not.toBeChecked();
+    rejectDelete(new Error("Job is active"));
+    expect(await screen.findByText(/Job is active/)).toBeInTheDocument();
+    expect(jobsRequests().at(-1)?.get("from_date")).toBe("2026-03-01");
+    expect(screen.getByRole("checkbox", { name: "Select new-scope" })).not.toBeChecked();
+    expect(screen.queryByRole("button", { name: "Delete Selected" })).not.toBeInTheDocument();
+    confirm.mockRestore();
+  });
+  it("trashes selected jobs and invalidates cached workflow statistics", async () => {
+    const confirm = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
+    const client = new QueryClient();
+    client.setQueryData(["workflows", "stats", "workflow-one"], { failed_count: 1 });
+    let deleted = false;
+    mockedFetchJson.mockImplementation(async (url, options) => {
+      if (options?.method === "DELETE") {
+        deleted = true;
+        return { status: "deleted", job_id: "job-1" } as never;
+      }
+      return { jobs: deleted ? [] : [{ id: "job-1", selected_workflow: "workflow-one", status: "failed" }], total: deleted ? 0 : 1 } as never;
+    });
+    renderJobsListPage("/jobs", "en", {}, client);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select job-1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Selected" }));
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/api/jobs/job-1", { method: "DELETE" }));
+    await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Select job-1" })).not.toBeInTheDocument());
+    expect(client.getQueryState(["workflows", "stats", "workflow-one"])?.isInvalidated).toBe(true);
+    confirm.mockRestore();
+  });
+
+  it("retains failed deletions selected and shows the server error after partial success", async () => {
+    const confirm = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
+    const rows = [{ id: "done", status: "failed" }, { id: "active", status: "in_progress" }];
+    let deleted = false;
+    mockedFetchJson.mockImplementation(async (url, options) => {
+      if (options?.method === "DELETE") {
+        if (String(url).endsWith("/active")) throw new Error("Job is active");
+        deleted = true;
+        return { status: "deleted" } as never;
+      }
+      return { jobs: deleted ? rows.slice(1) : rows } as never;
+    });
+    renderJobsListPage();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select done" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select active" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Selected" }));
+    expect(await screen.findByText(/Job is active/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select active" })).toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "Select done" })).not.toBeInTheDocument();
+    confirm.mockRestore();
+  });
+
+  it("restores a same-day period from the URL and combines it with workflow and status", async () => {
+    renderJobsListPage("/jobs?workflow_id=workflow-one&status=failed&from_date=2026-03-01&to_date=2026-03-01");
+    await waitFor(() => expect(jobsRequests().at(-1)?.get("from_date")).toBe("2026-03-01"));
+    expect(jobsRequests().at(-1)?.get("to_date")).toBe("2026-03-01");
+    expect(jobsRequests().at(-1)?.get("workflow_id")).toBe("workflow-one");
+    fireEvent.click(screen.getByRole("button", { name: /^Job period:/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: "All runs" }));
+    await waitFor(() => expect(jobsRequests().at(-1)?.has("from_date")).toBe(false));
+    expect(screen.getByTestId("location-search")).not.toHaveTextContent("from_date");
+  });
+
+  it("applies an inclusive custom date range and persists it in the URL", async () => {
+    renderJobsListPage();
+    fireEvent.click(await screen.findByRole("button", { name: /^Job period:/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Custom range" }));
+    fireEvent.change(screen.getByLabelText("Custom range, first day"), { target: { value: "2026-03-05" } });
+    fireEvent.change(screen.getByLabelText("Custom range, last day"), { target: { value: "2026-03-10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(jobsRequests().at(-1)?.get("to_date")).toBe("2026-03-10"));
+    expect(jobsRequests().at(-1)?.get("from_date")).toBe("2026-03-05");
+    expect(screen.getByTestId("location-search")).toHaveTextContent("from_date=2026-03-05&to_date=2026-03-10");
+  });
   beforeEach(() => {
     mockedUseAuth.mockReset();
     mockedFetchJson.mockReset();
@@ -152,7 +246,7 @@ describe("JobsListPage", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Select owner-job-2" }));
     fireEvent.click(screen.getByRole("button", { name: action }));
     expect(confirm).toHaveBeenCalledWith(prompt);
-    expect(mockedFetchJson.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    expect(mockedFetchJson.mock.calls.some(([, init]) => init?.method === "POST" || init?.method === "DELETE")).toBe(false);
     expect(screen.getByRole("checkbox", { name: "Select owner-job-1" })).toBeChecked();
     confirm.mockRestore();
   });

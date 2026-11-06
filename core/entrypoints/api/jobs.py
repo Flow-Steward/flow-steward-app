@@ -228,6 +228,12 @@ def create_api_jobs_router(
             str,
             Query(description="Optional text search across job, workflow, and project fields."),
         ] = "",
+        from_date: Annotated[
+            str, Query(description="First local calendar day (YYYY-MM-DD), inclusive.")
+        ] = "",
+        to_date: Annotated[
+            str, Query(description="Last local calendar day (YYYY-MM-DD), inclusive.")
+        ] = "",
         hide_acknowledged: Annotated[
             bool,
             Query(description="Leave out runs an operator has acknowledged."),
@@ -246,6 +252,8 @@ def create_api_jobs_router(
                 workflow_id=workflow_id,
                 search=search,
                 hide_acknowledged=hide_acknowledged,
+                from_date=from_date,
+                to_date=to_date,
                 scope=request_scope(
                     request,
                     project_id=project_id or None,

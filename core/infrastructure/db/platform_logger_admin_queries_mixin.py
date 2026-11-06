@@ -319,6 +319,8 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         include_trashed: bool = False,
         scope: JobQueryScope | None = None,
         hide_acknowledged: bool = False,
+        started_after: datetime | None = None,
+        started_before: datetime | None = None,
     ) -> list[dict]:
         """Return recent jobs with project metadata for operator job views."""
         return job_queries_store.list_jobs_for_attention(
@@ -339,6 +341,8 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             finished_before=finished_before,
             include_trashed=include_trashed,
             hide_acknowledged=hide_acknowledged,
+            started_after=started_after,
+            started_before=started_before,
         )
 
     def count_jobs_for_attention(
@@ -355,6 +359,8 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         include_trashed: bool = False,
         scope: JobQueryScope | None = None,
         hide_acknowledged: bool = False,
+        started_after: datetime | None = None,
+        started_before: datetime | None = None,
     ) -> int:
         """Return total jobs count for operator job views."""
         return job_queries_store.count_jobs_for_attention(
@@ -371,6 +377,8 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             workspace_id=workspace_id,
             include_trashed=include_trashed,
             hide_acknowledged=hide_acknowledged,
+            started_after=started_after,
+            started_before=started_before,
         )
 
     def get_workflow_stats(

@@ -28839,3 +28839,15 @@ msgstr ""
 
 msgid "react.workflows.choose_mcp_server"
 msgstr ""
+
+msgid "react.jobs.all_runs"
+msgstr ""
+
+msgid "react.jobs.job_period"
+msgstr ""
+
+msgid "react.jobs.jobs_could_not_be_trashed"
+msgstr ""
+
+msgid "react.jobs.trash_failed"
+msgstr ""

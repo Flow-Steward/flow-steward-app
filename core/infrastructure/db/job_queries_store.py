@@ -89,6 +89,8 @@ def _build_attention_where(
     finished_after: datetime | str | None = None,
     finished_before: datetime | str | None = None,
     hide_acknowledged: bool = False,
+    started_after: datetime | None = None,
+    started_before: datetime | None = None,
     task_source: str | None = None,
 ) -> tuple[str, list[Any]]:
     where, params = (
@@ -128,6 +130,13 @@ def _build_attention_where(
     if finished_before_dt is not None:
         where.append("j.finished_at < %s")
         params.append(finished_before_dt)
+
+    if started_after is not None:
+        where.append("COALESCE(j.started_at, j.queued_at) >= %s")
+        params.append(started_after)
+    if started_before is not None:
+        where.append("COALESCE(j.started_at, j.queued_at) < %s")
+        params.append(started_before)
 
     # Several statuses match ANY of them; "acknowledged" is derived, not stored.
     statuses = _status_values(status)
@@ -247,6 +256,8 @@ def list_jobs_for_attention(
     include_trashed: bool = False,
     scope_conditions: tuple[list[str], list[Any]] | None = None,
     hide_acknowledged: bool = False,
+    started_after: datetime | None = None,
+    started_before: datetime | None = None,
 ) -> list[dict]:
     where_sql, params = _build_attention_where(
         column_exists=column_exists,
@@ -263,6 +274,8 @@ def list_jobs_for_attention(
         finished_after=finished_after,
         finished_before=finished_before,
         hide_acknowledged=hide_acknowledged,
+        started_after=started_after,
+        started_before=started_before,
     )
     params.append(max(1, min(int(limit or 200), 2000)))
     params.append(max(0, int(offset or 0)))
@@ -326,6 +339,8 @@ def count_jobs_for_attention(
     include_trashed: bool = False,
     scope_conditions: tuple[list[str], list[Any]] | None = None,
     hide_acknowledged: bool = False,
+    started_after: datetime | None = None,
+    started_before: datetime | None = None,
 ) -> int:
     where_sql, params = _build_attention_where(
         column_exists=column_exists,
@@ -340,6 +355,8 @@ def count_jobs_for_attention(
         workspace_id=workspace_id,
         include_trashed=include_trashed,
         hide_acknowledged=hide_acknowledged,
+        started_after=started_after,
+        started_before=started_before,
     )
     with conn.cursor() as cur:
         cur.execute(

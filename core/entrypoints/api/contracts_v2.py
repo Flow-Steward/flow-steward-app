@@ -204,6 +204,8 @@ def create_api_contracts_v2_router(
         task_source: Annotated[Literal["workflow_test_run"] | None, Query()] = None,
         search: Annotated[str, Query()] = "",
         hide_acknowledged: Annotated[bool, Query()] = False,
+        from_date: Annotated[str, Query()] = "",
+        to_date: Annotated[str, Query()] = "",
     ):
         try:
             payload = job_query_service().list_jobs(
@@ -218,6 +220,8 @@ def create_api_contracts_v2_router(
                 task_source=task_source,
                 search=search,
                 hide_acknowledged=hide_acknowledged,
+                from_date=from_date,
+                to_date=to_date,
                 scope=request_scope(
                     request,
                     project_id=project_id or None,

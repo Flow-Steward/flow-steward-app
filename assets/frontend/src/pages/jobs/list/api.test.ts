@@ -27,3 +27,13 @@ it("preserves the ordinary unfiltered jobs request when task source is omitted",
   const requested = new URL(String(mockedFetchJson.mock.calls[0][0]), "https://example.test");
   expect(requested.searchParams.has("task_source")).toBe(false);
 });
+
+it("sends date bounds alongside workflow and status filters", async () => {
+  mockedFetchJson.mockResolvedValue({ jobs: [] });
+  await fetchJobsList({ page: 1, perPage: 25, status: "failed", projectId: null, workflowId: "wf", fromDate: "2026-03-01", toDate: "2026-03-01" });
+  const requested = new URL(String(mockedFetchJson.mock.calls[0][0]), "https://example.test");
+  expect(requested.searchParams.get("from_date")).toBe("2026-03-01");
+  expect(requested.searchParams.get("to_date")).toBe("2026-03-01");
+  expect(requested.searchParams.get("workflow_id")).toBe("wf");
+  expect(requested.searchParams.getAll("status")).toEqual(["failed"]);
+});
