@@ -924,3 +924,33 @@ def test_compose_receives_an_absolute_state_dir_inside_the_checkout(tmp_path: Pa
     _status, docker_state_dir = _run_fs_compose(tmp_path, "ps", state_dir=None)
 
     assert docker_state_dir == str(ROOT / ".flow-steward")
+
+
+def test_borrowed_audit_image_uses_immutable_id_and_disables_implicit_builds(tmp_path):
+    helper = ROOT / "core/entrypoints/cli/scripts/docker_compose_env.sh"
+    identity = "sha256:" + "a" * 64
+    script = """
+source "$1"
+docker() { printf '%s\n' "$*"; }
+fs_compose run --rm fs-audit true
+fs_compose up -d pg-audit
+fs_compose_service_image fs-audit
+"""
+    result = subprocess.run(
+        ["bash", "-c", script, "_", str(helper)],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "FS_BORROWED_AUDIT_IMAGE": identity,
+            "FS_STACK_ENV_FILE": "/dev/null",
+            "FS_COMPOSE_PROJECT_NAME": "fs-owned-test",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "run --pull never --rm fs-audit true" in result.stdout
+    assert "run --no-build" not in result.stdout
+    assert "up --no-build -d pg-audit" in result.stdout
+    assert result.stdout.splitlines()[-1] == identity

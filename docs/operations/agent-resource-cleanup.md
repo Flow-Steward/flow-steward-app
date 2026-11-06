@@ -70,7 +70,30 @@ used by a running container are retained. No forced image removal or broad Compo
 
 ## Private build cache
 
-Canonical managed quality commands automatically create and select a private builder.
+Canonical managed quality commands first compute the canonical audit toolchain digest through
+`lint.sh --audit-toolchain-digest` and inspect locally available images with the matching
+`org.flowsteward.audit-toolchain` label. A match is pinned by its full immutable image ID,
+recorded as a borrowed dependency, and used by the private Compose project. No alias is
+created and no existing image is relabelled or deleted. Repeated RED/GREEN commands therefore
+reuse the ready toolchain image even though their containers and scratch paths remain private.
+The override removes the audit build definition with Compose's
+[`!reset null`](https://docs.docker.com/reference/compose-file/merge/#reset-value).
+`run` uses `--pull never`, and `up` uses `--no-build`, so this path cannot build implicitly; the canonical image guard rechecks the
+digest and fails without building if the borrowed image disappears or no longer matches.
+
+For example, repeat the same launcher with the same retained registry and task owner:
+
+```bash
+python -m core.entrypoints.cli.agent_resources \
+  --registry /absolute/primary-checkout/logs/resource-ownership/v1 \
+  --owner TASK_ID run -- bash core/entrypoints/cli/scripts/lint.sh --checks ruff
+```
+
+A genuinely missing matching image uses an owned image and private builder. Only that
+task-created builder/cache is removed after the command. A borrowed image's active claim
+is released after the foreground process and its children exit; the image itself is preserved.
+The journal compares native image and daemon identities across aliases so another cooperating
+owner cannot delete an image while it is borrowed.
 For other build commands, run `init` and then `private-builder` with the same registry/owner arguments before `run`.
 The builder uses the `docker-container` driver, a random task-specific name and owner/token
 driver options. The wrapper passes its name as `BUILDX_BUILDER` to the child; default builder

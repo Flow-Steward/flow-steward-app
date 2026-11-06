@@ -336,3 +336,10 @@ def test_native_missing_network_response_is_idempotent(monkeypatch):
         ),
     )
     assert DockerResources().inspect("network", CID) is None
+
+
+def test_immutable_image_id_is_accepted_only_as_borrowed(docker, ledger):
+    adapter, _, _ = docker
+    assert adapter.capture("image_tag", IID, ledger, borrowed=True)["native_id"] == IID
+    with pytest.raises(ValueError, match="tag"):
+        adapter.capture("image_tag", IID, ledger)

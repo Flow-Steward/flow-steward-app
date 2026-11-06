@@ -35,6 +35,7 @@ def run_owned(service: ResourceCleanup, owner: str, command: list[str]) -> RunRe
         service.journal.save(ledger)
     code = 127
     discovery_error = None
+    borrowed_for_run: set[str] = set()
     try:
         run_id = uuid4().hex[:12]
         scratch = service.create_directory(owner, "run-" + run_id)
@@ -56,6 +57,10 @@ def run_owned(service: ResourceCleanup, owner: str, command: list[str]) -> RunRe
         environment = native.prepare_environment(
             ledger, command, environment, scratch.identity, cache.identity
         )
+        borrowed_image = environment.get("FS_BORROWED_AUDIT_IMAGE")
+        if borrowed_image:
+            resource = service.track(owner, "image_tag", borrowed_image, borrowed=True)
+            borrowed_for_run.add(resource.resource_id)
         with service.journal.locked():
             ledger = service.journal.load(owner)
         builders = [
@@ -63,9 +68,13 @@ def run_owned(service: ResourceCleanup, owner: str, command: list[str]) -> RunRe
             for r in ledger.resources
             if r.kind == "builder" and r.state in {"active", "retained"} and r.disposable
         ]
-        if environment.get("FS_OWNED_QUALITY") == ledger.token and not builders:
+        if (
+            environment.get("FS_OWNED_QUALITY") == ledger.token
+            and not borrowed_image
+            and not builders
+        ):
             builders = [service.create_builder(owner)]
-        if builders:
+        if builders and not borrowed_image:
             if not native.validate(ledger, builders[0]):
                 raise ValueError("private builder is unavailable")
             environment["BUILDX_BUILDER"] = builders[0].identity
@@ -94,6 +103,12 @@ def run_owned(service: ResourceCleanup, owner: str, command: list[str]) -> RunRe
                 current.run_pid = None
                 current.run_pgid = None
                 for resource in current.resources:
+                    if (
+                        resource.resource_id in borrowed_for_run
+                        and resource.state == "active"
+                        and not resource.consumers
+                    ):
+                        resource.state = "released"
                     if (
                         discovery_error is None
                         and resource.disposable

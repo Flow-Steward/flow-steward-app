@@ -996,6 +996,7 @@ def _run_audit_image_check(
     inspect_exit: int = 0,
     build_exit: int = 0,
     calls: int = 2,
+    borrowed_image: str = "",
 ) -> tuple[subprocess.CompletedProcess[str], list[str], str]:
     root = tmp_path / "repo"
     if not root.exists():
@@ -1015,6 +1016,7 @@ def _run_audit_image_check(
             str(build_exit),
             str(calls),
         ],
+        env={**os.environ, "FS_BORROWED_AUDIT_IMAGE": borrowed_image},
         capture_output=True,
         text=True,
         check=False,
@@ -1387,3 +1389,23 @@ def test_frontend_gate_workspace_excludes_implicit_dotenv_inputs(
     assert (workspace_assets / "frontend/package.json").is_file()
     assert (workspace_assets / "platform-components.css").is_file()
     assert list((workspace_assets / "frontend").glob(".env*")) == []
+
+
+def test_matching_borrowed_audit_image_never_builds(tmp_path: Path) -> None:
+    image = "sha256:" + "a" * 64
+    completed, calls, _ = _run_audit_image_check(tmp_path, label="current", borrowed_image=image)
+    assert "status=0" in completed.stdout
+    assert len(calls) == 1
+    assert calls[0].endswith(" " + image)
+
+
+@pytest.mark.parametrize("label,inspect_exit", [("old", 0), ("", 1)])
+def test_unavailable_borrowed_audit_image_stops_without_build(
+    tmp_path: Path, label: str, inspect_exit: int
+) -> None:
+    completed, calls, _ = _run_audit_image_check(
+        tmp_path, label=label, inspect_exit=inspect_exit, borrowed_image="sha256:" + "a" * 64
+    )
+    assert "status=2" in completed.stdout
+    assert "building" not in completed.stdout
+    assert not any("fs_compose build" in call for call in calls)

@@ -174,6 +174,12 @@ fs_compose_may_build() {
 fs_compose() {
   local compose_args=()
   local status=0
+  if [[ -n "${FS_BORROWED_AUDIT_IMAGE:-}" ]]; then
+    case "${1:-}" in
+      run) set -- "$1" --pull never "${@:2}" ;;
+      up) set -- "$1" --no-build "${@:2}" ;;
+    esac
+  fi
   while IFS= read -r -d '' arg; do
     compose_args+=("${arg}")
   done < <(fs_compose_args)
@@ -188,6 +194,10 @@ fs_compose() {
 # The tag Compose gives the image it builds for a service that declares no
 # `image:` key: `<project>-<service>:latest`.
 fs_compose_service_image() {
+  if [[ "$1" == fs-audit && -n "${FS_BORROWED_AUDIT_IMAGE:-}" ]]; then
+    printf '%s\n' "${FS_BORROWED_AUDIT_IMAGE}"
+    return 0
+  fi
   printf '%s-%s:latest\n' "${FS_COMPOSE_PROJECT_NAME}" "$1"
 }
 

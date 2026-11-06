@@ -71,10 +71,17 @@ class DockerResources:
             raise ValueError("cannot register missing Docker resource")
         if kind in {"container", "network"} and identity != data.get("Id"):
             raise ValueError("full immutable Docker ID required")
-        if kind == "image_tag" and (
-            identity.startswith("sha256:") or identity not in (data.get("RepoTags") or [])
+        immutable_borrow = (
+            borrowed
+            and bool(re.fullmatch(r"sha256:[a-f0-9]{64}", identity))
+            and identity == data.get("Id")
+        )
+        if (
+            kind == "image_tag"
+            and not immutable_borrow
+            and (identity.startswith("sha256:") or identity not in (data.get("RepoTags") or []))
         ):
-            raise ValueError("an exact image tag is required, never an image ID")
+            raise ValueError("an exact image tag is required; immutable IDs are borrowed only")
         if (
             kind == "image_tag"
             and not borrowed

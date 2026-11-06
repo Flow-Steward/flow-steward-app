@@ -77,6 +77,13 @@ def _claims(resource: Resource, peers: list[Ledger], owner: str) -> Iterator[str
             if other.state not in {"active", "retained"}:
                 continue
             same = resource.kind == other.kind and resource.identity == other.identity
+            if resource.kind == other.kind == "image_tag":
+                same = same or bool(
+                    resource.proof.get("native_id")
+                    and resource.proof.get("daemon_id")
+                    and resource.proof.get("native_id") == other.proof.get("native_id")
+                    and resource.proof.get("daemon_id") == other.proof.get("daemon_id")
+                )
             if resource.kind == other.kind == "directory":
                 left, right = Path(resource.identity), Path(other.identity)
                 same = left.is_relative_to(right) or right.is_relative_to(left)
@@ -130,10 +137,22 @@ class ResourceCleanup:
         with self.journal.locked():
             ledger = self.journal.load(owner)
             proof = self.native.capture(ledger, kind, identity, borrowed=borrowed)
-            if any(
-                r.kind == kind and r.identity == identity and r.state != "removed"
-                for r in ledger.resources
-            ):
+            for existing in ledger.resources:
+                if (
+                    existing.kind != kind
+                    or existing.identity != identity
+                    or existing.state == "removed"
+                ):
+                    continue
+                if (
+                    borrowed
+                    and not existing.disposable
+                    and existing.state == "released"
+                    and existing.proof == proof
+                ):
+                    existing.state = "active"
+                    self.journal.save(ledger)
+                    return existing
                 raise ValueError("resource already registered")
             resource = Resource(uuid4().hex, kind, identity, proof, disposable=not borrowed)
             ledger.resources.append(resource)

@@ -767,15 +767,29 @@ ensure_audit_image_current() {
   local image=""
   local wanted=""
   local built=""
+  local inspect_status=0
 
   [[ "${audit_image_checked}" -eq 0 ]] || return 0
   wanted="$(audit_toolchain_digest "${ROOT_DIR}")" || return $?
-  image="$(fs_compose_service_image fs-audit)"
-  if ! built="$(
+  image="${FS_BORROWED_AUDIT_IMAGE:-$(fs_compose_service_image fs-audit)}"
+  if [[ -n "${FS_BORROWED_AUDIT_IMAGE:-}" && ! "${image}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "[lint] Borrowed audit image must use an immutable ID." >&2
+    return 2
+  fi
+  built="$(
     docker image inspect \
       --format '{{ index .Config.Labels "org.flowsteward.audit-toolchain" }}' \
       "${image}" 2>/dev/null
-  )"; then
+  )" || inspect_status=$?
+  if [[ -n "${FS_BORROWED_AUDIT_IMAGE:-}" ]]; then
+    if [[ "${inspect_status}" -ne 0 || "${built}" != "${wanted}" ]]; then
+      echo "[lint] Borrowed audit image is unavailable or stale; refusing to build or retag it." >&2
+      return 2
+    fi
+    audit_image_checked=1
+    return 0
+  fi
+  if [[ "${inspect_status}" -ne 0 ]]; then
     echo "[lint] ${image} is missing; building it for toolchain ${wanted:0:12}."
   elif [[ "${built}" == "${wanted}" ]]; then
     audit_image_checked=1

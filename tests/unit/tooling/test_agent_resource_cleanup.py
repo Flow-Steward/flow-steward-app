@@ -19,6 +19,7 @@ def cleanup(tmp_path, monkeypatch):
     monkeypatch.setattr(native, "directory_consumers", lambda resource: False)
     monkeypatch.setattr(native, "discover", lambda ledger: [])
     monkeypatch.setattr(native, "inventory", dict)
+    monkeypatch.setattr(native, "select_audit_image", lambda script: None)
     return ResourceCleanup(ResourceJournal(tmp_path / "registry"), native)
 
 
@@ -289,7 +290,7 @@ def test_quality_gate_gets_private_project_labels_and_cache_export(cleanup, tmp_
     )
     assert env["FS_COMPOSE_PROJECT_NAME"] == "fs-owned-" + ledger.token
     assert env["FS_INSTALLER_STATE_DIR"].startswith(cache.identity + "/")
-    overlay = json.loads((Path(scratch.identity) / "owned-quality.json").read_text())
+    overlay = json.loads((Path(scratch.identity) / "owned-quality.yaml").read_text())
     for name in ("fs-audit", "pg-audit", "rabbitmq-audit"):
         assert overlay["services"][name]["labels"]["org.flowsteward.resource-token"] == ledger.token
     assert "volumes" not in overlay
@@ -368,3 +369,96 @@ def test_managed_quality_rejects_all_shared_sonar_entrypoints(
             str(tmp_path),
             str(tmp_path),
         )
+
+
+@pytest.mark.parametrize("children_alive", [False, True])
+def test_managed_ready_image_is_borrowed_without_private_builder_or_deletion(
+    cleanup, tmp_path, monkeypatch, children_alive
+):
+    from core.application.tooling.resource_cleanup.lifecycle import run_owned
+    from core.infrastructure.agent_resources import quality_environment
+
+    image_id = "sha256:" + "a" * 64
+    checkout = tmp_path / "checkout"
+    script = checkout / "core/entrypoints/cli/scripts/lint.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/bash\n")
+    (checkout / "infra/docker").mkdir(parents=True)
+    (checkout / "infra/docker/docker-compose.yaml").write_text("services: {}")
+    (checkout / ".env").write_text("")
+    borrowed = []
+    capture = cleanup.native.capture
+
+    def capture_borrowed(ledger, kind, identity, *, borrowed=False):
+        if identity == image_id:
+            assert borrowed
+            return {"native_id": image_id, "daemon_id": "daemon"}
+        return capture(ledger, kind, identity, borrowed=borrowed)
+
+    def prepare(ledger, command, environment, scratch, cache):
+        return quality_environment.prepare(
+            ledger, command, environment, scratch, cache, select_image=lambda path: image_id
+        )
+
+    def execute(command, environment, on_start):
+        if children_alive:
+            on_start(987654)
+        assert environment["FS_BORROWED_AUDIT_IMAGE"] == image_id
+        assert "BUILDX_BUILDER" not in environment
+        import yaml
+
+        class ComposeLoader(yaml.SafeLoader):
+            pass
+
+        ComposeLoader.add_constructor("!reset", lambda loader, node: None)
+        overlay = yaml.load(
+            (Path(environment["FS_TASK_SCRATCH"]) / "owned-quality.yaml").read_text(),
+            Loader=ComposeLoader,
+        )
+        assert overlay["services"]["fs-audit"]["image"] == image_id
+        assert overlay["services"]["fs-audit"]["build"] is None
+        ledger = cleanup.journal.load(OWNER)
+        borrowed.extend(r for r in ledger.resources if not r.disposable)
+        assert borrowed[-1].identity == image_id
+        assert borrowed[-1].state == "active"
+        return 0
+
+    monkeypatch.setattr(cleanup.native, "capture", capture_borrowed)
+    monkeypatch.setattr(cleanup.native, "prepare_environment", prepare)
+    monkeypatch.setattr(cleanup.native, "execute_owned", execute)
+    monkeypatch.setattr(
+        cleanup.native,
+        "create_builder",
+        lambda ledger: pytest.fail("ready image must not create a builder"),
+    )
+    monkeypatch.setattr(cleanup.native, "process_group_alive", lambda pgid: children_alive)
+    for _ in range(1 if children_alive else 2):
+        outcome = run_owned(cleanup, OWNER, ["bash", str(script), "--checks", "ruff"])
+        assert outcome.cleanup_ok is not children_alive
+    resources = cleanup.journal.load(OWNER).resources
+    images = [r for r in resources if r.identity == image_id]
+    assert len(images) == 1
+    assert images[0].state == ("active" if children_alive else "released")
+    assert not images[0].disposable
+
+
+@pytest.mark.parametrize("same_daemon", [False, True])
+def test_borrowed_immutable_image_blocks_owner_alias_cleanup(cleanup, monkeypatch, same_daemon):
+    proof = {"native_id": "sha256:" + "a" * 64, "daemon_id": "daemon"}
+    monkeypatch.setattr(cleanup.native, "capture", lambda *args, **kwargs: proof)
+    cleanup.initialize(OWNER)
+    alias = cleanup.track(OWNER, "image_tag", "fs-owned/" + "a" * 32 + ":audit")
+    cleanup.release(OWNER, alias.resource_id)
+    cleanup.initialize("borrower")
+    if not same_daemon:
+        monkeypatch.setattr(
+            cleanup.native,
+            "capture",
+            lambda *args, **kwargs: {**proof, "daemon_id": "another-daemon"},
+        )
+    cleanup.track("borrower", "image_tag", proof["native_id"], borrowed=True)
+    monkeypatch.setattr(cleanup.native, "validate", lambda *args: True)
+    monkeypatch.setattr(cleanup.native, "remove", lambda *args: None)
+    receipt = cleanup.cleanup(OWNER, apply=True)
+    assert (alias.resource_id in receipt.blocked) is same_daemon
+    assert (alias.resource_id in receipt.removed) is not same_daemon

@@ -9,7 +9,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 from core.application.tooling.resource_cleanup.models import Ledger, Resource
-from core.infrastructure.agent_resources import filesystem, process, quality_environment
+from core.infrastructure.agent_resources import (
+    audit_images,
+    filesystem,
+    process,
+    quality_environment,
+)
 from core.infrastructure.agent_resources.builders import PrivateBuilders
 from core.infrastructure.agent_resources.docker import DockerResources
 
@@ -117,11 +122,20 @@ class NativeResources:
                     return True
         return False
 
-    @staticmethod
+    def select_audit_image(self, script: Path) -> str | None:
+        return audit_images.select(script, self.docker)
+
     def prepare_environment(
-        ledger: Ledger, command: list[str], environment: dict[str, str], scratch: str, cache: str
+        self,
+        ledger: Ledger,
+        command: list[str],
+        environment: dict[str, str],
+        scratch: str,
+        cache: str,
     ) -> dict[str, str]:
-        return quality_environment.prepare(ledger, command, environment, scratch, cache)
+        return quality_environment.prepare(
+            ledger, command, environment, scratch, cache, select_image=self.select_audit_image
+        )
 
     def create_directory(self, ledger: Ledger, name: str) -> tuple[str, dict[str, str]]:
         return filesystem.create(ledger, name)

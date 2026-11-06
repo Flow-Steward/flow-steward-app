@@ -38,12 +38,15 @@ def read_json(path: Path) -> dict:
 
 
 def write_json(path: Path, value: dict) -> None:
+    write_text(path, json.dumps(value, indent=2) + "\n")
+
+
+def write_text(path: Path, value: str) -> None:
     no_symlinks(path)
     fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as stream:
-            json.dump(value, stream, indent=2)
-            stream.write("\n")
+            stream.write(value)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)

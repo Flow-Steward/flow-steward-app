@@ -36,7 +36,12 @@ outside whole-checkout bind mounts. Arbitrary directory adoption is forbidden; G
 worktrees, unexpected contents and symlink substitutions are retained for verified archival.
 Docker resource identity includes daemon identity. Image cleanup removes a recorded tag, never
 force-deletes a shared ID. A private docker-container builder is created with owner/token
-options and removed only with its exact identity and no active build. Shared builders and
+options and removed only with its exact identity and no active build. Before creating one,
+managed quality searches local images by the canonical toolchain digest, pins a verified
+match by immutable ID and borrows it without aliasing, relabelling or removal. The gate
+revalidates that ID/digest and prohibits implicit builds on a hit; a miss retains the owned
+build path. Borrowed claims cover native image identity across tags and end only after
+the managed foreground process and its children exit. Shared builders and
 BuildKit cache sweeps are outside this collector's authority.
 
 ## Consequences
