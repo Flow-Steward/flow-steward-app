@@ -748,6 +748,23 @@ def create_integrations_connectors_router(
             return api_error_response(e)
         return payload.dump()
 
+    @router.get("/api/workflows/{workflow_id}/linked-projects")
+    async def api_workflow_linked_projects(request: Request, workflow_id: str):
+        """The projects that link this workflow, in one read.
+
+        The workflow pages used to read every project's bindings to find these.
+        """
+        try:
+            payload = project_query_service().list_workflow_linked_projects(
+                workflow_id,
+                scope=request_scope(request),
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+        return payload.dump()
+
     @router.put("/api/projects/{project_id}/workflows")
     async def api_update_project_workflows(
         request: Request, project_id: str, body: ProjectWorkflowSelectionRequest

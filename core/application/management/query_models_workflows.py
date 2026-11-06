@@ -27,6 +27,13 @@ class ProjectsListView(ViewModel):
     total_pages: int = 1
 
 
+class WorkflowLinkedProjectsView(ViewModel):
+    """The projects that link one workflow, in project-list order."""
+
+    workflow_id: str = ""
+    projects: list[ProjectGridRowView] = Field(default_factory=list)
+
+
 class ProjectRuntimeConfigView(ViewModel):
     project_id: str
     project_name: str = ""

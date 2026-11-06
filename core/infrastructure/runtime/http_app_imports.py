@@ -335,6 +335,7 @@ from core.application.management.query_models import (
     WorkflowImportDependencyOptionsView,
     WorkflowImportPreflightView,
     WorkflowIssueListView,
+    WorkflowLinkedProjectsView,
     WorkflowProviderTriggerDeleteResultView,
     WorkflowProviderTriggerView,
     WorkflowReactionsView,
