@@ -29894,3 +29894,24 @@ msgstr "MCP server"
 
 msgid "react.workflows.choose_mcp_server"
 msgstr "Choose MCP server"
+
+msgid "react.report.empty_value"
+msgstr "—"
+
+msgid "react.report.yes"
+msgstr "Yes"
+
+msgid "react.report.no"
+msgstr "No"
+
+msgid "react.report.show_data"
+msgstr "Show data"
+
+msgid "react.report.chart_data_caption"
+msgstr "Data: {title}"
+
+msgid "react.report.unsupported_version"
+msgstr "This report uses a format this version cannot show."
+
+msgid "react.report.invalid"
+msgstr "This result is not a readable report."

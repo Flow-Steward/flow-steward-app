@@ -100,7 +100,7 @@ Modes:
   --sonar-backlog  Export SonarQube issues and generate developer backlog Markdown.
   --checks  Run only selected checks (comma-separated), e.g. `semgrep,pip-audit,bandit`.
             Supported: env-artifacts, ruff, ruff-format, mypy, bandit, pip-audit, semgrep, detect-secrets, ci-excludes, sonar-size, provider-neutral-core,
-            tests, targeted-tests, frontend-targeted-tests, frontend-build, ui-i18n, frontend-lint, frontend-test-build, frontend-audit, extension-oauth-browser, vulture, deptry, pylint-dup, radon, xenon, frontend-sql, security-tests, zap,
+            tests, targeted-tests, frontend-targeted-tests, frontend-build, ui-i18n, frontend-lint, frontend-test-build, frontend-audit, frontend-licenses, extension-oauth-browser, vulture, deptry, pylint-dup, radon, xenon, frontend-sql, security-tests, zap,
             extension-static, extension-tests (both need --extension-root).
   --test-paths     pytest targets or frontend src/ targets for selected tests (space or comma separated).
                    For extension-tests they are relative to the extension root and run fail-fast.
@@ -2175,6 +2175,13 @@ run_check_ui_i18n() {
     "${PYTHON_BIN}" -m core.application.tooling.i18n.ui_i18n_catalog validate-keys
 }
 
+run_check_frontend_licenses() {
+  # Lockfile and committed notices only: no npm install is needed to check them.
+  run_step \
+    "Frontend production licenses and notices" \
+    "${PYTHON_BIN}" -m core.application.tooling.quality.frontend_licenses check --root "${ROOT_DIR}"
+}
+
 run_check_sonar_size() {
   # Predicts Sonar's S104 file-size findings in about a second, so an over-long
   # file is reported here rather than after a 40-minute scan.
@@ -2625,6 +2632,9 @@ run_selected_checks() {
       frontend-audit|frontend-dependency-audit)
         run_check_frontend_dependency_audit
         ;;
+      frontend-licenses)
+        run_check_frontend_licenses
+        ;;
       vulture)
         run_check_vulture
         ;;
@@ -2651,7 +2661,7 @@ run_selected_checks() {
         ;;
       *)
         echo "[lint] Unsupported check in --checks: ${check_name}" >&2
-        echo "[lint] Supported checks: env-artifacts, ruff, ruff-format, mypy, bandit, pip-audit, semgrep, detect-secrets, ci-excludes, sonar-size, provider-neutral-core, tests, targeted-tests, frontend-targeted-tests, frontend-build, ui-i18n, frontend-lint, frontend-test-build, frontend-audit, extension-oauth-browser, vulture, deptry, pylint-dup, radon, xenon, frontend-sql, security-tests, zap, extension-static, extension-tests" >&2
+        echo "[lint] Supported checks: env-artifacts, ruff, ruff-format, mypy, bandit, pip-audit, semgrep, detect-secrets, ci-excludes, sonar-size, provider-neutral-core, tests, targeted-tests, frontend-targeted-tests, frontend-build, ui-i18n, frontend-lint, frontend-test-build, frontend-audit, frontend-licenses, extension-oauth-browser, vulture, deptry, pylint-dup, radon, xenon, frontend-sql, security-tests, zap, extension-static, extension-tests" >&2
         exit 2
         ;;
     esac

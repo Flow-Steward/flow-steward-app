@@ -410,6 +410,23 @@
       "reuse_scope": "inputs"
     },
     {
+      "id": "frontend-licenses",
+      "owner_tier": 2,
+      "command": [
+        "bash",
+        "core/entrypoints/cli/scripts/lint.sh",
+        "--checks",
+        "frontend-licenses"
+      ],
+      "inputs": [
+        "assets/frontend/package-lock.json",
+        "assets/frontend/third-party-notices.json",
+        "assets/frontend/public/third-party-notices.txt",
+        "core/application/tooling/quality/frontend_licenses.py"
+      ],
+      "reuse_scope": "inputs"
+    },
+    {
       "id": "frontend-lint",
       "owner_tier": 2,
       "command": [

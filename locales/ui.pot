@@ -28839,3 +28839,24 @@ msgstr ""
 
 msgid "react.workflows.choose_mcp_server"
 msgstr ""
+
+msgid "react.report.empty_value"
+msgstr ""
+
+msgid "react.report.yes"
+msgstr ""
+
+msgid "react.report.no"
+msgstr ""
+
+msgid "react.report.show_data"
+msgstr ""
+
+msgid "react.report.chart_data_caption"
+msgstr ""
+
+msgid "react.report.unsupported_version"
+msgstr ""
+
+msgid "react.report.invalid"
+msgstr ""

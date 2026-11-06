@@ -1,0 +1,125 @@
+{
+  "kind": "fs.report",
+  "schema_version": 1,
+  "title": "Weekly sales",
+  "locale": "en-US",
+  "time_zone": "Europe/Berlin",
+  "summary_text": "Revenue 48210.5 EUR in the week of 2026-11-02; target met: false.",
+  "datasets": [
+    {
+      "id": "regions",
+      "fields": ["region", "revenue", "margin"],
+      "rows": [
+        ["EMEA", 21500.0, 0.18],
+        ["APAC", 0, null],
+        ["AMER", 26710.5, 0.21]
+      ]
+    },
+    {
+      "id": "returns",
+      "fields": ["order_id", "amount", "returned_on"],
+      "rows": []
+    }
+  ],
+  "components": [
+    {
+      "id": "heading",
+      "type": "text",
+      "style": "heading",
+      "segments": [
+        {"text": "Week of "},
+        {"value": "2026-11-02", "format": {"type": "date"}}
+      ]
+    },
+    {
+      "id": "revenue_total",
+      "type": "metric",
+      "label": "Revenue",
+      "value": 48210.5,
+      "format": {"type": "currency", "currency": "EUR", "maximum_fraction_digits": 2},
+      "comparison": {
+        "label": "vs previous week",
+        "value": 0.123,
+        "format": {"type": "percent", "maximum_fraction_digits": 1}
+      }
+    },
+    {
+      "id": "orders",
+      "type": "metric",
+      "label": "Orders",
+      "value": 0,
+      "format": {"type": "number"}
+    },
+    {
+      "id": "refund_rate",
+      "type": "metric",
+      "label": "Refund rate",
+      "value": null,
+      "format": {"type": "percent", "maximum_fraction_digits": 1}
+    },
+    {
+      "id": "status",
+      "type": "text",
+      "style": "paragraph",
+      "segments": [
+        {"text": "Target met: "},
+        {"value": false, "format": {"type": "boolean"}},
+        {"text": ". Data as of "},
+        {"value": "2026-11-08T18:30:00Z", "format": {"type": "datetime"}},
+        {"text": "."}
+      ]
+    },
+    {
+      "id": "region_table",
+      "type": "table",
+      "caption": "Revenue by region",
+      "dataset": "regions",
+      "columns": [
+        {"id": "region", "field": "region", "label": "Region", "format": {"type": "text"}},
+        {"id": "revenue", "field": "revenue", "label": "Revenue", "format": {"type": "currency", "currency": "EUR"}},
+        {"id": "margin", "field": "margin", "label": "Margin", "format": {"type": "percent", "maximum_fraction_digits": 1}}
+      ],
+      "empty_text": "No regional sales this week."
+    },
+    {
+      "id": "region_chart",
+      "type": "chart",
+      "chart_type": "bar",
+      "title": "Revenue by region",
+      "description": "Bar chart of weekly revenue in euros for each sales region.",
+      "dataset": "regions",
+      "category": {"field": "region", "label": "Region", "format": {"type": "text"}},
+      "series": [
+        {"id": "revenue", "field": "revenue", "label": "Revenue", "format": {"type": "currency", "currency": "EUR"}}
+      ],
+      "empty_text": "No regional sales this week."
+    },
+    {
+      "id": "details",
+      "type": "section",
+      "title": "Returns and notes",
+      "children": [
+        {
+          "id": "returns_table",
+          "type": "table",
+          "caption": "Returns",
+          "dataset": "returns",
+          "columns": [
+            {"id": "order", "field": "order_id", "label": "Order", "format": {"type": "text"}},
+            {"id": "amount", "field": "amount", "label": "Amount", "format": {"type": "currency", "currency": "EUR"}},
+            {"id": "returned_on", "field": "returned_on", "label": "Returned on", "format": {"type": "date"}}
+          ],
+          "empty_text": "No returns this week."
+        },
+        {
+          "id": "commentary",
+          "type": "text",
+          "style": "paragraph",
+          "segments": [
+            {"value": "No commentary this week.", "format": {"type": "text"}}
+          ]
+        }
+      ]
+    }
+  ]
+}

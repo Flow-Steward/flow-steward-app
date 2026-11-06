@@ -30316,3 +30316,24 @@ msgstr "MCP serveris"
 
 msgid "react.workflows.choose_mcp_server"
 msgstr "Pasirinkite MCP serverį"
+
+msgid "react.report.empty_value"
+msgstr "—"
+
+msgid "react.report.yes"
+msgstr "Taip"
+
+msgid "react.report.no"
+msgstr "Ne"
+
+msgid "react.report.show_data"
+msgstr "Rodyti duomenis"
+
+msgid "react.report.chart_data_caption"
+msgstr "Duomenys: {title}"
+
+msgid "react.report.unsupported_version"
+msgstr "Šioje versijoje negalima parodyti šio formato ataskaitos."
+
+msgid "react.report.invalid"
+msgstr "Šis rezultatas nėra skaitoma ataskaita."

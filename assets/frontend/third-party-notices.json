@@ -1,0 +1,4 @@
+{
+  "description": "Packages whose production closure ships notices in public/third-party-notices.txt (see core/application/tooling/quality/frontend_licenses.py).",
+  "roots": ["echarts", "@tanstack/react-table"]
+}
