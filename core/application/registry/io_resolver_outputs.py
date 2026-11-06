@@ -551,7 +551,9 @@ class IOResolverOutputMixin:
                 spec.get("result_target"),
                 source=step_kind,
                 source_id=step_id,
-                output_type="text",
+                output_type=(
+                    "object" if str(spec.get("format") or "").strip() == "report" else "text"
+                ),
             )
         elif step_kind == "transform":
             spec = override.get("transform") if isinstance(override, dict) else {}

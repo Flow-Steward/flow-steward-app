@@ -764,6 +764,7 @@ def execute_step_node(
     if step_kind == STEP_KIND_TEMPLATE:
         from core.application.orchestration.template_step_runtime import (
             execute_template_step,
+            template_result_value,
             template_step_artifacts,
             template_step_summary,
         )
@@ -773,7 +774,7 @@ def execute_step_node(
         state_updates = {}
         target = str(config.get("result_target") or "").strip()
         if target and bool(result.get("ok")):
-            _set_path(state_updates, dict(state or {}), target, result.get("text"))
+            _set_path(state_updates, dict(state or {}), target, template_result_value(result))
         message_update = _append_step_message(
             status="pass" if result.get("ok") else "fail",
             summary=template_step_summary(result),

@@ -7,6 +7,8 @@ from typing import Any
 
 from core.application.orchestration.dataset_cursor_contracts import MAX_DATASET_PAGE_SIZE
 from core.application.registry.builder_metadata import normalize_builder_metadata
+from core.application.workflow_documents.report_examples import TEMPLATE_REPORT_EXAMPLE
+from core.application.workflow_documents.report_schemas_v1 import DEFINITION_SCHEMA_V1_JSON
 from core.application.workflows.workflow_definition_validation import WAIT_DURATION_MS_MAX
 from core.application.workflows.workflow_step_kinds import (
     STEP_KIND_AGENT,
@@ -585,8 +587,9 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
         "display_name": "Template",
         "description": (
             "Assemble one text from declared inputs with a Jinja template: a prompt, an "
-            "email, a product description, a post or an HTML fragment. Writes the text "
-            "to result_target; never calls a model."
+            "email, a product description, a post or an HTML fragment. With format report "
+            "it builds a structured report (text, metrics, tables, line and bar charts, "
+            "sections) instead. Writes the result to result_target; never calls a model."
         ),
         "enabled": True,
         "builder_metadata_jsonb": {
@@ -595,6 +598,7 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
                 "compose an email or post from a header, body and footer",
                 "build a prompt for an agent from several workflow values",
                 "render an HTML table from a list prepared by a transform step",
+                "build a report with metrics, a table and a chart from earlier step data",
             ],
             "anti_use_cases": [
                 "reshaping or calculating data: use transform before the template",
@@ -615,7 +619,11 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
                         "names a state selector as its source. format is text, markdown or "
                         "html; html escapes inserted values unless marked | safe. A missing "
                         "value fails the step unless the template uses default(...) or "
-                        "is defined."
+                        "is defined. format report takes a report definition instead of "
+                        "text: components bind to the declared inputs by name and an "
+                        "optional relative path, and the step writes a report snapshot "
+                        "object to result_target (ADR 0059). Shape, sort and aggregate "
+                        "data in earlier steps; the report never coerces values."
                     ),
                     "examples": [
                         {
@@ -642,11 +650,16 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
                                 },
                             ],
                             "result_target": "state.outputs.post_markdown",
-                        }
+                        },
+                        json.loads(json.dumps(TEMPLATE_REPORT_EXAMPLE)),
                     ],
                     "properties": {
                         "text": {"type": "string"},
-                        "format": {"type": "string", "enum": ["text", "markdown", "html"]},
+                        "format": {
+                            "type": "string",
+                            "enum": ["text", "markdown", "html", "report"],
+                        },
+                        "report": json.loads(DEFINITION_SCHEMA_V1_JSON),
                         "inputs": {
                             "type": "array",
                             "items": {
@@ -672,7 +685,13 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
                         },
                         "result_target": {"type": "string"},
                     },
-                    "required": ["text", "result_target"],
+                    "required": ["result_target"],
+                    "if": {
+                        "properties": {"format": {"const": "report"}},
+                        "required": ["format"],
+                    },
+                    "then": {"required": ["report"], "not": {"required": ["text"]}},
+                    "else": {"required": ["text"], "not": {"required": ["report"]}},
                 }
             },
         },

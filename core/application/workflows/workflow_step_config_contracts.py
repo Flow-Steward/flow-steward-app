@@ -170,7 +170,7 @@ STEP_CONFIG_ALLOWED_KEYS: dict[str, frozenset[str]] = {
     STEP_KIND_FILE_FROM_BASE64: frozenset(
         {"content_type", "filename", "max_bytes", "result_target", "source"}
     ),
-    STEP_KIND_TEMPLATE: frozenset({"format", "inputs", "result_target", "text"}),
+    STEP_KIND_TEMPLATE: frozenset({"format", "inputs", "report", "result_target", "text"}),
 }
 
 STEP_OVERRIDE_CROSS_CUTTING_KEYS = frozenset(

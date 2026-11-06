@@ -2,15 +2,20 @@
 
 Config (``override.template``):
 
-- ``text`` (required, may be empty): the Jinja source.
-- ``format``: ``text`` (default), ``markdown`` or ``html``. HTML escapes every
-  inserted value unless the template marks it ``safe``; the other formats insert
-  values as they are. The format never converts the result.
+- ``text`` (required for the text formats, may be empty): the Jinja source.
+- ``format``: ``text`` (default), ``markdown``, ``html`` or ``report``. HTML
+  escapes every inserted value unless the template marks it ``safe``; the other
+  text formats insert values as they are. The format never converts the result.
+- ``report`` (required with ``format: report``, forbidden otherwise): a
+  ReportDefinition v1 (ADR 0059). The step compiles it with the declared input
+  values into a ReportSnapshot object instead of rendering text; ``text`` is
+  forbidden in this mode.
 - ``inputs``: the values the template reads, each
   ``{"name", "type", "required", "source"}``. ``name`` is the local name used in
   the template (``{{ header }}``); ``source`` is the workflow state selector it
   is read from (``state.outputs.header``). ``type`` is one of ``INPUT_TYPES``.
-- ``result_target``: the state path that receives the rendered text.
+- ``result_target``: the state path that receives the rendered text, or the
+  snapshot object in report mode.
 
 The template sees only its declared inputs, typed as they are in state. A
 required input that is missing fails the step before rendering; a missing
@@ -26,6 +31,13 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.application.orchestration.state_paths import resolve_state_path_with_workflow_data
+from core.application.workflow_documents import (
+    ReportError,
+    compile_report,
+    prefix_issues,
+    report_preview,
+    validate_report_definition,
+)
 from core.infrastructure.security.jinja_sandbox import (
     MAX_TEMPLATE_CHARS,
     TEMPLATE_FORMATS,
@@ -42,6 +54,9 @@ from core.infrastructure.security.secret_reference import is_secret_reference
 
 TEMPLATE_CONFIG_KEY = "template"
 DEFAULT_FORMAT = "text"
+REPORT_FORMAT = "report"
+#: Every format the Template step accepts: the Jinja text formats plus reports.
+STEP_FORMATS = (*TEMPLATE_FORMATS, REPORT_FORMAT)
 #: Contract types a template input may declare.
 INPUT_TYPES = ("text", "number", "boolean", "object", "array", "json")
 #: A rendered text up to this size is kept whole in the step's message, so Job
@@ -134,10 +149,41 @@ def validate_template_config(config: Mapping[str, Any], *, path_prefix: str) -> 
             }
         )
 
-    source_text = config.get("text")
     output_format = template_format(config)
-    if output_format not in TEMPLATE_FORMATS:
-        issue("format", "format_invalid", "format must be text, markdown or html")
+    if output_format not in STEP_FORMATS:
+        issue("format", "format_invalid", "format must be text, markdown, html or report")
+    elif output_format == REPORT_FORMAT:
+        issues.extend(_report_config_issues(config, path_prefix=path_prefix, issue=issue))
+    else:
+        _validate_template_text(config, output_format, issue)
+    if not _text(config.get("result_target")):
+        issue(
+            "result_target", "result_target_missing", "Choose the variable that receives the text"
+        )
+
+    raw_inputs = config.get("inputs")
+    if raw_inputs is not None and not isinstance(raw_inputs, list):
+        issue("inputs", "inputs_invalid", "inputs must be a list")
+    _validate_template_inputs(raw_inputs if isinstance(raw_inputs, list) else [], issue)
+    return issues
+
+
+def _report_config_issues(config: Mapping[str, Any], *, path_prefix: str, issue: Any) -> list[dict]:
+    """``format: report`` needs a definition and no Jinja text (ADR 0059)."""
+    if "text" in config:
+        issue("text", "text_not_allowed", "A report Template has no template text")
+    definition = config.get(REPORT_FORMAT)
+    if definition is None:
+        issue(REPORT_FORMAT, "report_missing", "A report Template needs its report definition")
+        return []
+    problems = validate_report_definition(definition, template_inputs(config))
+    return prefix_issues(problems, f"{path_prefix}.{REPORT_FORMAT}")
+
+
+def _validate_template_text(config: Mapping[str, Any], output_format: str, issue: Any) -> None:
+    if REPORT_FORMAT in config:
+        issue(REPORT_FORMAT, "report_not_allowed", "Only format report takes a report definition")
+    source_text = config.get("text")
     if not isinstance(source_text, str):
         issue("text", "text_missing", "The Template step needs its template text")
     elif len(source_text) > MAX_TEMPLATE_CHARS:
@@ -149,16 +195,6 @@ def validate_template_config(config: Mapping[str, Any], *, path_prefix: str) -> 
         if problem is not None:
             where = f" (line {problem.line})" if problem.line else ""
             issue("text", "syntax", f"Template error{where}: {problem.message}")
-    if not _text(config.get("result_target")):
-        issue(
-            "result_target", "result_target_missing", "Choose the variable that receives the text"
-        )
-
-    raw_inputs = config.get("inputs")
-    if raw_inputs is not None and not isinstance(raw_inputs, list):
-        issue("inputs", "inputs_invalid", "inputs must be a list")
-    _validate_template_inputs(raw_inputs if isinstance(raw_inputs, list) else [], issue)
-    return issues
 
 
 def _validate_template_inputs(raw_inputs: list[Any], issue: Any) -> None:
@@ -279,6 +315,8 @@ def execute_template_step(config: Mapping[str, Any], state: Mapping[str, Any]) -
     context, failure = template_context(config, state)
     if failure is not None:
         return {**failure, "inputs": context, "format": output_format}
+    if output_format == REPORT_FORMAT:
+        return _execute_report(config, context)
     try:
         text = render_template(str(config.get("text")), context, output_format=output_format)
     except TemplateRenderError as exc:
@@ -296,6 +334,33 @@ def execute_template_step(config: Mapping[str, Any], state: Mapping[str, Any]) -
     }
 
 
+def _execute_report(config: Mapping[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Compile the report; on failure every ``report.*`` issue, paths under ``report``."""
+    try:
+        snapshot = compile_report(config[REPORT_FORMAT], template_inputs(config), context)
+    except ReportError as exc:
+        return {
+            "ok": False,
+            "failure_reason": "report_invalid",
+            "errors": prefix_issues(exc.issues, REPORT_FORMAT),
+            "inputs": context,
+            "format": REPORT_FORMAT,
+        }
+    return {
+        "ok": True,
+        "report": snapshot,
+        "format": REPORT_FORMAT,
+        "inputs": context,
+    }
+
+
+def template_result_value(result: Mapping[str, Any]) -> Any:
+    """What ``result_target`` receives: the text, or the snapshot object."""
+    if result.get("format") == REPORT_FORMAT:
+        return result.get("report")
+    return result.get("text")
+
+
 def template_step_artifacts(
     config: Mapping[str, Any],
     result: Mapping[str, Any],
@@ -311,7 +376,10 @@ def template_step_artifacts(
         "format": result.get("format") or template_format(config),
         "result_target": target,
     }
-    if ok:
+    is_report = summary["format"] == REPORT_FORMAT
+    if ok and is_report:
+        summary["report"] = report_preview(result.get("report"))
+    elif ok:
         summary["length"] = result.get("length")
     else:
         summary["failure_reason"] = result.get("failure_reason")
@@ -321,7 +389,15 @@ def template_step_artifacts(
         "result_target": target,
         "input_payload": step_io_payload(dict(result.get("inputs") or {})),
     }
-    if ok:
+    if ok and is_report:
+        # ADR 0059 decisions 9 and 11: the message carries the bounded preview
+        # only; the snapshot is never copied into ``_state_patch`` or a string.
+        artifacts["output_payload"] = {
+            "result_target": target,
+            "format": REPORT_FORMAT,
+            "value": summary["report"],
+        }
+    elif ok:
         artifacts["output_payload"] = {
             "result_target": target,
             "format": summary["format"],
@@ -333,6 +409,13 @@ def template_step_artifacts(
 
 
 def template_step_summary(result: Mapping[str, Any]) -> str:
+    if result.get("ok") and result.get("format") == REPORT_FORMAT:
+        preview = report_preview(result.get("report"))
+        rows = sum(int(row.get("row_count") or 0) for row in preview["datasets"])
+        return (
+            f"Built report with {preview['component_count']} components and "
+            f"{rows} rows in {len(preview['datasets'])} datasets"
+        )
     if result.get("ok"):
         return f"Rendered {result.get('length')} characters of {result.get('format')}"
     errors = result.get("errors") or [{}]
@@ -344,11 +427,14 @@ def template_step_summary(result: Mapping[str, Any]) -> str:
 __all__ = [
     "INPUT_TYPES",
     "MESSAGE_TEXT_MAX_CHARS",
+    "REPORT_FORMAT",
+    "STEP_FORMATS",
     "TEMPLATE_CONFIG_KEY",
     "execute_template_step",
     "template_context",
     "template_format",
     "template_inputs",
+    "template_result_value",
     "template_step_artifacts",
     "template_step_summary",
     "validate_template_config",

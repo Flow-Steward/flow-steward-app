@@ -190,11 +190,17 @@ class IOResolverPreviewMixin:
                         available_type_map=available_type_map,
                     )
                 )
+            is_report = str(config.get("format") or "").strip() == "report"
             outputs.append(
                 self._preview_output_row(
-                    name=self._state_target_name(config.get("result_target")) or "text",
-                    output_type="text",
-                    description=f"Text rendered by the template ({config.get('format') or 'text'})",
+                    name=self._state_target_name(config.get("result_target"))
+                    or ("report" if is_report else "text"),
+                    output_type="object" if is_report else "text",
+                    description=(
+                        "Report snapshot built by the template (ADR 0059)"
+                        if is_report
+                        else f"Text rendered by the template ({config.get('format') or 'text'})"
+                    ),
                     source=STEP_KIND_TEMPLATE,
                     source_kind="template",
                 )
