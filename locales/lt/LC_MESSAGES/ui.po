@@ -30349,3 +30349,255 @@ msgstr "Ataskaita nepasiekiama."
 
 msgid "react.report.viewer_cancelled"
 msgstr "Užklausa atšaukta."
+
+msgid "react.workflows.report_format_text"
+msgstr "Tekstas"
+
+msgid "react.workflows.report_format_boolean"
+msgstr "Taip / ne"
+
+msgid "react.workflows.report_format_number"
+msgstr "Skaičius"
+
+msgid "react.workflows.report_format_currency"
+msgstr "Valiuta"
+
+msgid "react.workflows.report_format_percent"
+msgstr "Procentai"
+
+msgid "react.workflows.report_format_date"
+msgstr "Data"
+
+msgid "react.workflows.report_format_datetime"
+msgstr "Data ir laikas"
+
+msgid "react.workflows.report_currency_code"
+msgstr "Valiutos kodas"
+
+msgid "react.workflows.report_decimals"
+msgstr "Dešimtainės vietos"
+
+msgid "react.workflows.report_path_in_input"
+msgstr "Kelias įvesties viduje (neprivaloma)"
+
+msgid "react.workflows.report_field"
+msgstr "Laukas kiekvienoje eilutėje"
+
+msgid "react.workflows.report_field_of"
+msgstr "{name} laukas"
+
+msgid "react.workflows.report_label"
+msgstr "Pavadinimas"
+
+msgid "react.workflows.report_label_of"
+msgstr "{name} pavadinimas"
+
+msgid "react.workflows.report_format_of"
+msgstr "{name} formatas"
+
+msgid "react.workflows.report_move_up"
+msgstr "Perkelti {name} aukštyn"
+
+msgid "react.workflows.report_up"
+msgstr "Aukštyn"
+
+msgid "react.workflows.report_move_down"
+msgstr "Perkelti {name} žemyn"
+
+msgid "react.workflows.report_down"
+msgstr "Žemyn"
+
+msgid "react.workflows.report_remove"
+msgstr "Pašalinti {name}"
+
+msgid "react.workflows.report_text_parts"
+msgstr "Teksto dalys"
+
+msgid "react.workflows.report_part_n"
+msgstr "{n} dalis"
+
+msgid "react.workflows.report_fixed_text"
+msgstr "Pastovus tekstas"
+
+msgid "react.workflows.report_fixed_text_of"
+msgstr "{name} pastovus tekstas"
+
+msgid "react.workflows.report_value_of"
+msgstr "{name} reikšmė"
+
+msgid "react.workflows.report_add_text"
+msgstr "Pridėti pastovų tekstą"
+
+msgid "react.workflows.report_add_value"
+msgstr "Pridėti reikšmę"
+
+msgid "react.workflows.report_component_text"
+msgstr "Tekstas arba antraštė"
+
+msgid "react.workflows.report_component_metric"
+msgstr "Pagrindinis skaičius"
+
+msgid "react.workflows.report_component_table"
+msgstr "Lentelė"
+
+msgid "react.workflows.report_component_chart"
+msgstr "Diagrama"
+
+msgid "react.workflows.report_component_section"
+msgstr "Skyrius"
+
+msgid "react.workflows.report_problem_input"
+msgstr "Pasirinkite vieną iš žingsnio įvesčių."
+
+msgid "react.workflows.report_problem_binding"
+msgstr "Šio tipo įvestis negali pateikti šios reikšmės; pridėkite kelią arba nurodykite įvesties tipą json."
+
+msgid "react.workflows.report_problem_dataset"
+msgstr "Pasirinkite eilučių šaltinį."
+
+msgid "react.workflows.report_problem_field"
+msgstr "Kiekvienam stulpeliui ir serijai reikia lauko ir pavadinimo."
+
+msgid "react.workflows.report_problem_label"
+msgstr "Pridėkite pavadinimą."
+
+msgid "react.workflows.report_problem_series"
+msgstr "Pridėkite bent vieną seriją."
+
+msgid "react.workflows.report_problem_columns"
+msgstr "Pridėkite bent vieną stulpelį."
+
+msgid "react.workflows.report_rows_source"
+msgstr "Eilučių šaltinis"
+
+msgid "react.workflows.report_choose_rows"
+msgstr "Pasirinkite eilutes…"
+
+msgid "react.workflows.report_add_rows_first"
+msgstr "Pirmiausia pridėkite eilučių šaltinį"
+
+msgid "react.workflows.report_comparison_label"
+msgstr "Palyginimo pavadinimas"
+
+msgid "react.workflows.report_comparison_value"
+msgstr "Palyginimo reikšmė"
+
+msgid "react.workflows.report_comparison_format"
+msgstr "Palyginimo formatas"
+
+msgid "react.workflows.report_text_style"
+msgstr "Stilius"
+
+msgid "react.workflows.report_paragraph"
+msgstr "Pastraipa"
+
+msgid "react.workflows.report_heading"
+msgstr "Antraštė"
+
+msgid "react.workflows.report_value"
+msgstr "Reikšmė"
+
+msgid "react.workflows.report_format"
+msgstr "Formatas"
+
+msgid "react.workflows.report_comparison"
+msgstr "Rodyti palyginimą"
+
+msgid "react.workflows.report_caption"
+msgstr "Antraštė"
+
+msgid "react.workflows.report_add_column"
+msgstr "Pridėti stulpelį"
+
+msgid "react.workflows.report_columns"
+msgstr "Stulpeliai"
+
+msgid "react.workflows.report_empty_text"
+msgstr "Tekstas, kai eilučių nėra"
+
+msgid "react.workflows.report_chart_type"
+msgstr "Diagramos tipas"
+
+msgid "react.workflows.report_bar_chart"
+msgstr "Stulpeliai"
+
+msgid "react.workflows.report_line_chart"
+msgstr "Linija"
+
+msgid "react.workflows.report_title"
+msgstr "Pavadinimas"
+
+msgid "react.workflows.report_chart_description"
+msgstr "Aprašymas ekrano skaitytuvams"
+
+msgid "react.workflows.report_categories"
+msgstr "Kategorijos (po vieną eilutėje)"
+
+msgid "react.workflows.report_category_field"
+msgstr "Kategorijos laukas"
+
+msgid "react.workflows.report_category_label"
+msgstr "Kategorijos pavadinimas"
+
+msgid "react.workflows.report_category_format"
+msgstr "Kategorijos formatas"
+
+msgid "react.workflows.report_add_series"
+msgstr "Pridėti seriją"
+
+msgid "react.workflows.report_series"
+msgstr "Serijos"
+
+msgid "react.workflows.report_no_components"
+msgstr "Komponentų dar nėra."
+
+msgid "react.workflows.report_component_type"
+msgstr "Komponentas"
+
+msgid "react.workflows.report_add_component"
+msgstr "Pridėti komponentą"
+
+msgid "react.workflows.report_rows_sources"
+msgstr "Eilučių šaltiniai"
+
+msgid "react.workflows.report_rows_sources_help"
+msgstr "Eilučių šaltinis yra įrašų sąrašas iš vienos įvesties, pavyzdžiui, duomenų rinkinio užklausos ar transformavimo žingsnio eilutės. Lentelės ir diagramos rodo jo eilutes iš eilės."
+
+msgid "react.workflows.report_rows_from"
+msgstr "{name}: eilutės iš"
+
+msgid "react.workflows.report_problem_rows"
+msgstr "Ši įvestis negali pateikti eilučių sąrašo; nurodykite tipą array arba json arba pridėkite kelią iki sąrašo."
+
+msgid "react.workflows.report_add_rows_source"
+msgstr "Pridėti eilučių šaltinį"
+
+msgid "react.workflows.report_editor"
+msgstr "Ataskaita"
+
+msgid "react.workflows.report_report_title"
+msgstr "Ataskaitos pavadinimas"
+
+msgid "react.workflows.report_locale"
+msgstr "Kalba ir regionas"
+
+msgid "react.workflows.report_time_zone"
+msgstr "Laiko juosta"
+
+msgid "react.workflows.report_components"
+msgstr "Komponentai"
+
+msgid "react.workflows.report_data_help"
+msgstr "Ataskaita rodo reikšmes tokias, kokios jos gaunamos: sumos, rikiavimas ir filtrai priklauso ankstesniems žingsniams. Skaičius, išsaugotas kaip tekstas, yra klaida, o tuščia reikšmė rodoma brūkšniu."
+
+msgid "react.workflows.report_format_option"
+msgstr "Ataskaita"
+
+msgid "react.workflows.save_report_to"
+msgstr "Išsaugoti ataskaitą į"
+
+msgid "react.workflows.report_test_result"
+msgstr "Ataskaitos bandymo rezultatas"
+
+msgid "react.workflows.report_test_result_note"
+msgstr "Sukurta iš bandymo įvesčių. Darbo eigos vykdymas sukuria savo ataskaitą iš savo duomenų."

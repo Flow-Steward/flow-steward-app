@@ -13,13 +13,17 @@ import {
   templateSegments,
   type TemplateInputRow,
 } from "@/pages/workflows/detail/detail-template-core";
+import { emptyDefinition } from "@/pages/workflows/detail/detail-template-report-model";
+import { ReportDefinitionEditor } from "@/pages/workflows/detail/detail-template-report-editor";
 
 const STEP_KIND = "template";
+const REPORT_FORMAT = "report";
 function localizedFORMATS(t: I18nContextValue["t"] = fallbackContext.t) {
   return [
   { value: "text", label: t("react.workflows.text", "Text") },
   { value: "markdown", label: "Markdown" },
   { value: "html", label: "HTML" },
+  { value: REPORT_FORMAT, label: t("react.workflows.report_format_option", "Report") },
 ];
 }
 
@@ -181,6 +185,20 @@ export function TemplateStepSetup({
   const setField = (field: string, value: unknown) =>
     replaceStepKindConfigField(STEP_KIND, field, value);
   const setRows = (next: TemplateInputRow[]) => setField("inputs", next);
+  const format = textOrEmpty(config.format) || "text";
+  const isReport = format === REPORT_FORMAT;
+  // Each format keeps only its own branch: a report has no Jinja text and a
+  // text format no report definition, so switching never mixes the two.
+  const setFormat = (next: string) => {
+    setField("format", next);
+    if (next === REPORT_FORMAT) {
+      setField("text", undefined);
+      if (typeof config.report !== "object" || config.report === null) setField(REPORT_FORMAT, emptyDefinition());
+    } else {
+      setField(REPORT_FORMAT, undefined);
+      if (typeof config.text !== "string") setField("text", "");
+    }
+  };
   // Rows have no id of their own; each keeps a key for as long as it exists, so
   // typing a name never remounts the row it is typed into.
   const [rowKeys, setRowKeys] = useState<{ keys: string[]; issued: number }>({ keys: [], issued: 0 });
@@ -211,8 +229,8 @@ export function TemplateStepSetup({
         <select
           aria-label={t("react.workflows.template_format", "Template format")}
           className={inputClass}
-          onChange={(event) => setField("format", event.target.value)}
-          value={textOrEmpty(config.format) || "text"}
+          onChange={(event) => setFormat(event.target.value)}
+          value={format}
         >
           {localizedFORMATS(t).map((format) => (
             <option key={format.value} value={format.value}>
@@ -304,19 +322,30 @@ export function TemplateStepSetup({
         >
           {t("react.workflows.add_input", "Add input")}</Button>
       </div>
-      <div className="space-y-1">
-        <p className="text-xs fs-ink-secondary">{t("react.workflows.template_text", "Template text")}</p>
-        <TemplateTextEditor
-          ariaLabel={t("react.workflows.template_text", "Template text")}
-          inputNames={rows.map((row) => row.name).filter(Boolean)}
-          onChange={(next) => setField("text", next)}
-          value={text}
+      {isReport ? (
+        <ReportDefinitionEditor
+          inputClass={inputClass}
+          inputs={rows.map((row) => ({ name: row.name, type: row.type }))}
+          onChange={(next) => setField(REPORT_FORMAT, next)}
+          value={config.report}
         />
-      </div>
+      ) : (
+        <div className="space-y-1">
+          <p className="text-xs fs-ink-secondary">{t("react.workflows.template_text", "Template text")}</p>
+          <TemplateTextEditor
+            ariaLabel={t("react.workflows.template_text", "Template text")}
+            inputNames={rows.map((row) => row.name).filter(Boolean)}
+            onChange={(next) => setField("text", next)}
+            value={text}
+          />
+        </div>
+      )}
       {field(
-        t("react.workflows.save_text_to", "Save text to"),
+        isReport ? t("react.workflows.save_report_to", "Save report to") : t("react.workflows.save_text_to", "Save text to"),
         renderWorkflowDestinationInput({
-          ariaLabel: t("react.workflows.save_text_to", "Save text to"),
+          ariaLabel: isReport
+            ? t("react.workflows.save_report_to", "Save report to")
+            : t("react.workflows.save_text_to", "Save text to"),
           className: inputClass,
           onChange: (next: string) => setField("result_target", next),
           panelId: workflowVariableSuggestionPanelId(`${idPrefix}-result-target`),
@@ -324,7 +353,7 @@ export function TemplateStepSetup({
           value: textOrEmpty(config.result_target),
         }),
       )}
-      <TemplateHelp />
+      {isReport ? null : <TemplateHelp />}
     </div>
   );
 }

@@ -28872,3 +28872,255 @@ msgstr ""
 
 msgid "react.report.viewer_cancelled"
 msgstr ""
+
+msgid "react.workflows.report_format_text"
+msgstr ""
+
+msgid "react.workflows.report_format_boolean"
+msgstr ""
+
+msgid "react.workflows.report_format_number"
+msgstr ""
+
+msgid "react.workflows.report_format_currency"
+msgstr ""
+
+msgid "react.workflows.report_format_percent"
+msgstr ""
+
+msgid "react.workflows.report_format_date"
+msgstr ""
+
+msgid "react.workflows.report_format_datetime"
+msgstr ""
+
+msgid "react.workflows.report_currency_code"
+msgstr ""
+
+msgid "react.workflows.report_decimals"
+msgstr ""
+
+msgid "react.workflows.report_path_in_input"
+msgstr ""
+
+msgid "react.workflows.report_field"
+msgstr ""
+
+msgid "react.workflows.report_field_of"
+msgstr ""
+
+msgid "react.workflows.report_label"
+msgstr ""
+
+msgid "react.workflows.report_label_of"
+msgstr ""
+
+msgid "react.workflows.report_format_of"
+msgstr ""
+
+msgid "react.workflows.report_move_up"
+msgstr ""
+
+msgid "react.workflows.report_up"
+msgstr ""
+
+msgid "react.workflows.report_move_down"
+msgstr ""
+
+msgid "react.workflows.report_down"
+msgstr ""
+
+msgid "react.workflows.report_remove"
+msgstr ""
+
+msgid "react.workflows.report_text_parts"
+msgstr ""
+
+msgid "react.workflows.report_part_n"
+msgstr ""
+
+msgid "react.workflows.report_fixed_text"
+msgstr ""
+
+msgid "react.workflows.report_fixed_text_of"
+msgstr ""
+
+msgid "react.workflows.report_value_of"
+msgstr ""
+
+msgid "react.workflows.report_add_text"
+msgstr ""
+
+msgid "react.workflows.report_add_value"
+msgstr ""
+
+msgid "react.workflows.report_component_text"
+msgstr ""
+
+msgid "react.workflows.report_component_metric"
+msgstr ""
+
+msgid "react.workflows.report_component_table"
+msgstr ""
+
+msgid "react.workflows.report_component_chart"
+msgstr ""
+
+msgid "react.workflows.report_component_section"
+msgstr ""
+
+msgid "react.workflows.report_problem_input"
+msgstr ""
+
+msgid "react.workflows.report_problem_binding"
+msgstr ""
+
+msgid "react.workflows.report_problem_dataset"
+msgstr ""
+
+msgid "react.workflows.report_problem_field"
+msgstr ""
+
+msgid "react.workflows.report_problem_label"
+msgstr ""
+
+msgid "react.workflows.report_problem_series"
+msgstr ""
+
+msgid "react.workflows.report_problem_columns"
+msgstr ""
+
+msgid "react.workflows.report_rows_source"
+msgstr ""
+
+msgid "react.workflows.report_choose_rows"
+msgstr ""
+
+msgid "react.workflows.report_add_rows_first"
+msgstr ""
+
+msgid "react.workflows.report_comparison_label"
+msgstr ""
+
+msgid "react.workflows.report_comparison_value"
+msgstr ""
+
+msgid "react.workflows.report_comparison_format"
+msgstr ""
+
+msgid "react.workflows.report_text_style"
+msgstr ""
+
+msgid "react.workflows.report_paragraph"
+msgstr ""
+
+msgid "react.workflows.report_heading"
+msgstr ""
+
+msgid "react.workflows.report_value"
+msgstr ""
+
+msgid "react.workflows.report_format"
+msgstr ""
+
+msgid "react.workflows.report_comparison"
+msgstr ""
+
+msgid "react.workflows.report_caption"
+msgstr ""
+
+msgid "react.workflows.report_add_column"
+msgstr ""
+
+msgid "react.workflows.report_columns"
+msgstr ""
+
+msgid "react.workflows.report_empty_text"
+msgstr ""
+
+msgid "react.workflows.report_chart_type"
+msgstr ""
+
+msgid "react.workflows.report_bar_chart"
+msgstr ""
+
+msgid "react.workflows.report_line_chart"
+msgstr ""
+
+msgid "react.workflows.report_title"
+msgstr ""
+
+msgid "react.workflows.report_chart_description"
+msgstr ""
+
+msgid "react.workflows.report_categories"
+msgstr ""
+
+msgid "react.workflows.report_category_field"
+msgstr ""
+
+msgid "react.workflows.report_category_label"
+msgstr ""
+
+msgid "react.workflows.report_category_format"
+msgstr ""
+
+msgid "react.workflows.report_add_series"
+msgstr ""
+
+msgid "react.workflows.report_series"
+msgstr ""
+
+msgid "react.workflows.report_no_components"
+msgstr ""
+
+msgid "react.workflows.report_component_type"
+msgstr ""
+
+msgid "react.workflows.report_add_component"
+msgstr ""
+
+msgid "react.workflows.report_rows_sources"
+msgstr ""
+
+msgid "react.workflows.report_rows_sources_help"
+msgstr ""
+
+msgid "react.workflows.report_rows_from"
+msgstr ""
+
+msgid "react.workflows.report_problem_rows"
+msgstr ""
+
+msgid "react.workflows.report_add_rows_source"
+msgstr ""
+
+msgid "react.workflows.report_editor"
+msgstr ""
+
+msgid "react.workflows.report_report_title"
+msgstr ""
+
+msgid "react.workflows.report_locale"
+msgstr ""
+
+msgid "react.workflows.report_time_zone"
+msgstr ""
+
+msgid "react.workflows.report_components"
+msgstr ""
+
+msgid "react.workflows.report_data_help"
+msgstr ""
+
+msgid "react.workflows.report_format_option"
+msgstr ""
+
+msgid "react.workflows.save_report_to"
+msgstr ""
+
+msgid "react.workflows.report_test_result"
+msgstr ""
+
+msgid "react.workflows.report_test_result_note"
+msgstr ""

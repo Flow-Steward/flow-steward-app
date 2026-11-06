@@ -29927,3 +29927,255 @@ msgstr "The report is not available."
 
 msgid "react.report.viewer_cancelled"
 msgstr "The request was cancelled."
+
+msgid "react.workflows.report_format_text"
+msgstr "Text"
+
+msgid "react.workflows.report_format_boolean"
+msgstr "Yes / no"
+
+msgid "react.workflows.report_format_number"
+msgstr "Number"
+
+msgid "react.workflows.report_format_currency"
+msgstr "Currency"
+
+msgid "react.workflows.report_format_percent"
+msgstr "Percent"
+
+msgid "react.workflows.report_format_date"
+msgstr "Date"
+
+msgid "react.workflows.report_format_datetime"
+msgstr "Date and time"
+
+msgid "react.workflows.report_currency_code"
+msgstr "Currency code"
+
+msgid "react.workflows.report_decimals"
+msgstr "Decimals"
+
+msgid "react.workflows.report_path_in_input"
+msgstr "Path inside the input (optional)"
+
+msgid "react.workflows.report_field"
+msgstr "Field in each row"
+
+msgid "react.workflows.report_field_of"
+msgstr "Field of {name}"
+
+msgid "react.workflows.report_label"
+msgstr "Label"
+
+msgid "react.workflows.report_label_of"
+msgstr "Label of {name}"
+
+msgid "react.workflows.report_format_of"
+msgstr "Format of {name}"
+
+msgid "react.workflows.report_move_up"
+msgstr "Move {name} up"
+
+msgid "react.workflows.report_up"
+msgstr "Up"
+
+msgid "react.workflows.report_move_down"
+msgstr "Move {name} down"
+
+msgid "react.workflows.report_down"
+msgstr "Down"
+
+msgid "react.workflows.report_remove"
+msgstr "Remove {name}"
+
+msgid "react.workflows.report_text_parts"
+msgstr "Text parts"
+
+msgid "react.workflows.report_part_n"
+msgstr "part {n}"
+
+msgid "react.workflows.report_fixed_text"
+msgstr "Fixed text"
+
+msgid "react.workflows.report_fixed_text_of"
+msgstr "Fixed text of {name}"
+
+msgid "react.workflows.report_value_of"
+msgstr "Value of {name}"
+
+msgid "react.workflows.report_add_text"
+msgstr "Add fixed text"
+
+msgid "react.workflows.report_add_value"
+msgstr "Add a value"
+
+msgid "react.workflows.report_component_text"
+msgstr "Text or heading"
+
+msgid "react.workflows.report_component_metric"
+msgstr "Key number"
+
+msgid "react.workflows.report_component_table"
+msgstr "Table"
+
+msgid "react.workflows.report_component_chart"
+msgstr "Chart"
+
+msgid "react.workflows.report_component_section"
+msgstr "Section"
+
+msgid "react.workflows.report_problem_input"
+msgstr "Choose one of the step's inputs."
+
+msgid "react.workflows.report_problem_binding"
+msgstr "This input's type cannot give this value; add a path, or declare the input as json."
+
+msgid "react.workflows.report_problem_dataset"
+msgstr "Choose a rows source."
+
+msgid "react.workflows.report_problem_field"
+msgstr "Every column and series needs a field and a label."
+
+msgid "react.workflows.report_problem_label"
+msgstr "Add a label."
+
+msgid "react.workflows.report_problem_series"
+msgstr "Add at least one series."
+
+msgid "react.workflows.report_problem_columns"
+msgstr "Add at least one column."
+
+msgid "react.workflows.report_rows_source"
+msgstr "Rows source"
+
+msgid "react.workflows.report_choose_rows"
+msgstr "Choose rows…"
+
+msgid "react.workflows.report_add_rows_first"
+msgstr "Add a rows source first"
+
+msgid "react.workflows.report_comparison_label"
+msgstr "Comparison label"
+
+msgid "react.workflows.report_comparison_value"
+msgstr "Comparison value"
+
+msgid "react.workflows.report_comparison_format"
+msgstr "Comparison format"
+
+msgid "react.workflows.report_text_style"
+msgstr "Style"
+
+msgid "react.workflows.report_paragraph"
+msgstr "Paragraph"
+
+msgid "react.workflows.report_heading"
+msgstr "Heading"
+
+msgid "react.workflows.report_value"
+msgstr "Value"
+
+msgid "react.workflows.report_format"
+msgstr "Format"
+
+msgid "react.workflows.report_comparison"
+msgstr "Show a comparison"
+
+msgid "react.workflows.report_caption"
+msgstr "Caption"
+
+msgid "react.workflows.report_add_column"
+msgstr "Add column"
+
+msgid "react.workflows.report_columns"
+msgstr "Columns"
+
+msgid "react.workflows.report_empty_text"
+msgstr "Text when there are no rows"
+
+msgid "react.workflows.report_chart_type"
+msgstr "Chart type"
+
+msgid "react.workflows.report_bar_chart"
+msgstr "Bars"
+
+msgid "react.workflows.report_line_chart"
+msgstr "Line"
+
+msgid "react.workflows.report_title"
+msgstr "Title"
+
+msgid "react.workflows.report_chart_description"
+msgstr "Description for screen readers"
+
+msgid "react.workflows.report_categories"
+msgstr "Categories (one per row)"
+
+msgid "react.workflows.report_category_field"
+msgstr "Category field"
+
+msgid "react.workflows.report_category_label"
+msgstr "Category label"
+
+msgid "react.workflows.report_category_format"
+msgstr "Category format"
+
+msgid "react.workflows.report_add_series"
+msgstr "Add series"
+
+msgid "react.workflows.report_series"
+msgstr "Series"
+
+msgid "react.workflows.report_no_components"
+msgstr "No components yet."
+
+msgid "react.workflows.report_component_type"
+msgstr "Component"
+
+msgid "react.workflows.report_add_component"
+msgstr "Add component"
+
+msgid "react.workflows.report_rows_sources"
+msgstr "Rows sources"
+
+msgid "react.workflows.report_rows_sources_help"
+msgstr "A rows source is a list of records from one input, such as the rows a dataset query or a Transform step produced. Tables and charts show its rows in order."
+
+msgid "react.workflows.report_rows_from"
+msgstr "Rows from {name}"
+
+msgid "react.workflows.report_problem_rows"
+msgstr "This input cannot give a list of rows; declare it as array or json, or add a path to a list."
+
+msgid "react.workflows.report_add_rows_source"
+msgstr "Add rows source"
+
+msgid "react.workflows.report_editor"
+msgstr "Report"
+
+msgid "react.workflows.report_report_title"
+msgstr "Report title"
+
+msgid "react.workflows.report_locale"
+msgstr "Language and region"
+
+msgid "react.workflows.report_time_zone"
+msgstr "Time zone"
+
+msgid "react.workflows.report_components"
+msgstr "Components"
+
+msgid "react.workflows.report_data_help"
+msgstr "A report shows values as they arrive: totals, sorting and filters belong in earlier steps. A number stored as text is an error, and an empty value shows as a dash."
+
+msgid "react.workflows.report_format_option"
+msgstr "Report"
+
+msgid "react.workflows.save_report_to"
+msgstr "Save report to"
+
+msgid "react.workflows.report_test_result"
+msgstr "Report test result"
+
+msgid "react.workflows.report_test_result_note"
+msgstr "Built from the test inputs. A workflow run builds its own report from its own data."

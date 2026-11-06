@@ -1,6 +1,8 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useEffect, useRef, useState } from "react";
 
+import { ReportView } from "@/components/report";
+import { useReportLabels } from "@/components/report/use-report-labels";
 import { templatePreviewBody } from "@/pages/workflows/detail/detail-template-core";
 
 // Shared with core/entrypoints/web/template_preview_frame.py.
@@ -103,6 +105,32 @@ export function TemplateResultPreview({
 }
 
 /**
+ * A report built by a step Test Run, shown by the same renderer as the run's
+ * result. It is a sample from the test inputs, not the workflow's final output.
+ */
+function ReportTestResult({ report, stale }: Readonly<{ report: unknown; stale: boolean }>) {
+  const { t } = useI18n();
+  const labels = useReportLabels();
+  return (
+    <section aria-label={t("react.workflows.report_test_result", "Report test result")} className="mt-3 space-y-2">
+      <p className="fs-ink-secondary">
+        {t(
+          "react.workflows.report_test_result_note",
+          "Built from the test inputs. A workflow run builds its own report from its own data.",
+        )}
+      </p>
+      {stale ? (
+        <p className="rounded border border-attention fs-surface-attention px-2 py-1 fs-ink-attention" role="status">
+          {t("react.workflows.this_is_the_result_of_the_previous_test_the_template_or_the_test_inputs_changed_since_run_the_test_again_to_se", "This is the result of the previous test. The template or the test inputs changed since; run the test again to see the current result.")}</p>
+      ) : null}
+      <div className="rounded border border-default p-3">
+        <ReportView labels={labels} report={report} />
+      </div>
+    </section>
+  );
+}
+
+/**
  * What the step and its test inputs looked like when each result arrived. Kept
  * with the result object itself, which outlives this component: going to Smart
  * setup unmounts it, and a result coming back from there must still be compared
@@ -124,6 +152,10 @@ export function TemplateTestRunResult({
   }
   const template = resultObject?.template as Record<string, unknown> | undefined;
   const text = template?.output;
+  const producedFromKey = resultObject ? resultKeys.get(resultObject) : undefined;
+  if (template?.format === "report" && text && typeof text === "object") {
+    return <ReportTestResult report={text} stale={producedFromKey !== undefined && producedFromKey !== currentKey} />;
+  }
   if (typeof text !== "string") return null;
   const format = typeof template?.format === "string" && template.format ? template.format : "text";
   const producedFrom = resultObject ? resultKeys.get(resultObject) : undefined;

@@ -270,3 +270,49 @@ describe("template result preview", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("TemplateStepSetup report format", () => {
+  function mountReportSetup(config: Record<string, unknown>) {
+    const replaceStepKindConfigField = vi.fn();
+    render(
+      <TemplateStepSetup
+        ctx={{
+          renderWorkflowVariableInput: ({ ariaLabel, onChange, value }: { ariaLabel: string; onChange: (v: string) => void; value: string }) => (
+            <input aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)} value={value} />
+          ),
+          renderWorkflowDestinationInput: ({ ariaLabel, onChange, value }: { ariaLabel: string; onChange: (v: string) => void; value: string }) => (
+            <input aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)} value={value} />
+          ),
+          replaceStepKindConfigField,
+          stepKindConfig: config,
+        }}
+        inputClass=""
+      />,
+    );
+    return replaceStepKindConfigField;
+  }
+
+  it("switching to report drops the Jinja text and starts a report definition", async () => {
+    const user = userEvent.setup();
+    const replace = mountReportSetup({ text: "{{ header }}", inputs: [] });
+    await user.selectOptions(screen.getByRole("combobox", { name: "Template format" }), "report");
+    expect(replace).toHaveBeenCalledWith("template", "format", "report");
+    expect(replace).toHaveBeenCalledWith("template", "text", undefined);
+    expect(replace).toHaveBeenCalledWith(
+      "template",
+      "report",
+      expect.objectContaining({ schema_version: 1, components: [] }),
+    );
+  });
+
+  it("switching back to text drops the report definition", async () => {
+    const user = userEvent.setup();
+    const replace = mountReportSetup({ format: "report", report: { schema_version: 1, components: [] }, inputs: [] });
+    expect(screen.getByRole("region", { name: "Report" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Template text")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Save report to" })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Template format" }), "markdown");
+    expect(replace).toHaveBeenCalledWith("template", "report", undefined);
+    expect(replace).toHaveBeenCalledWith("template", "text", "");
+  });
+});
