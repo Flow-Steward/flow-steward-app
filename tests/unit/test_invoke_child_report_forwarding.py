@@ -79,6 +79,36 @@ def _marked_report() -> dict[str, Any]:
     return compile_report(definition, inputs["declared_inputs"], values)
 
 
+PREVIEW_KEYS = {"kind", "schema_version", "title", "summary_text", "component_count", "datasets"}
+
+
+def _contract_type(value: Any) -> str:
+    """The executable contract type of a child output value."""
+    if isinstance(value, dict):
+        return "object"
+    if isinstance(value, list):
+        return "array"
+    return "string"
+
+
+def _report_leaves(value: Any) -> list[dict[str, Any]]:
+    """Every mapping with kind fs.report inside ``value``, at any depth."""
+    if isinstance(value, dict):
+        if value.get("kind") == "fs.report":
+            return [value]
+        return [leaf for item in value.values() for leaf in _report_leaves(item)]
+    if isinstance(value, list):
+        return [leaf for item in value for leaf in _report_leaves(item)]
+    return []
+
+
+def _assert_preview(value: Any) -> None:
+    assert isinstance(value, dict)
+    assert set(value) == PREVIEW_KEYS
+    assert value["kind"] == "fs.report"
+    assert value["datasets"][0]["row_count"] == 200
+
+
 def _run_invoke(monkeypatch, *, child_outputs: dict[str, Any], output_mapping: dict[str, str]):
     from core.application.orchestration import invoke_workflow_step_node as node
     from tests.unit.test_invoke_workflow_step_node import (
@@ -98,8 +128,8 @@ def _run_invoke(monkeypatch, *, child_outputs: dict[str, Any], output_mapping: d
                     "callable": {
                         "enabled": True,
                         "expected_outputs": [
-                            {"name": name, "type": "json", "required": True}
-                            for name in child_outputs
+                            {"name": name, "type": _contract_type(value), "required": True}
+                            for name, value in child_outputs.items()
                         ],
                         "report_output": "sales_report",
                     }
@@ -171,10 +201,22 @@ def test_the_parent_message_carries_a_preview_and_state_keeps_the_report(monkeyp
         {key: value for key, value in artifacts.items() if key != "report_previews"}
     )
     previews = artifacts["report_previews"]
-    assert previews
-    for preview in previews.values():
-        assert preview["kind"] == "fs.report"
-        assert preview["datasets"][0]["row_count"] == 200
+    if target.startswith("state."):
+        # The child output name, the state-target alias and the nested state
+        # aliases each hold the report, so each moves here with a preview.
+        assert set(previews) == {"sales_report", "child_report", "outputs", "workflow_data"}
+        _assert_preview(previews["sales_report"])
+        _assert_preview(previews["child_report"])
+        assert set(previews["outputs"]) == {"child_report"}
+        _assert_preview(previews["outputs"]["child_report"])
+        _assert_preview(previews["workflow_data"]["outputs"]["child_report"])
+    else:
+        assert set(previews) == {"child_report"}
+        _assert_preview(previews["child_report"])
+    leaves = _report_leaves(previews)
+    assert leaves
+    for leaf in leaves:
+        _assert_preview(leaf)
 
 
 def test_a_mixed_list_is_left_out_whole_and_never_published_shortened(monkeypatch):
