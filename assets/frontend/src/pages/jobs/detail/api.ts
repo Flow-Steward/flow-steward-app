@@ -142,7 +142,11 @@ export type JobDetailJobPayload = {
 };
 
 export type JobDetail = {
-  workflow_result?: { outputs: Record<string, unknown>; artifacts: Record<string, unknown> } | null;
+  workflow_result?: {
+    outputs: Record<string, unknown>;
+    artifacts: Record<string, unknown>;
+    report_output?: string | null;
+  } | null;
   id: string;
   status: string;
   task_summary?: string;

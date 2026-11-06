@@ -89,6 +89,9 @@ class PublicApprovalGateV1(_UtcTimestamps):
 class PublicWorkflowResultV1(_PublicModel):
     outputs: dict[str, Any] = Field(default_factory=dict)
     artifacts: dict[str, Any] = Field(default_factory=dict)
+    #: The output that holds the run's report, as the pinned definition chose it
+    #: when the run finished (ADR 0059); ``None`` when the run published none.
+    report_output: str | None = None
 
 
 class PublicWorkflowErrorV1(_PublicModel):

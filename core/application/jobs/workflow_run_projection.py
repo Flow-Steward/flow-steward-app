@@ -247,14 +247,22 @@ def build_public_result(
     if status != "completed":
         return None
     workflow_outputs = _object(_object(job.get("meta")).get("workflow_outputs"))
+    outputs = _object(workflow_outputs.get("outputs"))
     return PublicWorkflowResultV1(
-        outputs=_object(workflow_outputs.get("outputs")),
+        outputs=outputs,
         artifacts=_safe_artifacts(
             workflow_outputs.get("artifacts"),
             job=job,
             resolve_artifact=resolve_artifact,
         ),
+        report_output=_stored_report_output(workflow_outputs, outputs),
     )
+
+
+def _stored_report_output(workflow_outputs: dict[str, Any], outputs: dict[str, Any]) -> str | None:
+    """The report selection persisted with the validated result, never live settings."""
+    name = str(_object(workflow_outputs.get("interface")).get("report_output") or "").strip()
+    return name if name and isinstance(outputs.get(name), dict) else None
 
 
 def build_public_error(
