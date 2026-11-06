@@ -217,6 +217,8 @@ def build_workflow_canvas_graph(db: Any, workflow_id: str) -> dict[str, Any]:
         "output_mode": interface_contract.get("output_mode") or "none",
         "expected_outputs": interface_contract.get("expected_outputs") or [],
         "returned_files": interface_contract.get("returned_files") or [],
+        # The output a chat app shows as a report (ADR 0059); a name, never data.
+        "report_output": interface_contract.get("report_output") or None,
     }
     interface_payload = {
         "trigger_channels": interface_contract.get("trigger_channels") or [],

@@ -40,6 +40,8 @@ class WorkflowContractSummary(BaseModel):
     trigger_channels: list[WorkflowTriggerChannel] = Field(default_factory=list)
     input_mode: WorkflowInputMode
     output_mode: WorkflowOutputMode
+    #: The declared output that holds the run's report (ADR 0059): a name only.
+    report_output: str | None = None
 
 
 def contract_summary(interface: WorkflowInterface) -> WorkflowContractSummary:
@@ -70,6 +72,7 @@ def contract_summary(interface: WorkflowInterface) -> WorkflowContractSummary:
         trigger_channels=list(interface.trigger_channels),
         input_mode=interface.input_mode,
         output_mode=interface.output_mode,
+        report_output=interface.report_output or None,
     )
 
 

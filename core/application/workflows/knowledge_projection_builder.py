@@ -260,6 +260,9 @@ class _WorkflowKnowledgeProjectionBuilder:
         expected_outputs = _field_names(workflow_outputs)
         if expected_outputs:
             workflow_text_parts.append(f"Expected outputs: {', '.join(expected_outputs)}")
+        report_output = _text(output_contract.get("report_output"))
+        if report_output:
+            workflow_text_parts.append(f"Report output: {report_output}")
         group_names = [_text(row.get("display_name") or row.get("group_id")) for row in raw_groups]
         if group_names:
             workflow_text_parts.append(f"Groups: {', '.join(group_names)}")
@@ -283,6 +286,7 @@ class _WorkflowKnowledgeProjectionBuilder:
                 "trigger_channels": trigger_channels,
                 "expected_inputs": expected_inputs,
                 "expected_outputs": expected_outputs,
+                "report_output": report_output or None,
             },
         )
         self._add_node_with_document(workflow_node)
