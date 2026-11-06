@@ -83,6 +83,7 @@ def test_pinned_summary_whitelists_names_and_modes_without_values_or_live_lookup
         "trigger_channels": ["api", "parent_workflow"],
         "input_mode": "fields",
         "output_mode": "variables_and_artifacts",
+        "report_output": None,
     }
     serialized = json.dumps(view.model_dump())
     assert "private-" not in serialized
@@ -129,6 +130,7 @@ def test_valid_empty_contract_is_available_not_unknown(settings):
         "trigger_channels": [],
         "input_mode": "passthrough" if settings else "fields",
         "output_mode": "none",
+        "report_output": None,
     }
 
 
@@ -173,3 +175,17 @@ def test_summary_uses_canonical_derived_output_mode():
     assert summary is not None
     assert summary["output_mode"] == "variables"
     assert summary["outputs"] == ["result"]
+
+
+def test_the_summary_names_the_report_output_and_carries_no_report() -> None:
+    settings = {
+        "callable": {
+            "enabled": True,
+            "trigger_channels": ["mcp"],
+            "expected_outputs": [{"name": "sales_report", "type": "object", "required": True}],
+            "report_output": "sales_report",
+        }
+    }
+    summary = _view(_row(settings)).model_dump().get("contract_summary")
+    assert summary["outputs"] == ["sales_report"]
+    assert summary["report_output"] == "sales_report"
