@@ -1,6 +1,10 @@
 # ADR 0061: Connecting Microsoft 365 Copilot to the MCP server
 
-- Status: Proposed (needs owner approval before any code)
+- Status: Accepted for implementation (the owner approved the proposed setup on
+  2026-11-06: agent package recommended, admin connector as the alternative,
+  platform clients as decision 2; GitHub Copilot is left for later). Built from
+  Microsoft's documentation; every entry stays "not verified" until it is
+  checked on a customer's Microsoft 365 tenant.
 - Date: 2026-11-06
 - Related: [ADR 0047](0047-inbound-mcp-oauth.md) (inbound OAuth, amended by
   decision 2), [ADR 0059](0059-workflow-report-documents.md) (reports and MCP
@@ -132,12 +136,13 @@ are experimental and not claimed.
 - **A single store listing:** impossible while each installation has its own
   address.
 
-## Open questions for the owner
+## Owner answers (2026-11-06)
 
-1. Agent package as the recommended setup, connector as the alternative?
-2. Platform clients as an admin feature (decision 2), rather than DCR?
-3. Which Microsoft 365 tenant can be used for verification?
-4. Include the GitHub Copilot local entry in the same release?
+1. Agent package recommended, connector as the alternative: yes.
+2. Platform clients as an admin feature rather than DCR: yes.
+3. Verification: a customer's Microsoft 365 tenant, the week after; until then
+   the entry is marked not verified.
+4. GitHub Copilot: not in this change.
 
 ## Sources
 
