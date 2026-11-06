@@ -121,6 +121,57 @@ def test_a_platform_client_signs_in_without_resource_and_gets_tokens(
     assert refreshed["access_token"]
 
 
+def test_the_installation_binding_holds_through_exchange_and_refresh(
+    world, platform_client
+) -> None:
+    # ADR 0061 decision 3: a missing resource binds the grant; the token endpoint
+    # refuses a different one and an omitted one keeps the stored binding.
+    service = world.service()
+    other = "https://other.example/mcp"
+    code, verifier, _request = code_from(world, service, params=_platform_params(platform_client))
+    with pytest.raises(OAuthProtocolError) as caught:
+        exchange(
+            service,
+            code,
+            verifier,
+            client_id=platform_client,
+            redirect_uri=TEAMS_REDIRECT,
+            resource=other,
+        )
+    assert caught.value.error == "invalid_target"
+
+    code, verifier, _request = code_from(world, service, params=_platform_params(platform_client))
+    tokens = exchange(
+        service,
+        code,
+        verifier,
+        client_id=platform_client,
+        redirect_uri=TEAMS_REDIRECT,
+        resource=RESOURCE,
+    )
+    refreshed = service.token(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": tokens["refresh_token"],
+            "client_id": platform_client,
+        }
+    )
+    with pytest.raises(OAuthProtocolError) as caught:
+        service.token(
+            {
+                "grant_type": "refresh_token",
+                "refresh_token": refreshed["refresh_token"],
+                "client_id": platform_client,
+                "resource": other,
+            }
+        )
+    assert caught.value.error == "invalid_target"
+    resources = world.sql(
+        "SELECT DISTINCT resource FROM oauth_grants WHERE client_id = %s", (platform_client,)
+    )
+    assert resources == [(RESOURCE,)]
+
+
 def test_the_consent_page_names_the_platform_client(world, platform_client) -> None:
     service = world.service()
     _verifier, challenge = pkce_pair()

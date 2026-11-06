@@ -29965,7 +29965,7 @@ msgid "react.agent_access.platform_not_ready_copy"
 msgstr "Fix what step 3 names first: Microsoft needs this installation's public HTTPS address."
 
 msgid "react.agent_access.portal_title"
-msgstr "In the Teams Developer Portal"
+msgstr "2. In the Teams Developer Portal"
 
 msgid "react.agent_access.portal_help"
 msgstr "Open Tools > OAuth client registration > New OAuth client registration and enter these values. Choose your organisation under Restrict usage by org."
@@ -29977,7 +29977,7 @@ msgid "react.agent_access.reference_id"
 msgstr "OAuth client registration ID"
 
 msgid "react.agent_access.reference_id_help"
-msgstr "The Developer Portal shows it after you save the registration. It is not a secret; it tells Microsoft which registration the agent signs in with."
+msgstr "The Developer Portal shows it after you save the registration. It is not a secret; it tells Microsoft which registration the agent signs in with. Then upload the package as the next step describes."
 
 msgid "react.agent_access.platform_revoke_help"
 msgstr "Revoking ends every Microsoft 365 sign-in to this installation at once. Create a new client and a new registration to connect again."
@@ -30004,10 +30004,10 @@ msgid "react.agent_access.client_m365_description"
 msgstr "Copilot Chat for work accounts in Microsoft 365, Teams and Outlook, as an agent your organisation's administrator adds."
 
 msgid "react.agent_access.step_m365_admins"
-msgstr "Two administrators set this up once"
+msgstr "Two administrators set this up once, in four steps"
 
 msgid "react.agent_access.step_m365_admins_description"
-msgstr "A Flow Steward administrator registers Microsoft 365 below; a Microsoft 365 administrator registers the sign-in in the Teams Developer Portal and uploads the agent. After that, people add the agent in Copilot and sign in to Flow Steward the first time they use it."
+msgstr "1. A Flow Steward administrator creates the Microsoft 365 client below. 2. A Microsoft 365 administrator registers it in the Teams Developer Portal and gets an OAuth client registration ID. 3. That ID is entered below to build the agent package. 4. The Microsoft 365 administrator uploads the package and makes the agent available. Making the agent available grants nothing in Flow Steward: each person still signs in, approves the access, and gets at most what their own Flow Steward role allows."
 
 msgid "react.agent_access.step_m365_package"
 msgstr "Register the sign-in and build the agent"
@@ -30022,10 +30022,16 @@ msgid "react.agent_access.step_m365_upload_description"
 msgstr "In the Microsoft 365 admin center open Agents, choose Upload custom agent and pick the downloaded zip, then make it available to the people who need it. To try it alone first, upload it in Teams under Apps > Manage your apps > Upload a custom app."
 
 msgid "react.agent_access.step_m365_connector"
-msgstr "Or connect it without the agent"
+msgstr "Not verified: a connector instead of the agent"
 
 msgid "react.agent_access.step_m365_connector_description"
-msgstr "With Microsoft 365 Copilot licences, an administrator can instead add a custom connector (admin center > Copilot > Connectors > Connect to MCP server) with this address and the same registration. Copilot then answers in its own words, without the agent's instructions or report view."
+msgstr "With Microsoft 365 Copilot licences, an administrator can try a custom connector (admin center > Copilot > Connectors > Connect to MCP server) with this address. Microsoft documents its sign-in form with a client secret, and the Microsoft 365 client here has none, so this may not work; use the agent package. A connector answers in Copilot's own words, without the agent's instructions or report view."
 
 msgid "react.agent_access.reason_no_terminal_m365"
 msgstr "Copilot Chat has no terminal or file access for this package."
+
+msgid "react.agent_access.platform_step_create"
+msgstr "1. Create the Microsoft 365 client"
+
+msgid "react.agent_access.platform_step_package"
+msgstr "3. Build the agent package"

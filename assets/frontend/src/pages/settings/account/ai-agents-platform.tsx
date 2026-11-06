@@ -132,6 +132,7 @@ export function PlatformClientStep({
     <div className="fs-panel-stack">
       {client ? null : (
         <div className="fs-panel-group">
+          <h4 className="fs-panel-title">{t("react.agent_access.platform_step_create", "1. Create the Microsoft 365 client")}</h4>
           <p className="fs-field-helper">{t("react.agent_access.platform_create_help", "Flow Steward gives Microsoft 365 its own client ID. Microsoft returns people only to its documented address, and nobody can type another one.")}</p>
           {presetInfo ? <p className="fs-field-helper">{t("react.agent_access.platform_redirect", "Microsoft returns people to:")} <DsValueChip>{presetInfo.redirect_uris.join(", ")}</DsValueChip></p> : null}
           <div className="fs-footer-actions">
@@ -144,7 +145,7 @@ export function PlatformClientStep({
       {client && portal ? (
         <>
           <div className="fs-panel-group">
-            <h4 className="fs-panel-title">{t("react.agent_access.portal_title", "In the Teams Developer Portal")}</h4>
+            <h4 className="fs-panel-title">{t("react.agent_access.portal_title", "2. In the Teams Developer Portal")}</h4>
             <p className="fs-field-helper">{t("react.agent_access.portal_help", "Open Tools > OAuth client registration > New OAuth client registration and enter these values. Choose your organisation under Restrict usage by org.")}</p>
             <dl className="fs-form-grid">
               {rows.map((row) => (
@@ -159,11 +160,12 @@ export function PlatformClientStep({
             </dl>
           </div>
           <div className="fs-panel-group">
+            <h4 className="fs-panel-title">{t("react.agent_access.platform_step_package", "3. Build the agent package")}</h4>
             <label className="fs-field" htmlFor={referenceFieldId}>
               <RequiredLabel>{t("react.agent_access.reference_id", "OAuth client registration ID")}</RequiredLabel>
             </label>
             <input autoComplete="off" className="fs-input" id={referenceFieldId} onChange={(event) => setReferenceId(event.target.value)} spellCheck={false} value={referenceId} />
-            <span className="fs-field-helper">{t("react.agent_access.reference_id_help", "The Developer Portal shows it after you save the registration. It is not a secret; it tells Microsoft which registration the agent signs in with.")}</span>
+            <span className="fs-field-helper">{t("react.agent_access.reference_id_help", "The Developer Portal shows it after you save the registration. It is not a secret; it tells Microsoft which registration the agent signs in with. Then upload the package as the next step describes.")}</span>
             <div className="fs-footer-actions">
               <button className="fs-button primary" disabled={!referenceReady} onClick={() => ignoreAsyncResult(download(client.client_id))} type="button">{t("react.agent_access.download_file", "Download {name}", { name: step.file_name })}</button>
             </div>

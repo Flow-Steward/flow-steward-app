@@ -669,14 +669,17 @@ CLIENTS: tuple[AgentClient, ...] = (
                         id="admin_setup",
                         kind="notice",
                         title_key="react.agent_access.step_m365_admins",
-                        title="Two administrators set this up once",
+                        title="Two administrators set this up once, in four steps",
                         description_key="react.agent_access.step_m365_admins_description",
                         description=(
-                            "A Flow Steward administrator registers Microsoft 365 below; a "
-                            "Microsoft 365 administrator registers the sign-in in the Teams "
-                            "Developer Portal and uploads the agent. After that, people add the "
-                            "agent in Copilot and sign in to Flow Steward the first time they "
-                            "use it."
+                            "1. A Flow Steward administrator creates the Microsoft 365 client "
+                            "below. 2. A Microsoft 365 administrator registers it in the Teams "
+                            "Developer Portal and gets an OAuth client registration ID. 3. That "
+                            "ID is entered below to build the agent package. 4. The Microsoft 365 "
+                            "administrator uploads the package and makes the agent available. "
+                            "Making the agent available grants nothing in Flow Steward: each "
+                            "person still signs in, approves the access, and gets at most what "
+                            "their own Flow Steward role allows."
                         ),
                     ),
                     SetupStep(
@@ -712,14 +715,16 @@ CLIENTS: tuple[AgentClient, ...] = (
                         kind="value",
                         template=MCP_URL_TEMPLATE,
                         title_key="react.agent_access.step_m365_connector",
-                        title="Or connect it without the agent",
+                        title="Not verified: a connector instead of the agent",
                         description_key="react.agent_access.step_m365_connector_description",
                         description=(
-                            "With Microsoft 365 Copilot licences, an administrator can instead "
-                            "add a custom connector (admin center > Copilot > Connectors > "
-                            "Connect to MCP server) with this address and the same registration. "
-                            "Copilot then answers in its own words, without the agent's "
-                            "instructions or report view."
+                            "With Microsoft 365 Copilot licences, an administrator can try a "
+                            "custom connector (admin center > Copilot > Connectors > Connect to "
+                            "MCP server) with this address. Microsoft documents its sign-in form "
+                            "with a client secret, and the Microsoft 365 client here has none, "
+                            "so this may not work; use the agent package. A connector answers "
+                            "in Copilot's own words, without the agent's instructions or report "
+                            "view."
                         ),
                     ),
                 ),

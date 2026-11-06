@@ -28974,3 +28974,9 @@ msgstr ""
 
 msgid "react.agent_access.reason_no_terminal_m365"
 msgstr ""
+
+msgid "react.agent_access.platform_step_create"
+msgstr ""
+
+msgid "react.agent_access.platform_step_package"
+msgstr ""
