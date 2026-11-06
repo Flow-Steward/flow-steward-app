@@ -113,6 +113,7 @@ export function WorkflowCanvasBuilderSurface({
   focusNodeNonce = 0,
   focusNodeCreation = null,
   focusNodePlace = false,
+  focusNodeReveal = false,
   runtimeActiveNodeId = null,
   exportYamlHref,
   exportYamlLabel,
@@ -427,6 +428,9 @@ export function WorkflowCanvasBuilderSurface({
   const handledPlacementReplayRef = useRef(new Map<string, number>());
   const [measuredStepHeights, setMeasuredStepHeights] = useState<Record<string, number>>({});
   const [draggingIds, setDraggingIds] = useState<ReadonlySet<string>>(NOTHING_DRAGGED);
+  // A node shown for an opened issue is selected, as if the author had clicked it.
+  const [revealSelection, setRevealSelection] = useState<{ nodeId: string; nonce: number } | null>(null);
+  const selectRevealedNode = useCallback((nodeId: string) => setRevealSelection((current) => ({ nodeId, nonce: (current?.nonce ?? 0) + 1 })), []);
   const canvasMeasureRootRef = useRef<HTMLDivElement | null>(null);
   // A dropped Note lands centred under the pointer; a click, N or the menu puts it in the middle of the view.
   const addNoteAt = useCallback((point?: CanvasNoteDropPoint) => {
@@ -842,7 +846,7 @@ export function WorkflowCanvasBuilderSurface({
   const { focusSearchResult, handleSearchKeyDown } = useCanvasSearchNavigation({
     autoArrange: arrange.mode === "auto",
     currentNodesById, reactFlowInstance, setHighlightedNodeId, setShowSearchResults, openGroupFromCanvas, openStepFromCanvas,
-    focusNodeId, focusNodeNonce, focusNodeCreation, focusNodePlace, handledFocusNonceRef, canvasMeasureRootRef,
+    focusNodeId, focusNodeNonce, focusNodeCreation, focusNodePlace, focusNodeReveal, inspectorWidth, onRevealNode: selectRevealedNode, handledFocusNonceRef, canvasMeasureRootRef,
     manualPositions, edges, nodes, workflowId, placementOwnerFor, placementGestureGenerationFor,
     currentSelection: () => commandSelectionRef.current,
     setManualPositions, setCreationIntent, searchIndex, searchResults, setSearchIndex
@@ -970,6 +974,7 @@ export function WorkflowCanvasBuilderSurface({
       handleSearchKeyDown={handleSearchKeyDown}
       hasManualLayout={hasManualLayout}
       nodesWithCanvasState={nodesWithCanvasState}
+      revealSelection={revealSelection}
       creationSelection={creationSelection && (creationSelection.selectionGeneration === undefined ||
         creationSelection.selectionGeneration === commandSelectionRef.current.generation) ? creationSelection : null}
       nextSlotTemplate={nextSlotTemplate}

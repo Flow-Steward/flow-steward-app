@@ -114,7 +114,7 @@ export function WorkflowDetailPageShell({ ctx }: Readonly<{ ctx: WorkflowDetailP
   ), [canAuthor, authorStepPlayAllowed]);
   const drawerFocusFallbackRef = useRef<HTMLElement>(null);
   const {
-    advancedMode, beginBuilderDrawerResize, builderCanvasFocusNodeId, builderCanvasFocusNonce, builderCanvasFocusPlace, builderCanvasFocusCreation,
+    advancedMode, beginBuilderDrawerResize, builderCanvasFocusNodeId, builderCanvasFocusNonce, builderCanvasFocusPlace, builderCanvasFocusReveal, builderCanvasFocusCreation,
     builderConfirmDialog, builderRuntimeActiveNodeId, builderDrawerResizable, builderDrawerStyle,
     builderDrawerViewportWidth, builderDrawerWidth, builderPathWithProject, builderSurface,
     canvasStructureLocked, canvasGraphQuery, changeSet, clampedBuilderDrawerWidth, closeDrawer,
@@ -662,6 +662,7 @@ export function WorkflowDetailPageShell({ ctx }: Readonly<{ ctx: WorkflowDetailP
           focusNodeNonce={builderCanvasFocusNonce}
           focusNodeCreation={builderCanvasFocusCreation}
           focusNodePlace={builderCanvasFocusPlace}
+          focusNodeReveal={builderCanvasFocusReveal}
           runtimeActiveNodeId={builderRuntimeActiveNodeId}
           runtimeMarks={ctx.runtimeMarks}
           runtimeEdges={ctx.runtimeEdges}

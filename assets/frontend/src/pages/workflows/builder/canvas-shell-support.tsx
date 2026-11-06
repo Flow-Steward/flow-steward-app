@@ -85,6 +85,8 @@ export type CanvasShellProps = {
   hasManualLayout: boolean;
   nodesWithCanvasState: Node[];
   creationSelection?: CanvasCreationSelection | null;
+  /** A node shown for an opened issue: selected once per nonce, like a click on it. */
+  revealSelection?: { nodeId: string; nonce: number } | null;
   nextSlotTemplate: Node;
   onAppendAtSlot?: (source: Node, slot: CanvasNextStepSlot) => void;
   onCloseInspector: () => void;

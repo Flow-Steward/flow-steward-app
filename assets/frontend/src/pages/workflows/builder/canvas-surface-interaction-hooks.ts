@@ -16,6 +16,7 @@ import {
   canvasPasteRectsVisible,
   canvasPasteTranslationToBounds,
   canvasPasteViewport,
+  canvasFocusViewport,
   canvasRevealViewport,
   fitCanvasToNodes,
   positionAtViewportCentre,
@@ -373,7 +374,10 @@ export function useCanvasGraphEditing({ t, beginPlacementGesture, changeAnnotati
   return { handleNodesChange, handleNodeDragStop, handleEdgesChange, handleAutoLayout };
 }
 
-export function useCanvasSearchNavigation({ autoArrange = false, currentNodesById, reactFlowInstance, setHighlightedNodeId, setShowSearchResults, openGroupFromCanvas, openStepFromCanvas, focusNodeId, focusNodeNonce, focusNodeCreation, focusNodePlace, handledFocusNonceRef, canvasMeasureRootRef, manualPositions, edges, nodes, workflowId, placementOwnerFor, placementGestureGenerationFor, currentSelection, setManualPositions, setCreationIntent, searchIndex, searchResults, setSearchIndex }: Readonly<{ autoArrange?: boolean; workflowId: string; placementOwnerFor: (ids: readonly string[]) => WorkflowChangeSetController | null; placementGestureGenerationFor: (id: string) => number; currentSelection: () => { ids: readonly string[]; generation: number } } & Pick<CanvasInteractionContext, "currentNodesById" | "reactFlowInstance" | "setHighlightedNodeId" | "setShowSearchResults" | "openGroupFromCanvas" | "openStepFromCanvas" | "focusNodeId" | "focusNodeNonce" | "focusNodePlace" | "handledFocusNonceRef" | "canvasMeasureRootRef" | "manualPositions" | "edges" | "nodes" | "setManualPositions" | "setCreationIntent" | "searchIndex" | "searchResults" | "setSearchIndex"> & { focusNodeCreation: BuilderSurfaceProps["focusNodeCreation"] }>) {
+export function useCanvasSearchNavigation({ autoArrange = false, currentNodesById, reactFlowInstance, setHighlightedNodeId, setShowSearchResults, openGroupFromCanvas, openStepFromCanvas, focusNodeId, focusNodeNonce, focusNodeCreation, focusNodePlace, focusNodeReveal = false, inspectorWidth = 0, onRevealNode, handledFocusNonceRef, canvasMeasureRootRef, manualPositions, edges, nodes, workflowId, placementOwnerFor, placementGestureGenerationFor, currentSelection, setManualPositions, setCreationIntent, searchIndex, searchResults, setSearchIndex }: Readonly<{ autoArrange?: boolean; workflowId: string; placementOwnerFor: (ids: readonly string[]) => WorkflowChangeSetController | null; placementGestureGenerationFor: (id: string) => number; currentSelection: () => { ids: readonly string[]; generation: number }; focusNodeReveal?: boolean; inspectorWidth?: number; onRevealNode?: (nodeId: string) => void } & Pick<CanvasInteractionContext, "currentNodesById" | "reactFlowInstance" | "setHighlightedNodeId" | "setShowSearchResults" | "openGroupFromCanvas" | "openStepFromCanvas" | "focusNodeId" | "focusNodeNonce" | "focusNodePlace" | "handledFocusNonceRef" | "canvasMeasureRootRef" | "manualPositions" | "edges" | "nodes" | "setManualPositions" | "setCreationIntent" | "searchIndex" | "searchResults" | "setSearchIndex"> & { focusNodeCreation: BuilderSurfaceProps["focusNodeCreation"] }>) {
+  // The drawer's width when a reveal runs, not when it was asked for.
+  const inspectorWidthRef = useRef(inspectorWidth);
+  useEffect(() => { inspectorWidthRef.current = inspectorWidth; }, [inspectorWidth]);
   const creationBaselineRef = useRef<{ nonce: number; token: NonNullable<BuilderSurfaceProps["focusNodeCreation"]>["token"]; nodeId: string; before: CanvasPosition | null; subjectGeneration: number; gestureGeneration: number } | null>(null);
   const focusSearchResult = useCallback(
     (result: SearchResult) => {
@@ -471,6 +475,32 @@ export function useCanvasSearchNavigation({ autoArrange = false, currentNodesByI
     }
     // Ordinary focus has no authority to consume an old palette point.
     handledFocusNonceRef.current = focusNodeNonce;
+    if (focusNodeReveal) {
+      // An opened issue shows its node where the author can see it: beside the drawer, above the controls,
+      // at the current zoom. A node already in view stays put; the highlight says which one it is. The
+      // drawer opening and the issue list closing settle the free area a frame later, so it is read then.
+      const id = focusNodeId;
+      setHighlightedNodeId(id);
+      onRevealNode?.(id);
+      const reveal = () => {
+        const stage = canvasMeasureRootRef.current?.getBoundingClientRect();
+        const pane = canvasPastePane(canvasMeasureRootRef.current, inspectorWidthRef.current);
+        const box = reactFlowInstance.getNodesBounds([id]);
+        if (stage && pane && box.width > 0 && box.height > 0) {
+          const current = reactFlowInstance.getViewport();
+          const target = canvasFocusViewport(box, pane, stage, current, id.startsWith("group:") || id.startsWith("for_each:") ? 0.8 : 0.9);
+          if (target && (target.x !== current.x || target.y !== current.y || target.zoom !== current.zoom)) {
+            ignoreAsyncResult(reactFlowInstance.setViewport(target, { duration: canvasMotionDuration() }));
+          }
+          return;
+        }
+        const center = absoluteNodeCenter(node, currentNodesById);
+        ignoreAsyncResult(reactFlowInstance.setCenter(center.x, center.y, { duration: canvasMotionDuration(), zoom: Math.max(reactFlowInstance.getZoom(), 0.9) }));
+      };
+      if (typeof globalThis.requestAnimationFrame === "function") requestAnimationFrame(() => requestAnimationFrame(reveal));
+      else reveal();
+      return;
+    }
     const unplaced = !manualPositions[focusNodeId];
     const placed = focusNodePlace && unplaced && !autoArrange
       ? positionAtViewportCentre(node, bounds, (point) => reactFlowInstance.screenToFlowPosition(point))
@@ -487,7 +517,7 @@ export function useCanvasSearchNavigation({ autoArrange = false, currentNodesByI
       }));
     }
     setHighlightedNodeId(focusNodeId);
-  }, [autoArrange, currentNodesById, currentSelection, edges, focusNodeCreation, focusNodeId, focusNodeNonce, focusNodePlace, handledFocusNonceRef, manualPositions, nodes, placementGestureGenerationFor, placementOwnerFor, reactFlowInstance, setCreationIntent, setHighlightedNodeId, setManualPositions, canvasMeasureRootRef, workflowId]);
+  }, [autoArrange, currentNodesById, currentSelection, edges, focusNodeCreation, focusNodeId, focusNodeNonce, focusNodePlace, focusNodeReveal, onRevealNode, handledFocusNonceRef, manualPositions, nodes, placementGestureGenerationFor, placementOwnerFor, reactFlowInstance, setCreationIntent, setHighlightedNodeId, setManualPositions, canvasMeasureRootRef, workflowId]);
 
   const handleSearchKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLInputElement>) => {

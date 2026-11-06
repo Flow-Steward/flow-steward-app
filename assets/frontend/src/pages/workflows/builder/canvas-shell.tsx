@@ -175,6 +175,7 @@ export function WorkflowCanvasShell({
   hasManualLayout,
   nodesWithCanvasState,
   creationSelection,
+  revealSelection,
   nextSlotTemplate,
   onAppendAtSlot,
   onCloseInspector,
@@ -290,6 +291,11 @@ export function WorkflowCanvasShell({
   if (creationSelection && creationSelection.nonce !== appliedCreationSelection?.nonce && nodesWithCanvasState.some((node) => node.id === creationSelection.nodeId)) {
     setAppliedCreationSelection(creationSelection);
     setSelectedNodeIds(new Set([creationSelection.nodeId]));
+  }
+  const [appliedRevealSelection, setAppliedRevealSelection] = useState(0);
+  if (revealSelection && revealSelection.nonce !== appliedRevealSelection && nodesWithCanvasState.some((node) => node.id === revealSelection.nodeId)) {
+    setAppliedRevealSelection(revealSelection.nonce);
+    setSelectedNodeIds(new Set([revealSelection.nodeId]));
   }
   const [appliedClipboardSelection, setAppliedClipboardSelection] = useState<number | null>(null);
   if (clipboardSelection && clipboardSelection.nonce !== appliedClipboardSelection &&

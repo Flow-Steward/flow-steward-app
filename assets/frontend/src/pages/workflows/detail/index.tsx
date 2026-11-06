@@ -59,7 +59,7 @@ function WorkflowDetailPageContent({
     setSelectedStepId, stepCreateContext, setStepCreateContext, createAsEntry,
     setCreateAsEntry, groupCreateMode, setGroupCreateMode, extractionGroup,
     setExtractionGroup, groupFormSaveFailed, setGroupFormSaveFailed, groupDraft,
-    setGroupDraft, builderCanvasFocus, builderRuntimeActiveNodeId, setBuilderRuntimeActiveNodeId,
+    setGroupDraft, builderCanvasFocus, focusCanvasNode, builderRuntimeActiveNodeId, setBuilderRuntimeActiveNodeId,
     workflowContractSectionsExpanded, setWorkflowContractSectionsExpanded, advancedMode, setAdvancedMode,
     stepAgentLocked, setStepAgentLocked, stepDisplayName, setStepDisplayName,
     stepKindDraft, setStepKindDraft, stepToolCategoryDraft, setStepToolCategoryDraft,
@@ -511,6 +511,7 @@ function WorkflowDetailPageContent({
   // Edits on hook members go to the hook's workflow; the rest stay the author's.
   const graphActions = hookScope.route(useWorkflowCanvasHandlers({
     changeSet,
+    focusCanvasNode,
     openGroupDrawer: drawer.openGroupDrawer,
     openNewStepDrawer: drawer.openNewStepDrawer,
     openStepDrawer: drawer.openStepDrawer,
@@ -740,6 +741,7 @@ function WorkflowDetailPageContent({
         builderCanvasFocusNodeId: builderCanvasFocus.nodeId,
         builderCanvasFocusNonce: builderCanvasFocus.nonce,
         builderCanvasFocusPlace: builderCanvasFocus.place,
+        builderCanvasFocusReveal: builderCanvasFocus.reveal,
         builderCanvasFocusCreation: builderCanvasFocus.creation,
         builderConfirmDialog: leaveConfirmDialog.open ? leaveConfirmDialog : builderConfirmDialog,
         builderRuntimeActiveNodeId,

@@ -355,6 +355,14 @@ export function useWorkflowDeletionGuard({ changeSet, openProtectedScope, owner 
   return { notice, currentTarget, requestDelete, requestDeleteBatch, retry, cancelCommand, openAutomation };
 }
 
+/** The canvas node an issue belongs to: its step, group or For each; none for a workflow-wide issue. */
+export function canvasNodeIdOfIssue(issue: WorkflowCanvasIssue): string {
+  if (issue.scope === "step") return issue.step_id || issue.scope_id || "";
+  if (issue.scope === "group") return (issue.group_id || issue.scope_id) ? `group:${issue.group_id || issue.scope_id}` : "";
+  if (issue.scope === "for_each") return issue.scope_id ? `for_each:${issue.scope_id}` : "";
+  return "";
+}
+
 /**
  * Structural graph edits from the canvas and the drawers. Each one is staged
  * in the local change set; nothing is written until the author applies it.
@@ -363,6 +371,7 @@ export function useWorkflowCanvasHandlers(ctx: Record<string, any>) {
   const { t } = useI18n();
   const {
     changeSet,
+    focusCanvasNode,
     openGroupDrawer,
     openNewStepDrawer,
     openStepDrawer,
@@ -388,6 +397,9 @@ export function useWorkflowCanvasHandlers(ctx: Record<string, any>) {
   const handleCanvasValidationIssue = useCallback(
     (issue: WorkflowCanvasIssue) => {
       setSelectedCanvasIssue(issue);
+      // The opened issue also shows where its node is on the canvas, beside the drawer.
+      const nodeId = canvasNodeIdOfIssue(issue);
+      if (nodeId) focusCanvasNode?.(nodeId, { reveal: true });
       if (issue.scope === "step" && (issue.step_id || issue.scope_id)) {
         openStepDrawer(issue.step_id || issue.scope_id);
         return;
@@ -404,7 +416,7 @@ export function useWorkflowCanvasHandlers(ctx: Record<string, any>) {
       setDrawerTab("smart-setup");
       setAutomationScopeKind("workflow");
     },
-    [openGroupDrawer, openStepDrawer, openWorkflowSettingsDrawer, setSelectedCanvasIssue],
+    [focusCanvasNode, openGroupDrawer, openStepDrawer, openWorkflowSettingsDrawer, setSelectedCanvasIssue],
   );
 
   /**
