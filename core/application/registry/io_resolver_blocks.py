@@ -183,9 +183,26 @@ class IOResolverBlockContractMixin:
                 return workflow, step
         return workflow, {}
 
-    @staticmethod
-    def _definition_graph(workflow: dict) -> DefinitionGraph:
-        return DefinitionGraph.from_workflow(workflow if isinstance(workflow, dict) else {})
+    def _definition_graph(self, workflow: dict) -> DefinitionGraph:
+        """The workflow's graph view; built once per workflow when graphs are kept.
+
+        Readiness asks for the upstream steps of every step several times, and
+        each ask used to rebuild the view of the whole definition: a quadratic
+        cost on a large workflow. A resolver created with
+        ``keep_definition_graphs=True`` keeps one view per workflow row it read;
+        it must then not be used across changes to those rows.
+        """
+        if not isinstance(workflow, dict):
+            workflow = {}
+        graphs = getattr(self, "_definition_graphs", None)
+        if graphs is None:
+            return DefinitionGraph.from_workflow(workflow)
+        kept = graphs.get(id(workflow))
+        if kept is not None and kept[0] is workflow:
+            return kept[1]
+        graph = DefinitionGraph.from_workflow(workflow)
+        graphs[id(workflow)] = (workflow, graph)
+        return graph
 
 
 __all__ = [name for name in globals() if not (name.startswith("__") and name.endswith("__"))]

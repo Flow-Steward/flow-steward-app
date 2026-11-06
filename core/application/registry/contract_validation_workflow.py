@@ -494,7 +494,9 @@ def _resolve_step_agent_for_workflow(
     return agent_id, participant_key
 
 
-def _workflow_invoke_children(db, workflow_id: str, cache: dict[str, set[str]]) -> set[str]:
+def _workflow_invoke_children(
+    db, workflow_id: str, cache: dict[str, set[str]], load_workflow=None
+) -> set[str]:
     wf_id = str(workflow_id or "").strip()
     if not wf_id:
         return set()
@@ -504,7 +506,7 @@ def _workflow_invoke_children(db, workflow_id: str, cache: dict[str, set[str]]) 
 
     from .workflow_lookup import get_workflow_row
 
-    workflow = get_workflow_row(db, wf_id)
+    workflow = load_workflow(wf_id) if load_workflow else get_workflow_row(db, wf_id)
     children: set[str] = set()
     for step in _iter_workflow_steps(workflow):
         spec = _extract_invoke_workflow_spec(step)
@@ -524,7 +526,13 @@ def _workflow_reaches_target_via_invoke(
     target_workflow_id: str,
     seen: set[str],
     cache: dict[str, set[str]],
+    load_workflow=None,
 ) -> bool:
+    """Whether *current* calls *target* through child workflows.
+
+    *load_workflow* reads a workflow row; a caller holding rows already read
+    (one readiness run) passes its own reader so no row is loaded twice.
+    """
     current = str(current_workflow_id or "").strip()
     target = str(target_workflow_id or "").strip()
     if not current or not target:
@@ -534,13 +542,14 @@ def _workflow_reaches_target_via_invoke(
     if current in seen:
         return False
     seen.add(current)
-    for child_id in _workflow_invoke_children(db, current, cache):
+    for child_id in _workflow_invoke_children(db, current, cache, load_workflow):
         if _workflow_reaches_target_via_invoke(
             db,
             current_workflow_id=child_id,
             target_workflow_id=target,
             seen=seen,
             cache=cache,
+            load_workflow=load_workflow,
         ):
             return True
     return False

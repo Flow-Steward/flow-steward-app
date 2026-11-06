@@ -14,8 +14,15 @@ def validate_invoke_workflow_step(
     workflow_id: str,
     step: dict,
     path_prefix: str,
+    resolver: IOResolver | None = None,
 ) -> dict:
-    """Validate invoke-workflow step payload stored in step.override.invoke_workflow."""
+    """Validate invoke-workflow step payload stored in step.override.invoke_workflow.
+
+    *resolver* is the caller's resolver when it validates many steps of one
+    workflow (readiness): workflow rows and step types then come from what it
+    has already read instead of being loaded again for every child step.
+    """
+    load_workflow = resolver.get_workflow_row if resolver is not None else None
     errors: list[dict] = []
     warnings: list[dict] = []
     spec = _extract_invoke_workflow_spec(step)
@@ -84,7 +91,11 @@ def validate_invoke_workflow_step(
             )
         )
 
-    child_workflow = get_workflow_row(db, child_workflow_id)
+    child_workflow = (
+        load_workflow(child_workflow_id)
+        if load_workflow
+        else get_workflow_row(db, child_workflow_id)
+    )
     if not isinstance(child_workflow, dict):
         errors.append(
             _issue(
@@ -101,6 +112,7 @@ def validate_invoke_workflow_step(
         target_workflow_id=workflow_id,
         seen=set(),
         cache={},
+        load_workflow=load_workflow,
     ):
         errors.append(
             _issue(
@@ -345,7 +357,7 @@ def validate_invoke_workflow_step(
     }
 
     available_type_map: dict[str, str] = {}
-    resolver_for_types = IOResolver(db)
+    resolver_for_types = resolver if resolver is not None else IOResolver(db)
     try:
         available_type_map = resolver_for_types.get_available_type_map_for_step(
             workflow_id, str(step.get("step_id") or "").strip()
@@ -364,7 +376,10 @@ def validate_invoke_workflow_step(
         )
         available_type_map = {}
 
-    selector_shape = StateSelectorShape(resolver_for_types, get_workflow_row(db, workflow_id) or {})
+    parent_workflow = (
+        load_workflow(workflow_id) if load_workflow else get_workflow_row(db, workflow_id)
+    )
+    selector_shape = StateSelectorShape(resolver_for_types, parent_workflow or {})
 
     for child_input_name in sorted(child_required_input_names):
         if child_input_name not in normalized_input_mapping:

@@ -263,6 +263,20 @@ def _coerce_bool_flag(value) -> bool:
 
 
 def validate_workflow_readiness(db, workflow_id: str) -> dict:
+    """Whether the workflow can be enabled, tested or run; every issue found.
+
+    Each extension install's contract is resolved once for the whole run: a
+    large workflow calls the same installed extension from many steps.
+    """
+    from core.application.extensions.workflow_install_contract import (
+        shared_install_contracts,
+    )
+
+    with shared_install_contracts():
+        return _validate_workflow_readiness(db, workflow_id)
+
+
+def _validate_workflow_readiness(db, workflow_id: str) -> dict:
     wf = get_workflow_row(db, workflow_id)
     if not wf:
         return {
@@ -421,7 +435,8 @@ def validate_workflow_readiness(db, workflow_id: str) -> dict:
             )
         )
 
-    resolver = IOResolver(db)
+    # One validation reads each workflow row once and never changes it.
+    resolver = IOResolver(db, keep_definition_graphs=True)
     selector_shape = StateSelectorShape(resolver, wf)
     participant_bindings = _workflow_participant_bindings(wf)
     real_execution_step_count = 0
@@ -504,6 +519,7 @@ def validate_workflow_readiness(db, workflow_id: str) -> dict:
             workflow_id=workflow_id,
             step=step,
             path_prefix=step_path,
+            resolver=resolver,
         )
         errors.extend(invoke_validation.get("errors") or [])
         warnings.extend(invoke_validation.get("warnings") or [])
