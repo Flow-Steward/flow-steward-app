@@ -1,0 +1,25 @@
+{
+  "declared_inputs": [
+    {"name": "kpis", "type": "object", "required": true, "source": "state.outputs.kpis"},
+    {"name": "regions", "type": "array", "required": true, "source": "state.outputs.regions"},
+    {"name": "returns", "type": "array", "required": true, "source": "state.outputs.returns"},
+    {"name": "commentary", "type": "text", "required": false, "source": "state.outputs.commentary"}
+  ],
+  "values": {
+    "kpis": {
+      "week": "2026-11-02",
+      "as_of": "2026-11-08T18:30:00Z",
+      "revenue": 48210.5,
+      "revenue_change": 0.123,
+      "orders": 0,
+      "refund_rate": null,
+      "target_met": false
+    },
+    "regions": [
+      {"region": "EMEA", "orders": 12, "revenue": 21500.0, "margin": 0.18, "manager": "A. Novak"},
+      {"region": "APAC", "orders": 0, "revenue": 0, "margin": null, "manager": "K. Sato"},
+      {"region": "AMER", "orders": 9, "revenue": 26710.5, "margin": 0.21, "manager": "M. Ortiz"}
+    ],
+    "returns": []
+  }
+}

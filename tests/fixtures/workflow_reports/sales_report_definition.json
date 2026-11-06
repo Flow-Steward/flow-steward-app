@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "title": "Weekly sales",
+  "locale": "en-US",
+  "time_zone": "Europe/Berlin",
+  "summary": [
+    {"text": "Revenue "},
+    {"value": {"input": "kpis", "path": "revenue"}, "format": {"type": "currency", "currency": "EUR"}},
+    {"text": " in the week of "},
+    {"value": {"input": "kpis", "path": "week"}, "format": {"type": "date"}},
+    {"text": "; target met: "},
+    {"value": {"input": "kpis", "path": "target_met"}, "format": {"type": "boolean"}},
+    {"text": "."}
+  ],
+  "datasets": [
+    {"id": "regions", "source": {"input": "regions"}},
+    {"id": "returns", "source": {"input": "returns"}}
+  ],
+  "components": [
+    {
+      "id": "heading",
+      "type": "text",
+      "style": "heading",
+      "segments": [
+        {"text": "Week of "},
+        {"value": {"input": "kpis", "path": "week"}, "format": {"type": "date"}}
+      ]
+    },
+    {
+      "id": "revenue_total",
+      "type": "metric",
+      "label": "Revenue",
+      "value": {"input": "kpis", "path": "revenue"},
+      "format": {"type": "currency", "currency": "EUR", "maximum_fraction_digits": 2},
+      "comparison": {
+        "label": "vs previous week",
+        "value": {"input": "kpis", "path": "revenue_change"},
+        "format": {"type": "percent", "maximum_fraction_digits": 1}
+      }
+    },
+    {
+      "id": "orders",
+      "type": "metric",
+      "label": "Orders",
+      "value": {"input": "kpis", "path": "orders"},
+      "format": {"type": "number"}
+    },
+    {
+      "id": "refund_rate",
+      "type": "metric",
+      "label": "Refund rate",
+      "value": {"input": "kpis", "path": "refund_rate"},
+      "format": {"type": "percent", "maximum_fraction_digits": 1}
+    },
+    {
+      "id": "status",
+      "type": "text",
+      "style": "paragraph",
+      "segments": [
+        {"text": "Target met: "},
+        {"value": {"input": "kpis", "path": "target_met"}, "format": {"type": "boolean"}},
+        {"text": ". Data as of "},
+        {"value": {"input": "kpis", "path": "as_of"}, "format": {"type": "datetime"}},
+        {"text": "."}
+      ]
+    },
+    {
+      "id": "region_table",
+      "type": "table",
+      "caption": "Revenue by region",
+      "dataset": "regions",
+      "columns": [
+        {"id": "region", "field": "region", "label": "Region", "format": {"type": "text"}},
+        {"id": "revenue", "field": "revenue", "label": "Revenue", "format": {"type": "currency", "currency": "EUR"}},
+        {"id": "margin", "field": "margin", "label": "Margin", "format": {"type": "percent", "maximum_fraction_digits": 1}}
+      ],
+      "empty_text": "No regional sales this week."
+    },
+    {
+      "id": "region_chart",
+      "type": "chart",
+      "chart_type": "bar",
+      "title": "Revenue by region",
+      "description": "Bar chart of weekly revenue in euros for each sales region.",
+      "dataset": "regions",
+      "category": {"field": "region", "label": "Region", "format": {"type": "text"}},
+      "series": [
+        {"id": "revenue", "field": "revenue", "label": "Revenue", "format": {"type": "currency", "currency": "EUR"}}
+      ],
+      "empty_text": "No regional sales this week."
+    },
+    {
+      "id": "details",
+      "type": "section",
+      "title": "Returns and notes",
+      "children": [
+        {
+          "id": "returns_table",
+          "type": "table",
+          "caption": "Returns",
+          "dataset": "returns",
+          "columns": [
+            {"id": "order", "field": "order_id", "label": "Order", "format": {"type": "text"}},
+            {"id": "amount", "field": "amount", "label": "Amount", "format": {"type": "currency", "currency": "EUR"}},
+            {"id": "returned_on", "field": "returned_on", "label": "Returned on", "format": {"type": "date"}}
+          ],
+          "empty_text": "No returns this week."
+        },
+        {
+          "id": "commentary",
+          "type": "text",
+          "style": "paragraph",
+          "segments": [
+            {"value": {"input": "commentary", "default": "No commentary this week."}, "format": {"type": "text"}}
+          ]
+        }
+      ]
+    }
+  ]
+}
