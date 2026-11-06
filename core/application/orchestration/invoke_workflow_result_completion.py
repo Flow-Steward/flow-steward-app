@@ -395,9 +395,16 @@ def complete_child_invocation_result(
     if debug_result:
         mapped_artifacts["_invoke_workflow"]["nested_trace"] = debug_result.get("trace")
     if state_updates:
-        mapped_artifacts["_state_patch"] = copy.deepcopy(state_updates)
         for key, value in state_updates.items():
             mapped_artifacts.setdefault(key, value)
+    # A forwarded child report stays whole in the parent's state (state_updates)
+    # but the message carries only its preview, and its state patch leaves it
+    # out (ADR 0059 decision 11).
+    from core.application.workflow_documents import omit_reports, preview_reports
+
+    mapped_artifacts = preview_reports(mapped_artifacts)
+    if state_updates:
+        mapped_artifacts["_state_patch"] = omit_reports(copy.deepcopy(state_updates))
 
     emit_event(
         state,

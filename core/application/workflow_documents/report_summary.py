@@ -131,6 +131,39 @@ def _dataset_counts(datasets: Any) -> list[dict[str, Any]]:
     return counts
 
 
+def is_report(value: Any) -> bool:
+    """Whether ``value`` is shaped as a report snapshot (whatever its validity)."""
+    return isinstance(value, Mapping) and value.get("kind") == REPORT_KIND
+
+
+def preview_reports(value: Any) -> Any:
+    """A copy of ``value`` with every nested report replaced by its preview.
+
+    For message artifacts and other diagnostics that may embed a forwarded
+    report anywhere (aliases, hook outputs); canonical state is never passed here.
+    """
+    if is_report(value):
+        return report_preview(value)
+    if isinstance(value, Mapping):
+        return {key: preview_reports(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [preview_reports(item) for item in value]
+    return value
+
+
+def omit_reports(value: Any) -> Any:
+    """A copy of ``value`` without nested reports, for state patches in messages.
+
+    A patch replays state, so a preview there would pass for the value; the
+    report is left out instead and state keeps the only full copy.
+    """
+    if isinstance(value, Mapping):
+        return {key: omit_reports(item) for key, item in value.items() if not is_report(item)}
+    if isinstance(value, list):
+        return [omit_reports(item) for item in value if not is_report(item)]
+    return value
+
+
 def replace_report_output(outputs: Any, report_output: str | None) -> Any:
     """``outputs`` with the selected report replaced by its preview.
 
@@ -146,6 +179,9 @@ __all__ = [
     "REPORT_KIND",
     "SUMMARY_MAX_CHARS",
     "fallback_summary",
+    "is_report",
+    "omit_reports",
+    "preview_reports",
     "render_segments",
     "replace_report_output",
     "report_preview",
