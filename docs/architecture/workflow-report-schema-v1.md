@@ -132,6 +132,22 @@ Every value in a snapshot is a JSON scalar: string, number, boolean or `null`.
 | Row object without a referenced field | `report.dataset_field_missing` (a present `null` is fine). |
 | Row field holding an object or array | `report.dataset_cell_not_scalar`. |
 
+How a binding finds its value, given the existing Template input rules (which
+stay unchanged):
+
+- **Whole input (no `path`).** The compiler reads the alias from the Template
+  context by presence, not through `resolve_state_path`: alias present → its
+  value, including `null`; alias absent (an optional input that was not
+  supplied) → missing. `resolve_state_path(value, "")` cannot be reused here,
+  because it reports a `null` root as not found.
+- **Relative `path`.** `resolve_state_path(value, path)` on the input value:
+  `found=False` → missing; a present `null` at the end of the path → `null`.
+- **Where `null` can come from.** The Template type checks reject a top-level
+  `null` for inputs typed `text`, `number`, `boolean`, `object` and `array`
+  (`input_type` failure). A whole-input binding that must accept `null`
+  therefore uses an input declared `json`. Inside an `object`, `array` or
+  `json` input, a `null` reached through `path` is always allowed.
+
 Nothing is coerced: a number held as the string `"1200.50"` is a type error,
 not a number. Shape data with a Transform step before the Template.
 Aggregation, sorting and filtering also belong to earlier steps; the report
@@ -286,10 +302,18 @@ also enforces:
 8. The serialized definition is at most 64 KiB UTF-8
    (`report.definition_too_large`).
 
-A Template input of type `text`, `number` or `boolean` can only feed a value
-binding without `path`; one of type `array` or `json` can feed a dataset
-binding; `object`, `array` and `json` accept a `path`. A binding that the
-declared type rules out is `report.binding_type_impossible` at authoring time.
+Bindings against declared input types (checked at authoring time; a binding the
+declared type rules out is `report.binding_type_impossible`):
+
+| Input type | Value binding | Dataset binding |
+| --- | --- | --- |
+| `text`, `number`, `boolean` | whole input only (no `path`) | never |
+| `object` | with `path` only (a whole object is not a scalar) | with `path` only, for example `{"input": "report_data", "path": "rows"}`; a whole `object` input can never be an array |
+| `array` | with `path` only (for example `"0.total"`) | whole input or with `path` |
+| `json` | whole input or with `path` | whole input or with `path` |
+
+Whether a `path` really yields a scalar or an array is checked at run time
+(`report.binding_not_scalar`, `report.dataset_not_array`).
 
 ## 4. Compilation
 
@@ -311,7 +335,8 @@ clock and calls no model. The same inputs always produce byte-identical output.
    (or default), keeping `format`. Component, column and series objects keep all
    their other authored properties unchanged.
 4. Render `summary_text`: the plain rendering (4.1) of `summary` when given,
-   otherwise the title.
+   otherwise the generated fallback (4.2). An authored `summary` longer than
+   4,000 characters fails with `report.summary_too_long`; it is never cut.
 5. Check snapshot limits (section 6), including the serialized size.
 
 Any error fails the Template step with `failure_reason` `report_invalid` and the
@@ -332,6 +357,36 @@ notifications. Segments are concatenated:
 | `currency` | number rendering, a space, the code: `48210.5 EUR` |
 | `percent` | value × 100 in decimal arithmetic from the shortest round-trip decimal, then number rendering, then `%`: `0.123` → `12.3%` |
 | `datetime` | the instant in the report time zone as `YYYY-MM-DDTHH:MM:SS±HH:MM` (fractional seconds are not shown) |
+
+### 4.2 Generated summary when `summary` is absent
+
+A client without a report viewer receives `summary_text` only, so the fallback
+must say more than the title. It is built deterministically from the resolved
+snapshot, with no model call, as lines joined by `\n`:
+
+1. the title;
+2. then, walking components depth-first in document order (sections contribute
+   only their children; text components contribute nothing):
+   - metric: `<label>: <value>`, plus ` (<comparison label>: <value>)` when a
+     comparison is present, values in the plain rendering of 4.1;
+   - table: `<caption>: <N> rows`, N being the row count of its dataset;
+   - chart: `<title>: <N> points`, N being the row count of its dataset.
+
+The result is bounded at 4,000 characters. Lines are appended while the text
+stays within 3,960 characters; if a line does not fit, the remaining K lines are
+replaced by one final line `[K more items not shown]`. This is the only place
+where content is left out, it is always marked, and it affects only the summary,
+never the snapshot data. For the fixture definition without `summary`:
+
+```text
+Weekly sales
+Revenue: 48210.5 EUR (vs previous week: 12.3%)
+Orders: 0
+Refund rate: —
+Revenue by region: 3 rows
+Revenue by region: 3 points
+Returns: 0 rows
+```
 
 ## 5. ReportSnapshot v1
 
@@ -381,9 +436,10 @@ JSON parsing for validation rejects `NaN` and `±Infinity` tokens.
 
 ## 6. Limits (proposed)
 
-These are domain limits for v1, **proposed pending the MCP Apps spike** (task 1),
-which measures real host transport budgets. Task 3 may set lower delivery
-ceilings per host; it does not raise these. Exceeding any limit is an error with
+These are domain limits for v1, **proposed until the owner approves them**. The
+MCP Apps spike (task 1) only checks whether delivery is feasible; production
+delivery budgets per host are measured and set by task 3, which may set lower
+delivery ceilings per host but does not raise these. Exceeding any limit is an error with
 a field path, never a silent truncation.
 
 | Limit | Value | Error code |

@@ -127,9 +127,15 @@ are validated after compiling and at the workflow boundary. Every limit
 (components, depth, datasets, rows, columns, series, text, summary, definition
 and snapshot size) fails with an error and a field path. Nothing is truncated,
 sampled or coerced to fit. Numbers must be finite; strings are never parsed as
-numbers. The v1 limits are proposals until the MCP Apps spike reports host
-transport budgets; host delivery ceilings belong to the delivery task and may
-be lower, never higher.
+numbers. The v1 limits are proposals until the owner approves them. The MCP
+Apps spike (task 1) only checks that delivery is feasible; production delivery
+budgets per host are measured and set by the delivery task (task 3), and may be
+lower than these limits, never higher.
+
+`summary_text` is what a client without a viewer receives. Without an authored
+`summary` it is a deterministic, bounded fallback built from the title, metric
+values and table and chart row counts (schema section 4.2); the only omission it
+allows is an explicit `[K more items not shown]` line, and only in the summary.
 
 ### 8. What a report cannot contain
 
@@ -244,7 +250,11 @@ the 0.9.12 version bump on top of that main:
    (`workflow_kept_test_outputs.py:23`), below the proposed 1 MiB snapshot.
 8. **Template inputs already validate types** (`text`, `number`, `boolean`,
    `object`, `array`, `json`), so a report binding can be checked against its
-   input's declared type at authoring time.
+   input's declared type at authoring time. Those checks reject a top-level
+   `null` for every type except `json`, and `resolve_state_path(value, "")`
+   reports a `null` root as not found. A nullable whole input is therefore
+   declared `json`, and a whole-input binding reads the alias from the Template
+   context by presence (schema section 2.3); neither existing helper changes.
 9. **The repository's `canonical_json_bytes` escapes non-ASCII**, so size limits
    are measured with `ensure_ascii=False` compact JSON instead.
 
@@ -317,7 +327,8 @@ the 0.9.12 version bump on top of that main:
 
 ## Open questions for the owner
 
-1. Approve the v1 limits as proposals, final after the MCP Apps spike.
+1. Approve the v1 domain limits; production delivery budgets per host follow in
+   task 3.
 2. Should `workflow_apply_changes` gain an Interface operation so an agent can
    set `report_output` on an existing workflow, or is the draft bundle and
    `PATCH /api/workflows/{id}` enough for v1?
