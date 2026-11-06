@@ -17,6 +17,10 @@ export function useReportLabels(): ReportLabels {
       no: t("react.report.no", "No"),
       showData: t("react.report.show_data", "Show data"),
       chartDataCaption: t("react.report.chart_data_caption", "Data: {title}"),
+      chartUnavailable: t(
+        "react.report.chart_unavailable",
+        "The chart could not be drawn. Its values are in the table below.",
+      ),
       unsupported: t(
         "react.report.unsupported_version",
         "This report uses a format this version cannot show.",

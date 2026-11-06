@@ -87,4 +87,36 @@ describe("ReportView", () => {
     render(<ReportView report={{ title: "not a report" }} />);
     expect(screen.getByRole("status")).toHaveTextContent("This result is not a readable report.");
   });
+
+  it.each([
+    ["a null component", (report: Record<string, unknown>) => {
+      report.components = [null];
+    }],
+    ["a section child without a type", (report: Record<string, unknown>) => {
+      const components = report.components as Array<Record<string, unknown>>;
+      const section = components.find((component) => component.type === "section") as Record<string, unknown>;
+      Object.assign(section, { children: [{ id: "broken" }] });
+    }],
+    ["a row narrower than its fields", (report: Record<string, unknown>) => {
+      const datasets = report.datasets as Array<{ rows: unknown[][] }>;
+      datasets[0].rows[0] = ["EMEA"];
+    }],
+    ["a metric holding text", (report: Record<string, unknown>) => {
+      const components = report.components as Array<Record<string, unknown>>;
+      (components.find((component) => component.type === "metric") as Record<string, unknown>).value = "48210";
+    }],
+  ])("reports %s as unreadable instead of crashing or dropping it", (_name, breakIt) => {
+    const report = snapshot();
+    breakIt(report);
+    render(<ReportView report={report} />);
+    expect(screen.getByRole("status")).toHaveTextContent("This result is not a readable report.");
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
+  it("reports a component type it does not know as unsupported, not as empty", () => {
+    const report = snapshot();
+    (report.components as unknown[]).push({ id: "gauge", type: "gauge" });
+    render(<ReportView report={report} />);
+    expect(screen.getByRole("status")).toHaveTextContent("This report uses a format this version cannot show.");
+  });
 });

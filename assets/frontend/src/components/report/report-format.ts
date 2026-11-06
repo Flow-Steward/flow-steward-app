@@ -88,13 +88,32 @@ function formatNumber(value: ReportScalar, format: ReportFormat, locale: string)
   }
 }
 
+/** Before this year ICU formats dates on the Julian calendar, not the proleptic Gregorian one. */
+const GREGORIAN_START_YEAR = 1583;
+const GREGORIAN_CYCLE_YEARS = 400;
+
 function formatDate(value: ReportScalar, ctx: ReportFormatContext): string {
   const match = typeof value === "string" ? DATE_PATTERN.exec(value) : null;
   if (!match) return String(value);
-  // A calendar date: built and shown in UTC so no zone can move it a day.
-  const moment = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  if (Number.isNaN(moment.getTime())) return String(value);
-  return cachedDateFormat(ctx.locale, FALLBACK_TIME_ZONE, false).format(moment);
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  // A calendar date, shown in UTC so no zone can move it a day. An early year is
+  // drawn on a stand-in year with the same place in the 400-year Gregorian
+  // cycle (so 29 February survives), then given back its own number:
+  // Date.UTC reads 0001-0099 as 19xx, and ICU would switch to the Julian calendar.
+  const drawnYear =
+    year < GREGORIAN_START_YEAR ? 2000 + (year % GREGORIAN_CYCLE_YEARS) : year;
+  const moment = new Date(0);
+  moment.setUTCFullYear(drawnYear, month - 1, day);
+  if (moment.getUTCMonth() !== month - 1 || moment.getUTCDate() !== day) return String(value);
+  const formatter = cachedDateFormat(ctx.locale, FALLBACK_TIME_ZONE, false);
+  if (drawnYear === year) return formatter.format(moment);
+  const yearText = new Intl.NumberFormat(formatter.resolvedOptions().locale, {
+    useGrouping: false,
+  }).format(year);
+  return formatter
+    .formatToParts(moment)
+    .map((part) => (part.type === "year" ? yearText : part.value))
+    .join("");
 }
 
 function formatDateTime(value: ReportScalar, ctx: ReportFormatContext): string {

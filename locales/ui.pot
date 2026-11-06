@@ -28860,3 +28860,6 @@ msgstr ""
 
 msgid "react.report.invalid"
 msgstr ""
+
+msgid "react.report.chart_unavailable"
+msgstr ""

@@ -29915,3 +29915,6 @@ msgstr "This report uses a format this version cannot show."
 
 msgid "react.report.invalid"
 msgstr "This result is not a readable report."
+
+msgid "react.report.chart_unavailable"
+msgstr "The chart could not be drawn. Its values are in the table below."

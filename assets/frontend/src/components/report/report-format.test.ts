@@ -38,6 +38,23 @@ describe("formatReportValue", () => {
     );
   });
 
+  it.each([
+    ["0001-01-01", "Jan 1, 1"],
+    ["0004-02-29", "Feb 29, 4"],
+    ["0099-12-31", "Dec 31, 99"],
+    ["0100-03-01", "Mar 1, 100"],
+    ["1582-10-10", "Oct 10, 1582"],
+    ["2026-11-02", "Nov 2, 2026"],
+  ])("keeps the year and day of %s in every zone", (value, expected) => {
+    for (const timeZone of ["UTC", "Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
+      expect(formatReportValue(value, { type: "date" }, { ...ctx, timeZone })).toBe(expected);
+    }
+  });
+
+  it("does not invent a date that does not exist", () => {
+    expect(formatReportValue("2026-02-30", { type: "date" }, ctx)).toBe("2026-02-30");
+  });
+
   it("shows a date-time in the report time zone", () => {
     const text = formatReportValue("2026-11-08T18:30:00Z", { type: "datetime" }, ctx);
     expect(text).toContain("Nov 8, 2026");
