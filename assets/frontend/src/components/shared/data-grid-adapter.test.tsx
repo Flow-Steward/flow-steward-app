@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
 import { DsTable } from "@/components/shared/design-system";
 
@@ -141,5 +141,46 @@ describe("catalog grid adapter", () => {
   it("omits the actions column when the config declares none", () => {
     const columns = columnsFromGridConfig({ columns: AGENTS_CONFIG.columns, row_actions: [] }, () => null);
     expect(columns.some((column) => column.key === "actions")).toBe(false);
+  });
+});
+
+describe("a grid link opens its page inside the app", () => {
+  function Where() {
+    const location = useLocation();
+    return <output aria-label="Router location">{location.pathname + location.search}</output>;
+  }
+  function mountLinkCell(rowClick = vi.fn()) {
+    const columns = columnsFromGridConfig(AGENTS_CONFIG, () => null);
+    render(
+      <MemoryRouter initialEntries={["/registry/agents"]}>
+        <Routes>
+          <Route path="*" element={<>
+            <DsTable ariaLabel="Agents" columns={columns.slice(0, 1)} rowKey={(row) => String(row._entity_id)} rows={[ROW]} onRowClick={rowClick} />
+            <Where />
+          </>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    return rowClick;
+  }
+  const originalPath = globalThis.location.pathname;
+  beforeEach(() => { globalThis.history.replaceState(null, "", "/app/registry/agents"); });
+  afterEach(() => { globalThis.history.replaceState(null, "", originalPath); });
+
+  it("navigates client-side on a plain click, once, and keeps the full href for a new tab", () => {
+    const rowClick = mountLinkCell();
+    const link = screen.getByRole("link", { name: "Planner" });
+    expect(link).toHaveAttribute("href", "/app/registry/agents/planner%20agent");
+    expect(fireEvent.click(link, { button: 0 })).toBe(false);
+    expect(screen.getByRole("status", { name: "Router location" })).toHaveTextContent("/registry/agents/planner%20agent");
+    expect(rowClick).not.toHaveBeenCalled();
+  });
+
+  it("leaves a modified click to the browser (new tab, new window)", () => {
+    mountLinkCell();
+    const link = screen.getByRole("link", { name: "Planner" });
+    expect(fireEvent.click(link, { button: 0, metaKey: true })).toBe(true);
+    expect(fireEvent.click(link, { button: 0, ctrlKey: true })).toBe(true);
+    expect(screen.getByRole("status", { name: "Router location" })).toHaveTextContent("/registry/agents");
   });
 });

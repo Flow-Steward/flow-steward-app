@@ -1,5 +1,6 @@
 import {
   nodeRefFromNodeId,
+  NOTHING_DRAGGED,
   useCanvasRenderedStepHeights,
   useCanvasInteractiveEdges,
   useCanvasGraphEditing,
@@ -14,6 +15,7 @@ import { canvasConnectionDefinition, connectionPlacement, connectionRefusal } fr
 import type { CanvasCreationIntent, CanvasPlacementPoint } from "./canvas-types";
 import { arrangeSnapshot, useCanvasArrangeMode, useSavedCanvasLayout } from "./canvas-layout-menu";
 import { useInlineLoopIds } from "./canvas-inline-loop-layout";
+import { useStableCanvasNodes } from "./canvas-node-identity";
 import type { CanvasShellExtras } from "./canvas-context-menus";
 import { useI18n } from "@/lib/i18n/useI18n";
 import {
@@ -60,7 +62,7 @@ import { canvasMotionDuration, fitCanvasToNodes } from "./canvas-viewport";
 import type { WorkflowNodeRef, WorkflowOutcome } from "@/pages/workflows/shared/api";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { hookGroupId, isHookMemberRef, parseHookNodeId, withHookFrames } from "@/pages/workflows/builder/hook-frames";
+import { canvasNodeIdForStep, hookGroupId, isHookMemberRef, parseHookNodeId, withHookFrames } from "@/pages/workflows/builder/hook-frames";
 
 function placementDelta(
   canvasWorkflowId: string,
@@ -111,6 +113,7 @@ export function WorkflowCanvasBuilderSurface({
   focusNodeNonce = 0,
   focusNodeCreation = null,
   focusNodePlace = false,
+  focusNodeReveal = false,
   runtimeActiveNodeId = null,
   exportYamlHref,
   exportYamlLabel,
@@ -424,6 +427,12 @@ export function WorkflowCanvasBuilderSurface({
   } | null>(null);
   const handledPlacementReplayRef = useRef(new Map<string, number>());
   const [measuredStepHeights, setMeasuredStepHeights] = useState<Record<string, number>>({});
+  const [draggingIds, setDraggingIds] = useState<ReadonlySet<string>>(NOTHING_DRAGGED);
+  // An opened issue names the authored step; a root hook step is drawn as its frame.
+  const revealTargetId = focusNodeReveal && focusNodeId ? canvasNodeIdForStep(focusNodeId, hookFrames, definitionCanvasGraph) : focusNodeId;
+  // A node shown for an opened issue is selected, as if the author had clicked it.
+  const [revealSelection, setRevealSelection] = useState<{ nodeId: string; nonce: number } | null>(null);
+  const selectRevealedNode = useCallback((nodeId: string) => setRevealSelection((current) => ({ nodeId, nonce: (current?.nonce ?? 0) + 1 })), []);
   const canvasMeasureRootRef = useRef<HTMLDivElement | null>(null);
   // A dropped Note lands centred under the pointer; a click, N or the menu puts it in the middle of the view.
   const addNoteAt = useCallback((point?: CanvasNoteDropPoint) => {
@@ -762,7 +771,7 @@ export function WorkflowCanvasBuilderSurface({
     setSearchIndex(0);
   }, [searchResults.length]);
 
-  const nodesWithCanvasState = useMemo(
+  const freshCanvasNodes = useMemo(
     () =>
       applyCanvasNodeState({
         connectionHelpActive,
@@ -781,6 +790,8 @@ export function WorkflowCanvasBuilderSurface({
       }).concat(annotationNodes),
     [connectionHelpActive, highlightedNodeId, manualPositions, nodes, runtimeNodeId, annotationNodes, connectionDefinition, connectingPort, connectionPointedTarget, t],
   );
+  // A drag moves one card: every other card keeps its object, so only the moved card is drawn again.
+  const nodesWithCanvasState = useStableCanvasNodes(freshCanvasNodes);
 
   const currentNodesById = useMemo(
     () => new Map(nodesWithCanvasState.map((node) => [node.id, node])),
@@ -817,7 +828,7 @@ export function WorkflowCanvasBuilderSurface({
   });
 
   const { deleteEdgeData, visibleEdges, selectedEdge } = useCanvasInteractiveEdges({
-    t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, onInsertBeforeEntry, resolveCommandOwner: commandOwnerFor
+    t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, onInsertBeforeEntry, resolveCommandOwner: commandOwnerFor, draggingIds
   });
 
   const recordAutoLayout = useCallback((before: Record<string, CanvasPosition>) => {
@@ -831,13 +842,13 @@ export function WorkflowCanvasBuilderSurface({
   }, [placementOwnerFor, t, workflowId]);
 
   const { handleNodesChange, handleNodeDragStop, handleEdgesChange, handleAutoLayout } = useCanvasGraphEditing({
-    t, beginPlacementGesture, changeAnnotationNodes, nodes, setManualPositions, saveAnnotation, visibleEdges, deleteEdgeData, setSelectedEdgeId, manualPositions, setGraphEditNotice, reactFlowInstance, canvasMeasureRootRef, recordAutoLayout
+    t, beginPlacementGesture, changeAnnotationNodes, nodes, setManualPositions, saveAnnotation, visibleEdges, deleteEdgeData, setSelectedEdgeId, manualPositions, setGraphEditNotice, reactFlowInstance, canvasMeasureRootRef, recordAutoLayout, setDraggingIds
   });
 
   const { focusSearchResult, handleSearchKeyDown } = useCanvasSearchNavigation({
     autoArrange: arrange.mode === "auto",
     currentNodesById, reactFlowInstance, setHighlightedNodeId, setShowSearchResults, openGroupFromCanvas, openStepFromCanvas,
-    focusNodeId, focusNodeNonce, focusNodeCreation, focusNodePlace, handledFocusNonceRef, canvasMeasureRootRef,
+    focusNodeId: revealTargetId, focusNodeNonce, focusNodeCreation, focusNodePlace, focusNodeReveal, inspectorWidth, onRevealNode: selectRevealedNode, handledFocusNonceRef, canvasMeasureRootRef,
     manualPositions, edges, nodes, workflowId, placementOwnerFor, placementGestureGenerationFor,
     currentSelection: () => commandSelectionRef.current,
     setManualPositions, setCreationIntent, searchIndex, searchResults, setSearchIndex
@@ -965,6 +976,7 @@ export function WorkflowCanvasBuilderSurface({
       handleSearchKeyDown={handleSearchKeyDown}
       hasManualLayout={hasManualLayout}
       nodesWithCanvasState={nodesWithCanvasState}
+      revealSelection={revealSelection}
       creationSelection={creationSelection && (creationSelection.selectionGeneration === undefined ||
         creationSelection.selectionGeneration === commandSelectionRef.current.generation) ? creationSelection : null}
       nextSlotTemplate={nextSlotTemplate}

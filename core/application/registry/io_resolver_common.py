@@ -204,8 +204,13 @@ ALWAYS_AVAILABLE_KEYS = {v["name"] for v in GLOBAL_STATE_VARS}
 class IOResolverCommonMixin:
     """Common registry cache helpers and effective I/O computation."""
 
-    def __init__(self, db: RegistryDBStore):
+    def __init__(self, db: RegistryDBStore, *, keep_definition_graphs: bool = False):
         self.db = db
+        # Keyed by the identity of a workflow row; each entry holds the row too,
+        # so an id can never be reused while its graph is kept.
+        self._definition_graphs: dict[int, tuple[dict, Any]] | None = (
+            {} if keep_definition_graphs else None
+        )
         self._workflow_cache: dict[str, dict | None] = {}
         self._workflow_list_cache: list[dict] | None = None
         self._tool_cache: dict[str, dict | None] = {}
@@ -228,6 +233,10 @@ class IOResolverCommonMixin:
 
             self._workflow_cache[key] = get_workflow_row(self.db, key)
         return self._workflow_cache[key]
+
+    def get_workflow_row(self, workflow_id: str) -> dict | None:
+        """The workflow row this resolver read (once) for *workflow_id*."""
+        return self._get_workflow(workflow_id)
 
     def _list_workflows(self) -> list[dict]:
         if self._workflow_list_cache is None:

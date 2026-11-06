@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { errorRoutePolicyOperation, useWorkflowCanvasHandlers, useWorkflowDeletionGuard } from "./detail-canvas-handlers";
+import { canvasNodeIdOfIssue, errorRoutePolicyOperation, useWorkflowCanvasHandlers, useWorkflowDeletionGuard } from "./detail-canvas-handlers";
 import { useWorkflowChangeSet } from "./detail-change-set";
 import { useWorkflowStepActions } from "./detail-step-actions";
 import { applyChangeOperations, definitionFromWorkflow } from "@/pages/workflows/builder/change-set";
@@ -514,5 +514,33 @@ describe("guarded editor Delete keeps the latest same-owner draft", () => {
       expect(acceptedOperations).toEqual(bodies[0].operations);
       expect(view.result.current.changeSet.operations).toEqual([]); // preflight never stages or writes.
     } finally { view.unmount(); fetchSpy.mockRestore(); }
+  });
+});
+
+describe("an opened issue shows its node on the canvas", () => {
+  const issue = (scope: "workflow" | "group" | "for_each" | "step", extra: Record<string, string> = {}) => ({ scope, scope_id: "", severity: "error" as const, title: "Broken", ...extra });
+
+  it("names the canvas node of a step, group or For each issue, and none for the workflow", () => {
+    expect(canvasNodeIdOfIssue(issue("step", { step_id: "create_plain", scope_id: "create_plain" }))).toBe("create_plain");
+    expect(canvasNodeIdOfIssue(issue("group", { group_id: "fan", scope_id: "fan" }))).toBe("group:fan");
+    expect(canvasNodeIdOfIssue(issue("for_each", { scope_id: "each_update" }))).toBe("for_each:each_update");
+    expect(canvasNodeIdOfIssue(issue("workflow", { scope_id: "wf" }))).toBe("");
+  });
+
+  it("opens the step's drawer and asks the canvas to show and select that step", () => {
+    const focusCanvasNode = vi.fn(); const openStepDrawer = vi.fn(); const openGroupDrawer = vi.fn();
+    const { result } = renderHook(() => useWorkflowCanvasHandlers({
+      changeSet: { preview: { steps: [], groups: [], for_each: [] } }, focusCanvasNode, openStepDrawer, openGroupDrawer,
+      setSelectedCanvasIssue: vi.fn(), setDrawerMode: vi.fn(), setDrawerTab: vi.fn(), setAutomationScopeKind: vi.fn(),
+    }));
+    act(() => { result.current.handleCanvasValidationIssue(issue("step", { step_id: "create_plain", scope_id: "create_plain" })); });
+    expect(openStepDrawer).toHaveBeenCalledWith("create_plain");
+    expect(focusCanvasNode).toHaveBeenCalledWith("create_plain", { reveal: true });
+    act(() => { result.current.handleCanvasValidationIssue(issue("group", { group_id: "fan", scope_id: "fan" })); });
+    expect(openGroupDrawer).toHaveBeenCalledWith("fan", "settings");
+    expect(focusCanvasNode).toHaveBeenLastCalledWith("group:fan", { reveal: true });
+    focusCanvasNode.mockClear();
+    act(() => { result.current.handleCanvasValidationIssue(issue("workflow", { scope_id: "wf" })); });
+    expect(focusCanvasNode).not.toHaveBeenCalled();
   });
 });

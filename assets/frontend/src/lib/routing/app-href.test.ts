@@ -1,4 +1,4 @@
-import { appHref } from "@/lib/routing/app-href";
+import { appHref, appRoutePath } from "@/lib/routing/app-href";
 
 describe("appHref", () => {
   afterEach(() => {
@@ -20,5 +20,18 @@ describe("appHref", () => {
     expect(appHref("/app/registry/agents/auditor")).toBe(
       "/app/registry/agents/auditor",
     );
+  });
+});
+
+describe("appRoutePath", () => {
+  it("turns an app-absolute href into the router path while the app runs under its base", () => {
+    expect(appRoutePath("/app/registry/workflows/orders?project_id=p1", "/app/registry/workflows")).toBe("/registry/workflows/orders?project_id=p1");
+    expect(appRoutePath("/app", "/app/dashboard")).toBe("/");
+  });
+
+  it("gives no router path for an href outside the base, or while the app runs elsewhere", () => {
+    expect(appRoutePath("/api/workflows/orders/export.yaml", "/app/registry/workflows")).toBeNull();
+    expect(appRoutePath("/application/x", "/app/registry/workflows")).toBeNull();
+    expect(appRoutePath("/app/registry/workflows/orders", "/")).toBeNull();
   });
 });

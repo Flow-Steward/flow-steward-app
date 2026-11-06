@@ -1,4 +1,4 @@
-import { type DsBadgeTone, type DsTableColumn } from "@/components/shared/design-system";
+import { DsTableLink, type DsBadgeTone, type DsTableColumn } from "@/components/shared/design-system";
 import { LocalizedStatusBadge } from "@/components/shared/localized-status-badge";
 
 import { normalizeString } from "@/pages/registry/shared/catalog-surface-helpers";
@@ -84,10 +84,9 @@ function renderCell(column: CatalogColumnConfig, row: GridRow) {
     return value ? <LocalizedStatusBadge tone={badgeToneFor(column.badge_map, value)} value={value} /> : null;
   }
   if (column.type === "link" && column.link_href) {
-    // link_href is already an app-absolute href built by appHref(), so this
-    // stays a plain anchor. A router Link would prefix the basename a second
-    // time and produce /app/app/... The row click still navigates client-side.
-    return <a className="fs-link" href={resolveLinkHref(column.link_href, row)}>{value}</a>;
+    // link_href is already an app-absolute href built by appHref(): the anchor keeps it, so a new
+    // tab, a modified click and a copied link all work. A plain click stays in the app.
+    return <DsTableLink href={resolveLinkHref(column.link_href, row)}>{value}</DsTableLink>;
   }
   return value;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { curveEdgePath, routeCanvasEdge, routeCanvasEdges, compactRoutePoints } from "./canvas-edge-routing";
+import { curveEdgePath, routeCanvasEdge, routeCanvasEdges, compactRoutePoints, dropRouteSpurs, type CanvasEdgeRouteInput } from "./canvas-edge-routing";
+import reference from "@/test/fixtures/canvas-edge-routing-reference.json";
 
 describe("v133 canvas routing", () => {
   it("routes an explicit logical long jump above even when its manual endpoints look adjacent", () => {
@@ -103,5 +104,76 @@ describe("v133 canvas routing", () => {
     const result = routeCanvasEdge({ source: { x: 240, y: 40 }, target: { x: 0, y: 80 }, obstacles: [{ x: 80, y: 0, width: 80, height: 120 }], ...flags });
     expect(result.kind).toBe("lower-band");
     expect(result.bounds.y + result.bounds.height).toBeGreaterThan(124);
+  });
+});
+
+describe("canvas routing on large real canvases", () => {
+  const rect = ([x, y, width, height]: number[]) => ({ x, y, width, height });
+  type ReferenceCase = { name: string; input: Omit<CanvasEdgeRouteInput, "obstacles" | "endCards"> & { obstacles: number[][]; endCards: number[][] }; expected: unknown };
+  const cases = (reference as { cases: ReferenceCase[] }).cases;
+
+  it.each(cases.map((entry) => [entry.name, entry] as const))("draws %s exactly as the reference router did", (_name, entry) => {
+    const input = { ...entry.input, obstacles: entry.input.obstacles.map(rect), endCards: entry.input.endCards.map(rect) };
+    expect(routeCanvasEdges([input])[0]).toEqual(entry.expected);
+  });
+
+  it("keeps the reference set covering detours round many cards", () => {
+    expect(cases.length).toBeGreaterThanOrEqual(10);
+    expect(cases.every((entry) => entry.input.obstacles.length > 40)).toBe(true);
+    expect(new Set(cases.map((entry) => (entry.expected as { kind: string }).kind))).toEqual(new Set(["upper-band", "lower-band"]));
+  });
+});
+
+describe("a band passes only the cards in its way", () => {
+  const between = { x: 240, y: 440, width: 120, height: 120 };
+  const farAbove = { x: 200, y: -2000, width: 400, height: 300 };
+  const farBelow = { x: 200, y: 2400, width: 400, height: 300 };
+
+  it("lifts a long jump just over the card between its ends, not over a card far up the canvas", () => {
+    const route = routeCanvasEdge({ source: { x: 0, y: 500 }, target: { x: 600, y: 500 }, obstacles: [between, farAbove], backward: false, failure: false, repeat: false, longJump: true });
+    expect(route.kind).toBe("upper-band");
+    expect(Math.min(...route.points!.map((point) => point.y))).toBe(between.y - 24);
+  });
+
+  it("drops a backward connection just under the card in its way, not under a card far down the canvas", () => {
+    const route = routeCanvasEdge({ source: { x: 600, y: 500 }, target: { x: 0, y: 500 }, obstacles: [between, farBelow], backward: true, failure: false, repeat: false });
+    expect(route.kind).toBe("lower-band");
+    expect(Math.max(...route.points!.map((point) => point.y))).toBe(between.y + between.height + 24);
+  });
+
+  it("still climbs past every card stacked in its way", () => {
+    const stacked = [between, { x: 240, y: 300, width: 120, height: 150 }, { x: 260, y: 180, width: 80, height: 110 }];
+    const route = routeCanvasEdge({ source: { x: 0, y: 500 }, target: { x: 600, y: 500 }, obstacles: [...stacked, farAbove], backward: false, failure: false, repeat: false, longJump: true });
+    expect(Math.min(...route.points!.map((point) => point.y))).toBe(180 - 24);
+  });
+
+  it("keeps a band beside the corridor's other cards at the band clearance", () => {
+    const route = routeCanvasEdge({ source: { x: 0, y: 500 }, target: { x: 600, y: 500 }, obstacles: [between, farAbove], backward: false, failure: false, repeat: false, longJump: true });
+    const top = Math.min(...route.points!.map((point) => point.y));
+    for (const card of [between, farAbove]) expect(top <= card.y - 24 || top >= card.y + card.height + 24).toBe(true);
+  });
+});
+
+describe("a route never runs out and back on one line", () => {
+  it("drops a spur that dives past the entry and comes back up to it", () => {
+    const points = [{ x: 3760, y: -264 }, { x: 3768, y: -264 }, { x: 3768, y: 772 }, { x: 51, y: 772 }, { x: 51, y: 1336 }, { x: 51, y: 808 }, { x: 59, y: 808 }];
+    expect(dropRouteSpurs(points)).toEqual([{ x: 3760, y: -264 }, { x: 3768, y: -264 }, { x: 3768, y: 772 }, { x: 51, y: 772 }, { x: 51, y: 808 }, { x: 59, y: 808 }]);
+  });
+
+  it("keeps the leads out of and into the ports as they are", () => {
+    const points = [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 80 }, { x: -9, y: 80 }, { x: -4, y: 80 }];
+    expect(dropRouteSpurs(points)).toEqual(points);
+  });
+
+  it("keeps a route without spurs unchanged", () => {
+    const points = [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 40 }, { x: 308, y: 40 }];
+    expect(dropRouteSpurs(points)).toEqual(points);
+  });
+
+  it("leaves no spur in any reference route, wrapped rows included", () => {
+    for (const entry of (reference as { cases: { expected: { points?: { x: number; y: number }[] } }[] }).cases) {
+      const points = entry.expected.points || [];
+      expect(dropRouteSpurs(points)).toEqual(points);
+    }
   });
 });

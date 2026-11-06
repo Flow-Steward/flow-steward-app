@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import copy
+import threading
+from collections import OrderedDict
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from core.application.extensions.extension_contract_v2 import validate_extension_contract_v2
@@ -151,6 +157,79 @@ def _release_locale_bundles(descriptor: dict[str, Any]) -> dict[str, Any]:
     return dict(bundles) if isinstance(bundles, dict) else {}
 
 
+#: Normalized contracts of immutable releases, keyed by release identity. One
+#: normalization parses the release's contract files (a large extension's
+#: operation manifest is hundreds of kilobytes of YAML); readiness asks for the
+#: same release once per connector step, so a workflow with twenty extension
+#: steps used to parse the same files twenty times per request.
+_NORMALIZED_CONTRACT_CACHE_SIZE = 32
+_normalized_contract_cache: OrderedDict[tuple[str, str, str], dict[str, Any]] = OrderedDict()
+_normalized_contract_lock = threading.Lock()
+
+
+def _normalized_release_contract(
+    *, release_id: str, descriptor_sha256: str, descriptor: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The release's normalized Contract V2, parsed once per immutable release.
+
+    A release never changes after it is stored: its id, descriptor digest and
+    bundle folder identify the files the contract is read from. Only a valid
+    result is kept, so a transient read failure is retried on the next call.
+    Callers get their own copy and may change it freely.
+    """
+    bundle_root = str(descriptor.get("bundle_root") or "").strip()
+    key = (release_id, descriptor_sha256, bundle_root)
+    cacheable = bool(release_id and descriptor_sha256)
+    if cacheable:
+        with _normalized_contract_lock:
+            cached = _normalized_contract_cache.get(key)
+            if cached is not None:
+                _normalized_contract_cache.move_to_end(key)
+        if cached is not None:
+            return copy.deepcopy(cached)
+    normalized = validate_extension_contract_v2(descriptor, bundle_root=bundle_root or None)
+    contract = normalized.get("normalized_contract") if normalized.get("valid") else None
+    if not isinstance(contract, dict):
+        return None
+    if cacheable:
+        with _normalized_contract_lock:
+            _normalized_contract_cache[key] = copy.deepcopy(contract)
+            _normalized_contract_cache.move_to_end(key)
+            while len(_normalized_contract_cache) > _NORMALIZED_CONTRACT_CACHE_SIZE:
+                _normalized_contract_cache.popitem(last=False)
+    return contract
+
+
+def clear_normalized_contract_cache() -> None:
+    """Forget every cached release contract (tests and release maintenance)."""
+    with _normalized_contract_lock:
+        _normalized_contract_cache.clear()
+
+
+#: Contracts already resolved inside a ``shared_install_contracts`` block.
+_shared_install_contracts: ContextVar[dict[tuple[str, str, str], Any] | None] = ContextVar(
+    "shared_install_contracts", default=None
+)
+
+
+@contextmanager
+def shared_install_contracts() -> Iterator[None]:
+    """Resolve each install's contract once inside this block and share it.
+
+    One readiness run reads the same install for every step that calls it;
+    inside the block those steps get one object, which they must only read.
+    Outside any block every call resolves and returns its own copy, as before.
+    """
+    if _shared_install_contracts.get() is not None:
+        yield
+        return
+    token = _shared_install_contracts.set({})
+    try:
+        yield
+    finally:
+        _shared_install_contracts.reset(token)
+
+
 def resolve_workflow_extension_install_contract(
     connection: Any,
     *,
@@ -159,6 +238,32 @@ def resolve_workflow_extension_install_contract(
     default_account_id: str,
 ) -> dict[str, Any] | None:
     """Resolve action and optional UI contracts from one immutable install release."""
+    shared = _shared_install_contracts.get()
+    if shared is None:
+        return _resolve_install_contract(
+            connection,
+            install_id=install_id,
+            account_id=account_id,
+            default_account_id=default_account_id,
+        )
+    key = (install_id, str(account_id or ""), str(default_account_id or ""))
+    if key not in shared:
+        shared[key] = _resolve_install_contract(
+            connection,
+            install_id=install_id,
+            account_id=account_id,
+            default_account_id=default_account_id,
+        )
+    return shared[key]
+
+
+def _resolve_install_contract(
+    connection: Any,
+    *,
+    install_id: str,
+    account_id: str,
+    default_account_id: str,
+) -> dict[str, Any] | None:
     from core.application.extensions.install import DBExtensionInstallStore
     from core.application.extensions.runtime_store_db import DBExtensionRuntimeStore
 
@@ -192,11 +297,11 @@ def resolve_workflow_extension_install_contract(
     if not isinstance(contract, dict):
         contract = runtime.get("extension_contract_v2")
     if isinstance(contract, dict) and any(isinstance(value, str) for value in contract.values()):
-        normalized = validate_extension_contract_v2(
-            descriptor,
-            bundle_root=str(descriptor.get("bundle_root") or "").strip() or None,
+        contract = _normalized_release_contract(
+            release_id=release_id,
+            descriptor_sha256=str(getattr(release, "descriptor_sha256", "") or "").strip().lower(),
+            descriptor=descriptor,
         )
-        contract = normalized.get("normalized_contract") if normalized.get("valid") else None
     if not isinstance(contract, dict):
         contract = {}
     visibility = getattr(install, "visibility", "account")
