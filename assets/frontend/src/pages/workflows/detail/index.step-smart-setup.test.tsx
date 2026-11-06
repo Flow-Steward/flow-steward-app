@@ -113,31 +113,37 @@ describe("WorkflowsDetailPage step smart setup", () => {
       actions: [{ action: "map.values", target: "status", params: { mapping: { A: "Active" } } }],
     });
     await user.click(await renderTabularStepButton());
-    expect(await screen.findByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("Runtime default (not set)");
-    fireEvent.change(screen.getByRole("textbox", { name: "Result target" }), {
+    // Query the active editor rather than repeatedly scanning the full workflow page.
+    let editor = await screen.findByRole("dialog", { name: "Step editor" });
+    expect(await within(editor).findByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("Runtime default (not set)");
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Result target" }), {
       target: { value: "state.changed_dataset" },
     });
-    await user.click(screen.getByRole("button", { name: "Save parameters" }));
+    await user.click(within(editor).getByRole("button", { name: "Save parameters" }));
     await screen.findByText("Parameters saved");
     expect(boundary.storedConfig().actions).toEqual([
       { action: "map.values", target: "status", params: { mapping: { A: "Active" } } },
     ]);
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(within(editor).getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
-    expect(await screen.findByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("Runtime default (not set)");
-    screen.getByRole("combobox", { name: "keep_unmapped" }).focus();
+    editor = await screen.findByRole("dialog", { name: "Step editor" });
+    const keepUnmapped = await within(editor).findByRole("combobox", { name: "keep_unmapped" });
+    expect(keepUnmapped).toHaveTextContent("Runtime default (not set)");
+    keepUnmapped.focus();
     await user.keyboard("{ArrowDown}");
-    expect(screen.getByRole("option", { name: "Runtime default (not set)" })).toBeDisabled();
-    await waitFor(() => expect(screen.getByRole("option", { name: "false" })).toHaveFocus());
+    const options = within(screen.getByRole("listbox", { name: "keep_unmapped options" }));
+    expect(options.getByRole("option", { name: "Runtime default (not set)" })).toBeDisabled();
+    await waitFor(() => expect(options.getByRole("option", { name: "false" })).toHaveFocus());
     await user.keyboard("{Home}{Enter}");
-    await user.click(screen.getByRole("button", { name: "Save parameters" }));
+    await user.click(within(editor).getByRole("button", { name: "Save parameters" }));
     await waitFor(() => expect(boundary.writes).toHaveLength(2));
     expect(boundary.storedConfig().actions).toEqual([
       { action: "map.values", target: "status", params: { mapping: { A: "Active" }, keep_unmapped: false } },
     ]);
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(within(editor).getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
-    expect(await screen.findByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("false");
+    editor = await screen.findByRole("dialog", { name: "Step editor" });
+    expect(await within(editor).findByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("false");
   }, SMART_SETUP_JOURNEY_TIMEOUT);
 
   // Only API I/O is replaced. Readback stores the actual request, not a
