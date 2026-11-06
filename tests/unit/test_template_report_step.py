@@ -164,3 +164,39 @@ def test_the_step_profile_publishes_the_report_vocabulary() -> None:
     assert "report" in schema["properties"]["format"]["enum"]
     assert schema["properties"]["report"]["$id"] == "urn:flow-steward:workflow-report:definition:1"
     assert any(example.get("format") == "report" for example in schema["examples"])
+
+
+def test_the_regular_result_redaction_leaves_a_compiled_report_unchanged() -> None:
+    """ADR 0059 recommendation 6: stored, validated and returned snapshots are equal.
+
+    Rows are arrays and every snapshot key is schema vocabulary, so key-name
+    redaction cannot reach report data; credential-looking text is masked once
+    when the step builds the report, which makes value redaction on read a no-op.
+    """
+    from core.application.security.credential_redaction import redact
+
+    config = _report_config()
+    table = config["report"]["components"][5]
+    table["columns"].append(
+        {"id": "sessions", "field": "sessions", "label": "Sessions", "format": {"type": "number"}}
+    )
+    table["columns"].append(
+        {"id": "tokens_used", "field": "tokens_used", "label": "Tokens", "format": {"type": "text"}}
+    )
+    state = _state()
+    for row in state["outputs"]["regions"]:
+        row["sessions"] = 42
+        row["tokens_used"] = "token abc123def456"
+
+    result = execute_template_step(config, state)
+    assert result["ok"] is True, result.get("errors")
+    report = result["report"]
+    regions = report["datasets"][0]
+    assert "sessions" in regions["fields"]
+    sessions = regions["fields"].index("sessions")
+    tokens = regions["fields"].index("tokens_used")
+    assert all(row[sessions] == 42 for row in regions["rows"])
+    assert all("abc123def456" not in row[tokens] for row in regions["rows"])
+
+    public = {"outputs": {"sales_report": report}, "artifacts": {}}
+    assert redact(public) == public

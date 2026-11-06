@@ -414,6 +414,8 @@ class WorkflowInterface(BaseModel):
     #: File outputs, derived from the steps' "Return from workflow" settings.
     returned_files: list[WorkflowReturnedFile] = Field(default_factory=list)
     contract_id: str = ""
+    #: The one declared output that holds the published report (ADR 0059).
+    report_output: str = ""
     settings_issues: list[WorkflowContractIssue] = Field(default_factory=list)
 
     @field_validator("enabled", "strict_inputs", mode="before")
@@ -440,7 +442,7 @@ class WorkflowInterface(BaseModel):
         allowed = {"none", "variables", "artifacts", "variables_and_artifacts"}
         return normalized if normalized in allowed else "none"
 
-    @field_validator("contract_id", mode="before")
+    @field_validator("contract_id", "report_output", mode="before")
     @classmethod
     def _normalize_text(cls, value: Any) -> str:
         return str(value or "").strip()
@@ -536,6 +538,7 @@ class WorkflowInterface(BaseModel):
             expected_outputs=expected_outputs,
             returned_files=returned_files,
             contract_id=callable_obj.get("contract_id") or "",
+            report_output=callable_obj.get("report_output") or "",
             settings_issues=settings_issues,
         )
 
@@ -551,7 +554,51 @@ class WorkflowInterface(BaseModel):
             "expected_outputs": [row.dump() for row in self.expected_outputs],
             "returned_files": [row.dump() for row in self.returned_files],
             **({"contract_id": self.contract_id} if self.contract_id else {}),
+            **({"report_output": self.report_output} if self.report_output else {}),
         }
+
+    def report_output_field(self) -> WorkflowContractField | None:
+        """The declared output selected as the report, if the selection is usable."""
+        if not self.enabled or not self.report_output:
+            return None
+        for row in self.expected_outputs:
+            if row.name == self.report_output:
+                return row
+        return None
+
+    def report_output_issues(self, *, path_prefix: str = "workflow.callable") -> list[dict]:
+        """Problems of ``report_output`` (schema v1 section 7, Interface codes)."""
+        name = self.report_output
+        path = f"{path_prefix}.report_output"
+        if not name:
+            return []
+        if not self.enabled:
+            return [
+                WorkflowContractIssue(
+                    code="workflow.interface.report_output_disabled",
+                    message="report_output is set but the Interface is disabled",
+                    path=path,
+                ).dump()
+            ]
+        row = next((item for item in self.expected_outputs if item.name == name), None)
+        if row is None:
+            code, message = (
+                "workflow.interface.report_output_unknown",
+                f"report_output '{name}' is not a declared output",
+            )
+        elif row.type != "object":
+            code, message = (
+                "workflow.interface.report_output_not_object",
+                f"report_output '{name}' must be declared with type object",
+            )
+        elif not row.required:
+            code, message = (
+                "workflow.interface.report_output_not_required",
+                f"report_output '{name}' must be a required output",
+            )
+        else:
+            return []
+        return [WorkflowContractIssue(code=code, message=message, path=path).dump()]
 
     def variable_outputs_required(self) -> bool:
         return bool(self.expected_outputs)
@@ -562,7 +609,9 @@ class WorkflowInterface(BaseModel):
     def definition_issues(self, *, path_prefix: str = "workflow.callable") -> list[dict[str, Any]]:
         issues: list[WorkflowContractIssue] = list(self.settings_issues)
         if not self.enabled:
-            return []
+            # Checked before the early return: a selection on a disabled
+            # Interface would otherwise be ignored silently (ADR 0059).
+            return self.report_output_issues(path_prefix=path_prefix)
 
         if not self.trigger_channels:
             issues.append(
@@ -712,7 +761,9 @@ class WorkflowInterface(BaseModel):
                     )
                 )
 
-        return [issue.dump() for issue in issues]
+        return [issue.dump() for issue in issues] + self.report_output_issues(
+            path_prefix=path_prefix
+        )
 
 
 def interface_from_settings(settings: Any, *, steps: Any = None) -> WorkflowInterface:

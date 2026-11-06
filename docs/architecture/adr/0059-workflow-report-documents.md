@@ -309,6 +309,11 @@ the 0.9.12 version bump on top of that main:
     or `tokens_used`, both ordinary analytics columns, would therefore turn a
     number into a string and the returned snapshot would no longer match the
     declared ReportSnapshot schema (recommendation 6).
+    *Implementation note (2B):* in a v1 snapshot that cannot happen through
+    keys. Rows are arrays, field names are string values in `fields`, and every
+    object key is schema vocabulary, none of which matches the redactor's key
+    pattern. The only effect that reaches report data is value redaction of
+    credential-like text.
 
 ## Consequences
 
@@ -425,3 +430,8 @@ part of the accepted decision.
    output, and 2B proves equality with a fixture whose rows use `sessions` and
    `tokens_used`. The alternative — rejecting report keys the redactor would mask
    — is not recommended, because those keys are common analytics columns.
+   *Implementation (2B):* the Template report step masks string values with
+   `redact_text` after compiling and validates the result again, so the
+   existing `redact()` on read is a no-op for a compiled report and no read path
+   needs a special case; `test_template_report_step.py` proves it with
+   `sessions` and `tokens_used` columns.

@@ -26,6 +26,8 @@ from core.application.registry.workflow_contract import (
     json_object,
 )
 from core.application.registry.workflow_lookup import get_workflow_row
+from core.application.workflow_documents import prefix_issues, validate_report_snapshot
+from core.application.workflow_documents.report_schemas_v1 import SNAPSHOT_SCHEMA_V1_JSON
 from core.infrastructure.security.secret_reference import SecretReference
 
 _TOKEN_WORKFLOW_INPUT_INVALID_TYPE = "workflow.input.invalid_type"
@@ -106,8 +108,13 @@ class WorkflowInterfaceService:
     def output_json_schema(self, interface: WorkflowInterface) -> dict[str, Any]:
         properties: dict[str, Any] = {}
         required: list[str] = []
+        report = interface.report_output_field()
         for row in interface.expected_outputs:
-            properties[row.name] = _json_schema_for_field(row)
+            properties[row.name] = (
+                json.loads(SNAPSHOT_SCHEMA_V1_JSON)
+                if report is not None and row.name == report.name
+                else _json_schema_for_field(row)
+            )
             if row.required:
                 required.append(row.name)
         for returned_file in interface.returned_files:
@@ -406,6 +413,9 @@ class WorkflowInterfaceService:
                         )
                     )
                     continue
+                if row.name == interface.report_output:
+                    errors.extend(_report_output_errors(row.name, outputs.get(row.name)))
+                    continue
                 ok, value, message = coerce_contract_value(outputs.get(row.name), row)
                 if not ok:
                     errors.append(
@@ -438,6 +448,25 @@ class WorkflowInterfaceService:
             artifacts=artifacts,
             interface=interface.dump(),
         )
+
+
+def _report_output_errors(name: str, value: Any) -> list[dict[str, Any]]:
+    """Strict ReportSnapshot validation of the selected output, without coercion.
+
+    The generic ``object`` coercion does not apply: a JSON string that would
+    parse to a snapshot is rejected (schema v1 section 5.1). Errors carry codes
+    and paths, never report values.
+    """
+    issues = validate_report_snapshot(value)
+    if not issues:
+        return []
+    error = _error(
+        "workflow.output.report_invalid",
+        f"Workflow output '{name}' is not a valid report",
+        path=f"outputs.{name}",
+    )
+    error["details"] = {"errors": prefix_issues(issues, f"outputs.{name}")}
+    return [error]
 
 
 def _error(
@@ -744,6 +773,9 @@ def collect_runtime_outputs(
         if key in expected_artifact_names
     }
 
+    # The report is taken only from run state: message patches, direct
+    # artifacts and terminal payloads never become the published report.
+    message_output_names = expected_output_names - {interface.report_output}
     for message in reversed(_state_messages(state_obj)):
         message_artifacts = _as_object(message.get("artifacts"))
         if not message_artifacts:
@@ -751,17 +783,17 @@ def collect_runtime_outputs(
         state_patch = _as_object(message_artifacts.get("_state_patch"))
         patch_outputs = _as_object(state_patch.get("outputs"))
         for key, value in patch_outputs.items():
-            if key in expected_output_names:
+            if key in message_output_names:
                 outputs.setdefault(key, value)
         contract = verified_output_contract(message, producer_context)
         direct_names = {row["name"] for row in contract.rows} if contract is not None else set()
-        for key in expected_output_names & direct_names:
+        for key in message_output_names & direct_names:
             if key in message_artifacts:
                 outputs.setdefault(key, message_artifacts.get(key))
         terminal = _as_object(message_artifacts.get("workflow_terminal"))
         terminal_outputs = _as_object(terminal.get("outputs"))
         for key, value in terminal_outputs.items():
-            if key in expected_output_names:
+            if key in message_output_names:
                 outputs.setdefault(key, value)
 
     return outputs, artifacts

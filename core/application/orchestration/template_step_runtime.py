@@ -34,9 +34,11 @@ from core.application.orchestration.state_paths import resolve_state_path_with_w
 from core.application.workflow_documents import (
     ReportError,
     compile_report,
+    map_strings,
     prefix_issues,
     report_preview,
     validate_report_definition,
+    validate_report_snapshot,
 )
 from core.infrastructure.security.jinja_sandbox import (
     MAX_TEMPLATE_CHARS,
@@ -339,18 +341,31 @@ def _execute_report(config: Mapping[str, Any], context: dict[str, Any]) -> dict[
     try:
         snapshot = compile_report(config[REPORT_FORMAT], template_inputs(config), context)
     except ReportError as exc:
-        return {
-            "ok": False,
-            "failure_reason": "report_invalid",
-            "errors": prefix_issues(exc.issues, REPORT_FORMAT),
-            "inputs": context,
-            "format": REPORT_FORMAT,
-        }
+        return _report_failure(exc.issues, context)
+    from core.application.security.credential_redaction import redact_text
+
+    # Credential-looking text is masked once, here, so the stored snapshot is
+    # what every later read returns: value redaction on read is then a no-op
+    # (ADR 0059 recommendation 6).
+    snapshot = map_strings(snapshot, redact_text)
+    problems = validate_report_snapshot(snapshot)
+    if problems:
+        return _report_failure(problems, context)
     return {
         "ok": True,
         "report": snapshot,
         "format": REPORT_FORMAT,
         "inputs": context,
+    }
+
+
+def _report_failure(issues: list[dict[str, str]], context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "failure_reason": "report_invalid",
+        "errors": prefix_issues(issues, REPORT_FORMAT),
+        "inputs": context,
+        "format": REPORT_FORMAT,
     }
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 from core.application.workflow_documents.report_compiler import compile_report
 from core.application.workflow_documents.report_definition import validate_report_definition
 from core.application.workflow_documents.report_issues import ReportError, prefix_issues
+from core.application.workflow_documents.report_rules import map_strings
 from core.application.workflow_documents.report_snapshot import validate_report_snapshot
 from core.application.workflow_documents.report_summary import (
     REPORT_KIND,
@@ -23,6 +24,7 @@ __all__ = [
     "REPORT_KIND",
     "ReportError",
     "compile_report",
+    "map_strings",
     "prefix_issues",
     "replace_report_output",
     "report_preview",

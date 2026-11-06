@@ -242,6 +242,10 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
         )
 
     workflow_outputs = output_validation.dump()
+    # Events and the proof of work are diagnostics: they carry the report's
+    # bounded preview only. The full ``workflow_outputs`` still goes to terminal
+    # persistence through ``_build_result`` (ADR 0059 decision 11).
+    event_outputs = _diagnostic_workflow_outputs(workflow_outputs)
     if not output_validation.ok:
         emit_event(
             state,
@@ -252,7 +256,7 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
                 "result": "fail",
                 "errors": output_validation.errors,
                 "terminal_success": terminal_proof,
-                "workflow_outputs": workflow_outputs,
+                "workflow_outputs": event_outputs,
             },
             severity="error",
         )
@@ -270,7 +274,7 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
             summary,
             proof_of_work={
                 "terminal_success": terminal_proof,
-                "workflow_outputs": workflow_outputs,
+                "workflow_outputs": event_outputs,
             },
             failure_class="workflow_output_contract",
             workflow_outputs=workflow_outputs,
@@ -286,7 +290,7 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
             {
                 "result": "pass",
                 "terminal_success": terminal_proof,
-                "workflow_outputs": workflow_outputs,
+                "workflow_outputs": event_outputs,
             },
         )
         return _build_result(
@@ -306,7 +310,7 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
         {
             "result": "pass",
             "terminal_success": terminal_proof,
-            "workflow_outputs": workflow_outputs,
+            "workflow_outputs": event_outputs,
         },
     )
     return _build_result(
@@ -316,6 +320,20 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
         proof_of_work={"terminal_success": terminal_proof},
         workflow_outputs=workflow_outputs,
     )
+
+
+def _diagnostic_workflow_outputs(workflow_outputs: dict) -> dict:
+    """``workflow_outputs`` with the selected report replaced by its bounded preview."""
+    from core.application.workflow_documents import replace_report_output
+
+    interface = workflow_outputs.get("interface")
+    report_output = interface.get("report_output") if isinstance(interface, dict) else None
+    if not report_output:
+        return workflow_outputs
+    return {
+        **workflow_outputs,
+        "outputs": replace_report_output(workflow_outputs.get("outputs"), str(report_output)),
+    }
 
 
 def _build_result(

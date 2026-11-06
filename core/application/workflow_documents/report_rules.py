@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from core.application.workflow_documents.report_formats import (
@@ -38,6 +38,21 @@ def size_issue(value: Any, limit: int, code: str, label: str) -> Issue | None:
     if size > limit:
         return issue(code, f"The {label} is {size} bytes; the limit is {limit}")
     return None
+
+
+def map_strings(value: Any, transform: Callable[[str], str]) -> Any:
+    """A copy of ``value`` with ``transform`` applied to every string value.
+
+    Keys are left alone: in a snapshot every key is schema vocabulary, and row
+    data lives in arrays, so only values can carry report data.
+    """
+    if isinstance(value, str):
+        return transform(value)
+    if isinstance(value, Mapping):
+        return {key: map_strings(item, transform) for key, item in value.items()}
+    if isinstance(value, list):
+        return [map_strings(item, transform) for item in value]
+    return value
 
 
 def version_issue(document: Mapping[str, Any]) -> Issue | None:
@@ -78,6 +93,7 @@ __all__ = [
     "SUPPORTED_VERSIONS",
     "format_issues",
     "locale_issues",
+    "map_strings",
     "serialized_size",
     "size_issue",
     "version_issue",
