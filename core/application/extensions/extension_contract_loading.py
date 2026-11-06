@@ -263,7 +263,12 @@ def _parse_json_or_yaml_text(raw: str, *, ref_hint: str) -> Any:
         raise ValueError(
             f"Expected JSON at '{ref_hint}' and PyYAML is unavailable for YAML parsing"
         ) from exc
-    parsed = yaml.safe_load(text)
+    # libyaml parses a large operation manifest about four times faster than the
+    # pure-Python loader and builds the same data, so it is used when PyYAML has it.
+    if getattr(yaml, "__with_libyaml__", False):
+        parsed = yaml.load(text, Loader=yaml.CSafeLoader)
+    else:
+        parsed = yaml.safe_load(text)
     if parsed is None:
         return {}
     return parsed
