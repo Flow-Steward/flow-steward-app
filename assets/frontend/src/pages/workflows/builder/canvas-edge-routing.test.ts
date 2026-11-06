@@ -123,3 +123,33 @@ describe("canvas routing on large real canvases", () => {
     expect(new Set(cases.map((entry) => (entry.expected as { kind: string }).kind))).toEqual(new Set(["upper-band", "lower-band"]));
   });
 });
+
+describe("a band passes only the cards in its way", () => {
+  const between = { x: 240, y: 440, width: 120, height: 120 };
+  const farAbove = { x: 200, y: -2000, width: 400, height: 300 };
+  const farBelow = { x: 200, y: 2400, width: 400, height: 300 };
+
+  it("lifts a long jump just over the card between its ends, not over a card far up the canvas", () => {
+    const route = routeCanvasEdge({ source: { x: 0, y: 500 }, target: { x: 600, y: 500 }, obstacles: [between, farAbove], backward: false, failure: false, repeat: false, longJump: true });
+    expect(route.kind).toBe("upper-band");
+    expect(Math.min(...route.points!.map((point) => point.y))).toBe(between.y - 24);
+  });
+
+  it("drops a backward connection just under the card in its way, not under a card far down the canvas", () => {
+    const route = routeCanvasEdge({ source: { x: 600, y: 500 }, target: { x: 0, y: 500 }, obstacles: [between, farBelow], backward: true, failure: false, repeat: false });
+    expect(route.kind).toBe("lower-band");
+    expect(Math.max(...route.points!.map((point) => point.y))).toBe(between.y + between.height + 24);
+  });
+
+  it("still climbs past every card stacked in its way", () => {
+    const stacked = [between, { x: 240, y: 300, width: 120, height: 150 }, { x: 260, y: 180, width: 80, height: 110 }];
+    const route = routeCanvasEdge({ source: { x: 0, y: 500 }, target: { x: 600, y: 500 }, obstacles: [...stacked, farAbove], backward: false, failure: false, repeat: false, longJump: true });
+    expect(Math.min(...route.points!.map((point) => point.y))).toBe(180 - 24);
+  });
+
+  it("keeps a band beside the corridor's other cards at the band clearance", () => {
+    const route = routeCanvasEdge({ source: { x: 0, y: 500 }, target: { x: 600, y: 500 }, obstacles: [between, farAbove], backward: false, failure: false, repeat: false, longJump: true });
+    const top = Math.min(...route.points!.map((point) => point.y));
+    for (const card of [between, farAbove]) expect(top <= card.y - 24 || top >= card.y + card.height + 24).toBe(true);
+  });
+});

@@ -274,6 +274,21 @@ function windowAround(a: CanvasPoint, b: CanvasPoint): CanvasRect {
   const x = Math.min(a.x, b.x) - GAP_WINDOW; const y = Math.min(a.y, b.y) - GAP_WINDOW;
   return { x, y, width: Math.abs(a.x - b.x) + 2 * GAP_WINDOW, height: Math.abs(a.y - b.y) + 2 * GAP_WINDOW };
 }
+/** A band keeps this far from the cards it passes. */
+const BAND_GAP = 24;
+/**
+ * The band's line: the nearest horizontal line beyond both ends that no card in the corridor comes
+ * within BAND_GAP of. It climbs (or drops) only past the cards that stand in its way, so a card far up
+ * or down the same stripe of the canvas never pulls a connection across the whole canvas.
+ */
+function clearBandY(sourceY: number, targetY: number, cards: readonly CanvasRect[], below: boolean): number {
+  let y = below ? Math.max(sourceY, targetY) + BAND_GAP : Math.min(sourceY, targetY) - BAND_GAP;
+  for (;;) {
+    const crossed = cards.find((card) => y > card.y - BAND_GAP && y < card.y + card.height + BAND_GAP);
+    if (!crossed) return y;
+    y = below ? crossed.y + crossed.height + BAND_GAP : crossed.y - BAND_GAP;
+  }
+}
 function bandRoute(input: CanvasEdgeRouteInput): CanvasEdgeRoute {
   const { source, target } = input;
   const start = input.sourceSide === "bottom" ? { x: source.x, y: source.y + LEAD } : { x: source.x + LEAD, y: source.y };
@@ -283,10 +298,8 @@ function bandRoute(input: CanvasEdgeRouteInput): CanvasEdgeRoute {
   const obstacles = [...input.obstacles, ...endCards];
   const corridorLeft = Math.min(start.x, end.x) - 32; const corridorRight = Math.max(start.x, end.x) + 32;
   const bandObstacles = obstacles.filter((rect) => rect.x <= corridorRight && rect.x + rect.width >= corridorLeft);
-  const minY = Math.min(source.y, target.y, ...bandObstacles.map((r) => r.y));
-  const maxY = Math.max(source.y, target.y, ...bandObstacles.map((r) => r.y + r.height));
   const below = input.backward || input.failure || input.repeat || input.sourceSide === "bottom" || input.targetSide === "bottom";
-  const bandY = below ? maxY + 24 : input.targetRowTop === undefined ? minY - 24 : input.targetRowTop - 24;
+  const bandY = input.targetRowTop !== undefined && !below ? input.targetRowTop - 24 : clearBandY(source.y, target.y, bandObstacles, below);
   const clear = (points: readonly CanvasPoint[]) => points.slice(1).every((p, i) => obstacles.every((r) => !lineHits(points[i], p, expanded(r))));
   const direct = [start, { x: start.x, y: bandY }, { x: end.x, y: bandY }, end];
   const finish = (middle: readonly CanvasPoint[], square: boolean): CanvasEdgeRoute => {
