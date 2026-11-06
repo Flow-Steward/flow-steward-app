@@ -1,7 +1,7 @@
 services:
   traefik:
     image: ${TRAEFIK_IMAGE:-traefik:v3.3@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f}
-    restart: on-failure:3
+    restart: unless-stopped
     entrypoint: ["/bin/sh", "/etc/traefik/render-public-router.sh"]
     environment:
       FS_RUNTIME_HTTP_PORT: ${FS_RUNTIME_HTTP_PORT:?FS_RUNTIME_HTTP_PORT is required}

@@ -40,8 +40,8 @@ def published_release_for_checkout(
             ),
             remediation=(
                 f"Wait until {checkout.tag} is published as a stable release with its images "
-                "in the configured registries, then rerun ./install.sh; or check out a commit "
-                "that is not a release tag to build from source."
+                "in the configured registries, then rerun ./install.sh; or explicitly rerun "
+                "./install.sh --from-source to build this checkout."
             ),
             step="release_policy",
         ) from exc

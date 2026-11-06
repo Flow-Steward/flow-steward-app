@@ -154,30 +154,37 @@ polling deadline. Thus this shared budget does not establish a hard end-to-end
 190-second bound or prove installed/provider shutdown acceptance. Local Compose
 still provides no separate allowance for the outer safety margin.
 
-Initial local Compose restart policy is `on-failure:3`, not unbounded `always`.
-Provider prerequisites include an equivalent finite restart policy or an explicit
-operator intervention policy. Configuration/schema errors exit 78; exhausted
-startup/recovery exits 1; completed operator shutdown exits 0.
+Local Compact containers use Docker's `unless-stopped` restart policy for every
+long-running role: PostgreSQL, RabbitMQ, Compact runtime, bundled Traefik and
+bundled SeaweedFS. One-shot setup and CLI services keep `restart: "no"`. Docker
+restarts these installed containers after daemon or host restart; an explicitly
+stopped container stays stopped. The Docker daemon itself must start at boot
+through the host platform's existing configuration. Compose dependency ordering
+is not replayed on daemon restart, so Compose explicitly sets
+`FS_COMPACT_WAIT_FOR_DEPENDENCIES=1`: the runtime waits for PostgreSQL and RabbitMQ
+protocol readiness within its bounded startup budget before volume lock/bootstrap.
+The supervisor also retains its bounded startup-readiness budget.
 
-For Compact on native Linux hosts using the system Docker daemon, the installer configures
-a systemd oneshot boot trigger after successful installation. This is separate
-from failure supervision: the unit has `Restart=no`, and Docker remains the only
-container failure-retry owner. The trigger starts recorded, ownership-checked
-container IDs after host boot or Docker activation; it cannot build, pull, recreate,
-or migrate an installation. Infrastructure health checks precede application
-startup. A missing recorded container requires the operator to rerun the installer.
-The root-owned unit runs Docker operations as the deployment owner, and the normal
-installer refreshes its record when containers change. Setup requires sudo;
-explicitly disabled units stay disabled, while an explicit installer rerun adopts
-its running containers for stop control. Shutdown drains consumers, then application
-services, before stopping infrastructure. Failure cleanup also runs after an
-unsuccessful startup. Platforms without host systemd keep their
-own deployment lifecycle. Operator controls are documented in the
-[deployment runbook](../../operations/compact-scalable-deployment.md).
-Compact's bundled SeaweedFS follows the same `on-failure:3` policy so a disabled
-installation stays stopped after Docker restarts. Scalable keeps its existing
-Docker restart policies; switching to Scalable retires the checkout-owned Compact
-unit rather than retaining stale container IDs.
+This supersedes the initial `on-failure:3` policy and host systemd boot trigger.
+The in-container per-role restart limit/window/backoff remain finite, but an
+exhausted runtime may now be restarted again by Docker until an operator stops
+it. Configuration/schema errors exit 78; exhausted startup/recovery exits 1;
+completed operator shutdown exits 0. Operators diagnose repeated exits through
+Docker logs and inspection. Provider deployments retain their explicitly
+configured platform restart/intervention policy.
+
+The ordinary installer never creates or changes host services or invokes sudo.
+An older checkout-owned `flow-steward-<project>.service` must be explicitly retired
+before Docker takes full ownership: its stale stop hooks could stop the retained
+containers even if the unit has been disabled. A read-only preflight reports the
+concrete administrative retirement command when that legacy unit exists. The
+explicit retirement helper validates unit and checkout ownership, refuses
+symlinked paths and customized systemd drop-ins for manual administrator review, removes
+`ExecStop` and `ExecStopPost`, reloads systemd, then disables/stops/removes only
+that unit and its records. It preserves installed containers. Existing legacy
+start/stop records remain readable for migration; new records or units are never
+created. Direct lifecycle release upgrades also require this operator migration.
+See the [deployment runbook](../../operations/compact-scalable-deployment.md).
 
 Start sequence: validate complete configuration/build identity → acquire single
 volume ownership → prepare/check paths → bootstrap once → create the fixed child

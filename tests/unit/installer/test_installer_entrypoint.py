@@ -326,7 +326,7 @@ def _release_identity(version: str, marker: str, *, profile: str) -> ReleaseIden
 
 @pytest.mark.parametrize("discover", [True, False])
 @pytest.mark.parametrize("profile", ["compact", "scalable"])
-def test_fresh_production_install_builds_checkout_without_tag_or_registry(
+def test_explicit_source_install_builds_checkout_without_tag_or_registry(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, profile: str, discover: bool
 ) -> None:
     monkeypatch.setattr(installer, "_ROOT", tmp_path)
@@ -340,11 +340,53 @@ def test_fresh_production_install_builds_checkout_without_tag_or_registry(
     monkeypatch.setattr(installer, "OfficialReleaseResolver", forbidden)
     assert (
         _REAL_PREPARE_OFFICIAL_RELEASE(
-            InstallConfig(environment="production", deployment_profile=profile), discover=discover
+            InstallConfig(environment="production", deployment_profile=profile),
+            discover=discover,
+            from_source=True,
         )
         is None
     )
     assert installer._runtime_env.get("FS_INSTALL_MODE") == "source"
+
+
+def test_source_flag_cannot_replace_official_identity(monkeypatch, tmp_path):
+    monkeypatch.setattr(installer, "_ROOT", tmp_path)
+    state = InstallerStateStore(tmp_path / "state")
+    state.publish_installed_release(_release_identity("1.0.10", "b", profile="compact"))
+    monkeypatch.setattr(installer, "installer_state_root", lambda _root: state.root)
+    with pytest.raises(LifecycleError) as raised:
+        _REAL_PREPARE_OFFICIAL_RELEASE(
+            InstallConfig(environment="production", deployment_profile="compact"), from_source=True
+        )
+    assert raised.value.code == "source_install_official_conflict"
+
+
+def test_source_resume_without_flag_does_not_build(monkeypatch, tmp_path):
+    monkeypatch.setattr(installer, "_ROOT", tmp_path)
+    monkeypatch.setattr(installer, "installer_state_root", lambda _root: tmp_path / "state")
+    with pytest.raises(LifecycleError) as raised:
+        _REAL_PREPARE_OFFICIAL_RELEASE(
+            InstallConfig(environment="production", deployment_profile="compact"), discover=False
+        )
+    assert raised.value.code == "source_install_requires_flag"
+
+
+def test_development_install_requires_explicit_source_mode(monkeypatch):
+    service = FakeService()
+    monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
+    result = CliRunner().invoke(
+        installer.installer_command,
+        [
+            "--environment",
+            "development",
+            "--non-interactive",
+            "--confirm",
+            "--plain",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--from-source" in result.output
+    assert service.configs == []
 
 
 def test_private_installer_has_no_management_subcommands() -> None:
@@ -354,7 +396,7 @@ def test_private_installer_has_no_management_subcommands() -> None:
     assert "unexpected extra argument" in result.output.lower()
 
 
-def test_confirmed_production_install_activates_local_release_without_self_handoff(
+def test_confirmed_production_install_activates_exact_release_without_self_handoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     digest = "sha256:" + "b" * 64
@@ -388,10 +430,7 @@ def test_confirmed_production_install_activates_local_release_without_self_hando
 
     class RecordingHandoff:
         def __init__(self, **_kwargs):
-            pytest.fail("fresh local install constructed the release handoff")
-
-        def install_exact(self, target, *, config, explicit_fields, timeout_seconds):
-            raise AssertionError("unreachable")
+            pytest.fail("an exact fresh release install must not change the checkout")
 
     service = RecordingService()
     monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)

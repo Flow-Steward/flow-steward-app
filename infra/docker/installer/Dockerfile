@@ -1,7 +1,8 @@
-FROM docker:28-cli@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d
+FROM docker:28-cli@sha256:625d9431a9f54c5a2bc90f24f0e1c3d55b1349fd857dd85035f98c2c9acbdd4d AS installer
 
 ARG FS_BUILD_REVISION=unknown
 LABEL org.opencontainers.image.revision="${FS_BUILD_REVISION}"
+LABEL org.opencontainers.image.role="installer"
 
 # AC17-R116: bash is here for scripts/release/build_candidate.sh, which the installer
 # runs to produce the Scalable images and which declares `#!/usr/bin/env bash` and uses

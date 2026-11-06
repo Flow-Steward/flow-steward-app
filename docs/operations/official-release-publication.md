@@ -1,10 +1,10 @@
 # Official release publication
 
 Official production releases are published from an immutable `vX.Y.Z` tag whose
-commit contains the same `X.Y.Z` in `VERSION`. Product images and the canonical
-PostgreSQL image (`infra/docker/postgres-extended/Dockerfile`, built with the same
-`AGE_REF` as every Compose file) are built once on native AMD64 and ARM64 Linux
-hosts, copied to registries without rebuilding, and exposed through one
+commit contains the same `X.Y.Z` in `VERSION`. Product images, the installer, and
+the canonical PostgreSQL image (`infra/docker/postgres-extended/Dockerfile`, built
+with the same `AGE_REF` as every Compose file) are built once on native AMD64 and
+ARM64 Linux hosts, copied to registries without rebuilding, and exposed through one
 two-platform index per role. Other third-party infrastructure images (RabbitMQ,
 Traefik, SeaweedFS) are not republished.
 
@@ -29,8 +29,9 @@ notes and retained evidence without blocking the healthy registry. Invalid image
 identity, conflicting immutable tags, and cross-registry digest mismatches remain
 fatal. The lower-level scripts may configure one namespace for an idempotent retry.
 
-Each namespace holds seven public repositories, one per release image role
-(`core/application/release/images.py`):
+Each namespace holds eight public repositories, listed in the publication catalog
+`core/application/release/images.py`. The installer is a bootstrap artifact; the
+other seven roles are deployment images:
 
 | Repository | Role | Used by |
 | --- | --- | --- |
@@ -41,18 +42,39 @@ Each namespace holds seven public repositories, one per release image role
 | `flow-steward-cli` | `fs-cli` | Compact and Scalable |
 | `flow-steward-mcp` | `fs-mcp` | Compact and Scalable |
 | `flow-steward-postgres` | `postgres` | Compact and Scalable (from 0.9.2) |
+| `flow-steward-installer` | `installer` | Installation bootstrap |
 
 On GHCR they are packages of the Flow-Steward organization, created by the first
 push; make each package public and link it to the `Flow-Steward/flow-steward-app`
-repository. On Docker Hub, create the seven repositories under `flowsteward` as
+repository. On Docker Hub, create the eight repositories under `flowsteward` as
 public before the first push, or check that the first push created them public.
 `flow-steward-postgres` is new in 0.9.2: create it (Docker Hub) or make its package
 public (GHCR) before publishing that release.
+
+The new installer requires explicit visibility setup: after the first push, set
+`ghcr.io/flow-steward/flow-steward-installer` to **Public** in its package settings;
+create `flowsteward/flow-steward-installer` as a **Public** Docker Hub repository
+or confirm that visibility after creation. A public source repository does not
+prove public package visibility. [GitHub's Container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#pushing-container-images)
+states that newly published packages initially have private visibility.
 
 Releases 0.9.0 and 0.9.1 were published without `flow-steward-postgres`, and their
 resolution never asks for it. From 0.9.2 a registry lacking it holds an incomplete
 release set. An installation whose release identity names no PostgreSQL image keeps
 its own, built locally when absent (ADR 0030).
+
+The installer uses the same `X.Y.Z` image tag convention as the release images,
+with native child tags `X.Y.Z-amd64` and `X.Y.Z-arm64`. The default bootstrap
+pulls the versioned installer from the official registries; missing published
+images fail installation without a local source-build fallback. Explicit source
+installation remains a separate operator choice.
+
+The installer is a publication-only artifact. It is required by native build
+metadata, mirroring, index creation, and publication verification, but does not
+join the durable release identity or the deployment role sets. Collect
+`installer-amd64.oci.tar` and `installer-arm64.oci.tar` with the other archives
+and checksummed `build-amd64.json` and `build-arm64.json` records. Mirror retries
+reuse these same archives.
 
 Each native host must select a local Buildx `docker-container` builder attached to
 the active Docker context. The Docker daemon server architecture must match
@@ -72,7 +94,9 @@ the active Docker context. The Docker daemon server architecture must match
    `scripts/release/official-release-verify.sh`. Retain the resulting per-registry
    index-digest evidence with the release record.
 6. Publish the stable, non-draft, non-prerelease GitHub Release for `vX.Y.Z` only
-   after verification reports at least one configured registry complete. An unavailable mirror
+   after authenticated digest verification and the anonymous installer acceptance
+   below establish at least one complete publicly accessible registry. Check both
+   configured namespaces and report an unavailable mirror explicitly. An unavailable mirror
    can be retried by configuring only that namespace; artifacts are copied again,
    never rebuilt.
 
@@ -81,9 +105,94 @@ described below. Local contributor gates remain required; automated publication
 also runs the canonical full Docker gate on the exact tagged commit (ADR 0048).
 
 Verification requires exactly `linux/amd64` and `linux/arm64` for every canonical
-release role, including `postgres`, and checks the role and full source-revision
-OCI labels on both child configs. Failed registries are recorded independently; artifacts are not deleted or
-rolled back automatically.
+release role, including `postgres`, plus the installer artifact, and checks the
+role and full source-revision OCI labels on both child configs. An otherwise
+complete registry without its installer is incomplete. Failed registries are
+recorded independently; artifacts are not deleted or rolled back automatically.
+
+
+## Anonymous installer acceptance before stable release
+
+Authenticated `official-release-verify.sh` checks artifact bytes, platform configs,
+and labels using the publisher's credentials. It does not prove that the default
+anonymous bootstrap can download the installer. Before publishing the stable
+GitHub Release, check anonymous manifest access and actual image pulls for
+`linux/amd64` and `linux/arm64` in both configured registries. Do not advertise a
+mirror as available until both platform checks succeed there.
+
+Run the following block separately for each namespace, using a newly created,
+owned disposable acceptance daemon with an empty image store for each registry.
+Record that daemon's ownership and endpoint first, and select it through
+`DOCKER_HOST`; do not use a production daemon. This prevents cached layers from
+masking a failed anonymous download. Use Docker API 1.49 or later for explicit
+platform inspection. These pulls do not execute the installer and require no
+CPU emulation. The temporary client configuration starts without credentials;
+its isolated `PATH` contains only the Docker CLI so credential helpers cannot be
+auto-discovered. No login is performed.
+
+```bash
+# Run once with each value, against a fresh owned acceptance daemon each time:
+installer_namespace=ghcr.io/flow-steward
+# installer_namespace=docker.io/flowsteward
+(
+  set -eu
+  : "${FS_RELEASE_VERSION:?set exact X.Y.Z}"
+  : "${FS_RELEASE_REVISION:?set exact source commit}"
+  : "${FS_RELEASE_ARTIFACT_DIR:?set retained release evidence directory}"
+  : "${DOCKER_HOST:?select the owned empty acceptance daemon}"
+  installer_docker_cli=$(command -v docker)
+  installer_anon_config=$(mktemp -d)
+  installer_original_path=$PATH
+  trap 'PATH=$installer_original_path; export PATH; rm -rf "$installer_anon_config"' EXIT
+  mkdir "$installer_anon_config/bin"
+  ln -s "$installer_docker_cli" "$installer_anon_config/bin/docker"
+  printf '%s\n' '{"auths":{},"credHelpers":{}}' > "$installer_anon_config/config.json"
+  installer_anon_evidence="$FS_RELEASE_ARTIFACT_DIR/anonymous-installer/$installer_namespace"
+  mkdir -p "$installer_anon_evidence"
+  export DOCKER_CONFIG="$installer_anon_config"
+  unset DOCKER_CONTEXT DOCKER_AUTH_CONFIG
+  export PATH="$installer_anon_config/bin"
+  installer_reference="$installer_namespace/flow-steward-installer:$FS_RELEASE_VERSION"
+  docker manifest inspect --verbose "$installer_reference" \
+    > "$installer_anon_evidence/manifest.json"
+  for installer_architecture in amd64 arm64; do
+    installer_platform="linux/$installer_architecture"
+    docker pull --platform "$installer_platform" "$installer_reference" \
+      > "$installer_anon_evidence/pull-$installer_architecture.log" 2>&1
+    docker image inspect --platform "$installer_platform" "$installer_reference" \
+      > "$installer_anon_evidence/image-$installer_architecture.json"
+    test "$(docker image inspect --platform "$installer_platform" \
+      --format '{{.Os}}/{{.Architecture}}' "$installer_reference")" = "$installer_platform"
+    test "$(docker image inspect --platform "$installer_platform" \
+      --format '{{index .Config.Labels "org.opencontainers.image.role"}}' \
+      "$installer_reference")" = installer
+    test "$(docker image inspect --platform "$installer_platform" \
+      --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+      "$installer_reference")" = "$FS_RELEASE_REVISION"
+  done
+)
+```
+
+Compare each recorded index/child manifest and image config digest with the
+retained authenticated verification and native build records for the same source
+commit; labels alone are insufficient. Preserve the package reference, `X.Y.Z`
+tag, both platform identities, command outcomes and evidence paths in the release
+record. See Docker's [pull](https://docs.docker.com/reference/cli/docker/image/pull/),
+[manifest inspection](https://docs.docker.com/reference/cli/docker/manifest/inspect/),
+and [platform image inspection](https://docs.docker.com/reference/cli/docker/image/inspect/)
+references for these commands.
+
+The block removes its temporary client configuration. After preserving evidence,
+remove the exact owned acceptance daemon and its disposable image store, along
+with any other owned containers, networks or volumes created for these checks.
+Retain the minimal identity evidence and logs; do not prune shared Docker resources.
+If a command fails, preserve its evidence, mark that registry/platform unavailable
+or pending, and follow the mirror reporting policy above.
+
+Until separately authorized publication has created the package tags and these
+checks have run, installer package visibility, tag/index/child digests and all four
+registry/platform anonymous acceptance results are **pending**. Local source
+regressions and authenticated publication verification do not satisfy this check.
 
 
 ## GitHub Actions setup
@@ -123,8 +232,8 @@ registries and rejects any existing version whose child/index digests differ.
 No latest aliases or prerelease images are produced.
 
 Publication attempts each mirror independently. A stable GitHub Release is created
-when at least one registry exposes every catalog role and both architectures with
-the expected native-artifact digests and source labels. If both registries verify,
+when at least one registry exposes every catalog role, the installer artifact,
+and both architectures with the expected native-artifact digests and source labels. If both registries verify,
 their child digests must match. The release notes name the available and unavailable
 registries; registry verification JSON is attached. Registry evidence is also retained as a workflow artifact for 90 days;
 quality evidence and native archives retain for 30 days. Configure organization

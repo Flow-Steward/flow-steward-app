@@ -91,6 +91,12 @@ if [[ "${{docker_command}}" == "run" && "${{FAKE_EXPECT_HELPER_MOUNT:-0}}" == "1
     exit 65
   fi
 fi
+if [[ "${{docker_command}}" == "pull" ]]; then
+  if [[ "${{FAKE_PULL_FAILURE:-}}" == "all" || "${{@: -1}}" == "${{FAKE_PULL_FAILURE:-}}" ]]; then
+    echo "registry image unavailable" >&2
+    exit 1
+  fi
+fi
 if [[ "${{docker_command}}" == "build" ]]; then
   if [[ -n "${{FAKE_BUILD_READY:-}}" ]]; then
     printf '%s\n' "$$" > "${{FAKE_BUILD_READY}}"
@@ -106,6 +112,10 @@ fi
 if [[ "${{docker_command}}" == "image" && "$*" == *" inspect "* ]]; then
   if [[ -n "${{FAKE_EXISTING_IMAGE_ID:-}}" && "${{@: -1}}" == "${{FAKE_EXISTING_IMAGE_ID}}" ]]; then
     printf '[{{"Id":"%s"}}]\n' "${{FAKE_EXISTING_IMAGE_ID}}"
+    exit 0
+  fi
+  if [[ "$*" == *"--format"* && "${{FAKE_INSPECT_FAILURE:-0}}" != "1" ]]; then
+    printf '%s\n' "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     exit 0
   fi
   exit 1
@@ -349,7 +359,7 @@ def test_install_sh_invokes_only_private_installer_controller(tmp_path: Path) ->
 
     assert completed.returncode == 0, completed.stderr
     assert completed.stderr.startswith("Flow Steward installer:")
-    assert "build output retained" in completed.stderr
+    assert not any("\tbuild\t" in f"\t{line}\t" for line in docker_lines)
     run_line = next(line for line in docker_lines if line.startswith("run\t"))
     assert f"{ROOT}:{ROOT}" in run_line
     assert f"-w\t{ROOT}" in run_line
@@ -358,6 +368,82 @@ def test_install_sh_invokes_only_private_installer_controller(tmp_path: Path) ->
     assert f"-v\t{state_dir}:{state_dir}" in run_line
     assert "core.entrypoints.cli.installer" in run_line
     assert "--non-interactive\t--confirm" in run_line
+
+
+@pytest.mark.parametrize("source_args", [(), ("--from-source",)], ids=["prebuilt", "source"])
+def test_successful_linux_install_never_configures_host_autostart_or_invokes_sudo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_args: tuple[str, ...]
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    copied_script = checkout / "install.sh"
+    shutil.copyfile(INSTALL_SCRIPT, copied_script)
+    dockerfile = checkout / "infra/docker/installer/Dockerfile"
+    dockerfile.parent.mkdir(parents=True)
+    shutil.copyfile(INSTALLER_DOCKERFILE, dockerfile)
+    shutil.copyfile(ROOT / "VERSION", checkout / "VERSION")
+    helper = checkout / "infra/host/systemd/autostart.sh"
+    helper.parent.mkdir(parents=True)
+    _write_shim(
+        helper,
+        '#!/bin/sh\ncase "${1:-}" in check) exit 0 ;; esac\n'
+        'printf "%s\\n" "$*" >> "$HOST_AUTOSTART_LOG"\n',
+    )
+    _write_shim(tmp_path / "uname", "#!/bin/sh\nprintf 'Linux\\n'\n")
+    _write_shim(tmp_path / "sudo", '#!/bin/sh\nprintf "%s\\n" "$*" >> "$HOST_SUDO_LOG"\n')
+    _write_shim(
+        tmp_path / "systemctl",
+        '#!/bin/sh\ncase "${1:-}" in show|status|is-enabled|is-active|list-unit-files) exit 0 ;; esac\n'
+        'printf "%s\\n" "$*" >> "$HOST_AUTOSTART_LOG"\n',
+    )
+    helper_log = tmp_path / "host-autostart.log"
+    sudo_log = tmp_path / "sudo.log"
+    monkeypatch.setitem(globals(), "INSTALL_SCRIPT", copied_script)
+
+    completed, _docker_lines = _run(
+        tmp_path,
+        "--non-interactive",
+        "--confirm",
+        *source_args,
+        extra_env={"HOST_AUTOSTART_LOG": str(helper_log), "HOST_SUDO_LOG": str(sudo_log)},
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert not helper_log.exists(), "ordinary installation invoked host autostart configuration"
+    assert not sudo_log.exists(), "ordinary installation invoked sudo"
+
+
+@pytest.mark.parametrize("source_args", [(), ("--from-source",)], ids=["prebuilt", "source"])
+def test_legacy_host_service_conflict_refuses_before_preparing_management_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_args: tuple[str, ...]
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    copied_script = checkout / "install.sh"
+    shutil.copyfile(INSTALL_SCRIPT, copied_script)
+    dockerfile = checkout / "infra/docker/installer/Dockerfile"
+    dockerfile.parent.mkdir(parents=True)
+    shutil.copyfile(INSTALLER_DOCKERFILE, dockerfile)
+    shutil.copyfile(ROOT / "VERSION", checkout / "VERSION")
+    helper = checkout / "infra/host/systemd/autostart.sh"
+    helper.parent.mkdir(parents=True)
+    _write_shim(
+        helper,
+        '#!/bin/sh\nif [ "${1:-}" = check ]; then\n'
+        '  echo "Retire the legacy Flow Steward host service manually." >&2\n'
+        "  exit 4\nfi\n",
+    )
+    _write_shim(tmp_path / "uname", "#!/bin/sh\nprintf 'Linux\\n'\n")
+    monkeypatch.setitem(globals(), "INSTALL_SCRIPT", copied_script)
+
+    completed, docker_lines = _run(tmp_path, "--non-interactive", "--confirm", *source_args)
+
+    assert completed.returncode == 4, completed.stderr
+    assert "legacy Flow Steward host service" in completed.stderr
+    assert not any(
+        "\tbuild\t" in line or "\tpull\t" in line or line.startswith("run\t")
+        for line in docker_lines
+    )
 
 
 def test_bootstrap_reuses_existing_immutable_installer_image_without_build(
@@ -380,6 +466,231 @@ def test_bootstrap_reuses_existing_immutable_installer_image_without_build(
     assert not any("\tbuild\t" in f"\t{line}\t" for line in docker_lines)
     run_line = next(line for line in docker_lines if line.startswith("run\t"))
     assert image_id in run_line
+
+
+@pytest.mark.parametrize("environment", ["production", "development"])
+def test_bootstrap_pulls_published_installer_without_source_opt_in(
+    tmp_path: Path, environment: str
+) -> None:
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    completed, docker_lines = _run(
+        tmp_path,
+        "--environment",
+        environment,
+        extra_env={"FS_INSTALLER_IMAGE": "", "FS_INSTALL_MODE": "source"},
+    )
+    assert completed.returncode == 0, completed.stderr
+    pulls = [line.split("\t")[-1] for line in docker_lines if "\tpull\t" in line]
+    assert pulls == [f"ghcr.io/flow-steward/flow-steward-installer:{version}"]
+    assert not any("\tbuild\t" in line for line in docker_lines)
+    run_line = next(line for line in docker_lines if line.startswith("run\t"))
+    assert f"sha256:{'b' * 64}" in run_line
+    assert "FS_INSTALL_MODE" not in run_line
+
+
+def test_bootstrap_pulls_explicit_installer_override(tmp_path: Path) -> None:
+    image = "registry.example/installer:v1"
+    completed, docker_lines = _run(tmp_path, extra_env={"FS_INSTALLER_IMAGE": image})
+    assert completed.returncode == 0, completed.stderr
+    assert any(line.endswith(f"\tpull\t{image}") for line in docker_lines)
+    assert not any("\tbuild\t" in line for line in docker_lines)
+    run_line = next(line for line in docker_lines if line.startswith("run\t"))
+    assert f"sha256:{'b' * 64}" in run_line
+    assert image not in run_line
+
+
+@pytest.mark.parametrize("registries", ["", "second.example/team, first.example/team"])
+def test_bootstrap_tries_registry_mirrors_in_order(tmp_path: Path, registries: str) -> None:
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    namespaces = (
+        registries.split(",") if registries else ["ghcr.io/flow-steward", "docker.io/flowsteward"]
+    )
+    expected = [f"{namespace.strip()}/flow-steward-installer:{version}" for namespace in namespaces]
+    completed, docker_lines = _run(
+        tmp_path,
+        extra_env={
+            "FS_INSTALLER_IMAGE": "",
+            "FS_RELEASE_REGISTRIES": registries,
+            "FAKE_PULL_FAILURE": expected[0],
+        },
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert [line.split("\t")[-1] for line in docker_lines if "\tpull\t" in line] == expected
+    assert not any("\tbuild\t" in line for line in docker_lines)
+
+
+@pytest.mark.parametrize("failure", ["pull", "inspect"])
+@pytest.mark.parametrize("override", ["", "registry.example/installer:v1"])
+def test_bootstrap_image_failure_never_falls_back_to_build(
+    tmp_path: Path, failure: str, override: str
+) -> None:
+    completed, docker_lines = _run(
+        tmp_path,
+        extra_env={
+            "FS_INSTALLER_IMAGE": override,
+            "FAKE_PULL_FAILURE": "all" if failure == "pull" else "",
+            "FAKE_INSPECT_FAILURE": "1" if failure == "inspect" else "0",
+        },
+    )
+    assert completed.returncode == 7
+    assert "--from-source" in completed.stderr
+    assert not any("\tbuild\t" in line or line.startswith("run\t") for line in docker_lines)
+
+
+def test_bootstrap_missing_pinned_image_does_not_pull_or_build(tmp_path: Path) -> None:
+    completed, docker_lines = _run(tmp_path, extra_env={"FS_INSTALLER_IMAGE": f"sha256:{'a' * 64}"})
+    assert completed.returncode == 7
+    assert "Pinned installer image is unavailable" in completed.stderr
+    assert not any(
+        "\tbuild\t" in line or "\tpull\t" in line or line.startswith("run\t")
+        for line in docker_lines
+    )
+
+
+def test_bootstrap_explicit_source_opt_in_builds_and_reaches_controller(tmp_path: Path) -> None:
+    completed, docker_lines = _run(tmp_path, "--from-source")
+    assert completed.returncode == 0, completed.stderr
+    assert any("\tbuild\t" in line for line in docker_lines)
+    assert not any("\tpull\t" in line for line in docker_lines)
+    run_line = next(line for line in docker_lines if line.startswith("run\t"))
+    assert "--from-source" in run_line
+
+
+def test_doctor_reuses_explicitly_built_management_image_without_pulling_or_building(
+    tmp_path: Path,
+) -> None:
+    image_id = f"sha256:{'b' * 64}"
+    prepared, preparation_lines = _run(
+        tmp_path, "--from-source", extra_env={"FS_INSTALLER_IMAGE": ""}
+    )
+    assert prepared.returncode == 0, prepared.stderr
+    cache = tmp_path / "state/runtime/installer-bootstrap-image"
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    assert cache.is_file(), "source preparation must retain its ready management image ID"
+    assert cache.read_text(encoding="utf-8").split() == [version, image_id]
+    assert stat.S_IMODE(cache.stat().st_mode) == 0o600
+    assert stat.S_IMODE(cache.parent.stat().st_mode) == 0o700
+    before = (cache.read_bytes(), cache.stat().st_mtime_ns)
+
+    completed, all_lines = _run(
+        tmp_path,
+        extra_env={
+            "FS_MANAGEMENT_MODULE": "doctor",
+            "FS_INSTALLER_IMAGE": "",
+            "FAKE_EXISTING_IMAGE_ID": image_id,
+        },
+    )
+    doctor_lines = all_lines[len(preparation_lines) :]
+
+    assert completed.returncode == 0, completed.stderr
+    assert not any("\tbuild\t" in line or "\tpull\t" in line for line in doctor_lines)
+    run_line = next(line for line in doctor_lines if line.startswith("run\t"))
+    assert image_id in run_line
+    assert "core.entrypoints.cli.doctor" in run_line
+    assert (cache.read_bytes(), cache.stat().st_mtime_ns) == before
+
+
+def test_plain_doctor_does_not_create_state_or_bootstrap_cache(tmp_path: Path) -> None:
+    completed, _docker_lines = _run(
+        tmp_path, extra_env={"FS_MANAGEMENT_MODULE": "doctor", "FS_INSTALLER_IMAGE": ""}
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert not (tmp_path / "state").exists()
+
+
+def test_ordinary_production_install_ignores_cached_local_management_image(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    (state / "runtime").mkdir(parents=True)
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    image_id = f"sha256:{'a' * 64}"
+    (state / "runtime/installer-bootstrap-image").write_text(
+        f"{version}\t{image_id}\n", encoding="utf-8"
+    )
+
+    completed, docker_lines = _run(
+        tmp_path, extra_env={"FS_INSTALLER_IMAGE": "", "FAKE_EXISTING_IMAGE_ID": image_id}
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert any(
+        f"\tpull\tghcr.io/flow-steward/flow-steward-installer:{version}" in line
+        for line in docker_lines
+    )
+    assert not any("\tbuild\t" in line for line in docker_lines)
+
+
+@pytest.mark.parametrize("cache_kind", ["stale-version", "malformed-id", "symlink"])
+def test_doctor_ignores_inapplicable_bootstrap_cache(tmp_path: Path, cache_kind: str) -> None:
+    state = tmp_path / "state"
+    (state / "runtime").mkdir(parents=True)
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    image_id = f"sha256:{'a' * 64}"
+    cache = state / "runtime/installer-bootstrap-image"
+    cached_version = "999.0.0" if cache_kind == "stale-version" else version
+    cached_id = "malformed" if cache_kind == "malformed-id" else image_id
+    payload = f"{cached_version}\t{cached_id}\n"
+    if cache_kind == "symlink":
+        target = tmp_path / "foreign-cache"
+        target.write_text(payload, encoding="utf-8")
+        cache.symlink_to(target)
+    else:
+        cache.write_text(payload, encoding="utf-8")
+    before = cache.read_bytes()
+
+    completed, docker_lines = _run(
+        tmp_path,
+        extra_env={
+            "FS_MANAGEMENT_MODULE": "doctor",
+            "FS_INSTALLER_IMAGE": "",
+            "FAKE_EXISTING_IMAGE_ID": image_id,
+        },
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert any(
+        f"\tpull\tghcr.io/flow-steward/flow-steward-installer:{version}" in line
+        for line in docker_lines
+    )
+    assert cache.read_bytes() == before
+    assert cache.is_symlink() == (cache_kind == "symlink")
+
+
+def test_doctor_missing_cached_image_requires_explicit_repair_without_build_or_pull(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    (state / "runtime").mkdir(parents=True)
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    cache = state / "runtime/installer-bootstrap-image"
+    cache.write_text(f"{version}\tsha256:{'a' * 64}\n", encoding="utf-8")
+
+    completed, docker_lines = _run(
+        tmp_path, extra_env={"FS_MANAGEMENT_MODULE": "doctor", "FS_INSTALLER_IMAGE": ""}
+    )
+
+    assert completed.returncode == 7
+    assert "--from-source" in completed.stderr
+    assert not any(
+        "\tbuild\t" in line or "\tpull\t" in line or line.startswith("run\t")
+        for line in docker_lines
+    )
+
+
+def test_explicit_installer_image_overrides_doctor_bootstrap_cache(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    (state / "runtime").mkdir(parents=True)
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    cache = state / "runtime/installer-bootstrap-image"
+    cache.write_text(f"{version}\tsha256:{'a' * 64}\n", encoding="utf-8")
+    image = "registry.example/management:operator"
+
+    completed, docker_lines = _run(
+        tmp_path, extra_env={"FS_MANAGEMENT_MODULE": "doctor", "FS_INSTALLER_IMAGE": image}
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert any(line.endswith(f"\tpull\t{image}") for line in docker_lines)
+    assert not any("\tbuild\t" in line for line in docker_lines)
 
 
 def test_bootstrap_forwards_only_approved_non_secret_isolation_overrides(tmp_path: Path) -> None:
@@ -474,6 +785,7 @@ def test_quiet_bootstrap_emits_configured_heartbeat(tmp_path: Path) -> None:
         tmp_path,
         "--non-interactive",
         "--confirm",
+        "--from-source",
         delay=0.15,
     )
 
@@ -593,7 +905,7 @@ def test_sigint_during_build_removes_host_record_and_stops_build(tmp_path: Path)
         "FS_INSTALLER_HEARTBEAT_SECONDS": "0.05",
     }
     process = subprocess.Popen(
-        ["bash", str(INSTALL_SCRIPT), "--non-interactive", "--confirm"],
+        ["bash", str(INSTALL_SCRIPT), "--non-interactive", "--confirm", "--from-source"],
         cwd=ROOT,
         env=env,
         stdout=subprocess.PIPE,
@@ -831,7 +1143,7 @@ def test_bootstrap_isolates_host_build_client_state(fake_install_host, tmp_path:
         platform="Darwin",
     )
 
-    result = host.run("--help")
+    result = host.run("--help", "--from-source")
 
     assert result.returncode == 0
     expected = (str(host.bootstrap_config), f"{host.bootstrap_config}/buildx")

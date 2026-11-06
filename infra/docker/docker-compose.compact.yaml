@@ -173,7 +173,7 @@ services:
       timeout: 10s
       retries: 60
       start_period: 5s
-    restart: on-failure:3
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
@@ -194,7 +194,7 @@ services:
       timeout: 5s
       retries: 90
       start_period: 5s
-    restart: on-failure:3
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -227,7 +227,7 @@ services:
 
   compact-runtime:
     image: ${FS_COMPACT_IMAGE:?FS_COMPACT_IMAGE is required for immutable production provenance}
-    restart: on-failure:3
+    restart: unless-stopped
     # One supervisor budget includes role drain, forced reap and adopted descendants.
     # Adopted cleanup must not start another reserve after this allowance expires.
     stop_grace_period: ${FS_COMPACT_SHUTDOWN_GRACE_SECONDS:-180}s
@@ -242,6 +242,8 @@ services:
     environment:
       <<: *compact-runtime-environment
       FS_DEPLOYMENT_PROFILE: compact
+      # Docker daemon restarts do not replay Compose depends_on ordering.
+      FS_COMPACT_WAIT_FOR_DEPENDENCIES: "1"
       FS_COMPACT_IMAGE_INDEX_DIGEST: ${FS_COMPACT_IMAGE_INDEX_DIGEST:?compact image index digest is required}
       FS_COMPACT_IMAGE_MANIFEST_DIGEST: ${FS_COMPACT_IMAGE_MANIFEST_DIGEST:?compact image manifest digest is required}
       FS_COMPACT_IMAGE_CONFIG_DIGEST: ${FS_COMPACT_IMAGE_CONFIG_DIGEST:?compact image config digest is required}

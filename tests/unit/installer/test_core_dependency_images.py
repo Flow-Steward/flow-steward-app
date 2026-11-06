@@ -62,7 +62,9 @@ def test_exact_runtime_prepares_missing_core_dependencies(
     assert not any(command[:3] == ("docker", "buildx", "build") for command in process.commands)
 
 
-def _prepare_dependencies(tmp_path, *, images, config=None, present=False, environment=None):
+def _prepare_dependencies(
+    tmp_path, *, images, config=None, present=False, environment=None, allow_source_build=False
+):
     process = FakeProcessExecutor()
     prefix = ("docker", "compose")
     command = (*prefix, "config", "--format", "json")
@@ -85,6 +87,7 @@ def _prepare_dependencies(tmp_path, *, images, config=None, present=False, envir
         environment=environment or {},
         run=process.run,
         checked=process.run,
+        **({"allow_source_build": True} if allow_source_build else {}),
     )
     return process.commands
 
@@ -105,6 +108,7 @@ def test_missing_default_postgres_is_built_from_canonical_dockerfile(tmp_path):
         tmp_path,
         images={"pg-fs": image, "rabbitmq-fs": "rabbit:test"},
         environment={"AGE_REF": "test-ref"},
+        allow_source_build=True,
     )
     builds = [command for command in commands if command[:3] == ("docker", "buildx", "build")]
     assert builds == [
@@ -158,3 +162,47 @@ def test_resume_rechecks_missing_infrastructure(tmp_path, monkeypatch):
     inspect = ("docker", "image", "inspect", "test-traefik:present")
     process.outcomes[inspect] = ProcessOutcome(command=inspect, returncode=1)
     assert gateway.postcondition_holds("prepare", config) is False
+
+
+@pytest.mark.parametrize("profile", ["compact", "scalable"])
+def test_official_missing_default_postgres_refuses_without_source_build(tmp_path, profile):
+    process = FakeProcessExecutor()
+    prefix = ("docker", "compose")
+    image = registry_default_value("POSTGRES_IMAGE")
+    command = (*prefix, "config", "--format", "json")
+    process.outcomes[command] = ProcessOutcome(
+        command,
+        0,
+        stdout=json.dumps(
+            {"services": {"pg-fs": {"image": image}, "rabbitmq-fs": {"image": "rabbit:test"}}}
+        ),
+    )
+    inspect = ("docker", "image", "inspect", image)
+    process.outcomes[inspect] = ProcessOutcome(inspect, 1)
+    with pytest.raises(InstallerFailure, match=r"(?i)postgres.*(official|published|source)"):
+        prepare_core_dependency_images(
+            config=InstallConfig(
+                environment="production",
+                deployment_profile=profile,
+                ingress_mode="external_proxy",
+                tls_mode="reverse_proxy",
+                file_storage="local_fs",
+            ),
+            compose_prefix=prefix,
+            repo_root=tmp_path,
+            environment={},
+            run=process.run,
+            checked=process.run,
+            failure=_gateway(tmp_path, process)._core_dependency_failure,
+        )
+    assert not any("build" in command for command in process.commands)
+    assert ("docker", "pull", image) not in process.commands
+
+
+def test_official_existing_default_postgres_is_reused_without_source_build(tmp_path):
+    commands = _prepare_dependencies(
+        tmp_path,
+        images={"pg-fs": registry_default_value("POSTGRES_IMAGE"), "rabbitmq-fs": "rabbit:test"},
+        present=True,
+    )
+    assert not any("build" in command or "pull" in command for command in commands)

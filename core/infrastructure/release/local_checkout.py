@@ -42,8 +42,9 @@ class LocalCheckoutReleaseSource:
         """Exact coordinates when HEAD is the clean ``v<VERSION>`` tag, otherwise None.
 
         The non-raising question a fresh install asks. A checkout without the tag,
-        with the tag elsewhere, with tracked changes, or without usable Git is an
-        ordinary development checkout that builds from source, not an error.
+        with the tag elsewhere, with tracked changes, or without usable Git is a
+        checkout without exact release provenance. The caller decides whether to reject
+        it or require explicit source mode.
         """
         try:
             return self.exact()

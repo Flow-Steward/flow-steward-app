@@ -38,6 +38,9 @@ _ROLE_BY_NAME = {
         ProductImageRole(
             "postgres", "flow-steward-postgres", "POSTGRES_IMAGE", first_release="0.9.2"
         ),
+        # Bootstrap publication artifact only: deployment identities use the
+        # profile/shared role lists below and must never require the installer.
+        ProductImageRole("installer", "flow-steward-installer", "FS_INSTALLER_IMAGE"),
     )
 }
 

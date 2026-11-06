@@ -79,6 +79,23 @@
   },
   "variables": [
     {
+      "name": "FS_BORROWED_AUDIT_IMAGE",
+      "groups": [
+        "audit_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "audit",
+      "notes": "Internal immutable audit image ID supplied by the managed quality runner; borrowed image/toolchain/lease verification is enforced before use."
+    },
+    {
       "name": "FS_INSTALLATION_ID",
       "groups": [
         "ops_observability"
@@ -2070,7 +2087,7 @@
       "preserve_existing": true,
       "default": "0",
       "owner": "runtime",
-      "notes": "Wait for the canonical PostgreSQL and RabbitMQ protocols before Compact bootstrap when a provider starts linked services concurrently."
+      "notes": "Wait for canonical PostgreSQL and RabbitMQ protocols before Compact bootstrap when Docker restarts containers or a provider starts linked services concurrently. Compact Compose enables this guard."
     },
     {
       "name": "FS_COMPOSE_DEV_FILE",
@@ -3469,18 +3486,20 @@
     {
       "name": "FS_INSTALLER_IMAGE",
       "groups": [
+        "production_images",
         "local_development"
       ],
       "environments": [
+        "production",
         "local_development"
       ],
       "installer_managed": false,
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-installer:local",
+      "default": "",
       "owner": "installer",
-      "notes": "Optional exact local installer bootstrap image override used by install.sh; pinned sha256 image IDs are reused without rebuilding."
+      "notes": "Optional installer bootstrap image override. Production pulls the published VERSION image by default; pinned sha256 image IDs are reused. Local builds require explicit --from-source."
     },
     {
       "name": "FS_INSTALLER_RELEASE_RETENTION",
@@ -3548,7 +3567,7 @@
       "preserve_existing": true,
       "default": "official",
       "owner": "installer",
-      "notes": "Installer-owned source/official selection retained in installation state. Ordinary Git checkout installs set source; release handoffs set official. Operators do not need to supply this value."
+      "notes": "Installer-owned source/official selection retained in installation state. Published release images are the default; only explicit --from-source selects source builds. Operators do not need to supply this value."
     },
     {
       "name": "FS_INTERNAL_BASE_URL",

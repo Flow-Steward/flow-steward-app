@@ -4,7 +4,8 @@
 
 Accepted — 2026-09-27. Amended 2026-10-27 (release 0.9.1): a fresh install of a
 published release tag installs its official images. Amended 2026-10-27 (release
-0.9.2): the PostgreSQL image is an official release image.
+0.9.2): the PostgreSQL image is an official release image. Amended 2026-11-06
+(release 0.9.12): prebuilt production installer and explicit source mode.
 
 ## Context
 
@@ -15,28 +16,38 @@ also carried an exact authenticated identity but performed remote discovery.
 
 ## Decision
 
-Fresh production install builds the local checkout through the existing Docker
-build paths for Compact and Scalable. It records source mode and the full Git
-commit SHA; a release tag and remote release discovery are not prerequisites.
-This corrects the original tagged-checkout-only decision after a real VPS
-installation failed on `production_checkout_tag_missing` (user clarification,
-2026-09-27). Existing official identities and activation journals still use the
-complete-set OCI resolver and never silently fall back to local builds.
+Production installation downloads the published management installer for the
+checkout VERSION, using GHCR first and Docker Hub second. Registry references
+are pulled and execution uses the inspected immutable local image ID; an explicit
+local image ID is reused only when present. Pull/inspect failures stop installation
+and never authorize a build.
 
-Amendment (2026-10-27, once the repository and both registries became public):
-a fresh install with no installer state whose checkout is clean and exactly at
-its `v<VERSION>` tag installs that release officially. The installer asks the
-local checkout through a non-raising probe, so an ordinary development checkout
-(no tag, the tag elsewhere, tracked changes, no usable Git) keeps the source
-build above. At the tag it reads the stable GitHub Release for that version from
-`FS_RELEASE_REPOSITORY`, requires the published tag to name the checked-out
-commit, resolves the complete digest-pinned role set from the first configured
-registry that has all of it, and stages it as the pending release, so the
-existing official install path pulls by digest and builds no product image. A
-release that is not published as stable, an incomplete image set, or an
-unreachable GitHub or registry stops the install with
-`release_images_unavailable`; it never falls back to a source build. A resumed
-source installation is not re-decided from the checkout.
+Management preparation may cache VERSION and the immutable local dependency
+image ID under the existing installer-state `runtime/` directory. This is not
+release or source provenance. Only Doctor can reuse a valid same-version cache;
+ordinary production installation ignores it, explicit overrides win, and a missing
+cached image fails without a build. Read-only Doctor never writes the cache.
+Clone's existing runtime-state policy keeps it target-local.
+
+A fresh production install uses the existing exact published stable release
+resolver for a clean `v<VERSION>` checkout from `Flow-Steward/flow-steward-app`.
+The local tag must name HEAD and tracked inputs remain clean, preserving the
+existing controller/schema provenance contract. When this cannot be proved, the
+default install reports a checkout/provenance mismatch with published-tag or
+explicit source-mode guidance; it does not report an image availability failure.
+It never changes the checkout or selects a floating/latest target implicitly.
+Existing official state and handoff bindings keep their identities on resume.
+
+Only `./install.sh --from-source` authorizes management and product source builds,
+including Development and subsequent source resume/update runs. This mode records
+source provenance and needs no release lookup; it cannot replace installed or
+pending official state. Source-to-official changes retain the reviewed transition.
+This supersedes the earlier automatic source selection for untagged/dirty checkouts.
+
+The release pipeline publishes `flow-steward-installer:X.Y.Z` on both Linux
+architectures, with revision and installer-role labels, alongside PostgreSQL and
+product images. It is a publication-only role: durable deployment identities keep
+their existing product/shared role schemas.
 
 Amendment (release 0.9.2): the canonical PostgreSQL image
 (`infra/docker/postgres-extended/Dockerfile`) is published as the shared release
@@ -60,7 +71,9 @@ two rules follow from that instead of one "complete set" rule:
   0.9.2 installer reads it; rejecting it would make `release upgrade` from 0.9.1
   impossible, and re-resolving it would change the journaled target. An identity
   without the role leaves `POSTGRES_IMAGE` to the installation, which keeps its
-  image and builds the registry default locally when absent, as before.
+  image when present. If that selected image is missing, activation fails with an
+  actionable error; an official path never builds it locally. Only explicit source
+  preparation passes the dependency builder permission to compile.
 
 Data safety rests on image equivalence: the published image is built from the same
 Dockerfile, base digest and `AGE_REF`, so PostgreSQL 17, pgvector and AGE are
