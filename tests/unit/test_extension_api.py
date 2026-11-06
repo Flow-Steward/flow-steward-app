@@ -1429,6 +1429,8 @@ class TestExtensionInstall:
                         "client_auth_method": "client_secret_post",
                     },
                     "revocation_endpoint": {"url": "https://identity.example.test/revoke"},
+                    # The flow type only, so the setup page can pick its form.
+                    "flow": {"type": "authorization_code"},
                     "credential_fields": [
                         {
                             "field_id": "client_id",

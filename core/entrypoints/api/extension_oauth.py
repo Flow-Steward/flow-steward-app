@@ -21,6 +21,10 @@ from core.application.extensions.oauth_configuration import (
     OAuthConfigurationService,
 )
 from core.application.extensions.oauth_connection_lifecycle import OAuthConnectionLifecycleService
+from core.application.extensions.oauth_refresh_token_import import (
+    OAuthRefreshTokenImport,
+    OAuthRefreshTokenImportService,
+)
 from core.application.management.errors import (
     ServiceError,
     ServiceNotFoundError,
@@ -33,6 +37,7 @@ from core.infrastructure.runtime.extension_oauth_db_adapters import (
     create_extension_oauth_callback_service,
     create_extension_oauth_configuration_service,
     create_extension_oauth_connection_lifecycle_service,
+    create_extension_oauth_refresh_token_import_service,
 )
 
 _MESSAGE_INVALID_OAUTH_AUTHORIZATION_REQUEST = "Invalid OAuth authorization request"
@@ -103,6 +108,23 @@ async def _read_bounded_request_body(request: Request) -> bytes:
     return body
 
 
+def parse_refresh_token_import(value: Any) -> OAuthRefreshTokenImport:
+    """The import command, or a bare refusal that carries nothing of the input.
+
+    A pydantic error holds the submitted values, the refresh token among them,
+    so it is neither chained nor left as the implicit context: the refusal is
+    raised outside the handler that caught it.
+    """
+    try:
+        return OAuthRefreshTokenImport.model_validate(value)
+    except ValidationError:
+        pass
+    raise ServiceValidationError(
+        "Invalid OAuth refresh-token import request",
+        payload={"error": "invalid_request"},
+    )
+
+
 def build_extension_oauth_callback_handler(logger: Any) -> Callable[..., Any]:
     service = create_extension_oauth_callback_service(logger)
 
@@ -134,6 +156,8 @@ def create_extension_oauth_router(
     callback_service_factory: Callable[[Any], OAuthCallbackService] | None = None,
     connection_lifecycle_service_factory: Callable[[Any], OAuthConnectionLifecycleService]
     | None = None,
+    refresh_token_import_service_factory: Callable[[Any], OAuthRefreshTokenImportService]
+    | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["extension-oauth"])
     build_service = service_factory or create_extension_oauth_configuration_service
@@ -143,6 +167,9 @@ def create_extension_oauth_router(
     build_callback_service = callback_service_factory or create_extension_oauth_callback_service
     build_connection_lifecycle_service = (
         connection_lifecycle_service_factory or create_extension_oauth_connection_lifecycle_service
+    )
+    build_refresh_token_import_service = (
+        refresh_token_import_service_factory or create_extension_oauth_refresh_token_import_service
     )
 
     def scoped(request: Request, project_id: str, *, operator: bool):
@@ -344,6 +371,31 @@ def create_extension_oauth_router(
                 build_authorization_service(logger)
                 .start_authorization(scope, install_id, provider_id, command)
                 .model_dump(mode="json")
+            )
+
+        return await invoke(request, operation)
+
+    @router.post(route_prefix + "/connections/import")
+    async def import_refresh_token_connection(
+        project_id: str,
+        install_id: str,
+        provider_id: str,
+        request: Request,
+    ):
+        """Connect an account from a refresh token issued in the provider's console."""
+        body, body_error, too_large = await oauth_json_body(request)
+        if too_large:
+            return request_too_large_response()
+        if body is None:
+            return invalid_request_response(body_error)
+
+        def operation():
+            logger, scope = scoped(request, project_id, operator=True)
+            command = parse_refresh_token_import(body)
+            return (
+                build_refresh_token_import_service(logger)
+                .import_refresh_token(scope, install_id, provider_id, command)
+                .model_dump(mode="json", exclude_none=True)
             )
 
         return await invoke(request, operation)
@@ -577,4 +629,5 @@ __all__ = [
     "OAuthPostConnectRetryRequest",
     "build_extension_oauth_callback_handler",
     "create_extension_oauth_router",
+    "parse_refresh_token_import",
 ]

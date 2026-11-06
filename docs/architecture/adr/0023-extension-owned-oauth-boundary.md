@@ -11,6 +11,11 @@ cover a declared dynamic origin as well as a fixed URL. This records current
 behavior without treating ADR 0024 as an accepted amendment; the extension-owned
 boundary itself is unchanged.
 
+ADR 0058 (Proposed) proposes amending clause 3 to admit a second flow type,
+`refresh_token_import`, for providers whose console issues the refresh token. The
+implementation of that flow exists; clause 3 below is not rewritten while ADR 0058
+awaits project-owner approval.
+
 ## Context
 
 The predecessor design placed one motivating consumer's application credentials and

@@ -84,6 +84,7 @@
     "core/application/extensions/oauth_callback_policy.py",
     "core/application/extensions/oauth_configuration_repository.py",
     "core/application/extensions/oauth_configuration_secrets.py",
+    "core/application/extensions/oauth_connection_runtime_config.py",
     "core/application/extensions/oauth_contract.py",
     "core/application/extensions/oauth_contract_models.py",
     "core/application/extensions/oauth_contract_validation.py",

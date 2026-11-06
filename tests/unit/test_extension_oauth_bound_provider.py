@@ -1172,7 +1172,7 @@ class TestAContractSectionIsReadInEitherDeclaredForm:
 
     def test_the_requested_scopes_lookup_accepts_a_referenced_section(self) -> None:
         """The end this fix exists for: scopes resolve for a file-referencing bundle."""
-        from core.application.extensions.oauth_authorization import OAuthAuthorizationService
+        from core.application.extensions.oauth_authorization import requested_connection_scopes
 
         descriptor = {
             "connection_types": [
@@ -1192,7 +1192,7 @@ class TestAContractSectionIsReadInEitherDeclaredForm:
             },
         }
 
-        scopes = OAuthAuthorizationService._requested_scopes(
+        scopes = requested_connection_scopes(
             descriptor, connection_type="bound_mail", provider_id="bound_example"
         )
 

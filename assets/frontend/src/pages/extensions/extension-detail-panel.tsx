@@ -56,6 +56,7 @@ import { ExtensionOAuthSetup } from "@/pages/extensions/extension-oauth-setup";
 import type { ExtensionOAuthSetupMode } from "@/pages/extensions/extension-oauth-setup-model";
 import {
   oauthConnectionTypesFromManifest,
+  isRefreshTokenImportProvider,
   oauthProvidersFromManifest,
 } from "@/pages/extensions/extension-oauth-types";
 
@@ -246,12 +247,14 @@ function activeOAuthProviderRows(
     const connectionRows = pageComponents.flatMap<ActiveOAuthProvider>(({ component, data }, index) => {
       const connectionTypeId = stringFrom(data.connection_type);
       const intentId = stringFrom(data.oauth_intent);
-      if (stringFrom(data.oauth_provider_id) !== provider.provider_id || !connectionTypeId || !intentId) return [];
+      // An import provider's form names no intent: it has no redirect to start.
+      const intentRequired = !isRefreshTokenImportProvider(provider);
+      if (stringFrom(data.oauth_provider_id) !== provider.provider_id || !connectionTypeId || (intentRequired && !intentId)) return [];
       return [{
         provider,
         mode: "connections" as const,
         connectionTypeIds: [connectionTypeId],
-        intentIds: [intentId],
+        intentIds: intentRequired ? [intentId] : [],
         connectionOwners: owners
           .filter((owner) => owner.providerId === provider.provider_id && owner.connectionTypeId === connectionTypeId)
           .map((owner) => ({ intentId: owner.intentId, pageId: owner.pageId })),

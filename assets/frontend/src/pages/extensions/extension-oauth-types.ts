@@ -34,9 +34,18 @@ export type OAuthProviderDeclaration = {
   setup_page_id: string;
   help_page_id?: string;
   error_help_anchors?: Readonly<Record<string, string>>;
+  /** `authorization_code` redirects; `refresh_token_import` takes a pasted token (ADR 0058). */
+  flow?: { type?: string; pkce?: string };
   credential_fields: readonly OAuthCredentialFieldDeclaration[];
   authorization_intents: readonly OAuthAuthorizationIntentDeclaration[];
 };
+
+export const REFRESH_TOKEN_IMPORT_FLOW = "refresh_token_import";
+
+/** A provider whose grant starts from a refresh token the operator pastes. */
+export function isRefreshTokenImportProvider(provider: Pick<OAuthProviderDeclaration, "flow">): boolean {
+  return provider.flow?.type === REFRESH_TOKEN_IMPORT_FLOW;
+}
 
 export type OAuthConnectionTypeDeclaration = {
   connection_type_id: string;
@@ -50,6 +59,8 @@ export type OAuthConnectionTypeDeclaration = {
       optional?: readonly string[];
     };
   };
+  /** The connection's non-secret settings, validated by the server on save. */
+  config_schema?: Record<string, unknown>;
 };
 
 function object(value: unknown): Record<string, unknown> {
@@ -68,17 +79,28 @@ function string(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * Providers as the setup page uses them, every optional collection present.
+ *
+ * The compiled manifest an administrator receives names no
+ * `authorization_intents` at all for a `refresh_token_import` provider (it has
+ * no redirect), and the projected one carries an empty list. Both must yield
+ * the same declaration, so arrays and maps are normalized here rather than
+ * assumed by every component that reads them.
+ */
 export function oauthProvidersFromManifest(value: unknown): OAuthProviderDeclaration[] {
   return rows(object(value).oauth_providers)
     .filter((provider) => {
       const credentialFields = rows(provider.credential_fields);
       const intents = rows(provider.authorization_intents);
+      // An import provider has no redirect and so no authorization intents.
+      const imported = string(object(provider.flow).type) === REFRESH_TOKEN_IMPORT_FLOW;
       return Boolean(
         string(provider.provider_id)
         && string(provider.display_name)
         && string(provider.setup_page_id)
         && credentialFields.length
-        && intents.length
+        && (intents.length || imported)
         && credentialFields.every((field) =>
           string(field.field_id)
           && string(field.value_type)
@@ -89,7 +111,20 @@ export function oauthProvidersFromManifest(value: unknown): OAuthProviderDeclara
         )
         && intents.every((intent) => string(intent.intent_id)),
       );
-    }) as OAuthProviderDeclaration[];
+    })
+    .map((provider) => ({
+      ...provider,
+      error_help_anchors: Object.fromEntries(
+        Object.entries(object(provider.error_help_anchors))
+          .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      ),
+      ...(Object.keys(object(provider.flow)).length ? { flow: object(provider.flow) } : {}),
+      credential_fields: rows(provider.credential_fields),
+      authorization_intents: rows(provider.authorization_intents).map((intent) => ({
+        ...intent,
+        user_inputs: rows(intent.user_inputs),
+      })),
+    })) as unknown as OAuthProviderDeclaration[];
 }
 
 export function oauthConnectionTypesFromManifest(value: unknown): OAuthConnectionTypeDeclaration[] {

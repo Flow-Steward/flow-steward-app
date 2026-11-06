@@ -13,6 +13,7 @@ from core.application.extensions.extension_contract_v2_common import (
 from core.application.extensions.oauth_contract_models import (
     DEFAULT_PKCE_MODE,
     DEFAULT_SCOPE_SEPARATOR,
+    FLOW_REFRESH_TOKEN_IMPORT,
     SCOPE_SEPARATORS,
     OAuthAuthorizationIntent,
     OAuthCredentialField,
@@ -30,7 +31,6 @@ from core.application.extensions.oauth_contract_validation import (
     CREDENTIAL_FIELD_KEYS,
     CREDENTIAL_VALIDATION_KEYS,
     ENDPOINT_KEYS,
-    FLOW_KEYS,
     INTENT_INPUT_KEYS,
     INTENT_KEYS,
     INTENT_VALIDATION_KEYS,
@@ -51,6 +51,7 @@ from core.application.extensions.oauth_contract_validation import (
     _bounded_copy,
     _callback_verification,
     _code_exchange_profile,
+    _flow_scoped_row,
     _origin_binding,
     _reject_unknown_keys,
     _safe_endpoint_path,
@@ -71,10 +72,12 @@ def _compile_oauth_provider_rows(
     """Validate and normalize extension-local OAuth provider declarations."""
     normalized: list[OAuthProviderContract] = []
     seen: set[str] = set()
-    for idx, raw in enumerate(rows):
+    for idx, declared in enumerate(rows):
         provider_error_count = len(errors)
         path = f"extension_contract_v2.oauth_providers[{idx}]"
-        _reject_unknown_keys(errors, path=path, value=raw, allowed=PROVIDER_KEYS)
+        _reject_unknown_keys(errors, path=path, value=declared, allowed=PROVIDER_KEYS)
+        flow_type, raw = _flow_scoped_row(errors, raw=declared, path=path)
+        imported = flow_type == FLOW_REFRESH_TOKEN_IMPORT
         provider_id_value = raw.get("provider_id")
         provider_id = provider_id_value if isinstance(provider_id_value, str) else ""
         if not _valid_oauth_id(provider_id):
@@ -155,15 +158,7 @@ def _compile_oauth_provider_rows(
 
         flow_value = raw.get("flow")
         flow = flow_value if isinstance(flow_value, dict) else {}
-        _reject_unknown_keys(errors, path=f"{path}.flow", value=flow, allowed=FLOW_KEYS)
-        pkce_mode = _normalize_lower(flow.get("pkce"))
-        if _normalize_lower(flow.get("type")) != "authorization_code":
-            _error(
-                errors,
-                path=f"{path}.flow",
-                message="OAuth providers require the authorization_code flow",
-                code="invalid_oauth_flow",
-            )
+        pkce_mode = DEFAULT_PKCE_MODE if imported else _normalize_lower(flow.get("pkce"))
         if pkce_mode not in ALLOWED_PKCE_MODES:
             _error(
                 errors,
@@ -431,7 +426,7 @@ def _compile_oauth_provider_rows(
                 return None
             return OAuthEndpointPermission(url=url, client_auth_method=auth_method)
 
-        authorization_endpoint = endpoint("authorization_endpoint", required=True)
+        authorization_endpoint = endpoint("authorization_endpoint", required=not imported)
         token_endpoint = endpoint("token_endpoint", required=True, token=True)
         revocation_endpoint = endpoint("revocation_endpoint", required=False)
         callback_verification = _callback_verification(
@@ -520,7 +515,11 @@ def _compile_oauth_provider_rows(
 
         callback_id_value = raw.get("callback_id")
         callback_id = callback_id_value if isinstance(callback_id_value, str) else ""
-        if not _valid_oauth_id(callback_id):
+        # An import provider has no redirect and so no callback; a declared one
+        # was already refused by `_flow_scoped_row`.
+        if imported:
+            callback_id = ""
+        elif not _valid_oauth_id(callback_id):
             _error(
                 errors,
                 path=f"{path}.callback_id",
@@ -576,7 +575,7 @@ def _compile_oauth_provider_rows(
                 message="authorization_intents must be a list",
             )
             intent_rows = []
-        if not intent_rows:
+        if not intent_rows and not imported:
             _error(
                 errors,
                 path=f"{path}.authorization_intents",
@@ -833,6 +832,8 @@ def _compile_oauth_provider_rows(
                 )
             )
 
+        if imported:
+            authorization_endpoint = OAuthEndpointPermission()
         if authorization_endpoint and token_endpoint and len(errors) == provider_error_count:
             normalized.append(
                 OAuthProviderContract(
@@ -855,6 +856,7 @@ def _compile_oauth_provider_rows(
                     code_exchange=code_exchange,
                     callback_verification=callback_verification,
                     unique_subject_per_configuration=bool(unique_subject),
+                    flow_type=flow_type,
                 )
             )
     return normalized

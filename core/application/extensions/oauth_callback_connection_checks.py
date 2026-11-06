@@ -8,6 +8,7 @@ from core.application.extensions.oauth_contract import (
     OAuthProviderContract,
     provider_security_fingerprint,
 )
+from core.application.extensions.oauth_contract_models import FLOW_AUTHORIZATION_CODE
 
 from .oauth_callback_models import OAuthCallbackRepository
 from .oauth_callback_policy import _mapping, _provider, _repository_scope, _text
@@ -31,6 +32,11 @@ def _current_install_provider(
     descriptor = _mapping(install.get("compiled_manifest") or install.get("manifest"))
     provider = _provider(descriptor, _text(state.get("provider_id")))
     if provider is None:
+        return None
+    # A grant belongs to exactly one flow. A stored callback state carries no
+    # flow and is authorization-code by construction; an import builds its state
+    # in memory and names its flow, so neither can be completed as the other.
+    if provider.flow_type != (_text(state.get("flow_type")) or FLOW_AUTHORIZATION_CODE):
         return None
     if provider.callback_id != _text(state.get("callback_id")):
         return None

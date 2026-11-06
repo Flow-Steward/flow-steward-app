@@ -4911,6 +4911,54 @@ msgstr ""
 msgid "react.extensions.oauth_final_verified_guidance"
 msgstr ""
 
+msgid "react.extensions.oauth_import_conflict"
+msgstr ""
+
+msgid "react.extensions.oauth_import_conflict_token_rotated"
+msgstr ""
+
+msgid "react.extensions.oauth_import_connected"
+msgstr ""
+
+msgid "react.extensions.oauth_import_connecting"
+msgstr ""
+
+msgid "react.extensions.oauth_import_failed"
+msgstr ""
+
+msgid "react.extensions.oauth_import_invalid_client"
+msgstr ""
+
+msgid "react.extensions.oauth_import_provider_unavailable"
+msgstr ""
+
+msgid "react.extensions.oauth_import_refresh_token"
+msgstr ""
+
+msgid "react.extensions.oauth_import_refresh_token_format"
+msgstr ""
+
+msgid "react.extensions.oauth_import_refresh_token_help"
+msgstr ""
+
+msgid "react.extensions.oauth_import_refresh_token_rejected"
+msgstr ""
+
+msgid "react.extensions.oauth_import_refresh_token_required"
+msgstr ""
+
+msgid "react.extensions.oauth_import_replace"
+msgstr ""
+
+msgid "react.extensions.oauth_import_replace_value0"
+msgstr ""
+
+msgid "react.extensions.oauth_import_revision_missing"
+msgstr ""
+
+msgid "react.extensions.oauth_import_scope_required"
+msgstr ""
+
 msgid "react.extensions.oauth_redirect_uri"
 msgstr ""
 

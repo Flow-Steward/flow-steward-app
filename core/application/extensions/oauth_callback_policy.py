@@ -143,11 +143,50 @@ _VERIFIED_IDENTITY_FIELDS = (
 )
 
 
-def _post_connect_config(
+#: Core-owned bookkeeping in the `oauth` partition while a replacement grant
+#: waits for its post-connect action: the subject the connection was bound to.
+#: Never projected to an extension (it is not a runtime oauth field).
+_REPLACED_SUBJECT = "replaced_subject"
+
+
+#: Closed code for a replacement grant that verified as a different account.
+OAUTH_SUBJECT_CHANGED = "subject_changed"
+
+
+def _effective_post_connect_result(
     connection: Mapping[str, Any], result: OAuthPostConnectResult
+) -> OAuthPostConnectResult:
+    """The result to record, refusing a replacement that changed the account.
+
+    Replacing a grant keeps the connection's ID, so workflows that name it keep
+    running. If the post-connect action verifies a different subject than the
+    one the connection was bound to, adopting it would silently repoint those
+    workflows at another account. The connection keeps its subject and needs
+    attention instead; changing account is a new connection, not a replacement.
+    """
+    oauth = _mapping(_mapping(connection.get("connection_config")).get("oauth"))
+    replaced = _text(oauth.get(_REPLACED_SUBJECT))
+    if result.health != "ok" or not replaced or result.subject == replaced:
+        return result
+    return OAuthPostConnectResult(
+        subject=replaced,
+        verified_display_name=None,
+        verified_email=None,
+        safe_metadata={},
+        health="needs_attention",
+        error_code=OAUTH_SUBJECT_CHANGED,
+    )
+
+
+def _post_connect_config(
+    connection: Mapping[str, Any],
+    result: OAuthPostConnectResult,
+    *,
+    keep_identity_on_failure: bool = False,
 ) -> tuple[dict[str, Any], str]:
     config = _mapping(connection.get("connection_config"))
     oauth = _mapping(config.get("oauth"))
+    replaced = _text(oauth.pop(_REPLACED_SUBJECT, ""))
     oauth["lifecycle_status"] = "connected" if result.health == "ok" else result.health
     oauth["token_type"] = "Bearer"
     oauth["last_error_code"] = result.error_code
@@ -162,6 +201,10 @@ def _post_connect_config(
             }
         )
         display_name = result.verified_display_name or result.verified_email or result.subject
+    elif replaced and (keep_identity_on_failure or result.error_code == OAUTH_SUBJECT_CHANGED):
+        # The connection stays bound to the account it already had: a failed
+        # or mismatched verification is not evidence of a different one.
+        oauth["subject"] = replaced
     else:
         for field in _VERIFIED_IDENTITY_FIELDS:
             oauth.pop(field, None)

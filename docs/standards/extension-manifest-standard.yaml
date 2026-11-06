@@ -341,10 +341,12 @@ runtime:
         error_help_anchors:
           invalid_client: client-credentials
           authorization_required: authorize-again
-        # `type` is always authorization_code. `pkce` is s256 by default and may be
-        # `none` only for an authorization server that rejects the PKCE parameters
-        # rather than ignoring them; the mode is part of the security fingerprint,
-        # so changing it forces reauthorization. See ADR 0024.
+        # `type` is authorization_code (this example) or refresh_token_import (see
+        # the commented provider at the end of this list, ADR 0058). For
+        # authorization_code, `pkce` is s256 by default and may be `none` only for
+        # an authorization server that rejects the PKCE parameters rather than
+        # ignoring them; the mode is part of the security fingerprint, so changing
+        # it forces reauthorization. See ADR 0024.
         flow: {type: authorization_code, pkce: s256}
         # How this provider joins the scopes of a connection type: `space` (RFC 6749,
         # the default) or `comma`. A grant read back is parsed with either separator,
@@ -461,6 +463,46 @@ runtime:
         #   secret_source: client_secret
         #   subject_parameter: tenant
         #   subject_binding: tenant_origin
+      # A provider whose console issues the refresh token (ADR 0058). There is no
+      # redirect, so it declares no authorization_endpoint, callback_id,
+      # authorization_intents, origin_binding, callback_verification or flow.pkce,
+      # and of code_exchange only implicit_token_type and required_response_fields
+      # (everything else is refused); scope_separator works as for any provider,
+      # and unique_subject_per_configuration must be absent or false. The operator
+      # pastes the refresh token with the connection's config_schema settings;
+      # Core exchanges it once at token_endpoint with grant_type=refresh_token and
+      # the client credentials below, then stores and refreshes it like any grant.
+      # The extension never receives the refresh token or the client secret. The
+      # post-connect action's target carries connection.config (the settings plus
+      # the closed oauth fields) and connection.secrets.access_token, so it can
+      # verify which account the token belongs to.
+      # - provider_id: example_console
+      #   display_name: Example Console
+      #   description: Connect with a refresh token issued in the Example console.
+      #   setup_page_id: oauth_setup
+      #   help_page_id: oauth_help
+      #   flow: {type: refresh_token_import}
+      #   credential_fields:
+      #     - field_id: client_id
+      #       value_type: text
+      #       required: true
+      #       secret: false
+      #       change_policy: reauthorization_required
+      #       label: Client ID
+      #       help_text: Copy the Client ID from the application settings.
+      #       validation: {min_length: 1, max_length: 512}
+      #     - field_id: client_secret
+      #       value_type: secret
+      #       required: true
+      #       secret: true
+      #       change_policy: runtime_revalidate
+      #       label: Client secret
+      #       help_text: Copy the Client Secret from the application settings.
+      #       validation: {min_length: 1, max_length: 4096}
+      #   token_endpoint:
+      #     url: https://idp.example.com/token
+      #     client_auth_method: client_secret_post
+      #   post_connect_action_id: verify_identity
     connection_types:
       - connection_type_id: example_oauth_account
         display_name: Example OAuth Account
@@ -469,6 +511,9 @@ runtime:
           type: oauth2
           provider_id: example
           scopes:
+            # At least one required scope, except for a connection type bound to
+            # a refresh_token_import provider, which may leave it empty; Core then
+            # records no granted scopes rather than inventing them.
             required:
               - read
             optional:

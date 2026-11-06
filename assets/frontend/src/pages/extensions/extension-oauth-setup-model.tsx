@@ -254,6 +254,7 @@ export function oauthConnectionDeclaration({
   connectionTypes,
   mode,
   providerId,
+  refreshTokenImport = false,
   returnPageId,
 }: {
   allowedConnectionTypeIds?: readonly string[];
@@ -262,12 +263,15 @@ export function oauthConnectionDeclaration({
   connectionTypes: readonly OAuthConnectionTypeDeclaration[];
   mode: ExtensionOAuthSetupMode;
   providerId: string;
+  /** An import provider has no intents, so a page names it by connection type alone. */
+  refreshTokenImport?: boolean;
   returnPageId: string;
 }): OAuthConnectionDeclaration {
   const exactAllowedConnectionTypeIds = uniqueTextValues(allowedConnectionTypeIds);
   const exactAllowedIntentIds = uniqueTextValues(allowedIntentIds);
   const connectionDeclarationIsExact = mode === "setup" || (
-    exactAllowedConnectionTypeIds.length === 1 && exactAllowedIntentIds.length === 1
+    exactAllowedConnectionTypeIds.length === 1
+    && exactAllowedIntentIds.length === (refreshTokenImport ? 0 : 1)
   );
   const providerConnectionTypes = connectionTypes.filter((row) =>
     connectionDeclarationIsExact

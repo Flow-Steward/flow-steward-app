@@ -14,7 +14,13 @@ import {
   type ExtensionOAuthScope,
   type OAuthConfigurationView,
 } from "@/pages/extensions/extension-oauth-api";
-import type { OAuthProviderDeclaration } from "@/pages/extensions/extension-oauth-types";
+import {
+  isRefreshTokenImportProvider,
+  type OAuthConnectionTypeDeclaration,
+  type OAuthProviderDeclaration,
+} from "@/pages/extensions/extension-oauth-types";
+
+import { ConnectionComposer } from "./extension-oauth-connection-composer";
 
 import {
   authorizationStartGuidance,
@@ -29,6 +35,8 @@ import {
 type ConnectionListProps = {
   canManage: boolean;
   configurations: readonly OAuthConfigurationView[];
+  /** The provider's connection types, for a refresh-token replacement form. */
+  connectionTypes?: readonly OAuthConnectionTypeDeclaration[];
   connections: readonly Record<string, unknown>[];
   ownedConnectionTypeId: string;
   ownedIntentId: string;
@@ -94,7 +102,9 @@ function oauthConnectionRowView(
       "authorization_required",
       "disconnected",
       "reconnect_required",
-    ].includes(lifecycle),
+    ].includes(lifecycle)
+      // A rejected or mismatched imported token is repaired by pasting another.
+      || (isRefreshTokenImportProvider(provider) && lifecycle === "needs_attention" && !retryableLifecycle),
     retryablePostConnect:
       retryableLifecycle && isConfigurationReady(configuration),
   };
@@ -153,6 +163,7 @@ function connectionDisconnectingNotice(view: OAuthConnectionRowView, canManage: 
 function OAuthConnectionActions({
   busy,
   canManage,
+  imported,
   onDisconnect,
   onReconnect,
   onRetry,
@@ -162,6 +173,8 @@ function OAuthConnectionActions({
 }: Readonly<{
   busy: boolean;
   canManage: boolean;
+  /** Reconnecting an imported grant means pasting a new refresh token. */
+  imported: boolean;
   onDisconnect: (row: Record<string, unknown>, recovery?: boolean) => void;
   onReconnect: (row: Record<string, unknown>) => void;
   onRetry: (row: Record<string, unknown>) => void;
@@ -211,13 +224,17 @@ function OAuthConnectionActions({
       ) : null}
       {view.reconnectable ? (
         <button
-          aria-label={t("react.extensions.reconnect_value0", "Reconnect {value0}", { value0: view.displayName })}
+          aria-label={imported
+            ? t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: view.displayName })
+            : t("react.extensions.reconnect_value0", "Reconnect {value0}", { value0: view.displayName })}
           className="fs-button sm primary"
           disabled={busy}
           onClick={() => onReconnect(row)}
           type="button"
         >
-          {t("react.extensions.reconnect", "Reconnect")}</button>
+          {imported
+            ? t("react.extensions.oauth_import_replace", "Replace refresh token")
+            : t("react.extensions.reconnect", "Reconnect")}</button>
       ) : null}
       {view.lifecycle !== "disconnected" ? (
         <button
@@ -247,11 +264,14 @@ function OAuthConnectionRow({
   onRetry,
   onTest,
   provider,
+  replacement,
   row,
 }: Readonly<{
   busyId: string;
   canManage: boolean;
   configurations: readonly OAuthConfigurationView[];
+  /** The refresh-token replacement form, shown in place of the row while open. */
+  replacement?: React.ReactNode;
   currentTime: number;
   disconnectConfirm: { connectionId: string; error: string } | null;
   focusConnectionId?: string;
@@ -271,6 +291,18 @@ function OAuthConnectionRow({
   const rowClass = focusConnectionId === view.connectionId
     ? "fs-manifest-row is-focused"
     : "fs-manifest-row";
+  if (replacement) {
+    return (
+      <div
+        aria-label={t("react.extensions.connection_value0", "Connection {value0}", { value0: view.displayName })}
+        className={rowClass}
+        id={connectionDomId(view.connectionId)}
+        tabIndex={-1}
+      >
+        {replacement}
+      </div>
+    );
+  }
   if (disconnectConfirm?.connectionId === view.connectionId) {
     // Reversible, but reconnecting means authorizing again: the row is
     // replaced in place by its confirmation, and comes back on No.
@@ -334,6 +366,7 @@ function OAuthConnectionRow({
       <OAuthConnectionActions
         busy={busy}
         canManage={canManage}
+        imported={isRefreshTokenImportProvider(provider)}
         onDisconnect={onDisconnect}
         onReconnect={onReconnect}
         onRetry={onRetry}
@@ -348,6 +381,7 @@ function OAuthConnectionRow({
 export function ConnectionList({
   canManage,
   configurations,
+  connectionTypes = [],
   connections,
   ownedConnectionTypeId,
   ownedIntentId,
@@ -365,6 +399,8 @@ export function ConnectionList({
   const focusedConnectionKeyRef = useRef("");
   const [busyId, setBusyId] = useState("");
   const [disconnectConfirm, setDisconnectConfirm] = useState<{ connectionId: string; error: string } | null>(null);
+  const [replacingId, setReplacingId] = useState("");
+  const imported = isRefreshTokenImportProvider(provider);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [error, setError] = useState("");
   const [retryHelpTarget, setRetryHelpTarget] = useState<{
@@ -372,6 +408,13 @@ export function ConnectionList({
     anchor?: string;
   } | null>(null);
   const owned = connections.filter((row) => {
+    if (imported) {
+      // An imported grant has no intent: the page owns it by connection type.
+      return Boolean(ownedConnectionTypeId)
+        && text(row.extension_install_id) === scope.installId
+        && text(row.oauth_provider_id) === scope.providerId
+        && text(row.connection_type) === ownedConnectionTypeId;
+    }
     const oauth = record(record(row.connection_config).oauth);
     const storedIntentId = text(oauth.authorization_intent_id);
     const storedIntentIsDeclared = provider.authorization_intents.some(
@@ -541,6 +584,15 @@ export function ConnectionList({
     const connectionId = text(row.connection_id);
     const configurationId = text(row.oauth_configuration_id);
     const connectionType = text(row.connection_type);
+    if (imported) {
+      if (!isConfigurationReady(configurations.find((candidate) => candidate.configuration_id === configurationId))) {
+        setError(t("react.extensions.this_connection_cannot_be_reauthorized_until_its_configuration_is_ready", "This connection cannot be reauthorized until its configuration is ready."));
+        return;
+      }
+      setError("");
+      setReplacingId(connectionId);
+      return;
+    }
     const displayName = text(row.display_name) || connectionId;
     const ownedIntentIsDeclared = provider.authorization_intents.some(
       (intent) => intent.intent_id === ownedIntentId,
@@ -618,6 +670,18 @@ export function ConnectionList({
               : undefined
           }
           provider={provider}
+          replacement={imported && replacingId === text(row.connection_id) ? (
+            <ConnectionComposer
+              configuration={configurations.find((candidate) => candidate.configuration_id === text(row.oauth_configuration_id))}
+              connectionTypes={connectionTypes.filter((type) => type.connection_type_id === text(row.connection_type))}
+              onCancel={() => setReplacingId("")}
+              onConnectionsChanged={onConnectionsChanged}
+              provider={provider}
+              replaceConnection={row}
+              returnPageId={returnPageId}
+              scope={scope}
+            />
+          ) : undefined}
           row={row}
         />
       ))}

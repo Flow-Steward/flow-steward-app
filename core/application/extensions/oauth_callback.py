@@ -9,9 +9,6 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 
-from core.application.extensions.oauth_configuration_secrets import (
-    configuration_secret_ref_key,
-)
 from core.application.extensions.oauth_contract import (
     OAuthProviderContract,
     oauth_error_help_target,
@@ -41,14 +38,11 @@ from .oauth_callback_policy import (
     _MESSAGE_STALE_CONFIGURATION,
     _MESSAGE_STALE_CONNECTION,
     _MESSAGE_STALE_INSTALL,
-    _VERIFIED_IDENTITY_FIELDS,
     _callback_signature_ok,
     _callback_url_matches,
     _configuration_matches,
     _connection_matches,
-    _connection_owned_refs,
     _mapping,
-    _operational_state,
     _post_connect_outcome,
     _provider,
     _provider_error_outcome,
@@ -60,6 +54,7 @@ from .oauth_callback_policy import (
     _text,
 )
 from .oauth_callback_post_connect_runtime import _apply_post_connect, _dispatch_post_connect
+from .oauth_grant_commit import OAuthGrant, OAuthGrantCommitter, oauth_client_credentials
 
 #: Error codes that mean the provider answered and refused *the exchange*. Nothing
 #: was granted, so a connection being reconnected is genuinely untouched.
@@ -116,6 +111,13 @@ class OAuthCallbackService:
         self._invoke_post_connect = invoke_post_connect
         self._resolve_runtime_access_token = resolve_runtime_access_token
         self._connection_id_factory = connection_id_factory
+        self._grant_committer = OAuthGrantCommitter(
+            repository=repository,
+            token_store=token_store,
+            install_loader=install_loader,
+            transaction_factory=transaction_factory,
+            invoke_post_connect=invoke_post_connect,
+        )
 
     def _exchange_error_result(
         self,
@@ -145,33 +147,10 @@ class OAuthCallbackService:
             outcome = "authorization_denied"
         else:
             outcome = "provider_unavailable"
-        if code is OAuthErrorCode.INVALID_CLIENT:
-            try:
-                with self._transaction_factory():
-                    current = _locked_install_provider(
-                        state, repository=self._repository, install_loader=self._install_loader
-                    )
-                    if current is None:
-                        raise ValueError(_MESSAGE_STALE_INSTALL)
-                    _, locked_provider = current
-                    scope = _repository_scope(state)
-                    configuration = _mapping(
-                        self._repository.get_configuration_for_scope_for_update(**scope)
-                    )
-                    if not _configuration_matches(configuration, state, locked_provider):
-                        raise ValueError(_MESSAGE_STALE_CONFIGURATION)
-                    updated = self._repository.mark_configuration_invalid_client(
-                        **scope,
-                        expected_configuration_revision=int(
-                            state.get("configuration_revision") or 0
-                        ),
-                    )
-                    if updated is None:
-                        raise ValueError(_MESSAGE_STALE_CONFIGURATION)
-            except Exception:
-                return OAuthCallbackResult(
-                    outcome="restart_required", return_page_id=return_page_id
-                )
+        if code is OAuthErrorCode.INVALID_CLIENT and not self._grant_committer.mark_invalid_client(
+            state
+        ):
+            return OAuthCallbackResult(outcome="restart_required", return_page_id=return_page_id)
         definite = code in _DEFINITE_REFUSAL_CODES and not granted
         if preserved_connection_id and not definite:
             # The grant may have landed. The connection still exists and is still
@@ -283,6 +262,7 @@ class OAuthCallbackService:
                     "authorization_revision": configuration.get("authorization_revision"),
                     "provider_security_fingerprint": provider_security_fingerprint(provider),
                     "callback_id": provider.callback_id,
+                    "flow_type": provider.flow_type,
                     "connection_type": connection_type,
                     "existing_connection_id": connection_id,
                 }
@@ -382,19 +362,19 @@ class OAuthCallbackService:
         if dispatched is None:
             return OAuthCallbackResult(outcome="restart_required")
         invocation, expected_revision, state = dispatched
-        result = oauth_post_connect_result_from_invocation(invocation)
-        if not _apply_post_connect(
+        recorded = _apply_post_connect(
             state=state,
             connection_id=connection_id,
             expected_revision=expected_revision,
-            result=result,
+            result=oauth_post_connect_result_from_invocation(invocation),
             repository=self._repository,
             transaction_factory=self._transaction_factory,
             install_loader=self._install_loader,
-        ):
+        )
+        if recorded is None:
             return OAuthCallbackResult(outcome="restart_required")
         return OAuthCallbackResult(
-            outcome=_post_connect_outcome(result), connection_id=connection_id
+            outcome=_post_connect_outcome(recorded), connection_id=connection_id
         )
 
     def _pre_exchange(
@@ -412,25 +392,16 @@ class OAuthCallbackService:
         configuration = _mapping(configuration)
         if not _configuration_matches(configuration, state, provider):
             return None
-        non_secret = _mapping(configuration.get("non_secret_config"))
-        client_id = _text(non_secret.get("client_id"))
-        if not client_id:
+        credentials = oauth_client_credentials(
+            configuration,
+            provider=provider,
+            configuration_id=_text(state.get("configuration_id")),
+            account_id=_text(state.get("account_id")),
+            configuration_secret_value=self._configuration_secret_value,
+        )
+        if credentials is None:
             return None
-        secret_refs = _mapping(_mapping(configuration.get("secret_refs")).get("refs"))
-        client_secret = ""
-        if provider.token_endpoint.client_auth_method != "none":
-            expected_ref = configuration_secret_ref_key(
-                _text(state.get("configuration_id")), "client_secret"
-            )
-            if _text(secret_refs.get("client_secret")) != expected_ref:
-                return None
-            client_secret = _text(
-                self._configuration_secret_value(
-                    account_id=_text(state.get("account_id")), ref_key=expected_ref
-                )
-            )
-            if not client_secret:
-                return None
+        client_id, client_secret = credentials
         # A provider without PKCE stored no verifier, so requiring one here would
         # reject every one of its callbacks.
         verifier = ""
@@ -735,175 +706,14 @@ class OAuthCallbackService:
         connection_id = existing_connection_id or _text(self._connection_id_factory())
         if not connection_id:
             return OAuthCallbackResult(outcome="restart_required", return_page_id=return_page_id)
-        try:
-            with self._transaction_factory():
-                current = _locked_install_provider(
-                    state, repository=self._repository, install_loader=self._install_loader
-                )
-                if current is None:
-                    raise ValueError(_MESSAGE_STALE_INSTALL)
-                _, locked_provider = current
-                scope = _repository_scope(state)
-                configuration = _mapping(
-                    self._repository.get_configuration_for_scope_for_update(**scope)
-                )
-                if not _configuration_matches(configuration, state, locked_provider):
-                    raise ValueError(_MESSAGE_STALE_CONFIGURATION)
-
-                connection: dict[str, Any] = {}
-                expected_connection_revision = 0
-                existing_refresh_token = ""
-                existing_refs: dict[str, str] = {}
-                if existing_connection_id:
-                    intent_payload = _mapping(state.get("intent_payload"))
-                    expected_connection_revision = int(
-                        intent_payload.get("connection_credential_revision") or 0
-                    )
-                    connection = _mapping(
-                        self._repository.lock_connection(
-                            connection_id=existing_connection_id,
-                            **scope,
-                            connection_type=_text(state.get("connection_type")),
-                        )
-                    )
-                    if not _connection_matches(
-                        connection,
-                        state,
-                        expected_revision=expected_connection_revision,
-                    ):
-                        raise ValueError(_MESSAGE_STALE_CONNECTION)
-                    validated_refs = _connection_owned_refs(
-                        existing_connection_id,
-                        connection.get("secret_refs"),
-                    )
-                    if validated_refs is None:
-                        raise ValueError("invalid connection secret refs")
-                    existing_refs = validated_refs
-                    refresh_ref = existing_refs.get("_oauth_refresh_token")
-                    refresh_refs = (
-                        {"refs": {"_oauth_refresh_token": refresh_ref}} if refresh_ref else {}
-                    )
-                    existing_refresh_token = self._token_store.resolve_refresh_token(
-                        account_id=_text(state.get("account_id")),
-                        secret_refs=refresh_refs,
-                    )
-
-                normalized_token_response = dict(token_response)
-                normalized_token_response["scope"] = " ".join(granted_scopes)
-                secret_refs = self._token_store.write_tokens(
-                    account_id=_text(state.get("account_id")),
-                    connection_id=connection_id,
-                    token_response=normalized_token_response,
-                    existing_refresh_token=existing_refresh_token,
-                )
-                if connection:
-                    written_refs = _mapping(_mapping(secret_refs).get("refs"))
-                    if "expires_in" not in normalized_token_response:
-                        existing_refs.pop("_oauth_expires_at", None)
-                    secret_refs = {"refs": {**existing_refs, **written_refs}}
-                existing_config = _mapping(connection.get("connection_config"))
-                existing_oauth = _mapping(existing_config.get("oauth"))
-                pending_oauth = dict(existing_oauth)
-                if self._invoke_post_connect is not None and locked_provider.post_connect_action_id:
-                    for field in _VERIFIED_IDENTITY_FIELDS:
-                        pending_oauth.pop(field, None)
-                post_connect_pending = bool(
-                    self._invoke_post_connect is not None and locked_provider.post_connect_action_id
-                )
-                oauth_config: dict[str, Any] = {
-                    **pending_oauth,
-                    "lifecycle_status": (
-                        "post_connect_pending" if post_connect_pending else "connected"
-                    ),
-                    "token_type": "Bearer",
-                    "authorization_intent_id": _text(state.get("intent_id")),
-                }
-                # A provider that signs its callback has already told us, provably,
-                # which subject the grant belongs to. That is a better identity than
-                # one asked for afterwards, so it is recorded here and no follow-up
-                # request is made to discover it.
-                verified_subject = _state_origin(state)
-                if locked_provider.callback_verification is not None and verified_subject:
-                    oauth_config["subject"] = verified_subject
-                connection_config = {**existing_config, "oauth": oauth_config}
-                connection_values = {
-                    "connection_id": connection_id,
-                    "tenant_id": _text(state.get("tenant_id")),
-                    "account_id": _text(state.get("account_id")),
-                    "project_id": _text(state.get("project_id")),
-                    "extension_install_id": _text(state.get("extension_install_id")),
-                    "extension_id": _text(state.get("extension_id")),
-                    "display_name": _text(state.get("display_name")),
-                    "connection_kind": "extension",
-                    "connection_type": _text(state.get("connection_type")),
-                    "oauth_configuration_id": _text(state.get("configuration_id")),
-                    "oauth_provider_id": _text(state.get("provider_id")),
-                    "oauth_extension_release_id": _text(state.get("extension_release_id")),
-                    "oauth_authorization_revision": int(state.get("authorization_revision") or 0),
-                    "oauth_requested_scopes": requested_scopes,
-                    "oauth_granted_scopes": granted_scopes,
-                    "oauth_provider_security_fingerprint": provider_security_fingerprint(
-                        locked_provider
-                    ),
-                    "oauth_provider_revocation_fingerprint": provider_revocation_fingerprint(
-                        locked_provider
-                    ),
-                    "secret_refs": secret_refs,
-                    "connection_config": connection_config,
-                    **_operational_state(ready=not post_connect_pending),
-                }
-                if existing_connection_id:
-                    saved = self._repository.update_oauth_connection(
-                        **connection_values,
-                        expected_credential_revision=expected_connection_revision,
-                    )
-                else:
-                    saved = self._repository.create_oauth_connection(**connection_values)
-                if not saved or not self._repository.mark_configuration_verified(**scope):
-                    raise ValueError("stale callback")
-        except Exception:
-            return OAuthCallbackResult(outcome="restart_required", return_page_id=return_page_id)
-        post_connect_action = provider.post_connect_action_id
-        if self._invoke_post_connect is not None and post_connect_action:
-            dispatched = _dispatch_post_connect(
-                state=state,
+        return self._grant_committer.complete(
+            state=state,
+            grant=OAuthGrant(
+                token_response=token_response,
+                requested_scopes=requested_scopes,
+                granted_scopes=granted_scopes,
                 connection_id=connection_id,
-                access_token=_text(normalized_token_response.get("access_token")),
-                repository=self._repository,
-                transaction_factory=self._transaction_factory,
-                install_loader=self._install_loader,
-                invoke_post_connect=self._invoke_post_connect,
-            )
-            if dispatched is None:
-                return OAuthCallbackResult(
-                    outcome="restart_required",
-                    connection_id=connection_id,
-                    return_page_id=return_page_id,
-                )
-            invocation, committed_revision, state = dispatched
-            post_connect_result = oauth_post_connect_result_from_invocation(invocation)
-            if not _apply_post_connect(
-                state=state,
-                connection_id=connection_id,
-                expected_revision=committed_revision,
-                result=post_connect_result,
-                repository=self._repository,
-                transaction_factory=self._transaction_factory,
-                install_loader=self._install_loader,
-            ):
-                return OAuthCallbackResult(
-                    outcome="restart_required",
-                    connection_id=connection_id,
-                    return_page_id=return_page_id,
-                )
-            return OAuthCallbackResult(
-                outcome=_post_connect_outcome(post_connect_result),
-                connection_id=connection_id,
-                return_page_id=return_page_id,
-            )
-        return OAuthCallbackResult(
-            outcome="connected",
-            connection_id=connection_id,
+            ),
             return_page_id=return_page_id,
         )
 
