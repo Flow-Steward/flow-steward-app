@@ -1,4 +1,5 @@
 import {
+  canvasNodeIdForStep,
   authorRef,
   canvasOperation,
   childRef,
@@ -325,5 +326,25 @@ describe("a hook's hidden end (R2-11)", () => {
     expect(hookEndCompletion(chain(false), [], [{ op: "delete_step", step_id: "build_result" }])).toEqual([
       { op: "set_entry", target: { kind: "step", id: "return_result" } },
     ]);
+  });
+});
+
+describe("the canvas node that stands for a step", () => {
+  const frames = new Map([["before_finish", hookFrame(state, child, 2)]]);
+
+  it("reaches a root hook step through its frame, so an opened issue finds it", () => {
+    expect(canvasNodeIdForStep("before_finish", frames, author)).toBe("group:hook:before_finish");
+    const framed = withHookFrames(author, frames);
+    expect(framed.groups.map((group) => `group:${group.id}`)).toContain(canvasNodeIdForStep("before_finish", frames, author));
+  });
+
+  it("keeps the id of an ordinary step, and of a step without a frame", () => {
+    expect(canvasNodeIdForStep("prepare", frames, author)).toBe("prepare");
+    expect(canvasNodeIdForStep("before_finish", undefined, author)).toBe("before_finish");
+  });
+
+  it("keeps the id of a hook step inside a container, which is not drawn as a frame", () => {
+    const nested = { ...author, steps: author.steps.map((step) => step.id === "before_finish" ? { ...step, group_id: "box" } : step) };
+    expect(canvasNodeIdForStep("before_finish", frames, nested)).toBe("before_finish");
   });
 });

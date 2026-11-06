@@ -62,7 +62,7 @@ import { canvasMotionDuration, fitCanvasToNodes } from "./canvas-viewport";
 import type { WorkflowNodeRef, WorkflowOutcome } from "@/pages/workflows/shared/api";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { hookGroupId, isHookMemberRef, parseHookNodeId, withHookFrames } from "@/pages/workflows/builder/hook-frames";
+import { canvasNodeIdForStep, hookGroupId, isHookMemberRef, parseHookNodeId, withHookFrames } from "@/pages/workflows/builder/hook-frames";
 
 function placementDelta(
   canvasWorkflowId: string,
@@ -428,6 +428,8 @@ export function WorkflowCanvasBuilderSurface({
   const handledPlacementReplayRef = useRef(new Map<string, number>());
   const [measuredStepHeights, setMeasuredStepHeights] = useState<Record<string, number>>({});
   const [draggingIds, setDraggingIds] = useState<ReadonlySet<string>>(NOTHING_DRAGGED);
+  // An opened issue names the authored step; a root hook step is drawn as its frame.
+  const revealTargetId = focusNodeReveal && focusNodeId ? canvasNodeIdForStep(focusNodeId, hookFrames, definitionCanvasGraph) : focusNodeId;
   // A node shown for an opened issue is selected, as if the author had clicked it.
   const [revealSelection, setRevealSelection] = useState<{ nodeId: string; nonce: number } | null>(null);
   const selectRevealedNode = useCallback((nodeId: string) => setRevealSelection((current) => ({ nodeId, nonce: (current?.nonce ?? 0) + 1 })), []);
@@ -846,7 +848,7 @@ export function WorkflowCanvasBuilderSurface({
   const { focusSearchResult, handleSearchKeyDown } = useCanvasSearchNavigation({
     autoArrange: arrange.mode === "auto",
     currentNodesById, reactFlowInstance, setHighlightedNodeId, setShowSearchResults, openGroupFromCanvas, openStepFromCanvas,
-    focusNodeId, focusNodeNonce, focusNodeCreation, focusNodePlace, focusNodeReveal, inspectorWidth, onRevealNode: selectRevealedNode, handledFocusNonceRef, canvasMeasureRootRef,
+    focusNodeId: revealTargetId, focusNodeNonce, focusNodeCreation, focusNodePlace, focusNodeReveal, inspectorWidth, onRevealNode: selectRevealedNode, handledFocusNonceRef, canvasMeasureRootRef,
     manualPositions, edges, nodes, workflowId, placementOwnerFor, placementGestureGenerationFor,
     currentSelection: () => commandSelectionRef.current,
     setManualPositions, setCreationIntent, searchIndex, searchResults, setSearchIndex
