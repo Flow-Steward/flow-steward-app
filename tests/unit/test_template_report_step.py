@@ -143,9 +143,39 @@ def test_the_node_writes_the_snapshot_object_and_a_bounded_message() -> None:
     assert "_state_patch" not in artifacts
     assert artifacts["template"]["report"]["datasets"][0]["row_count"] == 1000
     assert artifacts["output_payload"]["format"] == "report"
-    assert MARKER not in json.dumps(artifacts["template"])
-    assert MARKER not in json.dumps(artifacts["output_payload"])
-    assert MARKER not in message["summary"]
+    assert artifacts["input_payload"]["regions"] == {
+        "type": "array",
+        "supplied": True,
+        "items": 1000,
+    }
+    assert MARKER not in json.dumps(message, default=str)
+
+
+def _marked_state() -> dict[str, Any]:
+    state = _state()
+    state["outputs"]["regions"] = [
+        {"region": f"{MARKER}-{index}", "orders": 1, "revenue": 1.0, "margin": 0.1, "manager": "m"}
+        for index in range(50)
+    ]
+    return state
+
+
+@pytest.mark.parametrize(
+    "break_state",
+    [
+        lambda state: state["outputs"]["kpis"].__setitem__("revenue", f"{MARKER}-text"),
+        lambda state: state["outputs"]["regions"][3].__setitem__("revenue", f"{MARKER}-bad"),
+        lambda state: state["outputs"].__setitem__("kpis", f"{MARKER}-not-an-object"),
+    ],
+    ids=["bad_metric", "bad_cell", "bad_input_type"],
+)
+def test_a_failed_report_message_carries_no_input_or_report_values(break_state) -> None:
+    state = _marked_state()
+    break_state(state)
+    update = _run_node(_report_config(), state)
+    message = update["agent_messages"][-1]
+    assert message["status"] == "fail"
+    assert MARKER not in json.dumps(message, default=str)
 
 
 def test_a_failed_report_writes_nothing() -> None:

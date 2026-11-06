@@ -402,7 +402,11 @@ def template_step_artifacts(
     artifacts: dict[str, Any] = {
         TEMPLATE_CONFIG_KEY: summary,
         "result_target": target,
-        "input_payload": step_io_payload(dict(result.get("inputs") or {})),
+        "input_payload": (
+            _report_input_metadata(config, result.get("inputs"))
+            if is_report
+            else step_io_payload(dict(result.get("inputs") or {}))
+        ),
     }
     if ok and is_report:
         # ADR 0059 decisions 9 and 11: the message carries the bounded preview
@@ -421,6 +425,26 @@ def template_step_artifacts(
         if len(str(result.get("text") or "")) <= MESSAGE_TEXT_MAX_CHARS:
             artifacts["_state_patch"] = state_updates
     return artifacts
+
+
+def _report_input_metadata(config: Mapping[str, Any], inputs: Any) -> dict[str, Any]:
+    """What a report step's message says about its inputs: shapes, never values.
+
+    A report reads whole datasets; sampling their rows into the message would
+    put report data in diagnostics (ADR 0059 decision 11).
+    """
+    supplied = inputs if isinstance(inputs, Mapping) else {}
+    described: dict[str, Any] = {}
+    for row in template_inputs(config):
+        name = row["name"]
+        entry: dict[str, Any] = {"type": row["type"], "supplied": name in supplied}
+        value = supplied.get(name)
+        if isinstance(value, list):
+            entry["items"] = len(value)
+        elif isinstance(value, Mapping):
+            entry["keys"] = len(value)
+        described[name] = entry
+    return described
 
 
 def template_step_summary(result: Mapping[str, Any]) -> str:
