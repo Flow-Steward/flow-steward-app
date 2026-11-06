@@ -49,6 +49,15 @@ class ExtensionLLMError(RuntimeError):
 
 def _normalize_tool(tool: Any) -> dict[str, Any]:
     """Convert supported host/LangChain tools to canonical function wire."""
+    args_schema = getattr(tool, "args_schema", None)
+    if isinstance(args_schema, dict):
+        # Keep the server's full schema, including recursive/local references.
+        # LangChain's generic conversion dereferences and removes definitions.
+        tool = {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": args_schema,
+        }
     if isinstance(tool, dict) and "name" in tool and "input_schema" in tool:
         function: dict[str, Any] = {
             "name": str(tool.get("name") or "").strip(),

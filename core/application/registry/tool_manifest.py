@@ -10,7 +10,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 
 from core.application.registry.builder_metadata import normalize_builder_metadata
 from core.application.registry.catalog_categories import DEFAULT_CATALOG_CATEGORY
@@ -75,6 +83,10 @@ class ToolParameter(BaseModel):
 class ToolFunction(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    # Derived from the owning MCP manifest's canonical discovered schema;
+    # parameter rows remain the editable contract for ordinary tools.
+    _source_input_schema: dict[str, Any] | None = PrivateAttr(default=None)
+
     name: str
     # What the step editor shows for this operation; without them it could only show
     # the technical name, which it never does (it said "Unavailable action" instead).
@@ -98,6 +110,8 @@ class ToolFunction(BaseModel):
 
     @property
     def input_schema(self) -> dict[str, Any]:
+        if self._source_input_schema is not None:
+            return _json_clone(self._source_input_schema)
         properties = {
             param.name: param.schema_fragment() for param in self.parameters if param.name
         }
@@ -153,6 +167,8 @@ class ToolFunction(BaseModel):
 class ToolInterface(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    _source_input_schema: dict[str, Any] | None = PrivateAttr(default=None)
+
     function_name: str | None = None
     functions: list[ToolFunction] = Field(default_factory=list)
     parameters: list[ToolParameter] = Field(default_factory=list)
@@ -189,6 +205,8 @@ class ToolInterface(BaseModel):
         return [function.to_dict()]
 
     def resolved_input_schema(self) -> dict[str, Any]:
+        if self._source_input_schema is not None:
+            return _json_clone(self._source_input_schema)
         if self.input_schema:
             return _json_clone(self.input_schema)
         if self.functions:
@@ -318,6 +336,24 @@ class ToolManifest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
     builder_metadata_jsonb: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _restore_mcp_input_contract(self) -> ToolManifest:
+        schema = self.config.get("input_schema")
+        remote_name = getattr(self.implementation, "remote_tool_name", "") or self.config.get(
+            "remote_tool_name"
+        )
+        if (
+            self.implementation.kind == "mcp"
+            and remote_name
+            and isinstance(schema, dict)
+            and len(self.interface.functions) == 1
+        ):
+            # Also restores existing stored projections without a resync. The
+            # discovered schema owns both model and deterministic step contracts.
+            self.interface._source_input_schema = _json_clone(schema)
+            self.interface.functions[0]._source_input_schema = _json_clone(schema)
+        return self
 
     @field_validator(
         "tool_id", "version", "display_name", "description", "category", "prompt", mode="before"

@@ -12,6 +12,7 @@ import asyncio
 import importlib
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel
@@ -76,7 +77,7 @@ class _FallbackTool:
         *,
         name: str,
         description: str,
-        args_schema: type[BaseModel],
+        args_schema: type[BaseModel] | dict[str, Any],
         invoke_fn,
         metadata: dict[str, Any] | None = None,
     ):
@@ -87,6 +88,10 @@ class _FallbackTool:
         self.metadata = dict(metadata or {})
 
     def invoke(self, payload: dict | None = None):
+        if isinstance(self.args_schema, dict):
+            # Match LangChain's dict-schema path: the MCP server validates its
+            # own JSON arguments, including explicit nulls and extra keys.
+            return self._invoke_fn(**dict(payload or {}))
         validated = self.args_schema.model_validate(payload or {})
         return self._invoke_fn(**validated.model_dump(exclude_unset=True, exclude_none=True))
 
@@ -751,6 +756,39 @@ def invoke_manifest_tool(
     )
 
 
+def _build_dispatch_runner(
+    manifest,
+    function_name: str,
+    optional_names: set[str],
+    runtime_context: dict[str, Any] | None,
+) -> Callable[..., str]:
+    # Capture dispatch state outside the callable's keyword parameters: every
+    # JSON property name, including underscored names, belongs to the MCP input.
+    def _runner(**kwargs):
+        try:
+            arguments = {
+                key: value
+                for key, value in kwargs.items()
+                if not (key in optional_names and value is None)
+            }
+            invocation_context = (
+                dict(runtime_context) if isinstance(runtime_context, dict) else None
+            )
+            result = invoke_manifest_tool(
+                manifest,
+                function_name=function_name,
+                arguments=arguments,
+                runtime_context=invocation_context,
+            )
+            if isinstance(result, (dict, list)):
+                return json.dumps(result, ensure_ascii=True)
+            return "" if result is None else str(result)
+        except Exception as exc:
+            return f"[ERROR] {exc}"
+
+    return _runner
+
+
 def build_manifest_dispatch_tools(
     manifest,
     *,
@@ -785,33 +823,14 @@ def build_manifest_dispatch_tools(
             for parameter in operation.get("parameters") or []
             if not bool((parameter or {}).get("required", True))
         }
+        if isinstance(args_schema, dict):
+            # Dict schemas do not inject Pydantic defaults. A supplied null is
+            # an intentional MCP argument, not an absent optional field.
+            optional_parameter_names = set()
 
-        def _runner(
-            _function_name=function_name,
-            _optional_names=optional_parameter_names,
-            _runtime_context=runtime_context,
-            **kwargs,
-        ):
-            try:
-                arguments = {
-                    key: value
-                    for key, value in dict(kwargs or {}).items()
-                    if not (key in _optional_names and value is None)
-                }
-                invocation_context = (
-                    dict(_runtime_context) if isinstance(_runtime_context, dict) else None
-                )
-                result = invoke_manifest_tool(
-                    manifest,
-                    function_name=_function_name,
-                    arguments=arguments,
-                    runtime_context=invocation_context,
-                )
-                if isinstance(result, (dict, list)):
-                    return json.dumps(result, ensure_ascii=True)
-                return "" if result is None else str(result)
-            except Exception as exc:
-                return f"[ERROR] {exc}"
+        runner = _build_dispatch_runner(
+            manifest, function_name, optional_parameter_names, runtime_context
+        )
 
         # The provider is given an alias it can accept; the runner above still
         # calls, authorises and audits under the canonical id.
@@ -819,7 +838,7 @@ def build_manifest_dispatch_tools(
         if StructuredTool is not None:
             resolved.append(
                 StructuredTool.from_function(
-                    func=_runner,
+                    func=runner,
                     name=provider_name,
                     description=description,
                     args_schema=args_schema,
@@ -832,7 +851,7 @@ def build_manifest_dispatch_tools(
                     name=provider_name,
                     description=description,
                     args_schema=args_schema,
-                    invoke_fn=_runner,
+                    invoke_fn=runner,
                     metadata=tool_metadata,
                 )
             )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from copy import deepcopy
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, create_model
@@ -215,7 +216,14 @@ def _operation_description(manifest, function_name: str) -> str:
     return display_name or function_name
 
 
-def _build_args_schema(manifest, operation: dict[str, Any]) -> type[BaseModel]:
+def _build_args_schema(manifest, operation: dict[str, Any]) -> type[BaseModel] | dict[str, Any]:
+    if _manifest_requires_runtime_context(manifest):
+        config = getattr(manifest, "config", {}) or {}
+        input_schema = config.get("input_schema")
+        if isinstance(input_schema, dict):
+            # LangChain accepts JSON Schema directly. Rebuilding a Pydantic
+            # model from the editor's parameter rows loses the MCP contract.
+            return deepcopy(input_schema)
     fields: dict[str, tuple[Any, Any]] = {}
     for parameter in operation.get("parameters") or []:
         if hasattr(parameter, "model_dump"):
