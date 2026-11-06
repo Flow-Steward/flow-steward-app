@@ -349,6 +349,7 @@
     "core/application/jobs/workflow_resume_state.py",
     "core/application/jobs/workflow_run_models.py",
     "core/application/jobs/workflow_run_projection.py",
+    "core/application/jobs/workflow_run_report.py",
     "core/application/jobs/workflow_timer_dispatcher.py",
     "core/application/jobs/workflow_wait_contract.py",
     "core/application/jobs/workflow_wait_projection.py",

@@ -4,7 +4,6 @@ __pycache__/
 **/__pycache__/
 node_modules/
 dist/
-dist-report-viewer/
 build/
 .env
 .env.prod

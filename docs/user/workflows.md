@@ -1611,6 +1611,13 @@ only a short summary of the report (title, summary text and row counts), never
 its rows. Clients without a report viewer get `summary_text`: the authored
 `summary`, or a generated list of the metrics and table sizes.
 
+The job page shows the report in the run's Result, with the other outputs
+below it. In an AI chat connected over MCP, the `workflow_run_report` tool shows
+it in the host's report viewer when the host supports MCP Apps; the AI model
+itself receives only the short summary. `GET /api/jobs/{job_id}/workflow-report`
+returns the same split: `model` (job state and the summary) and `snapshot` (the
+whole report, or null while the run is going or when it returned none).
+
 ## HTTP Request Steps
 
 HTTP request steps are built-in outbound HTTP/HTTPS calls. Use them for APIs and

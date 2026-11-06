@@ -168,6 +168,9 @@ def _delegation_parts(
         status = str(arguments.get("status") or "").strip()
         if status:
             params["status"] = status
+    elif tool == "job_result":
+        # A model reads this bundle: every report in it arrives as its preview.
+        params = {**(params or {}), "view": "model"}
     elif tool == "job_cancel":
         # Only the reason is the body; the idempotency key travels as a header.
         body = {"comment": str(arguments.get("comment") or "")}
@@ -432,31 +435,41 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
             request_kwargs["additional_headers"] = additional_headers
         payload = client.request(method, path, **request_kwargs)
     except AppApiError as exc:
-        error = (
-            _authoring_error(exc.payload, exc.status_code)
-            if tool in _AUTHORING_TOOLS
-            else _route_error(exc.payload, exc.status_code)
-        )
-        if tool == "workflow_import":
-            # Only the fixed resolution fields leave the import preflight context.
-            error.pop("details", None)
-            blocking = _blocking_dependencies(exc.payload)
-            if blocking:
-                error["blocking_dependencies"] = blocking
-        envelope = {"ok": False, "tool": tool, "error": error}
-        raise ToolError(json.dumps(envelope, ensure_ascii=False, sort_keys=True)) from exc
+        raise api_tool_error(tool, exc) from exc
 
     return json.dumps(
-        {
-            "ok": True,
-            "tool": tool,
-            "data": _payload_data(payload),
-            "meta": {"schema_version": "v1", "correlation_id": correlation_id},
-        },
+        api_tool_envelope(tool, _payload_data(payload), correlation_id),
         ensure_ascii=False,
         sort_keys=True,
         default=str,
     )
 
 
-__all__ = ["api_tool_response"]
+def api_tool_envelope(tool: str, data: object, correlation_id: str) -> dict[str, Any]:
+    """The success envelope every API-backed tool returns."""
+    return {
+        "ok": True,
+        "tool": tool,
+        "data": data,
+        "meta": {"schema_version": "v1", "correlation_id": correlation_id},
+    }
+
+
+def api_tool_error(tool: str, exc: AppApiError) -> ToolError:
+    """The tool error for an application API refusal, in the shared envelope."""
+    error = (
+        _authoring_error(exc.payload, exc.status_code)
+        if tool in _AUTHORING_TOOLS
+        else _route_error(exc.payload, exc.status_code)
+    )
+    if tool == "workflow_import":
+        # Only the fixed resolution fields leave the import preflight context.
+        error.pop("details", None)
+        blocking = _blocking_dependencies(exc.payload)
+        if blocking:
+            error["blocking_dependencies"] = blocking
+    envelope = {"ok": False, "tool": tool, "error": error}
+    return ToolError(json.dumps(envelope, ensure_ascii=False, sort_keys=True))
+
+
+__all__ = ["api_tool_envelope", "api_tool_error", "api_tool_response"]

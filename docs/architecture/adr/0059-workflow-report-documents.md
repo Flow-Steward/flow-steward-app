@@ -280,6 +280,25 @@ the 0.9.12 version bump on top of that main:
    and the job detail projections. That bundle returns workflow outputs and step
    messages, so a report snapshot would reach model-visible MCP output through
    `job_result` unless task 3 bounds it.
+   *Implementation note (task 3):* MCP `job_result` reads
+   `GET /api/jobs/{id}/result?view=model`, where
+   `build_job_result_bundle(model_safe=True)` replaces every report anywhere in
+   the bundle (workflow result, raw status, messages, logs, events) with its
+   preview; without `view` the API stays full. The report tool reads
+   `GET /api/jobs/{id}/workflow-report`
+   (`core/application/jobs/workflow_run_report.py`), the job status read with
+   its workflow result split into `model` (job state, preview, text) and
+   `snapshot`. MCP `workflow_run_report(job_id, wait_seconds <= 30)` repeats
+   that read with the caller's bearer while it waits, so scope, workflow access
+   and revocation apply to every read. `content` and `structuredContent` carry
+   `model`; `_meta["flowsteward.org/report"]` carries the snapshot, and only for
+   a client that negotiated MCP Apps (`io.modelcontextprotocol/ui` with
+   `text/html;profile=mcp-app`). `workflow_trigger` names no viewer. The viewer
+   resource `ui://flow-steward/report-viewer/v1` is the single-file build in
+   `assets/frontend/dist/report-viewer/`: the UI images ship it, and `fs-mcp`,
+   whose image builds no frontend, reads it once per process from the app's
+   public `/static` mount. No host delivery ceiling below the 1 MiB domain
+   limit is set until hosts are measured.
 5. **`workflow_apply_changes` cannot set `report_output`.** `OPERATION_KINDS`
    (`workflow_definition_changes.py:45-64`) has step, group, for-each and graph
    operations only; `update_step_config` can write `override.template.report`,

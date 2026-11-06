@@ -14,7 +14,7 @@ const RAW_BUDGET_BYTES = 1_100_000;
 const GZIP_BUDGET_BYTES = 330_000;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const file = path.join(root, "dist-report-viewer", "report-viewer.html");
+const file = path.join(root, "dist", "report-viewer", "report-viewer.html");
 const html = fs.readFileSync(file);
 const raw = html.length;
 const gzip = zlib.gzipSync(html, { level: 9 }).length;

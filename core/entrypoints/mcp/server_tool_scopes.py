@@ -82,6 +82,7 @@ MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
     "job_result": _JOBS_READ,
     "job_runtime_journal": _JOBS_READ,
     "job_status": _JOBS_READ,
+    "workflow_run_report": _JOBS_READ,
     "job_trace": _JOBS_READ,
     "project_jobs": _JOBS_READ,
     # --- jobs (write / lifecycle) -----------------------------------------

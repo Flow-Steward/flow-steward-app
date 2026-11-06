@@ -14,7 +14,7 @@ from core.entrypoints.mcp.server_api_client import MCP_TOOL_ROUTES, AppApiClient
 
 def test_all_registered_tools_have_descriptions_and_api_routes() -> None:
     tools = mcp._tool_manager._tools
-    assert len(tools) == 72
+    assert len(tools) == 73
     assert set(tools) == set(MCP_TOOL_ROUTES)
     for name, tool in tools.items():
         assert str(tool.description or "").strip(), name
@@ -54,7 +54,10 @@ def test_public_input_contracts_keep_required_identity_fields() -> None:
 def test_tool_bodies_are_protocol_mapping_only() -> None:
     for name, tool in mcp._tool_manager._tools.items():
         source = inspect.getsource(tool.fn)
-        assert "api_tool_response" in source, name
+        # The report tool waits with async reads; it maps them through the same
+        # shared envelope helpers (server_workflow_report_tools).
+        mapping = "api_tool_envelope" if name == "workflow_run_report" else "api_tool_response"
+        assert mapping in source, name
         assert "core.infrastructure" not in source, name
 
 

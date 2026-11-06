@@ -7,7 +7,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, Query, Request
@@ -188,8 +188,13 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         job_id: str,
         include_messages_limit: Annotated[int, Query(ge=1, le=2000)] = 100,
         include_logs_limit: Annotated[int, Query(ge=1, le=2000)] = 50,
+        view: Annotated[Literal["full", "model"], Query()] = "full",
     ):
-        """Return the canonical agent handoff bundle for one scoped job."""
+        """Return the canonical agent handoff bundle for one scoped job.
+
+        ``view=model`` replaces every workflow report in the bundle with its
+        bounded preview; MCP tools read this view.
+        """
         from core.application.reports.job_result_bundle import build_job_result_bundle
 
         try:
@@ -199,7 +204,28 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
                 scope=request_scope(request),
                 include_messages_limit=include_messages_limit,
                 include_logs_limit=include_logs_limit,
+                model_safe=view == "model",
             )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+
+    @router.get("/api/jobs/{job_id}/workflow-report")
+    async def api_job_workflow_report(request: Request, job_id: str):
+        """Return the report the run returned: a model-safe part and the full snapshot.
+
+        ``model`` holds the job state and the report's bounded preview;
+        ``snapshot`` is the ReportSnapshot for a report viewer, or null while
+        the run is going or when it returned no report.
+        """
+        from core.application.jobs.workflow_run_report import workflow_run_report
+
+        try:
+            status = await job_query_service().get_job_status(
+                job_id, scope=request_scope(request), include_workflow_result=True
+            )
+            return workflow_run_report(status)
         except ServiceError as e:
             return service_error_response(e)
         except Exception as e:

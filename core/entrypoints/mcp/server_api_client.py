@@ -59,6 +59,7 @@ MCP_TOOL_ROUTES: dict[str, AppApiRoute] = {
     "job_approvals_pending": _route("GET", "/api/jobs/awaiting-approval"),
     "job_result": _route("GET", "/api/jobs/{job_id}/result"),
     "job_status": _route("GET", "/api/jobs/{job_id}/status"),
+    "workflow_run_report": _route("GET", "/api/jobs/{job_id}/workflow-report"),
     "job_runtime_journal": _route("GET", "/api/jobs/{job_id}/runtime-journal"),
     "job_decision_overrides": _route("GET", "/api/jobs/{job_id}/decision-overrides"),
     "job_errors": _route("GET", "/api/jobs/{job_id}/errors"),

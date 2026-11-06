@@ -86,7 +86,9 @@ export default defineConfig({
     postcss: { plugins: [dropWebFonts] },
   },
   build: {
-    outDir: "dist-report-viewer",
+    // Inside the app's dist: the images that ship the UI ship the viewer, and
+    // the MCP server reads it from the app's public /static mount.
+    outDir: "dist/report-viewer",
     emptyOutDir: true,
     // Small images in the tokens (the brand loader) become data URIs.
     assetsInlineLimit: 100_000,

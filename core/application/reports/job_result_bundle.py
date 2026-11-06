@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from core.application.observability_vocabulary import job_status_meta
+from core.application.workflow_documents import preview_reports
 
 #: Domain events the bundle reads; one more is requested to tell a cut list.
 _EVENTS_LIMIT = 200
@@ -130,7 +131,15 @@ async def build_job_result_bundle(
     scope: object,
     include_messages_limit: int = 100,
     include_logs_limit: int = 50,
+    model_safe: bool = False,
 ) -> dict[str, Any]:
+    """The agent handoff bundle of one job.
+
+    ``model_safe`` is the projection for a model (ADR 0059 decision 11): every
+    report anywhere in the bundle, including the workflow result and the raw
+    status, messages, logs and events, is replaced by its bounded preview. The
+    regular API keeps the full bundle.
+    """
     status_value = job_query_service.get_job_status(
         str(job_id), scope=scope, include_workflow_result=True
     )
@@ -170,7 +179,7 @@ async def build_job_result_bundle(
     meta = job_status_meta(status.get("status"))
     outcome = str(meta.get("outcome") or "unknown")
     resolved_job_id = str(status.get("id") or job_id)
-    return {
+    bundle = {
         "job": {
             "id": resolved_job_id,
             "status": str(status.get("status") or ""),
@@ -203,6 +212,7 @@ async def build_job_result_bundle(
             "events": events_truncated,
         },
     }
+    return preview_reports(bundle) if model_safe else bundle
 
 
 __all__ = ["build_job_result_bundle"]

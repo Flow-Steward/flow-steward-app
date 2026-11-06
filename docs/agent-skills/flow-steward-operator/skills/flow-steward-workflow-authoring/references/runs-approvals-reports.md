@@ -24,6 +24,11 @@ the user asked for, and never widen a query because a narrow one failed.
 - `job_status` for a bounded current summary; `job_result` for the final or
   partial result bundle. Judge success by the job's status, not by a generic
   completion flag, and note when messages or logs in the bundle are cut.
+- `workflow_run_report(job_id, wait_seconds)` shows the report a workflow
+  returns (its Interface report output) to the user in the host's report
+  viewer. You receive only its title, summary text and counts, never its rows.
+  `wait_seconds` (0-30) waits for a running job; state `pending` means call
+  again, `no_report` means the run returned none.
 - On failure: `job_errors`, `job_incident`, `job_trace`; for detail,
   `job_messages`, `job_logs`, `job_events` with their cursors;
   `job_runtime_journal` and `job_decision_overrides` when the question is about
