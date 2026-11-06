@@ -120,6 +120,22 @@ export function compactRoutePoints(points: readonly CanvasPoint[]): CanvasPoint[
   }
   return result;
 }
+/**
+ * Removes a spur: a run that goes along a line and comes back on the same line (down to a band and up
+ * again). The shortened run is part of a run already drawn clear, so it stays clear. The port leads
+ * (the first and the last run) keep their shape.
+ */
+export function dropRouteSpurs(points: readonly CanvasPoint[]): CanvasPoint[] {
+  let result = [...points];
+  for (let i = 2; i < result.length - 2; i++) {
+    const a = result[i - 1]; const b = result[i]; const c = result[i + 1];
+    const collinear = (a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y);
+    if (!collinear || (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) >= 0) continue;
+    result = compactRoutePoints([...result.slice(0, i), ...result.slice(i + 1)]);
+    i = 1;
+  }
+  return result;
+}
 function squarePath(points: readonly CanvasPoint[]) {
   return points.map((point, index) => `${index ? "L" : "M"} ${pointText(point)}`).join(" ");
 }
@@ -303,7 +319,7 @@ function bandRoute(input: CanvasEdgeRouteInput): CanvasEdgeRoute {
   const clear = (points: readonly CanvasPoint[]) => points.slice(1).every((p, i) => obstacles.every((r) => !lineHits(points[i], p, expanded(r))));
   const direct = [start, { x: start.x, y: bandY }, { x: end.x, y: bandY }, end];
   const finish = (middle: readonly CanvasPoint[], square: boolean): CanvasEdgeRoute => {
-    const points = compactRoutePoints([source, ...middle, last]);
+    const points = dropRouteSpurs(compactRoutePoints([source, ...middle, last]));
     return { path: square ? squarePath(points) : roundedPath(points), midpoint: polylineMidpoint(points), bounds: boundsOf(points), points, kind: below ? "lower-band" : "upper-band" };
   };
   const directClear = clear(direct);

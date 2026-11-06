@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { curveEdgePath, routeCanvasEdge, routeCanvasEdges, compactRoutePoints, type CanvasEdgeRouteInput } from "./canvas-edge-routing";
+import { curveEdgePath, routeCanvasEdge, routeCanvasEdges, compactRoutePoints, dropRouteSpurs, type CanvasEdgeRouteInput } from "./canvas-edge-routing";
 import reference from "@/test/fixtures/canvas-edge-routing-reference.json";
 
 describe("v133 canvas routing", () => {
@@ -151,5 +151,29 @@ describe("a band passes only the cards in its way", () => {
     const route = routeCanvasEdge({ source: { x: 0, y: 500 }, target: { x: 600, y: 500 }, obstacles: [between, farAbove], backward: false, failure: false, repeat: false, longJump: true });
     const top = Math.min(...route.points!.map((point) => point.y));
     for (const card of [between, farAbove]) expect(top <= card.y - 24 || top >= card.y + card.height + 24).toBe(true);
+  });
+});
+
+describe("a route never runs out and back on one line", () => {
+  it("drops a spur that dives past the entry and comes back up to it", () => {
+    const points = [{ x: 3760, y: -264 }, { x: 3768, y: -264 }, { x: 3768, y: 772 }, { x: 51, y: 772 }, { x: 51, y: 1336 }, { x: 51, y: 808 }, { x: 59, y: 808 }];
+    expect(dropRouteSpurs(points)).toEqual([{ x: 3760, y: -264 }, { x: 3768, y: -264 }, { x: 3768, y: 772 }, { x: 51, y: 772 }, { x: 51, y: 808 }, { x: 59, y: 808 }]);
+  });
+
+  it("keeps the leads out of and into the ports as they are", () => {
+    const points = [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 80 }, { x: -9, y: 80 }, { x: -4, y: 80 }];
+    expect(dropRouteSpurs(points)).toEqual(points);
+  });
+
+  it("keeps a route without spurs unchanged", () => {
+    const points = [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 40 }, { x: 308, y: 40 }];
+    expect(dropRouteSpurs(points)).toEqual(points);
+  });
+
+  it("leaves no spur in any reference route, wrapped rows included", () => {
+    for (const entry of (reference as { cases: { expected: { points?: { x: number; y: number }[] } }[] }).cases) {
+      const points = entry.expected.points || [];
+      expect(dropRouteSpurs(points)).toEqual(points);
+    }
   });
 });
