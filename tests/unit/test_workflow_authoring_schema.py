@@ -99,11 +99,12 @@ def test_definition_discovery_is_additive_and_describes_real_collections():
 
     assert filtered["definition_guidance"] == guidance
     assert guidance["contract_level"] == "partial_guidance_and_examples"
-    assert set(guidance["models"]) == {"group", "for_each", "hook"}
+    assert set(guidance["models"]) == {"group", "for_each", "hook", "interface"}
     assert {name: model["persisted_location"] for name, model in guidance["models"].items()} == {
         "group": "workflow.groups",
         "for_each": "workflow.for_each",
         "hook": "steps[].override.invoke_workflow.hook",
+        "interface": "workflow.settings.callable",
     }
     for model in guidance["models"].values():
         assert isinstance(model["description"], str)

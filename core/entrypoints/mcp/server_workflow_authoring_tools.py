@@ -64,7 +64,7 @@ def workflow_apply_changes(
     operations: list[dict[str, object]],
     dry_run: bool = False,
 ) -> str:
-    """Apply one atomic set of step, group and graph changes to a workflow.
+    """Apply one atomic set of step, group, graph and Interface changes to a workflow.
 
     The set becomes one new revision or nothing is saved; a stale
     expected_revision is a conflict to reload, never an overwrite. With

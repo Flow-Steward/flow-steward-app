@@ -1550,7 +1550,9 @@ def test_enabled_local_create_then_delete_applies_one_unchanged_plan_done_graph(
     assert {item["step_id"] for item in store.workflows["wf"]["steps"]} == {"plan", "done"}
 
 
-@pytest.mark.parametrize("example_id", ["group_for_each_atomic", "root_hook_atomic"])
+@pytest.mark.parametrize(
+    "example_id", ["group_for_each_atomic", "root_hook_atomic", "report_output_atomic"]
+)
 def test_discovery_operation_examples_match_shared_dry_run_and_apply(monkeypatch, example_id):
     if example_id == "root_hook_atomic":
         monkeypatch.setenv("ENVIRONMENT", "development")
@@ -1604,6 +1606,10 @@ def test_discovery_operation_examples_match_shared_dry_run_and_apply(monkeypatch
         assert [row["for_each_id"] for row in saved["for_each"]] == ["items_loop"]
         assert saved["groups"][0]["body"]["entry"] == ref("items_loop", "for_each")
         assert saved["for_each"][0]["body"]["entry"] == ref("item_work")
+    elif example_id == "report_output_atomic":
+        assert saved["settings"]["callable"]["report_output"] == "sales_report"
+        report_step = next(step for step in saved["steps"] if step["step_id"] == "build_report")
+        assert report_step["override"]["template"]["format"] == "report"
     else:
         carriers = [step for step in saved["steps"] if step["step_id"] == "review"]
         assert len(carriers) == 1

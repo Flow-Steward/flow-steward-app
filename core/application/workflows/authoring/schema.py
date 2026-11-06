@@ -9,6 +9,7 @@ import yaml
 
 from core.application.management.errors import ServiceNotFoundError
 from core.application.registry.builtin_step_kind_profiles import builtin_step_kind_profiles
+from core.application.workflow_documents.report_examples import TEMPLATE_REPORT_EXAMPLE
 from core.application.workflows.execution_graph import OUTCOME_ERROR
 from core.application.workflows.workflow_authoring_requests import WorkflowChangeSet
 from core.application.workflows.workflow_definition_changes import OPERATION_KINDS
@@ -359,6 +360,33 @@ class WorkflowAuthoringSchema:
             },
             {"op": "connect", "edge": cls._edge("step", "review", step_ref("done"))},
         ]
+        report: list[dict[str, Any]] = [
+            {
+                "op": "create_step",
+                "step": {
+                    "step_id": "build_report",
+                    "step_kind": "template",
+                    "override": {"template": deepcopy(TEMPLATE_REPORT_EXAMPLE)},
+                },
+            },
+            {
+                "op": "connect",
+                "edge": cls._edge("step", "initialize", step_ref("build_report")),
+                "replace": True,
+            },
+            {"op": "connect", "edge": cls._edge("step", "build_report", step_ref("done"))},
+            {
+                "op": "update_interface",
+                "patch": {
+                    "enabled": True,
+                    "trigger_channels": ["ui", "api", "mcp"],
+                    "expected_outputs": [
+                        {"name": "sales_report", "type": "object", "required": True}
+                    ],
+                    "report_output": "sales_report",
+                },
+            },
+        ]
         precondition = yaml.safe_dump(cls._minimal_bundle(), sort_keys=False)
         revision = "Read the current positive workflow revision; use that exact value as expected_revision."
         return [
@@ -377,6 +405,14 @@ class WorkflowAuthoringSchema:
                 "expected_revision_guidance": revision,
                 "dry_run": True,
                 "operations": root_hook,
+            },
+            {
+                "id": "report_output_atomic",
+                "purpose": "Build a report with a Template step in format report and publish it as the workflow's report output in one change set.",
+                "precondition_bundle_yaml": precondition,
+                "expected_revision_guidance": revision,
+                "dry_run": True,
+                "operations": report,
             },
         ]
 
@@ -415,6 +451,10 @@ class WorkflowAuthoringSchema:
                 "for_each": {
                     "persisted_location": "workflow.for_each",
                     "description": "For each iterates an over collection with item/index names; its sequence or lanes have explicit body entry and exit refs.",
+                },
+                "interface": {
+                    "persisted_location": "workflow.settings.callable",
+                    "description": "The public boundary: trigger_channels, expected_inputs and expected_outputs. report_output names one required output of type object that holds a report snapshot written by a Template step in format report (ADR 0059). Change it with the update_interface operation (a shallow patch; null removes a key), never with a raw settings write.",
                 },
                 "hook": {
                     "persisted_location": "steps[].override.invoke_workflow.hook",

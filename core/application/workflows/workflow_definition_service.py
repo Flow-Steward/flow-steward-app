@@ -167,8 +167,7 @@ def _distinct_issues(issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _candidate_workflow(workflow: Mapping[str, Any], definition: _Definition) -> dict[str, Any]:
-    settings = dict(workflow.get("settings") or {})
-    settings[EXECUTION_GRAPH_SETTING] = definition.graph
+    settings = _candidate_settings(workflow, definition)
     return {
         **dict(workflow),
         "settings": settings,
@@ -176,6 +175,31 @@ def _candidate_workflow(workflow: Mapping[str, Any], definition: _Definition) ->
         "groups": definition.groups,
         "for_each": definition.for_each,
     }
+
+
+def _candidate_settings(workflow: Mapping[str, Any], definition: _Definition) -> dict[str, Any]:
+    """The stored settings with the set's graph and, when it changed one, Interface."""
+    settings = dict(workflow.get("settings") or {})
+    settings[EXECUTION_GRAPH_SETTING] = definition.graph
+    if definition.callable is not None:
+        settings["callable"] = definition.callable
+    return settings
+
+
+def _interface_issues(definition: _Definition) -> list[dict[str, Any]]:
+    """Issues of an Interface the set changed; they block on every workflow.
+
+    The Interface is the public boundary, so a change set never stores a broken
+    one, enabled or not (ADR 0059 recommendation 2).
+    """
+    if definition.callable is None:
+        return []
+    from core.application.registry.workflow_contract import WorkflowInterface
+
+    interface = WorkflowInterface.from_settings(
+        {"callable": definition.callable}, steps=definition.steps
+    )
+    return [dict(issue) for issue in interface.definition_issues()]
 
 
 def _readiness_issues(
@@ -426,13 +450,17 @@ def _judge_and_write(
     reaction_issues = retained_reaction_scope_issues(
         cur, workflow_id, steps=definition.steps, groups=definition.groups
     )
-    issues = _distinct_issues(structural + authoring_issues + readiness_after + reaction_issues)
+    interface_issues = _interface_issues(definition)
+    issues = _distinct_issues(
+        structural + authoring_issues + interface_issues + readiness_after + reaction_issues
+    )
     blocking = (
         issues
         if enabled
         else _distinct_issues(
             reaction_issues
             + authoring_issues
+            + interface_issues
             + [issue for issue in structural if issue["code"] == HOOK_ROOT_ONLY_CODE]
         )
     )
@@ -450,8 +478,7 @@ def _judge_and_write(
             "nothing was saved and the current revision keeps running",
             blocking,
         )
-    settings = dict(base.get("settings") or {})
-    settings[EXECUTION_GRAPH_SETTING] = definition.graph
+    settings = _candidate_settings(base, definition)
     payload = {key: base[key] for key in _WORKFLOW_METADATA_KEYS if key in base}
     payload.update(
         {

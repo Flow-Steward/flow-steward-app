@@ -51,6 +51,7 @@ OPERATION_KINDS = frozenset(
         "change_step_kind",
         "update_group_config",
         "update_for_each_config",
+        "update_interface",
         "set_entry",
         "connect",
         "disconnect",
@@ -109,12 +110,32 @@ def _structure_in_config(
     )
 
 
+#: ``settings.callable`` keys an ``update_interface`` patch may set (ADR 0059).
+INTERFACE_FIELDS = frozenset(
+    {
+        "enabled",
+        "trigger_channels",
+        "input_mode",
+        "strict_inputs",
+        "expected_inputs",
+        "input_schema",
+        "expected_outputs",
+        "report_output",
+        "contract_id",
+    }
+)
+
+
 @dataclass
 class _Definition:
     steps: list[dict[str, Any]]
     groups: list[dict[str, Any]]
     for_each: list[dict[str, Any]]
     graph: dict[str, Any]
+    #: The stored ``settings.callable``; read only by ``update_interface``.
+    base_callable: dict[str, Any] | None = None
+    #: The changed Interface, or ``None`` when the set leaves it untouched.
+    callable: dict[str, Any] | None = None
 
     def step(self, step_id: str) -> dict[str, Any] | None:
         return next((step for step in self.steps if step.get("step_id") == step_id), None)
@@ -289,11 +310,16 @@ def _load_definition(workflow: Mapping[str, Any]) -> _Definition:
         else {"schema_version": EXECUTION_GRAPH_SCHEMA_VERSION, "entry": None, "edges": []}
     )
     graph.setdefault("edges", [])
+    settings = workflow.get("settings")
+    stored_callable = settings.get("callable") if isinstance(settings, Mapping) else None
     return _Definition(
         steps=definition["steps"],
         groups=definition["groups"],
         for_each=definition["for_each"],
         graph=graph,
+        base_callable=(
+            copy.deepcopy(dict(stored_callable)) if isinstance(stored_callable, Mapping) else None
+        ),
     )
 
 
@@ -366,6 +392,34 @@ def _checked_port(raw: Mapping[str, Any], path: str) -> tuple[dict[str, Any], di
         path,
     )
     return edge["source"], edge["outcome"]
+
+
+def _secret_refs(callable_obj: Mapping[str, Any]) -> dict[str, Any]:
+    rows = callable_obj.get("expected_inputs")
+    return {
+        _text(row.get("name")): row.get("default_secret_ref")
+        for row in (rows if isinstance(rows, list) else [])
+        if isinstance(row, Mapping) and row.get("default_secret_ref")
+    }
+
+
+def _refuse_secret_reference_changes(
+    base: Mapping[str, Any], changed: Mapping[str, Any], path: str
+) -> None:
+    """A secret input's stored reference is written only by the secret input path.
+
+    An Interface patch may keep, drop or rename around a reference, but it can
+    never point an input at a reference that input did not already hold.
+    """
+    before = _secret_refs(base)
+    for name, ref in _secret_refs(changed).items():
+        if before.get(name) != ref:
+            raise _refuse(
+                "workflow.change.secret_reference_forbidden",
+                f"Input '{name}': set secret values through the workflow's secret input "
+                "settings, not an Interface change",
+                path,
+            )
 
 
 class _ChangeSet:
@@ -583,6 +637,35 @@ class _ChangeSet:
                 f"{path}.patch",
             )
         item.update(copy.deepcopy(dict(patch)))
+
+    def _update_interface(self, operation: Mapping[str, Any], path: str) -> None:
+        """Change the workflow Interface (``settings.callable``) in the same write.
+
+        A shallow patch of its top-level keys; ``null`` removes a key. The
+        Interface is judged with the rest of the result, so the AI Builder sets
+        ``report_output`` and the outputs it names through the same revision,
+        permissions and history as every other change (ADR 0059).
+        """
+        patch = _config_patch(operation, path)
+        unknown = sorted(set(patch) - INTERFACE_FIELDS)
+        if unknown:
+            raise _refuse(
+                _FIELD_UNKNOWN_CODE,
+                "Unknown Interface field " + ", ".join(unknown),
+                f"{path}.patch",
+            )
+        current = self.definition.callable
+        if current is None:
+            current = copy.deepcopy(self.definition.base_callable or {})
+        for key, value in patch.items():
+            if value is None:
+                current.pop(key, None)
+            else:
+                current[key] = copy.deepcopy(value)
+        _refuse_secret_reference_changes(
+            self.definition.base_callable or {}, current, f"{path}.patch.expected_inputs"
+        )
+        self.definition.callable = current
 
     def _move_step(self, operation: Mapping[str, Any], path: str) -> None:
         """Change a step's membership; every edge it had is dropped.

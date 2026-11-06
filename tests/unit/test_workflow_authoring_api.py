@@ -266,6 +266,7 @@ def test_schema_discovery_is_serialized_without_project_or_mutation(monkeypatch)
     assert {row["id"] for row in guidance["change_set"]["partial_examples"]} == {
         "group_for_each_atomic",
         "root_hook_atomic",
+        "report_output_atomic",
     }
     assert db.workflows == {}
     assert db.history == []

@@ -257,7 +257,7 @@ def create_workflow_definition_router(
     def apply_workflow_definition_changes(
         request: Request, workflow_id: str, body: WorkflowChangeSet
     ) -> dict[str, Any]:
-        """Apply one atomic set of step, group and graph changes.
+        """Apply one atomic set of step, group, graph and Interface changes.
 
         The whole set becomes one new revision or nothing is saved. An enabled
         workflow keeps running its current revision when the set is refused.
