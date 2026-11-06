@@ -18,7 +18,7 @@ export function connectorToolCategory(row: Record<string, unknown>, config: Reco
 export function localizedToolCategoryOptions(t: I18nContextValue["t"]) {
   return [
     { value: "connector", label: t("react.workflows.system_tools", "System tools") },
-    { value: "extension_tools", label: t("react.workflows.extension_tools", "Extension tools") },
-    { value: "mcp_tools", label: t("react.workflows.mcp_tools", "MCP tools") },
+    { value: "extension_tools", label: t("react.workflows.extension_tools", "Extensions") },
+    { value: "mcp_tools", label: t("react.workflows.mcp_tools", "MCP") },
   ];
 }

@@ -20,14 +20,14 @@ it("offers only the six action step types and never concrete agents or catalog o
   renderPalette();
   const actions = within(screen.getByRole("group", { name: "Actions" }));
   expect(actions.getAllByRole("option").map((option) => option.getAttribute("aria-label"))).toEqual([
-    "Agent", "System tools", "Extension tools", "MCP tools", "HTTP request", "Invoke workflow",
+    "Agent", "System tools", "Extensions", "MCP", "HTTP request", "Invoke workflow",
   ]);
   expect(screen.queryByRole("option", { name: /Action step/i })).not.toBeInTheDocument();
   expect(screen.queryByRole("option", { name: /Unit writer|Send mail|Disabled action/ })).not.toBeInTheDocument();
 });
 
 it.each([
-  ["System tools", "connector"], ["MCP tools", "mcp_tools"], ["Extension tools", "extension_tools"],
+  ["System tools", "connector"], ["MCP", "mcp_tools"], ["Extensions", "extension_tools"],
 ])("keeps %s as an unconfigured canonical connector choice", (label, toolCategory) => {
   const view = renderPalette();
   fireEvent.click(screen.getByRole("option", { name: label }));
@@ -56,6 +56,8 @@ it("says what each kind does in one line and shows its title and keys", () => {
   renderPalette({ title: "Add after Classify request · Next" });
   expect(screen.getByText("Add after Classify request · Next")).toBeVisible();
   expect(screen.getByRole("option", { name: "Agent" })).toHaveAccessibleDescription("Ask an agent to read, decide or write.");
+  expect(screen.getByRole("option", { name: "Extensions" })).toHaveAccessibleDescription("Run an action from an installed extension.");
+  expect(screen.getByRole("option", { name: "MCP" })).toHaveAccessibleDescription("Call a tool on a connected MCP server.");
   expect(screen.getByRole("option", { name: "Parallel lanes" })).toHaveAccessibleDescription("A group whose lanes run side by side.");
   expect(screen.getByRole("option", { name: "Group" })).toHaveAccessibleDescription("Steps that belong together. Can become a child workflow.");
   expect(screen.getByRole("option", { name: "For each" })).toHaveAccessibleDescription("Run the steps inside once for each item.");
@@ -98,8 +100,8 @@ it("focuses search and organizes the scoped choices into the published families"
 
 it("offers tool step types before a catalog has loaded without inventing an installation", () => {
   const view = renderPalette({}, null);
-  fireEvent.click(screen.getByRole("option", { name: "Extension tools" }));
-  expect(view.onChoose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ stepKind: "connector", toolCategory: "extension_tools", displayName: "Extension tools" }));
+  fireEvent.click(screen.getByRole("option", { name: "Extensions" }));
+  expect(view.onChoose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ stepKind: "connector", toolCategory: "extension_tools", displayName: "Extensions" }));
   expect(view.onChoose.mock.calls[0][0].override.connector).toEqual({ operation_id: "", input_mapping: {}, connection_binding: {} });
   expect(screen.queryByText("Loading catalog…")).not.toBeInTheDocument();
 });
@@ -191,12 +193,12 @@ it.each([
   const view = renderPalette({}, connectorCatalog);
   const actions = within(screen.getByRole("group", { name: "Actions" }));
   expect(actions.getAllByRole("option").map((option) => option.getAttribute("aria-label"))).toEqual([
-    "Agent", "System tools", "Extension tools", "MCP tools", "HTTP request", "Invoke workflow",
+    "Agent", "System tools", "Extensions", "MCP", "HTTP request", "Invoke workflow",
   ]);
   expect(screen.queryByRole("option", { name: /Send receipt|Check contact|opaque|Unit writer/ })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("option", { name: "Extension tools" }));
+  fireEvent.click(screen.getByRole("option", { name: "Extensions" }));
   expect(view.onChoose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-    catalogKey: "tool-category:extension_tools", stepKind: "connector", toolCategory: "extension_tools", displayName: "Extension tools",
+    catalogKey: "tool-category:extension_tools", stepKind: "connector", toolCategory: "extension_tools", displayName: "Extensions",
     override: { connector: { operation_id: "", input_mapping: {}, connection_binding: {} } },
   }));
 });

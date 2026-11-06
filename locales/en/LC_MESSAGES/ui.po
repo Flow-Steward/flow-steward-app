@@ -26632,10 +26632,10 @@ msgid "react.workflows.system_tools"
 msgstr "System tools"
 
 msgid "react.workflows.mcp_tools"
-msgstr "MCP tools"
+msgstr "MCP"
 
 msgid "react.workflows.extension_tools"
-msgstr "Extension tools"
+msgstr "Extensions"
 
 msgid "react.registry.link_dataset_to_project_before_query"
 msgstr "Link this dataset to a project from the project's Datasets page before running the query."
@@ -26929,7 +26929,7 @@ msgid "react.workflows.palette_desc_dataset_query"
 msgstr "Query a DataSet."
 
 msgid "react.workflows.palette_desc_extension_tools"
-msgstr "Run an action of an installed extension."
+msgstr "Run an action from an installed extension."
 
 msgid "react.workflows.palette_desc_file_from_base64"
 msgstr "Turn base64 data into a file."
@@ -26956,7 +26956,7 @@ msgid "react.workflows.palette_desc_invoke_workflow"
 msgstr "Run another workflow and use its outputs."
 
 msgid "react.workflows.palette_desc_mcp_tools"
-msgstr "Run a tool of a connected MCP server."
+msgstr "Call a tool on a connected MCP server."
 
 msgid "react.workflows.palette_desc_note"
 msgstr "Text and images on the canvas. Saved separately from structure."
@@ -26992,7 +26992,7 @@ msgid "react.workflows.palette_desc_wait"
 msgstr "Pause, then continue."
 
 msgid "react.workflows.palette_extension_tools"
-msgstr "Extension tools"
+msgstr "Extensions"
 
 #: assets/frontend/src/pages/workflows/builder/canvas-add-step-palette.tsx
 msgid "react.workflows.palette_finish"
@@ -27037,7 +27037,7 @@ msgid "react.workflows.palette_insert_title"
 msgstr "Insert on {source} · {outcome} → {target}"
 
 msgid "react.workflows.palette_mcp_tools"
-msgstr "MCP tools"
+msgstr "MCP"
 
 #: assets/frontend/src/pages/workflows/builder/canvas-add-step-palette.tsx
 msgid "react.workflows.palette_no_results"
@@ -29888,3 +29888,9 @@ msgstr "Sent as the stored secret's value. The value never reaches the browser."
 
 msgid "react.workflows.http_auth_value_on_save"
 msgstr "Saving the step keeps a typed value as a stored secret, so you can choose it elsewhere."
+
+msgid "react.workflows.mcp_server"
+msgstr "MCP server"
+
+msgid "react.workflows.choose_mcp_server"
+msgstr "Choose MCP server"

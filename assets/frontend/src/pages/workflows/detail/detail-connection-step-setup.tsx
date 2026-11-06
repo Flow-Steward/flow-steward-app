@@ -37,12 +37,14 @@ function renderWhen(condition: boolean, content: ReactNode): ReactNode {
 function connectorSourcePresentation(connectorSource: string, connectorId: string, t: I18nContextValue["t"] = fallbackContext.t) {
   const isStandardToolAction = connectorSource === "standard_tool_action"
     || connectorId.startsWith("connector.std.");
+  const isMcp = connectorSource === "mcp_connector" || connectorId.startsWith("connector.mcp.");
   const isToolAction = connectorSource === "mcp_connector"
     || isStandardToolAction
     || (connectorSource === "registry_tool" && connectorId.startsWith("connector."));
   return {
-    connectorSelectLabel: isToolAction ? t("react.workflows.display_tool", "Tool") : t("react.workflows.display_action_source", "Action source"),
+    connectorSelectLabel: isMcp ? t("react.workflows.mcp_server", "MCP server") : isToolAction ? t("react.workflows.display_tool", "Tool") : t("react.workflows.display_action_source", "Action source"),
     isToolAction,
+    isMcp,
   };
 }
 
@@ -137,6 +139,7 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
       const {
         connectorSelectLabel,
         isToolAction,
+        isMcp,
       } = connectorSourcePresentation(connectorSource, selectedConnectorId, t);
       const selectedToolUrl = textOrEmpty(selectedConnectorRow.tool_url);
       const selectedOperationDescription = textOrEmpty(
@@ -211,15 +214,15 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
                   });
                 }}
                 value={selectedConnectorId}
-                options={[({ value: "", label: isToolAction ? t("react.workflows.choose_tool", "Choose tool") : t("react.workflows.choose_action_source", "Choose action source") }), ...connectorOptions.map((option: { disabled?: boolean; label: string; value: string }) => (
+                options={[({ value: "", label: isMcp ? t("react.workflows.choose_mcp_server", "Choose MCP server") : isToolAction ? t("react.workflows.choose_tool", "Choose tool") : t("react.workflows.choose_action_source", "Choose action source") }), ...connectorOptions.map((option: { disabled?: boolean; label: string; value: string }) => (
                   ({ value: option.value, label: option.label, disabled: option.disabled, icon: connectorOptionIcon(connectorRows, option.value) })
                 ))]}
               />
             </label>
             <label className="block text-xs text-[var(--fs-text-secondary)]">
-              <RequiredLabel>{t("security_overview.columns.action", "Action")}</RequiredLabel>
+              <RequiredLabel>{isMcp ? t("react.workflows.display_tool", "Tool") : t("security_overview.columns.action", "Action")}</RequiredLabel>
               <DsSelect
-                ariaLabel={t("security_overview.columns.action", "Action")}
+                ariaLabel={isMcp ? t("react.workflows.display_tool", "Tool") : t("security_overview.columns.action", "Action")}
                 required
                 searchable
                 className="mt-1 fs-select-constrained"
@@ -243,7 +246,7 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
                   });
                 }}
                 value={selectedConnectorOperationId}
-                options={[({ value: "", label: t("react.workflows.choose_action", "Choose action") }), ...connectorOperationOptions.map((option: { disabled?: boolean; label: string; value: string }) => (
+                options={[({ value: "", label: isMcp ? t("react.workflows.choose_tool", "Choose tool") : t("react.workflows.choose_action", "Choose action") }), ...connectorOperationOptions.map((option: { disabled?: boolean; label: string; value: string }) => (
                   ({ value: option.value, label: option.label, disabled: option.disabled })
                 ))]}
               />

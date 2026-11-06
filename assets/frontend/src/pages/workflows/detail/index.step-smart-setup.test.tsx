@@ -1575,7 +1575,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: /Create file/i }));
-    const toolSelect = await screen.findByRole("combobox", { name: "Tool" });
+    const toolSelect = await screen.findByRole("combobox", { name: "MCP server" });
     await waitFor(() => expect(toolSelect).toHaveTextContent("Drive"));
     expect(
       setupOptions(toolSelect).getAllByRole("option", { name: "Drive" }),
@@ -1584,7 +1584,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       setupOptions(toolSelect).queryByRole("option", { name: "Drive / create_file" }),
     ).not.toBeInTheDocument();
 
-    const actionSelect = screen.getByRole("combobox", { name: "Action" });
+    const actionSelect = screen.getByRole("combobox", { name: "Tool" });
     await waitFor(() => expect(actionSelect).toHaveTextContent("create_file"));
     expect(
       setupOptions(actionSelect).getByRole("option", { name: "create_file" }),
