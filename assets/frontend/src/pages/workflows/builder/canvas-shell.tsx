@@ -2,6 +2,7 @@ import { reportProtectedPaste } from "./canvas-clipboard-feedback";
 import { WorkflowCanvasGrid, CanvasAutoLayoutIcon, CanvasInterfaceCounts, CanvasMiniMap, CanvasToolbarHint, CanvasControls, type CanvasShellProps } from "./canvas-shell-support";
 import { CanvasRunBar } from "./canvas-run-bar";
 import { useCanvasRunFollow } from "./canvas-run-follow";
+import { useSelectedCanvasNodes } from "./canvas-node-identity";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { DsPopover, type PopoverTriggerProps } from "@/components/shared/popover";
@@ -336,6 +337,7 @@ export function WorkflowCanvasShell({
   const selectedSource = onAppendAtSlot && selectedNodeIds.size === 1 ? nodesWithCanvasState.find((node) => selectedNodeIds.has(node.id) && (isStepNode(node) || node.type === "groupContainer" || node.type === "forEachContainer" || node.type === "inlineLoop")) : undefined;
   const selectedIds = [...selectedNodeIds].sort(compareCanvasIds);
   // The selected step's connections stand out (Connections › Kinds "Selected step").
+  const shownNodes = useSelectedCanvasNodes(nodesWithCanvasState, selectedNodeIds);
   const shownEdges = useMemo(() => selectedNodeIds.size ? visibleEdges.map((edge) => edge.data && (selectedNodeIds.has(edge.source) || selectedNodeIds.has(edge.target))
     ? { ...edge, data: { ...edge.data, stepSelected: true } } : edge) : visibleEdges, [selectedNodeIds, visibleEdges]);
   const dismissGraphEditNotice = useCallback(() => setGraphEditNotice(null), [setGraphEditNotice]);
@@ -811,7 +813,7 @@ export function WorkflowCanvasShell({
             onMoveStart={(event) => { if (event) { onUserViewportInteraction?.(); runFollow.pause(); } }}
             onMove={(_, viewport) => setGridGap(viewport.zoom < 0.5 ? CANVAS_GRID * 4 : viewport.zoom < 0.8 ? CANVAS_GRID * 2 : CANVAS_GRID)}
             nodeTypes={canvasNodeTypes}
-            nodes={nodesWithCanvasState.map((node) => node.type === "canvasNote" ? node : { ...node, selected: selectedNodeIds.has(node.id) })}
+            nodes={shownNodes}
             nodesConnectable={changeSet.status !== "applying" && !structureLocked}
             nodesDraggable={!structureLocked}
             onConnect={handleConnect}
@@ -880,7 +882,7 @@ export function WorkflowCanvasShell({
             panOnDrag={[1]}
             proOptions={{ hideAttribution: true }}
           >
-            <CanvasControls inspectorWidth={inspectorWidth} showMiniMap={showMiniMap}>{(compact) => <>
+            <CanvasControls inspectorWidth={inspectorWidth}>{(compact) => <>
               {renderWhen(showMiniMap, <CanvasMiniMap nodes={nodesWithCanvasState} onUserViewportInteraction={onUserViewportInteraction} />)}
               {canvasRunBar && canvasRunBar.selection.kind !== "empty" ? <div className="workflow-canvas-runbar"><CanvasRunBar {...canvasRunBar} followRunAction={runFollow.paused ? { onInvoke: runFollow.resume } : undefined} /></div> : null}
             <Panel position="bottom-center" role="toolbar" className="workflow-canvas-toolbar" data-compact={compact ? "true" : "false"} aria-label={t("react.workflows.canvas_tools", "Canvas tools")}>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { curveEdgePath, routeCanvasEdge, routeCanvasEdges, compactRoutePoints } from "./canvas-edge-routing";
+import { curveEdgePath, routeCanvasEdge, routeCanvasEdges, compactRoutePoints, type CanvasEdgeRouteInput } from "./canvas-edge-routing";
+import reference from "@/test/fixtures/canvas-edge-routing-reference.json";
 
 describe("v133 canvas routing", () => {
   it("routes an explicit logical long jump above even when its manual endpoints look adjacent", () => {
@@ -103,5 +104,22 @@ describe("v133 canvas routing", () => {
     const result = routeCanvasEdge({ source: { x: 240, y: 40 }, target: { x: 0, y: 80 }, obstacles: [{ x: 80, y: 0, width: 80, height: 120 }], ...flags });
     expect(result.kind).toBe("lower-band");
     expect(result.bounds.y + result.bounds.height).toBeGreaterThan(124);
+  });
+});
+
+describe("canvas routing on large real canvases", () => {
+  const rect = ([x, y, width, height]: number[]) => ({ x, y, width, height });
+  type ReferenceCase = { name: string; input: Omit<CanvasEdgeRouteInput, "obstacles" | "endCards"> & { obstacles: number[][]; endCards: number[][] }; expected: unknown };
+  const cases = (reference as { cases: ReferenceCase[] }).cases;
+
+  it.each(cases.map((entry) => [entry.name, entry] as const))("draws %s exactly as the reference router did", (_name, entry) => {
+    const input = { ...entry.input, obstacles: entry.input.obstacles.map(rect), endCards: entry.input.endCards.map(rect) };
+    expect(routeCanvasEdges([input])[0]).toEqual(entry.expected);
+  });
+
+  it("keeps the reference set covering detours round many cards", () => {
+    expect(cases.length).toBeGreaterThanOrEqual(10);
+    expect(cases.every((entry) => entry.input.obstacles.length > 40)).toBe(true);
+    expect(new Set(cases.map((entry) => (entry.expected as { kind: string }).kind))).toEqual(new Set(["upper-band", "lower-band"]));
   });
 });

@@ -193,16 +193,18 @@ export function CanvasToolbarHint({ label, compact, children }: Readonly<{
 }
 
 /** Only the controls yield to the drawer; the graph viewport stays unchanged. */
-export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readonly<{
+export function CanvasControls({ inspectorWidth, children }: Readonly<{
   inspectorWidth: number;
-  showMiniMap: boolean;
   children: (compact: boolean) => ReactNode;
 }>) {
   const regionRef = useRef<HTMLDivElement>(null);
   const measuring = useRef(false);
   const [compact, setCompact] = useState(false);
 
-  const updatePlacement = useCallback(() => {
+  // What the expanded toolbar's width depends on. Reading it toggles the toolbar's anatomy, which makes the
+  // browser lay out the page twice, so a render or a pan that changed none of these does not read it again.
+  const measuredFor = useRef("");
+  const updatePlacement = useCallback((remeasure = false) => {
     const region = regionRef.current;
     const toolbar = region?.querySelector<HTMLElement>(".workflow-canvas-toolbar");
     if (measuring.current || !region?.isConnected || !toolbar?.isConnected) return;
@@ -210,24 +212,28 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
     if (!Number.isFinite(available.width) || !Number.isFinite(available.height) || available.width <= 32 || available.height <= 0) return;
     measuring.current = true;
     try {
-      // Read actual localized content in its expanded anatomy, without cloning
-      // controls. Restore before any commit/paint, including a failed read.
-      const previous = toolbar.dataset.measureExpanded;
-      let expandedWidth = 0;
-      let expandedHeight = 0;
-      try {
-        toolbar.dataset.measureExpanded = "true";
-        const expanded = toolbar.getBoundingClientRect();
-        expandedWidth = expanded.width;
-        expandedHeight = expanded.height;
-      } finally {
-        if (previous === undefined) delete toolbar.dataset.measureExpanded;
-        else toolbar.dataset.measureExpanded = previous;
+      const measureKey = `${available.width}|${toolbar.childElementCount}|${toolbar.textContent ?? ""}`;
+      if (remeasure || measuredFor.current !== measureKey) {
+        // Read actual localized content in its expanded anatomy, without cloning
+        // controls. Restore before any commit/paint, including a failed read.
+        const previous = toolbar.dataset.measureExpanded;
+        let expandedWidth = 0;
+        let expandedHeight = 0;
+        try {
+          toolbar.dataset.measureExpanded = "true";
+          const expanded = toolbar.getBoundingClientRect();
+          expandedWidth = expanded.width;
+          expandedHeight = expanded.height;
+        } finally {
+          if (previous === undefined) delete toolbar.dataset.measureExpanded;
+          else toolbar.dataset.measureExpanded = previous;
+        }
+        if (!region.isConnected || !toolbar.isConnected || !Number.isFinite(expandedWidth) || !Number.isFinite(expandedHeight) || expandedWidth <= 0 || expandedHeight <= 0) return;
+        measuredFor.current = measureKey;
+        // Preserve the existing16px safe inset on both sides of this local region.
+        const nextCompact = expandedWidth > available.width - 32;
+        setCompact((current) => current === nextCompact ? current : nextCompact);
       }
-      if (!region.isConnected || !toolbar.isConnected || !Number.isFinite(expandedWidth) || !Number.isFinite(expandedHeight) || expandedWidth <= 0 || expandedHeight <= 0) return;
-      // Preserve the existing16px safe inset on both sides of this local region.
-      const nextCompact = expandedWidth > available.width - 32;
-      setCompact((current) => current === nextCompact ? current : nextCompact);
       const minimap = region.querySelector<HTMLElement>(".workflow-canvas-minimap");
       if (!minimap?.isConnected) return;
       const minimapRect = minimap.getBoundingClientRect();
@@ -249,22 +255,21 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
     } finally { measuring.current = false; }
   }, []);
 
-  // Content/locale and compact commits also remeasure before paint. The same
-  // local observer handles region/drawer/font geometry; no global listeners.
-  useLayoutEffect(() => { updatePlacement(); });
+  // One local observer for region/drawer/font geometry, made once; no global listeners. A size change
+  // (a font, a caption, the drawer) reads the toolbar again.
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const observedRef = useRef(new Set<Element>());
   useLayoutEffect(() => {
     const region = regionRef.current;
-    const toolbar = region?.querySelector<HTMLElement>(".workflow-canvas-toolbar");
-    if (!region || !toolbar || globalThis.ResizeObserver === undefined) return;
+    if (!region || globalThis.ResizeObserver === undefined) return;
     let active = true;
     let placementFrame: number | null = null;
-    const observer = new ResizeObserver(updatePlacement);
-    observer.observe(region);
-    observer.observe(toolbar);
-    region.querySelectorAll<HTMLElement>(".workflow-canvas-minimap, .workflow-toolbar-caption, .workflow-canvas-runbar").forEach((element) => observer.observe(element));
+    const observer = new ResizeObserver(() => updatePlacement(true));
+    resizeObserverRef.current = observer;
+    const observed = observedRef.current;
     const stage = region.closest<HTMLElement>(".workflow-canvas-stage");
-    stage?.querySelectorAll<HTMLElement>(".workflow-container-lane-add").forEach((element) => observer.observe(element));
     const viewportElement = stage?.querySelector<HTMLElement>(".react-flow__viewport");
+    // A pan or zoom moves the lane controls the minimap avoids; the toolbar itself does not change.
     const viewportObserver = viewportElement && globalThis.MutationObserver !== undefined
       ? new MutationObserver(() => {
         if (placementFrame !== null || typeof globalThis.requestAnimationFrame !== "function") return;
@@ -277,14 +282,31 @@ export function CanvasControls({ inspectorWidth, showMiniMap, children }: Readon
     if (viewportElement && viewportObserver) viewportObserver.observe(viewportElement, { attributes: true, attributeFilter: ["style"] });
     // A font becoming ready can change captions hidden by the compact row.
     // This one completion belongs to the same owner, never a global listener.
-    if (document.fonts) ignoreAsyncResult(document.fonts.ready.then(() => { if (active) updatePlacement(); }));
+    if (document.fonts) ignoreAsyncResult(document.fonts.ready.then(() => { if (active) updatePlacement(true); }));
     return () => {
       active = false;
       observer.disconnect();
+      observed.clear();
+      resizeObserverRef.current = null;
       viewportObserver?.disconnect();
       if (placementFrame !== null && typeof globalThis.cancelAnimationFrame === "function") cancelAnimationFrame(placementFrame);
     };
-  }, [children, showMiniMap, updatePlacement]);
+  }, [updatePlacement]);
+  // Content/locale and compact commits also remeasure before paint. Elements that came with this
+  // commit join the observer; observing one again would only re-announce its size.
+  useLayoutEffect(() => {
+    const region = regionRef.current;
+    const observer = resizeObserverRef.current;
+    if (region && observer) {
+      const stage = region.closest<HTMLElement>(".workflow-canvas-stage");
+      const current = new Set<Element>([region, ...region.querySelectorAll(".workflow-canvas-toolbar, .workflow-canvas-minimap, .workflow-toolbar-caption, .workflow-canvas-runbar"),
+        ...(stage?.querySelectorAll(".workflow-container-lane-add") ?? [])]);
+      const observed = observedRef.current;
+      for (const element of observed) if (!current.has(element)) { observer.unobserve(element); observed.delete(element); }
+      for (const element of current) if (!observed.has(element)) { observer.observe(element); observed.add(element); }
+    }
+    updatePlacement();
+  });
 
   return <Panel
     position="bottom-center"

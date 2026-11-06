@@ -7,9 +7,7 @@ import type { WorkflowChangeSetController } from "../detail/detail-change-set";
 import { placeCanvasNode } from "./canvas-placement";
 import { portEdge } from "./change-set";
 import { type canvasConnectionDefinition, connectionPlacement, connectionRefusal } from "./canvas-connection-policy";
-import { routeCanvasEdges, type CanvasEdgeRouteInput } from "./canvas-edge-routing";
-import { canvasEdgeLabelPoint } from "./canvas-edge-label-placement";
-import { createWrappedRootRouteHints } from "./canvas-wrap-routing";
+import { CanvasEdgeRouteCache } from "./canvas-edge-route-set";
 import {
   canvasMotionDuration,
   canvasPasteBoundsVisible,
@@ -69,6 +67,9 @@ type CanvasInteractionContext = {
   beginPlacementGesture: (nodeIds: string[], dragging: boolean) => PlacementGesture | null;
   changeAnnotationNodes: ReturnType<typeof useCanvasNotes>["onNodesChange"];
   setManualPositions: StateSetter<Record<string, CanvasPosition>>;
+  /** Cards the author is dragging now: their connections follow without detours until the drop. */
+  draggingIds: ReadonlySet<string>;
+  setDraggingIds: StateSetter<ReadonlySet<string>>;
   saveAnnotation: ReturnType<typeof useCanvasNotes>["save"];
   visibleEdges: Edge<InteractiveCanvasEdgeData>[];
   deleteEdgeData: (data?: CanvasEdgeData) => void;
@@ -105,6 +106,34 @@ type CanvasInteractionContext = {
   /** Record clearing these manual places as one placement intent; returns the toast's Undo. */
   recordAutoLayout: (before: Record<string, CanvasPosition>) => GraphEditNotice["action"] | undefined;
 };
+
+/** No card is being dragged. One shared value, so clearing twice changes nothing. */
+export const NOTHING_DRAGGED: ReadonlySet<string> = new Set();
+
+/**
+ * The drawn connections, each with its interactive state. A connection whose route object and state
+ * values (flags and handlers, compared one by one) did not change keeps its drawn object.
+ */
+class ShownCanvasEdgeCache {
+  private shown = new Map<string, { from: Edge; state: Record<string, unknown>; drawn: Edge }>();
+
+  show<E extends Edge>(edges: readonly E[], stateOf: (edge: E) => Record<string, unknown> | null): Edge<InteractiveCanvasEdgeData>[] {
+    const next = new Map<string, { from: Edge; state: Record<string, unknown>; drawn: Edge }>();
+    const drawn = edges.map((edge) => {
+      const state = stateOf(edge);
+      if (!state) return edge;
+      const kept = this.shown.get(edge.id);
+      const keys = Object.keys(state);
+      const entry = kept && kept.from === edge && keys.length === Object.keys(kept.state).length && keys.every((key) => kept.state[key] === state[key])
+        ? kept
+        : { from: edge, state, drawn: { ...edge, data: { ...edge.data, ...state } } };
+      next.set(edge.id, entry);
+      return entry.drawn;
+    });
+    this.shown = next;
+    return drawn as Edge<InteractiveCanvasEdgeData>[];
+  }
+}
 
 function isHookMemberEdge(edge: WorkflowGraphEdge | undefined): boolean {
   return Boolean(edge && isHookMemberRef(edge.source));
@@ -147,6 +176,9 @@ export function useCanvasRenderedStepHeights({ canvasMeasureRootRef, setMeasured
       measuredHeightsEqual(current, next) ? current : next,
     );
   }, [canvasMeasureRootRef, setMeasuredStepHeights]);
+  // Moving a card changes no card's height: measure again when cards come, go or change frame.
+  // The resize observer below catches a card whose content grows or shrinks.
+  const renderedCards = useMemo(() => nodesWithCanvasState.map((node) => `${node.id}|${node.type ?? ""}|${node.parentId ?? ""}`).join(";"), [nodesWithCanvasState]);
 
   useEffect(() => {
     const root = canvasMeasureRootRef.current;
@@ -196,11 +228,11 @@ export function useCanvasRenderedStepHeights({ canvasMeasureRootRef, setMeasured
       }
       observer.disconnect();
     };
-  }, [canvasMeasureRootRef, measureRenderedStepHeights, nodesWithCanvasState]);
+  }, [canvasMeasureRootRef, measureRenderedStepHeights, renderedCards]);
 
 }
 
-export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, onInsertBeforeEntry, resolveCommandOwner }: Readonly<Pick<CanvasInteractionContext, "t" | "onDisconnectPort" | "setSelectedEdgeId" | "setGraphEditNotice" | "nodes" | "nodesWithCanvasState" | "rootRows" | "edges" | "showFailurePaths" | "structureLocked" | "hoveredEdgeId" | "selectedEdgeId" | "closeTransientSurfaces" | "onInsertStep" | "onInsertBeforeEntry" | "resolveCommandOwner">>) {
+export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdgeId, setGraphEditNotice, nodes, nodesWithCanvasState, rootRows, edges, showFailurePaths, structureLocked, hoveredEdgeId, selectedEdgeId, closeTransientSurfaces, onInsertStep, onInsertBeforeEntry, resolveCommandOwner, draggingIds }: Readonly<Pick<CanvasInteractionContext, "t" | "onDisconnectPort" | "setSelectedEdgeId" | "setGraphEditNotice" | "nodes" | "nodesWithCanvasState" | "rootRows" | "edges" | "showFailurePaths" | "structureLocked" | "hoveredEdgeId" | "selectedEdgeId" | "closeTransientSurfaces" | "onInsertStep" | "onInsertBeforeEntry" | "resolveCommandOwner" | "draggingIds">>) {
   /** Remove connection acts at once; the toast offers Undo (Components2 › Connection actions). */
   const deleteEdgeData = useCallback(
     (data?: CanvasEdgeData) => {
@@ -219,63 +251,27 @@ export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdge
     [onDisconnectPort, resolveCommandOwner, setGraphEditNotice, setSelectedEdgeId, t],
   );
 
-  const routedEdges = useMemo(() => {
-    const byId = new Map(nodesWithCanvasState.map((node) => [node.id, node]));
-    const absolute = (node: Node): CanvasPosition => { let point = { ...node.position }; let parent = node.parentId ? byId.get(node.parentId) : undefined; const visited = new Set([node.id]); while (parent && !visited.has(parent.id)) { visited.add(parent.id); point = { x: point.x + parent.position.x, y: point.y + parent.position.y }; parent = parent.parentId ? byId.get(parent.parentId) : undefined; } return point; };
-    const rectangle = (node: Node) => ({ ...absolute(node), width: Number(node.width || node.style?.width || 0), height: Number(node.height || node.style?.height || 0) });
-    const isAncestor = (ancestor: Node, node: Node) => {
-      let parent = node.parentId;
-      const seen = new Set<string>();
-      while (parent && !seen.has(parent)) {
-        if (parent === ancestor.id) return true;
-        seen.add(parent);
-        parent = byId.get(parent)?.parentId;
-      }
-      return false;
-    };
-    const wrappedRouteHints = createWrappedRootRouteHints(rootRows, nodes);
-    const inputs: CanvasEdgeRouteInput[] = []; const routedIds: string[] = [];
-    for (const edge of edges) {
-      const source = byId.get(edge.source); const target = byId.get(edge.target);
-      if (!source || !target || !edge.data) continue;
-      const sourceHandle = source.handles?.find((handle) => handle.type === "source" && handle.id === edge.sourceHandle);
-      const targetHandle = target.handles?.find((handle) => handle.type === "target" && handle.id === edge.targetHandle);
-      if (!sourceHandle || !targetHandle) continue;
-      const sourceRect = rectangle(source); const targetRect = rectangle(target);
-      const obstacles = nodesWithCanvasState.filter((node) => node.type !== "canvasNote" && node.id !== source.id && node.id !== target.id && !isAncestor(node, source) && !isAncestor(node, target)).map(rectangle);
-      const sourceSide = sourceHandle.position === "bottom" ? "bottom" : "right";
-      const targetSide = targetHandle.position === "bottom" ? "bottom" : "left";
-      const rowHint = wrappedRouteHints({
-        source: { node: source, rect: sourceRect }, target: { node: target, rect: targetRect },
-        sameScope: Boolean(edge.data.routing?.sameScope),
-        failure: Boolean(edge.data.failurePath), repeat: Boolean(edge.data.rework),
-        sourceSide, targetSide,
-      });
-      inputs.push({ source: { x: sourceRect.x + sourceHandle.x + (sourceHandle.width ?? 10) / 2, y: sourceRect.y + sourceHandle.y + (sourceHandle.height ?? 10) / 2 }, target: { x: targetRect.x + targetHandle.x + (targetHandle.width ?? 10) / 2, y: targetRect.y + targetHandle.y + (targetHandle.height ?? 10) / 2 }, obstacles, endCards: [source, target].filter((node) => !isAncestor(node, source) && !isAncestor(node, target)).map(rectangle), backward: rowHint.backward ?? (targetRect.x <= sourceRect.x), failure: edge.data.failurePath, repeat: edge.data.rework, shapeGroupKey: `${source.id}:${target.id}:${edge.targetHandle}`, longJump: edge.data.routing?.longJump, sourceSide, targetSide, ...(rowHint.targetRowTop === undefined ? {} : { targetRowTop: rowHint.targetRowTop }) });
-      routedIds.push(edge.id);
-    }
-    const routes = new Map(routeCanvasEdges(inputs).map((route, index) => [routedIds[index], route]));
-    // Every card, the connection's own ends included: a label must not hide under any of them.
-    // Group and For each frames enclose their connections, so a label inside one is fine.
-    const cards = nodesWithCanvasState.filter((node) => node.type !== "canvasNote" && node.type !== "groupContainer" && node.type !== "forEachContainer").map(rectangle);
-    return edges.map((edge) => {
-      if (!edge.data) return edge;
-      const route = routes.get(edge.id);
-      const labelAt = route ? canvasEdgeLabelPoint(route, typeof edge.label === "string" ? edge.label : "", cards) : undefined;
-      return { ...edge, data: { ...edge.data, route, labelAt } };
-    });
-  }, [edges, nodes, nodesWithCanvasState, rootRows]);
+  // Routing is the canvas's dearest work: each pass reuses the last one where nothing moved (Canvas › Routing).
+  const routeCache = useMemo(() => new CanvasEdgeRouteCache(), []);
+  const routedEdges = useMemo(
+    () => routeCache.route({ nodes, positioned: nodesWithCanvasState, rootRows, edges, draggingIds }),
+    [draggingIds, edges, nodes, nodesWithCanvasState, routeCache, rootRows],
+  );
 
-  const visibleEdges = useMemo(() => routedEdges.filter((edge) => showFailurePaths || !edge.data?.failurePath).map((edge) => {
-    if (!edge.data) {
+  const insertOnEdge = useCallback((data: CanvasEdgeData) => { setSelectedEdgeId(null); closeTransientSurfaces(); onInsertStep(data.edge); }, [closeTransientSurfaces, onInsertStep, setSelectedEdgeId]);
+  const insertBeforeEntry = useCallback(() => { setSelectedEdgeId(null); closeTransientSurfaces(); onInsertBeforeEntry?.(); }, [closeTransientSurfaces, onInsertBeforeEntry, setSelectedEdgeId]);
+  // A connection whose route, state and handlers did not change keeps its object, so hovering one
+  // connection or dragging one card does not draw every other connection again.
+  const shownEdgeCache = useMemo(() => new ShownCanvasEdgeCache(), []);
+  const visibleEdges = useMemo(() => shownEdgeCache.show(
+    routedEdges.filter((edge) => showFailurePaths || !edge.data?.failurePath),
+    (edge) => {
       // Start → the first step: its "+" puts a new first step in front (the old one follows it).
-      if (edge.id !== START_ENTRY_EDGE_ID || structureLocked || !onInsertBeforeEntry) return edge;
-      const entryInsert: Partial<InteractiveCanvasEdgeData> = { hovered: edge.id === hoveredEdgeId, onInsert: () => { setSelectedEdgeId(null); closeTransientSurfaces(); onInsertBeforeEntry(); } };
-      return { ...edge, data: entryInsert as InteractiveCanvasEdgeData };
-    }
-    const editable = !structureLocked || isHookMemberEdge(edge.data.edge);
-    return { ...edge, data: { ...edge.data, hovered: edge.id === hoveredEdgeId, selected: edge.id === selectedEdgeId, ...(editable ? { onDelete: deleteEdgeData, onInsert: (data: CanvasEdgeData) => { setSelectedEdgeId(null); closeTransientSurfaces(); onInsertStep(data.edge); } } : {}) } };
-  }), [closeTransientSurfaces, deleteEdgeData, hoveredEdgeId, onInsertBeforeEntry, onInsertStep, routedEdges, selectedEdgeId, showFailurePaths, structureLocked, setSelectedEdgeId]);
+      if (!edge.data) return edge.id === START_ENTRY_EDGE_ID && !structureLocked && onInsertBeforeEntry ? { hovered: edge.id === hoveredEdgeId, onInsert: insertBeforeEntry } : null;
+      const editable = !structureLocked || isHookMemberEdge(edge.data.edge);
+      return { hovered: edge.id === hoveredEdgeId, selected: edge.id === selectedEdgeId, ...(editable ? { onDelete: deleteEdgeData, onInsert: insertOnEdge } : {}) };
+    },
+  ), [deleteEdgeData, hoveredEdgeId, insertBeforeEntry, insertOnEdge, onInsertBeforeEntry, routedEdges, selectedEdgeId, shownEdgeCache, showFailurePaths, structureLocked]);
   const selectedEdge = useMemo(
     () =>
       visibleEdges.find((edge) => edge.id === selectedEdgeId) as
@@ -293,10 +289,14 @@ export function useCanvasInteractiveEdges({ t, onDisconnectPort, setSelectedEdge
   return { deleteEdgeData, visibleEdges, selectedEdge };
 }
 
-export function useCanvasGraphEditing({ t, beginPlacementGesture, changeAnnotationNodes, nodes, setManualPositions, saveAnnotation, visibleEdges, deleteEdgeData, setSelectedEdgeId, manualPositions, setGraphEditNotice, reactFlowInstance, canvasMeasureRootRef, recordAutoLayout }: Readonly<Pick<CanvasInteractionContext, "t" | "beginPlacementGesture" | "changeAnnotationNodes" | "nodes" | "setManualPositions" | "saveAnnotation" | "visibleEdges" | "deleteEdgeData" | "setSelectedEdgeId" | "manualPositions" | "setGraphEditNotice" | "reactFlowInstance" | "canvasMeasureRootRef" | "recordAutoLayout">>) {
+export function useCanvasGraphEditing({ t, beginPlacementGesture, changeAnnotationNodes, nodes, setManualPositions, saveAnnotation, visibleEdges, deleteEdgeData, setSelectedEdgeId, manualPositions, setGraphEditNotice, reactFlowInstance, canvasMeasureRootRef, recordAutoLayout, setDraggingIds }: Readonly<Pick<CanvasInteractionContext, "t" | "beginPlacementGesture" | "changeAnnotationNodes" | "nodes" | "setManualPositions" | "saveAnnotation" | "visibleEdges" | "deleteEdgeData" | "setSelectedEdgeId" | "manualPositions" | "setGraphEditNotice" | "reactFlowInstance" | "canvasMeasureRootRef" | "recordAutoLayout" | "setDraggingIds">>) {
   /** Dragging a node only moves it on screen; the execution graph is unchanged. */
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     changeAnnotationNodes(changes);
+    // Which cards are mid-drag: their connections follow cheaply until the drop routes them all.
+    const dragged = changes.filter((change) => change.type === "position" && change.dragging === true).map((change) => (change as { id: string }).id);
+    if (dragged.length) setDraggingIds((current) => current.size === dragged.length && dragged.every((id) => current.has(id)) ? current : new Set(dragged));
+    else if (changes.some((change) => change.type === "position" && change.dragging === false)) setDraggingIds(NOTHING_DRAGGED);
     const positions = new Map<string, CanvasPosition>();
     for (const change of changes) if (change.type === "position" && change.position && !change.id.startsWith("annotation:") && change.id !== "visual:start") positions.set(change.id, change.position);
     if (!positions.size) return;
@@ -313,9 +313,10 @@ export function useCanvasGraphEditing({ t, beginPlacementGesture, changeAnnotati
       });
       return manualPositionsFromNodes(reconcileCanvasGeometry(changed), nodes, current);
     });
-  }, [beginPlacementGesture, changeAnnotationNodes, nodes, setManualPositions]);
+  }, [beginPlacementGesture, changeAnnotationNodes, nodes, setDraggingIds, setManualPositions]);
 
   const handleNodeDragStop = useCallback((node: Node) => {
+    setDraggingIds(NOTHING_DRAGGED);
     if (node.type === "canvasNote") {
       const { note } = node.data as CanvasNoteData;
       ignoreAsyncResult(saveAnnotation({ ...note, ...node.position }));
@@ -332,7 +333,7 @@ export function useCanvasGraphEditing({ t, beginPlacementGesture, changeAnnotati
       const placed = displayed.map((candidate) => candidate.id === node.id ? { ...candidate, position } : candidate);
       return manualPositionsFromNodes(reconcileCanvasGeometry(placed), nodes, current);
     });
-  }, [beginPlacementGesture, nodes, saveAnnotation, setManualPositions]);
+  }, [beginPlacementGesture, nodes, saveAnnotation, setDraggingIds, setManualPositions]);
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
