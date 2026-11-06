@@ -87,14 +87,14 @@ function stepDescription(kind: string, t: Translate): string {
 }
 
 function toolLabel(category: ToolCategory, t: Translate): string {
-  if (category === "extension_tools") return t("react.workflows.palette_extension_tools", "Extension tools");
-  if (category === "mcp_tools") return t("react.workflows.palette_mcp_tools", "MCP tools");
+  if (category === "extension_tools") return t("react.workflows.palette_extension_tools", "Extensions");
+  if (category === "mcp_tools") return t("react.workflows.palette_mcp_tools", "MCP");
   return t("react.workflows.palette_system_tools", "System tools");
 }
 
 function toolDescription(category: ToolCategory, t: Translate): string {
-  if (category === "extension_tools") return t("react.workflows.palette_desc_extension_tools", "Run an action of an installed extension.");
-  if (category === "mcp_tools") return t("react.workflows.palette_desc_mcp_tools", "Run a tool of a connected MCP server.");
+  if (category === "extension_tools") return t("react.workflows.palette_desc_extension_tools", "Run an action from an installed extension.");
+  if (category === "mcp_tools") return t("react.workflows.palette_desc_mcp_tools", "Call a tool on a connected MCP server.");
   return t("react.workflows.palette_desc_system_tools", "Run a built-in tool on text, numbers or JSON.");
 }
 

@@ -27004,10 +27004,10 @@ msgid "react.workflows.system_tools"
 msgstr "Sistemos įrankiai"
 
 msgid "react.workflows.mcp_tools"
-msgstr "MCP įrankiai"
+msgstr "MCP"
 
 msgid "react.workflows.extension_tools"
-msgstr "Plėtinių įrankiai"
+msgstr "Plėtiniai"
 
 msgid "react.registry.link_dataset_to_project_before_query"
 msgstr "Prieš vykdydami užklausą susiekite duomenų rinkinį su projektu projekto puslapyje „Duomenų rinkiniai“."
@@ -27329,7 +27329,7 @@ msgid "react.workflows.palette_desc_invoke_workflow"
 msgstr "Paleisti kitą darbo eigą ir naudoti jos išvestis."
 
 msgid "react.workflows.palette_desc_mcp_tools"
-msgstr "Vykdyti prijungto MCP serverio įrankį."
+msgstr "Iškviesti prijungto MCP serverio įrankį."
 
 msgid "react.workflows.palette_desc_note"
 msgstr "Tekstas ir paveikslėliai drobėje. Saugoma atskirai nuo struktūros."
@@ -27365,7 +27365,7 @@ msgid "react.workflows.palette_desc_wait"
 msgstr "Pristabdyti, tada tęsti."
 
 msgid "react.workflows.palette_extension_tools"
-msgstr "Plėtinių įrankiai"
+msgstr "Plėtiniai"
 
 #: assets/frontend/src/pages/workflows/builder/canvas-add-step-palette.tsx
 msgid "react.workflows.palette_finish"
@@ -27410,7 +27410,7 @@ msgid "react.workflows.palette_insert_title"
 msgstr "Įterpti į {source} · {outcome} → {target}"
 
 msgid "react.workflows.palette_mcp_tools"
-msgstr "MCP įrankiai"
+msgstr "MCP"
 
 #: assets/frontend/src/pages/workflows/builder/canvas-add-step-palette.tsx
 msgid "react.workflows.palette_no_results"
@@ -30262,3 +30262,9 @@ msgstr "Siunčiama išsaugotos paslapties reikšmė. Reikšmė niekada nepasieki
 
 msgid "react.workflows.http_auth_value_on_save"
 msgstr "Išsaugojus žingsnį įvesta reikšmė laikoma kaip paslaptis, todėl ją galėsite pasirinkti ir kitur."
+
+msgid "react.workflows.mcp_server"
+msgstr "MCP serveris"
+
+msgid "react.workflows.choose_mcp_server"
+msgstr "Pasirinkite MCP serverį"

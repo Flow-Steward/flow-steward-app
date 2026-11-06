@@ -500,8 +500,8 @@ describe("the extension a new action step comes from", () => {
 // Exercise the actual canvas command, prepared drawer and canonical local graph.
 it.each([
   ["System tools", "connector", "Tool"],
-  ["MCP tools", "mcp_tools", "Tool"],
-  ["Extension tools", "extension_tools", "Action source"],
+  ["MCP", "mcp_tools", "MCP server"],
+  ["Extensions", "extension_tools", "Action source"],
 ])("opens %s setup after palette creation without persisting a presentation kind", async (label, category, sourceLabel) => {
   mockedFindWorkflowLinkedProjectId.mockResolvedValue("project_alpha");
   mockedFetchWorkflowCanvasGraph.mockResolvedValue(canvasGraphFixture());
@@ -512,7 +512,7 @@ it.each([
   const drawer = await screen.findByRole("dialog", { name: "Step editor" });
   expect(within(drawer).getByRole("combobox", { name: "Step kind" })).toHaveValue(category);
   expect(within(drawer).getByRole("combobox", { name: sourceLabel })).toBeInTheDocument();
-  expect(within(drawer).getByRole("combobox", { name: "Action" })).toHaveTextContent("Choose action");
+  expect(within(drawer).getByRole("combobox", { name: label === "MCP" ? "Tool" : "Action" })).toHaveTextContent(label === "MCP" ? "Choose tool" : "Choose action");
   await waitFor(() => {
     const created = dryRunChangeSets().flatMap((body) => listFromUnknown(body.operations)).find((operation) => operation.op === "create_step");
     expect(created).toMatchObject({ op: "create_step", step: { step_kind: "connector", display_name: label } });
@@ -543,14 +543,14 @@ function clickCard(target: HTMLElement, init: MouseEventInit = {}) {
   }
 }
 
-it.each(["MCP tools", "Extension tools"])("retains an unfinished %s category after the real page drawer closes and reopens", async (label) => {
+it.each(["MCP", "Extensions"])("retains an unfinished %s category after the real page drawer closes and reopens", async (label) => {
   mockedFindWorkflowLinkedProjectId.mockResolvedValue("project_alpha");
   mockedFetchWorkflowCanvasGraph.mockResolvedValue(canvasGraphFixture());
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
   const tools = await screen.findByRole("toolbar", { name: "Canvas tools" });
   fireEvent.click(within(tools).getByRole("button", { name: "Add step" }));
   fireEvent.click(await screen.findByRole("option", { name: label }));
-  const category = label === "MCP tools" ? "mcp_tools" : "extension_tools";
+  const category = label === "MCP" ? "mcp_tools" : "extension_tools";
   let drawer = await screen.findByRole("dialog", { name: "Step editor" });
   expect(within(drawer).getByRole("combobox", { name: "Step kind" })).toHaveValue(category);
   fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
@@ -559,7 +559,7 @@ it.each(["MCP tools", "Extension tools"])("retains an unfinished %s category aft
   clickCard(within(canvas).getByRole("group", { name: `Open step ${label}` }));
   drawer = await screen.findByRole("dialog", { name: "Step editor" });
   expect(within(drawer).getByRole("combobox", { name: "Step kind" })).toHaveValue(category);
-  expect(within(drawer).getByRole("combobox", { name: label === "MCP tools" ? "Tool" : "Action source" })).toHaveTextContent(/Choose/);
-  expect(within(drawer).getByRole("combobox", { name: "Action" })).toHaveTextContent("Choose action");
+  expect(within(drawer).getByRole("combobox", { name: label === "MCP" ? "MCP server" : "Action source" })).toHaveTextContent(/Choose/);
+  expect(within(drawer).getByRole("combobox", { name: label === "MCP" ? "Tool" : "Action" })).toHaveTextContent(label === "MCP" ? "Choose tool" : "Choose action");
   expect(postedChangeSets()).toEqual([]);
 }, 15_000);
