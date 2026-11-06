@@ -29124,3 +29124,18 @@ msgstr ""
 
 msgid "react.workflows.report_test_result_note"
 msgstr ""
+
+msgid "react.workflows.report_output"
+msgstr ""
+
+msgid "react.workflows.report_output_none"
+msgstr ""
+
+msgid "react.workflows.report_output_help"
+msgstr ""
+
+msgid "react.workflows.report_output_stale"
+msgstr ""
+
+msgid "react.workflows.report_fields_unknown"
+msgstr ""

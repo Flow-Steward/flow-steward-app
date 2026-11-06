@@ -167,6 +167,14 @@ function TemplateHelp() {
   );
 }
 
+/** Every variable path the builder suggests at this step, flattened from its groups. */
+function variablePathsFrom(groups: unknown): string[] {
+  if (!Array.isArray(groups)) return [];
+  return groups.flatMap((group: { options?: Array<{ value?: unknown }> }) =>
+    (group.options ?? []).map((option) => String(option.value ?? "")).filter(Boolean),
+  );
+}
+
 export function TemplateStepSetup({
   ctx,
   idPrefix = "template",
@@ -325,9 +333,12 @@ export function TemplateStepSetup({
       {isReport ? (
         <ReportDefinitionEditor
           inputClass={inputClass}
-          inputs={rows.map((row) => ({ name: row.name, type: row.type }))}
+          inputs={rows.map((row) => ({ name: row.name, type: row.type, source: row.source }))}
           onChange={(next) => setField(REPORT_FORMAT, next)}
           value={config.report}
+          stepId={textOrEmpty(ctx.stepAuthoredId)}
+          validationIssues={ctx.stepValidationErrors}
+          variablePaths={variablePathsFrom(ctx.availableWorkflowVariableSuggestions)}
         />
       ) : (
         <div className="space-y-1">

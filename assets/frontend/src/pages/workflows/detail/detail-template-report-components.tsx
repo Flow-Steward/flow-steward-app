@@ -2,7 +2,7 @@
  * The ordered component list of the report editor and the form of each
  * component type. Sections hold their own list, up to the schema's depth.
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -28,6 +28,7 @@ import {
   FieldRows,
   FormatFields,
   ItemActions,
+  RowFieldSuggestions,
   SegmentRows,
   type ReportInput,
 } from "./detail-template-report-parts";
@@ -38,6 +39,10 @@ export type ListContext = {
   /** Every component id in the whole report, for new unique ids. */
   takenIds: readonly string[];
   inputClass: string;
+  /** Known row fields per rows source id, from typed variable discovery. */
+  fieldSuggestions: Readonly<Record<string, readonly string[]>>;
+  /** The server's last validation messages per component id. */
+  serverIssues: Readonly<Record<string, readonly string[]>>;
 };
 
 function useTypeLabels(): Record<ComponentType, string> {
@@ -97,10 +102,17 @@ function TextInput({
   value,
   ctx,
   onChange,
-}: Readonly<{ label: string; value: string; ctx: ListContext; onChange: (next: string) => void }>) {
+  list,
+}: Readonly<{ label: string; value: string; ctx: ListContext; onChange: (next: string) => void; list?: string }>) {
   return (
     <Field label={label}>
-      <input aria-label={label} className={ctx.inputClass} onChange={(event) => onChange(event.target.value)} value={value} />
+      <input
+        aria-label={label}
+        className={ctx.inputClass}
+        list={list}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
     </Field>
   );
 }
@@ -151,6 +163,10 @@ function ComponentFields({
   onChange: (next: DefinitionComponent) => void;
 }>) {
   const { t } = useI18n();
+  const suggestionsId = useId();
+  const rowFields =
+    component.type === "table" || component.type === "chart" ? (ctx.fieldSuggestions[component.dataset] ?? []) : [];
+  const listId = rowFields.length ? suggestionsId : undefined;
   switch (component.type) {
     case "text":
       return (
@@ -231,8 +247,10 @@ function ComponentFields({
             value={component.caption}
           />
           <DatasetSelect ctx={ctx} onChange={(dataset) => onChange({ ...component, dataset })} value={component.dataset} />
+          <RowFieldSuggestions fields={rowFields} id={suggestionsId} />
           <FieldRows
             addLabel={t("react.workflows.report_add_column", "Add column")}
+            suggestionsId={listId}
             inputClass={ctx.inputClass}
             legend={t("react.workflows.report_columns", "Columns")}
             newRow={() => ({
@@ -282,6 +300,7 @@ function ComponentFields({
             value={component.description}
           />
           <DatasetSelect ctx={ctx} onChange={(dataset) => onChange({ ...component, dataset })} value={component.dataset} />
+          <RowFieldSuggestions fields={rowFields} id={suggestionsId} />
           <fieldset className="space-y-2 rounded-lg border border-default p-2">
             <legend className="text-xs fs-ink-secondary">
               {t("react.workflows.report_categories", "Categories (one per row)")}
@@ -290,6 +309,7 @@ function ComponentFields({
               <TextInput
                 ctx={ctx}
                 label={t("react.workflows.report_category_field", "Category field")}
+                list={listId}
                 onChange={(field) => onChange({ ...component, category: { ...component.category, field } })}
                 value={component.category.field}
               />
@@ -312,6 +332,7 @@ function ComponentFields({
             addLabel={t("react.workflows.report_add_series", "Add series")}
             inputClass={ctx.inputClass}
             legend={t("react.workflows.report_series", "Series")}
+            suggestionsId={listId}
             newRow={() => ({
               id: freeId("series", component.series.map((series) => series.id)),
               field: "",
@@ -390,10 +411,13 @@ export function ComponentList({
                   onRemove={() => onChange(removeAt(components, index))}
                 />
               </div>
-              {problems.length ? (
+              {problems.length || ctx.serverIssues[component.id]?.length ? (
                 <ul className="space-y-1 text-xs fs-ink-attention" role="status">
                   {problems.map((problem) => (
                     <li key={problem}>{problemLabels[problem]}</li>
+                  ))}
+                  {(ctx.serverIssues[component.id] ?? []).map((message) => (
+                    <li key={`server-${message}`}>{message}</li>
                   ))}
                 </ul>
               ) : null}

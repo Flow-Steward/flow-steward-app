@@ -9,6 +9,8 @@ import {
   moveItem,
   newComponent,
   readDefinition,
+  reportIssuesByPlace,
+  rowFieldSuggestions,
   withDatasets,
   without,
   type DefinitionComponent,
@@ -93,5 +95,61 @@ describe("report definition model", () => {
   it("moves items within bounds", () => {
     expect(moveItem(["a", "b", "c"], 2, -1)).toEqual(["a", "c", "b"]);
     expect(moveItem(["a", "b"], 0, -1)).toEqual(["a", "b"]);
+  });
+
+  it("suggests the row fields a producing step declares, one level below the source", () => {
+    const sources = [
+      { name: "regions", source: "state.outputs.regions" },
+      { name: "kpis", source: "state.outputs.kpis" },
+    ];
+    const paths = [
+      "state.outputs.regions",
+      "state.outputs.regions.region",
+      "state.outputs.regions.revenue",
+      "state.outputs.regions.region.code",
+      "state.outputs.kpis.rows.region",
+      "state.outputs.other.region",
+    ];
+    expect(rowFieldSuggestions({ id: "rows_1", source: { input: "regions" } }, sources, paths)).toEqual([
+      "region",
+      "revenue",
+    ]);
+    expect(rowFieldSuggestions({ id: "rows_2", source: { input: "kpis", path: "rows" } }, sources, paths)).toEqual([
+      "region",
+    ]);
+    expect(rowFieldSuggestions({ id: "rows_3", source: { input: "unknown" } }, sources, paths)).toEqual([]);
+  });
+
+  it("places server issues on the component, rows source or report they name", () => {
+    const definition: ReportDefinition = {
+      schema_version: 1,
+      title: "R",
+      locale: "en-US",
+      time_zone: "UTC",
+      datasets: [{ id: "regions", source: { input: "regions" } }],
+      components: [
+        { id: "total", type: "metric", label: "T", value: { input: "kpis" }, format: { type: "number" } },
+        {
+          id: "details",
+          type: "section",
+          title: "D",
+          children: [{ id: "inner", type: "metric", label: "I", value: { input: "kpis" }, format: { type: "number" } }],
+        },
+      ],
+    };
+    const base = "workflow.steps.build.override.template.report";
+    const issues = [
+      { path: `${base}.components[0].value.input`, message: "unknown input" },
+      { path: `${base}.components[1].children[0].format`, message: "bad format" },
+      { path: `${base}.datasets[0].source`, message: "not rows" },
+      { path: `${base}.locale`, message: "bad locale" },
+      { path: "workflow.steps.other.override.template.report.locale", message: "other step" },
+      { path: `${base}.components[9]`, message: "gone" },
+    ];
+    expect(reportIssuesByPlace(issues, "build", definition)).toEqual({
+      components: { total: ["unknown input"], inner: ["bad format"] },
+      datasets: { regions: ["not rows"] },
+      report: ["bad locale", "gone"],
+    });
   });
 });

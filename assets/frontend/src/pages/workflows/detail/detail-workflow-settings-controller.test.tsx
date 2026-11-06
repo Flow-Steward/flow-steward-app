@@ -121,3 +121,45 @@ it("reports a rename into a taken name as a conflict and keeps the draft for the
   }));
   expect(result.current.workflowDisplayNameDraft).toBe("order sync");
 });
+
+it("keeps, clears and refuses a stale report output selection", async () => {
+  const workflow = { workflow_id: "weekly", display_name: "Weekly", description: "", enabled: false, revision: 3, settings: {
+    callable: { enabled: true, trigger_channels: ["mcp"], input_mode: "fields", expected_inputs: [],
+      expected_outputs: [{ name: "sales_report", type: "object", required: true }], report_output: "sales_report" },
+  } };
+  const posted: Array<{ settings: { callable: Record<string, unknown> } }> = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    if (String(input) !== "/api/workflows/weekly" || init?.method !== "PATCH") throw new Error("Unexpected request");
+    posted.push(JSON.parse(String(init.body)) as { settings: { callable: Record<string, unknown> } });
+    return new Response(JSON.stringify({ revision: 3 + posted.length }), { headers: { "content-type": "application/json" } });
+  });
+  const setSaveError = vi.fn();
+  const contract = { data: { interface: workflow.settings.callable } };
+  const { result } = renderHook(() => {
+    const settings = useWorkflowSettingsController({ workflowId: "weekly", workflowRecord: workflow, drawerMode: "workflow-interface",
+      workflowInterfaceControlIdPrefix: "weekly", setDrawerTab: vi.fn(), setSaveError, setSaveNotice: vi.fn(),
+      setSavingWorkflowSurface: vi.fn(), refetchWorkflowSurfaces: async () => undefined });
+    useWorkflowSettingsHydration({ ...settings, workflow, workflowContractQuery: contract, workflowId: "weekly", savingWorkflowSurface: "" });
+    return settings;
+  });
+  await waitFor(() => expect(result.current.workflowInterfaceReportOutputDraft).toBe("sales_report"));
+
+  await act(async () => result.current.handleSaveWorkflowSettings());
+  expect(posted[0].settings.callable.report_output).toBe("sales_report");
+
+  workflow.revision = 4;
+  act(() => result.current.setWorkflowInterfaceReportOutputDraft(""));
+  await act(async () => result.current.handleSaveWorkflowSettings());
+  expect(posted[1].settings.callable).not.toHaveProperty("report_output");
+
+  workflow.revision = 5;
+  act(() => {
+    result.current.setWorkflowInterfaceReportOutputDraft("sales_report");
+    result.current.setWorkflowInterfaceOutputsDraft(
+      result.current.workflowInterfaceOutputsDraft.map((row) => ({ ...row, name: "weekly_report" })),
+    );
+  });
+  await act(async () => result.current.handleSaveWorkflowSettings());
+  expect(posted).toHaveLength(2);
+  expect(setSaveError).toHaveBeenLastCalledWith(expect.stringContaining("is no longer a required output of type object"));
+});

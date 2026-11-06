@@ -4,6 +4,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { registryConflictFromError } from "@/pages/registry/shared/registry-conflict";
+import { staleReportOutput } from "@/pages/workflows/detail/detail-report-output";
 import { builderMetadataDraftFromUnknown, builderMetadataPayload } from "@/pages/registry/shared/builder-metadata";
 import {
   jsonObjectFromDraft,
@@ -260,6 +261,9 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
   ] = useState("");
   const [workflowInterfaceOutputsDraft, setWorkflowInterfaceOutputsDraft] =
     useState<WorkflowInterfaceFieldDraft[]>([]);
+  // The declared output that holds the report snapshot, or "" for none (ADR 0059).
+  const [workflowInterfaceReportOutputDraft, setWorkflowInterfaceReportOutputDraft] =
+    useState("");
   // Read only: each returned file is a step result ticked "Return from workflow".
   const [workflowInterfaceReturnedFiles, setWorkflowInterfaceReturnedFiles] =
     useState<Array<Record<string, unknown>>>([]);
@@ -353,6 +357,16 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
         workflowInterfaceOutputsDraft,
         t,
       );
+      const reportOutput = workflowInterfaceReportOutputDraft.trim();
+      if (staleReportOutput(reportOutput, workflowInterfaceOutputsDraft)) {
+        throw new Error(t(
+          "react.workflows.report_output_stale",
+          "The report output \"{name}\" is no longer a required output of type object. Choose another one, or no report.",
+          { name: reportOutput },
+        ));
+      }
+      if (reportOutput) callableContract.report_output = reportOutput;
+      else delete callableContract.report_output;
       const savedWorkflow = await saveJson(
         `/api/workflows/${encodeURIComponent(normalizedWorkflowId)}`,
         {
@@ -483,6 +497,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     setWorkflowInterfaceSchemaVisualIssueDraft,
     setWorkflowInterfaceInputsDraft: trackChange(setWorkflowInterfaceInputsDraft),
     setWorkflowInterfaceOutputsDraft: trackChange(setWorkflowInterfaceOutputsDraft),
+    setWorkflowInterfaceReportOutputDraft: trackChange(setWorkflowInterfaceReportOutputDraft),
     setWorkflowInterfaceReturnedFiles,
     setWorkflowInterfaceStrictInputsDraft: trackChange(setWorkflowInterfaceStrictInputsDraft),
     setWorkflowInterfaceTriggerChannelsDraft: trackChange(setWorkflowInterfaceTriggerChannelsDraft),
@@ -505,6 +520,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     workflowInterfaceNameFocusRequest,
     workflowInterfaceNameValidationAttempted,
     workflowInterfaceOutputsDraft,
+    workflowInterfaceReportOutputDraft,
     workflowInterfaceReturnedFiles,
     workflowInterfaceStrictInputsDraft,
     workflowInterfaceTriggerChannelsDraft,
@@ -529,6 +545,7 @@ export function useWorkflowSettingsHydration(ctx: Record<string, any>) {
     setWorkflowInterfaceInputSchemaDraft,
     setWorkflowInterfaceInputsDraft,
     setWorkflowInterfaceOutputsDraft,
+    setWorkflowInterfaceReportOutputDraft,
     setWorkflowInterfaceReturnedFiles,
     setWorkflowInterfaceStrictInputsDraft,
     setWorkflowInterfaceTriggerChannelsDraft,
@@ -587,6 +604,9 @@ export function useWorkflowSettingsHydration(ctx: Record<string, any>) {
       workflowFieldDraftsFromUnknown(callable.expected_outputs, storedCallable.expected_outputs),
     );
     setWorkflowInterfaceReturnedFiles(contractRows(callable.returned_files));
+    setWorkflowInterfaceReportOutputDraft?.(
+      textOrEmpty(storedCallable.report_output) || textOrEmpty(callable.report_output),
+    );
     const builderMetadata = builderMetadataDraftFromUnknown(
       workflowRecord.builder_metadata_jsonb || workflowRecord.builder_metadata,
     );

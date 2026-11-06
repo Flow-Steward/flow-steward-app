@@ -30179,3 +30179,18 @@ msgstr "Report test result"
 
 msgid "react.workflows.report_test_result_note"
 msgstr "Built from the test inputs. A workflow run builds its own report from its own data."
+
+msgid "react.workflows.report_output"
+msgstr "Report output"
+
+msgid "react.workflows.report_output_none"
+msgstr "No report"
+
+msgid "react.workflows.report_output_help"
+msgstr "A required output of type object that holds the report a Template step in report format builds. Chat apps show it as a report; the result returns it as stored."
+
+msgid "react.workflows.report_output_stale"
+msgstr "The report output \"{name}\" is no longer a required output of type object. Choose another one, or no report."
+
+msgid "react.workflows.report_fields_unknown"
+msgstr "The fields of these rows are not known before a run. Type each field name; the step checks them when it runs."

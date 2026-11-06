@@ -312,6 +312,10 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
 
   const stepSmartSetupContext = {
     stepContractPreviewQuery: ctx.stepContractPreviewQuery,
+    // The workflow's last validation issues and this step's id, so an editor
+    // can show an issue next to the part of the step it names.
+    stepAuthoredId,
+    stepValidationErrors: ctx.stepValidationErrors,
     agentDrafts: ctx.agentDrafts, agentWorkflowRecord: ctx.agentWorkflowRecord,
     stepOverrideDraft, setStepOverrideDraft,
     agentBlockCatalogQuery: ctx.agentBlockCatalogQuery, agentBlockOptions: ctx.agentBlockOptions,

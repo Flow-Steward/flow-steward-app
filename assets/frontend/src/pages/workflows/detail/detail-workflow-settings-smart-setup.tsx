@@ -15,6 +15,7 @@ import { DsAlert } from "@/components/shared/design-system-primitives";
 import { Button } from "@/components/ui/button";
 import { DsSwitch } from "@/components/shared/ds-switch";
 import { ContractReadOnly, ContractRequiredLegend } from "./detail-contract-block";
+import { reportOutputCandidates, staleReportOutput } from "./detail-report-output";
 import { DrawerFooter, DrawerFooterSpacer } from "./detail-drawer-footer";
 import { SaveStateButton } from "./detail-save-button";
 import { WorkflowSecretApprovalPanel } from "./detail-workflow-secret-catalog";
@@ -375,6 +376,51 @@ export function WorkflowSettingsSmartSetup({
     handledNameFocusSerial.current = request.serial;
   }, [ctx.drawerMode, ctx.workflowId, drawerTab, workflowInterfaceNameFocusRequest]);
 
+  function renderReportOutputSelect(): ReactNode {
+    const selection = String(ctx.workflowInterfaceReportOutputDraft || "");
+    const candidates = reportOutputCandidates(workflowInterfaceOutputsDraft || []);
+    const stale = staleReportOutput(selection, workflowInterfaceOutputsDraft || []);
+    if (!candidates.length && !selection) return null;
+    const selectId = `${workflowInterfaceControlIdPrefix}-workflow-interface-report-output`;
+    return (
+      <div className="space-y-1">
+        <label className="block text-xs uppercase tracking-[0.12em] text-[var(--fs-text-tertiary)]" htmlFor={selectId}>
+          {t("react.workflows.report_output", "Report output")}
+        </label>
+        <select
+          className="fs-input w-full"
+          id={selectId}
+          name="workflow_interface_report_output"
+          onChange={(event) => ctx.setWorkflowInterfaceReportOutputDraft?.(event.target.value)}
+          value={selection}
+        >
+          <option value="">{t("react.workflows.report_output_none", "No report")}</option>
+          {candidates.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+          {stale ? <option value={selection}>{selection}</option> : null}
+        </select>
+        <p className="text-[11px] leading-4 text-[var(--fs-text-tertiary)]">
+          {t(
+            "react.workflows.report_output_help",
+            "A required output of type object that holds the report a Template step in report format builds. Chat apps show it as a report; the result returns it as stored.",
+          )}
+        </p>
+        {stale ? (
+          <p className="text-xs text-[var(--fs-status-warning)]" role="status">
+            {t(
+              "react.workflows.report_output_stale",
+              "The report output \"{name}\" is no longer a required output of type object. Choose another one, or no report.",
+              { name: selection },
+            )}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
   function renderInactiveWarning(): ReactNode {
     const declaredRows = [
       ...(ctx.workflowInterfaceInputsDraft || []),
@@ -611,6 +657,7 @@ export function WorkflowSettingsSmartSetup({
                 </div>
                 {workflowInputContractEditor(ctx, t)}
                 {renderWorkflowInterfaceFieldEditor(t("react.registry.expected_outputs", "Expected outputs"), workflowInterfaceOutputsDraft, setWorkflowInterfaceOutputsDraft, "output")}
+                {renderReportOutputSelect()}
                 {renderWorkflowReturnedFiles()}
                 <ContractRequiredLegend />
               </div>
@@ -690,6 +737,7 @@ export function WorkflowSettingsSmartSetup({
               </div> : null}
               {drawerTab === "outputs" ? <div className="space-y-3" role="tabpanel" aria-labelledby="workflow-interface-tab-outputs" id="workflow-contract-section-outputs">
                 {renderWorkflowInterfaceFieldEditor(t("react.registry.expected_outputs", "Expected outputs"), workflowInterfaceOutputsDraft, setWorkflowInterfaceOutputsDraft, "output")}
+                {renderReportOutputSelect()}
                 {renderWorkflowReturnedFiles()}
               </div> : null}
               </ContractReadOnly>

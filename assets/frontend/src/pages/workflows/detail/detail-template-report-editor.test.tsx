@@ -117,6 +117,32 @@ describe("ReportDefinitionEditor", () => {
     await user.click(screen.getByRole("button", { name: "Move Table region_table up" }));
     expect(last(onChange).components.map((component) => component.id)).toEqual(["region_table", "revenue_total"]);
   });
+
+  it("shows the server's last issues next to the component and offers known row fields", () => {
+    render(
+      <ReportDefinitionEditor
+        inputClass=""
+        inputs={[
+          { name: "kpis", type: "object", source: "state.outputs.kpis" },
+          { name: "regions", type: "array", source: "state.outputs.regions" },
+        ]}
+        onChange={vi.fn()}
+        stepId="build"
+        validationIssues={[
+          {
+            path: "workflow.steps.build.override.template.report.components[0].value.path",
+            message: "kpis.revenue is missing and has no default",
+          },
+        ]}
+        value={stored}
+        variablePaths={["state.outputs.regions.region", "state.outputs.regions.revenue"]}
+      />,
+    );
+    const metric = screen.getByRole("listitem", { name: "Key number revenue_total" });
+    expect(within(metric).getByRole("status")).toHaveTextContent("kpis.revenue is missing and has no default");
+    const table = screen.getByRole("listitem", { name: "Table region_table" });
+    expect(within(table).getByRole("combobox", { name: "Field of Region" })).toHaveAttribute("list");
+  });
 });
 
 function structuredCloneSafe<T>(value: T): T {

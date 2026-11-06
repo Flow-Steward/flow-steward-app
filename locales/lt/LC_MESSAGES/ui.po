@@ -30601,3 +30601,18 @@ msgstr "Ataskaitos bandymo rezultatas"
 
 msgid "react.workflows.report_test_result_note"
 msgstr "Sukurta iš bandymo įvesčių. Darbo eigos vykdymas sukuria savo ataskaitą iš savo duomenų."
+
+msgid "react.workflows.report_output"
+msgstr "Ataskaitos išvestis"
+
+msgid "react.workflows.report_output_none"
+msgstr "Be ataskaitos"
+
+msgid "react.workflows.report_output_help"
+msgstr "Privaloma object tipo išvestis, kurioje saugoma ataskaita, sukurta ataskaitos formato šablono žingsnio. Pokalbių programos ją rodo kaip ataskaitą; rezultatas ją grąžina tokią, kokia išsaugota."
+
+msgid "react.workflows.report_output_stale"
+msgstr "Ataskaitos išvestis „{name}“ nebėra privaloma object tipo išvestis. Pasirinkite kitą arba be ataskaitos."
+
+msgid "react.workflows.report_fields_unknown"
+msgstr "Šių eilučių laukai iki vykdymo nežinomi. Įveskite kiekvieno lauko pavadinimą; žingsnis juos patikrins vykdymo metu."

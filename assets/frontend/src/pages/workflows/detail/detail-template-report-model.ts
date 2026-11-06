@@ -285,3 +285,80 @@ export function componentProblems(
 export function datasetProblem(dataset: DefinitionDataset, inputs: readonly InputType[]): ComponentProblem | null {
   return bindingProblem(dataset.source, inputs, true);
 }
+
+/**
+ * Field names known for a rows source, from the builder's typed variable
+ * discovery: the members a producing step declares (a Transform's fields, a
+ * Set variable object) one level below the state path the source reads. An
+ * empty list means the shape is not known before a run, not that it is empty.
+ */
+export function rowFieldSuggestions(
+  dataset: DefinitionDataset | undefined,
+  inputs: ReadonlyArray<{ name: string; source?: string }>,
+  variablePaths: readonly string[],
+): string[] {
+  const input = inputs.find((row) => row.name && row.name === dataset?.source.input);
+  const source = (input?.source ?? "").trim();
+  if (!dataset || !source.startsWith("state.")) return [];
+  const base = dataset.source.path ? `${source}.${dataset.source.path}` : source;
+  const prefix = `${base}.`;
+  const fields = variablePaths
+    .filter((path) => path.startsWith(prefix))
+    .map((path) => path.slice(prefix.length))
+    .filter((field) => field && !/[.[\]]/.test(field));
+  return [...new Set(fields)];
+}
+
+export type ReportIssueMap = {
+  /** Messages per component id, at any depth. */
+  components: Record<string, string[]>;
+  /** Messages per rows source id. */
+  datasets: Record<string, string[]>;
+  /** Messages about the report as a whole (title, language, time zone, size). */
+  report: string[];
+};
+
+const COMPONENT_STEP = /^(?:components|children)\[(\d+)\]/;
+
+function componentAt(components: readonly DefinitionComponent[], rest: string): { id: string } | null {
+  let list: readonly DefinitionComponent[] = components;
+  let remaining = rest;
+  let found: DefinitionComponent | null = null;
+  for (;;) {
+    const match = COMPONENT_STEP.exec(remaining);
+    const next = match ? list[Number(match[1])] : undefined;
+    if (!match || !next) return found;
+    found = next;
+    remaining = remaining.slice(match[0].length).replace(/^\./, "");
+    list = next.type === "section" ? next.children : [];
+  }
+}
+
+/**
+ * The server's validation issues of this step's report, placed on the
+ * component or rows source their path names. Paths follow schema v1 section 7:
+ * `workflow.steps.<step id>.override.template.report.<path in the definition>`.
+ */
+export function reportIssuesByPlace(
+  issues: unknown,
+  stepId: string,
+  definition: ReportDefinition,
+): ReportIssueMap {
+  const result: ReportIssueMap = { components: {}, datasets: {}, report: [] };
+  if (!Array.isArray(issues) || !stepId) return result;
+  const prefix = `workflow.steps.${stepId}.override.template.report`;
+  for (const raw of issues) {
+    const issue = record(raw);
+    const path = typeof issue?.path === "string" ? issue.path : "";
+    const message = typeof issue?.message === "string" ? issue.message : "";
+    if (!message || (path !== prefix && !path.startsWith(`${prefix}.`))) continue;
+    const rest = path.slice(prefix.length).replace(/^\./, "");
+    const dataset = /^datasets\[(\d+)\]/.exec(rest);
+    const datasetId = dataset ? definition.datasets?.[Number(dataset[1])]?.id : undefined;
+    const component = componentAt(definition.components, rest);
+    if (datasetId) (result.datasets[datasetId] ??= []).push(message);
+    else if (component) (result.components[component.id] ??= []).push(message);
+    else result.report.push(message);
+  }
+  return result;
+}

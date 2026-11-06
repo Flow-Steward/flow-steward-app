@@ -15,6 +15,8 @@ import {
   readDefinition,
   removeAt,
   replaceAt,
+  reportIssuesByPlace,
+  rowFieldSuggestions,
   withDatasets,
   type DefinitionDataset,
   type ReportDefinition,
@@ -27,7 +29,9 @@ function DatasetRows({
   inputs,
   inputClass,
   onChange,
+  serverIssues,
 }: Readonly<{
+  serverIssues: Readonly<Record<string, readonly string[]>>;
   datasets: readonly DefinitionDataset[];
   inputs: readonly ReportInput[];
   inputClass: string;
@@ -72,6 +76,11 @@ function DatasetRows({
                     )}
               </p>
             ) : null}
+            {(serverIssues[dataset.id] ?? []).map((message) => (
+              <p className="text-xs fs-ink-attention" key={message} role="status">
+                {message}
+              </p>
+            ))}
             <ItemActions
               count={datasets.length}
               index={index}
@@ -101,18 +110,34 @@ export function ReportDefinitionEditor({
   inputs,
   inputClass,
   onChange,
+  variablePaths = [],
+  validationIssues,
+  stepId = "",
 }: Readonly<{
   value: unknown;
   inputs: readonly ReportInput[];
   inputClass: string;
   onChange: (next: ReportDefinition) => void;
+  /** Workflow variable paths the builder knows at this step, for row field suggestions. */
+  variablePaths?: readonly string[];
+  /** The workflow's last validation issues; those of this step's report are shown in place. */
+  validationIssues?: unknown;
+  stepId?: string;
 }>) {
   const { t } = useI18n();
   const definition = readDefinition(value);
   const datasets = definition.datasets ?? [];
+  const serverIssues = reportIssuesByPlace(validationIssues, stepId, definition);
   const set = (patch: Partial<ReportDefinition>) => onChange({ ...definition, ...patch });
   return (
     <section aria-label={t("react.workflows.report_editor", "Report")} className="space-y-3">
+      {serverIssues.report.length ? (
+        <ul className="space-y-1 text-xs fs-ink-attention" role="status">
+          {serverIssues.report.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      ) : null}
       <div className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <Field label={t("react.workflows.report_report_title", "Report title")}>
           <input
@@ -143,6 +168,7 @@ export function ReportDefinitionEditor({
       </div>
       <DatasetRows
         datasets={datasets}
+        serverIssues={serverIssues.datasets}
         inputClass={inputClass}
         inputs={inputs}
         onChange={(next) => onChange(withDatasets(definition, next))}
@@ -156,6 +182,10 @@ export function ReportDefinitionEditor({
             datasetIds: datasets.map((dataset) => dataset.id),
             takenIds: componentIds(definition.components),
             inputClass,
+            serverIssues: serverIssues.components,
+            fieldSuggestions: Object.fromEntries(
+              datasets.map((dataset) => [dataset.id, rowFieldSuggestions(dataset, inputs, variablePaths)]),
+            ),
           }}
           depth={1}
           onChange={(components) => set({ components })}

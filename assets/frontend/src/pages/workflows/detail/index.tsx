@@ -616,6 +616,7 @@ function WorkflowDetailPageContent({
   };
   const renderer = useWorkflowStepRendererController({
     stepContractPreviewQuery,
+    stepValidationErrors: data.validationErrors,
     agentDrafts, agentWorkflowRecord,
     httpIntent,
     httpFieldFeedback: stepActions.httpFieldFeedback,

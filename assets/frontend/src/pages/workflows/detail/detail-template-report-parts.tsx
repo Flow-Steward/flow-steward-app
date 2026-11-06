@@ -22,7 +22,7 @@ import {
   without,
 } from "./detail-template-report-model";
 
-export type ReportInput = { name: string; type: string };
+export type ReportInput = { name: string; type: string; source?: string };
 
 type DigitsFormat = ReportFormat & { maximum_fraction_digits?: number; minimum_fraction_digits?: number };
 
@@ -173,6 +173,31 @@ export function BindingFields({
 
 type IdentifiedField = DefinitionField & { id: string };
 
+/**
+ * The known fields of a component's rows as a datalist, or a note that the
+ * shape is not known yet: field names typed by hand are checked when it runs.
+ */
+export function RowFieldSuggestions({ id, fields }: Readonly<{ id: string; fields: readonly string[] }>) {
+  const { t } = useI18n();
+  if (!fields.length) {
+    return (
+      <p className="text-xs fs-ink-tertiary">
+        {t(
+          "react.workflows.report_fields_unknown",
+          "The fields of these rows are not known before a run. Type each field name; the step checks them when it runs.",
+        )}
+      </p>
+    );
+  }
+  return (
+    <datalist id={id}>
+      {fields.map((field) => (
+        <option key={field} value={field} />
+      ))}
+    </datalist>
+  );
+}
+
 export function FieldRows({
   rows,
   slot,
@@ -181,6 +206,7 @@ export function FieldRows({
   inputClass,
   newRow,
   onChange,
+  suggestionsId,
 }: Readonly<{
   rows: readonly IdentifiedField[];
   slot: FormatSlot;
@@ -189,6 +215,8 @@ export function FieldRows({
   inputClass: string;
   newRow: () => IdentifiedField;
   onChange: (next: IdentifiedField[]) => void;
+  /** The id of a datalist of known row fields, when there is one. */
+  suggestionsId?: string;
 }>) {
   const { t } = useI18n();
   return (
@@ -203,6 +231,7 @@ export function FieldRows({
                 <input
                   aria-label={t("react.workflows.report_field_of", "Field of {name}", { name })}
                   className={inputClass}
+                  list={suggestionsId}
                   onChange={(event) => onChange(replaceAt(rows, index, { ...row, field: event.target.value }))}
                   placeholder="revenue"
                   value={row.field}
