@@ -158,6 +158,31 @@ leave room for renderer-local filters. A refresh is a future, separately
 authorized operation that starts a new run and produces a new snapshot; stored
 snapshots are immutable.
 
+### 11. Privacy invariant: diagnostics never carry the report
+
+The canonical `workflow_outputs` in run state and in
+`job.meta.workflow_outputs` stays complete; it is the report's only store.
+Every other projection of a run carries at most a bounded report summary:
+`kind`, `schema_version`, `title`, `summary_text`, component count and the row
+count of each dataset — never the snapshot, its datasets or rows.
+
+This covers, on success and on failure alike:
+
+- terminal events emitted by the validation node (`emit_event` details on the
+  pass and fail paths) and the `proof_of_work` record, which today embed the
+  whole `workflow_outputs` (`validation_node.py`, around lines 255, 271, 289
+  and 309);
+- step messages and string previews (decision 9);
+- every diagnostic read that reaches a model: MCP `job_result`, `job_events`,
+  `job_messages`, `job_logs`, `job_trace`, `job_runtime_journal`,
+  `job_incident` and `job_errors`, and the HTTP routes behind them, including
+  nested raw fields (`details`, `artifacts`, `payload`, `raw`, journal entries)
+  that could rebuild the payload.
+
+Only the dedicated report read (task 3) returns the snapshot, and only to a
+report viewer, outside model-visible content. A failed boundary validation
+reports error codes and paths for the report output, not its values.
+
 ## Verified against code
 
 Checked in `claude/workflow-reports-20261106` at public main `5764b4ddb0`; the
@@ -302,7 +327,9 @@ the 0.9.12 version bump on top of that main:
 | Change sets | `core/application/workflows/workflow_definition_changes.py:45-64` | `update_step_config` validates `report`; a canonical Interface operation that writes `settings.callable` in the same single write (recommendation 2) |
 | Edit sessions | `core/application/workflows/workflow_edit_session_contract.py`, `workflow_definition_service.py:324-420` | carry the Interface operation; judge Interface issues with structural and readiness issues |
 | Interface summaries | `core/application/workflows/workflow_contract_summary.py`, `knowledge_projection_builder.py:238-293`, `canvas_graph_service.py:222` | carry or show the report selection |
+| Terminal events (2B) | `core/application/orchestration/validation_node.py` (`emit_event` details on pass and fail, `proof_of_work`) | replace the selected report output with its bounded summary (decision 11); the canonical `workflow_outputs` passed to terminal persistence stays complete |
 | MCP read path (task 3) | `core/application/reports/job_result_bundle.py`, `core/entrypoints/mcp/server_job_tools.py:46` | keep the snapshot out of model-visible content |
+| Diagnostic projections (task 3 verifies) | `core/entrypoints/mcp/server_job_tools.py` (`job_events`, `job_messages`, `job_logs`, `job_trace`, `job_runtime_journal`, `job_incident`, `job_errors`) and their `/api/jobs/{id}/…` routes | prove with a large fixture report that none of them, including nested raw fields, returns snapshot datasets or rows |
 | Product UI (tasks 3–4) | `assets/frontend/src/pages/workflows/detail/detail-template-step.tsx:21-22`, `detail-workflow-settings-controller.ts:330-355` | format list, report editor, output selection; the controller already preserves unknown `callable` keys, so a renamed output leaves a stale selection that save must reject |
 | User and agent docs | `docs/user/workflows.md`, `docs/agent-skills/flow-steward-operator/skills/flow-steward-migrate-workflow/references/full-yaml-assembly.md` | describe the report format |
 
