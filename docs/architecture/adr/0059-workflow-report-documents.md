@@ -299,7 +299,8 @@ the 0.9.12 version bump on top of that main:
 | Export/import | `core/application/workflows/workflow_portability_definitions.py:66-170`, `workflow_portability_redaction.py` | round-trip test; report keys avoid redaction markers |
 | Authoring schema | `core/application/workflows/authoring/schema.py:77-185` | report vocabulary from the one schema, Interface and `report_output` guidance, a report example bundle |
 | Drafts | `core/application/workflows/authoring/drafts.py` | validate and save through the same validators |
-| Change sets | `core/application/workflows/workflow_definition_changes.py:45-64` | `update_step_config` validates `report`; decide on an Interface operation (open question) |
+| Change sets | `core/application/workflows/workflow_definition_changes.py:45-64` | `update_step_config` validates `report`; a canonical Interface operation that writes `settings.callable` in the same single write (recommendation 2) |
+| Edit sessions | `core/application/workflows/workflow_edit_session_contract.py`, `workflow_definition_service.py:324-420` | carry the Interface operation; judge Interface issues with structural and readiness issues |
 | Interface summaries | `core/application/workflows/workflow_contract_summary.py`, `knowledge_projection_builder.py:238-293`, `canvas_graph_service.py:222` | carry or show the report selection |
 | MCP read path (task 3) | `core/application/reports/job_result_bundle.py`, `core/entrypoints/mcp/server_job_tools.py:46` | keep the snapshot out of model-visible content |
 | Product UI (tasks 3–4) | `assets/frontend/src/pages/workflows/detail/detail-template-step.tsx:21-22`, `detail-workflow-settings-controller.ts:330-355` | format list, report editor, output selection; the controller already preserves unknown `callable` keys, so a renamed output leaves a stale selection that save must reject |
@@ -325,16 +326,40 @@ the 0.9.12 version bump on top of that main:
 - **Truncating rows or text to fit.** A report that silently omits data is worse
   than a failed run.
 
-## Open questions for the owner
+## Open questions and proposed recommendations
 
-1. Approve the v1 domain limits; production delivery budgets per host follow in
-   task 3.
-2. Should `workflow_apply_changes` gain an Interface operation so an agent can
-   set `report_output` on an existing workflow, or is the draft bundle and
-   `PATCH /api/workflows/{id}` enough for v1?
-3. Kept test outputs: raise the 256,000-byte cap for report steps, or accept
-   that a kept report output is limited to 256,000 bytes?
-4. Should bindings allow relative paths into dataset rows (`customer.name`), or
-   stay with exact row keys and Transform for nesting, as proposed?
-5. Is a locale-independent `summary_text` acceptable, or must it be localized on
-   the server (Babel is available)?
+The recommendations below are **Proposed**, for one owner approval together
+with this ADR. They are not accepted decisions, and they do not authorize
+production code.
+
+1. **Limits.** *Recommendation:* approve the v1 domain limits as written in the
+   schema (section 6). Host delivery ceilings are not domain limits; task 3
+   measures and sets them per host, lower than or equal to these.
+2. **Setting `report_output` on an existing workflow.** *Recommendation:* add
+   one canonical, atomic Interface operation to `workflow_apply_changes`, so the
+   AI Builder sets `report_output` (and the outputs it names) through the same
+   permissions, `expected_revision`, single revision and history as every other
+   change. The operation name and payload are fixed in the change-set contract
+   during 2B. No second authoring path is added, and agents are not pointed at a
+   raw `PATCH /api/workflows/{id}`. Implementation note, verified in
+   `workflow_definition_service.py`: `apply_workflow_changes` currently writes
+   the locked workflow's own settings plus only `execution_graph`, and the
+   change set's working definition (`_Definition` in
+   `workflow_definition_changes.py`) carries no `settings.callable`. The
+   operation therefore extends that working definition with the Interface,
+   judges Interface issues (`WorkflowInterface.definition_issues`, including the
+   `report_output` checks) together with the structural and readiness issues,
+   and writes `settings.callable` in the same single write. The builder's edit
+   session contract must carry the same operation.
+3. **Kept test outputs.** *Recommendation:* keep `KEPT_OUTPUT_MAX_BYTES =
+   256_000`. Keeping a larger report output is refused with an explicit error,
+   with no partial or truncated keep; this matches the current
+   `normalize_kept_outputs`, which already refuses an oversized value. The cap
+   applies to Keep only: a successful run may still produce and store a report
+   snapshot up to the 1 MiB domain limit.
+4. **Row fields.** *Recommendation:* table columns and chart fields name exact,
+   case-sensitive row keys. Nested data is shaped by a Transform step before the
+   Template; no relative paths into rows in v1.
+5. **Summary locale.** *Recommendation:* `summary_text` stays locale-independent
+   plain text (schema sections 4.1 and 4.2). Rendered values in the product and
+   in MCP Apps are formatted by the snapshot's `locale` and `time_zone`.
