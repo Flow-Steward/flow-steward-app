@@ -27,6 +27,7 @@
   "include": [
     "src",
     "vite.config.ts",
+    "vite.report-viewer.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"
   ],

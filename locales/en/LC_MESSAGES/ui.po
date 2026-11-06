@@ -29918,3 +29918,12 @@ msgstr "This result is not a readable report."
 
 msgid "react.report.chart_unavailable"
 msgstr "The chart could not be drawn. Its values are in the table below."
+
+msgid "react.report.viewer_waiting"
+msgstr "Waiting for the report…"
+
+msgid "react.report.viewer_unavailable"
+msgstr "The report is not available."
+
+msgid "react.report.viewer_cancelled"
+msgstr "The request was cancelled."

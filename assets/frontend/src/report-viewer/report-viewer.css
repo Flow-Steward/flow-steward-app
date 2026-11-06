@@ -1,0 +1,16 @@
+/* The frame around the report inside a host's chat. Tokens come from the app themes. */
+:root {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: var(--fs-space-150);
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-primary);
+  font-family: var(--fs-font-body);
+}

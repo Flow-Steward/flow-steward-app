@@ -31,4 +31,4 @@ else
 fi
 
 echo "[frontend-lint] Config files"
-eslint --max-warnings=0 ${FIX_FLAG} playwright.config.ts vite.config.ts vitest.config.ts
+eslint --max-warnings=0 ${FIX_FLAG} playwright.config.ts vite.config.ts vite.report-viewer.config.ts vitest.config.ts

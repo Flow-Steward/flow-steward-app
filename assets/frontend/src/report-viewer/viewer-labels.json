@@ -1,0 +1,44 @@
+{
+  "description": "Strings of the MCP Apps report viewer, which cannot load the app catalog. Every text must equal its key's msgstr in locales/<locale>/LC_MESSAGES/ui.po (tests/unit/workflow_documents/test_report_viewer_labels.py).",
+  "keys": {
+    "empty": "react.report.empty_value",
+    "yes": "react.report.yes",
+    "no": "react.report.no",
+    "showData": "react.report.show_data",
+    "chartDataCaption": "react.report.chart_data_caption",
+    "chartUnavailable": "react.report.chart_unavailable",
+    "unsupported": "react.report.unsupported_version",
+    "invalid": "react.report.invalid",
+    "waiting": "react.report.viewer_waiting",
+    "unavailable": "react.report.viewer_unavailable",
+    "cancelled": "react.report.viewer_cancelled"
+  },
+  "locales": {
+    "en": {
+      "empty": "—",
+      "yes": "Yes",
+      "no": "No",
+      "showData": "Show data",
+      "chartDataCaption": "Data: {title}",
+      "chartUnavailable": "The chart could not be drawn. Its values are in the table below.",
+      "unsupported": "This report uses a format this version cannot show.",
+      "invalid": "This result is not a readable report.",
+      "waiting": "Waiting for the report…",
+      "unavailable": "The report is not available.",
+      "cancelled": "The request was cancelled."
+    },
+    "lt": {
+      "empty": "—",
+      "yes": "Taip",
+      "no": "Ne",
+      "showData": "Rodyti duomenis",
+      "chartDataCaption": "Duomenys: {title}",
+      "chartUnavailable": "Diagramos nubraižyti nepavyko. Jos reikšmės pateiktos lentelėje žemiau.",
+      "unsupported": "Šioje versijoje negalima parodyti šio formato ataskaitos.",
+      "invalid": "Šis rezultatas nėra skaitoma ataskaita.",
+      "waiting": "Laukiama ataskaitos…",
+      "unavailable": "Ataskaita nepasiekiama.",
+      "cancelled": "Užklausa atšaukta."
+    }
+  }
+}

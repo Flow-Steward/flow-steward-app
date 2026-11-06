@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run build:report-viewer",
+    "build:report-viewer": "vite build --config vite.report-viewer.config.ts && node ./scripts/check-report-viewer-size.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "npm_config_update_notifier=false TSESTREE_SINGLE_RUN=true bash ./scripts/eslint-batched.sh",
