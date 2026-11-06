@@ -22,7 +22,7 @@ def validate_invoke_workflow_step(
     workflow (readiness): workflow rows and step types then come from what it
     has already read instead of being loaded again for every child step.
     """
-    load_workflow = resolver.get_workflow_row if resolver is not None else None
+    load_workflow = getattr(resolver, "get_workflow_row", None) if resolver is not None else None
     errors: list[dict] = []
     warnings: list[dict] = []
     spec = _extract_invoke_workflow_spec(step)
