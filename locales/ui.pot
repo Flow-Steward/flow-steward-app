@@ -29139,3 +29139,6 @@ msgstr ""
 
 msgid "react.workflows.report_fields_unknown"
 msgstr ""
+
+msgid "react.jobs.report"
+msgstr ""

@@ -30194,3 +30194,6 @@ msgstr "The report output \"{name}\" is no longer a required output of type obje
 
 msgid "react.workflows.report_fields_unknown"
 msgstr "The fields of these rows are not known before a run. Type each field name; the step checks them when it runs."
+
+msgid "react.jobs.report"
+msgstr "Report"

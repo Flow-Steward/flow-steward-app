@@ -772,6 +772,20 @@ export function jobFinalAnswer(detailEntity: Entity, steps: readonly Entity[]): 
   return null;
 }
 
+export type JobReportOutput = { name: string; value: unknown };
+
+/**
+ * The run's report (ADR 0059): the workflow output its Interface selected as
+ * `report_output` when the run finished, read from the persisted public result.
+ */
+export function jobReportOutput(detailEntity: Entity): JobReportOutput | null {
+  const result = objectOrEmpty(detailEntity.workflow_result);
+  const name = typeof result.report_output === "string" ? result.report_output : "";
+  const outputs = objectOrEmpty(result.outputs);
+  if (!name || !Object.hasOwn(outputs, name)) return null;
+  return { name, value: outputs[name] };
+}
+
 export type JobCostTotals = {
   totalCostValue: number;
   totalTokensValue: number;

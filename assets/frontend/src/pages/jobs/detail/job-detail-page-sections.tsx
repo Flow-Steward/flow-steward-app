@@ -29,10 +29,13 @@ import {
   ReviewWorkspacePanel,
   type ReviewCommentDraft,
 } from "@/pages/jobs/detail/job-detail-review-panels";
+import { ReportView } from "@/components/report";
+import { useReportLabels } from "@/components/report/use-report-labels";
 import {
   costRowDisplay,
   jobFinalAnswer,
   jobProjectionText,
+  jobReportOutput,
   type CanonicalJobDetailView,
 } from "@/pages/jobs/detail/job-detail-view-model";
 import { JobDefinitionCanvas } from "./job-definition-canvas";
@@ -359,7 +362,13 @@ function JobRunOverviewCard(props: Readonly<JobDetailPrimaryContentProps>) {
 
 function JobResultCard({ detail, executionSteps }: Readonly<JobDetailPrimaryContentProps>) {
   const { t } = useI18n();
+  const reportLabels = useReportLabels();
   const answer = jobFinalAnswer((detail ?? {}) as Entity, executionSteps);
+  const report = jobReportOutput((detail ?? {}) as Entity);
+  // The report is shown as a report, not again as raw fields.
+  const fields = answer
+    ? Object.fromEntries(Object.entries(answer.outputs).filter(([key]) => key !== report?.name))
+    : {};
   const artifacts = objectOrEmpty(detail?.workflow_result?.artifacts);
   const hasArtifacts = Object.keys(artifacts).length > 0;
   if (!answer && !hasArtifacts) {
@@ -367,7 +376,12 @@ function JobResultCard({ detail, executionSteps }: Readonly<JobDetailPrimaryCont
   }
   return (
     <DsCard description={answer?.source} testId="job-result-panel" title={t("jobs.detail.inspector.result", "Result")}>
-      {answer ? <ReadableDataFields value={answer.outputs} /> : null}
+      {report ? (
+        <section aria-label={t("react.jobs.report", "Report")} className="mb-3">
+          <ReportView labels={reportLabels} report={report.value} />
+        </section>
+      ) : null}
+      {Object.keys(fields).length ? <ReadableDataFields value={fields} /> : null}
       {hasArtifacts ? (
         <section aria-label={t("react.workflows.final_artifacts", "Final artifacts")} className="mt-3 space-y-2">
           <h3 className="text-sm font-semibold fs-ink-primary">{t("react.workflows.final_artifacts", "Final artifacts")}</h3>

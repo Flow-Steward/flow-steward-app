@@ -15,8 +15,14 @@ import {
   renderEmbeddedPage,
   renderPage,
 } from "./index.test-helpers";
+import salesReport from "@/components/report/__fixtures__/sales-report-snapshot.json";
 import { submitApprovalDecision } from "@/pages/jobs/detail/api";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
+
+vi.mock("@/components/report/report-chart-loader", () => ({
+  loadReportChartEngine: () =>
+    Promise.resolve({ mountReportChart: () => ({ update: vi.fn(), resize: vi.fn(), dispose: vi.fn() }) }),
+}));
 
 let getBBoxBefore: PropertyDescriptor | undefined;
 let resizeObserverBefore: PropertyDescriptor | undefined;
@@ -1043,6 +1049,39 @@ describe("compact declared workflow result", () => {
     expect(within(panel).getByText("No")).toBeInTheDocument();
     expect(within(panel).getByText("0")).toBeInTheDocument();
     expect(within(panel).getByText("—")).toBeInTheDocument();
+  });
+});
+
+
+describe("workflow report output", () => {
+  it("shows the selected report output as a report and the other outputs as fields", async () => {
+    primeApi({
+      ...jobPayload({ status: "completed", execution_steps: [] }),
+      workflow_run: null,
+      workflow_result: {
+        outputs: { weekly: salesReport, repository: "Hello-World" },
+        artifacts: {},
+        report_output: "weekly",
+      },
+    });
+    renderPage();
+    const panel = await screen.findByTestId("job-result-panel");
+    const report = within(panel).getByRole("region", { name: "Report" });
+    expect(within(report).getByRole("heading", { name: "Weekly sales" })).toBeInTheDocument();
+    expect(within(panel).getByText("Hello-World")).toBeInTheDocument();
+    expect(within(panel).queryByText(/schema_version/)).not.toBeInTheDocument();
+  });
+
+  it("shows no report when the selection names no output of this run", async () => {
+    primeApi({
+      ...jobPayload({ status: "completed", execution_steps: [] }),
+      workflow_run: null,
+      workflow_result: { outputs: { repository: "Hello-World" }, artifacts: {}, report_output: "constructor" },
+    });
+    renderPage();
+    const panel = await screen.findByTestId("job-result-panel");
+    expect(within(panel).queryByRole("region", { name: "Report" })).not.toBeInTheDocument();
+    expect(within(panel).getByText("Hello-World")).toBeInTheDocument();
   });
 });
 

@@ -30616,3 +30616,6 @@ msgstr "Ataskaitos išvestis „{name}“ nebėra privaloma object tipo išvesti
 
 msgid "react.workflows.report_fields_unknown"
 msgstr "Šių eilučių laukai iki vykdymo nežinomi. Įveskite kiekvieno lauko pavadinimą; žingsnis juos patikrins vykdymo metu."
+
+msgid "react.jobs.report"
+msgstr "Ataskaita"

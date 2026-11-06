@@ -5,6 +5,7 @@ import {
   jobCostTotals,
   jobDetailPollingInterval,
   jobFinalAnswer,
+  jobReportOutput,
   jobMetadataPatch,
   lifecycleApprovalPatch,
   lifecycleRuntimePatch,
@@ -137,5 +138,25 @@ describe("compact public workflow result", () => {
   it.each(["Hello-World", false, 0, null, { nested: [false, 0, null] }])("keeps the declared value %j without a workflow snapshot", (value) => {
     const detail = { workflow_run: null, workflow_result: { outputs: { result: value }, artifacts: {} } };
     expect(jobFinalAnswer(detail, [])).toEqual({ source: "Workflow outputs", outputs: { result: value } });
+  });
+});
+
+describe("jobReportOutput", () => {
+  it("reads the selected output from the persisted public result", () => {
+    const report = { kind: "fs.report" };
+    expect(jobReportOutput({ workflow_result: { outputs: { weekly: report }, report_output: "weekly" } })).toEqual({
+      name: "weekly",
+      value: report,
+    });
+  });
+
+  it.each([
+    [{}],
+    [{ workflow_result: null }],
+    [{ workflow_result: { outputs: { weekly: {} } } }],
+    [{ workflow_result: { outputs: {}, report_output: "constructor" } }],
+    [{ workflow_result: { outputs: { weekly: {} }, report_output: "other" } }],
+  ])("finds no report in %j", (detail) => {
+    expect(jobReportOutput(detail)).toBeNull();
   });
 });
