@@ -69,7 +69,8 @@ source constructs by composition before declaring them unrepresentable.
    Add a setup guard before provider steps where feasible. `enabled: false` alone
    is not a guarantee that manual invocation cannot execute a request.
 6. Preserve types through the data mapping. Template steps produce **text**, not
-   parsed objects. Connector mappings select state values; do not assume recursive
+   parsed objects; `format: report` produces a report object for people to read
+   (ADR 0059), not connector data. Connector mappings select state values; do not assume recursive
    interpolation of nested JSON. Build a typed record array with supported
    Transform/SetVariable primitives before passing it to a connector. Check
    nested state writes and mapping behavior against the current runtime contract.

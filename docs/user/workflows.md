@@ -604,7 +604,7 @@ Supported step kinds:
 | `dataset_query` | Execute a saved dataset query template. | Query template, params, row limit, timeout, result target. |
 | `transform` | Map and reshape JSON with deterministic typed actions. | `override.transform.input.source`, `fields[]`, action pipelines, `result_target`. |
 | `tabular_feed` | Process artifact- and dataset-backed tabular feeds without putting full rows in workflow state. | `override.tabular_feed.operation`, `input`, `actions`/`relational`, `result_target`. |
-| `template` | Assemble one text (prompt, email, post, HTML fragment) from declared inputs with Jinja. | `override.template.text`, `format`, `inputs[]` (local name, type, required, source), `result_target`. See [Template Steps](#template-steps). |
+| `template` | Assemble one text (prompt, email, post, HTML fragment) from declared inputs with Jinja, or with `format: report` a structured report. | `override.template.text` or `report`, `format`, `inputs[]` (local name, type, required, source), `result_target`. See [Template Steps](#template-steps) and [Reports](#reports). |
 | `if` | Branch on a condition. | `condition`; routes `true`/`false` edges. |
 | `switch` | Branch on a selector. | `selector`, `cases[]` with a stable `case_id` and `when`; routes one `case` edge per case and `default`. |
 | `approval` | Wait for a human decision. | `message`, `show_outputs`, `output_mapping`, `response_mapping`; routes `approved`/`rejected`. See [Approval Steps](#approval-steps). |
@@ -1571,6 +1571,45 @@ Example: an HTML product table from a list prepared by a Transform step.
 A later step reads the result like any other variable: map
 `state.outputs.post_markdown` into an agent input, an HTTP request body, or an
 email action.
+
+### Reports
+
+With `format: report` a Template step builds a structured report instead of a
+text: headings and paragraphs, key metrics with an optional comparison, tables,
+line and bar charts, and titled sections. Instead of `text` the step takes a
+`report` definition (schema version 1); it writes a report object to
+`result_target`. The full contract, with examples of valid and invalid reports,
+is [Workflow Report Schema v1](../architecture/workflow-report-schema-v1.md);
+the design is [ADR 0059](../architecture/adr/0059-workflow-report-documents.md).
+
+- **Bindings.** A metric value or a text value names one declared input and an
+  optional relative path inside it, for example
+  `{"input": "kpis", "path": "revenue"}`. A table or chart reads a dataset: an
+  array of row objects from one input. The report reads nothing else.
+- **Data is shown as given.** Totals, sorting and filtering belong in earlier
+  steps (Transform, dataset queries). A number written as text is an error, not
+  a number. `0`, `false` and an empty table are values; a `null` shows as `—`; a
+  missing value uses the binding's `default` or fails the step.
+- **Formats.** Every bound value has an explicit format: `text`, `boolean`,
+  `number`, `currency` (with an ISO 4217 code), `percent` (`0.18` is 18 %),
+  `date` or `datetime`. The report's `locale` and `time_zone` fix how it is
+  shown for every viewer.
+- **Only the columns a component reads are stored.** Other fields of the rows
+  are dropped.
+- **Limits.** Up to 100 components, 10 datasets, 1,000 rows per dataset, 30
+  columns, 10 chart series, and 1 MiB per report. Nothing is cut to fit: a
+  report over a limit fails the step with the field that broke it.
+- **No markup or code.** A report holds no HTML, scripts, styles, chart library
+  options or URLs to fetch.
+
+To return the report from the workflow, declare it as a required output of type
+`object` in the workflow's Interface and name it in `report_output`. AI agents
+set both with the `update_interface` operation of `workflow_apply_changes`. The
+run then checks the report strictly at the end, and the result returns it as
+stored. Job events, step messages and the job diagnostics an AI agent reads show
+only a short summary of the report (title, summary text and row counts), never
+its rows. Clients without a report viewer get `summary_text`: the authored
+`summary`, or a generated list of the metrics and table sizes.
 
 ## HTTP Request Steps
 
