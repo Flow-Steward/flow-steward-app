@@ -1,6 +1,6 @@
 # ADR 0058: Connections From an Imported Refresh Token
 
-- Status: Proposed — 2026-11-05 (amends ADR 0023 clause 3; needs project-owner approval)
+- Status: Accepted — 2026-11-06 (approved provider-neutral flow; amends ADR 0023 clause 3)
 - Date: 2026-11-05
 - Related: [ADR 0023](0023-extension-owned-oauth-boundary.md),
   [ADR 0024](0024-provider-declared-oauth-protocol-variance.md) (Proposed)
@@ -120,6 +120,16 @@ flow vocabulary rather than provider code in Core:
   `origin_binding` with the host taken from operator input before anything has
   verified it;
 - the **device authorization** grant.
+
+## Host compatibility
+
+Flow Steward 0.9.12 ships extension host contract 1.6.0. A bundle declaring
+`refresh_token_import` requires `runtime.compatibility.platform_min: 1.6.0`.
+This is the existing host-contract version scale, separate from the product
+version and the unchanged `extension_host_v2` transport contract. An older
+1.5.0 host refuses the bundle as below its minimum; older bundle contracts
+without an upper bound remain compatible with the new host. An explicit
+`FS_VERSION` override continues to select the advertised host version.
 
 ## Consequences
 

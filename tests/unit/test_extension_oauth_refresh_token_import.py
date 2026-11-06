@@ -138,6 +138,7 @@ def _descriptor(
             ],
         },
         "runtime": {
+            "compatibility": {"platform_min": "1.6.0"},
             "extension_contract_v2": {
                 "oauth_providers": [provider or _import_provider()],
                 "connection_types": [
@@ -151,7 +152,7 @@ def _descriptor(
                         "config_schema": _config_schema(),
                     }
                 ],
-            }
+            },
         },
     }
 
@@ -1335,3 +1336,58 @@ def test_grant_repr_and_parse_errors_never_carry_the_token() -> None:
     assert error.__cause__ is None
     assert error.__context__ is None
     assert PASTED not in str(error)
+
+
+@pytest.mark.parametrize("minimum", [None, "1.0.0", "1.5.0"])
+def test_import_provider_requires_its_host_contract_minimum(minimum) -> None:
+    descriptor = _descriptor()
+    if minimum is None:
+        descriptor["runtime"].pop("compatibility")
+    else:
+        descriptor["runtime"]["compatibility"]["platform_min"] = minimum
+
+    result = validate_extension_contract_v2(descriptor)
+
+    assert result["valid"] is False
+    assert "oauth_import_host_minimum" in _error_codes(result)
+
+
+def test_import_bundle_is_accepted_by_the_shipping_host(monkeypatch) -> None:
+    from core.application.extensions.service_support import (
+        _platform_compatibility_error,
+        _runtime_platform_version,
+    )
+
+    monkeypatch.delenv("FS_VERSION", raising=False)
+    descriptor = _descriptor()
+    assert validate_extension_contract_v2(descriptor)["valid"] is True
+    assert not _platform_compatibility_error(
+        descriptor, platform_version=_runtime_platform_version()
+    )
+
+
+def test_import_bundle_is_refused_by_an_explicit_older_host(monkeypatch) -> None:
+    from core.application.extensions.service_support import (
+        _platform_compatibility_error,
+        _runtime_platform_version,
+    )
+
+    monkeypatch.setenv("FS_VERSION", "1.5.0")
+    error = _platform_compatibility_error(
+        _descriptor(), platform_version=_runtime_platform_version()
+    )
+    assert "below required minimum" in error
+    assert "1.6.0" in error
+
+
+def test_shipping_host_keeps_older_bundles_without_a_maximum_compatible(monkeypatch) -> None:
+    from core.application.extensions.service_support import (
+        _platform_compatibility_error,
+        _runtime_platform_version,
+    )
+
+    monkeypatch.delenv("FS_VERSION", raising=False)
+    descriptor = {"runtime": {"compatibility": {"platform_min": "1.5.0"}}}
+    assert not _platform_compatibility_error(
+        descriptor, platform_version=_runtime_platform_version()
+    )

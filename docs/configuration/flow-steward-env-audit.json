@@ -3718,6 +3718,26 @@
     "variable_name": "FS_BENCHMARK_TOKEN"
   },
   {
+    "canonical_name": "FS_BORROWED_AUDIT_IMAGE",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/docker_compose_env.sh",
+      "core/entrypoints/cli/scripts/lint.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_BORROWED_AUDIT_IMAGE"
+  },
+  {
     "canonical_name": "FS_BOUNDARY_TRACKED_FILES_MANIFEST",
     "code_read_locations": [
       "tests/unit/test_pre_010_cleanup_guardrails.py",

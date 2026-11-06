@@ -51,9 +51,9 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `820`
+- Raw env-like names discovered by audit: `821`
 - Cataloged variables from `.env.example*` or manifest: `598`
-- Raw audit-only names outside examples/manifest: `222`
+- Raw audit-only names outside examples/manifest: `223`
 - Unique variables in shipped `.env.example*` files: `377`
 - Variables in canonical manifest: `508`
 
@@ -66,7 +66,7 @@ Cataloged variables by scope:
 - Tooling Internal: `77`
 
 Raw audit-only names by scope:
-- Internal Runtime: `3`
+- Internal Runtime: `4`
 - Script Internal: `125`
 - Test Only: `44`
 - Tooling Internal: `8`
@@ -964,7 +964,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 
 | Scope | Count | Common Usage Areas |
 |---|---|---|
-| Internal Runtime | `3` | CLI scripts (3), Tests (1) |
+| Internal Runtime | `4` | CLI scripts (5), Tests (1) |
 | Script Internal | `125` | CLI scripts (191), CLI (12), Tests (7), Tooling (6), Database (3) |
 | Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |

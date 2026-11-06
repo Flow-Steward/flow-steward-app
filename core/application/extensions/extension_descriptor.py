@@ -88,7 +88,8 @@ EXTENSION_DESCRIPTOR_SCHEMA_VERSION = "extension_descriptor_v1"
 # 1.4.0: generic declared string settings and JSON-object secret format.
 # 1.5.0: native Dataset connectors support typed structured JSON saved queries
 # alongside SQL. Runtime-only service descriptors may omit authoring artifacts.
-DEFAULT_FS_RUNTIME_VERSION = "1.5.0"
+# 1.6.0: provider-neutral refresh-token import for extension OAuth connections.
+DEFAULT_FS_RUNTIME_VERSION = "1.6.0"
 
 RUNTIME_INTERFACE_SECTIONS = (
     "connection_types",
