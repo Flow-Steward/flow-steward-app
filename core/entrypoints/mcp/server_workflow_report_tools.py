@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Annotated, Any
 from urllib.parse import quote
 from uuid import uuid4
@@ -84,25 +85,53 @@ report_apps.add_resource(
 )
 
 
+#: Timing seams, replaced by deterministic fakes in tests.
+_monotonic = time.monotonic
+_sleep = asyncio.sleep
+_wait_for = asyncio.wait_for
+
+
+async def _read_once(
+    client: AppApiClient, path: str, bearer: str, correlation_id: str
+) -> dict[str, Any]:
+    try:
+        payload = await client.request_async(
+            "GET", path, bearer=bearer, correlation_id=correlation_id
+        )
+    except AppApiError as exc:
+        raise api_tool_error(TOOL, exc) from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("model"), dict):
+        raise api_tool_error(TOOL, AppApiError(502, {"error": "Unexpected report answer"}))
+    return payload
+
+
 async def _read_report(job_id: str, wait_seconds: int, correlation_id: str) -> dict[str, Any]:
+    """Read once, then re-read a pending report until ``wait_seconds`` is spent.
+
+    The first read is always made and bounded only by the client's own timeout.
+    Every later read starts only while budget remains and is cut off when the
+    budget ends; the caller then gets the last pending answer.
+    """
     path = MCP_TOOL_ROUTES[TOOL].path.format(job_id=quote(job_id, safe=""))
     bearer = current_caller_bearer()
     client = AppApiClient()
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + wait_seconds
-    while True:
+    deadline = _monotonic() + wait_seconds
+    payload = await _read_once(client, path, bearer, correlation_id)
+    while payload["model"].get("state") == _STATE_PENDING:
+        remaining = deadline - _monotonic()
+        if remaining <= 0:
+            break
+        await _sleep(min(_POLL_SECONDS, remaining))
+        remaining = deadline - _monotonic()
+        if remaining <= 0:
+            break
         try:
-            payload = await client.request_async(
-                "GET", path, bearer=bearer, correlation_id=correlation_id
+            payload = await _wait_for(
+                _read_once(client, path, bearer, correlation_id), timeout=remaining
             )
-        except AppApiError as exc:
-            raise api_tool_error(TOOL, exc) from exc
-        if not isinstance(payload, dict) or not isinstance(payload.get("model"), dict):
-            raise api_tool_error(TOOL, AppApiError(502, {"error": "Unexpected report answer"}))
-        remaining = deadline - loop.time()
-        if payload["model"].get("state") != _STATE_PENDING or remaining <= 0:
-            return payload
-        await asyncio.sleep(min(_POLL_SECONDS, remaining))
+        except TimeoutError:
+            break
+    return payload
 
 
 @report_apps.tool(

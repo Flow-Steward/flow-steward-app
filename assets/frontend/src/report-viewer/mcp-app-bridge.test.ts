@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import results from "./__fixtures__/workflow-run-report-results.json";
 import { createMcpAppBridge, readToolResult, REPORT_META_KEY, type BridgeHandlers } from "./mcp-app-bridge";
 
 type Listener = (event: MessageEvent) => void;
@@ -66,15 +67,13 @@ describe("createMcpAppBridge", () => {
     expect(bridge.stats().hostOrigin).toBe(HOST);
   });
 
-  it("passes the snapshot from _meta and the summary from the model-visible fields", async () => {
+  it("passes the snapshot from _meta and the summary from the tool's envelope", async () => {
     await started();
-    const report = { kind: "fs.report" };
-    fake.deliver({
-      jsonrpc: "2.0",
-      method: "ui/notifications/tool-result",
-      params: { _meta: { [REPORT_META_KEY]: report }, structuredContent: { summary_text: "Weekly sales" } },
+    fake.deliver({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: results.ready });
+    expect(on.onToolResult).toHaveBeenCalledWith({
+      report: results.ready._meta[REPORT_META_KEY],
+      summary: "Revenue 48210.5 EUR in the week of 2026-11-02; target met: false.",
     });
-    expect(on.onToolResult).toHaveBeenCalledWith({ report, summary: "Weekly sales" });
   });
 
   it("drops messages from other frames, other origins and malformed envelopes", async () => {
@@ -110,6 +109,38 @@ describe("createMcpAppBridge", () => {
     const bridge = await started();
     bridge.stop();
     expect(fake.listening()).toBe(false);
+  });
+});
+
+/** The tool's actual results; tests/unit/test_mcp_workflow_report_tool.py pins them to the server. */
+const toolResults: Record<string, Record<string, unknown>> = results;
+
+describe("readToolResult with the tool's actual results", () => {
+  it.each([
+    ["ready", "Revenue 48210.5 EUR in the week of 2026-11-02; target met: false."],
+    ["pending", "Job job-1 is running; its report is not ready yet."],
+    ["no_report", "Job job-1 ended (failed) without a report."],
+  ])("reads data.text of the %s envelope", (state, text) => {
+    const withoutMeta = Object.fromEntries(Object.entries(toolResults[state]).filter(([key]) => key !== "_meta"));
+    expect(readToolResult(withoutMeta)).toEqual({ report: undefined, summary: text });
+  });
+
+  it.each(["ready", "pending", "no_report"])("reads the %s envelope from the JSON text content alone", (state) => {
+    const { content } = toolResults[state];
+    const fromStructured = readToolResult(toolResults[state]).summary;
+    expect(readToolResult({ content }).summary).toBe(fromStructured);
+    expect(fromStructured).not.toContain("{");
+  });
+
+  it("carries the snapshot only for the ready result", () => {
+    expect(readToolResult(toolResults.ready).report).toEqual(results.ready._meta[REPORT_META_KEY]);
+    expect(readToolResult(toolResults.pending).report).toBeUndefined();
+    expect(readToolResult(toolResults.no_report).report).toBeUndefined();
+  });
+
+  it("shows no raw JSON for an envelope without text", () => {
+    const text = JSON.stringify({ ok: false, tool: "workflow_run_report", error: { status_code: 401 } });
+    expect(readToolResult({ content: [{ type: "text", text }] }).summary).toBe("");
   });
 });
 

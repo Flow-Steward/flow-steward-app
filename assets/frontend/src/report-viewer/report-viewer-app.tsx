@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 import { ReportView } from "@/components/report";
 
-import { createMcpAppBridge, type HostContext, REPORT_META_KEY } from "./mcp-app-bridge";
+import { createMcpAppBridge, envelopeText, type HostContext, REPORT_META_KEY } from "./mcp-app-bridge";
 import { viewerLabels } from "./viewer-labels";
 
 const VIEWER_APP_INFO = { name: "flow-steward-report-viewer", version: "1.0.0" };
@@ -20,7 +20,7 @@ type ViewerState =
   | { kind: "summary"; summary: string }
   | { kind: "cancelled" };
 
-type OpenAiGlobals = { toolResponseMetadata?: Record<string, unknown>; toolOutput?: Record<string, unknown> };
+type OpenAiGlobals = { toolResponseMetadata?: Record<string, unknown> | null; toolOutput?: unknown };
 
 function applyTheme(theme: HostContext["theme"]): void {
   if (!theme) return;
@@ -29,13 +29,17 @@ function applyTheme(theme: HostContext["theme"]): void {
   root.classList.toggle("dark", theme === "dark");
 }
 
+/**
+ * `toolOutput` is the tool's structured content (the envelope) and
+ * `toolResponseMetadata` its `_meta`; both stay empty until the result arrives.
+ */
 function readOpenAiGlobals(): { report: unknown; summary: string } | null {
-  const globals = (window as unknown as { openai?: OpenAiGlobals }).openai;
+  const globals = (window as unknown as { openai?: OpenAiGlobals | null }).openai;
   if (!globals) return null;
   const report = globals.toolResponseMetadata?.[REPORT_META_KEY];
-  const summary = globals.toolOutput?.summary_text;
-  if (report === undefined && typeof summary !== "string") return null;
-  return { report, summary: typeof summary === "string" ? summary : "" };
+  const output = globals.toolOutput;
+  if (report === undefined && (typeof output !== "object" || output === null)) return null;
+  return { report, summary: envelopeText(output) };
 }
 
 export function ReportViewerApp() {

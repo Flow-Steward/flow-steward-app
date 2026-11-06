@@ -50,18 +50,35 @@ function textOf(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-/** The snapshot from `_meta` and a readable summary from the model-visible fields. */
+/**
+ * The readable text of the tool's model-visible envelope,
+ * `{ ok, tool, data: { state, text, report, ... }, meta }`: `data.text` is the
+ * report summary when the report is ready, and says why there is none otherwise.
+ */
+export function envelopeText(envelope: unknown): string {
+  return isRecord(envelope) && isRecord(envelope.data) ? textOf(envelope.data.text) : "";
+}
+
+/** A text content block is the same envelope as JSON; plain text is shown as it is. */
+function contentText(text: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return text;
+  }
+  return envelopeText(parsed);
+}
+
+/** The snapshot from `_meta` and a readable summary from the model-visible envelope. */
 export function readToolResult(params: Record<string, unknown>): ToolResultPayload {
   const meta = isRecord(params._meta) ? params._meta : {};
-  const structured = isRecord(params.structuredContent) ? params.structuredContent : {};
   const content = Array.isArray(params.content) ? params.content : [];
   const firstText = content.find((item) => isRecord(item) && item.type === "text");
   return {
     report: meta[REPORT_META_KEY],
     summary:
-      textOf(structured.summary_text) ||
-      textOf(structured.summary) ||
-      (isRecord(firstText) ? textOf(firstText.text) : ""),
+      envelopeText(params.structuredContent) || (isRecord(firstText) ? contentText(textOf(firstText.text)) : ""),
   };
 }
 
