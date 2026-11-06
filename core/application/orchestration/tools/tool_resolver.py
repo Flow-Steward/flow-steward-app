@@ -15,8 +15,6 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from pydantic import BaseModel
-
 from core.application.management.mcp_connector_common import (
     MCP_OUTPUT_PROJECTION_CONFIG_KEY,
     MCP_OUTPUT_PROJECTION_WHOLE_OBJECT_RESULT,
@@ -28,6 +26,7 @@ from core.application.orchestration.agents.common_tool_runtime import (
     MCP_CANONICAL_TOOL_ID_METADATA_KEY,
     MCP_PROJECTED_TOOL_METADATA_KEY,
 )
+from core.application.orchestration.tools.fallback_tool import FallbackTool as _FallbackTool
 from core.application.orchestration.tools.tool_manifest_contracts import (
     _assert_mcp_connector_row_account,
     _assert_mcp_connector_row_lineage,
@@ -69,31 +68,6 @@ _OBSERVABILITY_DSN_ENV_NAMES = (
     "DATABASE_URL",
     "POSTGRES_DSN",
 )
-
-
-class _FallbackTool:
-    def __init__(
-        self,
-        *,
-        name: str,
-        description: str,
-        args_schema: type[BaseModel] | dict[str, Any],
-        invoke_fn,
-        metadata: dict[str, Any] | None = None,
-    ):
-        self.name = name
-        self.description = description
-        self.args_schema = args_schema
-        self._invoke_fn = invoke_fn
-        self.metadata = dict(metadata or {})
-
-    def invoke(self, payload: dict | None = None):
-        if isinstance(self.args_schema, dict):
-            # Match LangChain's dict-schema path: the MCP server validates its
-            # own JSON arguments, including explicit nulls and extra keys.
-            return self._invoke_fn(**dict(payload or {}))
-        validated = self.args_schema.model_validate(payload or {})
-        return self._invoke_fn(**validated.model_dump(exclude_unset=True, exclude_none=True))
 
 
 def _observability_dsn_env_candidate() -> str:

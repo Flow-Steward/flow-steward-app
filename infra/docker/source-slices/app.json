@@ -676,6 +676,7 @@
     "core/application/orchestration/tool_registry.py",
     "core/application/orchestration/tools/__init__.py",
     "core/application/orchestration/tools/base.py",
+    "core/application/orchestration/tools/fallback_tool.py",
     "core/application/orchestration/tools/mcp_rate_limit.py",
     "core/application/orchestration/tools/mcp_tools.py",
     "core/application/orchestration/tools/mcp_tools_client.py",
