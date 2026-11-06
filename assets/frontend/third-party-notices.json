@@ -1,4 +1,9 @@
 {
-  "description": "Packages whose production closure ships notices in public/third-party-notices.txt (see core/application/tooling/quality/frontend_licenses.py).",
-  "roots": ["echarts", "@tanstack/react-table"]
+  "description": "Packages whose production closure ships notices in public/third-party-notices.txt: the report renderer's chart and table engines, and React, which the MCP Apps report viewer bundles (see core/application/tooling/quality/frontend_licenses.py).",
+  "roots": [
+    "echarts",
+    "@tanstack/react-table",
+    "react",
+    "react-dom"
+  ]
 }

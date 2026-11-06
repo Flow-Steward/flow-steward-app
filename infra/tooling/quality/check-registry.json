@@ -419,6 +419,7 @@
         "frontend-licenses"
       ],
       "inputs": [
+        "assets/frontend/package.json",
         "assets/frontend/package-lock.json",
         "assets/frontend/third-party-notices.json",
         "assets/frontend/public/third-party-notices.txt",

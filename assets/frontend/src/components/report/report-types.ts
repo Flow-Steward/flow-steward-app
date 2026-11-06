@@ -195,17 +195,22 @@ function checkChart(component: Fields): void {
 function checkComponent(value: unknown, depth: number): void {
   expectShape(isRecord(value) && typeof value.id === "string" && typeof value.type === "string");
   const component = value as Fields;
-  const checks: Record<string, (item: Fields) => void> = {
-    text: checkText,
-    metric: checkMetric,
-    table: checkTable,
-    chart: checkChart,
-    section: (item) => {
-      expectShape(typeof item.title === "string" && depth < MAX_DEPTH);
-      checkComponents(item.children, depth + 1);
-    },
-  };
-  const check = checks[String(component.type)];
+  // A Map, not an object literal: a type such as "__proto__" or "toString"
+  // must miss, never reach an inherited property.
+  const checks = new Map<string, (item: Fields) => void>([
+    ["text", checkText],
+    ["metric", checkMetric],
+    ["table", checkTable],
+    ["chart", checkChart],
+    [
+      "section",
+      (item) => {
+        expectShape(typeof item.title === "string" && depth < MAX_DEPTH);
+        checkComponents(item.children, depth + 1);
+      },
+    ],
+  ]);
+  const check = checks.get(String(component.type));
   if (!check) throw new ShapeError("unsupported");
   check(component);
 }

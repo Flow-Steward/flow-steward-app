@@ -44,11 +44,19 @@ describe("formatReportValue", () => {
     ["0099-12-31", "Dec 31, 99"],
     ["0100-03-01", "Mar 1, 100"],
     ["1582-10-10", "Oct 10, 1582"],
+    ["2024-02-29", "Feb 29, 2024"],
     ["2026-11-02", "Nov 2, 2026"],
   ])("keeps the year and day of %s in every zone", (value, expected) => {
     for (const timeZone of ["UTC", "Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
       expect(formatReportValue(value, { type: "date" }, { ...ctx, timeZone })).toBe(expected);
     }
+  });
+
+  it("presents the date in the locale's own calendar without rewriting its year", () => {
+    // Buddhist calendar: 2026 is 2569 BE; Persian calendar: November 2026 is in 1405 AP.
+    expect(formatReportValue("2026-11-02", { type: "date" }, { ...ctx, locale: "th-TH" })).toContain("2569");
+    expect(formatReportValue("2026-11-02", { type: "date" }, { ...ctx, locale: "fa-IR" })).toContain("۱۴۰۵");
+    expect(formatReportValue("0001-01-01", { type: "date" }, { ...ctx, locale: "th-TH" })).toContain("544");
   });
 
   it("does not invent a date that does not exist", () => {

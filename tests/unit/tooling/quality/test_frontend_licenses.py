@@ -76,6 +76,10 @@ def test_a_production_package_outside_the_allowlist_fails(tmp_path: Path) -> Non
     assert problems == ["copyleft@1.0.0: license GPL-3.0 is not on the allowlist"]
 
 
+def _modules(root: Path) -> Path:
+    return root / "assets/frontend/node_modules"
+
+
 def test_generated_notices_cover_the_closure_once_per_version(tmp_path: Path) -> None:
     root = _workspace(tmp_path, PACKAGES, ["chart"])
     assert licenses.cmd_generate(root) == 0
@@ -83,26 +87,66 @@ def test_generated_notices_cover_the_closure_once_per_version(tmp_path: Path) ->
     assert text.count("### helper 1.0.0 (0BSD)") == 1
     assert "### chart 2.0.0 (Apache-2.0)" in text
     assert "Apache-2.0 text of node_modules/chart" in text
-    assert licenses.notice_problems(root) == []
+    assert licenses.notice_problems(root, _modules(root)) == []
+    assert licenses.cmd_check(root, _modules(root)) == 0
 
 
-def test_missing_and_stale_notices_are_reported(tmp_path: Path) -> None:
+def test_missing_and_stale_sections_are_reported(tmp_path: Path) -> None:
     root = _workspace(tmp_path, PACKAGES, ["chart"])
     licenses.cmd_generate(root)
     notices = root / licenses.NOTICES
     text = notices.read_text(encoding="utf-8").replace("### render 2.0.0", "### render 1.0.0")
     notices.write_text(text, encoding="utf-8")
-    problems = licenses.notice_problems(root)
-    assert any("no notice for render@2.0.0" in problem for problem in problems)
+    problems = licenses.notice_problems(root, _modules(root))
+    assert any("no notice for render 2.0.0 (BSD-3-Clause)" in problem for problem in problems)
     assert any(
-        "render@1.0.0 (BSD-3-Clause) is not in the locked closure" in problem
+        "render 1.0.0 (BSD-3-Clause) is not in the locked closure" in problem
         for problem in problems
     )
-    assert licenses.cmd_check(root) == 1
+    assert licenses.cmd_check(root, _modules(root)) == 1
 
 
-def test_the_repository_notices_are_complete() -> None:
-    assert licenses.cmd_check(ROOT) == 0
+def test_a_kept_header_over_a_changed_license_text_fails(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, PACKAGES, ["chart"])
+    licenses.cmd_generate(root)
+    notices = root / licenses.NOTICES
+    text = notices.read_text(encoding="utf-8")
+    notices.write_text(
+        text.replace("Apache-2.0 text of node_modules/chart", "edited"), encoding="utf-8"
+    )
+    problems = licenses.notice_problems(root, _modules(root))
+    assert problems == [
+        f"{licenses.NOTICES}: the text for chart 2.0.0 (Apache-2.0) differs from the locked "
+        "package's files; regenerate"
+    ]
+
+
+def test_a_kept_header_over_a_removed_notice_fails(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, PACKAGES, ["chart"])
+    (root / "assets/frontend/node_modules/chart/NOTICE").write_text(
+        "Chart notice", encoding="utf-8"
+    )
+    licenses.cmd_generate(root)
+    notices = root / licenses.NOTICES
+    text = notices.read_text(encoding="utf-8")
+    assert "--- NOTICE ---\nChart notice" in text
+    notices.write_text(text.replace("--- NOTICE ---\nChart notice\n", ""), encoding="utf-8")
+    assert any(
+        "the text for chart 2.0.0 (Apache-2.0) differs" in problem
+        for problem in licenses.notice_problems(root, _modules(root))
+    )
+
+
+def test_the_check_reads_the_installed_packages_not_the_checkout(tmp_path: Path) -> None:
+    root = _workspace(tmp_path, PACKAGES, ["chart"])
+    licenses.cmd_generate(root)
+    installed = tmp_path / "installed"
+    for path in PACKAGES:
+        target = installed / path.split("node_modules/", 1)[1]
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "LICENSE").write_text("a different text", encoding="utf-8")
+    assert licenses.cmd_check(root, installed) == 1
+    assert licenses.cmd_check(root, tmp_path / "absent") == 2
 
 
 def test_the_check_has_one_tier_two_owner_and_a_real_dispatch() -> None:

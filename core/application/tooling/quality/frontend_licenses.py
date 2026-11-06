@@ -12,8 +12,10 @@ Two rules, both read from ``assets/frontend/package-lock.json``:
    report viewer, so the notices travel with the code they cover.
 
 ``generate`` writes the notices file from the installed packages' LICENSE and
-NOTICE files (it needs ``node_modules``); ``check`` needs only the lockfile and
-the committed notices, so the gate runs it without installing anything.
+NOTICE files. ``check`` renders them again from packages installed strictly
+from the lockfile (the gate runs ``npm ci --ignore-scripts`` in a scratch copy)
+and compares the result with the committed file byte for byte, so a header
+kept over a changed or removed license text fails as well.
 A product-wide SBOM is a separate concern.
 """
 
@@ -137,26 +139,51 @@ def _unique(packages: list[LockedPackage]) -> list[LockedPackage]:
     return list(unique.values())
 
 
-def notice_problems(root: Path) -> list[str]:
-    packages = _load_lock(root)
-    required = _unique(production_closure(packages, _notice_roots(root)))
+def _sections(text: str) -> dict[str, str]:
+    """Notice sections by their ``### name version (license)`` header line."""
+    sections: dict[str, str] = {}
+    for block in text.split(SECTION_RULE)[1:]:
+        header = SECTION_HEADER.search(block)
+        if header:
+            sections[header.group(0)] = block.strip()
+    return sections
+
+
+def notice_problems(root: Path, modules: Path) -> list[str]:
+    """The committed notices must equal those rendered from the locked packages, byte for byte.
+
+    A section whose header survives but whose license or notice text was
+    changed or removed is a difference like any other.
+    """
     notices_path = root / NOTICES
     if not notices_path.is_file():
         return [f"{NOTICES} is missing; run the generate command"]
-    present = {
-        (match["name"], match["version"], match["license"])
-        for match in SECTION_HEADER.finditer(notices_path.read_text(encoding="utf-8"))
-    }
-    wanted = {(item.name, item.version, item.license) for item in required}
+    expected_text = render_notices(root, modules)
+    actual_text = notices_path.read_text(encoding="utf-8")
+    if actual_text == expected_text:
+        return []
+    expected, actual = _sections(expected_text), _sections(actual_text)
     problems = [
-        f"{NOTICES}: no notice for {name}@{version} ({license_id}); run the generate command"
-        for name, version, license_id in sorted(wanted - present)
+        f"{NOTICES}: no notice for {header[4:]}; run the generate command"
+        for header in sorted(expected.keys() - actual.keys())
     ]
     problems.extend(
-        f"{NOTICES}: {name}@{version} ({license_id}) is not in the locked closure; regenerate"
-        for name, version, license_id in sorted(present - wanted)
+        f"{NOTICES}: {header[4:]} is not in the locked closure; regenerate"
+        for header in sorted(actual.keys() - expected.keys())
     )
-    return problems
+    problems.extend(
+        f"{NOTICES}: the text for {header[4:]} differs from the locked package's files; regenerate"
+        for header in sorted(expected.keys() & actual.keys())
+        if expected[header] != actual[header]
+    )
+    return problems or [f"{NOTICES} differs from the rendered notices; regenerate"]
+
+
+def _package_directory(root: Path, modules: Path | None, package: LockedPackage) -> Path:
+    """Where a locked package is installed: under *modules* when given, else the checkout."""
+    if modules is None:
+        return root / FRONTEND / package.path
+    return modules / package.path.split("node_modules/", 1)[1]
 
 
 def _read_text_files(directory: Path, names: Iterable[str]) -> list[tuple[str, str]]:
@@ -179,11 +206,11 @@ def _subcomponent_licenses(directory: Path) -> list[tuple[str, str]]:
     ]
 
 
-def render_notices(root: Path) -> str:
+def render_notices(root: Path, modules: Path | None = None) -> str:
     packages = _unique(production_closure(_load_lock(root), _notice_roots(root)))
     sections = [HEADER]
     for package in packages:
-        directory = root / FRONTEND / package.path
+        directory = _package_directory(root, modules, package)
         license_files = _read_text_files(directory, LICENSE_FILE_NAMES)[:1]
         if not license_files:
             raise FileNotFoundError(f"{package.name}: no LICENSE file in {directory}")
@@ -198,8 +225,11 @@ def render_notices(root: Path) -> str:
     return "\n".join(sections).rstrip("\n") + "\n"
 
 
-def cmd_check(root: Path) -> int:
-    problems = [*license_problems(_load_lock(root)), *notice_problems(root)]
+def cmd_check(root: Path, modules: Path) -> int:
+    if not modules.is_dir():
+        print(f"ERROR: {modules} is not an installed node_modules directory")
+        return 2
+    problems = [*license_problems(_load_lock(root)), *notice_problems(root, modules)]
     for problem in problems:
         print(f"ERROR: {problem}")
     if problems:
@@ -208,8 +238,8 @@ def cmd_check(root: Path) -> int:
     return 0
 
 
-def cmd_generate(root: Path) -> int:
-    (root / NOTICES).write_text(render_notices(root), encoding="utf-8")
+def cmd_generate(root: Path, modules: Path | None = None) -> int:
+    (root / NOTICES).write_text(render_notices(root, modules), encoding="utf-8")
     print(f"Wrote {NOTICES}")
     return 0
 
@@ -218,9 +248,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("command", choices=("check", "generate"))
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
+    parser.add_argument(
+        "--modules",
+        type=Path,
+        help="node_modules installed from the lockfile (check: required; generate: default the checkout's)",
+    )
     args = parser.parse_args(argv)
     root = args.root.resolve()
-    return cmd_check(root) if args.command == "check" else cmd_generate(root)
+    if args.command == "generate":
+        return cmd_generate(root, args.modules)
+    if args.modules is None:
+        parser.error("check needs --modules: the packages installed from the lockfile")
+    return cmd_check(root, args.modules.resolve())
 
 
 if __name__ == "__main__":

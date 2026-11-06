@@ -26,7 +26,14 @@ export type MountedChart = {
 
 export function mountReportChart(element: HTMLElement, option: EChartsCoreOption): MountedChart {
   const chart = init(element, undefined, { renderer: "svg" });
-  chart.setOption(option, true);
+  try {
+    chart.setOption(option, true);
+  } catch (error) {
+    // init registered the instance on the element; the caller never receives
+    // it, so it is disposed here before the error is passed on.
+    chart.dispose();
+    throw error;
+  }
   return {
     update: (next) => chart.setOption(next, true),
     resize: () => chart.resize(),

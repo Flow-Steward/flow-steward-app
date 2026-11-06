@@ -2176,10 +2176,22 @@ run_check_ui_i18n() {
 }
 
 run_check_frontend_licenses() {
-  # Lockfile and committed notices only: no npm install is needed to check them.
+(
+  # The notices are rendered again from packages installed strictly from the
+  # lockfile, without install scripts, and compared with the committed file.
+  local workspace_dir=""
+  local frontend_dir=""
+  workspace_dir="$(mktemp -d "${TMPDIR:-/tmp}/flow-steward-frontend-licenses.XXXXXX")"
+  frontend_dir="${workspace_dir}/assets/frontend"
+  trap 'rm -rf "${workspace_dir}"' EXIT
+  prepare_frontend_workspace "${ROOT_DIR}/assets" "${workspace_dir}/assets"
+  run_step "Frontend license workspace install (locked packages, no scripts)" \
+    bash -lc 'cd "$1" && npm ci --ignore-scripts --no-audit --no-fund' _ "${frontend_dir}"
   run_step \
     "Frontend production licenses and notices" \
-    "${PYTHON_BIN}" -m core.application.tooling.quality.frontend_licenses check --root "${ROOT_DIR}"
+    "${PYTHON_BIN}" -m core.application.tooling.quality.frontend_licenses check \
+    --root "${ROOT_DIR}" --modules "${frontend_dir}/node_modules"
+)
 }
 
 run_check_sonar_size() {

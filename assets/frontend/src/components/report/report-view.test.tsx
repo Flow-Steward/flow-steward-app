@@ -113,9 +113,20 @@ describe("ReportView", () => {
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
   });
 
-  it("reports a component type it does not know as unsupported, not as empty", () => {
+  it.each(["gauge", "__proto__", "constructor", "toString", "hasOwnProperty"])(
+    "reports the unknown component type %s as unsupported, not as empty or a crash",
+    (type) => {
+      const report = snapshot();
+      (report.components as unknown[]).push({ id: "unknown", type });
+      render(<ReportView report={report} />);
+      expect(screen.getByRole("status")).toHaveTextContent("This report uses a format this version cannot show.");
+    },
+  );
+
+  it.each(["__proto__", "constructor", "toString"])("reports the unknown format type %s as unsupported", (type) => {
     const report = snapshot();
-    (report.components as unknown[]).push({ id: "gauge", type: "gauge" });
+    const metric = (report.components as Array<Record<string, unknown>>).find((item) => item.type === "metric");
+    Object.assign(metric as Record<string, unknown>, { format: { type } });
     render(<ReportView report={report} />);
     expect(screen.getByRole("status")).toHaveTextContent("This report uses a format this version cannot show.");
   });
