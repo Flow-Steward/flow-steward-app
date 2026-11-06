@@ -76,6 +76,11 @@ def _collect_child_outputs(
         # optional fields. Do not revive an older diagnostic message with the
         # same name (or overwrite false/null/empty values with it).
         return {key: value for key, value in final_contract["outputs"].items() if key in remaining}
+    # A child's report is forwarded only from its validated final contract
+    # (ADR 0059 decision 4): message, container and runtime-state fallbacks may
+    # hold an unvalidated or failed report, so they never supply it.
+    child_report = str(_json_object(final_contract.get("interface")).get("report_output") or "")
+    remaining.discard(child_report.strip())
 
     resolved: dict[str, Any] = {}
     rows = bl.get_agent_messages(child_job_id, since_id=0, limit=5000, newest=True) or []
