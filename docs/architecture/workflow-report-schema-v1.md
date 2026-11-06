@@ -494,6 +494,11 @@ first selects the component sub-schema by `type` (and a format sub-schema by its
 `report.component_type_unknown` is reported when a component `type` is not in
 the catalog.
 
+A validator reports at most 100 issues; when it finds more, the list ends with
+one `report.more_issues` entry, so a broken 1,000-row dataset cannot produce
+tens of thousands of cell errors. Issue messages name fields and rules, never
+the offending values.
+
 Template step configuration codes extend the existing
 `workflow.step_template_*` family: `workflow.step_template_report_missing`,
 `workflow.step_template_report_not_allowed` (a `report` object with another
@@ -511,7 +516,7 @@ which would otherwise be ignored silently).
 | Payload change against the fixture definition | Error |
 | --- | --- |
 | `components[0].type` = `"gauge"` | `report.component_type_unknown` at `components[0].type` |
-| `components[1].format` = `{"type": "currency"}` | `report.type_invalid` at `components[1].format` (no `currency` code) |
+| `components[1].format` = `{"type": "currency"}` | `report.property_required` at `components[1].format` (no `currency` code; the format sub-schema is chosen by `type` first) |
 | `components[1].format.currency` = `"EURO"` | `report.value_invalid` at `components[1].format.currency` |
 | `components[5].dataset` = `"orders"` (not declared) | `report.dataset_unknown` at `components[5].dataset` |
 | `components[6].category.format` = `{"type": "percent"}` | `report.format_not_allowed` at `components[6].category.format` |
