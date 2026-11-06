@@ -5,6 +5,7 @@ import {
   ensureExtensionOAuthRedirectUri,
   fetchExtensionOAuthConfigurations,
   fetchExtensionOAuthSetupStatus,
+  importExtensionOAuthRefreshToken,
   previewExtensionOAuthConfiguration,
   previewExtensionOAuthConfigurationDelete,
   retryExtensionOAuthPostConnect,
@@ -68,6 +69,27 @@ describe("extension-owned OAuth API", () => {
       5,
       `${prefix}/configurations`,
       { method: "PUT", body: JSON.stringify({ ...mutation, confirmation_token: "confirm" }) },
+    );
+  });
+
+  it("posts a refresh-token import to the provider-scoped connections route", async () => {
+    mockedFetchJson.mockResolvedValue({});
+    const scope = { projectId: "project 1", installId: "install/1", providerId: "console" };
+    const command = {
+      configuration_id: "11111111-1111-4111-8111-111111111111",
+      connection_type: "console_account",
+      display_name: "Account",
+      refresh_token: "pasted-token",
+      connection_config: { region: "north" },
+      existing_connection_id: "connection 1",
+      connection_credential_revision: 4,
+    };
+
+    await importExtensionOAuthRefreshToken(scope, command);
+
+    expect(mockedFetchJson).toHaveBeenCalledWith(
+      "/api/projects/project%201/extensions/install%2F1/oauth/console/connections/import",
+      { method: "POST", body: JSON.stringify(command) },
     );
   });
 });

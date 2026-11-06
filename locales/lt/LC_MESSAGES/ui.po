@@ -5161,6 +5161,54 @@ msgstr "Atnaujinta: {name}, iš {old} į {new}."
 msgid "react.extensions.oauth_final_verified_guidance"
 msgstr "Patikrinta ir parengta autorizacijai."
 
+msgid "react.extensions.oauth_import_conflict"
+msgstr "Šis ryšys pasikeitė, kol jį redagavote. Atnaujinkite puslapį ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_conflict_token_rotated"
+msgstr "Paskyra neprijungta, nes tuo metu pasikeitė konfigūracija, o teikėjas galėjo pakeisti šį atnaujinimo raktą. Jei pakartotinis bandymas nepavyks, išduokite naują atnaujinimo raktą."
+
+msgid "react.extensions.oauth_import_connected"
+msgstr "Paskyra prijungta."
+
+msgid "react.extensions.oauth_import_connecting"
+msgstr "Jungiama…"
+
+msgid "react.extensions.oauth_import_failed"
+msgstr "Paskyros prijungti nepavyko. Patikrinkite reikšmes ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_invalid_client"
+msgstr "Teikėjas nepriėmė šios konfigūracijos kliento prisijungimo duomenų. Pataisykite konfigūraciją sąrankoje ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_provider_unavailable"
+msgstr "Nepavyko pasiekti teikėjo. Bandykite vėliau."
+
+msgid "react.extensions.oauth_import_refresh_token"
+msgstr "Atnaujinimo raktas"
+
+msgid "react.extensions.oauth_import_refresh_token_format"
+msgstr "Įklijuokite atnaujinimo raktą tiksliai taip, kaip jis buvo išduotas, be tarpų."
+
+msgid "react.extensions.oauth_import_refresh_token_help"
+msgstr "Įklijuokite teikėjo konsolėje išduotą atnaujinimo raktą. Jis saugomas užšifruotas ir daugiau nerodomas."
+
+msgid "react.extensions.oauth_import_refresh_token_rejected"
+msgstr "Teikėjas nepriėmė šio atnaujinimo rakto. Patikrinkite jį ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_refresh_token_required"
+msgstr "Atnaujinimo raktas yra privalomas."
+
+msgid "react.extensions.oauth_import_replace"
+msgstr "Pakeisti atnaujinimo raktą"
+
+msgid "react.extensions.oauth_import_replace_value0"
+msgstr "Pakeisti {value0} atnaujinimo raktą"
+
+msgid "react.extensions.oauth_import_revision_missing"
+msgstr "Šio ryšio dabartinė versija nežinoma, todėl jo atnaujinimo rakto čia pakeisti negalima. Atnaujinkite puslapį ir bandykite dar kartą."
+
+msgid "react.extensions.oauth_import_scope_required"
+msgstr "Šis atnaujinimo raktas nesuteikia prieigos, kurios reikia šiam ryšiui. Išduokite naują raktą su reikiama prieiga."
+
 msgid "react.extensions.oauth_redirect_uri"
 msgstr "OAuth peradresavimo URI"
 
@@ -27004,10 +27052,10 @@ msgid "react.workflows.system_tools"
 msgstr "Sistemos įrankiai"
 
 msgid "react.workflows.mcp_tools"
-msgstr "MCP įrankiai"
+msgstr "MCP"
 
 msgid "react.workflows.extension_tools"
-msgstr "Plėtinių įrankiai"
+msgstr "Plėtiniai"
 
 msgid "react.registry.link_dataset_to_project_before_query"
 msgstr "Prieš vykdydami užklausą susiekite duomenų rinkinį su projektu projekto puslapyje „Duomenų rinkiniai“."
@@ -27329,7 +27377,7 @@ msgid "react.workflows.palette_desc_invoke_workflow"
 msgstr "Paleisti kitą darbo eigą ir naudoti jos išvestis."
 
 msgid "react.workflows.palette_desc_mcp_tools"
-msgstr "Vykdyti prijungto MCP serverio įrankį."
+msgstr "Iškviesti prijungto MCP serverio įrankį."
 
 msgid "react.workflows.palette_desc_note"
 msgstr "Tekstas ir paveikslėliai drobėje. Saugoma atskirai nuo struktūros."
@@ -27365,7 +27413,7 @@ msgid "react.workflows.palette_desc_wait"
 msgstr "Pristabdyti, tada tęsti."
 
 msgid "react.workflows.palette_extension_tools"
-msgstr "Plėtinių įrankiai"
+msgstr "Plėtiniai"
 
 #: assets/frontend/src/pages/workflows/builder/canvas-add-step-palette.tsx
 msgid "react.workflows.palette_finish"
@@ -27410,7 +27458,7 @@ msgid "react.workflows.palette_insert_title"
 msgstr "Įterpti į {source} · {outcome} → {target}"
 
 msgid "react.workflows.palette_mcp_tools"
-msgstr "MCP įrankiai"
+msgstr "MCP"
 
 #: assets/frontend/src/pages/workflows/builder/canvas-add-step-palette.tsx
 msgid "react.workflows.palette_no_results"
@@ -30262,3 +30310,9 @@ msgstr "Siunčiama išsaugotos paslapties reikšmė. Reikšmė niekada nepasieki
 
 msgid "react.workflows.http_auth_value_on_save"
 msgstr "Išsaugojus žingsnį įvesta reikšmė laikoma kaip paslaptis, todėl ją galėsite pasirinkti ir kitur."
+
+msgid "react.workflows.mcp_server"
+msgstr "MCP serveris"
+
+msgid "react.workflows.choose_mcp_server"
+msgstr "Pasirinkite MCP serverį"

@@ -20,6 +20,9 @@ from core.application.extensions.oauth_connection_lifecycle import (
     build_database_oauth_connection_lifecycle_service,
 )
 from core.application.extensions.oauth_lifecycle import record_extension_oauth_lifecycle_audit
+from core.application.extensions.oauth_refresh_token_import import (
+    OAuthRefreshTokenImportService,
+)
 from core.application.extensions.oauth_repository import ExtensionOAuthRepository
 from core.application.extensions.oauth_runtime import OAuthRuntimeTokenService
 from core.application.management.errors import ServiceUnavailableError
@@ -153,15 +156,44 @@ def create_extension_oauth_callback_service(logger: Any) -> OAuthCallbackService
         exchange_code=exchange_code,
         transaction_factory=lambda: transaction_connection(connection),
         public_base_url=browser_oauth_callback_base_url(),
-        invoke_post_connect=lambda **values: run_extension_action(
-            values["extension"],
-            action_id=values["action_id"],
-            target=values["target"],
-            context=values["context"],
-            timeout_seconds=15,
-            runtime_context={"source": "extension_oauth_post_connect"},
-        ),
+        invoke_post_connect=_extension_post_connect_invoker,
         resolve_runtime_access_token=runtime_service.resolve_runtime_access_token,
+    )
+
+
+def _extension_post_connect_invoker(**values: Any) -> Any:
+    return run_extension_action(
+        values["extension"],
+        action_id=values["action_id"],
+        target=values["target"],
+        context=values["context"],
+        timeout_seconds=15,
+        runtime_context={"source": "extension_oauth_post_connect"},
+    )
+
+
+def create_extension_oauth_refresh_token_import_service(
+    logger: Any,
+) -> OAuthRefreshTokenImportService:
+    connection = _oauth_connection(logger)
+
+    def configuration_secret_value(*, account_id: str, ref_key: str) -> str:
+        ciphertext = model_provider_store.get_secret_ref_ciphertext(
+            connection, account_id=account_id, ref_key=ref_key
+        )
+        return decrypt_secret(ciphertext) if ciphertext else ""
+
+    return OAuthRefreshTokenImportService(
+        repository=ExtensionOAuthRepository(connection),
+        token_store=DatabaseOAuthCallbackTokenStore(connection),
+        install_loader=lambda install_id, account_id: logger.get_extension_install_for_operator(
+            install_id, account_id=account_id
+        ),
+        secret_present=DatabaseOAuthConfigurationSecretStore(connection).present,
+        configuration_secret_value=configuration_secret_value,
+        refresh_access_token=refresh_token,
+        transaction_factory=lambda: transaction_connection(connection),
+        invoke_post_connect=_extension_post_connect_invoker,
     )
 
 
@@ -176,4 +208,5 @@ __all__ = [
     "create_extension_oauth_callback_service",
     "create_extension_oauth_configuration_service",
     "create_extension_oauth_connection_lifecycle_service",
+    "create_extension_oauth_refresh_token_import_service",
 ]

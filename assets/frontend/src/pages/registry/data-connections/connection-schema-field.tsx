@@ -71,12 +71,14 @@ export function ConnectionSchemaField({ field, draft, updateDraft }: ConnectionS
       // These values are JSON, and `valueForSchemaField` parses them as such.
       // A single-line input cannot hold them legibly.
       <textarea
+        aria-label={field.label}
         className="fs-textarea"
         onChange={(event) => changeValue(event.target.value)}
         value={value}
       />
     ) : (
       <input
+        aria-label={field.label}
         className="fs-input"
         max={field.maximum}
         min={field.minimum}

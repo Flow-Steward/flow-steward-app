@@ -929,6 +929,15 @@ def test_post_connect_runs_after_grant_commit_under_install_barrier_with_only_ac
         "connection_id": "connection-new",
         "connection": {
             "connection_id": "connection-new",
+            # The non-secret projection an ordinary operation receives: the
+            # extension's settings plus the closed oauth fields, nothing else.
+            "config": {
+                "oauth": {
+                    "lifecycle_status": "post_connect_pending",
+                    "token_type": "Bearer",
+                    "authorization_intent_id": "connect",
+                }
+            },
             "secrets": {"access_token": "access-token-canary"},
         },
     }
@@ -1454,3 +1463,30 @@ def test_a_refusal_before_the_exchange_still_preserves_the_connection() -> None:
     assert result.outcome == "authorization_required"
     assert result.connection_id == "connection-existing"
     assert result.connection_preserved is True
+
+
+def test_reauthorization_verified_as_another_subject_keeps_the_connection_bound() -> None:
+    """An unsigned callback cannot hold the grant to a subject before the exchange,
+    so the post-connect result is held to it instead: a different account is not
+    adopted by a connection that workflows already name."""
+    repository = _Repository()
+    repository.configuration["status"] = "verified"
+    repository.state["existing_connection_id"] = "connection-existing"
+    repository.state["intent_payload"] = {"connection_credential_revision": 7}
+    repository.connection["oauth_authorization_revision"] = 2
+    repository.connection["connection_config"]["oauth"]["subject"] = "old-subject"
+    invocation = {
+        "status": "succeeded",
+        "response": {"result": {"subject": "another-subject", "safe_metadata": {}, "health": "ok"}},
+    }
+
+    result = _handle(_service(repository, post_connect=lambda **_values: copy.deepcopy(invocation)))
+
+    assert result.outcome == "needs_attention"
+    assert repository.updated[0]["connection_config"]["oauth"]["replaced_subject"] == "old-subject"
+    oauth = repository.post_connect_updates[0]["connection_config"]["oauth"]
+    assert oauth["subject"] == "old-subject"
+    assert oauth["lifecycle_status"] == "needs_attention"
+    assert oauth["last_error_code"] == "subject_changed"
+    assert "replaced_subject" not in oauth
+    assert repository.post_connect_updates[0]["display_name"] == "Primary mailbox"

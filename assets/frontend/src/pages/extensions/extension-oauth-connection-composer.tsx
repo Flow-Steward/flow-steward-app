@@ -2,27 +2,42 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useId, useState } from "react";
 
 
-import { DsSelect } from "@/components/shared/design-system";
+import { DsSelect, SensitiveInput } from "@/components/shared/design-system";
+import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { isHttpError } from "@/lib/http/errors";
 import { isBasicEmailAddress } from "@/lib/utils/string-normalization";
 import "@/pages/extensions/extension-manifest.css";
 import {
+  importExtensionOAuthRefreshToken,
   startExtensionOAuthAuthorization,
   type ExtensionOAuthScope,
   type OAuthConfigurationView,
 } from "@/pages/extensions/extension-oauth-api";
-import type {
-  OAuthConnectionTypeDeclaration,
-  OAuthIntentInputDeclaration,
-  OAuthProviderDeclaration,
+import {
+  isRefreshTokenImportProvider,
+  type OAuthConnectionTypeDeclaration,
+  type OAuthIntentInputDeclaration,
+  type OAuthProviderDeclaration,
 } from "@/pages/extensions/extension-oauth-types";
+import { ConnectionSchemaField } from "@/pages/registry/data-connections/connection-schema-field";
+import {
+  EMPTY_DRAFT,
+  draftValue,
+  valueForSchemaField,
+} from "@/pages/registry/data-connections/connection-page-helpers";
+import {
+  schemaFields,
+  type ConnectionFormField,
+} from "@/pages/registry/data-connections/data-connection-helpers";
 
 import {
   authorizationStartGuidance,
   configurationGuidance,
   controlSegment,
+  errorCode,
   humanize,
   isConfigurationReady,
+  postConnectRetryGuidance,
   record,
   text,
   withInstalledRelease,
@@ -32,12 +47,62 @@ type ConnectionComposerProps = {
   configuration?: OAuthConfigurationView;
   connectionTypes: readonly OAuthConnectionTypeDeclaration[];
   onAuthorization?: (authorizationUrl: string) => void;
+  /** Leaves the replacement form (refresh-token import only). */
+  onCancel?: () => void;
+  onConnectionsChanged?: () => void | Promise<void>;
   provider: OAuthProviderDeclaration;
+  /** Replace this connection's refresh token instead of adding a connection. */
+  replaceConnection?: Record<string, unknown>;
   scope: ExtensionOAuthScope;
   returnPageId: string;
 };
 
 type ConnectionFormErrors = Record<string, string>;
+
+/** Mirrors the server bound; the server refuses anything longer anyway. */
+const REFRESH_TOKEN_MAX_LENGTH = 8192;
+
+/** The connection type's settings, drawn by the same fields a data connection uses. */
+function importSettingsFields(
+  connectionType: OAuthConnectionTypeDeclaration | undefined,
+  values: Record<string, string>,
+): ConnectionFormField[] {
+  return schemaFields(connectionType?.config_schema || {}, { values })
+    .map((field) => ({ ...field, storage: "connection" as const }));
+}
+
+/** A replaced connection's current settings; the Core-owned `oauth` part is not a setting. */
+function storedImportSettings(row: Record<string, unknown> | undefined): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(record(row?.connection_config))
+      .filter(([key]) => key !== "oauth")
+      .map(([key, value]) => [key, draftValue(value)]),
+  );
+}
+
+function refreshTokenImportGuidance(error: unknown, t: I18nContextValue["t"] = fallbackContext.t): string {
+  const code = errorCode(error);
+  if (code === "oauth_import_conflict_token_rotated") {
+    return t("react.extensions.oauth_import_conflict_token_rotated", "The account was not connected because the configuration changed meanwhile, and the provider may have replaced this refresh token. If trying again fails, issue a new refresh token.");
+  }
+  if (code === "oauth_connection_revision_conflict" || code === "oauth_import_conflict") {
+    return t("react.extensions.oauth_import_conflict", "This connection changed while you were editing. Refresh the page and try again.");
+  }
+  if (code === "oauth_invalid_client") {
+    return t("react.extensions.oauth_import_invalid_client", "The provider did not accept this configuration's client credentials. Repair the configuration in Setup, then try again.");
+  }
+  if (code === "oauth_provider_unavailable") {
+    return t("react.extensions.oauth_import_provider_unavailable", "The provider could not be reached. Try again later.");
+  }
+  if (code === "oauth_scope_required") {
+    return t("react.extensions.oauth_import_scope_required", "This refresh token does not grant the access this connection needs. Issue a new one with the required access.");
+  }
+  return authorizationStartGuidance(
+    error,
+    t("react.extensions.oauth_import_failed", "The account could not be connected. Check the values and try again."),
+    t,
+  );
+}
 
 function validEmail(value: string): boolean {
   return isBasicEmailAddress(value);
@@ -48,26 +113,43 @@ export function ConnectionComposer({
   configuration,
   connectionTypes,
   onAuthorization,
+  onCancel,
+  onConnectionsChanged,
   provider,
+  replaceConnection,
   returnPageId,
   scope,
 }: Readonly<ConnectionComposerProps>) {
   const { t } = useI18n();
   const instanceId = useId().replace(/[^A-Za-z0-9_-]/gu, "-");
-  const firstType = connectionTypes[0]?.connection_type_id || "";
+  // A provider whose console issues the refresh token connects by pasting it
+  // (ADR 0058); every other provider redirects to authorize.
+  const imported = isRefreshTokenImportProvider(provider);
+  const firstType = text(replaceConnection?.connection_type) || connectionTypes[0]?.connection_type_id || "";
   const intents = provider.authorization_intents.filter((row) =>
     !allowedIntentIds?.length || allowedIntentIds.includes(row.intent_id),
   );
   const firstIntent = intents[0]?.intent_id || "";
   const [connectionType, setConnectionType] = useState(firstType);
   const [intentId, setIntentId] = useState(firstIntent);
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(text(replaceConnection?.display_name));
   const [inputs, setInputs] = useState<Record<string, string>>({});
+  const [refreshToken, setRefreshToken] = useState("");
+  const [settings, setSettings] = useState<Record<string, string>>(() => storedImportSettings(replaceConnection));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [errors, setErrors] = useState<ConnectionFormErrors>({});
   const intent = intents.find((row) => row.intent_id === intentId) || intents[0];
   const ready = isConfigurationReady(configuration);
+  // A replacement must name the revision it was opened at; without a valid one
+  // the server could not tell a stale form from a current one, so none is sent.
+  const replacementRevision = Number(replaceConnection?.credential_revision);
+  const replacementRevisionValid = !replaceConnection
+    || (Number.isInteger(replacementRevision) && replacementRevision >= 1);
+  const settingsFields = imported
+    ? importSettingsFields(connectionTypes.find((row) => row.connection_type_id === connectionType), settings)
+    : [];
   const controlId = (fieldId: string) => `extension-oauth-connection-${instanceId}-${controlSegment(fieldId)}`;
   const errorId = (fieldId: string) => `${controlId(fieldId)}-error`;
 
@@ -75,6 +157,9 @@ export function ConnectionComposer({
     const next: ConnectionFormErrors = {};
     if (!displayName.trim()) {
       next.display_name = t("react.extensions.oauth_final_connection_required", "Connection name is required.");
+    }
+    if (imported && !refreshToken.trim()) {
+      next.refresh_token = t("react.extensions.oauth_import_refresh_token_required", "Refresh token is required.");
     }
     for (const input of intent?.user_inputs || []) {
       const value = (inputs[input.input_id] || "").trim();
@@ -98,8 +183,99 @@ export function ConnectionComposer({
     }
   }
 
+  /** The typed settings, or the field errors that stop the submit. */
+  function importSettingsPayload(next: ConnectionFormErrors): Record<string, unknown> {
+    const payload: Record<string, unknown> = {};
+    for (const field of settingsFields) {
+      try {
+        const value = valueForSchemaField(settings[field.key] || "", field, t);
+        if (value !== undefined) payload[field.key] = value;
+      } catch (error_) {
+        next[field.key] = error_ instanceof Error ? error_.message : humanize(field.key);
+      }
+    }
+    return payload;
+  }
+
+  async function importRefreshToken() {
+    const nextErrors = validate();
+    const connectionConfig = importSettingsPayload(nextErrors);
+    setNotice("");
+    if (Object.keys(nextErrors).length) {
+      setError("");
+      applyErrors(nextErrors);
+      return;
+    }
+    if (!configuration || !ready || !connectionType || busy || !replacementRevisionValid) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setErrors({});
+    try {
+      const result = await withInstalledRelease(scope, configuration.configuration_id, () => importExtensionOAuthRefreshToken(scope, {
+        configuration_id: configuration.configuration_id,
+        connection_type: connectionType,
+        display_name: displayName.trim(),
+        refresh_token: refreshToken.trim(),
+        connection_config: connectionConfig,
+        ...(replaceConnection
+          ? {
+            existing_connection_id: text(replaceConnection.connection_id),
+            connection_credential_revision: replacementRevision,
+          }
+          : {}),
+      }));
+      // The token is write-only: once it is stored it is never kept in the page.
+      setRefreshToken("");
+      await onConnectionsChanged?.();
+      if (result.outcome === "connected") {
+        if (replaceConnection) {
+          onCancel?.();
+          return;
+        }
+        setDisplayName("");
+        setSettings({});
+        setNotice(t("react.extensions.oauth_import_connected", "Account connected."));
+      } else {
+        setError(postConnectRetryGuidance(result.outcome, t));
+      }
+    } catch (error_) {
+      const payload = isHttpError(error_) ? record(error_.payload) : {};
+      const code = text(payload.error);
+      const field = text(payload.field).replace(/^connection_config\./u, "");
+      // A token the provider refused, or may have just rotated away, is of no
+      // further use, so it leaves the page. Any other refusal keeps it: a console
+      // may show a refresh token only once, and fixing a setting or the client
+      // credentials must not cost the operator a new one.
+      if (code === "oauth_refresh_token_rejected" || code === "oauth_import_conflict_token_rotated") {
+        setRefreshToken("");
+      }
+      if (code === "invalid_oauth_refresh_token" || code === "oauth_refresh_token_rejected") {
+        setError("");
+        applyErrors({
+          refresh_token: code === "invalid_oauth_refresh_token"
+            ? t("react.extensions.oauth_import_refresh_token_format", "Paste the refresh token exactly as issued, without spaces.")
+            : t("react.extensions.oauth_import_refresh_token_rejected", "The provider did not accept this refresh token. Check it and try again."),
+        });
+      } else if (code === "invalid_connection_config" && settingsFields.some((row) => row.key === field)) {
+        const label = settingsFields.find((row) => row.key === field)?.label || humanize(field);
+        setError("");
+        applyErrors({ [field]: t("react.extensions.oauth_final_field_invalid", "{label} is invalid. Check this field and try again.", { label }) });
+      } else {
+        setError(refreshTokenImportGuidance(error_, t));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function connect(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (imported) {
+      await importRefreshToken();
+      return;
+    }
     const normalizedDisplayName = displayName.trim();
     const nextErrors = validate();
     if (Object.keys(nextErrors).length) {
@@ -146,15 +322,27 @@ export function ConnectionComposer({
     }
   }
 
-  if (!connectionTypes.length || !intents.length) {
+  if (!connectionTypes.length || (!imported && !intents.length)) {
     return null;
   }
 
+  const formTitle = replaceConnection
+    ? t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: displayName || text(replaceConnection.connection_id) })
+    : t("react.extensions.connect_an_account", "Connect an account");
+  let submitLabel = t("react.extensions.connect", "Connect");
+  if (busy) {
+    submitLabel = imported
+      ? t("react.extensions.oauth_import_connecting", "Connecting…")
+      : t("react.extensions.starting", "Starting…");
+  } else if (replaceConnection) {
+    submitLabel = t("react.extensions.oauth_import_replace", "Replace refresh token");
+  }
+
   return (
-    <form aria-label={t("react.extensions.connect_an_account", "Connect an account")} className="fs-manifest-inset" noValidate onSubmit={(event) => void connect(event)}>
-      <h3 className="fs-manifest-section-title">{t("react.extensions.connect_an_account", "Connect an account")}</h3>
+    <form aria-label={formTitle} className="fs-manifest-inset" noValidate onSubmit={(event) => void connect(event)}>
+      <h3 className="fs-manifest-section-title">{formTitle}</h3>
       <div className="fs-manifest-fields">
-      {connectionTypes.length > 1 ? (
+      {connectionTypes.length > 1 && !replaceConnection ? (
         <div className="fs-field">
           <label className="fs-field-label" htmlFor={controlId("connection_type")}>{t("react.extensions.connection_type", "Connection type")}</label>
           <DsSelect
@@ -169,7 +357,7 @@ export function ConnectionComposer({
           />
         </div>
       ) : null}
-      {intents.length > 1 ? (
+      {!imported && intents.length > 1 ? (
         <div className="fs-field">
           <label className="fs-field-label" htmlFor={controlId("intent")}>{t("react.extensions.authorization_intent", "Authorization intent")}</label>
           <DsSelect
@@ -223,13 +411,67 @@ export function ConnectionComposer({
           {errors[input.input_id] ? <p className="fs-field-helper error" id={errorId(input.input_id)} role="alert">{errors[input.input_id]}</p> : null}
         </div>
       ))}
+      {imported ? (
+        <div className="fs-field">
+          <span className="fs-required-label">
+            <label className="fs-field-label" htmlFor={controlId("refresh_token")}>{t("react.extensions.oauth_import_refresh_token", "Refresh token")}</label>
+            <span aria-hidden="true" className="fs-required">*</span>
+          </span>
+          <SensitiveInput
+            aria-describedby={errors.refresh_token ? errorId("refresh_token") : `${controlId("refresh_token")}-help`}
+            aria-invalid={errors.refresh_token ? "true" : undefined}
+            aria-required="true"
+            ariaLabel={t("react.extensions.oauth_import_refresh_token", "Refresh token")}
+            autoComplete="off"
+            className="fs-input"
+            id={controlId("refresh_token")}
+            maxLength={REFRESH_TOKEN_MAX_LENGTH}
+            onChange={(event) => {
+              setRefreshToken(event.target.value);
+              setErrors((current) => ({ ...current, refresh_token: "" }));
+              setError("");
+            }}
+            spellCheck={false}
+            value={refreshToken}
+          />
+          <p className="fs-field-helper" id={`${controlId("refresh_token")}-help`}>
+            {t("react.extensions.oauth_import_refresh_token_help", "Paste the refresh token issued in the provider's console. It is stored encrypted and never shown again.")}
+          </p>
+          {errors.refresh_token ? <p className="fs-field-helper error" id={errorId("refresh_token")} role="alert">{errors.refresh_token}</p> : null}
+        </div>
+      ) : null}
+      {settingsFields.map((field) => (
+        <div key={field.key}>
+          <ConnectionSchemaField
+            draft={{ ...EMPTY_DRAFT, connection_values: settings }}
+            field={field}
+            updateDraft={(patch) => {
+              if (patch.connection_values) setSettings(patch.connection_values);
+              setErrors((current) => ({ ...current, [field.key]: "" }));
+              setError("");
+            }}
+          />
+          {errors[field.key] ? <p className="fs-field-helper error" role="alert">{errors[field.key]}</p> : null}
+        </div>
+      ))}
       </div>
+      {notice ? <p aria-live="polite" className="fs-manifest-success" role="status">{notice}</p> : null}
+      {!replacementRevisionValid ? (
+        <p className="fs-manifest-notice" role="alert">
+          {t("react.extensions.oauth_import_revision_missing", "This connection's current version is unknown, so its refresh token cannot be replaced here. Refresh the page and try again.")}
+        </p>
+      ) : null}
       {!ready ? <p className="fs-manifest-notice">{configuration ? configurationGuidance(configuration.status, t) : t("react.extensions.create_and_save_a_configuration_before_connecting", "Create and save a configuration before connecting.")}</p> : null}
       {error ? <p className="fs-field-helper error" role="alert">{error}</p> : null}
       <div className="fs-manifest-actions">
-        <button className="fs-button primary" disabled={!ready || busy} type="submit">
-          {busy ? t("react.extensions.starting", "Starting…") : t("react.extensions.connect", "Connect")}
+        <button className="fs-button primary" disabled={!ready || busy || !replacementRevisionValid} type="submit">
+          {submitLabel}
         </button>
+        {onCancel ? (
+          <button className="fs-button" disabled={busy} onClick={onCancel} type="button">
+            {t("common.cancel", "Cancel")}
+          </button>
+        ) : null}
       </div>
     </form>
   );

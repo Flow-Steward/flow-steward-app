@@ -17,7 +17,10 @@ import {
   type OAuthConfigurationView,
 } from "@/pages/extensions/extension-oauth-api";
 import { OAuthConfigurationForm } from "@/pages/extensions/extension-oauth-configuration-form";
-import type { OAuthProviderDeclaration } from "@/pages/extensions/extension-oauth-types";
+import {
+  isRefreshTokenImportProvider,
+  type OAuthProviderDeclaration,
+} from "@/pages/extensions/extension-oauth-types";
 
 import { ConnectionComposer } from "./extension-oauth-connection-composer";
 import { ConnectionList } from "./extension-oauth-connection-list";
@@ -375,6 +378,7 @@ function OAuthConnectionsPanel({
           connectionTypes={connectionDeclaration.providerConnectionTypes}
           key={`connect:${active.configuration_id}:${connectionDeclaration.exactAllowedConnectionTypeIds[0] || "none"}:${connectionDeclaration.exactAllowedIntentIds[0] || "none"}`}
           onAuthorization={onAuthorization}
+          onConnectionsChanged={onConnectionsChanged}
           provider={provider}
           returnPageId={returnPageId}
           scope={scope}
@@ -383,6 +387,7 @@ function OAuthConnectionsPanel({
       <ConnectionList
         canManage={canManage}
         configurations={configurations}
+        connectionTypes={connectionDeclaration.providerConnectionTypes}
         connections={connections}
         focusConnectionId={focusConnectionId}
         legacyOwnershipIsExact={connectionDeclaration.legacyOwnershipIsExact}
@@ -432,6 +437,9 @@ export function ExtensionOAuthSetup({
   const [saveNotice, setSaveNotice] = useState<OAuthConfigurationSaveNotice | null>(null);
   const scope = useMemo(() => ({ projectId, installId, providerId: provider.provider_id }), [installId, projectId, provider.provider_id]);
   const scopeKey = `${projectId}:${installId}:${provider.provider_id}`;
+  // An imported grant never returns through a callback, so there is no
+  // redirect URI to register or show.
+  const refreshTokenImport = isRefreshTokenImportProvider(provider);
   const selectedId = selection?.scopeKey === scopeKey ? selection.configurationId : "";
   const setSelectedId = (configurationId: string) => setSelection({ configurationId, scopeKey });
   const activeDeletePreview = deletePreview?.scopeKey === scopeKey ? deletePreview : null;
@@ -456,7 +464,7 @@ export function ExtensionOAuthSetup({
       await queryClient.invalidateQueries({ queryKey: setupStatusQueryKey, exact: true });
       return result;
     },
-    enabled: canManage && Boolean(projectId && installId && provider.provider_id),
+    enabled: canManage && !refreshTokenImport && Boolean(projectId && installId && provider.provider_id),
   });
   const configurations = configurationsQuery.data || [];
   const showsConfiguration = mode !== "connections";
@@ -477,6 +485,7 @@ export function ExtensionOAuthSetup({
     connectionTypes,
     mode,
     providerId: provider.provider_id,
+    refreshTokenImport,
     returnPageId,
   });
 

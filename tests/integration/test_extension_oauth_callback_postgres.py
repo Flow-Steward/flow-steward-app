@@ -3256,3 +3256,188 @@ def test_disable_invalidation_is_exact_install_scoped_across_two_installs(pg_con
         assert revisions[second_connection] == 1
     finally:
         pg_conn.rollback()
+
+
+def _import_manifest() -> dict[str, Any]:
+    """The fixture extension plus one neutral refresh-token import provider (ADR 0058)."""
+    manifest = _manifest()
+    contract = manifest["runtime"]["extension_contract_v2"]
+    base = contract["oauth_providers"][0]
+    contract["oauth_providers"].append(
+        {
+            "provider_id": "console",
+            "display_name": "Console Identity",
+            "description": "Neutral provider whose console issues the refresh token.",
+            "setup_page_id": base["setup_page_id"],
+            "help_page_id": base["help_page_id"],
+            "flow": {"type": "refresh_token_import"},
+            "credential_fields": copy.deepcopy(base["credential_fields"][:2]),
+            "token_endpoint": copy.deepcopy(base["token_endpoint"]),
+            "post_connect_action_id": "verify_identity",
+        }
+    )
+    contract["connection_types"].append(
+        {
+            "connection_type_id": "console_account",
+            "auth": {
+                "type": "oauth2",
+                "provider_id": "console",
+                "scopes": {"required": [], "optional": []},
+            },
+            "config_schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["account_ref"],
+                "properties": {"account_ref": {"type": "string", "minLength": 1}},
+            },
+        }
+    )
+    return manifest
+
+
+@pytest.mark.integration
+def test_refresh_token_import_commits_encrypted_grant_and_refreshes_from_it(
+    pg_conn, oauth_callback_database, monkeypatch
+) -> None:
+    from core.application.extensions.oauth_refresh_token_import import (
+        OAuthRefreshTokenImport,
+        OAuthRefreshTokenImportService,
+    )
+
+    monkeypatch.setenv("ENCRYPTION_KEY", "callback-integration-key")
+    monkeypatch.setattr(socket, "create_connection", lambda *_a, **_k: pytest.fail("network used"))
+    manifest = _import_manifest()
+    provider = next(
+        row for row in compile_oauth_providers(manifest) if row.provider_id == "console"
+    )
+    configuration_id = uuid4()
+    repo = ExtensionOAuthRepository(pg_conn)
+    assert repo.create_configuration(
+        configuration_id=configuration_id,
+        tenant_id=TENANT,
+        account_id=ACCOUNT,
+        project_id=PROJECT,
+        extension_install_id=INSTALL,
+        extension_id=EXTENSION,
+        extension_release_id=RELEASE,
+        provider_id="console",
+        display_name="Console configuration",
+        configuration_revision=1,
+        authorization_revision=1,
+        status="ready_for_authorization",
+        non_secret_config={"client_id": "client-id"},
+        secret_refs={
+            "refs": {
+                "client_secret": f"extension_oauth_configuration:{configuration_id}:client_secret"
+            }
+        },
+        provider_security_fingerprint=provider_security_fingerprint(provider),
+        provider_revocation_fingerprint=provider_revocation_fingerprint(provider),
+        last_error={},
+    )
+    pg_conn.commit()
+    connection_id = f"conn_callback_import_{uuid4().hex}"
+    install = {
+        "extension_id": EXTENSION,
+        "release_id": RELEASE,
+        "enabled": True,
+        "compiled_manifest": manifest,
+    }
+    exchanges: list[dict[str, Any]] = []
+
+    def exchange(**values: Any) -> dict[str, Any]:
+        assert pg_conn.info.transaction_status is TransactionStatus.IDLE
+        exchanges.append(copy.deepcopy(values))
+        # Not rotated: the pasted token must be what is stored.
+        return {"access_token": "imported-access", "token_type": "bearer", "expires_in": 10}
+
+    post_connect_targets: list[dict[str, Any]] = []
+
+    def post_connect(**values: Any) -> dict[str, Any]:
+        post_connect_targets.append(copy.deepcopy(values["target"]))
+        return {
+            "status": "succeeded",
+            "response": {"result": {"subject": "account-1", "safe_metadata": {}, "health": "ok"}},
+        }
+
+    service = OAuthRefreshTokenImportService(
+        repository=ExtensionOAuthRepository(pg_conn),
+        token_store=DatabaseOAuthCallbackTokenStore(pg_conn, now=lambda: 1000.0),
+        install_loader=lambda _install, _account: copy.deepcopy(install),
+        secret_present=lambda **_values: True,
+        configuration_secret_value=lambda **_values: "client-secret",
+        refresh_access_token=exchange,
+        transaction_factory=lambda: pg_conn.transaction(),
+        invoke_post_connect=post_connect,
+        connection_id_factory=lambda: connection_id,
+    )
+
+    result = service.import_refresh_token(
+        _operator_scope(),
+        INSTALL,
+        "console",
+        OAuthRefreshTokenImport(
+            configuration_id=configuration_id,
+            connection_type="console_account",
+            display_name="Imported account",
+            refresh_token="pasted-refresh-secret",
+            connection_config={"account_ref": "acct-1"},
+        ),
+    )
+
+    assert result.outcome == "connected"
+    assert result.connection_id == connection_id
+    assert exchanges[0]["refresh_token"] == "pasted-refresh-secret"
+    assert pg_conn.info.transaction_status is TransactionStatus.IDLE
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            "SELECT connection_config, secret_refs, oauth_granted_scopes, credential_revision "
+            "FROM project_connections WHERE connection_id = %s",
+            (connection_id,),
+        )
+        config, refs, granted, revision = cur.fetchone()
+    assert config["account_ref"] == "acct-1"
+    assert config["oauth"]["lifecycle_status"] == "connected"
+    assert config["oauth"]["subject"] == "account-1"
+    assert "authorization_intent_id" not in config["oauth"]
+    assert list(granted or []) == []
+    assert "pasted-refresh-secret" not in repr(config)
+    stored = project_connection_secrets.read_local_connection_secrets(
+        pg_conn, account_id=str(ACCOUNT), secret_refs=refs
+    )
+    assert stored["_oauth_refresh_token"] == "pasted-refresh-secret"
+    assert stored["_oauth_access_token"] == "imported-access"
+    assert post_connect_targets[0]["connection"]["config"]["account_ref"] == "acct-1"
+    assert "pasted-refresh-secret" not in repr(post_connect_targets)
+
+    refresh_calls: list[dict[str, Any]] = []
+
+    def refresh(**values: Any) -> dict[str, Any]:
+        refresh_calls.append(copy.deepcopy(values))
+        return {"access_token": "refreshed-access", "token_type": "bearer", "expires_in": 300}
+
+    runtime = OAuthRuntimeTokenService(
+        repository=ExtensionOAuthRepository(
+            pg_conn,
+            refresh_claim_connection_factory=lambda: _claim_connection(oauth_callback_database.dsn),
+        ),
+        token_store=DatabaseOAuthCallbackTokenStore(pg_conn, now=lambda: 2000.0),
+        install_loader=lambda _install, _account: copy.deepcopy(install),
+        transaction_factory=lambda: pg_conn.transaction(),
+        configuration_secret_value=lambda **_values: "client-secret",
+        refresh_access_token=refresh,
+        now=lambda: 2000.0,
+    )
+    assert runtime.resolve_runtime_access_token(
+        tenant_id=str(TENANT),
+        account_id=str(ACCOUNT),
+        project_id=str(PROJECT),
+        extension_install_id=INSTALL,
+        extension_id=EXTENSION,
+        provider_id="console",
+        configuration_id=str(configuration_id),
+        connection_id=connection_id,
+        connection_type="console_account",
+    ) == {"access_token": "refreshed-access"}
+    assert refresh_calls[0]["refresh_token"] == "pasted-refresh-secret"
+    assert revision >= 1

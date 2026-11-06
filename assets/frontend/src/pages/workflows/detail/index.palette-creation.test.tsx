@@ -82,11 +82,11 @@ function setup({ dirtyAllowed = true, protectedAuthor = false, pendingChild = fa
 
 it("keeps a tool-category choice in the Hook child editor without writing that category into the child definition", async () => {
   const state = setup({ child: true });
-  const choice = { catalogKey: "tool-category:extension_tools", stepKind: "connector", displayName: "Extension Tools", toolCategory: "extension_tools" as const, override: { connector: { operation_id: "", input_mapping: {}, connection_binding: {} } } };
+  const choice = { catalogKey: "tool-category:extension_tools", stepKind: "connector", displayName: "Extensions", toolCategory: "extension_tools" as const, override: { connector: { operation_id: "", input_mapping: {}, connection_binding: {} } } };
   await act(async () => { await state.create({ ...request, choice, context: { groupId: "hook:before", forEachId: "", laneId: "" } }); });
   expect(state.staged).toHaveLength(1);
   const step = state.preview().steps[0];
-  expect(step).toMatchObject({ step_kind: "connector", display_name: "Extension Tools" });
+  expect(step).toMatchObject({ step_kind: "connector", display_name: "Extensions" });
   expect(step).not.toHaveProperty("toolCategory");
   expect(state.opened).toEqual([[expect.objectContaining({ step_kind: "connector" }), `hook:before:${step.step_id}`, "extension_tools"]]);
 });
@@ -756,7 +756,7 @@ function localToolDraftFixture() {
   const transport = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ valid: true, issues: [] }), { status: 200 }));
   const initial = { workflow: "author", project: "project-a", hook: "", child: "author" };
   const definition = definitionFromWorkflow({ workflow_id: "author", revision: 4, steps: [] });
-  const step = { step_id: "tools", step_kind: "connector", display_name: "MCP Tools", connector_id: "", connector_install_id: "", override: { connector: { operation_id: "" } } };
+  const step = { step_id: "tools", step_kind: "connector", display_name: "MCP", connector_id: "", connector_install_id: "", override: { connector: { operation_id: "" } } };
   const refetch = async () => undefined;
   const view = renderHook((owner: typeof initial) => {
     const changeSet = useWorkflowChangeSet({ workflowId: owner.child, serverRevision: 4, serverDefinition: definition, placementViewKey: owner.hook, refetchWorkflowSurfaces: refetch });

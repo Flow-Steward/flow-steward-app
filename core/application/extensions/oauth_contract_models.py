@@ -13,6 +13,15 @@ from typing import Any
 DEFAULT_PKCE_MODE = "s256"
 
 
+#: The closed set of ways a grant can start (ADR 0023, amended by ADR 0058).
+#: `authorization_code` redirects the user to the provider and receives a code at
+#: a callback; `refresh_token_import` starts from a refresh token the operator
+#: pastes, exchanged once at the token endpoint. Nothing else is accepted.
+FLOW_AUTHORIZATION_CODE = "authorization_code"
+FLOW_REFRESH_TOKEN_IMPORT = "refresh_token_import"
+OAUTH_FLOW_TYPES = frozenset({FLOW_AUTHORIZATION_CODE, FLOW_REFRESH_TOKEN_IMPORT})
+
+
 #: How a provider joins the scopes of a connection type into one parameter.
 #: RFC 6749 says space; some providers answer only to comma.
 SCOPE_SEPARATORS = {"space": " ", "comma": ","}
@@ -279,6 +288,12 @@ class OAuthProviderContract:
     )
     callback_verification: OAuthCallbackVerification | None = None
     unique_subject_per_configuration: bool = False
+    flow_type: str = FLOW_AUTHORIZATION_CODE
+
+    @property
+    def is_refresh_token_import(self) -> bool:
+        """Whether a grant starts from a pasted refresh token rather than a redirect."""
+        return self.flow_type == FLOW_REFRESH_TOKEN_IMPORT
 
     @property
     def token_auth_method(self) -> str:
@@ -307,13 +322,19 @@ class OAuthProviderContract:
         return tuple(item for item in raw.replace(",", " ").split() if item)
 
     def flow_dict(self) -> dict[str, Any]:
-        return {"type": "authorization_code", "pkce": self.pkce}
+        # An import provider has no redirect, so PKCE has nothing to protect and
+        # is not part of its flow at all.
+        if self.is_refresh_token_import:
+            return {"type": FLOW_REFRESH_TOKEN_IMPORT}
+        return {"type": FLOW_AUTHORIZATION_CODE, "pkce": self.pkce}
 
     @property
     def intents(self) -> dict[str, OAuthAuthorizationIntent]:
         return {row.intent_id: row for row in self.authorization_intents}
 
     def _security_payload(self) -> dict[str, Any]:
+        if self.is_refresh_token_import:
+            return self._import_security_payload()
         security_intents = []
         for intent in sorted(self.authorization_intents, key=lambda row: row.intent_id):
             intent_payload = intent.to_dict()
@@ -345,6 +366,35 @@ class OAuthProviderContract:
             result["post_connect_action_id"] = self.post_connect_action_id
         return result
 
+    def _import_security_payload(self) -> dict[str, Any]:
+        """What an import provider's grants depend on.
+
+        Deliberately a separate payload rather than the authorization-code one
+        with empty values: that one must stay byte-identical for every existing
+        provider, and an import provider has no callback, intents, redirect
+        endpoint or exchange-request profile whose change could matter. How it
+        reads the token response does matter, so that part is included.
+        """
+        result: dict[str, Any] = {
+            "provider_id": self.provider_id,
+            "flow": self.flow_dict(),
+            "scope_separator": self.scope_separator,
+            "unique_subject_per_configuration": self.unique_subject_per_configuration,
+            "token_response": {
+                "implicit_token_type": self.code_exchange.implicit_token_type,
+                "required_response_fields": list(self.code_exchange.required_response_fields),
+            },
+            "credential_fields": [
+                row.security_dict()
+                for row in sorted(self.credential_fields, key=lambda item: item.field_id)
+                if row.change_policy != "cosmetic"
+            ],
+            "token_endpoint": self.token_endpoint.to_dict(),
+        }
+        if self.post_connect_action_id is not None:
+            result["post_connect_action_id"] = self.post_connect_action_id
+        return result
+
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
             "provider_id": self.provider_id,
@@ -361,6 +411,9 @@ class OAuthProviderContract:
             "security_fingerprint": provider_security_fingerprint(self),
             "revocation_fingerprint": provider_revocation_fingerprint(self),
         }
+        if self.is_refresh_token_import:
+            for redirect_only in ("authorization_endpoint", "callback_id", "authorization_intents"):
+                result.pop(redirect_only)
         if self.revocation_endpoint:
             result["revocation_endpoint"] = self.revocation_endpoint.to_dict()
         if self.error_help_anchors:

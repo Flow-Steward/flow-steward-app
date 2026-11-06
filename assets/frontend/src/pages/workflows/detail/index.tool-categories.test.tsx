@@ -36,9 +36,9 @@ it("separates tool categories, sorts sources, and searches sources and actions",
   expect(within(actions).queryByRole("option", { name: "Send email" })).not.toBeInTheDocument();
   await user.click(within(actions).getByRole("option", { name: "Create draft" }));
   fireEvent.change(kind, { target: { value: "mcp_tools" } });
-  expect(screen.getByRole("combobox", { name: "Action" })).toHaveTextContent("Choose action");
-  await user.click(screen.getByRole("combobox", { name: "Tool" }));
-  const mcpSources = screen.getByRole("listbox", { name: "Tool options" });
+  expect(screen.getByRole("combobox", { name: "Tool" })).toHaveTextContent("Choose tool");
+  await user.click(screen.getByRole("combobox", { name: "MCP server" }));
+  const mcpSources = screen.getByRole("listbox", { name: "MCP server options" });
   expect(within(mcpSources).queryByRole("option", { name: "Mail" })).not.toBeInTheDocument();
   const shop = within(mcpSources).getByRole("option", { name: "Shop" });
   expect(within(shop).getByRole("presentation")).toHaveAttribute("src", "/api/mcp/catalog/shop/icon");
@@ -50,7 +50,7 @@ it("separates tool categories, sorts sources, and searches sources and actions",
   expect(within(systemSources).queryByRole("option", { name: "Shop" })).not.toBeInTheDocument();
 }, 15_000);
 
-it("does not restore a saved extension after entering MCP Tools through another kind", async () => {
+it("does not restore a saved extension after entering MCP through another kind", async () => {
   mockCatalog();
   mockedFetchWorkflowDetail.mockResolvedValue({
     workflow_id: "tools", revision: 1, display_name: "Tools", groups: [],
@@ -63,10 +63,10 @@ it("does not restore a saved extension after entering MCP Tools through another 
   expect(kind).toHaveValue("extension_tools");
   fireEvent.change(kind, { target: { value: "agent" } });
   fireEvent.change(kind, { target: { value: "mcp_tools" } });
-  const source = await screen.findByRole("combobox", { name: "Tool" });
-  expect(source).toHaveTextContent("Choose tool");
+  const source = await screen.findByRole("combobox", { name: "MCP server" });
+  expect(source).toHaveTextContent("Choose MCP server");
   await user.click(source);
-  const sources = screen.getByRole("listbox", { name: "Tool options" });
+  const sources = screen.getByRole("listbox", { name: "MCP server options" });
   expect(await within(sources).findByRole("option", { name: "Shop" })).toBeInTheDocument();
   expect(within(sources).queryByRole("option", { name: "Mail" })).not.toBeInTheDocument();
 }, 15_000);
@@ -151,17 +151,17 @@ it("keeps a saved disabled MCP source and action visible but unselectable", asyn
   renderPage();
   await user.click(await screen.findByRole("button", { name: /Saved docs/i }));
 
-  const source = screen.getByRole("combobox", { name: "Tool" });
+  const source = screen.getByRole("combobox", { name: "MCP server" });
   await user.click(source);
-  const sourceOptions = screen.getByRole("listbox", { name: "Tool options" });
+  const sourceOptions = screen.getByRole("listbox", { name: "MCP server options" });
   const disabledSourceOption = within(sourceOptions).getByRole("option", { name: "Disabled Docs" });
   expect(disabledSourceOption).toBeDisabled();
   await user.click(disabledSourceOption);
   expect(source).toHaveTextContent("Disabled Docs");
 
-  const action = screen.getByRole("combobox", { name: "Action" });
+  const action = screen.getByRole("combobox", { name: "Tool" });
   await user.click(action);
-  const actionOptions = screen.getByRole("listbox", { name: "Action options" });
+  const actionOptions = screen.getByRole("listbox", { name: "Tool options" });
   const disabledActionOption = within(actionOptions).getByRole("option", { name: "Search docs" });
   expect(disabledActionOption).toBeDisabled();
   await user.click(disabledActionOption);
