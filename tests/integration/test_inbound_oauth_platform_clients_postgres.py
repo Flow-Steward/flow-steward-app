@@ -80,9 +80,14 @@ def platform_client(world) -> str:
     return view["clients"][-1]["client_id"]
 
 
-def _platform_params(client_id: str, **overrides: str | None) -> dict[str, str | None]:
+def _platform_params(registered_client_id: str, **overrides: str | None) -> dict[str, str | None]:
     # Microsoft may send no resource; the platform client is bound to this installation.
-    return {"client_id": client_id, "redirect_uri": TEAMS_REDIRECT, "resource": None, **overrides}
+    return {
+        "client_id": registered_client_id,
+        "redirect_uri": TEAMS_REDIRECT,
+        "resource": None,
+        **overrides,
+    }
 
 
 def test_an_admin_registration_lists_the_values_for_the_teams_developer_portal(world) -> None:
