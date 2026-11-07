@@ -329,6 +329,7 @@ _INTERNAL_OPENAPI_SUCCESS_MODEL_OVERRIDES: dict[tuple[str, str], Any] = {
     ("POST", "/api/projects/{project_id}/move-workspace"): ProjectMutationResultView,
     ("GET", "/api/projects/{project_id}/workflows"): ProjectWorkflowBindingsView,
     ("PUT", "/api/projects/{project_id}/workflows"): ProjectWorkflowBindingsResultView,
+    ("GET", "/api/workflows/{workflow_id}/linked-projects"): WorkflowLinkedProjectsView,
     (
         "GET",
         "/api/projects/{project_id}/workflows/{workflow_id}/validate",
