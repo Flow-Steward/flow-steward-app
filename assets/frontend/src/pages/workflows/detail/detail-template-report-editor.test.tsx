@@ -149,7 +149,7 @@ describe("ReportDefinitionEditor", () => {
       ...stored,
       datasets: [{ id: "constructor", source: { input: "regions" } }],
       components: [
-        { id: "constructor", type: "metric", label: "Total", value: { input: "kpis" }, format: { type: "number" } },
+        { id: "constructor", type: "metric", label: "Total", value: { input: "kpis", path: "revenue" }, format: { type: "number" } },
         {
           id: "region_table",
           type: "table",

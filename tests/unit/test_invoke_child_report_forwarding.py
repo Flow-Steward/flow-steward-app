@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from core.application.orchestration.agent_messages import build_agent_message
 from core.application.orchestration.invoke_workflow_step_node_results import (
     _collect_child_outputs,
 )
@@ -261,8 +262,24 @@ def test_a_mixed_list_is_left_out_whole_and_never_published_shortened(monkeypatc
         },
         steps=[],
     )
+    # The invoke capture stub omits envelope metadata; the reader accepts only
+    # validated messages, just like the real invoke publisher emits.
+    fallback_message = build_agent_message(
+        from_agent=message["from_agent"],
+        to_agent="orchestrator",
+        skill=message["skill"],
+        status=message["status"],
+        correlation_id="child-report-forwarding",
+        published_at="2026-11-07T00:00:00+00:00",
+        step_id="invoke-child",
+        step_execution_id="00000000-0000-4000-8000-000000000001",
+        attempt=1,
+        artifacts=message["artifacts"],
+        summary=message["summary"],
+        errors=message["errors"],
+    )
     outputs, _artifacts = collect_runtime_outputs(
-        {"outputs": {}, "agent_messages": [message]}, interface=interface
+        {"outputs": {}, "agent_messages": [fallback_message]}, interface=interface
     )
     assert outputs == {"note": "plain"}
 

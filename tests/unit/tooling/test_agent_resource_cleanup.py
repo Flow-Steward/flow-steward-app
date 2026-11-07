@@ -20,7 +20,16 @@ def cleanup(tmp_path, monkeypatch):
     monkeypatch.setattr(native, "discover", lambda ledger: [])
     monkeypatch.setattr(native, "inventory", dict)
     monkeypatch.setattr(native, "select_audit_image", lambda script: None)
-    return ResourceCleanup(ResourceJournal(tmp_path / "registry"), native)
+    journal = ResourceJournal(tmp_path / "registry")
+    original_workspace = journal.workspace
+    monkeypatch.setattr(
+        journal,
+        "workspace",
+        lambda owner, token: (
+            tmp_path.resolve() / "managed" / "workspaces" / original_workspace(owner, token).name
+        ),
+    )
+    return ResourceCleanup(journal, native)
 
 
 def test_cleanup_is_preview_and_requires_release(cleanup):

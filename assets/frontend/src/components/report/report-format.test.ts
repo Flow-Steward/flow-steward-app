@@ -18,6 +18,19 @@ describe("formatReportValue", () => {
     expect(formatReportValue(21500, { type: "number" }, ctx)).toBe("21,500");
   });
 
+  it.each([
+    ["EUR", 2, "1,234.50"],
+    ["JPY", 2, "1,234.5"],
+    ["KWD", 3, "1,234.500"],
+    ["KWD", 2, "1,234.50"],
+  ] as const)("preserves %s precision with a maximum of %s", (currency, maximum, expected) => {
+    expect(formatReportValue(1234.5, { type: "currency", currency, maximum_fraction_digits: maximum }, ctx)).toContain(expected);
+  });
+
+  it("honours an explicit minimum of zero for currency", () => {
+    expect(formatReportValue(1234.5, { type: "currency", currency: "EUR", minimum_fraction_digits: 0, maximum_fraction_digits: 2 }, ctx)).toBe("€1,234.5");
+  });
+
   it("keeps zero and false as values and shows null as a dash", () => {
     expect(formatReportValue(0, { type: "number" }, ctx)).toBe("0");
     expect(formatReportValue(false, { type: "boolean" }, ctx)).toBe("No");

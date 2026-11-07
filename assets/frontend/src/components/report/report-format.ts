@@ -38,10 +38,13 @@ function numberOptions(format: ReportFormat): Intl.NumberFormatOptions {
   }
   const { min, max } = digits(format);
   if (max !== undefined) {
+    // Keep the currency's minor-unit precision unless a lower maximum is set.
+    // Resolve it before applying a maximum below the currency's default minimum.
+    const defaultMinimum = format.type === "currency"
+      ? new Intl.NumberFormat(FALLBACK_LOCALE, options).resolvedOptions().minimumFractionDigits
+      : 0;
     options.maximumFractionDigits = max;
-    // Engines differ on a maximum below the style's default minimum (two for a
-    // currency); an explicit minimum never above the maximum works everywhere.
-    options.minimumFractionDigits = Math.min(min ?? 0, max);
+    options.minimumFractionDigits = Math.min(min ?? defaultMinimum, max);
   } else if (min !== undefined) {
     options.minimumFractionDigits = min;
   }
