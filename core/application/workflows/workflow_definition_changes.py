@@ -25,6 +25,21 @@ from core.application.workflows.execution_graph import (
     TARGET_KIND_GROUP_EXIT,
     parse_execution_graph,
 )
+from core.application.workflows.workflow_definition_fields import (
+    FOR_EACH_FIELDS as _FOR_EACH_FIELDS,
+)
+from core.application.workflows.workflow_definition_fields import (
+    GROUP_FIELDS as _GROUP_FIELDS,
+)
+from core.application.workflows.workflow_definition_fields import (
+    REMOVED_GROUP_FIELDS as _REMOVED_GROUP_FIELDS,
+)
+from core.application.workflows.workflow_definition_fields import (
+    STEP_FIELDS as _STEP_FIELDS,
+)
+from core.application.workflows.workflow_definition_fields import (
+    STEP_KIND_INDEPENDENT_FIELDS as _STEP_KIND_INDEPENDENT_FIELDS,
+)
 from core.application.workflows.workflow_definition_validation import (
     TERMINAL_STEP_KINDS,
     step_outcomes,
@@ -170,68 +185,6 @@ def definition_from_workflow(workflow: Mapping[str, Any]) -> dict[str, Any]:
         "for_each": [_definition_for_each(item) for item in workflow.get("for_each") or []],
         "execution_graph": settings.get(EXECUTION_GRAPH_SETTING),
     }
-
-
-#: The skill is not among them: it is always derived from the step's agent, so a
-#: definition never carries a stored one that could outlive an agent change.
-_STEP_FIELDS = (
-    "step_id",
-    "step_kind",
-    "group_id",
-    "for_each_id",
-    "lane_id",
-    "block_key",
-    "display_name",
-    "participant_key",
-    "agent_id",
-    "connector_id",
-    "connector_install_id",
-    "workflow_id",
-    "input_mapping_jsonb",
-    "output_mapping_jsonb",
-    "connection_binding_jsonb",
-    "error_policy",
-    "boundary_contract",
-    "optional",
-    "disabled",
-    "context_inject",
-    "override",
-)
-#: What a kind change keeps; everything else is the old kind's configuration.
-_STEP_KIND_INDEPENDENT_FIELDS = (
-    "step_id",
-    "group_id",
-    "for_each_id",
-    "lane_id",
-    "display_name",
-    "error_policy",
-    "boundary_contract",
-    "optional",
-    "disabled",
-)
-_GROUP_FIELDS = (
-    "group_id",
-    "display_name",
-    "description",
-    "body",
-    "error_policy",
-    "boundary_contract",
-)
-#: Fields of the pre-release loop group. They are carried to the validator,
-#: which refuses them, instead of being dropped silently (ADR 0038).
-_REMOVED_GROUP_FIELDS = ("kind", "loop")
-_FOR_EACH_FIELDS = (
-    "for_each_id",
-    "group_id",
-    "display_name",
-    "description",
-    "over",
-    "item_name",
-    "index_name",
-    "body",
-    "error_policy",
-    "boundary_contract",
-)
 
 
 def _definition_step(step: Any) -> dict[str, Any]:

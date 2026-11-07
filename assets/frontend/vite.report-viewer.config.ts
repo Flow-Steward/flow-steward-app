@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 
 const VIEWER_HTML = "report-viewer.html";
@@ -78,7 +79,7 @@ function singleFileViewer(): Plugin {
 export default defineConfig({
   base: "./",
   publicDir: false,
-  plugins: [react(), singleFileViewer()],
+  plugins: [react(), tailwindcss(), singleFileViewer()],
   resolve: {
     alias: [{ find: "@", replacement: path.resolve(__dirname, "./src") }],
   },

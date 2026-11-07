@@ -41,7 +41,7 @@ function numberOptions(format: ReportFormat): Intl.NumberFormatOptions {
     // Keep the currency's minor-unit precision unless a lower maximum is set.
     // Resolve it before applying a maximum below the currency's default minimum.
     const defaultMinimum = format.type === "currency"
-      ? new Intl.NumberFormat(FALLBACK_LOCALE, options).resolvedOptions().minimumFractionDigits
+      ? (new Intl.NumberFormat(FALLBACK_LOCALE, options).resolvedOptions().minimumFractionDigits ?? 0)
       : 0;
     options.maximumFractionDigits = max;
     options.minimumFractionDigits = Math.min(min ?? defaultMinimum, max);

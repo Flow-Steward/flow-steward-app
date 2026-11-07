@@ -1000,6 +1000,7 @@
     "core/application/workflows/workflow_contract_summary.py",
     "core/application/workflows/workflow_credential_retirement.py",
     "core/application/workflows/workflow_definition_changes.py",
+    "core/application/workflows/workflow_definition_fields.py",
     "core/application/workflows/workflow_definition_rules.py",
     "core/application/workflows/workflow_definition_service.py",
     "core/application/workflows/workflow_definition_snapshot.py",
