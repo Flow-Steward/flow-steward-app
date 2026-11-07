@@ -11,10 +11,9 @@ cover a declared dynamic origin as well as a fixed URL. This records current
 behavior without treating ADR 0024 as an accepted amendment; the extension-owned
 boundary itself is unchanged.
 
-ADR 0058 (Proposed) proposes amending clause 3 to admit a second flow type,
-`refresh_token_import`, for providers whose console issues the refresh token. The
-implementation of that flow exists; clause 3 below is not rewritten while ADR 0058
-awaits project-owner approval.
+ADR 0058 (Accepted — 2026-11-06) amends clause 3 with the provider-neutral
+`refresh_token_import` flow for providers whose console issues the refresh token.
+The extension still receives only the current access token.
 
 ## Context
 
@@ -39,7 +38,8 @@ unrestricted endpoint URLs merely because they own provider-specific behavior.
    explicit `none` for authorization servers that reject PKCE parameters), callback
    ingress, bounded token exchange/refresh/revocation, token storage,
    and disable/delete/uninstall lifecycle enforcement.
-3. V1 supports only OAuth 2.0 Authorization Code with project-owned configurations.
+3. Core supports OAuth 2.0 Authorization Code and the refresh-token import flow
+   defined by ADR 0058, both with project-owned configurations.
    OAuth 1.0, device flow, client credentials, service accounts, dynamic client
    registration, deployment credentials, shared configurations, and login federation
    are outside this decision.

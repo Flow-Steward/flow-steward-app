@@ -1,4 +1,4 @@
-"""The official release image set: product roles plus the shared PostgreSQL image."""
+"""Published images and their separate durable deployment role sets."""
 
 from __future__ import annotations
 
@@ -74,11 +74,12 @@ def test_source_installs_still_prove_only_product_images() -> None:
     assert "postgres" not in _product("scalable")
 
 
-def test_release_scripts_publish_seven_distinct_repositories() -> None:
+def test_release_scripts_publish_eight_distinct_repositories() -> None:
     repositories = [role.repository for role in all_release_roles()]
 
-    assert len(repositories) == len(set(repositories)) == 7
+    assert len(repositories) == len(set(repositories)) == 8
     assert "flow-steward-postgres" in repositories
+    assert "flow-steward-installer" in repositories
 
 
 @pytest.mark.parametrize("profile", ("compact", "scalable"))
@@ -132,3 +133,16 @@ def test_runtime_environment_pins_postgres_only_when_the_release_publishes_it(
     assert {key: value for key, value in with_postgres.items() if key != "POSTGRES_IMAGE"} == (
         without_postgres
     )
+
+
+@pytest.mark.parametrize("profile", ("compact", "scalable"))
+def test_published_installer_is_excluded_from_durable_deployment_identity(profile: str) -> None:
+    assert "installer" not in _product(profile)
+    roles = tuple(role.role for role in release_image_roles(profile, version="1.2.3"))
+    assert "installer" not in roles
+    assert is_release_role_set(profile, version="1.2.3", roles=roles)
+    assert not is_release_role_set(profile, version="1.2.3", roles=(*roles, "installer"))
+    with pytest.raises(ValueError, match="complete"):
+        _identity(profile, "1.2.3", (*roles, "installer"))
+    environment = release_runtime_environment(_identity(profile, "1.2.3", roles))
+    assert "FS_INSTALLER_IMAGE" not in environment

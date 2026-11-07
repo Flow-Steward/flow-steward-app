@@ -1,6 +1,6 @@
 # Item 5, step 5: the bundled object storage (SeaweedFS) beside the Compact runtime.
-# The same storage configuration as Scalable (checked by a derived test), but with
-# Compact's bounded restart policy so host disable remains effective, on the
+# The same storage configuration as Scalable (checked by a derived test), with
+# Docker-native autostart honoring explicit container stops, on the
 # same named volumes -- so a profile switch keeps the stored files where they are -- and
 # on an internal network only the runtime joins: storage is never published, through the
 # ingress or otherwise (AC17-R130). Selected when file_storage is bundled.
@@ -34,7 +34,7 @@ services:
     depends_on:
       seaweedfs-config:
         condition: service_completed_successfully
-    restart: on-failure:3
+    restart: unless-stopped
     stop_grace_period: 30s
     command: "server -s3 -ip=seaweedfs -ip.bind=0.0.0.0 -master.peers=none -s3.ip.bind=0.0.0.0 -s3.port=8333 -s3.config=/config/seaweedfs-s3.json -dir=/data -volume.max=${SEAWEEDFS_VOLUME_MAX:-100}"
     expose:

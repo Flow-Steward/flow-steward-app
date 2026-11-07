@@ -27,7 +27,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `artifact_storage_bundled_seaweedfs` | Bundled SeaweedFS artifact storage. | `8` |
 | `artifact_storage_external_s3` | External S3-compatible artifact storage. | `10` |
 | `artifact_storage_local_fs` | Local persistent filesystem artifact storage. | `2` |
-| `audit_tools` | Audit and security scanning helpers. | `30` |
+| `audit_tools` | Audit and security scanning helpers. | `31` |
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
@@ -38,7 +38,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `openapi_docs` | Curated public/internal OpenAPI schema and Swagger UI exposure controls. | `6` |
 | `ops_observability` | Optional observability and logging knobs. | `86` |
 | `Production Host Paths` | Operator-controlled host mount paths for production compose deployments. | `7` |
-| `production_images` | Production image pinning. | `11` |
+| `production_images` | Production image pinning. | `12` |
 | `provider_anthropic` | Anthropic provider credentials. | `0` |
 | `provider_defaults` | Provider-neutral model defaults and AI chunk sizing. | `9` |
 | `provider_google` | Google provider credentials. | `0` |
@@ -52,10 +52,10 @@ python -m core.application.tooling.ops.generate_env_catalog
 
 ## Summary
 - Raw env-like names discovered by audit: `820`
-- Cataloged variables from `.env.example*` or manifest: `598`
-- Raw audit-only names outside examples/manifest: `222`
+- Cataloged variables from `.env.example*` or manifest: `599`
+- Raw audit-only names outside examples/manifest: `221`
 - Unique variables in shipped `.env.example*` files: `377`
-- Variables in canonical manifest: `508`
+- Variables in canonical manifest: `509`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
@@ -63,14 +63,14 @@ Cataloged variables by scope:
 - Public / Operator: `330`
 - Test Config: `34`
 - Test Only: `16`
-- Tooling Internal: `77`
+- Tooling Internal: `78`
 
 Raw audit-only names by scope:
 - Internal Runtime: `3`
 - Script Internal: `125`
 - Test Only: `44`
 - Tooling Internal: `8`
-- Uncategorized: `42`
+- Uncategorized: `41`
 
 ## Review Candidates
 These sections are the first places to review for removal, consolidation, or reclassification.
@@ -85,7 +85,7 @@ These sections are the first places to review for removal, consolidation, or rec
 | `FS_EXTENSION_PAYLOAD_REDACT_KEY_FRAGMENTS` | security | core_redaction_pii | .env.example, .env.example.prod | documented but no direct literal env read was found in the audited scan |
 | `FS_FRONTEND_BUILD_IMAGE` | installer | local_development | .env.example | Optional host-side image override used by internal frontend build tooling in local development. |
 | `FS_INGRESS_MODE` | runtime | compact_runtime | - | Compact profile process inventory, ports, and bounded lifecycle budgets. |
-| `FS_INSTALL_MODE` | installer | production_images | - | Installer-owned source/official selection retained in installation state. Ordinary Git checkout installs set source; release handoffs set official. Operators do not need to supply this value. |
+| `FS_INSTALL_MODE` | installer | production_images | - | Installer-owned source/official selection retained in installation state. Published release images are the default; only explicit --from-source selects source builds. Operators do not need to supply this value. |
 | `FS_INVOKE_CHILD_POLL_SECONDS` | runtime | core_runtime | .env.example.ops | Polling interval of the finite child workflow wait. Applies only to the finite invocation path of a child called from a parallel lane (and that child's descendants); a serial invoke_workflow step waits durably (awaiting_child) without a worker and ignores it. |
 | `FS_INVOKE_CHILD_TIMEOUT_CAP_SECONDS` | runtime | core_runtime | .env.example.ops | Hard cap for the finite child workflow wait timeout. Applies only to the finite invocation path of a child called from a parallel lane (and that child's descendants); a serial invoke_workflow step waits durably (awaiting_child) without a worker and ignores it. |
 | `FS_INVOKE_CHILD_TIMEOUT_SECONDS` | runtime | core_runtime | .env.example.ops | Timeout of the finite child workflow wait. Applies only to the finite invocation path of a child called from a parallel lane (and that child's descendants); a serial invoke_workflow step waits durably (awaiting_child) without a worker and ignores it. A durable serial wait has no wall-clock limit: a child may wait a day on a Wait step or indefinitely on an Approval. |
@@ -142,7 +142,7 @@ These variables are published in `.env.example*` overlays but are not registry-m
 | `FS_EXTENSION_INSTALLER_ORIGIN` | runtime | compact_runtime | used but undocumented in .env.example surfaces |
 | `FS_FRONTEND_IMAGE` | images | local_development | Optional development frontend image; production application images already contain the built frontend shell. |
 | `FS_INGRESS_MODE` | runtime | compact_runtime | Compact profile process inventory, ports, and bounded lifecycle budgets. |
-| `FS_INSTALL_MODE` | installer | production_images | Installer-owned source/official selection retained in installation state. Ordinary Git checkout installs set source; release handoffs set official. Operators do not need to supply this value. |
+| `FS_INSTALL_MODE` | installer | production_images | Installer-owned source/official selection retained in installation state. Published release images are the default; only explicit --from-source selects source builds. Operators do not need to supply this value. |
 | `FS_PROXY_KIND` | runtime | compact_runtime | Compact profile process inventory, ports, and bounded lifecycle budgets. |
 | `FS_PROXY_NETWORK` | runtime | compact_runtime | used but undocumented in .env.example surfaces |
 | `FS_PROXY_PLACEMENT` | runtime | compact_runtime | Compact profile process inventory, ports, and bounded lifecycle budgets. |
@@ -294,7 +294,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
 | `FS_FRONTEND_BUILD_IMAGE` | local_development | local_development | no | no | `node:22-bookworm-slim` | .env.example | No direct literal reads found | Optional host-side image override used by internal frontend build tooling in local development. | - |
-| `FS_INSTALL_MODE` | production_images | production, local_development | no | no | `official` | - | No direct literal reads found | Installer-owned source/official selection retained in installation state. Ordinary Git checkout installs set source; release handoffs set official. Operators do not need to supply this value. | - |
+| `FS_INSTALL_MODE` | production_images | production, local_development | no | no | `official` | - | No direct literal reads found | Installer-owned source/official selection retained in installation state. Published release images are the default; only explicit --from-source selects source builds. Operators do not need to supply this value. | - |
 | `FS_PUBLIC_BIND_HOST` | core_runtime | production, local_development | no | no | `0.0.0.0` | - | Docker Compose (3) | Installer-owned host bind for public proxy ports; loopback installations are not published on every host interface. | `infra/docker/compact/ingress-bundled_traefik.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_STACK_ENVIRONMENT` | core_runtime | production, local_development | no | no | `production` | .env.example | CLI (1), CLI scripts (1), Docker Compose (1), Infrastructure (1), Security (1) | Deployment environment; Development quickstart; without it the app reads silence as production (AC17-R129). | `core/entrypoints/cli/ops/deployment_doctor.py`<br>`core/infrastructure/runtime/http_app_auth_runtime.py`<br>`core/infrastructure/security/config.py`<br>`core/entrypoints/cli/scripts/flow_steward_launcher.sh`<br>`infra/docker/docker-compose.compact.yaml` |
 #### mcp
@@ -720,7 +720,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_DOCTOR_SCRATCH_DIR` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Internal handoff of ./flow-steward doctor: the temporary directory the launcher gives its configuration section, so a plain doctor writes nothing into the installation. Never set by an operator. | `core/entrypoints/cli/scripts/flow_steward_launcher.sh` |
 | `FS_DOCTOR_SECTION` | core_runtime | production, local_development | no | no | - | - | CLI (1), CLI scripts (1) | Internal marker of ./flow-steward doctor: 'configuration' for the launcher's inner run of the configuration checks, 'precondition' for its answer when the checks cannot run. Never set by an operator. | `core/entrypoints/cli/platform_runtime.py`<br>`core/entrypoints/cli/scripts/flow_steward_launcher.sh` |
 | `FS_INSTALLER_HOST_PID` | core_runtime | production, local_development | no | no | - | - | Infrastructure (1) | Internal handoff of install.sh to its management runtime: its own host process id, which doctor --fix re-checks against installer-host.pid before stopping an orphaned installer container. Never set by an operator. | `core/infrastructure/installer/installation_doctor.py` |
-| `FS_INSTALLER_IMAGE` | local_development | local_development | no | no | `flow-steward-installer:local` | - | No direct literal reads found | Optional exact local installer bootstrap image override used by install.sh; pinned sha256 image IDs are reused without rebuilding. | - |
+| `FS_INSTALLER_IMAGE` | production_images, local_development | production, local_development | no | no | - | - | No direct literal reads found | Optional installer bootstrap image override. Production pulls the published VERSION image by default; pinned sha256 image IDs are reused. Local builds require explicit --from-source. | - |
 | `FS_INSTALLER_RELEASE_RETENTION` | core_runtime | production | no | no | `2` | - | No direct literal reads found | Minimum retained local releases after a verified update; never fewer than 2, the running release and rollback. Shared Docker images and associated records are retained when exclusive installation ownership is unproven; only safe local files are automatically cleaned. | - |
 | `FS_INSTALLER_USE_HOST_PYTHON` | local_development | local_development | no | no | `0` | - | No direct literal reads found | Development-only escape hatch that runs install.sh through host Python instead of the default Docker bootstrap. | - |
 | `FS_RELEASE_HANDOFF_INHERITED_LOCKS` | core_runtime | production, local_development | no | no | - | - | No direct literal reads found | Internal release-handoff bootstrap payload for inherited installer and lifecycle lock descriptors; never operator-configured or persisted. | - |
@@ -776,7 +776,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_COMPACT_DATA_ROOT` | compact_runtime | production | no | no | `/data` | - | CLI (3) | Root of the single persistent volume the Compact runtime owns. | `core/entrypoints/cli/compact_container_cli.py`<br>`core/entrypoints/cli/compact_runtime.py`<br>`core/entrypoints/cli/platform_runtime.py` |
 | `FS_COMPACT_HEALTH_URL` | compact_runtime | production | no | no | `http://127.0.0.1:9100/health/details` | - | CLI (1) | Internal Compact operator endpoint; fs-cli uses the Compose service route while PID 1 uses loopback. | `core/entrypoints/cli/compact_platform_runtime.py` |
 | `FS_COMPACT_ROLE` | compact_runtime | production | no | no | - | - | Worker runtime (1) | Role a Compact supervisor child announces for itself, so a worker knows it runs inside the Compact runtime. | `core/infrastructure/runtime/worker/worker.py` |
-| `FS_COMPACT_WAIT_FOR_DEPENDENCIES` | compact_runtime | production | no | no | `0` | - | CLI (1) | Wait for the canonical PostgreSQL and RabbitMQ protocols before Compact bootstrap when a provider starts linked services concurrently. | `core/entrypoints/cli/compact_runtime.py` |
+| `FS_COMPACT_WAIT_FOR_DEPENDENCIES` | compact_runtime | production | no | no | `0` | - | CLI (1) | Wait for canonical PostgreSQL and RabbitMQ protocols before Compact bootstrap when Docker restarts containers or a provider starts linked services concurrently. Compact Compose enables this guard. | `core/entrypoints/cli/compact_runtime.py` |
 | `FS_COMPOSE_DEV_FILE` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
 | `FS_COMPOSE_FILE` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
 | `FS_COMPOSE_FILES` | core_runtime | production, local_development | no | no | - | - | CLI scripts (3), Tooling (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/tooling/quality/runtime_routing.py`<br>`core/entrypoints/cli/scripts/db_restore.sh`<br>`core/entrypoints/cli/scripts/docker_compose_env.sh`<br>`core/entrypoints/cli/scripts/flow_steward_launcher.sh` |
@@ -878,6 +878,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_ALLOW_UNIT_TEST_SKIPS` | audit_tools | local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_AUDIT_ISOLATED` | audit_tools | local_development | no | no | `0` | - | CLI scripts (1), Tests (9), Tooling (1) | Fail-closed marker proving quality tests are connected only to disposable audit infrastructure. | `core/application/tooling/quality/reuse_smoke.py`<br>`tests/_disposable_db.py`<br>`tests/_xdist_isolation.py`<br>`tests/integration/test_rs5_003_external_effect_rework.py`<br>`tests/integration/test_rs5_010_workspace_connections.py`<br>`tests/integration/test_scheduled_job_overlap_postgres.py`<br>+5 more in JSON audit |
 | `FS_BANDIT_BASELINE_FILE` | audit_tools | local_development | no | no | `infra/tooling/quality/bandit-baseline-medium-high.json` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
+| `FS_BORROWED_AUDIT_IMAGE` | audit_tools | local_development | no | no | - | - | CLI scripts (2) | Internal immutable audit image ID supplied by the managed quality runner; borrowed image/toolchain/lease verification is enforced before use. | `core/entrypoints/cli/scripts/docker_compose_env.sh`<br>`core/entrypoints/cli/scripts/lint.sh` |
 | `FS_BOUNDARY_TRACKED_FILES_MANIFEST` | audit_tools | local_development | no | no | - | - | CLI scripts (2), Tests (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `tests/unit/test_pre_010_cleanup_guardrails.py`<br>`tests/unit/test_repository_binary_hygiene.py`<br>`core/entrypoints/cli/scripts/check_no_enterprise_leak.sh`<br>`core/entrypoints/cli/scripts/lint.sh` |
 | `FS_COV_FAIL_UNDER` | audit_tools | local_development | no | no | `0` | .env.example.quality | CLI scripts (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/coverage_rebaseline.sh`<br>`core/entrypoints/cli/scripts/lint.sh` |
 | `FS_NPM_AUDIT_MAX_ATTEMPTS` | audit_tools | local_development | no | no | `3` | - | CLI scripts (1) | Bounded attempt count for explicit transient npm audit transport failures. | `core/entrypoints/cli/scripts/npm_audit_retry.sh` |
@@ -968,4 +969,4 @@ These names were found by broad env-read scanning, but they are not in shipped `
 | Script Internal | `125` | CLI scripts (191), CLI (12), Tests (7), Tooling (6), Database (3) |
 | Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |
-| Uncategorized | `42` | Docker Compose (36), Tooling (9), Infrastructure (4), Database (4), Security (3) |
+| Uncategorized | `41` | Docker Compose (36), Tooling (9), Infrastructure (4), Database (4), Security (3) |

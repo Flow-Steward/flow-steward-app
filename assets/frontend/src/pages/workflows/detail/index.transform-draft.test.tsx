@@ -31,7 +31,7 @@ it("preserves transform source and destination through local update and reopenin
   fireEvent.change(screen.getByLabelText("To"), { target: { value: "result" } });
   fireEvent.click(screen.getByRole("button", { name: "Update new step" }));
   // The button says the update landed (✓ Updated) for a moment, then reads Update new step again.
-  expect(await screen.findByRole("button", { name: "Updated" })).toBeDisabled();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Updated" })).toBeDisabled());
   fireEvent.click(await screen.findByRole("button", { name: "Update new step" }, { timeout: 3000 }));
   expect(screen.getByLabelText("From")).toHaveValue("audit_input");
   expect(screen.getByLabelText("To")).toHaveValue("result");

@@ -44,7 +44,10 @@ from core.application.extensions.extension_contract_policies import (
 from core.application.extensions.extension_contract_policies import (
     ARTIFACT_POLICY_GRANT_GROUPS as ARTIFACT_POLICY_GRANT_GROUPS,
 )
-from core.application.extensions.extension_contract_policies import NATIVE_DATASET_PLATFORM_MIN
+from core.application.extensions.extension_contract_policies import (
+    NATIVE_DATASET_PLATFORM_MIN,
+    OAUTH_IMPORT_PLATFORM_MIN,
+)
 from core.application.extensions.extension_contract_policies import (
     RESERVED_ARTIFACT_POLICY_BINDING_KEYS as RESERVED_ARTIFACT_POLICY_BINDING_KEYS,
 )
@@ -73,6 +76,7 @@ from core.application.extensions.oauth_contract import (
     normalize_oauth_providers,
     oauth_locale_copy_limits,
 )
+from core.application.extensions.oauth_contract_models import FLOW_REFRESH_TOKEN_IMPORT
 from core.application.extensions.semver import compare_semver
 
 ROOT_SECTIONS: tuple[str, ...] = (
@@ -203,6 +207,7 @@ def validate_extension_contract_v2(
         errors=errors,
     )
     _validate_native_dataset_minimum(descriptor, normalized_contract, errors=errors)
+    _validate_oauth_import_minimum(descriptor, normalized_contract, errors=errors)
     _validate_runtime_only_interface(
         descriptor,
         contract_root=contract_root,
@@ -239,6 +244,37 @@ def validate_extension_contract_v2(
         "warnings": warnings,
         "preview": preview,
     }
+
+
+def _validate_oauth_import_minimum(
+    descriptor: dict[str, Any],
+    normalized_contract: dict[str, list[dict[str, Any]]],
+    *,
+    errors: list[dict[str, str]],
+) -> None:
+    imports_tokens = any(
+        isinstance(flow := provider.get("flow"), dict)
+        and flow.get("type") == FLOW_REFRESH_TOKEN_IMPORT
+        for provider in normalized_contract.get("oauth_providers", [])
+    )
+    if not imports_tokens:
+        return
+    runtime = descriptor.get("runtime")
+    compatibility = runtime.get("compatibility") if isinstance(runtime, dict) else None
+    minimum = _as_text(compatibility.get("platform_min")) if isinstance(compatibility, dict) else ""
+    try:
+        supported = (
+            compare_semver(minimum, OAUTH_IMPORT_PLATFORM_MIN, field_name="platform_min") >= 0
+        )
+    except ValueError:
+        supported = False
+    if not supported:
+        _error(
+            errors,
+            path="runtime.compatibility.platform_min",
+            code="oauth_import_host_minimum",
+            message="Refresh-token import providers require host contract 1.6.0 or later",
+        )
 
 
 def _validate_native_dataset_minimum(

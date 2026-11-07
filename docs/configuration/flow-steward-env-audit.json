@@ -1292,8 +1292,7 @@
   {
     "canonical_name": "DOCKER_HOST",
     "code_read_locations": [
-      "core/entrypoints/cli/scripts/flow_steward_launcher.sh",
-      "infra/host/systemd/autostart.sh"
+      "core/entrypoints/cli/scripts/flow_steward_launcher.sh"
     ],
     "conditional_groups": [],
     "default_example_value": "",
@@ -3718,6 +3717,27 @@
     "variable_name": "FS_BENCHMARK_TOKEN"
   },
   {
+    "canonical_name": "FS_BORROWED_AUDIT_IMAGE",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/docker_compose_env.sh",
+      "core/entrypoints/cli/scripts/lint.sh"
+    ],
+    "conditional_groups": [
+      "audit_tools"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "local_development"
+    ],
+    "notes": "Internal immutable audit image ID supplied by the managed quality runner; borrowed image/toolchain/lease verification is enforced before use.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "audit",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_BORROWED_AUDIT_IMAGE"
+  },
+  {
     "canonical_name": "FS_BOUNDARY_TRACKED_FILES_MANIFEST",
     "code_read_locations": [
       "tests/unit/test_pre_010_cleanup_guardrails.py",
@@ -4408,7 +4428,7 @@
     "environments": [
       "production"
     ],
-    "notes": "Wait for the canonical PostgreSQL and RabbitMQ protocols before Compact bootstrap when a provider starts linked services concurrently.; used but undocumented in .env.example surfaces",
+    "notes": "Wait for canonical PostgreSQL and RabbitMQ protocols before Compact bootstrap when Docker restarts containers or a provider starts linked services concurrently. Compact Compose enables this guard.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "runtime",
     "required": false,
     "retired_alias_names": [],
@@ -6636,14 +6656,16 @@
     "canonical_name": "FS_INSTALLER_IMAGE",
     "code_read_locations": [],
     "conditional_groups": [
+      "production_images",
       "local_development"
     ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
+      "production",
       "local_development"
     ],
-    "notes": "Optional exact local installer bootstrap image override used by install.sh; pinned sha256 image IDs are reused without rebuilding.; registry-managed metadata only",
+    "notes": "Optional installer bootstrap image override. Production pulls the published VERSION image by default; pinned sha256 image IDs are reused. Local builds require explicit --from-source.; registry-managed metadata only",
     "owning_subsystem": "installer",
     "required": false,
     "retired_alias_names": [],
@@ -6726,7 +6748,7 @@
       "production",
       "local_development"
     ],
-    "notes": "Installer-owned source/official selection retained in installation state. Ordinary Git checkout installs set source; release handoffs set official. Operators do not need to supply this value.; registry-managed metadata only",
+    "notes": "Installer-owned source/official selection retained in installation state. Published release images are the default; only explicit --from-source selects source builds. Operators do not need to supply this value.; registry-managed metadata only",
     "owning_subsystem": "installer",
     "required": false,
     "retired_alias_names": [],
@@ -17556,25 +17578,6 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "STATUS"
-  },
-  {
-    "canonical_name": "SUDO_UID",
-    "code_read_locations": [
-      "infra/host/systemd/autostart.sh"
-    ],
-    "conditional_groups": [],
-    "default_example_value": "",
-    "documented_sources": [],
-    "environments": [
-      "production",
-      "local_development"
-    ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
-    "required": false,
-    "retired_alias_names": [],
-    "secret": false,
-    "variable_name": "SUDO_UID"
   },
   {
     "canonical_name": "TARGET_PROJECT_PATH",

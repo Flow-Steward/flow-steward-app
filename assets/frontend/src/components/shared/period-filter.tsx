@@ -47,11 +47,14 @@ export function PeriodFilter({
   ariaLabel: suppliedAriaLabel,
   onChange,
   value,
+  portal = false,
 }: Readonly<{
   allLabel?: string;
   ariaLabel?: string;
   onChange: (value: PeriodValue) => void;
   value: PeriodValue;
+  /** Keep the calendar usable inside cards with clipped overflow. */
+  portal?: boolean;
 }>) {
   const { t, locale } = useI18n();
   const allLabel = suppliedAllLabel ?? t("react.monitoring.all_events", "All events");
@@ -147,6 +150,7 @@ export function PeriodFilter({
         label={ariaLabel}
         onOpenChange={changeOpen}
         open={open}
+        portal={portal}
         trigger={(props) => renderPeriodFilterTrigger(props, ariaLabel, label)}
         wide
       >

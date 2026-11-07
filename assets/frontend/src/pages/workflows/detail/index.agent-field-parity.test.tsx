@@ -130,49 +130,53 @@ it("keeps a newer raw map and Step label when its real held Agent Save commits",
 it.each(["acknowledged", "newer valid edit", "newer malformed edit"])("keeps local Agent values and guards only genuine edits after Update: %s", async (scenario) => {
   install(); const view = await open("builder");
   try {
+    // Scope field queries to the active editor; scanning the full canvas dominates this journey.
     // Builder owns Advanced mode in More; its real command opens Workflow settings.
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     await userEvent.click(await screen.findByRole("button", { name: "Advanced mode off" }));
     const settings = await screen.findByRole("dialog", { name: "Workflow settings" });
     expect(within(settings).getByRole("tab", { name: "Advanced" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("group", { name: "Open step Agent A" }));
-    const editor = await screen.findByRole("dialog", { name: "Step editor" });
+    let editor = await screen.findByRole("dialog", { name: "Step editor" });
     await userEvent.click(within(editor).getByRole("tab", { name: "Advanced" }));
     const expected = { request: "literal:", nil: null, flag: false, zero: 0 };
-    fireEvent.change(screen.getByRole("textbox", { name: "Agent input mapping JSON" }), { target: { value: JSON.stringify(expected) } });
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Step editor" })).getByRole("button", { name: "Close" }));
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Agent input mapping JSON" }), { target: { value: JSON.stringify(expected) } });
+    await userEvent.click(within(editor).getByRole("button", { name: "Close" }));
     fireEvent.click(await screen.findByRole("group", { name: "Open step Agent A" }));
-    await userEvent.click(screen.getByRole("tab", { name: "Advanced" }));
-    expect(JSON.parse((screen.getByRole("textbox", { name: "Agent input mapping JSON" }) as HTMLTextAreaElement).value)).toEqual(expected);
+    editor = await screen.findByRole("dialog", { name: "Step editor" });
+    await userEvent.click(within(editor).getByRole("tab", { name: "Advanced" }));
+    expect(JSON.parse((within(editor).getByRole("textbox", { name: "Agent input mapping JSON" }) as HTMLTextAreaElement).value)).toEqual(expected);
     // Save first, so the separate new-step journey is not relying on a discard bypass.
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Step editor" })).getByRole("button", { name: "Save parameters" })); await screen.findByText("Parameters saved");
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Step editor" })).getByRole("button", { name: "Close" }));
-    await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    await userEvent.click(within(editor).getByRole("button", { name: "Save parameters" })); await screen.findByText("Parameters saved");
+    await userEvent.click(within(editor).getByRole("button", { name: "Close" }));
+    await userEvent.click(within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Add step" }));
     const palette = await screen.findByRole("listbox", { name: "Add step" });
     await userEvent.click(within(palette).getByRole("option", { name: "Agent" }));
-    await within(await screen.findByRole("dialog", { name: "Step editor" })).findByRole("button", { name: /Add step to changes|Update new step/ });
-    const agent = await screen.findByRole("combobox", { name: "Agent" });
+    editor = await screen.findByRole("dialog", { name: "Step editor" });
+    await within(editor).findByRole("button", { name: /Add step to changes|Update new step/ });
+    const agent = await within(editor).findByRole("combobox", { name: "Agent" });
     await waitFor(() => expect(agent).toBeEnabled());
-    await choose("Agent", "Writer");
+    await userEvent.click(within(editor).getByRole("combobox", { name: "Agent" }));
+    await userEvent.click(await within(screen.getByRole("listbox", { name: "Agent options" })).findByRole("option", { name: "Writer" }));
     expect(agent).toHaveTextContent("Writer");
-    fireEvent.change(screen.getByRole("textbox", { name: "Step label" }), { target: { value: "Staged Agent" } });
-    await userEvent.click(screen.getByRole("tab", { name: "Advanced" }));
-    expect(screen.getByRole("textbox", { name: "Agent input mapping JSON" })).toHaveValue("{}");
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Step label" }), { target: { value: "Staged Agent" } });
+    await userEvent.click(within(editor).getByRole("tab", { name: "Advanced" }));
+    expect(within(editor).getByRole("textbox", { name: "Agent input mapping JSON" })).toHaveValue("{}");
     const stagedInput = { request: "state.inputs.request", flag: false, zero: 0, nullable: null, code: "001" };
     const stagedOutput = { result: "state.result" };
-    fireEvent.change(screen.getByRole("textbox", { name: "Agent input mapping JSON" }), { target: { value: JSON.stringify(stagedInput) } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Agent output mapping JSON" }), { target: { value: JSON.stringify(stagedOutput) } });
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Step editor" })).getByRole("button", { name: "Update new step" }));
-    await within(await screen.findByRole("dialog", { name: "Step editor" })).findByRole("button", { name: "Updated" });
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Agent input mapping JSON" }), { target: { value: JSON.stringify(stagedInput) } });
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Agent output mapping JSON" }), { target: { value: JSON.stringify(stagedOutput) } });
+    await userEvent.click(within(editor).getByRole("button", { name: "Update new step" }));
+    await within(editor).findByRole("button", { name: "Updated" });
     const expectedAgent = { step_kind: "agent", agent_id: "writer", display_name: "Staged Agent", input_mapping_jsonb: stagedInput, output_mapping_jsonb: stagedOutput };
     await waitFor(() => expect(dryRunChangeSets().at(-1)?.operations).toEqual(expect.arrayContaining([
       expect.objectContaining({ op: "create_step", step: expect.objectContaining(expectedAgent) }),
     ])));
     expect(postedChangeSets()).toHaveLength(1);
     const newer = scenario === "newer malformed edit" ? '{"newer":' : '{"newer":null}';
-    if (scenario !== "acknowledged") fireEvent.change(screen.getByRole("textbox", { name: "Agent input mapping JSON" }), { target: { value: newer } });
-    await userEvent.click(within(screen.getByRole("dialog", { name: "Step editor" })).getByRole("button", { name: "Close" }));
-    await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    if (scenario !== "acknowledged") fireEvent.change(within(editor).getByRole("textbox", { name: "Agent input mapping JSON" }), { target: { value: newer } });
+    await userEvent.click(within(editor).getByRole("button", { name: "Close" }));
+    await userEvent.click(within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Add step" }));
     const nextPalette = await screen.findByRole("listbox", { name: "Add step" });
     await userEvent.click(within(nextPalette).getByRole("option", { name: "Stop · success" }));
     if (scenario === "acknowledged") {
@@ -182,22 +186,23 @@ it.each(["acknowledged", "newer valid edit", "newer malformed edit"])("keeps loc
         expect.objectContaining({ op: "create_step", step: expect.objectContaining(expectedAgent) }),
         expect.objectContaining({ op: "create_step", step: expect.objectContaining({ step_kind: "stop_success" }) }),
       ])));
-      await userEvent.click(within(screen.getByRole("dialog", { name: "Step editor" })).getByRole("button", { name: "Close" }));
+      editor = await screen.findByRole("dialog", { name: "Step editor" });
+      await userEvent.click(within(editor).getByRole("button", { name: "Close" }));
       fireEvent.click(screen.getByRole("group", { name: "Open step Staged Agent" }));
-      await screen.findByRole("dialog", { name: "Step editor" });
-      expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Staged Agent");
-      expect(screen.getByRole("combobox", { name: "Agent" })).toHaveTextContent("Writer");
-      await userEvent.click(screen.getByRole("tab", { name: "Advanced" }));
-      expect(JSON.parse((screen.getByRole("textbox", { name: "Agent input mapping JSON" }) as HTMLTextAreaElement).value)).toEqual(stagedInput);
-      expect(JSON.parse((screen.getByRole("textbox", { name: "Agent output mapping JSON" }) as HTMLTextAreaElement).value)).toEqual(stagedOutput);
+      editor = await screen.findByRole("dialog", { name: "Step editor" });
+      expect(within(editor).getByRole("textbox", { name: "Step label" })).toHaveValue("Staged Agent");
+      expect(within(editor).getByRole("combobox", { name: "Agent" })).toHaveTextContent("Writer");
+      await userEvent.click(within(editor).getByRole("tab", { name: "Advanced" }));
+      expect(JSON.parse((within(editor).getByRole("textbox", { name: "Agent input mapping JSON" }) as HTMLTextAreaElement).value)).toEqual(stagedInput);
+      expect(JSON.parse((within(editor).getByRole("textbox", { name: "Agent output mapping JSON" }) as HTMLTextAreaElement).value)).toEqual(stagedOutput);
     } else {
       const discard = await screen.findByRole("dialog", { name: "Discard unsaved parameters?" });
       await userEvent.click(within(discard).getByRole("button", { name: "Cancel" }));
       expect(screen.queryByRole("group", { name: "Open step Stop · success" })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("group", { name: "Open step Staged Agent" }));
-      await screen.findByRole("dialog", { name: "Step editor" });
-      await userEvent.click(screen.getByRole("tab", { name: "Advanced" }));
-      expect(screen.getByRole("textbox", { name: "Agent input mapping JSON" })).toHaveValue(newer);
+      editor = await screen.findByRole("dialog", { name: "Step editor" });
+      await userEvent.click(within(editor).getByRole("tab", { name: "Advanced" }));
+      expect(within(editor).getByRole("textbox", { name: "Agent input mapping JSON" })).toHaveValue(newer);
       expect((dryRunChangeSets().at(-1)?.operations as Array<{ op: string }>).filter(({ op }) => op === "create_step")).toHaveLength(1);
     }
     expect(postedChangeSets()).toHaveLength(1);

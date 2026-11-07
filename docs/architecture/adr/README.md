@@ -103,7 +103,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0055](0055-structured-dataset-queries.md) | Structured Dataset Queries Alongside SQL | Accepted |
 | [0056](0056-pre-1.0-released-database-upgrades.md) | Database Upgrades of Released Installations Before 1.0 | Accepted |
 | [0057](0057-secret-catalog.md) | Secret Catalog, Bindings and Approved Use | Accepted |
-| [0058](0058-imported-refresh-token-connections.md) | Connections From an Imported Refresh Token | Proposed (amends 0023) |
+| [0058](0058-imported-refresh-token-connections.md) | Connections From an Imported Refresh Token | Accepted (amends 0023) |
 | [0059](0059-workflow-report-documents.md) | Workflow Report Documents | Accepted |
 | [0060](0060-owned-agent-resource-lifecycle.md) | Journal-owned disposable agent resource lifecycle | Accepted |
 

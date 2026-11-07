@@ -54,23 +54,23 @@ missing-Docker/Compose errors also link to the installation guides.
 ### Install and verify
 
 For a Linux server, read the [Linux host autostart guidance](compact-scalable-deployment.md#linux-host-autostart)
-for systemd behavior, required sudo setup, and inspecting or disabling the installed unit.
+for Docker restart behavior and explicit retirement of a legacy systemd unit.
 
-A clean checkout exactly at its published `v<VERSION>` tag installs that stable
-release's official, digest-pinned images and builds nothing; if the release or
-its images are unavailable, the installer stops with `release_images_unavailable`
-instead of building. Any other checkout builds the current local checkout in
-Docker. It does not require a release tag or call the GitHub Releases API:
+Production installation downloads the published installer and complete official
+image set for a clean checkout at its published release tag. The tag must point
+to HEAD so local controller/schema inputs match that exact release. A checkout
+mismatch or download failure stops installation, without source fallback. Only
+explicit `./install.sh --from-source` builds the current checkout:
 
 ```bash
-git clone <flow-steward-repo-url> flow-steward
+git clone --branch v0.9.12 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ```
 
-Use a full clone: the Scalable build uses Git history for release bookkeeping.
-Both Compact and Scalable production installations support a branch checkout.
-Docker may download base and dependency images; this is not a second Git clone.
+Use a full clone for exact release verification. Keep tracked files clean.
+For source resume/update repeat `--from-source`; for development use
+`./install.sh --from-source --environment development --deployment-profile scalable`.
 Official release upgrade and Clone activation retain their exact image identity checks.
 
 ```bash
@@ -443,8 +443,8 @@ changing the checkout or runtime, and they never reopen work automatically.
 
 #### Official release upgrade
 
-A fresh install of a published release tag is an official installation. Any
-other fresh production checkout is a verified source installation. Its semantic
+Default production installation creates an official installation. An explicit
+`--from-source` install creates a verified source installation. Its semantic
 ordering is unknown relative to every published version, even when its commit
 matches or is related to a release commit. `release check` reports an explicit
 transition opportunity without calling the source older, newer, or current.
@@ -472,7 +472,8 @@ tags, or build product images locally. From 0.9.2 the set includes the PostgreSQ
 image; the data volume is kept, and the database restarts on the pulled image,
 which is built from the same Dockerfile (same PostgreSQL 17, pgvector and AGE). An
 upgrade run by a 0.9.1 CLI resolves its target without that image and keeps the
-installation's own PostgreSQL image; the next upgrade switches it. Development source builds remain separate.
+installation's own PostgreSQL image; the next upgrade switches it. Missing
+selected images stop official upgrade instead of triggering local builds. Development source builds remain separate.
 Override the ordered namespaces only when required with the comma-separated
 `FS_RELEASE_REGISTRIES`; override GitHub discovery with `FS_RELEASE_REPOSITORY`.
 
@@ -708,7 +709,7 @@ The Development preset keeps `fs-test-runner` and `fs-audit` ready. SonarQube
 and its scanner remain on demand:
 
 ```bash
-./install.sh --environment development
+./install.sh --from-source --environment development --deployment-profile scalable
 ./core/entrypoints/cli/scripts/lint.sh --sonar
 ```
 
@@ -1127,7 +1128,7 @@ Generated env catalog: [docs/configuration/flow-steward-env-catalog.md](../../do
 For local development, use the installer:
 
 ```bash
-./install.sh --environment development
+./install.sh --from-source --environment development --deployment-profile scalable
 ```
 
 For production, start from the installer-managed production stack:

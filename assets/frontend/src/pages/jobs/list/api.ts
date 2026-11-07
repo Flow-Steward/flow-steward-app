@@ -44,6 +44,8 @@ export type JobsListFilters = {
   taskSource?: "workflow_test_run";
   search?: string;
   workspaceId?: string | null;
+  fromDate?: string;
+  toDate?: string;
 };
 
 /** `status` is a comma list; the API takes `status` once per value and matches any. */
@@ -74,6 +76,8 @@ export async function fetchJobsList(filters: JobsListFilters) {
   if (filters.workspaceId?.trim()) {
     params.set("workspace_id", filters.workspaceId.trim());
   }
+  if (filters.fromDate) params.set("from_date", filters.fromDate);
+  if (filters.toDate) params.set("to_date", filters.toDate);
   const payload = await fetchJson<JobsListResponse>(`/api/v2/jobs?${params.toString()}`);
   // Preserve raw identity provenance before normalizeRow canonicalizes both aliases.
   // Only exact Test Run history is fail-closed; ordinary Jobs lists retain their
@@ -114,4 +118,9 @@ export async function fetchJobsList(filters: JobsListFilters) {
     jobs: normalizedJobs,
     groups: normalizedGroups,
   };
+}
+
+/** Move one job to Trash; active jobs are rejected by the server. */
+export function trashJob(jobId: string) {
+  return fetchJson<{ status: string; job_id: string }>(`/api/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
 }

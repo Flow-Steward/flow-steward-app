@@ -598,3 +598,39 @@ def test_v2_lazy_execution_steps_denied_job_never_reads_artifact_or_presentation
     assert response.status_code == 403
     plane.get_artifact.assert_not_called()
     plane.read_artifact_presentation.assert_not_called()
+
+
+def test_v2_jobs_forwards_date_range_with_existing_filters(monkeypatch):
+    service = _JobQueryService()
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+    response = client.get("/api/v2/jobs?from_date=2026-03-01&to_date=2026-03-01&workflow_id=wf")
+    assert response.status_code == 200
+    assert service.last_list_kwargs["from_date"] == "2026-03-01"
+    assert service.last_list_kwargs["to_date"] == "2026-03-01"
+    assert service.last_list_kwargs["workflow_id"] == "wf"
+
+
+@pytest.mark.parametrize(
+    "from_date,to_date",
+    [("2026-03-10", "2026-03-05"), ("not-a-date", "2026-03-05"), ("2026-03-01", "9999-12-31")],
+)
+def test_v2_job_date_validation_returns_bad_request_without_querying(
+    monkeypatch, from_date, to_date
+):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from core.application.management import JobQueryService
+
+    store = MagicMock()
+    service = JobQueryService(
+        get_logger=lambda: store,
+        serialize_attention_job_row=lambda row: row,
+        serialize_awaiting_approval_job_row=lambda row: row,
+        job_attention_group=lambda status, acknowledged_at=None: "failed",
+        build_runtime_payload_for_api=AsyncMock(return_value={}),
+    )
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+    response = client.get("/api/v2/jobs", params={"from_date": from_date, "to_date": to_date})
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
+    store.list_jobs_for_attention.assert_not_called()

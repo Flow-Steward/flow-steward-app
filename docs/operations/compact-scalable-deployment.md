@@ -210,25 +210,40 @@ local mode, or an unreviewed plaintext endpoint.
 
 ### Linux host autostart
 
-On Linux with systemd and the local system Docker daemon, a successful Compact
-installation configures `flow-steward-<compose-project>.service`. This root-owned
-oneshot unit runs Docker actions as the deployment owner. It starts the exact
-recorded container IDs after host boot or Docker restart; it does not pull, build,
-migrate or choose a different image. Infrastructure starts first and waits for
-bounded health checks before the runtime starts.
+Compact autostart uses [Docker restart policies](https://docs.docker.com/engine/containers/start-containers-automatically/). PostgreSQL, RabbitMQ, the Compact runtime,
+and selected bundled Traefik/SeaweedFS use `restart: unless-stopped`; one-shot
+setup and CLI containers do not restart. The existing Docker daemon must be
+configured to start at host boot. Installation and upgrade do not request sudo
+or change host services. Docker also retries terminal runtime exits without a
+finite container retry limit; the supervisor's internal per-role retry budgets
+still apply. Inspect repeated failures with `docker logs <container>` and
+`docker inspect <container>`.
 
-Docker remains the only automatic container-failure retry owner. The unit has
-`Restart=no` and is bound to `docker.service`; it is not another failure loop.
-Setup requires sudo once and when the helper/container record changes. Platforms
-without systemd or with another Docker endpoint are skipped with an explanation.
+A manual `docker stop <container>` remains effective across a Docker/host restart.
+Use `docker start <container>` to resume it, or rerun `./install.sh` to reconcile
+and start the installation. Docker daemon restart does not replay Compose
+`depends_on`; Compose sets `FS_COMPACT_WAIT_FOR_DEPENDENCIES=1` so the runtime
+waits for PostgreSQL and RabbitMQ protocol readiness within its startup budget
+before volume lock/bootstrap, then applies its role-readiness budget.
 
-Inspect the installer-reported unit name, then use `systemctl status <unit>` or
-`journalctl -u <unit>` for diagnosis. `sudo systemctl disable --now <unit>` disables
-boot activation and stops only the recorded installation. Re-enable with
-`sudo systemctl enable --now <unit>`. Later installer runs preserve an explicit
-disable. Missing/replaced IDs or ownership mismatches require rerunning the
-installer, never starting guessed replacement containers. Switching to Scalable
-retires only that checkout's Compact unit and preserves shared services.
+**Migrating an older host service.** Before installing/upgrading a release with
+Docker autostart, retire an earlier `flow-steward-<compose-project>.service` from
+its owning checkout. This also applies before the direct `./flow-steward release
+upgrade` path, which does not run `install.sh`. The installer preflight reports
+the existing unit and refuses to overlap ownership. Run this deliberate admin
+command once, using the installation's actual state directory if different:
+
+```bash
+sudo bash ./infra/host/systemd/autostart.sh retire "$PWD" "$PWD/.flow-steward"
+```
+
+The helper checks the unit marker and recorded checkout, removes its container
+stop hooks before disabling/stopping it, and removes only that unit and its host
+records. Running containers and volumes are preserved. Do not use `systemctl
+disable --now` on the legacy unit: its old stop hooks may stop the installation.
+After retirement, rerun installation/upgrade to apply Docker restart policies.
+Foreign or symlinked service paths and customized systemd drop-ins are refused
+for manual administrator review.
 
 ### Switching profile
 
@@ -243,7 +258,8 @@ Switch an installed system between the profiles with `./install.sh`, from its ch
 
 What the run does, and says in its result:
 
-- It builds the target profile's images, then switches with the lifecycle's own journaled `config apply` (preserving the database, broker, volumes and keys, rolling back on failure).
+- It downloads the target profile's official images (or builds only with explicit
+  `--from-source` on a source installation), then switches with the lifecycle's own journaled `config apply` (preserving the database, broker, volumes and keys, rolling back on failure).
 - Scalable to Compact: Compact's roles reach the host directories through fixed groups, so their entries get those groups and modes first -- 10100 for artifacts, 10103 for extensions (`02770`/`0660`, and `02775`/`0664` for extensions). Owners do not change; symbolic links are not followed; private entries (`0600`, `0700`) and what is under a private directory stay as they are. The result lists what it changed and what it left alone.
 - If the host already has a group with one of those gids, the switch is refused before anything changes, naming the group: its members would read the data. Remove or renumber it -- or, to give host users access on purpose, name it `flow-steward-artifacts` or `flow-steward-extensions` (`groupadd -g 10100 flow-steward-artifacts`, then `usermod -aG` the users). Only the host's `/etc/group` is checked; a group known only to a network directory service is not seen.
 - Compact to Scalable: the Scalable services mount the Compact data volume by subpath.
@@ -274,11 +290,14 @@ The reverse procedure is identical. A schema-incompatible rollback requires rest
 
 ## Update an installation to new sources
 
-Both profiles update through the installer, from the updated checkout:
+Official installs update through `./flow-steward release upgrade` (see the
+[user guide](../GUIDE.md#maintenance-and-release-upgrade)). The source workflow
+below applies only to an explicitly created source installation. Both profiles
+update it through the installer, from the updated checkout:
 
 ```bash
 git fetch && git checkout <release tag>
-./install.sh
+./install.sh --from-source
 ```
 
 The installer compares three things: the sources, the images it recorded, and what is actually running. When the images it built are older than the sources, it rebuilds them, has the new image check the database schema, and only then restarts the runtime on it. Configuration, secrets, TLS and the initial preservation manifest are left as they are. The result says `Updated from <old revision> to <new revision>.`; a rerun on an installation that is already current still says it is already installed.
@@ -294,7 +313,7 @@ What follows depends on whether the release changes the database, and the instal
 ./flow-steward backup create
 ./flow-steward database preflight
 ./flow-steward database upgrade --maintenance-confirmed --confirm
-./install.sh
+./install.sh --from-source
 ./flow-steward maintenance disable --confirm
 ```
 
@@ -306,14 +325,14 @@ What follows depends on whether the release changes the database, and the instal
 
 A second upgrade started while one runs fails at once instead of waiting. Recovery is forward only: after a migration has committed, fix the cause and run the same release's `database upgrade` again; going back to the previous release means restoring the backup.
 
-The second `./install.sh` finishes the update the first one prepared. It reports the update and does not claim there was no migration, because this one had one.
+The second `./install.sh --from-source` finishes the update the first one prepared. It reports the update and does not claim there was no migration, because this one had one.
 
-Between the stopped update and that second run, `.env.prod` already names the new image while the old one is still running. Do not start the runtime by any other means in that window — a bare `docker compose up`, for example — because that would put the new code on the unmigrated database. `./install.sh` and `./flow-steward` do not.
+Between the stopped update and that second run, `.env.prod` already names the new image while the old one is still running. Do not start the runtime by any other means in that window — a bare `docker compose up`, for example — because that would put the new code on the unmigrated database. `./install.sh --from-source` and `./flow-steward` do not.
 
-**Going back to the previous release** is `git checkout <previous revision>` and `./install.sh`. While the previous release's images are still in Docker they are recorded again without a rebuild ("Reusing the images built for …"); otherwise they are built again, and the log says so.
+**Going back to the previous release** is `git checkout <previous revision>` and `./install.sh --from-source`. While the previous release's images are still in Docker they are recorded again without a rebuild ("Reusing the images built for …"); otherwise they are built again, and the log says so.
 
 
-**Going back across a database migration** is refused before anything restarts: the older release does not know a migration the database already has, and `./install.sh` stops with `database_newer_than_release`, naming it. The newer release keeps running. Either check out the newer release again and rerun `./install.sh`, or return the database to the backup taken before that migration (the steps above take one). On Scalable:
+**Going back across a database migration** is refused before anything restarts: the older release does not know a migration the database already has, and `./install.sh --from-source` stops with `database_newer_than_release`, naming it. The newer release keeps running. Either check out the newer release again and rerun `./install.sh --from-source`, or return the database to the backup taken before that migration (the steps above take one). On Scalable:
 
 ```bash
 ./flow-steward maintenance enable --confirm
@@ -321,14 +340,14 @@ Between the stopped update and that second run, `.env.prod` already names the ne
 ./flow-steward stack stop --confirm
 (
   # Both values are in the installation's .env.prod; the subshell keeps them out of
-  # the ./install.sh that follows.
+  # the ./install.sh --from-source that follows.
   export FS_COMPOSE_PROJECT_NAME=<the installation's Compose project>
   export FS_BACKUP_ENCRYPTION_KEY=<the installation's backup key>
   core/entrypoints/cli/scripts/db_restore.sh backups/<that backup> \
     --target-compose-project "$FS_COMPOSE_PROJECT_NAME" --confirm
 )
 git checkout <the older revision>
-./install.sh
+./install.sh --from-source
 ./flow-steward maintenance disable --confirm
 ```
 
@@ -353,7 +372,7 @@ To restore a backup made through the host management command:
 ./flow-steward backup list          # the backup taken before the newer release's migration
 (
   # Both values are in the installation's .env.prod; the subshell keeps them out of
-  # the ./install.sh that follows.
+  # the ./install.sh --from-source that follows.
   export FS_COMPOSE_PROJECT_NAME=<the installation's Compose project>
   export FS_BACKUP_ENCRYPTION_KEY=<the installation's backup key>
   # <that backup> is the host-relative path listed by backup list: backups/<name>.dump.enc
@@ -361,11 +380,11 @@ To restore a backup made through the host management command:
     --target-compose-project "$FS_COMPOSE_PROJECT_NAME" --confirm
 )
 git checkout <the older revision>
-./install.sh
+./install.sh --from-source
 ./flow-steward maintenance disable --confirm
 ```
 
-`db_restore.sh` checks the backup before anything is changed, then stops every service that writes to the database and is still running (`compact-runtime` on Compact; `fs-app`, `fs-worker`, `control-plane`, `fs-mcp` and `fs-extension-installer` on Scalable), starts the database alone and replaces it from the backup. What it stopped it leaves stopped, and says so: `./install.sh` starts it again and verifies the installation, which the script cannot. It is deliberately not part of the public CLI.
+`db_restore.sh` checks the backup before anything is changed, then stops every service that writes to the database and is still running (`compact-runtime` on Compact; `fs-app`, `fs-worker`, `control-plane`, `fs-mcp` and `fs-extension-installer` on Scalable), starts the database alone and replaces it from the backup. What it stopped it leaves stopped, and says so: `./install.sh --from-source` starts it again and verifies the installation, which the script cannot. It is deliberately not part of the public CLI.
 
 For an existing embedded/native volume backup, first copy the exact encrypted
 artifact from `/data/backups` into host `backups/` while the runtime is available,

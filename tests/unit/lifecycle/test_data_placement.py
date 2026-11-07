@@ -279,7 +279,7 @@ def test_compact_with_bundled_storage_runs_seaweedfs_beside_it(tmp_path: Path) -
     assert "storage-seaweedfs" in target["compose_profiles"]
 
 
-def test_compacts_seaweedfs_shares_storage_but_uses_bounded_restart() -> None:
+def test_compacts_seaweedfs_shares_storage_and_uses_docker_autostart() -> None:
     """Derived: a drift between the two would store files differently per profile."""
     scalable = yaml.safe_load((COMPOSE / "docker-compose.prod.yaml").read_text(encoding="utf-8"))
     compact = yaml.safe_load(
@@ -289,7 +289,7 @@ def test_compacts_seaweedfs_shares_storage_but_uses_bounded_restart() -> None:
     for service in ("seaweedfs-config", "seaweedfs"):
         expected = dict(scalable["services"][service])
         if service == "seaweedfs":
-            expected["restart"] = "on-failure:3"
+            expected["restart"] = "unless-stopped"
         assert compact["services"][service] == expected, service
     assert compact["networks"]["artifact-storage"] == {"internal": True}
     assert set(compact["volumes"]) == {"seaweedfs-config", "seaweedfs-data"}

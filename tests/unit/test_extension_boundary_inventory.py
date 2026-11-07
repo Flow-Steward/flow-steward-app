@@ -50,6 +50,16 @@ NON_BUNDLE_IDENTITIES = frozenset(
         # The fs-audit image's OCI label (org.flowsteward.audit-toolchain), not a bundle.
         "core/entrypoints/cli/scripts/lint.sh: flowsteward.audit-toolchain",
         "tests/unit/test_lint_script.py: flowsteward.audit-toolchain",
+        # Task ownership and audit-image OCI labels are platform infrastructure.
+        "core/application/tooling/resource_cleanup/models.py: flowsteward.disposable",
+        "core/application/tooling/resource_cleanup/models.py: flowsteward.resource-token",
+        "core/application/tooling/resource_cleanup/models.py: flowsteward.task",
+        "core/infrastructure/agent_resources/audit_images.py: flowsteward.audit-toolchain",
+        "core/infrastructure/agent_resources/gateway.py: flowsteward.disposable",
+        "core/infrastructure/agent_resources/gateway.py: flowsteward.resource-token",
+        "core/infrastructure/agent_resources/gateway.py: flowsteward.task",
+        "tests/unit/tooling/test_agent_resource_audit_images.py: flowsteward.audit-toolchain",
+        "tests/unit/tooling/test_agent_resource_cleanup.py: flowsteward.resource-token",
     }
 )
 
@@ -80,7 +90,7 @@ SCANNED_SUFFIXES = {
 #: This file names the prefixes in order to forbid them.
 _SELF = Path(__file__).relative_to(REPO_ROOT).as_posix()
 
-#: A dotted id is unambiguous: `flowsteward.<slug>` is only ever an extension.
+#: Dotted ids name extensions, except the exact platform namespaces inventoried above.
 _DOTTED_IDENTITY = re.compile(r"flowsteward\.[a-z0-9]+(?:-[a-z0-9]+)*", re.IGNORECASE)
 #: The underscore spelling is a bundle *directory*, so it only counts inside a
 #: path. Matching it as a bare word would flag ordinary names like
@@ -151,6 +161,22 @@ def test_no_concrete_extension_identity_is_written_into_shipped_source() -> None
             if entry not in KNOWN_REMAINING and entry not in NON_BUNDLE_IDENTITIES:
                 offenders.append(entry)
     assert not offenders, "\n".join(offenders)
+
+
+@pytest.mark.parametrize("entry", sorted(NON_BUNDLE_IDENTITIES))
+def test_non_bundle_allowances_do_not_hide_other_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entry: str
+) -> None:
+    relative, _, identity = entry.partition(": ")
+    source = tmp_path / relative
+    source.parent.mkdir(parents=True)
+    source.write_text(identity + "\n", encoding="utf-8")
+    monkeypatch.setitem(globals(), "REPO_ROOT", tmp_path)
+    test_no_concrete_extension_identity_is_written_into_shipped_source()
+
+    source.write_text(identity + "\nflowsteward.sample-other\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match=r"flowsteward\.sample-other"):
+        test_no_concrete_extension_identity_is_written_into_shipped_source()
 
 
 def test_the_outstanding_list_only_shrinks() -> None:

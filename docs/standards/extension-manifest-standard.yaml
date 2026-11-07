@@ -296,6 +296,10 @@ runtime:
     #          Nonlegacy fields or schema require platform_min 1.4.0.
     #          provider_secret_formats may map a declared secret to json_object,
     #          enabling explicit multiline editing and strict object validation.
+    #   1.5.0  Native JSON Dataset queries and artifact-free runtime services.
+    #   1.6.0  OAuth refresh_token_import flow. Providers declaring it require
+    #          runtime.compatibility.platform_min 1.6.0. Product 0.9.12 ships
+    #          host 1.6.0; product versions are not host compatibility versions.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:

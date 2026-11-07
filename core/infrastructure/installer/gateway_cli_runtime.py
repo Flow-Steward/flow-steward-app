@@ -30,6 +30,7 @@ from core.infrastructure.installer.gateway_support import (
     _TOKEN_COMPOSE_ENV,
     _CliRuntimeContext,
     _docker_socket_group_id,
+    _immutable_image_ref,
     _read_env,
     _repository_release_version,
 )
@@ -126,7 +127,7 @@ class CliRuntimeOperations:
                     )
 
             expected_image_id = self._cli_image_id(context, log=log)
-            if context.exact_image and expected_image_id != context.image:
+            if _IMAGE_ID.fullmatch(context.image) and expected_image_id != context.image:
                 raise self._cli_runtime_failure(
                     log,
                     "Docker resolved a different image ID for the exact CLI selection.",
@@ -207,7 +208,23 @@ class CliRuntimeOperations:
         image = env_values.get("FS_CLI_IMAGE", "").strip()
         if not image:
             image = f"flow-steward-cli:{version}"
-        exact_image = _IMAGE_ID.fullmatch(image) is not None
+        exact_image = _immutable_image_ref(image)
+        if (
+            config.environment == "production"
+            and not exact_image
+            and (
+                self.state_store.load_installed_release() is not None
+                or self.state_store.load_pending_release() is not None
+                or self.state_store.load_release_handoff() is not None
+            )
+        ):
+            cause = (
+                "The official release requires an immutable CLI image reference; "
+                "restore its exact published image and resume ./install.sh."
+            )
+            if log is None:
+                raise ValueError(cause)
+            raise self._cli_runtime_failure(log, cause)
 
         candidate_state_dir, candidate_prod_env = self._cli_candidate_paths(
             config, env_values, log=log

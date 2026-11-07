@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol, cast
 
 from core.application.jobs.query_scope import job_row_in_scope
@@ -17,6 +17,7 @@ from core.application.management.query_services_approval import ApprovalQuerySer
 from core.application.observability_vocabulary import job_status_filter_statuses
 from core.application.reports.job_trigger import job_trigger
 from core.application.security.credential_redaction import redact
+from core.application.settings.timezone_service import day_boundaries_utc, resolve_effective_user_tz
 from core.application.workflows.workflow_hook_contract import hook_run_label
 
 from .query_models import JobDetailContractView
@@ -334,13 +335,41 @@ class JobQueryServiceCoreMixin:
         workspace_id: Any = None,
         scope: ScopeContext | None = None,
         hide_acknowledged: bool = False,
+        from_date: str = "",
+        to_date: str = "",
     ) -> JobsListView | JobsAttentionGroupsView:
         """List jobs; ``status`` takes one status, several, or comma lists of them (any match).
 
         ``hide_acknowledged`` leaves out runs an operator has acknowledged.
         ``task_source`` optionally restricts history to whole-workflow Test Runs.
+        ``from_date`` and ``to_date`` include whole local calendar days, using
+        the start time or queued time for a run that has not started.
         """
         resolved = self._scope(scope)
+        try:
+            days = []
+            for raw in (from_date, to_date):
+                text = str(raw or "").strip()
+                day = date.fromisoformat(text) if text else None
+                if day is not None and day.isoformat() != text:
+                    raise ValueError("Non-canonical calendar date")
+                days.append(day)
+            from_day, to_day = days
+            if from_day and to_day and from_day > to_day:
+                raise ServiceValidationError("from_date must be <= to_date")
+            effective_tz = resolve_effective_user_tz(
+                resolved.user_timezone or resolved.project_timezone
+            )
+            started_after = (
+                day_boundaries_utc(from_day.isoformat(), effective_tz)[0] if from_day else None
+            )
+            started_before = (
+                day_boundaries_utc(to_day.isoformat(), effective_tz)[1] if to_day else None
+            )
+        except (ValueError, OverflowError) as exc:
+            raise ServiceValidationError(
+                "Invalid or unsupported date range. Use YYYY-MM-DD."
+            ) from exc
         for selected, exact in (
             (project_id, resolved.project_id),
             (workspace_id, resolved.workspace_id),
@@ -400,6 +429,10 @@ class JobQueryServiceCoreMixin:
                 filters["search"] = normalized_search
             if hide_acknowledged:
                 filters["hide_acknowledged"] = True
+            if started_after is not None:
+                filters["started_after"] = started_after
+            if started_before is not None:
+                filters["started_before"] = started_before
             return filters
 
         if not normalized_group:

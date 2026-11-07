@@ -52,8 +52,8 @@ INSTALLER_SPEC = CommandSpec(
             option_name="--deployment-profile",
             description=(
                 "Runtime topology used for the production deployment. Compact runs the "
-                "whole platform as one runtime and is the default; the installer builds "
-                "its image when you do not supply one. Scalable runs each service in its "
+                "whole platform as one runtime and is the default. Production uses published "
+                "images; local builds require --from-source. Scalable runs each service in its "
                 "own container."
             ),
         ),

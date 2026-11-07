@@ -40,7 +40,8 @@ Cloning this repository does not install Docker. Use the official instructions:
 - Desktops: [Docker Desktop](https://docs.docker.com/desktop/).
 
 Do not run Flow Steward as root; consult [Linux post-install setup](https://docs.docker.com/engine/install/linux-postinstall/)
-for Docker socket access. A host Python installation is not required.
+for Docker socket access. A host Python installation is not required. Docker owns autostart; the installer
+does not create a systemd service or request sudo.
 
 Check prerequisites as the deployment user:
 
@@ -55,31 +56,27 @@ docker info
 Use a full (not shallow) Git clone, then run:
 
 ```bash
-git clone https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.12 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ./flow-steward status
 ./flow-steward doctor
 ```
 
-What a fresh installation installs depends on the checkout:
+Production installation downloads the published installer and complete official
+release image set from GHCR, with Docker Hub as the alternate registry. Production
+uses a clean checkout at the published release tag, keeping the installer, local
+management code and product images on that exact release.
+Download or provenance failures stop installation. There is no automatic source
+fallback, and no image is built locally, including the installer and PostgreSQL.
+A host Python installation is not required. Docker owns autostart; the installer
+does not create a systemd service or request sudo.
 
-- **A published release.** Check out its tag (`git checkout v<version>`, chosen from the
-  repository's Releases page) before `./install.sh`. A clean checkout exactly at its
-  `v<VERSION>` tag installs that stable release's official, digest-pinned images from
-  GitHub Container Registry (or Docker Hub when GHCR lacks the complete set), including
-  the PostgreSQL image from 0.9.2 on. Nothing is built locally, and the result is an
-  official installation. If that tag is not
-  yet published as a stable release with its images, or GitHub or the registry is
-  unreachable, the installer stops with `release_images_unavailable` instead of
-  building: wait for publication, or check out a non-release commit.
-- **Anything else** (`main`, another commit, or a tag with local changes). The installer
-  builds the current local checkout in Docker and **does not require** a GitHub Release
-  lookup. Docker still downloads required base images and dependencies. This creates
-  a source installation; changing to an official release is a separate, reviewed
-  [release transition](docs/GUIDE.md#maintenance-and-release-upgrade).
+Only `./install.sh --from-source` builds the current checkout; for development use
+`./install.sh --from-source --environment development --deployment-profile scalable`. Repeat the flag to resume
+or update a source installation. Switching it to official uses the reviewed
+[release transition](docs/GUIDE.md#maintenance-and-release-upgrade).
 
-The installer prints which of the two it chose before preparing images.
 The canonical database baseline lives in `db/schema/`, with canonical seed data in
 `db/seeds/`; post-1.0 SQL migrations live separately in `db/migrations/`.
 The plain questionnaire is the default; `--tui` opts into the full-screen interface.

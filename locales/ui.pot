@@ -29141,4 +29141,15 @@ msgid "react.workflows.report_fields_unknown"
 msgstr ""
 
 msgid "react.jobs.report"
+
+msgid "react.jobs.all_runs"
+msgstr ""
+
+msgid "react.jobs.job_period"
+msgstr ""
+
+msgid "react.jobs.jobs_could_not_be_trashed"
+msgstr ""
+
+msgid "react.jobs.trash_failed"
 msgstr ""

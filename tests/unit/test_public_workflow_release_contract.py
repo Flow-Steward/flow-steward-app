@@ -22,7 +22,14 @@ def test_public_docs_define_one_exact_official_release_journey() -> None:
         assert "./flow-steward release check" in release
         assert "./flow-steward release upgrade --confirm" in release
         assert "digest-pinned image" in normalized
-        assert "build product images locally" in normalized
+        assert any(
+            phrase in normalized
+            for phrase in (
+                "build product images locally",
+                "never build product, CLI management or PostgreSQL images locally",
+            )
+        )
+        assert "`--from-source`" in normalized
         assert "git pull" not in release
 
 

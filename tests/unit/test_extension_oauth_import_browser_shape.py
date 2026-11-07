@@ -54,6 +54,7 @@ def _descriptor() -> dict[str, Any]:
             ],
         },
         "runtime": {
+            "compatibility": {"platform_min": "1.6.0"},
             "extension_contract_v2": {
                 "oauth_providers": [
                     {
@@ -115,7 +116,7 @@ def _descriptor() -> dict[str, Any]:
                         },
                     }
                 ],
-            }
+            },
         },
     }
 

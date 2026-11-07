@@ -988,11 +988,13 @@ describe("WorkflowsBuilderPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add step" }));
     const palette = await screen.findByRole("dialog", { name: "Add step" });
     fireEvent.click(within(palette).getByRole("option", { name: "Set variable" }));
-    fireEvent.change(await screen.findByRole("textbox", { name: "Step label" }), { target: { value: "Review draft" } });
+    const label = await screen.findByRole("textbox", { name: "Step label" });
+    const editor = screen.getByRole("dialog", { name: "Step editor" });
+    fireEvent.change(label, { target: { value: "Review draft" } });
     // The choice created the canonical local node already. Saving its fields
     // updates that staged create operation and retains its generated identity.
-    fireEvent.click(await screen.findByRole("button", { name: "Update new step" }));
-    expect(await screen.findByRole("button", { name: "Updated" })).toBeDisabled();
+    fireEvent.click(await within(editor).findByRole("button", { name: "Update new step" }));
+    await waitFor(() => expect(within(editor).getByRole("button", { name: "Updated" })).toBeDisabled());
   }
 
   it("adds a root step to the unapplied structure, dry-runs it, and warns before leaving with it", async () => {
