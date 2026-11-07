@@ -1091,7 +1091,9 @@ def test_a_configuration_needing_attention_says_why_and_a_new_secret_clears_it()
             configuration_id=first.configuration_id,
             display_name="Primary",
             values={},
-            secret_replacements={"client_secret": "rotated-secret"},
+            secret_replacements={
+                "client_secret": "rotated-secret",  # pragma: allowlist secret -- synthetic fixture
+            },
         ),
         expected_revision=marked.revision,
     )
