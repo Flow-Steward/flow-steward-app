@@ -5,6 +5,7 @@ import io
 import json
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,6 +13,13 @@ from core.application.release.images import all_release_roles
 from scripts.release import official_release
 
 _REVISION = "1" * 40
+
+
+def _publication_artifacts():
+    return (
+        *(role for role in all_release_roles() if role.role != "installer"),
+        SimpleNamespace(role="installer", repository="flow-steward-installer"),
+    )
 
 
 def _write_oci_artifact(
@@ -114,8 +122,9 @@ def test_validate_release_rejects_dirty_build_context(
         official_release.validate_release(tmp_path, "1.2.3", "v1.2.3", _REVISION)
 
 
+@pytest.mark.parametrize("architecture", ["amd64", "arm64"])
 def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, architecture: str
 ) -> None:
     commands: list[tuple[str, ...]] = []
 
@@ -140,7 +149,7 @@ def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
                 "--format",
                 "{{.OSType}}/{{.Architecture}}",
             )
-            return "linux/amd64\n"
+            return f"linux/{architecture}\n"
         output = next(item for item in command if item.startswith("type=oci,dest="))
         role = next(
             item.removeprefix("org.opencontainers.image.role=")
@@ -149,20 +158,20 @@ def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
         )
         _write_oci_artifact(
             Path(output.removeprefix("type=oci,dest=")),
-            platform_name="linux/amd64",
+            platform_name=f"linux/{architecture}",
             revision=_REVISION,
             role=role,
         )
         return ""
 
     monkeypatch.setattr(official_release, "_run", run)
-    monkeypatch.setattr(official_release, "native_platform", lambda: "linux/amd64")
+    monkeypatch.setattr(official_release, "native_platform", lambda: f"linux/{architecture}")
     output = tmp_path / "artifacts"
 
-    official_release.build(tmp_path, "1.2.3", _REVISION, "linux/amd64", output)
+    official_release.build(tmp_path, "1.2.3", _REVISION, f"linux/{architecture}", output)
 
     builds = [command for command in commands if command[:3] == ("docker", "buildx", "build")]
-    assert len(builds) == len(all_release_roles())
+    assert len(builds) == len(_publication_artifacts())
     assert {
         command[command.index("--target") + 1] for command in builds if "--target" in command
     } == {
@@ -172,6 +181,7 @@ def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
         "control-runtime",
         "cli",
         "runtime",
+        "installer",
     }
     postgres = next(
         command for command in builds if "org.opencontainers.image.role=postgres" in command
@@ -183,12 +193,28 @@ def test_native_build_builds_every_role_once_and_writes_checksummed_metadata(
     assert postgres[-1] == "."
     compact = next(command for command in builds if "compact-runtime" in command)
     assert f"BUILD_SHA={_REVISION}" in compact
-    platform_argument = "FS_IMAGE_" + "PLATFORM=linux/amd64"
+    platform_argument = f"FS_IMAGE_PLATFORM=linux/{architecture}"
     assert platform_argument in compact
     assert all(platform_argument not in command for command in builds if command is not compact)
-    metadata = json.loads((output / "build-amd64.json").read_text(encoding="utf-8"))
-    assert len(metadata["images"]) == len(all_release_roles())
+    metadata = json.loads((output / f"build-{architecture}.json").read_text(encoding="utf-8"))
+    assert len(metadata["images"]) == len(_publication_artifacts())
     assert all(item["sha256"] for item in metadata["images"])
+    installer = next(
+        command for command in builds if "org.opencontainers.image.role=installer" in command
+    )
+    assert installer[installer.index("--file") + 1] == "infra/docker/installer/Dockerfile"
+    assert installer[installer.index("--target") + 1] == "installer"
+    assert f"FS_BUILD_REVISION={_REVISION}" in installer
+    assert {role.role for role in all_release_roles()} == {
+        "compact-runtime",
+        "fs-app",
+        "fs-worker",
+        "control-plane",
+        "fs-cli",
+        "fs-mcp",
+        "postgres",
+        "installer",
+    }
 
 
 def test_build_rejects_non_native_selected_docker_worker(
@@ -263,15 +289,18 @@ def test_artifact_identity_rejects_wrong_direct_manifest_platform(tmp_path: Path
         )
 
 
+@pytest.mark.parametrize("missing_installer", [False, True])
 def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, missing_installer: bool
 ) -> None:
     commands: list[tuple[str, ...]] = []
     child_raws: dict[str, str] = {}
     for platform_name in ("linux/amd64", "linux/arm64"):
         architecture = platform_name.split("/", 1)[1]
         images = []
-        for role in all_release_roles():
+        for role in _publication_artifacts():
+            if missing_installer and role.role == "installer":
+                continue
             artifact = tmp_path / f"{role.role}-{architecture}.oci.tar"
             artifact.write_bytes(f"{role.role}-{architecture}".encode())
             child = f"{role.role}-{architecture}"
@@ -310,21 +339,31 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
             reference = command[-1].removeprefix("docker://")
             leaf = reference.rsplit("/", 1)[1]
             repository, architecture = leaf.rsplit(":1.2.3-", 1)
-            role = next(item.role for item in all_release_roles() if item.repository == repository)
+            role = next(
+                item.role for item in _publication_artifacts() if item.repository == repository
+            )
             return child_raws[f"{role}-{architecture}"]
         return ""
 
     monkeypatch.setattr(official_release, "_run", run)
 
+    if missing_installer:
+        with pytest.raises(ValueError, match="invalid canonical role set"):
+            official_release.publish(tmp_path, "1.2.3", _REVISION, tmp_path)
+        assert not commands
+        return
+
     official_release.publish(tmp_path, "1.2.3", _REVISION, tmp_path)
 
     copies = [command for command in commands if command[:2] == ("skopeo", "copy")]
     indexes = [command for command in commands if command[:3] == ("docker", "buildx", "imagetools")]
-    assert len(copies) == 2 * 2 * len(all_release_roles())
-    assert len(indexes) == 2 * len(all_release_roles())
+    assert len(copies) == 2 * 2 * len(_publication_artifacts())
+    assert len(indexes) == 2 * len(_publication_artifacts())
     assert {command[command.index("--tag") + 1] for command in indexes} >= {
         "ghcr.io/example/flow-steward-postgres:1.2.3",
         "docker.io/example/flow-steward-postgres:1.2.3",
+        "ghcr.io/example/flow-steward-installer:1.2.3",
+        "docker.io/example/flow-steward-installer:1.2.3",
     }
     assert not any(part == "build" for command in copies for part in command)
     for command in copies:
@@ -343,7 +382,7 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
         tag_index = command.index("--tag")
         tagged_repository = command[tag_index + 1].rsplit(":", 1)[0]
         repository = tagged_repository.rsplit("/", 1)[1]
-        role = next(item.role for item in all_release_roles() if item.repository == repository)
+        role = next(item.role for item in _publication_artifacts() if item.repository == repository)
         expected = tuple(
             f"{tagged_repository}@sha256:"
             + hashlib.sha256(child_raws[f"{role}-{architecture}"].encode()).hexdigest()
@@ -353,8 +392,9 @@ def test_publication_copies_native_artifacts_then_creates_two_platform_indexes(
 
 
 @pytest.mark.parametrize("failed_namespace", ["ghcr.io/example", "docker.io/example"])
+@pytest.mark.parametrize("missing_installer", [False, True])
 def test_verification_accepts_one_complete_registry_and_records_incomplete_mirror(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failed_namespace: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failed_namespace: str, missing_installer: bool
 ) -> None:
     monkeypatch.setenv("FS_RELEASE_GHCR_NAMESPACE", "ghcr.io/example")
     monkeypatch.setenv("FS_RELEASE_DOCKERHUB_NAMESPACE", "docker.io/example")
@@ -387,7 +427,9 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
     def run(command, *, cwd):
         del cwd
         reference = command[-1]
-        if reference.startswith(f"docker://{failed_namespace}/"):
+        if (missing_installer and "flow-steward-installer:" in reference) or reference.startswith(
+            f"docker://{failed_namespace}/"
+        ):
             raise official_release.subprocess.CalledProcessError(1, command)
         if "--format" in command:
             return "sha256:" + "d" * 64 + "\n"
@@ -399,7 +441,7 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
             )
             operating_system, architecture = platform_name.split("/", 1)
             expected_role = next(
-                item.role for item in all_release_roles() if item.repository == role
+                item.role for item in _publication_artifacts() if item.repository == role
             )
             return json.dumps(
                 {
@@ -424,13 +466,18 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
     monkeypatch.setattr(official_release, "_run", run)
     evidence = tmp_path / "verification.json"
 
+    if missing_installer:
+        with pytest.raises(ValueError, match="complete verified release set"):
+            official_release.verify(tmp_path, "1.2.3", _REVISION, evidence)
+        return
+
     official_release.verify(tmp_path, "1.2.3", _REVISION, evidence)
 
     result = json.loads(evidence.read_text(encoding="utf-8"))
     good = next(row for row in result["registries"] if row["status"] == "verified")
     bad = next(row for row in result["registries"] if row["status"] == "incomplete")
     assert bad["namespace"] == failed_namespace
-    assert len(good["images"]) == len(all_release_roles())
+    assert len(good["images"]) == len(_publication_artifacts())
     assert good["images"][0]["platforms"] == {
         "linux/amd64": {
             "config_digest": "sha256:" + "e" * 64,
@@ -441,6 +488,8 @@ def test_verification_accepts_one_complete_registry_and_records_incomplete_mirro
             "manifest_digest": child_digests["linux/arm64"],
         },
     }
+    installer = next(item for item in good["images"] if item["role"] == "installer")
+    assert installer["reference"] == f"{good['namespace']}/flow-steward-installer:1.2.3"
     assert failed_namespace in result["failures"][0]
 
 
@@ -514,7 +563,7 @@ def test_verification_rejects_a_complete_but_digest_divergent_mirror(
             )
             operating_system, architecture = platform_name.split("/", 1)
             expected_role = next(
-                item.role for item in all_release_roles() if item.repository == repository
+                item.role for item in _publication_artifacts() if item.repository == repository
             )
             return json.dumps(
                 {
@@ -580,5 +629,5 @@ def test_postgres_release_build_uses_the_age_ref_every_compose_build_uses() -> N
     assert f"ARG AGE_REF={age_ref}\n" in dockerfile.read_text(encoding="utf-8")
 
 
-def test_every_release_role_has_a_build_target() -> None:
-    assert set(official_release._TARGETS) == {role.role for role in all_release_roles()}
+def test_every_publication_artifact_has_a_build_target() -> None:
+    assert set(official_release._TARGETS) == {role.role for role in _publication_artifacts()}

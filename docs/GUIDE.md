@@ -90,7 +90,7 @@ Missing CLI/Compose means the prerequisite needs installation. A failing
 
 ```bash
 # 1. Clone Flow Steward
-git clone <flow-steward-repo-url> flow-steward
+git clone --branch v0.9.12 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 
 # 2. Install or safely resume core, then validate shared readiness
@@ -122,27 +122,36 @@ pending migrations. Enable maintenance and verify a backup before running it
 with `--maintenance-confirmed --confirm`; see the
 [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
 
-A fresh production install of a clean checkout exactly at its published
-`v<VERSION>` tag (`git checkout v<version>` before `./install.sh`) installs that
-stable release's official images: the installer reads the release from
-`FS_RELEASE_REPOSITORY`, requires its tag to name the checked-out commit, and
-pulls the complete digest-pinned image set from the first configured registry
-that has all of it. From 0.9.2 that set includes the PostgreSQL image
-(`flow-steward-postgres`), so nothing is built; 0.9.0 and 0.9.1 published no
-PostgreSQL image, and installing them still builds it locally. The result is an
-official installed identity. When that release is not published as stable, its images
-are incomplete, or GitHub or the registry is unreachable, the installer stops
-with `release_images_unavailable` and the cause; it never falls back to a
-source build. Wait for publication, or check out a non-release commit.
+Production installation downloads the published management installer tagged with
+its checkout VERSION (`flow-steward-installer:X.Y.Z`). It runs the Python installer
+inside that image, so a host Python installation is not required. A clean checkout
+at its published `v<VERSION>` tag selects that exact stable release from the
+public `Flow-Steward/flow-steward-app` repository. Keep the tag at checkout HEAD
+and tracked files clean so the existing exact-release resolver can prove the
+local controller/schema matches the published images. A checkout/provenance
+mismatch stops with published-tag or explicit `--from-source` guidance; it does
+not claim the published images themselves are unavailable. An unpublished VERSION
+has no guaranteed installer image: use a published production tag or source mode.
 
-Any other checkout (no tag at `HEAD`, the tag on another commit, or tracked
-changes) builds the current checkout in Docker, without requiring a release tag
-or rediscovering it through GitHub. Use a full Git clone for the Scalable
-build's release bookkeeping. Docker still needs base/dependency image access.
-This creates a source installation, not an inferred official identity. The
-installer prints which of the two it chose. Official release transition/upgrade
-and Clone activation verify their complete image sets separately; existing
-installations keep their identity.
+The complete digest-pinned product image set is verified by revision, role and
+platform, including PostgreSQL from 0.9.2. GHCR is tried first, Docker Hub second;
+product images come from one complete registry. The installer and product images
+are never built locally. Unavailable images, unsupported architecture, failed
+discovery, and invalid provenance stop installation; there is no automatic source
+fallback. Existing official installs retain their identity when rerun.
+
+Only `./install.sh --from-source` builds the current checkout and its installer.
+This explicit mode needs no release discovery and creates a source installation.
+Repeat the flag when resuming or updating it. The flag cannot replace an official
+installed/pending identity or handoff. Changing an existing source installation
+to official uses the reviewed release transition below.
+
+For a source installation, `./flow-steward doctor` reuses the already prepared
+management image for the same VERSION without building it. If that local image
+is missing, restore the exact image or rerun `./install.sh --from-source`;
+diagnosis never silently rebuilds it. An explicit `FS_INSTALLER_IMAGE` override
+retains priority. Ordinary production installation still pulls the published
+installer rather than adopting a source bootstrap cache.
 
 Scalable `./flow-steward release upgrade` uses a separate CLI runner so it can
 finish after replacing the retained CLI. For a private registry, explicitly
@@ -182,7 +191,8 @@ canonical baseline contract before the ledger is created and pending migrations
 are applied. See [ADR 0012](architecture/adr/0012-post-1.0-sql-migrations.md) and
 the [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
 
-`install.sh` bootstraps its Python installer inside Docker, so a host Python
+`install.sh` downloads its published Python installer (building only with
+`--from-source`) and runs it inside Docker, so a host Python
 runtime is not required for the normal setup path. It is a one-time
 install/resume entrypoint and has no public subcommands. Set
 `FS_INSTALLER_USE_HOST_PYTHON=1` only for local development fallback.
@@ -216,7 +226,7 @@ existing host proxy, skips bundled Traefik, and binds `fs-app` only to
 backend; change it with `--reverse-proxy-backend-port` when needed. The
 installer rejects non-loopback backend hosts.
 
-For local development, run `./install.sh --environment development`.
+For local development, run `./install.sh --from-source --environment development --deployment-profile scalable`.
 Development is a complete preset: core plus frontend and continuously ready
 test/audit runtimes; Mailpit and SonarQube/scanner are available on demand.
 Choose bundled or external S3 storage independently of the environment.
@@ -355,10 +365,15 @@ Services started by Docker Compose:
 | `rabbitmq-fs` | 5673 -> 5672 (AMQP), 15673 -> 15672 (Management) | http://localhost:15673 | Task queue |
 | `fs-worker` | — | — | Worker supervisor that runs one dedicated child worker per project |
 
-Long-running core containers use Docker's `always` restart policy. After a host
-reboot or Docker Engine/Desktop restart, an installed stack therefore recovers
-without a manual `compose up`. On-demand migration, audit, test, and scanner
-containers retain `restart: "no"` and run only when explicitly requested.
+Docker owns container autostart. Compact's long-running services use
+`restart: unless-stopped`: they recover when Docker starts, while a manually
+stopped container remains stopped across a daemon or host restart. Scalable keeps
+its existing Docker restart policies. The Docker daemon must itself start with
+the host; the application installer does not configure a system service or invoke
+sudo. On-demand migration, audit, test, and scanner containers retain
+`restart: "no"`. For installations with an older systemd unit, follow the
+[explicit retirement procedure](operations/compact-scalable-deployment.md#linux-host-autostart)
+before installation or release upgrade.
 
 RabbitMQ management remains available when exposed by the local stack.
 
@@ -1931,7 +1946,7 @@ Recommended setup flows:
 
 ```bash
 # Local development
-./install.sh --environment development
+./install.sh --from-source --environment development --deployment-profile scalable
 
 # Production
 ./install.sh --environment production
@@ -1943,7 +1958,7 @@ Select bundled SeaweedFS through the installer rather than assembling S3
 variables by hand:
 
 ```bash
-./install.sh --environment development --file-storage bundled
+./install.sh --from-source --environment development --deployment-profile scalable --file-storage bundled
 # or
 ./install.sh --environment production --file-storage bundled
 ```
@@ -2216,8 +2231,8 @@ work.
 
 #### Official production upgrade
 
-A fresh install of a published release tag is already an official installation
-and upgrades as one. Any other fresh checkout is a verified source installation.
+Default production installation creates an official installation and upgrades as
+one. An explicit `--from-source` install creates a verified source installation.
 Its semantic ordering is unknown relative to every official version; neither `VERSION` nor Git ancestry
 makes it older, newer, or already current. `release check` reads published
 stable GitHub Releases tagged exactly `vX.Y.Z` and reports an explicit
@@ -2254,8 +2269,11 @@ maintenance fully enabled. Recovery refuses mismatched durable state or a
 changed configuration; it does not select a new transition.
 
 Official activation tries GHCR first and Docker Hub second, selecting the whole role set
-from one registry. Official activations never build product images locally
-or fall back to a floating tag. Development source builds remain separate.
+from one registry. Official activations never build product, CLI management or
+PostgreSQL images locally, and never fall back to a floating tag. A legacy identity
+without a PostgreSQL role may keep an existing selected image; if it is missing,
+restore it or choose a complete newer release. Development source builds require
+explicit `--from-source`.
 `FS_RELEASE_REGISTRIES` supports an ordered comma-separated namespace override
 without changing the no-mixing rule; `FS_RELEASE_REPOSITORY` selects the GitHub
 source repository. Release operators should follow

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 from tests.support.platform_test_store import PlatformTestStore as PlatformLogger
@@ -87,6 +88,8 @@ def test_history_source_and_scope_reach_existing_list_and_count_adapters(monkeyp
         "workflow_id": "workflow",
         "task_source": "workflow_test_run",
         "scope": scope,
+        "started_after": datetime(2026, 3, 1, tzinfo=UTC),
+        "started_before": datetime(2026, 3, 2, tzinfo=UTC),
     }
     assert logger.list_jobs_for_attention(**filters, limit=8) == []
     assert logger.count_jobs_for_attention(**filters) == 0
@@ -95,3 +98,5 @@ def test_history_source_and_scope_reach_existing_list_and_count_adapters(monkeyp
         assert call.kwargs["workflow_id"] == "workflow"
         assert call.kwargs["project_id"] == "project"
         assert call.kwargs["scope_conditions"] == job_scope_conditions(scope)
+        assert call.kwargs["started_after"] == filters["started_after"]
+        assert call.kwargs["started_before"] == filters["started_before"]

@@ -39,6 +39,15 @@ if [[ "${MANAGEMENT_MODULE}" == "doctor" ]]; then
   done
 fi
 
+installer_from_source=0
+installer_help_only=0
+for arg in "$@"; do
+  case "${arg}" in
+    --from-source) installer_from_source=1 ;;
+    -h|--help|--version) installer_help_only=1 ;;
+  esac
+done
+
 host_input_mounts=()
 installer_tls_mode="local"
 expect_tls_mode=0
@@ -179,6 +188,7 @@ docker_config_uses_host_helper() {
 
 installer_temp_dirs=()
 installer_host_record=""
+installer_cache_next=""
 cleanup_installer_temp_dirs() {
   local temp_dir recorded
   for temp_dir in "${installer_temp_dirs[@]:-}"; do
@@ -186,6 +196,9 @@ cleanup_installer_temp_dirs() {
       rm -rf -- "${temp_dir}"
     fi
   done
+  if [[ -n "${installer_cache_next}" ]]; then
+    rm -f -- "${installer_cache_next}"
+  fi
   # Only this run's record: another run's stays until that run ends.
   if [[ -n "${installer_host_record}" && -s "${installer_host_record}" ]]; then
     recorded="$(<"${installer_host_record}")"
@@ -238,6 +251,11 @@ else
   LOG_DIR="${STATE_DIR}/logs"
   BOOTSTRAP_LOG="${LOG_DIR}/install-bootstrap-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
 fi
+# A legacy host service can still stop this installation's containers. Refuse it
+# before preparing images or entering the installer; retirement is an admin action.
+if [[ "${MANAGEMENT_MODULE}" != "doctor" && ${installer_help_only} -eq 0 ]]; then
+  bash "${ROOT_DIR}/infra/host/systemd/autostart.sh" check "${ROOT_DIR}" "${STATE_DIR}"
+fi
 (umask 077 && : > "${BOOTSTRAP_LOG}")  # private from its first byte, like the record below
 chmod 600 "${BOOTSTRAP_LOG}"
 # AC17-R162 (L1): from here on this run owns the installation, and ./flow-steward refuses
@@ -273,21 +291,43 @@ if ! host_docker info --format 'Docker Server Version: {{.ServerVersion}}' >"${B
   exit 7
 fi
 
-INSTALLER_IMAGE="${FS_INSTALLER_IMAGE:-flow-steward-installer:local}"
-INSTALLER_DOCKERFILE="${ROOT_DIR}/infra/docker/installer/Dockerfile"
-if [[ ! -f "${INSTALLER_DOCKERFILE}" ]]; then
-  echo "Installer image definition is missing: ${INSTALLER_DOCKERFILE}" >&2
+INSTALLER_IMAGE="${FS_INSTALLER_IMAGE:-}"
+if [[ ! -s "${ROOT_DIR}/VERSION" ]]; then
+  echo "Installer version is unavailable: ${ROOT_DIR}/VERSION" >&2
   exit 4
+fi
+INSTALLER_VERSION="$(<"${ROOT_DIR}/VERSION")"
+INSTALLER_CACHE_DIR="${STATE_DIR}/runtime"
+INSTALLER_CACHE="${INSTALLER_CACHE_DIR}/installer-bootstrap-image"
+
+# This is only a cache of management dependencies, never product/source authority.
+# A source installation's read-only doctor can use the runtime explicitly prepared
+# earlier, including when this checkout's version has not been published.
+if [[ -z "${INSTALLER_IMAGE}" && ${installer_from_source} -eq 0 && "${MANAGEMENT_MODULE}" == "doctor" &&
+  -d "${INSTALLER_CACHE_DIR}" && ! -L "${INSTALLER_CACHE_DIR}" && -O "${INSTALLER_CACHE_DIR}" &&
+  -f "${INSTALLER_CACHE}" && ! -L "${INSTALLER_CACHE}" && -O "${INSTALLER_CACHE}" ]]; then
+  installer_cache_record="$(<"${INSTALLER_CACHE}")"
+  cached_version="${installer_cache_record%%$'\t'*}"
+  cached_image="${installer_cache_record#*$'\t'}"
+  if [[ "${cached_version}" == "${INSTALLER_VERSION}" && "${cached_image}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    INSTALLER_IMAGE="${cached_image}"
+  fi
 fi
 
 if [[ "${INSTALLER_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
   if ! host_docker image inspect "${INSTALLER_IMAGE}" >> "${BOOTSTRAP_LOG}" 2>&1; then
     echo "Pinned installer image is unavailable: ${INSTALLER_IMAGE}" >&2
-    echo "Restore that exact local image or unset FS_INSTALLER_IMAGE to build it. Log: ${BOOTSTRAP_LOG}" >&2
+    echo "Restore that exact local image, or unset FS_INSTALLER_IMAGE and explicitly rerun ./install.sh --from-source to prepare source management dependencies. Log: ${BOOTSTRAP_LOG}" >&2
     exit 7
   fi
   echo "Flow Steward installer: reusing pinned management runtime ${INSTALLER_IMAGE}." >&2
-else
+elif [[ ${installer_from_source} -eq 1 ]]; then
+  INSTALLER_IMAGE="${INSTALLER_IMAGE:-flow-steward-installer:local}"
+  INSTALLER_DOCKERFILE="${ROOT_DIR}/infra/docker/installer/Dockerfile"
+  if [[ ! -f "${INSTALLER_DOCKERFILE}" ]]; then
+    echo "Installer image definition is missing: ${INSTALLER_DOCKERFILE}" >&2
+    exit 4
+  fi
   BUILDX_NO_DEFAULT_ATTESTATIONS=1 \
     host_docker build -t "${INSTALLER_IMAGE}" - < "${INSTALLER_DOCKERFILE}" > >(tee -a "${BOOTSTRAP_LOG}" >&2) 2>&1 &
   build_pid=$!
@@ -311,6 +351,62 @@ else
     echo "Installer image preparation failed. Full output: ${BOOTSTRAP_LOG}" >&2
     exit 7
   fi
+else
+  installer_candidates=()
+  if [[ -n "${INSTALLER_IMAGE}" ]]; then
+    installer_candidates+=("${INSTALLER_IMAGE}")
+  else
+    IFS=',' read -r -a installer_registries <<< "${FS_RELEASE_REGISTRIES:-ghcr.io/flow-steward,docker.io/flowsteward}"
+    for installer_registry in "${installer_registries[@]}"; do
+      installer_registry="$(printf '%s' "${installer_registry}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s|/+$||')"
+      if [[ -n "${installer_registry}" ]]; then
+        installer_candidates+=("${installer_registry}/flow-steward-installer:${INSTALLER_VERSION}")
+      fi
+    done
+  fi
+  INSTALLER_IMAGE=""
+  for installer_candidate in "${installer_candidates[@]}"; do
+    echo "Flow Steward installer: pulling management runtime ${installer_candidate}..." >&2
+    if host_docker pull "${installer_candidate}" > >(tee -a "${BOOTSTRAP_LOG}" >&2) 2>&1; then
+      INSTALLER_IMAGE="${installer_candidate}"
+      break
+    fi
+  done
+  if [[ -z "${INSTALLER_IMAGE}" ]]; then
+    echo "Published installer image is unavailable for version ${INSTALLER_VERSION}; no source build was attempted." >&2
+    echo "Check the published tag and registry access, or explicitly choose ./install.sh --from-source. Log: ${BOOTSTRAP_LOG}" >&2
+    exit 7
+  fi
+fi
+
+# Resolve mutable registry/build tags once, then run only the local immutable ID.
+if ! [[ "${INSTALLER_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  installer_image_id=""
+  if ! installer_image_id="$(host_docker image inspect --format '{{.Id}}' "${INSTALLER_IMAGE}" 2>> "${BOOTSTRAP_LOG}")" ||
+    ! [[ "${installer_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "Could not resolve the prepared installer image to an immutable local ID: ${INSTALLER_IMAGE}" >&2
+    echo "Restore registry access or explicitly rerun ./install.sh --from-source; no automatic build fallback is used. Log: ${BOOTSTRAP_LOG}" >&2
+    exit 7
+  fi
+  INSTALLER_IMAGE="${installer_image_id}"
+fi
+
+if [[ ${management_read_only} -eq 0 ]]; then
+  if [[ -L "${INSTALLER_CACHE_DIR}" || ( -e "${INSTALLER_CACHE_DIR}" && ( ! -d "${INSTALLER_CACHE_DIR}" || ! -O "${INSTALLER_CACHE_DIR}" ) ) ]]; then
+    echo "Installer runtime cache directory must be an owned regular directory: ${INSTALLER_CACHE_DIR}" >&2
+    exit 4
+  fi
+  mkdir -p "${INSTALLER_CACHE_DIR}"
+  chmod 700 "${INSTALLER_CACHE_DIR}"
+  if [[ -L "${INSTALLER_CACHE}" || ( -e "${INSTALLER_CACHE}" && ( ! -f "${INSTALLER_CACHE}" || ! -O "${INSTALLER_CACHE}" ) ) ]]; then
+    echo "Installer runtime cache must be an owned regular file: ${INSTALLER_CACHE}" >&2
+    exit 4
+  fi
+  installer_cache_next="${INSTALLER_CACHE}.$$"
+  rm -f -- "${installer_cache_next}"
+  (umask 077 && printf '%s\t%s\n' "${INSTALLER_VERSION}" "${INSTALLER_IMAGE}" > "${installer_cache_next}")
+  mv -f -- "${installer_cache_next}" "${INSTALLER_CACHE}"
+  installer_cache_next=""
 fi
 
 docker_run_args=(
@@ -521,13 +617,4 @@ fi
 set -e
 trap - INT TERM HUP
 rm -f -- "${installer_runtime_cidfile}"
-if [[ "${installer_runtime_code}" == 0 ]]; then
-  installer_help_only=0
-  for installer_argument in "$@"; do
-    case "$installer_argument" in -h|--help|--version) installer_help_only=1 ;; esac
-  done
-  if [[ "$installer_help_only" == 0 ]]; then
-    bash "${ROOT_DIR}/infra/host/systemd/autostart.sh" configure "${ROOT_DIR}" "${STATE_DIR}" >&2
-  fi
-fi
 exit "${installer_runtime_code}"

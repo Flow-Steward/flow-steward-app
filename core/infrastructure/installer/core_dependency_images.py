@@ -93,6 +93,7 @@ def prepare_core_dependency_images(
     run: Callable[..., ProcessOutcome],
     checked: Callable[[Sequence[str]], ProcessOutcome],
     failure: Callable[[str], Exception],
+    allow_source_build: bool = False,
 ) -> None:
     images = _resolved_images(
         config=config, compose_prefix=compose_prefix, repo_root=repo_root, run=run, failure=failure
@@ -112,6 +113,12 @@ def prepare_core_dependency_images(
                     "restore that exact image before resuming."
                 )
             if name == "pg-fs" and image == registry_default_value("POSTGRES_IMAGE"):
+                if not allow_source_build:
+                    raise failure(
+                        "The installation's PostgreSQL image is missing, and official "
+                        "installation cannot build it from source. Restore the existing "
+                        "image or select an official release with a published PostgreSQL image."
+                    )
                 command = [
                     "docker",
                     "buildx",

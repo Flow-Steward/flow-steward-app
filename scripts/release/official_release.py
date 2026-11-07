@@ -35,6 +35,7 @@ _TARGETS: dict[str, tuple[str, str | None, str | None]] = {
     "fs-cli": ("infra/docker/Dockerfile", "cli", "FS_BUILD_REVISION"),
     "fs-mcp": ("infra/mcp/Dockerfile", "runtime", "FS_BUILD_REVISION"),
     "postgres": ("infra/docker/postgres-extended/Dockerfile", None, None),
+    "installer": ("infra/docker/installer/Dockerfile", "installer", "FS_BUILD_REVISION"),
 }
 # The Apache AGE ref every Compose file builds the PostgreSQL image with
 # (`${AGE_REF:-...}`); the published image must be the same image a source

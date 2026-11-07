@@ -25,6 +25,15 @@ async function openFilter(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("PeriodFilter", () => {
+  it("keeps the date controls outside an overflowing card when portaled", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<div style={{ overflow: "hidden" }}><PeriodFilter ariaLabel="Job period" value={{ kind: "all" }} onChange={() => undefined} portal /></div>);
+    await user.click(screen.getByRole("button", { name: /^Job period:/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Job period" });
+    expect(container).not.toContainElement(dialog);
+    await user.click(within(dialog).getByRole("radio", { name: "Custom range" }));
+    expect(within(dialog).getByRole("button", { name: "Apply" })).toBeVisible();
+  });
   it("applies a preset on click, closes, and names it on the trigger", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

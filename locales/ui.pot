@@ -28979,4 +28979,15 @@ msgid "react.agent_access.platform_step_create"
 msgstr ""
 
 msgid "react.agent_access.platform_step_package"
+
+msgid "react.jobs.all_runs"
+msgstr ""
+
+msgid "react.jobs.job_period"
+msgstr ""
+
+msgid "react.jobs.jobs_could_not_be_trashed"
+msgstr ""
+
+msgid "react.jobs.trash_failed"
 msgstr ""

@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -21,6 +22,13 @@ from core.application.tooling.release_automation import (
 
 REVISION = "a" * 40
 NAMESPACES = ("ghcr.io/flow-steward", "docker.io/flowsteward")
+
+
+def _publication_artifacts():
+    return (
+        *(role for role in all_release_roles() if role.role != "installer"),
+        SimpleNamespace(role="installer", repository="flow-steward-installer"),
+    )
 
 
 @pytest.mark.parametrize("tag", ["v1٢.2.3", "v1.2٣.3", "v1.2.3٤"])
@@ -148,7 +156,7 @@ def evidence() -> dict:
                             for platform in ("linux/amd64", "linux/arm64")
                         },
                     }
-                    for role in all_release_roles()
+                    for role in _publication_artifacts()
                 ],
             }
             for namespace in NAMESPACES
@@ -239,7 +247,7 @@ def test_identity_requires_matching_version_and_main_ancestry(tmp_path: Path) ->
 def write_native_records(directory: Path) -> None:
     for architecture in ("amd64", "arm64"):
         images = []
-        for role in all_release_roles():
+        for role in _publication_artifacts():
             name = f"{role.role}-{architecture}.oci.tar"
             (directory / name).write_bytes(b"fixture-archive")
             images.append(
@@ -577,3 +585,46 @@ async function assertTagMatchesRevision() {{{guard}
 assertTagMatchesRevision().then(() => process.exit(0)).catch(() => process.exit(1));"""
     result = subprocess.run(["node", "-e", node], capture_output=True, text=True)
     assert (result.returncode == 0) == (kind in {"direct", "annotated"}), result.stderr
+
+
+def test_complete_release_requires_installer_evidence(tmp_path: Path) -> None:
+    value = evidence()
+    for registry in value["registries"]:
+        registry["images"] = [image for image in registry["images"] if image["role"] != "installer"]
+    path = tmp_path / "verified.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    with pytest.raises(ValueError, match="complete verified role set"):
+        require_complete_release(path, version="1.2.3", revision=REVISION, namespaces=NAMESPACES)
+
+
+def test_preflight_requires_installer_native_metadata_before_registry_access(
+    tmp_path: Path,
+) -> None:
+    write_native_records(tmp_path)
+    for architecture in ("amd64", "arm64"):
+        path = tmp_path / f"build-{architecture}.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["images"] = [image for image in record["images"] if image["role"] != "installer"]
+        path.write_text(json.dumps(record), encoding="utf-8")
+    inspected = []
+    with pytest.raises(ValueError, match="wrong role set"):
+        preflight_registry(
+            tmp_path, "1.2.3", REVISION, NAMESPACES, inspect=lambda ref: inspected.append(ref)
+        )
+    assert not inspected
+
+
+def test_preflight_checks_installer_native_and_index_tags(tmp_path: Path) -> None:
+    write_native_records(tmp_path)
+    inspected = []
+    preflight_registry(
+        tmp_path, "1.2.3", REVISION, NAMESPACES, inspect=lambda ref: inspected.append(ref)
+    )
+    assert {ref for ref in inspected if "/flow-steward-installer:" in ref} == {
+        "ghcr.io/flow-steward/flow-steward-installer:1.2.3-amd64",
+        "ghcr.io/flow-steward/flow-steward-installer:1.2.3-arm64",
+        "ghcr.io/flow-steward/flow-steward-installer:1.2.3",
+        "docker.io/flowsteward/flow-steward-installer:1.2.3-amd64",
+        "docker.io/flowsteward/flow-steward-installer:1.2.3-arm64",
+        "docker.io/flowsteward/flow-steward-installer:1.2.3",
+    }

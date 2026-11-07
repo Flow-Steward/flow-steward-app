@@ -30035,3 +30035,15 @@ msgstr "1. Create the Microsoft 365 client"
 
 msgid "react.agent_access.platform_step_package"
 msgstr "3. Build the agent package"
+
+msgid "react.jobs.all_runs"
+msgstr "All runs"
+
+msgid "react.jobs.job_period"
+msgstr "Job period"
+
+msgid "react.jobs.jobs_could_not_be_trashed"
+msgstr "Some jobs could not be moved to Trash"
+
+msgid "react.jobs.trash_failed"
+msgstr "Could not move job to Trash."

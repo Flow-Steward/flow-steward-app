@@ -3,13 +3,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_install_and_update_docs_define_local_checkout_and_owner_only_token_contract() -> None:
+def test_install_docs_define_prebuilt_default_explicit_source_and_owner_only_token_contract() -> (
+    None
+):
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     guide = (ROOT / "docs/GUIDE.md").read_text(encoding="utf-8")
     combined = readme + "\n" + guide
 
-    assert "git clone <flow-steward-repo-url> flow-steward" in combined
-    assert "does not require" in readme
+    assert (
+        "git clone --branch v0.9.12 https://github.com/Flow-Steward/flow-steward-app.git flow-steward"
+        in combined
+    )
+    assert "published installer" in readme
+    assert "--from-source" in readme
+    assert "no automatic source" in guide
+    assert "existing exact-release resolver" in guide
     assert ".flow-steward/secret-input/github-release-token" in combined
     assert "Contents: read" in combined
     assert "chmod 700 .flow-steward/secret-input" in combined

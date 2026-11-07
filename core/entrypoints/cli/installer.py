@@ -101,6 +101,11 @@ def _params() -> list[click.Parameter]:
         click.Option(["--verbose"], is_flag=True, help="Stream redacted technical output."),
         click.Option(["--non-interactive"], is_flag=True, help="Never prompt."),
         click.Option(["--confirm"], is_flag=True, help="Confirm the reviewed installation plan."),
+        click.Option(
+            ["--from-source"],
+            is_flag=True,
+            help="Explicitly build this checkout instead of using published release images.",
+        ),
         *(_field_option(field) for field in INSTALLER_SPEC.fields),
     ]
 
@@ -113,6 +118,7 @@ def _callback(**values: Any) -> None:
     verbose = bool(values.pop("verbose"))
     non_interactive = bool(values.pop("non_interactive")) or json_requested
     confirmed = bool(values.pop("confirm"))
+    from_source = bool(values.pop("from_source"))
     terminal = _terminal_facts()
     decision = select_mode(
         terminal=terminal,
@@ -165,6 +171,15 @@ def _callback(**values: Any) -> None:
             terminal=terminal,
         )
         confirmed = confirmed or form_confirmed
+    if normalized.get("environment") == "development" and not from_source:
+        _render_failure(
+            renderer,
+            "source_install_requires_flag",
+            "Development installation requires explicit --from-source.",
+            ExitCode.VALIDATION,
+            hint="Rerun ./install.sh --from-source --environment development "
+            "--deployment-profile scalable.",
+        )
     try:
         _validate_container_paths(normalized, supplied_keys=path_supplied_keys)
         config = InstallConfig.model_validate(normalized)
@@ -187,9 +202,11 @@ def _callback(**values: Any) -> None:
 
     target_release: ReleaseIdentity | None = None
     handoff_result: InstallRunResult | None = None
-    if config.environment == "production":
+    if config.environment == "production" or from_source:
         try:
-            target_release = _prepare_official_release(config, discover=needs_review)
+            target_release = _prepare_official_release(
+                config, discover=needs_review, from_source=from_source
+            )
             if target_release is not None and not needs_review:
                 release_state = InstallerStateStore(
                     installer_state_root(_ROOT),
@@ -580,21 +597,27 @@ def _create_service(*, progress_sink: Any = None, stream_output: bool = False) -
 
 
 def _prepare_official_release(
-    config: InstallConfig, *, discover: bool = True
+    config: InstallConfig, *, discover: bool = True, from_source: bool = False
 ) -> ReleaseIdentity | None:
-    """Choose official images or a source build for this installation.
-
-    Official handoffs and identities stay official. Without installer state, a fresh
-    install of a clean checkout exactly at its published ``v<VERSION>`` tag installs
-    that release's official images; any other checkout builds local sources.
-    """
+    """Use published images by default; source builds require explicit opt-in."""
     state = InstallerStateStore(installer_state_root(_ROOT))
     journal = state.load_release_handoff()
-    if (
-        journal is None
-        and state.load_installed_release() is None
-        and state.load_pending_release() is None
-    ):
+    has_official_state = (
+        journal is not None
+        or state.load_installed_release() is not None
+        or state.load_pending_release() is not None
+    )
+    if from_source:
+        if has_official_state:
+            raise LifecycleError.stable_failure(
+                code="source_install_official_conflict",
+                cause="This installation already has an official release identity or handoff.",
+                remediation="Rerun without --from-source to preserve the official release.",
+                step="release_policy",
+            )
+        _runtime_env["FS_INSTALL_MODE"] = "source"
+        return None
+    if not has_official_state:
         return _prepare_fresh_install(config, state=state, discover=discover)
     _runtime_env["FS_INSTALL_MODE"] = "official"
     if journal is not None:
@@ -665,17 +688,26 @@ def _prepare_official_release(
 def _prepare_fresh_install(
     config: InstallConfig, *, state: InstallerStateStore, discover: bool
 ) -> ReleaseIdentity | None:
-    """Fresh install: a published release tag pulls its images, anything else builds."""
+    """Require a clean published release checkout; never infer a source build."""
+    if not discover:
+        raise LifecycleError.stable_failure(
+            code="source_install_requires_flag",
+            cause="Resuming a source installation requires explicit --from-source.",
+            remediation="Rerun ./install.sh --from-source with the installation's settings.",
+            step="release_policy",
+        )
     repository = str(_runtime_env.get("FS_RELEASE_REPOSITORY", DEFAULT_RELEASE_REPOSITORY))
-    # A resumed source installation (no fresh review) keeps building its sources.
-    checkout = (
-        LocalCheckoutReleaseSource(repo_root=_ROOT, repository=repository).probe()
-        if discover
-        else None
-    )
+    checkout = LocalCheckoutReleaseSource(repo_root=_ROOT, repository=repository).probe()
     if checkout is None:
-        _runtime_env["FS_INSTALL_MODE"] = "source"
-        return None
+        raise LifecycleError.stable_failure(
+            code="production_release_checkout_required",
+            cause="The checkout does not identify a clean exact published release tag.",
+            remediation=(
+                "Check out a published v<VERSION> release tag with no tracked changes and "
+                "rerun ./install.sh; use --from-source only to explicitly build a source checkout."
+            ),
+            step="production_checkout",
+        )
     _runtime_env["FS_INSTALL_MODE"] = "official"
     release = published_release_for_checkout(
         OfficialReleaseSelector(

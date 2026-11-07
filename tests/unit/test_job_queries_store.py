@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from core.application.management import JobQueryService
+from core.application.management.errors import ServiceValidationError
+from core.application.management.scope import ScopeContext
 from core.infrastructure.db import job_queries_store
 
 
@@ -350,3 +356,87 @@ def test_attention_list_joins_the_hook_owner_so_a_hook_run_can_be_labelled() -> 
     assert "COALESCE(rw.settings ? 'hook_storage', false) AS hook_storage" in sql
     assert "aw.display_name AS hook_author_workflow_display_name" in sql
     assert "rw.settings -> 'hook_storage' ->> 'author_workflow_id'" in sql
+
+
+def _service(store: Any) -> JobQueryService:
+    return JobQueryService(
+        get_logger=lambda: store,
+        serialize_attention_job_row=lambda row: row,
+        serialize_awaiting_approval_job_row=lambda row: row,
+        job_attention_group=lambda status, acknowledged_at=None: "failed",
+        build_runtime_payload_for_api=AsyncMock(return_value={}),
+    )
+
+
+@pytest.mark.parametrize("restricted", [False, True])
+def test_job_dates_use_local_whole_days_for_rows_and_count(restricted: bool) -> None:
+    store = MagicMock()
+    store.list_jobs_for_attention.return_value = []
+    store.count_jobs_for_attention.return_value = 0
+    _service(store).list_jobs(
+        from_date="2026-03-29",
+        to_date="2026-03-29",
+        workflow_id="wf",
+        status="failed",
+        scope=ScopeContext(
+            account_id="account",
+            user_timezone="Europe/Vilnius",
+            allowed_project_ids=frozenset({"one"}) if restricted else frozenset(),
+        ),
+    )
+    for method in (store.list_jobs_for_attention, store.count_jobs_for_attention):
+        kwargs = method.call_args.kwargs
+        assert kwargs["started_after"] == datetime(2026, 3, 28, 22, tzinfo=UTC)
+        assert kwargs["started_before"] == datetime(2026, 3, 29, 21, tzinfo=UTC)
+        assert kwargs["workflow_id"] == "wf"
+        assert kwargs["status"] == ("failed", "max_iterations", "triage_needed")
+
+
+@pytest.mark.parametrize(
+    "from_date,to_date",
+    [
+        ("2026-03-10", "2026-03-05"),
+        ("2026-02-30", ""),
+        ("garbage", ""),
+        ("20260301", "2026-03-02"),
+        ("", "2026-13-01"),
+        ("2026-03-01", "9999-12-31"),
+    ],
+)
+def test_job_dates_reject_invalid_or_reversed_ranges(from_date: str, to_date: str) -> None:
+    store = MagicMock()
+    with pytest.raises(ServiceValidationError):
+        _service(store).list_jobs(from_date=from_date, to_date=to_date)
+    store.list_jobs_for_attention.assert_not_called()
+
+
+@pytest.mark.parametrize("method", ["list_jobs_for_attention", "count_jobs_for_attention"])
+def test_job_date_sql_uses_start_with_queued_fallback_and_exclusive_end(method: str) -> None:
+    conn = MagicMock()
+    conn.cursor.return_value.__enter__.return_value.fetchone.return_value = (0,)
+    start = datetime(2026, 3, 5, tzinfo=UTC)
+    end = datetime(2026, 3, 11, tzinfo=UTC)
+    getattr(job_queries_store, method)(
+        conn,
+        column_exists=lambda *_: True,
+        started_after=start,
+        started_before=end,
+        workflow_id="wf",
+        status="failed",
+    )
+    sql, params = conn.cursor.return_value.__enter__.return_value.execute.call_args.args
+    assert "COALESCE(j.started_at, j.queued_at) >= %s" in sql
+    assert "COALESCE(j.started_at, j.queued_at) < %s" in sql
+    assert "j.deleted_at IS NULL" in sql
+    assert start in params and end in params
+
+
+def test_job_dates_reject_utc_underflow_in_positive_offset_timezone() -> None:
+    store = MagicMock()
+    with pytest.raises(ServiceValidationError):
+        _service(store).list_jobs(
+            from_date="0001-01-01",
+            to_date="0001-01-01",
+            scope=ScopeContext(account_id="account", user_timezone="Europe/Vilnius"),
+        )
+    store.list_jobs_for_attention.assert_not_called()

@@ -1894,7 +1894,11 @@ def test_official_install_pulls_the_published_postgres_image_instead_of_building
     )
     log = gateway.state_store.open_log("official-postgres")
     try:
-        gateway.prepare_core(config, log=log)
+        if with_postgres:
+            gateway.prepare_core(config, log=log)
+        else:
+            with pytest.raises(InstallerFailure, match="official installation cannot build"):
+                gateway.prepare_core(config, log=log)
     finally:
         log.close()
 
@@ -1909,11 +1913,10 @@ def test_official_install_pulls_the_published_postgres_image_instead_of_building
         assert builds == []
         assert "names no official PostgreSQL image" not in text
     else:
-        # A release that predates the published image (0.9.0/0.9.1, or one resolved by
-        # an updater that predates it) keeps the installation's own image and builds it
-        # locally when absent, exactly as before.
+        # Older identities retain their PostgreSQL selection, but a missing
+        # local image must stop official installation without a source build.
         assert persisted["POSTGRES_IMAGE"] == local_default
-        assert [command[command.index("--tag") + 1] for command in builds] == [local_default]
+        assert builds == []
         assert f"Release {release.tag} names no official PostgreSQL image" in text
     assert not any(command[:2] == ("docker", "pull") for command in process.commands)
 

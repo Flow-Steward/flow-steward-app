@@ -133,3 +133,156 @@ def test_malformed_manifest_is_rejected_without_docker_effects(engine):
     result, calls = run()
     assert result.returncode == 4
     assert calls == []
+
+
+@pytest.mark.parametrize("ownership", ["owned", "whitespace", "foreign", "symlink", "drop-in"])
+def test_explicit_legacy_retirement_never_runs_the_units_container_stop(tmp_path, ownership):
+    """Retiring the old host owner must preserve running Docker-owned containers."""
+    system_root = tmp_path / "system"
+    directory = system_root / "etc/flow-steward/autostart/fs-test"
+    directory.mkdir(parents=True)
+    unit_file = system_root / "etc/systemd/system/flow-steward-fs-test.service"
+    unit_file.parent.mkdir(parents=True)
+    original = (
+        "# Flow Steward owned auto-start unit: fs-test\n[Service]\n"
+        "ExecStart=/old/runner.sh start /old/containers\n"
+        "ExecStop=/old/runner.sh stop /old/containers\n"
+        "ExecStopPost=/old/runner.sh stop /old/containers\n"
+    )
+    if ownership == "whitespace":
+        original = original.replace("ExecStop=", "  ExecStop =").replace(
+            "ExecStopPost=", "  ExecStopPost ="
+        )
+    unit_file.write_text(original)
+    (directory / "checkout").write_text(
+        "/another-checkout" if ownership == "foreign" else str(ROOT)
+    )
+    if ownership == "symlink":
+        target = tmp_path / "external-unit"
+        unit_file.rename(target)
+        unit_file.symlink_to(target)
+    if ownership == "drop-in":
+        drop_ins = unit_file.parent / f"{unit_file.name}.d"
+        drop_ins.mkdir()
+        (drop_ins / "custom.conf").write_text("[Service]\nExecStopPost=/custom/container-stop\n")
+    for name in ("runner.sh", "containers"):
+        (directory / name).write_text("legacy")
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "compose.env").write_text("FS_COMPOSE_PROJECT_NAME=fs-test\n")
+    bins = tmp_path / "bin"
+    bins.mkdir()
+    events = tmp_path / "events"
+    systemctl = bins / "systemctl"
+    systemctl.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = disable ] || [ "$1" = stop ]; then\n'
+        '  if grep -Eq "^[[:space:]]*ExecStop(Post)?[[:space:]]*=" "$TEST_UNIT"; then exit 90; fi\n'
+        "fi\n"
+        'printf "%s\\n" "$*" >> "$TEST_EVENTS"\n'
+    )
+    systemctl.chmod(0o755)
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; retire_unit "$2" "$3" "$4"',
+            "retire-test",
+            str(SCRIPT),
+            str(ROOT),
+            str(state),
+            str(system_root),
+        ],
+        env={
+            **os.environ,
+            "PATH": f"{bins}:{os.environ['PATH']}",
+            "TEST_UNIT": str(unit_file),
+            "TEST_EVENTS": str(events),
+        },
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if ownership not in ("owned", "whitespace"):
+        assert result.returncode == 4
+        assert unit_file.read_text() == original
+        assert not events.exists()
+    else:
+        assert result.returncode == 0, result.stderr
+        assert not unit_file.exists()
+        assert not directory.exists()
+        assert events.read_text().splitlines() == [
+            "daemon-reload",
+            "disable flow-steward-fs-test.service",
+            "stop flow-steward-fs-test.service",
+            "daemon-reload",
+        ]
+
+
+@pytest.mark.parametrize("installation", ["absent", "owned", "drop-in"])
+def test_legacy_check_is_read_only_and_reports_required_explicit_retirement(tmp_path, installation):
+    system_root = tmp_path / "system"
+    directory = system_root / "etc/flow-steward/autostart/fs-test"
+    directory.mkdir(parents=True)
+    unit_file = system_root / "etc/systemd/system/flow-steward-fs-test.service"
+    unit_file.parent.mkdir(parents=True)
+    original = "# Flow Steward owned auto-start unit: fs-test\n[Service]\nExecStopPost=/old/stop\n"
+    if installation != "absent":
+        unit_file.write_text(original)
+        (directory / "checkout").write_text(str(ROOT))
+    if installation == "drop-in":
+        drop_ins = unit_file.parent / f"{unit_file.name}.d"
+        drop_ins.mkdir()
+        (drop_ins / "custom.conf").write_text("[Service]\nExecStopPost=/custom/container-stop\n")
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "compose.env").write_text("FS_COMPOSE_PROJECT_NAME=fs-test\n")
+    bins = tmp_path / "bin"
+    bins.mkdir()
+    events = tmp_path / "events"
+    # A preflight must not invoke any host service manager or privilege prompt.
+    for command in ("sudo", "systemctl", "docker"):
+        program = bins / command
+        program.write_text('#!/bin/sh\nprintf "%s\\n" "$0 $*" >> "$TEST_EVENTS"\nexit 91\n')
+        program.chmod(0o755)
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; check_legacy_unit "$2" "$3" "$4"',
+            "check-test",
+            str(SCRIPT),
+            str(ROOT),
+            str(state),
+            str(system_root),
+        ],
+        env={**os.environ, "PATH": f"{bins}:{os.environ['PATH']}", "TEST_EVENTS": str(events)},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert not events.exists()
+    if installation != "absent":
+        assert result.returncode == 4
+        assert unit_file.read_text() == original
+        if installation == "drop-in":
+            assert "manual" in result.stderr.lower() and "drop-in" in result.stderr.lower()
+        else:
+            assert "sudo" in result.stderr and " retire " in result.stderr
+    else:
+        assert result.returncode == 0, result.stderr
+
+
+def test_fresh_install_legacy_check_does_not_create_its_state_directory(tmp_path):
+    state = tmp_path / "not-installed"
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "check", str(ROOT), str(state)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not state.exists()

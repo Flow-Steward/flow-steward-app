@@ -3800,7 +3800,7 @@ class TestEventQueryEndpoints:
         ):
             resp = client.get(
                 "/api/jobs?page=2&per_page=25&project_id=7&status=queued&status=failed,stuck"
-                "&hide_acknowledged=true"
+                "&hide_acknowledged=true&from_date=2026-03-01&to_date=2026-03-01"
             )
 
         assert resp.status_code == 200
@@ -3811,6 +3811,8 @@ class TestEventQueryEndpoints:
         assert call.kwargs["project_id"] == "7"
         assert call.kwargs["status"] == ["queued", "failed,stuck"]
         assert call.kwargs["hide_acknowledged"] is True
+        assert call.kwargs["from_date"] == "2026-03-01"
+        assert call.kwargs["to_date"] == "2026-03-01"
         assert call.kwargs["scope"].account_id == DEFAULT_ACCOUNT_ID
         assert call.kwargs["scope"].project_id == "7"
 

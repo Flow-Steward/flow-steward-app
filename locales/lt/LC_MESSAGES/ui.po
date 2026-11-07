@@ -30457,3 +30457,15 @@ msgstr "1. Sukurkite Microsoft 365 klientą"
 
 msgid "react.agent_access.platform_step_package"
 msgstr "3. Sukurkite agento paketą"
+
+msgid "react.jobs.all_runs"
+msgstr "Visi vykdymai"
+
+msgid "react.jobs.job_period"
+msgstr "Užduočių laikotarpis"
+
+msgid "react.jobs.jobs_could_not_be_trashed"
+msgstr "Kai kurių užduočių nepavyko perkelti į šiukšlinę"
+
+msgid "react.jobs.trash_failed"
+msgstr "Nepavyko perkelti užduoties į šiukšlinę."

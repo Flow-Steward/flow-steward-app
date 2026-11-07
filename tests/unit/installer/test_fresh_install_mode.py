@@ -1,4 +1,4 @@
-"""Fresh install: a published release tag installs official images, anything else builds."""
+"""Production installs published images; only explicit source mode builds."""
 
 from __future__ import annotations
 
@@ -125,6 +125,12 @@ def _official_sources(
             self.repository = repository
             observed["repository"] = repository
 
+        def latest(self) -> PublishedRelease:
+            observed["latest"] = True
+            if isinstance(published, Exception):
+                raise published
+            return published
+
         def for_version(self, version: str) -> PublishedRelease:
             observed["version"] = version
             if isinstance(published, Exception):
@@ -146,20 +152,38 @@ def _official_sources(
 
 @pytest.mark.parametrize("discover", [True, False])
 @pytest.mark.parametrize("profile", ["compact", "scalable"])
-def test_checkout_not_at_its_release_tag_builds_from_source(
+def test_explicit_source_mode_skips_published_release_selection(
     monkeypatch: pytest.MonkeyPatch, fresh_tree: dict[str, str], profile: str, discover: bool
 ) -> None:
     monkeypatch.setattr(installer, "GitHubReleaseDiscovery", _forbidden)
     monkeypatch.setattr(installer, "OfficialReleaseResolver", _forbidden)
 
     release = installer._prepare_official_release(
-        InstallConfig(environment="production", deployment_profile=profile), discover=discover
+        InstallConfig(environment="production", deployment_profile=profile),
+        discover=discover,
+        from_source=True,
     )
 
     assert release is None
     assert fresh_tree == {"FS_INSTALL_MODE": "source"}
     # A resumed source installation is never re-decided from the checkout.
-    assert _Checkout.probes == ([_REPOSITORY] if discover else [])
+    assert _Checkout.probes == []
+
+
+@pytest.mark.parametrize("profile", ["compact", "scalable"])
+def test_ambiguous_checkout_requires_explicit_source_mode_without_release_queries(
+    monkeypatch, fresh_tree, profile
+):
+    monkeypatch.setattr(installer, "GitHubReleaseDiscovery", _forbidden)
+    monkeypatch.setattr(installer, "OfficialReleaseResolver", _forbidden)
+    with pytest.raises(LifecycleError) as raised:
+        installer._prepare_official_release(
+            InstallConfig(environment="production", deployment_profile=profile)
+        )
+    assert raised.value.code == "production_release_checkout_required"
+    assert "--from-source" in raised.value.remediation
+    assert "published" in raised.value.remediation.lower()
+    assert fresh_tree.get("FS_INSTALL_MODE") != "source"
 
 
 @pytest.mark.parametrize("profile", ["compact", "scalable"])
@@ -239,7 +263,7 @@ def test_release_tag_without_installable_images_fails_without_source_fallback(
     assert detail in failure.cause
     assert "v0.9.1" in failure.cause
     assert "Wait until v0.9.1 is published as a stable release" in failure.remediation
-    assert "check out a commit that is not a release tag" in failure.remediation
+    assert "--from-source" in failure.remediation
     assert failure.retryable is True
     assert fresh_tree.get("FS_INSTALL_MODE") != "source"
 
@@ -284,6 +308,7 @@ def cli_service(monkeypatch: pytest.MonkeyPatch, fresh_tree: dict[str, str]) -> 
     service = _RecordingService()
     monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
     monkeypatch.setattr(installer, "_recorded_installation_values", lambda _root: {})
+
     return service
 
 
@@ -315,7 +340,14 @@ def test_installer_says_it_builds_from_source(
 
     result = CliRunner().invoke(
         installer.installer_command,
-        ["--non-interactive", "--confirm", "--plain", "--deployment-profile", "scalable"],
+        [
+            "--from-source",
+            "--non-interactive",
+            "--confirm",
+            "--plain",
+            "--deployment-profile",
+            "scalable",
+        ],
     )
 
     assert result.exit_code == 0, result.output
