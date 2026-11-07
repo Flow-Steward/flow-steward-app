@@ -17,6 +17,14 @@ policy lives in `core/application/tooling/resource_cleanup`; native filesystem, 
 process and journal adapters live in `core/infrastructure/agent_resources`; the developer CLI
 is a thin adapter in `core/entrypoints/cli/agent_resources.py`.
 
+The application-owned journal models are standard-library-only contracts: records,
+ownership labels and owner-name validation. The six native adapters in `builders.py`,
+`docker.py`, `filesystem.py`, `gateway.py`, `journal.py` and `quality_environment.py`
+import only their frozen per-file contract symbols from that models module, not the
+application cleanup service or orchestration policy. The dependency guard validates
+those imports before excluding these accepted contract edges from the legacy inventory;
+the baseline of 55 and the physical mixed-layer cycle check remain unchanged.
+
 Canonical quality runs receive a generated Compose override rather than edits to shared
 Compose files. Containers/networks and audit images carry the ownership contract; build
 exports and tool-cache bind mounts live inside the task cache. The tools bind directory is

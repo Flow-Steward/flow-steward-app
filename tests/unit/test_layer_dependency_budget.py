@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
+
+import pytest
 
 from tests.support.source_index import parse_file
 
@@ -16,6 +19,53 @@ RELEASE_APPLICATION_ADAPTERS = frozenset({"core/infrastructure/release/github.py
 RELEASE_APPLICATION_IMPORT_SURFACE = frozenset(
     {"core.application.release.catalog.ReleaseDiscoveryError"}
 )
+# ADR 0060 owns the journal contracts in application and their native adapters
+# in infrastructure. Freeze each adapter's contract symbols, not all services
+# under that package; these edges remain in the physical SCC analysis below.
+AGENT_RESOURCE_APPLICATION_IMPORT_SURFACES = {
+    "core/infrastructure/agent_resources/builders.py": frozenset(
+        {
+            "core.application.tooling.resource_cleanup.models.Ledger",
+            "core.application.tooling.resource_cleanup.models.Resource",
+        }
+    ),
+    "core/infrastructure/agent_resources/docker.py": frozenset(
+        {
+            "core.application.tooling.resource_cleanup.models.Ledger",
+            "core.application.tooling.resource_cleanup.models.Resource",
+            "core.application.tooling.resource_cleanup.models.DISPOSABLE_LABEL",
+            "core.application.tooling.resource_cleanup.models.OWNER_LABEL",
+            "core.application.tooling.resource_cleanup.models.TOKEN_LABEL",
+        }
+    ),
+    "core/infrastructure/agent_resources/filesystem.py": frozenset(
+        {
+            "core.application.tooling.resource_cleanup.models.Ledger",
+            "core.application.tooling.resource_cleanup.models.Resource",
+        }
+    ),
+    "core/infrastructure/agent_resources/gateway.py": frozenset(
+        {
+            "core.application.tooling.resource_cleanup.models.Ledger",
+            "core.application.tooling.resource_cleanup.models.Resource",
+        }
+    ),
+    "core/infrastructure/agent_resources/journal.py": frozenset(
+        {
+            "core.application.tooling.resource_cleanup.models.Ledger",
+            "core.application.tooling.resource_cleanup.models.validate_owner",
+        }
+    ),
+    "core/infrastructure/agent_resources/quality_environment.py": frozenset(
+        {
+            "core.application.tooling.resource_cleanup.models.Ledger",
+            "core.application.tooling.resource_cleanup.models.DISPOSABLE_LABEL",
+            "core.application.tooling.resource_cleanup.models.OWNER_LABEL",
+            "core.application.tooling.resource_cleanup.models.TOKEN_LABEL",
+        }
+    ),
+}
+AGENT_RESOURCE_MODELS = "core/application/tooling/resource_cleanup/models.py"
 INSTALLER_APPLICATION_ADAPTERS = frozenset(
     {
         "core/infrastructure/installer/gateway.py",
@@ -356,6 +406,59 @@ def _assert_principal_adapter_symbol_surface() -> None:
         )
 
 
+def _assert_agent_resource_contract_boundary() -> None:
+    for path, frozen_symbols in AGENT_RESOURCE_APPLICATION_IMPORT_SURFACES.items():
+        targets = _application_import_targets(frozenset({path}))
+        assert targets <= frozen_symbols, (
+            f"Agent resource adapter {path} grew application imports: "
+            f"{sorted(targets - frozen_symbols)}"
+        )
+    for node in parse_file(REPO_ROOT / AGENT_RESOURCE_MODELS).nodes:
+        if isinstance(node, ast.Import):
+            roots = {alias.name.partition(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            assert node.level == 0, (
+                "Agent resource models must use absolute standard-library imports"
+            )
+            roots = {str(node.module or "").partition(".")[0]}
+        else:
+            continue
+        assert roots <= sys.stdlib_module_names, (
+            "Agent resource models must use only standard-library imports: "
+            f"{sorted(roots - sys.stdlib_module_names)}"
+        )
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "extra_import", "error"),
+    [
+        (
+            "core/infrastructure/agent_resources/builders.py",
+            "from core.application.tooling.resource_cleanup.service import ResourceCleanup",
+            "Agent resource adapter .* grew application imports",
+        ),
+        (
+            "core/infrastructure/agent_resources/quality_environment.py",
+            "from core.application.tooling.resource_cleanup.models import validate_owner",
+            "Agent resource adapter .* grew application imports",
+        ),
+        (AGENT_RESOURCE_MODELS, "import requests", "models must use only standard-library imports"),
+    ],
+)
+def test_agent_resource_contract_guard_rejects_dependencies_outside_its_frozen_boundary(
+    tmp_path: Path, monkeypatch, relative_path: str, extra_import: str, error: str
+) -> None:
+    for path in (*AGENT_RESOURCE_APPLICATION_IMPORT_SURFACES, AGENT_RESOURCE_MODELS):
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((REPO_ROOT / path).read_text(encoding="utf-8"), encoding="utf-8")
+    target = tmp_path / relative_path
+    target.write_text(target.read_text(encoding="utf-8") + f"\n{extra_import}\n", encoding="utf-8")
+    monkeypatch.setitem(globals(), "REPO_ROOT", tmp_path)
+    with pytest.raises(AssertionError, match=error):
+        _assert_agent_resource_contract_boundary()
+
+
 def test_infrastructure_to_application_dependency_budget_can_only_shrink() -> None:
     offenders = _infrastructure_files_importing_application()
     clone_adapters = {path for path in offenders if path.startswith("core/infrastructure/clone/")}
@@ -389,6 +492,8 @@ def test_infrastructure_to_application_dependency_budget_can_only_shrink() -> No
         f"Release adapter application dependency surface grew: {sorted(unexpected_release_targets)}"
     )
     legacy_offenders -= release_adapters
+    _assert_agent_resource_contract_boundary()
+    legacy_offenders -= AGENT_RESOURCE_APPLICATION_IMPORT_SURFACES.keys()
     for owner, extracted_modules in DECOMPOSED_ADAPTER_BOUNDARIES.items():
         for path, frozen_symbols in extracted_modules.items():
             targets = _application_import_targets(frozenset({path}))

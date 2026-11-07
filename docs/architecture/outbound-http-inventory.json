@@ -67,6 +67,15 @@
     "core/entrypoints/mcp/server_api_auth.py|verify_token|get": {"count": 1, "owner": "no_retry_control_exchange"},
     "core/entrypoints/mcp/server_api_client.py|request_async|request": {"count": 1, "owner": "no_retry_control_exchange"},
     "core/entrypoints/mcp/server_api_client.py|request|request": {"count": 1, "owner": "no_retry_control_exchange"},
+    "core/entrypoints/mcp/server_workflow_report_tools.py|report_viewer_html|get": {
+      "count": 1,
+      "owner": "no_retry_control_exchange",
+      "destination": "configured internal app API origin + /static/frontend/dist/report-viewer/report-viewer.html",
+      "data_sent": "fixed public static viewer path; no job data or caller token",
+      "timeout_seconds": 30,
+      "timeout_policy": "httpx.Timeout(30.0); one GET without an application retry",
+      "authentication": "none; this fetch does not attach bearer or MCP forward-secret headers"
+    },
     "core/infrastructure/extension_runtime/oauth_transport.py|_default_opener|open_pinned_url": {"count": 1, "owner": "no_retry_control_exchange"},
     "core/infrastructure/extension_runtime/oauth_transport.py|_perform|opener": {"count": 1, "owner": "no_retry_control_exchange"},
     "core/infrastructure/extension_sdk/public/flowsteward_extension_sdk/artifacts.py|_stream_presigned_url|open_pinned_url": {"count": 1, "owner": "orchestrator"},

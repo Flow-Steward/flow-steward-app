@@ -69,7 +69,10 @@ describe("retired surface cleanup guard", () => {
         expect(content).not.toContain("<iframe");
       }
       const platformKitAllowed =
-        filePath.endsWith("platform-renderer.js") || filePath.endsWith("src/main.tsx");
+        filePath.endsWith("platform-renderer.js") ||
+        filePath.endsWith("src/main.tsx") ||
+        filePath === path.resolve(process.cwd(), "src/app/platform-kit-loader.ts") ||
+        filePath === path.resolve(process.cwd(), "src/app/platform-kit-loader.test.ts");
       if (!platformKitAllowed) {
         expect(content).not.toContain("platform-kit");
       }
