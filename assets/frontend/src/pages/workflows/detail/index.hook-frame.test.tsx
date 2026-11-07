@@ -452,6 +452,13 @@ it.each(["project withdrawal", "palette dismissal"] as const)("retires a pending
   const entry = "/registry/workflows/weekly_report/builder?project_id=project_alpha";
   const view = renderPage({ surface: "builder", initialEntry: entry });
   try {
+    // Hook declarations arrive independently of the author canvas. Wait for the
+    // initial authorized declaration before checking its rendered empty badge.
+    await waitFor(() => {
+      const declaration = hookAuthorityControllers.scope?.framesByHook.get("before_finish");
+      expect(declaration?.connected).toBe(false);
+      expect(declaration?.declarationPending).not.toBe(true);
+    }, { timeout: 5_000 });
     await waitFor(() => expect(within(frame()).getByText("Empty")).toBeInTheDocument());
     await chooseFirstHookStep();
     await waitFor(() => expect(hookAuthorityControllers.scope!.childWorkflowId).toBe("client_fix"));
