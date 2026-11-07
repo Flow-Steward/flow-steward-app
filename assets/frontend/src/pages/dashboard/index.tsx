@@ -14,10 +14,8 @@ import {
 import "@/pages/dashboard/dashboard-page.css";
 import {
   DashboardLoadError,
-  ModelSpend,
   QuickLinks,
 } from "@/pages/dashboard/dashboard-panels";
-import { spendRows } from "@/pages/dashboard/cost-display";
 import { formatAge } from "@/pages/dashboard/format";
 import {
   ATTENTION_QUEUE_GROUPS,
@@ -42,13 +40,6 @@ type DashboardGroupMap = Record<string, Array<Record<string, unknown>>>;
 
 
 
-function getRangeLabels(t: I18nContextValue["t"] = fallbackContext.t): Record<string, string> {
-  return {
-  "7d": t("react.dashboard.last_7_days", "Last 7 days"),
-  "24h": t("react.dashboard.last_24_hours", "Last 24 hours"),
-  "30d": t("react.dashboard.last_30_days", "Last 30 days"),
-};
-}
 
 /** Five rows fill the rail without turning it into a second job list. */
 const QUEUE_LIMIT = 5;
@@ -155,8 +146,6 @@ export function DashboardPage() {
   const summary = summaryQuery.data || {};
   const hero = asHeroKpis(summary.hero_kpis);
   const groups = asGroupMap(summary.groups);
-  const trends = asRecord(summary.trends);
-  const spendBreakdown = asRecord(trends.spend_breakdown);
   const needsAttention = Number(hero.needs_attention?.value ?? groups.needs_attention?.length ?? 0);
   const inProgress = Number(hero.in_progress?.value ?? groups.running?.length ?? 0);
   const awaitingApproval = Number(
@@ -173,13 +162,11 @@ export function DashboardPage() {
   const heroRaw = asRecord(summary.hero_kpis);
   const queueWorking = asRecord(heroRaw.queue_working);
   const successRateKpi = asRecord(heroRaw.success_rate);
-  const spendKpi = asRecord(heroRaw.spend);
   const queued = Number.isFinite(Number(queueWorking.queue)) ? Number(queueWorking.queue) : null;
   const successRateDisplay = firstStringFromUnknownValue([successRateKpi.display, ""]).trim();
   const successRateDeltaPp = Number.isFinite(Number(successRateKpi.delta_pp))
     ? Number(successRateKpi.delta_pp)
     : null;
-  const spendDisplay = firstStringFromUnknownValue([spendKpi.display, ""]).trim();
   const generatedAt = firstStringFromUnknownValue([summary.generated_at, ""]).trim();
   // The triage query selects queued_at/started_at/finished_at, so the age of the
   // oldest item in a group is derivable here without a new endpoint.
@@ -231,8 +218,6 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <CommandCenter queue={visibleQueue} queueHref={attentionHref} queueTotal={queue.length} />
-
       <OperationalOverview
         awaitingApproval={awaitingApproval}
         waiting={waiting}
@@ -257,20 +242,9 @@ export function DashboardPage() {
         />
       ) : null}
 
-      {/* The attention queue lives in the Command center rail and nowhere else.
-          The mockup's bottom-left panel was an activity feed, which has no
-          backing data; filling it with the same queue would print the same jobs
-          twice on one page. */}
+      <CommandCenter queue={visibleQueue} queueHref={attentionHref} queueTotal={queue.length} />
+
       <div className="fs-dash__row">
-        <ModelSpend
-          breakdown={{
-            agent: spendRows(spendBreakdown.agent),
-            project: spendRows(spendBreakdown.project),
-            workflow: spendRows(spendBreakdown.workflow),
-          }}
-          rangeLabel={getRangeLabels(t)[range] || ""}
-          total={spendDisplay}
-        />
         <QuickLinks
           canAdministerPlatform={canAdministerPlatform}
           canReadRegistry={canReadRegistry}

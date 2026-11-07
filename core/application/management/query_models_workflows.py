@@ -521,9 +521,6 @@ class WorkflowStatsView(ViewModel):
     active_count: int = 0
     cancelled_count: int = 0
     success_rate: float | None = None
-    total_cost_usd: float = 0.0
-    avg_cost_per_run_usd: float = 0.0
-    jobs_with_cost: int = 0
     last_run_at: str | None = None
     avg_duration_seconds: float | None = None
 

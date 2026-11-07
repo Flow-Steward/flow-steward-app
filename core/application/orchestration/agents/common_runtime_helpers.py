@@ -333,11 +333,6 @@ def _apply_prompt_cache(messages: list) -> list:
     Marking them with cache_control=ephemeral tells Anthropic to cache them on
     the first call and serve them from cache on subsequent rounds.
 
-    Pricing impact:
-      - Cache write: 125% of normal input token price (one-time per 5-minute window)
-      - Cache read:   10% of normal input token price (every subsequent round)
-      - Break-even at 2 rounds → profitable for every agent with ≥ 2 LLM calls
-
     Minimum cacheable block: 1 024 tokens (Sonnet/Opus) or 2 048 (Haiku).
     Anthropic silently ignores cache_control if the block is too short — safe always.
 

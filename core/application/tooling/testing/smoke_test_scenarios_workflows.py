@@ -260,7 +260,7 @@ def run_workflow_smoke_scenarios(context: dict[str, Any]) -> None:
             endpoints = {
                 "events": f"/api/jobs/{job_id}/events",
                 "messages": f"/api/jobs/{job_id}/messages",
-                "cost": f"/api/jobs/{job_id}/cost-breakdown",
+                "usage": f"/api/jobs/{job_id}/usage-breakdown",
                 "logs": f"/api/jobs/{job_id}/logs",
             }
             for name, path in endpoints.items():

@@ -66,7 +66,7 @@ def _active_step(step: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def build_job_polling_payload(status: JobStatusView) -> dict[str, Any]:
-    """Keep progress and cost; histories, inputs and drilldowns use their own tools."""
+    """Keep progress and usage; histories, inputs and drilldowns use their own tools."""
     fields = {field: getattr(status, field) for field in _STATUS_FIELDS}
     result = _bounded_fields(fields, _STATUS_FIELDS)
     result["truncated_fields"] = [
@@ -82,5 +82,5 @@ def build_job_polling_payload(status: JobStatusView) -> dict[str, Any]:
     result["workflow_wait"] = (
         _bounded_fields(wait, _WAIT_FIELDS) if isinstance(wait, Mapping) else None
     )
-    result["cost"] = status.cost.dump()
+    result["usage"] = status.usage.dump()
     return result

@@ -1112,14 +1112,14 @@ def test_public_component_schemas_have_human_readable_titles_and_descriptions(mo
         assert not component["title"].endswith("View")
     detail = components["JobDetailResponse"]
     assert detail["type"] == "object"
-    assert {"id", "status", "cost", "workflow_run"} <= set(detail["properties"])
-    assert {"$ref": "#/components/schemas/JobCostSummaryView"} in detail["properties"]["cost"][
+    assert {"id", "status", "usage", "workflow_run"} <= set(detail["properties"])
+    assert {"$ref": "#/components/schemas/JobUsageSummaryView"} in detail["properties"]["usage"][
         "anyOf"
     ]
     assert {"$ref": "#/components/schemas/WorkflowRunStateV1"} in detail["properties"][
         "workflow_run"
     ]["anyOf"]
-    assert "cost" not in detail.get("required", [])
+    assert "usage" not in detail.get("required", [])
     assert "JobCancelAcceptedView" not in components
     assert "JobsListView" not in components
 

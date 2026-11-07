@@ -440,3 +440,32 @@ def test_job_dates_reject_utc_underflow_in_positive_offset_timezone() -> None:
             scope=ScopeContext(account_id="account", user_timezone="Europe/Vilnius"),
         )
     store.list_jobs_for_attention.assert_not_called()
+
+
+def test_get_workflow_stats_reads_run_metrics_without_monetary_queries() -> None:
+    conn = _Conn()
+    conn.fetchone_results = [
+        {
+            "total_runs": 4,
+            "completed_count": 2,
+            "failed_count": 1,
+            "active_count": 1,
+            "cancelled_count": 0,
+            "avg_duration_seconds": 12.5,
+        }
+    ]
+
+    stats = job_queries_store.get_workflow_stats(
+        conn,
+        column_exists=lambda _table, _column: False,
+        workflow_id="workflow-1",
+    )
+
+    assert stats["total_runs"] == 4
+    assert stats["success_rate"] == 2 / 3
+    assert stats["avg_duration_seconds"] == 12.5
+    assert "total_cost_usd" not in stats
+    assert "avg_cost_per_run_usd" not in stats
+    assert "jobs_with_cost" not in stats
+    assert len(conn.calls) == 1
+    assert "platform_action_log" not in conn.calls[0][0]

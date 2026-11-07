@@ -8,8 +8,8 @@ from typing import Any
 from core.infrastructure.db import (
     action_log_store,
     command_audit_store,
-    job_cost_store,
     job_queries_store,
+    job_usage_store,
     project_settings_store,
 )
 from core.infrastructure.db.job_scope_contract import JobQueryScope
@@ -110,7 +110,6 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         tokens_prompt=None,
         tokens_completion=None,
         tokens_total=None,
-        cost_usd=None,
         model_used=None,
     ):
         return action_log_store.log_action(
@@ -133,27 +132,26 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             tokens_prompt=tokens_prompt,
             tokens_completion=tokens_completion,
             tokens_total=tokens_total,
-            cost_usd=cost_usd,
             model_used=model_used,
         )
 
-    def get_job_cost_summary(self, job_id: str) -> dict:
-        return job_cost_store.get_job_cost_summary(
+    def get_job_usage_summary(self, job_id: str) -> dict:
+        return job_usage_store.get_job_usage_summary(
             conn=self.conn,
             job_id=job_id,
             logger=logger,
         )
 
-    def get_jobs_cost_summary(self, job_ids: list[str]) -> dict[str, dict]:
-        return job_cost_store.get_jobs_cost_summary(
+    def get_jobs_usage_summary(self, job_ids: list[str]) -> dict[str, dict]:
+        return job_usage_store.get_jobs_usage_summary(
             conn=self.conn,
             job_ids=job_ids,
             logger=logger,
         )
 
-    def get_job_cost_breakdown(self, job_id: str) -> list:
-        """Return per-agent, per-model cost breakdown for a job."""
-        return action_log_store.get_job_cost_breakdown(
+    def get_job_usage_breakdown(self, job_id: str) -> list:
+        """Return per-agent, per-model token usage breakdown for a job."""
+        return action_log_store.get_job_usage_breakdown(
             conn=self.conn,
             logger=logger,
             job_id=job_id,
@@ -388,7 +386,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         account_id: str | None = None,
         workspace_id: str | None = None,
     ) -> dict[str, Any]:
-        """Return aggregated job + cost statistics for a workflow."""
+        """Return aggregated job statistics for a workflow."""
         return job_queries_store.get_workflow_stats(
             self.conn,
             column_exists=self._column_exists,

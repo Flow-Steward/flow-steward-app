@@ -390,12 +390,12 @@ async def _build_job_detail_contract(
     project_name = str(logs_payload.get("project_name") or "").strip()
     failure_reason = str(logs_payload.get("job_failure_reason") or "").strip()
     normalized_status = str(status_payload.get("status") or job.get("status") or "").strip().lower()
-    cost_breakdown_raw: dict[str, Any] = {}
+    usage_breakdown_raw: dict[str, Any] = {}
     if not compact_detail:
-        cost_breakdown_raw = _payload_dict(
+        usage_breakdown_raw = _payload_dict(
             await _invoke_service_method(
                 job_query_service,
-                "get_cost_breakdown",
+                "get_usage_breakdown",
                 normalized_job_id,
                 scope=scope,
                 default={},
@@ -620,7 +620,7 @@ async def _build_job_detail_contract(
         approval_gate=approval_gate,
         approval_history=approval_history,
         decision_overrides=decision_overrides,
-        cost_breakdown=cost_breakdown_raw,
+        usage_breakdown=usage_breakdown_raw,
         causal_chain=causal_chain,
         incident=incident,
         job_errors=job_errors,
@@ -665,7 +665,7 @@ async def _build_job_detail_contract(
         approval_gate=approval_gate,
         approval_history=approval_history,
         decision_overrides=decision_overrides,
-        cost_breakdown=cost_breakdown_raw,
+        usage_breakdown=usage_breakdown_raw,
         causal_chain=causal_chain,
         job_errors=job_errors,
         messages=messages,
@@ -690,7 +690,7 @@ async def _build_job_detail_contract(
         approval_gate=approval_gate,
         approval_history=approval_history,
         causal_chain=causal_chain,
-        cost_breakdown_raw=cost_breakdown_raw,
+        usage_breakdown_raw=usage_breakdown_raw,
         decision_overrides=decision_overrides,
         incident=incident,
         job_errors=job_errors,

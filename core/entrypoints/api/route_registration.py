@@ -799,7 +799,7 @@ def _register_registered_frontend_shell_routes(current_app: FastAPI) -> None:
 
 
 from core.entrypoints.api.dashboard_metrics import (  # noqa: E402, I001
-    _dashboard_fetch_cost_by_job as _dashboard_fetch_cost_by_job,
+    _dashboard_fetch_usage_by_job as _dashboard_fetch_usage_by_job,
 )
 from core.entrypoints.api.extension_artifacts import (  # noqa: E402
     create_extension_artifacts_router as _create_extension_artifacts_router,

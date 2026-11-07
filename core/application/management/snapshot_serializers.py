@@ -185,7 +185,6 @@ def serialize_log_row(
         "tokens_prompt": row.get("tokens_prompt"),
         "tokens_completion": row.get("tokens_completion"),
         "tokens_total": row.get("tokens_total"),
-        "cost_usd": float(row.get("cost_usd") or 0) if row.get("cost_usd") is not None else None,
         "model_used": row.get("model_used"),
         "payload_ref": f"log://{job_id}/{row.get('id')}/payload" if payload is not None else None,
         "result_ref": f"log://{job_id}/{row.get('id')}/result" if result is not None else None,

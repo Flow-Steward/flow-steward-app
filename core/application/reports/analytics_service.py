@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -19,7 +18,7 @@ from core.application.management.guards import require_project_access, require_w
 from core.application.management.scope import ScopeContext, normalize_scope
 from core.application.reports import dashboard_metrics_helpers as dashboard_helpers
 from core.application.reports.dashboard_metric_values import _dashboard_percentile
-from core.application.reports.ui_projection_helpers import _build_cost_breakdown
+from core.application.reports.ui_projection_helpers import _build_usage_breakdown
 
 
 def _parse_date(value: Any) -> date | None:
@@ -138,14 +137,12 @@ class AnalyticsService:
         completed = sum(int(row.get("completed_count") or 0) for row in rows)
         failed = sum(int(row.get("failed_count") or 0) for row in rows)
         total_jobs = completed + failed
-        total_spend = sum(_safe_float(row.get("spend_usd")) for row in rows)
         p50_values = [_safe_float(row.get("p50_seconds")) for row in rows if row.get("p50_seconds")]
         p95_values = [_safe_float(row.get("p95_seconds")) for row in rows if row.get("p95_seconds")]
         return {
             "completed_count": completed,
             "failed_count": failed,
             "total_jobs": total_jobs,
-            "total_spend_usd": total_spend,
             "overall_success_rate_pct": round((completed / total_jobs) * 100, 1)
             if total_jobs
             else 0.0,
@@ -173,7 +170,6 @@ class AnalyticsService:
                     "failed_count": 0,
                     "total_jobs": 0,
                     "success_rate_pct": 0.0,
-                    "spend_usd": 0.0,
                     "_durations": [],
                 },
             )
@@ -183,7 +179,6 @@ class AnalyticsService:
             else:
                 bucket["failed_count"] += 1
             bucket["total_jobs"] += 1
-            bucket["spend_usd"] += _safe_float(row.get("cost_usd"))
             duration_value = row.get("duration_seconds")
             if duration_value is not None:
                 bucket["_durations"].append(_safe_float(duration_value))
@@ -199,7 +194,6 @@ class AnalyticsService:
                     "failed_count": 0,
                     "total_jobs": 0,
                     "success_rate_pct": 0.0,
-                    "spend_usd": 0.0,
                     "_durations": [],
                 },
             )
@@ -216,7 +210,6 @@ class AnalyticsService:
                     )
                     if total_jobs
                     else 0.0,
-                    "spend_usd": round(_safe_float(current.get("spend_usd")), 6),
                     "p50_seconds": _dashboard_percentile(durations, 0.5),
                     "p95_seconds": _dashboard_percentile(durations, 0.95),
                 }
@@ -224,7 +217,7 @@ class AnalyticsService:
             cursor += timedelta(days=1)
         return merged
 
-    def _job_cost_breakdown(
+    def _job_usage_breakdown(
         self,
         *,
         scope: ScopeContext,
@@ -236,12 +229,12 @@ class AnalyticsService:
         query_service = self._job_query_service()
         if query_service is None:
             raise ServiceUnavailableError("Query service is unavailable")
-        payload = query_service.get_cost_breakdown(job_id, scope=scope).dump()
+        payload = query_service.get_usage_breakdown(job_id, scope=scope).dump()
         return {
-            "dataset_id": "job_cost_breakdown",
+            "dataset_id": "job_usage_breakdown",
             "job_id": job_id,
             "payload": payload,
-            "formatted": _build_cost_breakdown(payload),
+            "formatted": _build_usage_breakdown(payload),
         }
 
     def _activity_facts(
@@ -300,70 +293,6 @@ class AnalyticsService:
             "summary": self._activity_summary(rows),
         }
 
-    def _dashboard_spend_by_agent(
-        self,
-        *,
-        scope: ScopeContext,
-        filters: dict[str, Any],
-    ) -> dict[str, Any]:
-        bl = self._logger_or_raise()
-        if not hasattr(bl, "list_report_activity_facts"):
-            raise ServiceUnavailableError("Dashboard spend datasets are unavailable")
-
-        project_id = self.resolve_project_filter(
-            scope, bl=bl, project_id=filters.get("project_id") or scope.project_id
-        )
-        start_dt, end_dt, _, _, range_key = _normalize_activity_window(filters)
-        rows = self._activity_facts(
-            bl=bl,
-            scope=scope,
-            filters=filters,
-            project_id=project_id,
-            start_dt=start_dt,
-            end_dt=end_dt,
-        )
-
-        grouped: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {"agent": "unknown", "cost_usd": 0.0, "job_count": 0}
-        )
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            if (
-                project_id is not None
-                and coerce_optional_project_id(row.get("project_id")) != project_id
-            ):
-                continue
-            agent = (
-                str(row.get("current_agent") or row.get("agent") or "unknown").strip() or "unknown"
-            )
-            grouped[agent]["agent"] = agent
-            grouped[agent]["cost_usd"] += _safe_float(row.get("cost_usd"))
-            grouped[agent]["job_count"] += 1
-
-        prepared = sorted(
-            (
-                {
-                    "agent": agent,
-                    "cost_usd": round(values["cost_usd"], 6),
-                    "job_count": int(values["job_count"]),
-                }
-                for agent, values in grouped.items()
-            ),
-            key=lambda row: (row["cost_usd"], row["job_count"]),
-            reverse=True,
-        )
-        return {
-            "dataset_id": "dashboard_spend_by_agent",
-            "project_id": project_id,
-            "window": {
-                "start": start_dt.isoformat(),
-                "end": end_dt.isoformat(),
-                "range_key": range_key,
-            },
-            "rows": prepared,
-        }
-
     def _core_slo_summary(
         self,
         *,
@@ -398,12 +327,10 @@ class AnalyticsService:
         safe_filters = dict(filters or {})
         normalized_dataset = str(dataset_id or "").strip().lower()
 
-        if normalized_dataset == "job_cost_breakdown":
-            return self._job_cost_breakdown(scope=resolved_scope, filters=safe_filters)
+        if normalized_dataset == "job_usage_breakdown":
+            return self._job_usage_breakdown(scope=resolved_scope, filters=safe_filters)
         if normalized_dataset == "dashboard_activity_daily":
             return self._dashboard_activity_daily(scope=resolved_scope, filters=safe_filters)
-        if normalized_dataset == "dashboard_spend_by_agent":
-            return self._dashboard_spend_by_agent(scope=resolved_scope, filters=safe_filters)
         if normalized_dataset == "core_slo_summary":
             return self._core_slo_summary(scope=resolved_scope, filters=safe_filters)
 

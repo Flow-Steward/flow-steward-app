@@ -31,7 +31,7 @@ def test_operational_report_sql_filters_workflow_and_all_scope_dimensions(pg_con
                 "CREATE TEMP TABLE jobs (id text, project_id text, selected_workflow text, tenant_id text, account_id text, workspace_id text)"
             )
             cur.execute(
-                "CREATE TEMP TABLE dashboard_job_facts (job_id text, project_id text, account_id text, finished_at timestamptz, result text, cost_usd float, duration_seconds float, agent text)"
+                "CREATE TEMP TABLE dashboard_job_facts (job_id text, project_id text, account_id text, finished_at timestamptz, result text, duration_seconds float, agent text)"
             )
             for project, tenant, account, workspace in [
                 ("p", DEFAULT_TENANT_ID, "account", "w"),
@@ -51,7 +51,7 @@ def test_operational_report_sql_filters_workflow_and_all_scope_dimensions(pg_con
                         (job, project, workflow, tenant, account, workspace),
                     )
                     cur.execute(
-                        "INSERT INTO dashboard_job_facts VALUES (%s,%s,%s,%s,'completed',0,5,'worker')",
+                        "INSERT INTO dashboard_job_facts VALUES (%s,%s,%s,%s,'completed',5,'worker')",
                         (job, project, account, stamp),
                     )
             for job, tenant, account in [
@@ -62,7 +62,7 @@ def test_operational_report_sql_filters_workflow_and_all_scope_dimensions(pg_con
                     "INSERT INTO jobs VALUES (%s,'p','release',%s,%s,'w')", (job, tenant, account)
                 )
                 cur.execute(
-                    "INSERT INTO dashboard_job_facts VALUES (%s,'p','account',%s,'completed',0,5,'worker')",
+                    "INSERT INTO dashboard_job_facts VALUES (%s,'p','account',%s,'completed',5,'worker')",
                     (job, stamp),
                 )
         scope = ScopeContext(
@@ -99,7 +99,6 @@ def test_operational_report_sql_filters_workflow_and_all_scope_dimensions(pg_con
                 persist=False,
             )
             assert result["payload"]["kpis"]["total_jobs"] == 1
-            assert sum(row["job_count"] for row in result["payload"]["spend_by_agent"]) == 1
         default_result = service.report_generate(
             "activity_daily",
             {"start_date": "2026-04-01", "end_date": "2026-04-01"},

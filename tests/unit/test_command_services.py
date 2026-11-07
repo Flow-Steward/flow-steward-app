@@ -3991,7 +3991,7 @@ class TestJobCommandService:
             "name": "Demo",
             "account_id": DEFAULT_ACCOUNT_ID,
         }
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project_workflows.return_value = []
         query = JobQueryService(
             get_logger=lambda: bl,

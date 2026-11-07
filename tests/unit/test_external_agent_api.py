@@ -377,7 +377,7 @@ class _FakeExternalAgentLogger:
             and str(job.get("status") or "") == "pending"
         ]
 
-    def get_job_cost_summary(self, job_id: int) -> dict:
+    def get_job_usage_summary(self, job_id: int) -> dict:
         _ = job_id
         return {}
 

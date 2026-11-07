@@ -561,9 +561,6 @@ msgstr "Reikia dėmesio"
 msgid "dashboard.classic.breakdown.column.p50"
 msgstr "P50"
 
-msgid "dashboard.classic.breakdown.column.spend"
-msgstr "Išlaidos"
-
 msgid "dashboard.classic.breakdown.column.success"
 msgstr "Sėkmė"
 
@@ -609,9 +606,6 @@ msgstr "P50 trukmė"
 msgid "dashboard.classic.kpi.queue_working"
 msgstr "Eilėje / vykdoma"
 
-msgid "dashboard.classic.kpi.spend"
-msgstr "Išlaidos"
-
 msgid "dashboard.classic.kpi.success_rate"
 msgstr "Sėkmės rodiklis"
 
@@ -644,12 +638,6 @@ msgstr "Projektų suvestinė"
 
 msgid "dashboard.classic.sections.recent_completions"
 msgstr "Neseniai baigtos užduotys"
-
-msgid "dashboard.classic.sections.spend_breakdown"
-msgstr "Išlaidų suvestinė"
-
-msgid "dashboard.classic.spend.empty"
-msgstr "Išlaidų duomenų nėra"
 
 msgid "dashboard.classic.throughput.empty"
 msgstr "Šiam laikotarpiui našumo duomenų nėra."
@@ -1338,27 +1326,6 @@ msgstr "Paleisti užduotį Nr. {job_id} iš naujo?"
 
 msgid "jobs.detail.actions.advanced_diagnostics"
 msgstr "Išplėstinė diagnostika"
-
-msgid "jobs.detail.cost.calls"
-msgstr "kvietimai"
-
-msgid "jobs.detail.cost.empty"
-msgstr "Šiai užduočiai dar neužregistruota apmokestinama modelių veikla."
-
-msgid "jobs.detail.cost.model_not_recorded"
-msgstr "Modelis neužregistruotas"
-
-msgid "jobs.detail.cost.of_total"
-msgstr "iš viso"
-
-msgid "jobs.detail.cost.title"
-msgstr "Išlaidos ir išteklių naudojimas"
-
-msgid "jobs.detail.cost.tokens"
-msgstr "žetonai"
-
-msgid "jobs.detail.cost.unknown_agent"
-msgstr "Nežinomas agentas"
 
 msgid "jobs.detail.diagnostics.causal_sequence"
 msgstr "Priežastinių įvykių seka"
@@ -3893,9 +3860,6 @@ msgstr "Tiesiogiai"
 msgid "react.dashboard.longest_running_value1"
 msgstr "Ilgiausiai vykdoma: {value1}"
 
-msgid "react.dashboard.model_spend"
-msgstr "Modelių išlaidos"
-
 msgid "react.dashboard.more_in_the_queue"
 msgstr "daugiau eilėje"
 
@@ -3909,11 +3873,6 @@ msgstr ""
 
 msgid "react.dashboard.no_failed_blocked_or_interrupted_jobs_in_this_range"
 msgstr "Šiuo laikotarpiu nepavykusių, užblokuotų ar nutrauktų užduočių nėra."
-
-msgid "react.dashboard.no_model_spend_in_this_range_widen_the_range_to_see_earlier_runs"
-msgstr ""
-"Šiuo laikotarpiu modelių išlaidų nėra. Išplėskite laikotarpį ankstesniems "
-"vykdymams peržiūrėti."
 
 msgid "react.dashboard.nothing_is_blocked_or_failing"
 msgstr "Užblokuotų ar nepavykusių užduočių nėra."
@@ -3935,9 +3894,6 @@ msgstr "Peržiūrėti apsaugos taisykles"
 
 msgid "react.dashboard.review_jobs"
 msgstr "Peržiūrėti užduotis"
-
-msgid "react.dashboard.spend_breakdown"
-msgstr "Išlaidų suvestinė"
 
 msgid "react.dashboard.start_from_the_highest_priority_work"
 msgstr "Pradėkite nuo svarbiausio darbo"
@@ -5755,10 +5711,6 @@ msgstr ""
 msgid "react.jobs.copy_value1"
 msgstr "Kopijuoti {value1}"
 
-msgid "react.jobs.cost_telemetry_will_appear_once_billing_data_is_attached_to_this_run"
-msgstr ""
-"Išlaidų duomenys bus rodomi pridėjus atsiskaitymo duomenis prie šio vykdymo."
-
 msgid "react.jobs.current_step"
 msgstr "dabartinis žingsnis"
 
@@ -5902,9 +5854,6 @@ msgstr "Įkeliamas visas tekstas…"
 
 msgid "react.jobs.loading_job_detail"
 msgstr "Įkeliama užduoties informacija…"
-
-msgid "react.jobs.no_billable_model_usage_recorded_for_this_job"
-msgstr "Šiai užduočiai apmokestinamas modelių naudojimas neužregistruotas."
 
 msgid "react.jobs.no_execution_step_is_selected"
 msgstr "Vykdymo žingsnis nepasirinktas."
@@ -6109,12 +6058,6 @@ msgstr "žetonai ·"
 msgid "react.jobs.total"
 msgstr "Iš viso:"
 
-msgid "react.jobs.unknown_cost_tokens"
-msgstr "Žetonai su nežinoma kaina:"
-
-msgid "react.jobs.unknown_cost_value1_tokens"
-msgstr "Nežinomos išlaidos ({value1} žetonų)"
-
 msgid "react.jobs.value1_bytes"
 msgstr "Baitų: {value1}"
 
@@ -6129,9 +6072,6 @@ msgstr "{value1} val. {value2} min."
 
 msgid "react.jobs.value1_h_value2_min"
 msgstr "{value1} val. {value2} min."
-
-msgid "react.jobs.value1_known_unknown_cost_value2_tokens"
-msgstr "Žinomos išlaidos: {value1} + nežinomos išlaidos ({value2} žetonų)"
 
 msgid "react.jobs.value1_m_value2_s"
 msgstr "{value1} min. {value2} s"
@@ -14264,9 +14204,6 @@ msgstr "Šios darbo eigos statistika ir naujausia veikla."
 msgid "react.workflows.completed_failed_counts"
 msgstr "Baigta: {completed} / nepavyko: {failed}"
 
-msgid "react.workflows.no_cost_data_recorded"
-msgstr "Išlaidų duomenų neužfiksuota"
-
 msgid "react.workflows.finished_runs_only"
 msgstr "Tik baigti paleidimai"
 
@@ -14275,9 +14212,6 @@ msgstr "Laukia, vykdoma arba laukia patvirtinimo"
 
 msgid "react.workflows.active_now_count"
 msgstr "Dabar aktyvu: {count}"
-
-msgid "react.workflows.jobs_with_cost_data_count"
-msgstr "Užduočių su išlaidų duomenimis: {count}"
 
 msgid "react.workflows.across_runs_count"
 msgstr "Per {count} paleidimus"
@@ -14397,9 +14331,6 @@ msgid "react.jobs.completed_restart_help"
 msgstr ""
 "Šis vykdymas baigtas sėkmingai. Paleiskite užduotį iš naujo tik jei norite, "
 "kad Flow Steward vėl atliktų tą pačią užduotį."
-
-msgid "react.jobs.current_cost"
-msgstr "Dabartinės išlaidos"
 
 msgid "react.jobs.schedule_run_now"
 msgstr "Tvarkaraštis, paleista dabar"
@@ -15341,11 +15272,6 @@ msgstr "Agentas:"
 msgid "react.workflows.agent_variant_d4f0bc5a"
 msgstr "agentas"
 
-msgid "react.workflows.aggregated_job_activity_and_cost_across_all_projects_using_this_workflow"
-msgstr ""
-"Suvestinė užduočių veikla ir kaina visuose šią darbo eigą naudojančiuose "
-"projektuose."
-
 msgid "react.workflows.aggregations"
 msgstr "Agregavimai"
 
@@ -15662,9 +15588,6 @@ msgstr "Pasiekiama"
 
 msgid "react.workflows.available_variant_ddd9818a"
 msgstr "prieinama"
-
-msgid "react.workflows.avg_cost_run"
-msgstr "Vidutinė vykdymo kaina"
 
 msgid "react.workflows.avg_duration"
 msgstr "Vidutinė trukmė"
@@ -20759,9 +20682,6 @@ msgstr "Įrankio veiksmas"
 
 msgid "react.workflows.total"
 msgstr "iš viso"
-
-msgid "react.workflows.total_cost"
-msgstr "Bendra kaina"
 
 msgid "react.workflows.total_runs"
 msgstr "Vykdymų skaičius"
@@ -30469,3 +30389,20 @@ msgstr "Kai kurių užduočių nepavyko perkelti į šiukšlinę"
 
 msgid "react.jobs.trash_failed"
 msgstr "Nepavyko perkelti užduoties į šiukšlinę."
+
+
+#: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
+msgid "jobs.detail.usage.title"
+msgstr "Modelių naudojimas"
+
+#: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
+msgid "react.jobs.no_model_usage_recorded_for_this_job"
+msgstr "Šiai užduočiai modelių naudojimas neužregistruotas."
+
+#: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
+msgid "react.jobs.usage_telemetry_will_appear_once_model_usage_is_recorded"
+msgstr "Naudojimo telemetrija bus rodoma užregistravus modelio naudojimą."
+
+#: assets/frontend/src/pages/workflows/overview/index.tsx
+msgid "react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow"
+msgstr "Bendra užduočių veikla visuose projektuose, naudojančiuose šią darbo eigą."

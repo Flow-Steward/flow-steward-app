@@ -143,7 +143,7 @@ function installFixture() {
     if (suffix === "execution-steps") return json({ job_id: id, run_terminal: true, child_invocations: [],
       steps: [{ step_id: "plan", step_execution_id: `${id}-plan`, occurrence: 1, attempt: 1, status: "completed", duration_ms: 0 }],
       page: { count: 1, has_more: false, next_cursor: "" } });
-    if (suffix === "cost-breakdown") return json({ breakdown: [], total_cost_usd: 0 });
+    if (suffix === "usage-breakdown") return json({ breakdown: [], });
     if (suffix === "approvals") return json({ job_id: id, approvals: [] });
     if (suffix === "decision-overrides") return json({ job_id: id, overrides: [] });
     if (suffix === "cancel" && init?.method === "POST") {

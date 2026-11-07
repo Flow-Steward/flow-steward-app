@@ -1,6 +1,6 @@
 import { PlatformElement } from '../platform-base.js';
 
-class PlatformCostBreakdown extends PlatformElement {
+class PlatformUsageBreakdown extends PlatformElement {
   static get styles() {
     return `
       :host {
@@ -53,5 +53,5 @@ class PlatformCostBreakdown extends PlatformElement {
   }
 }
 
-customElements.define('platform-cost-breakdown', PlatformCostBreakdown);
-export { PlatformCostBreakdown };
+customElements.define('platform-usage-breakdown', PlatformUsageBreakdown);
+export { PlatformUsageBreakdown };

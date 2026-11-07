@@ -8,7 +8,7 @@ import { MemoryRouter } from "react-router";
 import {
   jobPayload,
   mockJobStream,
-  mockedFetchJobCostBreakdown,
+  mockedFetchJobUsageBreakdown,
   mockedFetchJobDecisionOverrides,
   mockedFetchJobApproval,
   mockedFetchJobApprovalHistory,
@@ -556,7 +556,7 @@ describe("JobsDetailPage live updates", () => {
       expect(mockJobStream.latestOptions?.enabled).toBe(false);
       expect(mockedFetchJobDetail.mock.calls.length).toBeGreaterThanOrEqual(2);
       expect(mockedFetchJobDecisionOverrides.mock.calls.length).toBeGreaterThanOrEqual(2);
-      expect(mockedFetchJobCostBreakdown.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(mockedFetchJobUsageBreakdown.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -792,17 +792,14 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
     expect(screen.queryByText("Stale section decision")).not.toBeInTheDocument();
   });
 
-  it("keeps sections-backed cost totals in sync when cost stream frames arrive", async () => {
+  it("keeps sections-backed token totals in sync when usage stream frames arrive", async () => {
     primeApi(
       jobPayload({
-        cost: {
-          cost_usd: 0.12,
+        usage: {
           tokens_total: 12,
         },
         sections: {
-          cost_breakdown: {
-            total_cost_usd: 0.12,
-            total_cost_display: "$0.1200",
+          usage_breakdown: {
             total_tokens: 12,
             rows: [],
           },
@@ -811,23 +808,17 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
     );
 
     renderPage();
-
-    expect(await screen.findByText("Total: $0.1200")).toBeInTheDocument();
-    expect(screen.getByText("Tokens: 12")).toBeInTheDocument();
+    expect(await screen.findByText("Tokens: 12")).toBeInTheDocument();
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
-        type: "cost",
+        type: "usage",
         data: {
-          total_cost_usd: 2.5,
-          total_cost_display: "$2.5000",
           total_tokens: 900,
         },
       });
     });
-
-    expect(await screen.findByText("Total: $2.5000")).toBeInTheDocument();
-    expect(screen.getByText("Tokens: 900")).toBeInTheDocument();
+    expect(await screen.findByText("Tokens: 900")).toBeInTheDocument();
   });
 
   it("shows a warning when invocation snapshot was truncated", async () => {

@@ -24,7 +24,7 @@ from core.infrastructure.security.secret_detection import redact_detected_secret
             "a417f5b8-26b3-41bc-a495-5396f502bb5b",
         ),
         ("started_at", datetime(2026, 10, 4, 12, 30, tzinfo=UTC), "2026-10-04 12:30:00+00:00"),
-        ("total_cost", Decimal("0.1250"), "0.1250"),
+        ("duration_seconds", Decimal("0.1250"), "0.1250"),
     ],
     ids=["uuid", "datetime", "decimal"],
 )
@@ -60,7 +60,7 @@ def test_report_fallback_redacts_and_renders_database_scalars(monkeypatch, field
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     assert marker not in repr(report)
@@ -101,7 +101,7 @@ def test_report_fallback_blocks_free_text_and_preserves_uuid_identifier(monkeypa
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     response = JSONResponse(report)
@@ -140,7 +140,7 @@ def test_report_fallback_redacts_canonical_token_when_leaf_scanner_allows(monkey
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
     response = JSONResponse(report)
     assert token not in response.body.decode("utf-8")
@@ -175,7 +175,7 @@ def test_oversized_report_fallback_renders_nested_typed_values_and_redacts(monke
                 "id": f"message-{index}",
                 "payload": {
                     "text": "x" * 180_000,
-                    "cost": Decimal("0.1250"),
+                    "usage": Decimal("0.1250"),
                     "detail": marker,
                     "password": marker,
                 },
@@ -188,7 +188,7 @@ def test_oversized_report_fallback_renders_nested_typed_values_and_redacts(monke
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     assert marker not in repr(report)
@@ -201,6 +201,6 @@ def test_oversized_report_fallback_renders_nested_typed_values_and_redacts(monke
     ]
     for row in payload["messages"]:
         assert row["payload"]["text"] == "x" * 180_000
-        assert row["payload"]["cost"] == "0.1250"
+        assert row["payload"]["usage"] == "0.1250"
         assert row["payload"]["detail"] == "[BLOCKED: security policy]"
     assert marker not in response.body.decode("utf-8")

@@ -75,11 +75,18 @@ def test_log_action_clamps_negative_duration_and_persists_payloads() -> None:
         duration=-5,
         payload={"prompt": "hi"},
         result={"answer": "ok"},
+        tokens_prompt=12,
+        tokens_completion=8,
+        tokens_total=20,
+        model_used="unknown/model",
     )
 
     sql, params = logger.conn.calls[-1]
     assert "INSERT INTO platform_action_log" in sql
     assert params[11] == 0
+    assert "cost_usd" not in sql
+    assert sql.count("%s") == len(params) == 20
+    assert params[-4:] == (12, 8, 20, "unknown/model")
     assert row["duration"] == 0
 
 
@@ -238,3 +245,26 @@ def test_log_action_does_not_issue_savepoint_on_idle_connection() -> None:
     assert all("SAVEPOINT" not in sql for sql in executed_sql)
     assert "INSERT INTO platform_action_log" in executed_sql[0]
     assert row == {"id": 4, "job_id": 77}
+
+
+def test_get_job_usage_breakdown_preserves_tokens_for_unknown_models() -> None:
+    logger = _make_logger()
+    usage = {
+        "agent": "writer",
+        "model_used": "unknown/model",
+        "calls": 2,
+        "tokens_prompt": 30,
+        "tokens_completion": 20,
+        "tokens_total": 50,
+    }
+    logger.conn.fetchall_results = [[usage]]
+
+    rows = logger.get_job_usage_breakdown("job-1")
+
+    assert rows == [usage]
+    sql, params = logger.conn.calls[-1]
+    assert params == ("job-1",)
+    assert "cost_usd" not in sql
+    assert "unknown_cli_tokens" not in sql
+    assert "ORDER BY tokens_total DESC" in sql
+    assert "GROUP BY agent, model_used" in sql

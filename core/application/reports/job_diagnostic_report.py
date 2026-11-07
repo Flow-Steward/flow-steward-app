@@ -109,7 +109,7 @@ def build_job_diagnostic_report(
     runtime_journal: list[dict[str, Any]],
     causal_chain: dict[str, Any],
     decisions: list[dict[str, Any]],
-    cost_breakdown: dict[str, Any],
+    usage_breakdown: dict[str, Any],
 ) -> dict[str, Any]:
     """Build the complete persisted diagnostic bundle without binary artifact bodies."""
 
@@ -131,7 +131,7 @@ def build_job_diagnostic_report(
         "runtime_journal": _rows(runtime_journal),
         "causal_chain": dict(causal_chain or {}),
         "decisions": _rows(decisions),
-        "cost_breakdown": dict(cost_breakdown or {}),
+        "usage_breakdown": dict(usage_breakdown or {}),
         "artifact_manifest": _artifact_manifest(steps),
     }
     return _fully_redacted(report, project_id=project_id, job_id=job_id)

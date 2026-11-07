@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth/useAuth";
 import { useJobStream } from "@/lib/realtime/useJobStream";
 import { JobsDetailPage } from "@/pages/jobs/detail";
 import {
-  fetchJobCostBreakdown,
+  fetchJobUsageBreakdown,
   fetchJobDecisionOverrides,
   fetchJobDefinition,
   fetchJobDetail,
@@ -40,7 +40,7 @@ vi.mock("@/pages/jobs/detail/api", () => ({
   cancelJob: vi.fn(),
   fetchJobApproval: vi.fn(),
   fetchJobApprovalHistory: vi.fn(),
-  fetchJobCostBreakdown: vi.fn(),
+  fetchJobUsageBreakdown: vi.fn(),
   fetchJobDecisionOverrides: vi.fn(),
   fetchJobDefinition: vi.fn(),
   fetchJobDetail: vi.fn(),
@@ -57,7 +57,7 @@ export const mockedFetchJobDetail = vi.mocked(fetchJobDetail);
 export const mockedFetchJobExecutionStepsPage = vi.mocked(fetchJobExecutionStepsPage);
 export const mockedFetchJobIncident = vi.mocked(fetchJobIncident);
 export const mockedFetchJobDecisionOverrides = vi.mocked(fetchJobDecisionOverrides);
-export const mockedFetchJobCostBreakdown = vi.mocked(fetchJobCostBreakdown);
+export const mockedFetchJobUsageBreakdown = vi.mocked(fetchJobUsageBreakdown);
 export const mockedFetchJobDefinition = vi.mocked(fetchJobDefinition);
 export const mockedFetchJobApproval = vi.mocked(fetchJobApproval);
 export const mockedFetchJobApprovalHistory = vi.mocked(fetchJobApprovalHistory);
@@ -75,7 +75,7 @@ export function jobPayload(overrides: Record<string, unknown> = {}) {
     finished_at: null,
     current_step_id: "analysis",
     current_agent: "planner",
-    cost: { tokens_total: 12 },
+    usage: { tokens_total: 12 },
     diagnostics: { hidden_diagnostic_marker: "super-raw-json-hidden" },
     execution_steps: [
       {
@@ -127,7 +127,7 @@ export function primeApi(detail: Record<string, unknown>) {
   } as never);
   mockedFetchJobIncident.mockResolvedValue({ job_id: 42, related_attempts: [] } as never);
   mockedFetchJobDecisionOverrides.mockResolvedValue({ job_id: 42, overrides: [] } as never);
-  mockedFetchJobCostBreakdown.mockResolvedValue({ breakdown: [], total_cost_usd: 0 } as never);
+  mockedFetchJobUsageBreakdown.mockResolvedValue({ breakdown: [], } as never);
   mockedFetchJobDefinition.mockResolvedValue({
     job_id: "42",
     available: true,

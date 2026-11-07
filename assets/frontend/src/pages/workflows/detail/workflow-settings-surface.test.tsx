@@ -118,8 +118,8 @@ function fixture(options: FixtureOptions = {}) {
         return json({
           workflow_id: workflowId, total_runs: 0, completed_count: 0,
           failed_count: 0, active_count: 0, cancelled_count: 0,
-          success_rate: null, total_cost_usd: 0, avg_cost_per_run_usd: 0,
-          jobs_with_cost: 0, last_run_at: null, avg_duration_seconds: null,
+          success_rate: null,
+          last_run_at: null, avg_duration_seconds: null,
         });
       }
       if (path === "/api/workflows/second-settings-fixture/contract") {
