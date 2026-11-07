@@ -70,7 +70,10 @@ def test_document_client_id_must_match_exactly(document_client_id: str) -> None:
         {"token_endpoint_auth_method": "private_key_jwt"},
         {"token_endpoint_auth_method": "client_secret_basic"},
         {"grant_types": ["refresh_token"]},
-        {"grant_types": ["authorization_code", "client_credentials"]},
+        {"grant_types": []},
+        {"grant_types": ["urn:ietf:params:oauth:grant-type:jwt-bearer"]},
+        {"grant_types": "authorization_code"},
+        {"grant_types": ["authorization_code", 7]},
         {"response_types": ["token"]},
         {"redirect_uris": ["https://claude.ai/cb#frag"]},
         {"redirect_uris": ["http://claude.ai/cb"]},
@@ -98,6 +101,28 @@ def test_valid_document_keeps_name_and_redirects() -> None:
         clients.validate_client_metadata(b"[]", client_id=CLIENT_ID)
     with pytest.raises(clients.InvalidClientMetadataError):
         clients.validate_client_metadata(b"not json", client_id=CLIENT_ID)
+
+
+@pytest.mark.parametrize(
+    "extra_grant",
+    ["urn:ietf:params:oauth:grant-type:jwt-bearer", "client_credentials"],
+)
+def test_client_metadata_intersects_advertised_grants_with_authorization_code(
+    extra_grant: str,
+) -> None:
+    client_id = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+    metadata = clients.validate_client_metadata(
+        _document(
+            client_id=client_id,
+            client_name="Claude",
+            redirect_uris=["https://claude.ai/api/mcp/auth_callback"],
+            grant_types=["authorization_code", "refresh_token", extra_grant],
+        ),
+        client_id=client_id,
+    )
+    assert metadata.client_id == client_id
+    assert metadata.client_name == "Claude"
+    assert metadata.redirect_uris == ("https://claude.ai/api/mcp/auth_callback",)
 
 
 @pytest.mark.parametrize(

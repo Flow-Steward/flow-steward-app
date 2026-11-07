@@ -133,11 +133,7 @@ def validate_client_metadata(body: bytes, *, client_id: str) -> ClientMetadata:
         raise InvalidClientMetadataError("only public clients are supported")
     if "grant_types" in document:
         grant_types = _string_list(document.get("grant_types"))
-        if (
-            not grant_types
-            or "authorization_code" not in grant_types
-            or not set(grant_types) <= {"authorization_code", "refresh_token"}
-        ):
+        if not grant_types or "authorization_code" not in grant_types:
             raise InvalidClientMetadataError("client metadata grant_types are unsupported")
     if "response_types" in document:
         response_types = _string_list(document.get("response_types"))

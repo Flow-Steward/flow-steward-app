@@ -201,6 +201,12 @@ administrator can also register a public platform client from a fixed preset
 (Microsoft 365 Copilot); its opaque `client_id` and preset redirect URIs replace
 the CIMD fetch, and everything after the client check stays as written here.
 
+2026-11-07 compatibility amendment: client capabilities are intersected with
+this server's capabilities, as required by
+[CIMD draft 03, section 6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-03.html#section-6).
+Additional grants advertised by a client do not enable token grants on this
+server; `/oauth/token` continues to support only authorization code and refresh.
+
 - Allowed `client_id`: `https`, host exactly `chatgpt.com` or `claude.ai`
   (fixed in code, no subdomains; row 13), non-empty path, no userinfo, query or
   fragment, at most 2048 characters. Anything else gets the error page
@@ -212,9 +218,9 @@ the CIMD fetch, and everything after the client check stays as written here.
 - Validation: a JSON object; `client_id` equal to the URL by exact string
   comparison; `redirect_uris` a non-empty list of absolute `https` URIs or
   `http` loopback URIs (`127.0.0.1`, `[::1]`, `localhost`), no fragments;
-  `token_endpoint_auth_method` absent or `none`; `grant_types`, if present,
-  within `authorization_code`, `refresh_token` and containing
-  `authorization_code`; `response_types`, if present, containing `code`.
+  `token_endpoint_auth_method` absent or `none`; `grant_types`, if present, a
+  non-empty list of strings containing `authorization_code`, with unsupported
+  advertised grants ignored; `response_types`, if present, containing `code`.
   `client_name` is optional; when absent the consent page shows the host. The
   document `scope`, `logo_uri` and other fields are ignored; no remote image is
   rendered.

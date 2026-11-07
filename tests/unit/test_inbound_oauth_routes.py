@@ -304,6 +304,21 @@ def test_token_endpoint_requires_a_form_body_and_client_id(store) -> None:
     assert unknown.json()["error"] == "unsupported_grant_type"
 
 
+@pytest.mark.parametrize(
+    "grant_type",
+    ["urn:ietf:params:oauth:grant-type:jwt-bearer", "client_credentials"],
+)
+def test_token_endpoint_refuses_unimplemented_client_advertised_grants(
+    store, grant_type: str
+) -> None:
+    client = _client(store)
+    response = client.post("/oauth/token", data={"grant_type": grant_type, "client_id": CLIENT_ID})
+    assert response.status_code == 400
+    assert response.json()["error"] == "unsupported_grant_type"
+    discovery = client.get("/.well-known/oauth-authorization-server")
+    assert discovery.json()["grant_types_supported"] == ["authorization_code", "refresh_token"]
+
+
 def test_revocation_requires_token_and_client(store) -> None:
     response = _client(store).post("/oauth/revoke", data={"token": "x"})
     assert response.status_code == 400
