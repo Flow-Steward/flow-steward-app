@@ -25,7 +25,7 @@ export type JobLifecyclePayload = {
   steps?: Array<Record<string, unknown>>;
   runtime?: JobDiagnosticsTab;
   errors?: JobDiagnosticsTab;
-  costs?: Record<string, unknown>;
+  usage?: Record<string, unknown>;
   approval?: Record<string, unknown>;
   root_cause?: Record<string, unknown>;
   [key: string]: unknown;
@@ -37,7 +37,7 @@ export type JobDetailSectionsPayload = {
   selected_step?: Record<string, unknown>;
   review_workspace?: Record<string, unknown>;
   previous_decisions?: Array<Record<string, unknown>>;
-  cost_breakdown?: Record<string, unknown>;
+  usage_breakdown?: Record<string, unknown>;
   diagnostics?: JobDiagnosticsPayload;
   [key: string]: unknown;
 };
@@ -161,7 +161,7 @@ export type JobDetail = {
   review_workspace?: Record<string, unknown>;
   execution_steps?: Array<Record<string, unknown>>;
   previous_decisions?: Array<Record<string, unknown>>;
-  cost_breakdown?: Record<string, unknown>;
+  usage_breakdown?: Record<string, unknown>;
   diagnostics?: JobDiagnosticsPayload;
   lifecycle?: JobLifecyclePayload;
   sections?: JobDetailSectionsPayload;
@@ -231,13 +231,9 @@ export type JobDefinitionPayload = {
   protected?: boolean;
 };
 
-export type JobCostBreakdownPayload = {
+export type JobUsageBreakdownPayload = {
+  total_tokens?: number;
   breakdown: Array<Record<string, unknown>>;
-  total_cost_usd?: number;
-  known_cost_usd?: number;
-  unknown_cli_tokens?: number;
-  cost_knownness?: string;
-  total_cost_display?: string;
 };
 
 export type JobApprovalPayload = {
@@ -298,8 +294,8 @@ export async function fetchJobDefinition(jobId: string) {
   return fetchJson<JobDefinitionPayload>(`/api/jobs/${encodeURIComponent(jobId)}/definition`);
 }
 
-export async function fetchJobCostBreakdown(jobId: string) {
-  return fetchJson<JobCostBreakdownPayload>(`/api/jobs/${encodeURIComponent(jobId)}/cost-breakdown`);
+export async function fetchJobUsageBreakdown(jobId: string) {
+  return fetchJson<JobUsageBreakdownPayload>(`/api/jobs/${encodeURIComponent(jobId)}/usage-breakdown`);
 }
 
 export async function fetchJobApproval(jobId: string) {

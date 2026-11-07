@@ -17,7 +17,7 @@ def report_generate(
     Operational types: activity_daily, project_summary, project_stats. For these,
     params accepts project_id, exact workflow_id, range (default '7d'), or
     start_date/end_date (ISO dates). Omitted filters retain the caller's scope.
-    Job types: job_summary, job_cost_breakdown (params.job_id required).
+    Job types: job_summary, job_usage_breakdown (params.job_id required).
     core_health_summary accepts params.window_hours (default 24).
     """
     return api_tool_response("report_generate", locals())

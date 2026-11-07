@@ -43,7 +43,7 @@ PRIMARY_TEST_IDS = {
     "review_workspace": "job-review-workspace",
     "execution_waterfall": "job-execution-waterfall",
     "step_inspector": "job-step-inspector",
-    "cost_breakdown": "job-cost-breakdown",
+    "usage_breakdown": "job-usage-breakdown",
 }
 
 LEGACY_JOB_DETAIL_SELECTORS = (
@@ -571,7 +571,7 @@ class TestJobDetailHumanReadableContract:
             PRIMARY_TEST_IDS["next_action"],
             PRIMARY_TEST_IDS["execution_waterfall"],
             PRIMARY_TEST_IDS["step_inspector"],
-            PRIMARY_TEST_IDS["cost_breakdown"],
+            PRIMARY_TEST_IDS["usage_breakdown"],
         ):
             _assert_test_id_visible(page, test_id)
 
@@ -611,7 +611,7 @@ class TestJobDetailHumanReadableContract:
             PRIMARY_TEST_IDS["next_action"],
             PRIMARY_TEST_IDS["execution_waterfall"],
             PRIMARY_TEST_IDS["step_inspector"],
-            PRIMARY_TEST_IDS["cost_breakdown"],
+            PRIMARY_TEST_IDS["usage_breakdown"],
         ):
             _assert_test_id_visible(page, test_id)
 

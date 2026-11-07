@@ -64,7 +64,7 @@ MCP_TOOL_ROUTES: dict[str, AppApiRoute] = {
     "job_errors": _route("GET", "/api/jobs/{job_id}/errors"),
     "job_trace": _route("GET", "/api/jobs/{job_id}/trace"),
     "job_incident": _route("GET", "/api/jobs/{job_id}/incident"),
-    "job_cost_breakdown": _route("GET", "/api/jobs/{job_id}/cost-breakdown"),
+    "job_usage_breakdown": _route("GET", "/api/jobs/{job_id}/usage-breakdown"),
     "job_events": _route("GET", "/api/jobs/{job_id}/events"),
     "job_messages": _route("GET", "/api/jobs/{job_id}/messages"),
     "job_logs": _route("GET", "/api/jobs/{job_id}/logs"),

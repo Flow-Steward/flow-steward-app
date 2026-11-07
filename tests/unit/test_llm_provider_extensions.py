@@ -2836,7 +2836,7 @@ class TestExtensionChatModel:
         llm_output = handler.responses[0].llm_output
         assert llm_output["model_name"] == "deepseek/deepseek-chat"
         assert llm_output["provider_key"] == "llmext_remote_llm_a_deepseek_abc123"
-        assert llm_output["cost_usd"] == 0.0042
+        assert "cost_usd" not in llm_output
         assert llm_output["flow_steward_usage"]["cache_write_tokens"] is None
         message = handler.responses[0].generations[0][0].message
         assert message.usage_metadata == {

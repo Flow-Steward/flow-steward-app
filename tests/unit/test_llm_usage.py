@@ -236,7 +236,7 @@ def test_callback_records_unknown_usage_as_unknown_with_no_estimated_cost() -> N
     assert logged["tokens_prompt"] == 40
     assert logged["tokens_completion"] is None
     assert logged["tokens_total"] is None
-    assert logged["cost_usd"] is None
+    assert "cost_usd" not in logged
 
 
 def test_callback_keeps_a_reported_zero() -> None:
@@ -249,7 +249,7 @@ def test_callback_keeps_a_reported_zero() -> None:
     assert logged["tokens_total"] == 5
 
 
-def test_callback_prices_extension_cache_as_a_subset_of_the_input() -> None:
+def test_callback_keeps_extension_cache_as_a_subset_of_the_input() -> None:
     callback, fake_logger = _callback()
     callback.on_chat_model_start(
         {},
@@ -275,5 +275,5 @@ def test_callback_prices_extension_cache_as_a_subset_of_the_input() -> None:
     logged = fake_logger.log_action.call_args.kwargs
     assert logged["tokens_prompt"] == 1_000
     assert logged["tokens_total"] == 1_000
-    # 1000 cache reads at 0.1x of $0.005/1k; the old additive path billed 2000 tokens.
-    assert logged["cost_usd"] == 0.0005
+    assert logged["tokens_completion"] == 0
+    assert "cost_usd" not in logged

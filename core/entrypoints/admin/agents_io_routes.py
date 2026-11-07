@@ -96,7 +96,7 @@ def register_agent_io_routes(
             bl = create_connection_store(dsn)
             with bl.conn.cursor() as cur:
                 # Always confine job metrics to jobs owned by the caller's account
-                # so cross-account cost/duration telemetry is never exposed.
+                # so cross-account duration telemetry is never exposed.
                 query = """
                     SELECT
                         COUNT(*) as invocations,
@@ -104,8 +104,7 @@ def register_agent_io_routes(
                             SELECT MAX(created_at) - MIN(created_at)
                             FROM platform_events e2
                             WHERE e2.job_id = e.job_id AND e2.agent = e.agent
-                        ))) as avg_duration_secs,
-                        SUM((detail->>'cost_usd')::float) as total_cost_usd
+                        ))) as avg_duration_secs
                     FROM platform_events e
                     WHERE agent = %s
                       AND event_type IN ('agent_completed', 'phase_complete')
@@ -124,7 +123,6 @@ def register_agent_io_routes(
                     "agent_id": agent_id,
                     "invocations": row[0] if row else 0,
                     "avg_duration_secs": float(row[1]) if row and row[1] else None,
-                    "total_cost_usd": float(row[2]) if row and row[2] else None,
                 }
         except Exception as e:
             return {"agent_id": agent_id, "error": str(e)}

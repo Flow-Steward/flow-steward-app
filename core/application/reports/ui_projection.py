@@ -19,7 +19,6 @@ from .job_detail_sections import (
 from .ui_projection_helpers import (
     NOT_RECORDED,
     _as_datetime,
-    _format_cost_knownness_display,
     _format_datetime,
     _format_duration_ms,
     _humanize_identifier,
@@ -101,7 +100,7 @@ def _build_hero_summary(
     job: dict[str, Any],
     runtime: dict[str, Any],
     review_workspace: dict[str, Any] | None,
-    cost_breakdown: dict[str, Any],
+    usage_breakdown: dict[str, Any],
     failure_reason: str,
     lifecycle: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -173,21 +172,6 @@ def _build_hero_summary(
                 "label_key": "react.jobs.last_update",
                 "value": _format_datetime(
                     job.get("heartbeat_at") or runtime.get("heartbeat_at") or job.get("finished_at")
-                ),
-            },
-            {
-                "id": "current_cost",
-                "label": "Current cost",
-                "label_key": "react.jobs.current_cost",
-                "value": str(
-                    cost_breakdown.get("total_cost_display")
-                    or _format_cost_knownness_display(
-                        cost_breakdown.get("known_cost_usd")
-                        or cost_breakdown.get("total_cost_usd")
-                        or 0,
-                        str(cost_breakdown.get("cost_knownness") or ""),
-                        cost_breakdown.get("unknown_cli_tokens") or 0,
-                    )
                 ),
             },
         ],
@@ -389,7 +373,7 @@ def project_job_detail(
     approval_gate: dict[str, Any] | None = None,
     approval_history: list[dict[str, Any]] | None = None,
     decision_overrides: list[dict[str, Any]] | None = None,
-    cost_breakdown: dict[str, Any] | None = None,
+    usage_breakdown: dict[str, Any] | None = None,
     causal_chain: dict[str, Any] | None = None,
     job_errors: list[dict[str, Any]] | None = None,
     messages: list[dict[str, Any]] | None = None,
@@ -410,7 +394,7 @@ def project_job_detail(
     normalized_approval_gate = _normalize_dict(approval_gate)
     normalized_approval_history = _normalize_rows(approval_history)
     normalized_decision_overrides = _normalize_rows(decision_overrides)
-    normalized_cost_breakdown = _normalize_dict(cost_breakdown)
+    normalized_usage_breakdown = _normalize_dict(usage_breakdown)
     normalized_causal_chain = _normalize_dict(causal_chain)
     normalized_job_errors = _normalize_rows(job_errors)
     normalized_messages = _normalize_rows(messages)
@@ -424,7 +408,7 @@ def project_job_detail(
         selected_step_payload = _normalize_dict(normalized_sections.get("selected_step")) or None
         review_workspace = _normalize_dict(normalized_sections.get("review_workspace")) or None
         previous_decisions = _normalize_rows(normalized_sections.get("previous_decisions"))
-        cost_payload = _normalize_dict(normalized_sections.get("cost_breakdown"))
+        usage_payload = _normalize_dict(normalized_sections.get("usage_breakdown"))
         diagnostics = _normalize_dict(normalized_sections.get("diagnostics"))
     else:
         computed_sections = build_job_detail_sections(
@@ -434,7 +418,7 @@ def project_job_detail(
             approval_gate=normalized_approval_gate,
             approval_history=normalized_approval_history,
             decision_overrides=normalized_decision_overrides,
-            cost_breakdown=normalized_cost_breakdown,
+            usage_breakdown=normalized_usage_breakdown,
             causal_chain=normalized_causal_chain,
             incident=normalized_incident,
             job_errors=normalized_job_errors,
@@ -447,7 +431,7 @@ def project_job_detail(
         selected_step_payload = _normalize_dict(computed_sections.get("selected_step")) or None
         review_workspace = _normalize_dict(computed_sections.get("review_workspace")) or None
         previous_decisions = _normalize_rows(computed_sections.get("previous_decisions"))
-        cost_payload = _normalize_dict(computed_sections.get("cost_breakdown"))
+        usage_payload = _normalize_dict(computed_sections.get("usage_breakdown"))
         diagnostics = _normalize_dict(computed_sections.get("diagnostics"))
 
     projection = {
@@ -456,7 +440,7 @@ def project_job_detail(
             job=normalized_job,
             runtime=normalized_runtime,
             review_workspace=review_workspace,
-            cost_breakdown=cost_payload,
+            usage_breakdown=usage_payload,
             failure_reason=failure_reason,
             lifecycle=_normalize_dict(lifecycle),
         ),
@@ -479,7 +463,7 @@ def project_job_detail(
             "execution_steps": execution_steps,
             "selected_step": selected_step_payload,
             "previous_decisions": previous_decisions,
-            "cost_breakdown": cost_payload,
+            "usage_breakdown": usage_payload,
             "diagnostics": diagnostics,
         }
     )

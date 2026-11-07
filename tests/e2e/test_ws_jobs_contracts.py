@@ -51,7 +51,7 @@ _KNOWN_MESSAGE_TYPES = frozenset(
         "status",
         "approval",
         "approval_history",
-        "cost",
+        "usage",
         "runtime",
         "done",
     }
@@ -124,7 +124,7 @@ class TestJobWebSocketUnit:
             bl.get_logs.return_value = []
             bl.get_events.return_value = []
             bl.get_agent_messages.return_value = []
-            bl.get_job_cost_summary.return_value = {}
+            bl.get_job_usage_summary.return_value = {}
             return bl
 
         return _make_bl, logger
@@ -150,7 +150,7 @@ class TestJobWebSocketUnit:
         bl.get_logs.return_value = []
         bl.get_events.return_value = []
         bl.get_agent_messages.return_value = []
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
 
         async def _auth_ok(ws):
             pass  # allow all
@@ -233,7 +233,7 @@ class TestJobWebSocketUnit:
         bl.get_agent_messages.return_value = [
             {"id": str(idx), "message": f"agent {idx}"} for idx in range(250)
         ]
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
 
         async def _auth_ok(_ws):
             return None
@@ -290,7 +290,7 @@ class TestJobWebSocketUnit:
         bl.get_logs.return_value = []
         bl.get_events.return_value = []
         bl.get_agent_messages.return_value = []
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
 
         async def _auth_acc_a(_ws):
             return {
@@ -514,7 +514,7 @@ class TestJobWebSocketUnit:
         bl.get_logs.return_value = []
         bl.get_events.return_value = []
         bl.get_agent_messages.return_value = []
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
 
         class _ClosingWebSocket:
             def __init__(self):

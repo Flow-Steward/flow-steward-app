@@ -36,14 +36,10 @@ _RUNTIME_FIELDS = (
     "queue_name",
     "worker_id",
 )
-_COST_FIELDS = (
+_USAGE_FIELDS = (
     "tokens_prompt",
     "tokens_completion",
     "tokens_total",
-    "cost_usd",
-    "known_cost_usd",
-    "unknown_cli_tokens",
-    "cost_knownness",
     "llm_calls",
 )
 # These must be the keys build_job_failure_summary actually produces. They were
@@ -134,7 +130,7 @@ def job_public_summary_projection(status: object) -> dict[str, Any]:
     projected = _select(source, _TOP_LEVEL_FIELDS)
     projected["active_steps"] = _active_steps(source.get("active_steps"))
     projected["runtime"] = _select(source.get("runtime"), _RUNTIME_FIELDS)
-    projected["cost"] = _select(source.get("cost"), _COST_FIELDS)
+    projected["usage"] = _select(source.get("usage"), _USAGE_FIELDS)
     projected["failure_summary"] = _select(source.get("failure_summary"), _FAILURE_FIELDS)
     projected["detail_subresources"] = {
         "logs": "/api/jobs/{job_id}/logs",

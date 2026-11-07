@@ -22,9 +22,7 @@ from core.application.reports.dashboard_metric_values import (
     _dashboard_pct_delta,
     _dashboard_percentile,
     _dashboard_running_counts,
-    _dashboard_spend_summary,
     _dashboard_success_rate,
-    _safe_float,
 )
 
 _DASHBOARD_RANGE_HOURS: dict[str, int] = {
@@ -177,96 +175,56 @@ def _dashboard_dedup_job_ids(rows: list[dict[str, Any]]) -> list[str]:
     return [job_id for job_id in dict.fromkeys(job_ids) if job_id]
 
 
-def _dashboard_cost_entry(raw: dict[str, Any]) -> dict[str, Any]:
-    dominant_agent = str(raw.get("dominant_agent") or "").strip() or None
-    raw_cost = raw.get("cost_usd")
-    unknown_tokens = max(0, int(raw.get("unknown_cli_tokens") or 0))
-    cost_usd = None if raw_cost is None else _safe_float(raw_cost)
-    if unknown_tokens > 0 and not cost_usd:
-        cost_usd = None
-    cost_knownness = "known"
-    if unknown_tokens > 0:
-        cost_knownness = "partial" if cost_usd is not None else "unknown"
+def _dashboard_usage_entry(raw: dict[str, Any]) -> dict[str, Any]:
     return {
-        "cost_usd": cost_usd,
-        "cost_knownness": cost_knownness,
-        "unknown_cli_tokens": unknown_tokens,
-        "dominant_agent": dominant_agent,
+        "tokens_prompt": int(raw.get("tokens_prompt") or 0),
+        "tokens_completion": int(raw.get("tokens_completion") or 0),
+        "tokens_total": int(raw.get("tokens_total") or 0),
+        "dominant_agent": str(raw.get("dominant_agent") or "").strip() or None,
     }
 
 
-def _dashboard_fetch_cost_by_job_bulk(
-    *, bl: Any, job_ids: list[str]
-) -> dict[str, dict[str, Any]] | None:
-    if not hasattr(bl, "get_jobs_cost_summary"):
-        return None
-    try:
-        payload = bl.get_jobs_cost_summary(job_ids) or {}
-    except Exception:
-        return None
-
-    payload_by_job_id = {str(key): value for key, value in payload.items()}
-    costs: dict[str, dict[str, Any]] = {}
-    for job_id in job_ids:
-        row = payload_by_job_id.get(str(job_id))
-        row = row or {}
-        costs[job_id] = _dashboard_cost_entry(row if isinstance(row, dict) else {})
-    return costs
-
-
-def _dashboard_fetch_cost_by_job_single(
-    *, bl: Any, job_ids: list[str]
+def _dashboard_fetch_usage_by_job(
+    *, bl: Any, rows: list[dict[str, Any]]
 ) -> dict[str, dict[str, Any]]:
-    if not hasattr(bl, "get_job_cost_summary"):
+    job_ids = _dashboard_dedup_job_ids(rows)
+    if not job_ids or not bl:
         return {}
-
-    costs: dict[str, dict[str, Any]] = {}
+    if hasattr(bl, "get_jobs_usage_summary"):
+        try:
+            payload = bl.get_jobs_usage_summary(job_ids) or {}
+        except Exception:
+            pass
+        else:
+            by_id = {str(key): value for key, value in payload.items()}
+            return {
+                job_id: _dashboard_usage_entry(
+                    by_id[job_id] if isinstance(by_id.get(job_id), dict) else {}
+                )
+                for job_id in job_ids
+            }
+    if not hasattr(bl, "get_job_usage_summary"):
+        return {}
+    usage = {}
     for job_id in job_ids:
         try:
-            payload = bl.get_job_cost_summary(job_id) or {}
+            payload = bl.get_job_usage_summary(job_id) or {}
         except Exception:
-            costs[job_id] = {"cost_usd": None, "dominant_agent": None}
-            continue
-        costs[job_id] = _dashboard_cost_entry(payload if isinstance(payload, dict) else {})
-    return costs
+            payload = {}
+        usage[job_id] = _dashboard_usage_entry(payload if isinstance(payload, dict) else {})
+    return usage
 
 
-def _dashboard_fetch_cost_by_job(
-    *,
-    bl: Any,
-    rows: list[dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    dedup_job_ids = _dashboard_dedup_job_ids(rows)
-    if not dedup_job_ids or not bl:
-        return {}
-
-    bulk_result = _dashboard_fetch_cost_by_job_bulk(bl=bl, job_ids=dedup_job_ids)
-    if bulk_result is not None:
-        return bulk_result
-    return _dashboard_fetch_cost_by_job_single(bl=bl, job_ids=dedup_job_ids)
-
-
-def _dashboard_enrich_rows_with_cost(*, bl: Any, rows: list[dict[str, Any]]) -> None:
-    if not rows:
-        return
-    enrichment_by_job = _dashboard_fetch_cost_by_job(bl=bl, rows=rows)
-    if not enrichment_by_job:
-        return
+def _dashboard_enrich_rows_with_usage(*, bl: Any, rows: list[dict[str, Any]]) -> None:
+    enrichment_by_job = _dashboard_fetch_usage_by_job(bl=bl, rows=rows)
     for row in rows:
-        job_id = _dashboard_row_job_id(row)
-        if not job_id:
+        enrichment = enrichment_by_job.get(_dashboard_row_job_id(row))
+        if enrichment is None:
             continue
-        enrichment = enrichment_by_job.get(job_id) or {}
-        raw_cost = enrichment.get("cost_usd")
-        row["cost_usd"] = None if raw_cost is None else _safe_float(raw_cost)
-        row["cost_knownness"] = str(enrichment.get("cost_knownness") or "known")
-        row["unknown_cli_tokens"] = int(enrichment.get("unknown_cli_tokens") or 0)
-        current_agent = str(row.get("current_agent") or "").strip()
-        if current_agent:
-            continue
-        dominant_agent = str(enrichment.get("dominant_agent") or "").strip()
-        if dominant_agent:
-            row["current_agent"] = dominant_agent
+        for field in ("tokens_prompt", "tokens_completion", "tokens_total"):
+            row[field] = enrichment[field]
+        if not str(row.get("current_agent") or "").strip() and enrichment["dominant_agent"]:
+            row["current_agent"] = enrichment["dominant_agent"]
 
 
 def _dashboard_full_day_range(
@@ -325,9 +283,6 @@ def _dashboard_build_record(
         "finished_at": finished_at,
         "duration_sec": duration_sec,
         "result": result,
-        "cost_usd": (None if row.get("cost_usd") is None else _safe_float(row.get("cost_usd"))),
-        "cost_knownness": str(row.get("cost_knownness") or "known"),
-        "unknown_cli_tokens": int(row.get("unknown_cli_tokens") or 0),
     }
 
 
@@ -420,9 +375,6 @@ def _dashboard_init_project_row(project_name: str, attention_count: int) -> dict
         "completed": 0,
         "failed": 0,
         "durations": [],
-        "spend_usd": 0.0,
-        "spend_known_count": 0,
-        "spend_unknown_count": 0,
     }
 
 
@@ -433,15 +385,7 @@ def _dashboard_accumulate_current_records(
     duration_map: dict[str, list[float]],
     rollup_covered_days: set[str],
     attention_by_project: dict[str, int],
-) -> tuple[
-    dict[str, dict[str, Any]],
-    dict[str, dict[str, Any]],
-    dict[str, dict[str, Any]],
-    dict[str, dict[str, Any]],
-]:
-    spend_by_project: dict[str, dict[str, Any]] = {}
-    spend_by_workflow: dict[str, dict[str, Any]] = {}
-    spend_by_agent: dict[str, dict[str, Any]] = {}
+) -> dict[str, dict[str, Any]]:
     project_rows: dict[str, dict[str, Any]] = {}
 
     for record in current_records:
@@ -454,28 +398,6 @@ def _dashboard_accumulate_current_records(
                 duration_map[day_key].append(float(record["duration_sec"]))
 
         project_name = record["project_name"]
-        workflow_key = record["workflow"]
-        agent_key = record["agent"]
-        raw_spend = record.get("cost_usd")
-        spend_value = None if raw_spend is None else float(raw_spend)
-        spend_partial = str(record.get("cost_knownness") or "known") in {
-            "partial",
-            "unknown",
-        }
-        for payload, key in (
-            (spend_by_project, project_name),
-            (spend_by_workflow, workflow_key),
-            (spend_by_agent, agent_key),
-        ):
-            bucket = payload.setdefault(key, {"known_total": 0.0, "known": 0, "unknown": 0})
-            if spend_value is None:
-                bucket["unknown"] = int(bucket["unknown"]) + 1
-            else:
-                bucket["known_total"] = float(bucket["known_total"]) + spend_value
-                bucket["known"] = int(bucket["known"]) + 1
-                if spend_partial:
-                    bucket["unknown"] = int(bucket["unknown"]) + 1
-
         project_row = project_rows.setdefault(
             project_name,
             _dashboard_init_project_row(
@@ -489,15 +411,8 @@ def _dashboard_accumulate_current_records(
             project_row["failed"] = int(project_row["failed"]) + 1
         if record.get("duration_sec") is not None:
             project_row["durations"].append(float(record["duration_sec"]))
-        if spend_value is None:
-            project_row["spend_unknown_count"] = int(project_row["spend_unknown_count"]) + 1
-        else:
-            project_row["spend_usd"] = float(project_row["spend_usd"] + spend_value)
-            project_row["spend_known_count"] = int(project_row["spend_known_count"]) + 1
-            if spend_partial:
-                project_row["spend_unknown_count"] = int(project_row["spend_unknown_count"]) + 1
 
-    return spend_by_project, spend_by_workflow, spend_by_agent, project_rows
+    return project_rows
 
 
 def _dashboard_add_attention_only_projects(
@@ -508,31 +423,6 @@ def _dashboard_add_attention_only_projects(
             project_name,
             _dashboard_init_project_row(project_name=project_name, attention_count=attention_count),
         )
-
-
-def _dashboard_top_breakdown(
-    payload: dict[str, dict[str, Any]], *, limit: int = 8
-) -> list[dict[str, Any]]:
-    ranked = sorted(
-        payload.items(),
-        key=lambda item: float(item[1].get("known_total") or 0.0),
-        reverse=True,
-    )[: max(1, int(limit or 8))]
-    rows: list[dict[str, Any]] = []
-    for name, bucket in ranked:
-        known = int(bucket.get("known") or 0)
-        unknown = int(bucket.get("unknown") or 0)
-        availability = "measured"
-        if unknown:
-            availability = "partial" if known else "unavailable"
-        rows.append(
-            {
-                "name": str(name),
-                "spend_usd": float(bucket.get("known_total") or 0.0) if known else None,
-                "availability": availability,
-            }
-        )
-    return rows
 
 
 def _dashboard_build_series(
@@ -583,11 +473,6 @@ def _dashboard_build_breakdown_rows(
         finished_count = done_count + fail_count
         success_rate = ((done_count / finished_count) * 100.0) if finished_count else None
         p50_project = _dashboard_percentile([float(value) for value in row["durations"]], 0.50)
-        spend_unknown_count = int(row["spend_unknown_count"])
-        spend_known_count = int(row["spend_known_count"])
-        spend_availability = "measured"
-        if spend_unknown_count:
-            spend_availability = "partial" if spend_known_count else "unavailable"
         breakdown_rows.append(
             {
                 "project_name": row["project_name"],
@@ -597,15 +482,12 @@ def _dashboard_build_breakdown_rows(
                 "finished": finished_count,
                 "success_rate_pct": success_rate,
                 "p50_duration_seconds": p50_project,
-                "spend_usd": float(row["spend_usd"]) if spend_known_count else None,
-                "spend_availability": spend_availability,
             }
         )
     breakdown_rows.sort(
         key=lambda row: (
             int(row.get("attention_count") or 0),
             int(row.get("failed") or 0),
-            float(row.get("spend_usd") or 0.0),
         ),
         reverse=True,
     )
@@ -646,9 +528,6 @@ def _dashboard_compute_summary(
     previous_p50 = _dashboard_percentile(previous_durations, 0.50)
     current_p95 = _dashboard_percentile(current_durations, 0.95)
 
-    current_spend = _dashboard_spend_summary(current_records)
-    previous_spend = _dashboard_spend_summary(previous_records)
-
     running = groups.get("running") or []
     blocked = groups.get("blocked") or []
     needs_attention = groups.get("needs_attention") or []
@@ -679,14 +558,12 @@ def _dashboard_compute_summary(
         throughput_map=throughput_map,
     )
     attention_by_project = _dashboard_attention_by_project(needs_attention)
-    spend_by_project, spend_by_workflow, spend_by_agent, project_rows = (
-        _dashboard_accumulate_current_records(
-            current_records=current_records,
-            throughput_map=throughput_map,
-            duration_map=duration_map,
-            rollup_covered_days=rollup_covered_days,
-            attention_by_project=attention_by_project,
-        )
+    project_rows = _dashboard_accumulate_current_records(
+        current_records=current_records,
+        throughput_map=throughput_map,
+        duration_map=duration_map,
+        rollup_covered_days=rollup_covered_days,
+        attention_by_project=attention_by_project,
     )
     _dashboard_add_attention_only_projects(
         project_rows=project_rows,
@@ -746,22 +623,10 @@ def _dashboard_compute_summary(
                 "display": _dashboard_format_duration(current_p50),
                 "delta_pct": _dashboard_pct_delta(current_p50, previous_p50),
             },
-            "spend": {
-                "label": "Spend",
-                **current_spend,
-                "delta_pct": _dashboard_pct_delta(
-                    current_spend["value_usd"], previous_spend["value_usd"]
-                ),
-            },
         },
         "trends": {
             "daily_throughput": throughput_series,
             "duration": duration_series,
-            "spend_breakdown": {
-                "project": _dashboard_top_breakdown(spend_by_project),
-                "workflow": _dashboard_top_breakdown(spend_by_workflow),
-                "agent": _dashboard_top_breakdown(spend_by_agent),
-            },
         },
         "breakdown_rows": breakdown_rows[:25],
         "groups": triage_groups,
@@ -783,7 +648,7 @@ def _dashboard_collect_rows_with_enrichment(
         window_start=window_start,
         window_end=window_end,
     )
-    _dashboard_enrich_rows_with_cost(bl=bl, rows=rows)
+    _dashboard_enrich_rows_with_usage(bl=bl, rows=rows)
     return rows, truncated
 
 
@@ -935,7 +800,7 @@ __all__ = [
     "_dashboard_collect_live_rows",
     "_dashboard_compute_summary",
     "_dashboard_dedupe_rows",
-    "_dashboard_fetch_cost_by_job",
+    "_dashboard_fetch_usage_by_job",
     "_dashboard_groups_payload",
     "_dashboard_normalize_range",
     "configure_dashboard_metrics",

@@ -43,7 +43,7 @@ CONTROL_PLANE_REQUIRED_TOOLS = {
     "job_events",
     "job_messages",
     "job_logs",
-    "job_cost_breakdown",
+    "job_usage_breakdown",
     "job_approval",
     "report_generate",
     "report_get",
@@ -604,7 +604,7 @@ class TestControlPlaneViaMCP:
             ("job_events", lambda ctx: {"job_id": str(ctx["job_id"]), "limit": 25}),
             ("job_messages", lambda ctx: {"job_id": str(ctx["job_id"]), "limit": 25}),
             ("job_logs", lambda ctx: {"job_id": str(ctx["job_id"]), "limit": 10}),
-            ("job_cost_breakdown", lambda ctx: {"job_id": str(ctx["job_id"])}),
+            ("job_usage_breakdown", lambda ctx: {"job_id": str(ctx["job_id"])}),
             ("job_approval", lambda ctx: {"job_id": str(ctx["job_id"])}),
         ],
     )

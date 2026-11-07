@@ -46,7 +46,7 @@ def _service(value, *, status="completed", artifacts=None, resolver=None):
         return {"id": "1", "account_id": "acc_alpha"}
 
     logger = SimpleNamespace(
-        get_job=read_job, get_project=read_project, get_job_cost_summary=lambda _: {}
+        get_job=read_job, get_project=read_project, get_job_usage_summary=lambda _: {}
     )
     service = JobQueryServiceCoreMixin(
         get_logger=lambda: logger,

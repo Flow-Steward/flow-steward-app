@@ -72,8 +72,8 @@ class _AccessStore:
     def list_job_decision_overrides(self, *_args, **_kwargs) -> list[dict[str, Any]]:
         return self._render_rows("decision rendering")
 
-    def get_job_cost_breakdown(self, *_args, **_kwargs) -> list[dict[str, Any]]:
-        return self._render_rows("cost rendering")
+    def get_job_usage_breakdown(self, *_args, **_kwargs) -> list[dict[str, Any]]:
+        return self._render_rows("usage rendering")
 
 
 @dataclass(frozen=True)

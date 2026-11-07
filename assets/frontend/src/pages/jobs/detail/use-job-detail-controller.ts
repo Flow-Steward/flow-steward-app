@@ -34,7 +34,8 @@ import {
 import {
   buildCanonicalJobDetailView,
   detailLifecycleApproval,
-  jobCostTotals,
+  finiteNumberOrNull,
+  jobUsageTotals,
   projectIdFromPayload,
 } from "@/pages/jobs/detail/job-detail-view-model";
 import {
@@ -112,7 +113,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
   const {
     approvalHistoryQuery,
     approvalQuery,
-    costBreakdownQuery,
+    usageBreakdownQuery,
     decisionOverridesQuery,
     definitionQuery,
     incidentQuery,
@@ -148,7 +149,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
   } = useJobDetailActions(jobId, setJobActionMessage, setJobActionError);
 
   const incident = incidentQuery.data;
-  const detailCost = objectOrEmpty(detailEntity.cost);
+  const detailUsage = objectOrEmpty(detailEntity.usage);
   const heroSummary = canonicalDetail.projection.heroSummary;
   const heroFacts = listFromUnknown(heroSummary.facts);
   const projectedNextAction = canonicalDetail.projection.nextAction;
@@ -270,32 +271,24 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
     );
   })();
 
-  const costRows: Entity[] = (() => {
+  const usageRows: Entity[] = (() => {
     const rowsFromDetail = listFromUnknown(
-      canonicalDetail.sections.costBreakdown.rows,
+      canonicalDetail.sections.usageBreakdown.rows,
     );
     if (rowsFromDetail.length) {
       return rowsFromDetail;
     }
-    return listFromUnknown(costBreakdownQuery.data?.breakdown).map((row) => ({
-      agent_label: row.agent || "agent",
-      model: row.model_used || "model",
-      tokens:
-        Number(row.tokens_prompt || 0) + Number(row.tokens_completion || 0),
-      calls: row.calls || 0,
-      cost_usd:
-        row.cost_usd === null || row.cost_knownness === "unknown"
-          ? null
-          : Number(row.known_cost_usd || row.cost_usd || 0),
-      known_cost_usd: Number(row.known_cost_usd || row.cost_usd || 0),
-      unknown_cli_tokens: Number(row.unknown_cli_tokens || 0),
-      cost_knownness: row.cost_knownness || "known",
-      cost_display:
-        firstReadableText(row.cost_display) ||
-        (row.cost_knownness === "unknown"
-          ? "Unknown"
-          : `$${Number(row.known_cost_usd || row.cost_usd || 0).toFixed(4)}`),
-    }));
+    return listFromUnknown(usageBreakdownQuery.data?.breakdown).map((row) => {
+      const recordedTotal = row.tokens_total == null ? null : finiteNumberOrNull(row.tokens_total);
+      const prompt = row.tokens_prompt == null ? null : finiteNumberOrNull(row.tokens_prompt);
+      const completion = row.tokens_completion == null ? null : finiteNumberOrNull(row.tokens_completion);
+      return {
+        agent_label: row.agent || "agent",
+        model: row.model_used || "model",
+        tokens: recordedTotal ?? (prompt !== null && completion !== null ? prompt + completion : 0),
+        calls: row.calls || 0,
+      };
+    });
   })();
 
   const incidentEntity = objectOrEmpty(incident);
@@ -335,12 +328,12 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
     firstReadableText(projectedNextAction.body, fallbackNextActionBody) ||
     t("react.jobs.continue_monitoring_run", "Continue monitoring this run from the execution waterfall and step inspector.");
 
-  const { totalCostDisplay, totalTokensValue, unknownCliTokensValue } = jobCostTotals({
-    projected: canonicalDetail.sections.costBreakdown,
-    breakdown: costBreakdownQuery.data as Entity | undefined,
-    detailCost,
-    rows: costRows,
-  }, t);
+  const { totalTokensValue } = jobUsageTotals({
+    projected: canonicalDetail.sections.usageBreakdown,
+    breakdown: usageBreakdownQuery.data as Entity | undefined,
+    detailUsage,
+    rows: usageRows,
+  });
   const resolvedProjectId =
     projectIdFromPayload(detail) || safeEntityId(incident?.project_id);
   const invocationMappedInputs = objectOrEmpty(invocation.mapped_inputs);
@@ -365,7 +358,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
       userTimezone,
     },
     summary: {
-      costRows,
+      usageRows,
       failureDiagnosticIds,
       failureEvidence,
       failureSummary,
@@ -374,9 +367,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
       heroSummary,
       nextActionBody,
       nextActionTitle,
-      totalCostDisplay,
       totalTokensValue,
-      unknownCliTokensValue,
     },
     execution: {
       executionSteps,

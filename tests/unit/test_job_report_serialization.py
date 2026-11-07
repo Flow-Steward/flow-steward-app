@@ -69,7 +69,7 @@ def _download(payload, token=None):
 def test_job_report_native_scalars_have_the_existing_wire_representation(token):
     report = {
         "job": {"id": UUID(_JOB_ID), "finished_at": datetime(2026, 10, 5, 12, 0, tzinfo=UTC)},
-        "cost": Decimal("0.01230"),
+        "usage": Decimal("0.01230"),
         "rows": [{"message": "Unicode: café", "value": 42, "flag": True, "optional": None}],
     }
 
@@ -80,7 +80,7 @@ def test_job_report_native_scalars_have_the_existing_wire_representation(token):
     assert response.headers["content-disposition"].endswith('-report.json"')
     assert response.json() == {
         "job": {"id": _JOB_ID, "finished_at": "2026-10-05 12:00:00+00:00"},
-        "cost": "0.01230",
+        "usage": "0.01230",
         "rows": report["rows"],
     }
 
@@ -118,16 +118,16 @@ def test_job_report_redaction_fallback_retains_scalar_values_and_removes_sensiti
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={"total": Decimal("0.01230")},
+        usage_breakdown={"total": Decimal("0.01230")},
     )
     assert report["job"]["id"] == _JOB_ID
-    assert report["cost_breakdown"]["total"] == "0.01230"
+    assert report["usage_breakdown"]["total"] == "0.01230"
 
     response = _download(report, token)
 
     assert response.status_code == 200
     assert response.json()["job"]["id"] == _JOB_ID
-    assert response.json()["cost_breakdown"]["total"] == "0.01230"
+    assert response.json()["usage_breakdown"]["total"] == "0.01230"
     assert "synthetic-private-value" not in response.text
 
 

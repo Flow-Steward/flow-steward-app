@@ -264,7 +264,7 @@ class OrchestratorState(TypedDict):
     active_agents: list[str] | None  # agent_ids currently running
     agent_performance: (
         dict | None
-    )  # agent_id → {cost, tokens, duration_ms}  # PROJECTION-ONLY — read by admin page, never populated by orchestrator
+    )  # agent_id → {tokens, duration_ms}  # PROJECTION-ONLY — read by admin page, never populated by orchestrator
 
     # --- Feedback & Re-entry ---
     feedback_mode: bool  # True when processing human/reviewer rework feedback

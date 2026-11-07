@@ -100,36 +100,6 @@ def _dashboard_duration_values(records: list[dict[str, Any]]) -> list[float]:
     ]
 
 
-def _dashboard_spend_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
-    known_values = [
-        float(record["cost_usd"]) for record in records if record.get("cost_usd") is not None
-    ]
-    unknown_jobs = sum(
-        1
-        for record in records
-        if record.get("cost_usd") is None
-        or str(record.get("cost_knownness") or "known") in {"partial", "unknown"}
-    )
-    known_total = float(sum(known_values))
-    if unknown_jobs and not known_values:
-        return {
-            "value_usd": None,
-            "display": "Unavailable",
-            "availability": "unavailable",
-            "unknown_jobs": unknown_jobs,
-        }
-    availability = "partial" if unknown_jobs else "measured"
-    display = f"${known_total:,.2f}"
-    if availability == "partial":
-        display = f"{display} (partial)"
-    return {
-        "value_usd": known_total,
-        "display": display,
-        "availability": availability,
-        "unknown_jobs": unknown_jobs,
-    }
-
-
 def _dashboard_running_counts(
     running: list[dict[str, Any]], blocked: list[dict[str, Any]]
 ) -> tuple[int, int]:

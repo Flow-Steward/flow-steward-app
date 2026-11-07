@@ -46,18 +46,7 @@ function formatPercent(value: number | null | undefined): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function formatCurrency(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
-  if (value === 0) {
-    return "$0.00";
-  }
-  if (value < 0.01) {
-    return `$${value.toFixed(4)}`;
-  }
-  return `$${value.toFixed(2)}`;
-}
+
 
 function formatNumber(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -155,7 +144,7 @@ function WorkflowStatsPanel({
         <div className="min-w-0">
           <h2 className="fs-card-title">{t("react.workflows.run_statistics", "Run statistics")}</h2>
           <p className="fs-card-description">
-            {t("react.workflows.aggregated_job_activity_and_cost_across_all_projects_using_this_workflow", "Aggregated job activity and cost across all projects using this workflow.")}</p>
+            {t("react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow", "Aggregated job activity across all projects using this workflow.")}</p>
         </div>
         <Link className="fs-button" data-workflow-overview-action="view-jobs" to={jobsLink}>
           {t("react.workflows.view_jobs", "View jobs")}<ArrowRight aria-hidden="true" />
@@ -177,8 +166,6 @@ function WorkflowStatsPanel({
           <div className="fs-metric-grid" data-columns="4">
             <DsMetricCard density="standard" figure={formatNumber(stats.total_runs)} label={t("react.workflows.total_runs", "Total runs")} meta={stats.active_count ? t("react.workflows.active_now_count", "{count} active now", { count: formatNumber(stats.active_count) }) : null} unavailable={formatNumber(stats.total_runs) === NO_VALUE} wave={false} />
             <DsMetricCard attention={Number(stats.total_runs) > 0 && stats.success_rate !== null && stats.success_rate !== undefined && stats.success_rate < 0.6} density="standard" figure={formatPercent(stats.success_rate)} label={t("react.workflows.success_rate", "Success rate")} meta={t("react.workflows.completed_failed_counts", "{completed} completed / {failed} failed", { completed: formatNumber(stats.completed_count), failed: formatNumber(stats.failed_count) })} unavailable={formatPercent(stats.success_rate) === NO_VALUE} wave={false} />
-            <DsMetricCard density="standard" figure={formatCurrency(stats.total_cost_usd)} label={t("react.workflows.total_cost", "Total cost")} meta={stats.jobs_with_cost ? t("react.workflows.jobs_with_cost_data_count", "{count} jobs with cost data", { count: formatNumber(stats.jobs_with_cost) }) : t("react.workflows.no_cost_data_recorded", "No cost data recorded")} unavailable={formatCurrency(stats.total_cost_usd) === NO_VALUE} wave={false} />
-            <DsMetricCard density="standard" figure={formatCurrency(stats.avg_cost_per_run_usd)} label={t("react.workflows.avg_cost_run", "Avg cost / run")} meta={stats.total_runs ? t("react.workflows.across_runs_count", "Across {count} runs", { count: formatNumber(stats.total_runs) }) : null} unavailable={formatCurrency(stats.avg_cost_per_run_usd) === NO_VALUE} wave={false} />
             <DsMetricCard density="standard" figure={formatDuration(stats.avg_duration_seconds)} label={t("react.workflows.avg_duration", "Avg duration")} meta={t("react.workflows.finished_runs_only", "Finished runs only")} unavailable={formatDuration(stats.avg_duration_seconds) === NO_VALUE} wave={false} />
             <DsMetricCard density="standard" figure={lastRunDisplay} label={t("react.workflows.last_run", "Last run")} unavailable={lastRunDisplay === NO_VALUE} wave={false} />
             <DsMetricCard density="standard" figure={formatNumber(stats.active_count)} label={t("users.status.active", "Active")} meta={t("react.workflows.active_statuses_hint", "Pending, in progress, or awaiting approval")} unavailable={formatNumber(stats.active_count) === NO_VALUE} wave={false} />

@@ -483,9 +483,8 @@ def invoke_agent(
 
     # ── Anthropic prompt caching ──────────────────────────────────────────────
     # The system message (persona + context) and the first HumanMessage (task)
-    # are identical on every ReAct round.  Caching them costs 125 % on write
-    # (round 1) but only 10 % on every subsequent cache-read round — so we
-    # break even at round 2 and save ~90 % of those tokens on rounds 3+.
+    # are identical on every ReAct round. Mark this stable prefix for provider
+    # prompt caching across subsequent rounds.
     if provider_key == "anthropic" or bool(getattr(llm, "supports_prompt_caching", False)):
         messages = _apply_prompt_cache(messages)
         logger.debug(

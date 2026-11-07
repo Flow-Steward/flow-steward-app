@@ -576,9 +576,6 @@ export type WorkflowStats = {
   active_count: number;
   cancelled_count: number;
   success_rate: number | null;
-  total_cost_usd: number;
-  avg_cost_per_run_usd: number;
-  jobs_with_cost: number;
   last_run_at: string | null;
   avg_duration_seconds: number | null;
 };

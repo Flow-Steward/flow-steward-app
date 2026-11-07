@@ -106,7 +106,7 @@ def create_jobs_websocket_router(
         last_event_id = ""
         last_message_id = ""
         last_status = None
-        last_cost_key = None
+        last_usage_key = None
         last_hist_len = -1
         last_runtime_key = None
         last_approval_key = None
@@ -206,11 +206,11 @@ def create_jobs_websocket_router(
                         return
 
                 try:
-                    cost = bl.get_job_cost_summary(job_id)
-                    cost_key = (cost.get("tokens_total"), cost.get("cost_usd"))
-                    if cost_key != last_cost_key and cost.get("tokens_total"):
-                        last_cost_key = cost_key
-                        if not await _send_frame(websocket, {"type": "cost", "data": cost}):
+                    usage = bl.get_job_usage_summary(job_id)
+                    usage_key = (usage.get("tokens_total"), usage.get("llm_calls"))
+                    if usage_key != last_usage_key and usage.get("tokens_total"):
+                        last_usage_key = usage_key
+                        if not await _send_frame(websocket, {"type": "usage", "data": usage}):
                             return
                 except Exception:
                     pass

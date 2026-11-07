@@ -322,13 +322,13 @@ class TestJobReplayAndRetry:
         assert isinstance(messages, list)
         assert len(messages) <= 5
 
-    def test_job_cost_breakdown(self, test_project_id: str, server_available):
-        """GET /api/jobs/{id}/cost-breakdown returns per-agent cost data."""
+    def test_job_usage_breakdown(self, test_project_id: str, server_available):
+        """GET /api/jobs/{id}/usage-breakdown returns per-agent token usage data."""
         job_ids = _recent_project_job_ids(test_project_id)
         if not job_ids:
             pytest.skip("No recent jobs for cost inspection")
 
-        resp = _get(f"/api/jobs/{job_ids[0]}/cost-breakdown")
+        resp = _get(f"/api/jobs/{job_ids[0]}/usage-breakdown")
         assert resp.status_code == 200
         body = resp.json()
-        assert isinstance(body.get("agents") or body.get("cost_breakdown") or [], list)
+        assert isinstance(body.get("agents") or body.get("usage_breakdown") or [], list)

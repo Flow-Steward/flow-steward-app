@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from tests._step_run_state import step_run_state
 
 import core.application.reports.job_detail_contract as job_detail_contract_module
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
@@ -23,6 +22,7 @@ from core.application.reports.job_detail_sections import (
 )
 from core.application.reports.ui_projection_helpers import _build_message_steps
 from core.infrastructure.security.secret_detection import contains_detected_secret
+from tests._step_run_state import step_run_state
 
 
 class _Dump:
@@ -129,7 +129,7 @@ class _JobQueryService:
             }
         )
 
-    def get_cost_breakdown(self, job_id, *, scope=None):
+    def get_usage_breakdown(self, job_id, *, scope=None):
         _ = (job_id, scope)
         return _Dump(
             {
@@ -140,7 +140,7 @@ class _JobQueryService:
                         "tokens_prompt": 120,
                         "tokens_completion": 80,
                         "calls": 1,
-                        "cost_usd": 0.0123,
+                        "tokens_total": 200,
                     }
                 ]
             }
@@ -729,7 +729,7 @@ def test_build_job_detail_contract_builds_machine_lifecycle_before_projection_re
             passed_lifecycles.append(dict(passed_lifecycle))
         projection = original_project_job_detail(*args, **kwargs)
         projection["execution_steps"] = [{"id": "ui-only-step", "title": "UI drifted step"}]
-        projection["cost_breakdown"] = {"total_cost_display": "$99.00", "total_cost_usd": 99.0}
+        projection["usage_breakdown"] = {"total_tokens_display": "99", "total_tokens": 99}
         projection["status"] = "projection_override"
         projection["current_step_id"] = "projection_step"
         projection["unknown_projection_key"] = "should-not-leak"
@@ -770,11 +770,11 @@ def test_build_job_detail_contract_builds_machine_lifecycle_before_projection_re
     assert passed_lifecycles[0]["errors"]["count"] == 1
     assert passed_lifecycles[0]["root_cause"]["message"] == "A human approval gate paused the run."
     assert "steps" not in payload["lifecycle"]
-    assert payload["lifecycle"]["costs"]["total_cost_usd"] == 0.0123
+    assert payload["lifecycle"]["usage"]["total_tokens"] == 200
     assert payload["lifecycle"]["runtime"]["count"] == 1
     assert payload["lifecycle"]["errors"]["count"] == 1
     assert payload["sections"]["execution_steps"][0]["id"] != "ui-only-step"
-    assert payload["sections"]["cost_breakdown"]["total_cost_usd"] == 0.0123
+    assert payload["sections"]["usage_breakdown"]["total_tokens"] == 200
     assert (
         payload["sections"]["diagnostics"]["root_cause"]["message"]
         == "A human approval gate paused the run."
@@ -792,7 +792,7 @@ def test_build_job_detail_contract_builds_machine_lifecycle_before_projection_re
     assert "unknown_projection_key" not in payload
     assert "diagnostics" not in payload["projection"]
     assert "execution_steps" not in payload["projection"]
-    assert "cost_breakdown" not in payload["projection"]
+    assert "usage_breakdown" not in payload["projection"]
     assert payload["lifecycle"]["root_cause"]["next_action"] == (
         "Open the review workspace and decide whether to continue."
     )
@@ -869,7 +869,7 @@ def test_project_job_detail_can_return_projection_only():
             "selected_step": {"id": "step-1", "title": "Step one"},
             "review_workspace": {"kind": "document_review"},
             "previous_decisions": [{"id": "approval-1"}],
-            "cost_breakdown": {"total_cost_display": "$1.00"},
+            "usage_breakdown": {"total_tokens_display": "100"},
             "diagnostics": {"tabs": {"runtime": {"count": 1, "rows": []}}},
         },
         project_name="Demo project",
@@ -1959,7 +1959,7 @@ def test_contract_bounds_independent_heavy_raw_buckets_without_mutating_sources(
         approval_gate=heavy_object,
         approval_history=heavy_rows,
         causal_chain=heavy_object,
-        cost_breakdown_raw=heavy_object,
+        usage_breakdown_raw=heavy_object,
         decision_overrides=heavy_rows,
         incident=heavy_object,
         job_errors=heavy_rows,
@@ -1975,7 +1975,7 @@ def test_contract_bounds_independent_heavy_raw_buckets_without_mutating_sources(
         "runtime",
         "approval_gate",
         "approval_history",
-        "cost_breakdown_raw",
+        "usage_breakdown_raw",
         "decision_overrides",
         "incident",
         "job_errors",
@@ -2016,7 +2016,7 @@ def test_contract_emits_execution_steps_once_in_canonical_sections() -> None:
         approval_gate={},
         approval_history=[],
         causal_chain={},
-        cost_breakdown_raw={},
+        usage_breakdown_raw={},
         decision_overrides=[],
         incident={},
         job_errors=[],
@@ -2099,7 +2099,7 @@ def test_contract_bounds_real_review_workspace_in_canonical_sections() -> None:
         approval_gate=approval_gate,
         approval_history=[],
         causal_chain={},
-        cost_breakdown_raw={},
+        usage_breakdown_raw={},
         decision_overrides=[],
         incident={},
         job_errors=[],
@@ -2422,7 +2422,7 @@ def test_contract_keeps_versioned_workflow_run_exact() -> None:
         approval_gate={},
         approval_history=[],
         causal_chain={},
-        cost_breakdown_raw={},
+        usage_breakdown_raw={},
         decision_overrides=[],
         incident={},
         job_errors=[],
@@ -2482,7 +2482,7 @@ def test_contract_bounds_all_large_secret_bearing_decision_projections() -> None
         approval_gate={},
         approval_history=history,
         causal_chain={},
-        cost_breakdown_raw={},
+        usage_breakdown_raw={},
         decision_overrides=decision_overrides,
         incident={},
         job_errors=[],
@@ -3051,7 +3051,7 @@ def test_compact_job_detail_preserves_acknowledgement_through_real_status_dto(ac
         "acknowledged_by": actor,
     }
     store.get_project.return_value = {"id": "proj-42", "account_id": DEFAULT_ACCOUNT_ID}
-    store.get_job_cost_summary.return_value = {}
+    store.get_job_usage_summary.return_value = {}
     store.get_project_workflows.return_value = []
     scope = ScopeContext(account_id=DEFAULT_ACCOUNT_ID)
     service = JobQueryService(
@@ -3086,9 +3086,8 @@ def test_compact_job_detail_preserves_acknowledgement_through_real_status_dto(ac
 
 
 def test_execution_page_publishes_typed_committed_trace_on_first_page_only():
-    from tests.unit.test_workflow_run_trace import one_trace
-
     from core.application.jobs.workflow_run_models import PublicWorkflowTraceV1
+    from tests.unit.test_workflow_run_trace import one_trace
 
     trace = PublicWorkflowTraceV1.model_validate(one_trace()).model_dump(mode="json")
 

@@ -40,7 +40,7 @@ _CALLER_AUTH_REQUIRED_MCP_TOOLS = {
     "job_events",
     "job_messages",
     "job_logs",
-    "job_cost_breakdown",
+    "job_usage_breakdown",
     "job_approval",
     "job_cancel",
     "job_approval_decide",
@@ -426,9 +426,9 @@ def job_logs(
 
 
 @tool
-def job_cost_breakdown(job_id: str) -> str:
-    """Get cost breakdown for a job."""
-    return _call_platform_mcp("job_cost_breakdown", {"job_id": job_id})
+def job_usage_breakdown(job_id: str) -> str:
+    """Get token usage breakdown for a job."""
+    return _call_platform_mcp("job_usage_breakdown", {"job_id": job_id})
 
 
 @tool

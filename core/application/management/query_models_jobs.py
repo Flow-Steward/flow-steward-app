@@ -49,14 +49,10 @@ class JobCancelAcceptedView(ViewModel):
     )
 
 
-class JobCostSummaryView(ViewModel):
+class JobUsageSummaryView(ViewModel):
     tokens_prompt: int = Field(default=0, json_schema_extra={"public_usage_counter": True})
     tokens_completion: int = Field(default=0, json_schema_extra={"public_usage_counter": True})
     tokens_total: int = Field(default=0, json_schema_extra={"public_usage_counter": True})
-    cost_usd: float = 0.0
-    known_cost_usd: float = 0.0
-    unknown_cli_tokens: int = Field(default=0, json_schema_extra={"public_usage_counter": True})
-    cost_knownness: str = "known"
     llm_calls: int = 0
 
 
@@ -92,7 +88,7 @@ class JobStatusView(ViewModel):
     invocation: dict[str, Any] = Field(default_factory=dict)
     trigger: dict[str, Any] = Field(default_factory=dict)
     runtime: dict[str, Any] = Field(default_factory=dict)
-    cost: JobCostSummaryView = Field(default_factory=JobCostSummaryView)
+    usage: JobUsageSummaryView = Field(default_factory=JobUsageSummaryView)
     failure_summary: dict[str, Any] = Field(default_factory=dict)
     workflow_result: PublicWorkflowResultV1 | None = None
 
@@ -125,7 +121,6 @@ class JobDetailContractView(ViewModel):
                 "approval_gate": {"required": True, "thread_id": "thread-7"},
                 "approval_history": [],
                 "causal_chain": {},
-                "cost_breakdown_raw": {"total_cost_usd": 0.14},
                 "decision_overrides": [],
                 "incident": {},
                 "job_errors": [],
@@ -189,8 +184,8 @@ class JobDetailContractView(ViewModel):
     approval_gate: dict[str, Any] = Field(default_factory=dict)
     approval_history: list[dict[str, Any]] = Field(default_factory=list)
     causal_chain: dict[str, Any] = Field(default_factory=dict)
-    cost: JobCostSummaryView | None = None
-    cost_breakdown_raw: dict[str, Any] = Field(default_factory=dict)
+    usage: JobUsageSummaryView | None = None
+    usage_breakdown_raw: dict[str, Any] = Field(default_factory=dict)
     decision_overrides: list[dict[str, Any]] = Field(default_factory=list)
     incident: dict[str, Any] = Field(default_factory=dict)
     job_errors: list[dict[str, Any]] = Field(default_factory=list)
@@ -211,22 +206,22 @@ class JobDetailContractView(ViewModel):
     def __get_pydantic_json_schema__(
         cls, schema: CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
-        """Retain model fields for a serializer that only omits optional cost data."""
+        """Retain model fields for a serializer that only omits optional usage data."""
         schema_without_serializer = dict(schema)
         schema_without_serializer.pop("serialization", None)
         return handler(schema_without_serializer)
 
     @model_serializer(mode="wrap")
-    def serialize_supplied_cost(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def serialize_supplied_usage(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         """Type supplied summary counters without inventing absent detail data."""
         payload = handler(self)
-        if "cost" not in self.model_fields_set:
-            payload.pop("cost", None)
-        elif isinstance(payload.get("cost"), dict) and self.cost is not None:
-            payload["cost"] = {
+        if "usage" not in self.model_fields_set:
+            payload.pop("usage", None)
+        elif isinstance(payload.get("usage"), dict) and self.usage is not None:
+            payload["usage"] = {
                 key: value
-                for key, value in payload["cost"].items()
-                if key in self.cost.model_fields_set
+                for key, value in payload["usage"].items()
+                if key in self.usage.model_fields_set
             }
         return payload
 
@@ -314,12 +309,8 @@ class JobCausalChainView(ViewModel):
     mermaid: str = ""
 
 
-class JobCostBreakdownView(ViewModel):
+class JobUsageBreakdownView(ViewModel):
     breakdown: list[dict[str, Any]] = Field(default_factory=list)
-    total_cost_usd: float = 0.0
-    known_cost_usd: float = 0.0
-    unknown_cli_tokens: int = 0
-    cost_knownness: str = "known"
 
 
 class JobEventsView(ViewModel):

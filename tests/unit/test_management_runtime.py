@@ -27,8 +27,8 @@ def test_cli_job_details_preserve_cancelled_abort_history_without_comment() -> N
     store = MagicMock(
         spec=[
             "get_job",
-            "get_job_cost_summary",
-            "get_job_cost_breakdown",
+            "get_job_usage_summary",
+            "get_job_usage_breakdown",
             "get_logs",
             "get_events",
             "get_agent_messages",
@@ -43,8 +43,8 @@ def test_cli_job_details_preserve_cancelled_abort_history_without_comment() -> N
         "project_id": None,
         "meta": {"approvals": [approval]},
     }
-    store.get_job_cost_summary.return_value = {}
-    store.get_job_cost_breakdown.return_value = []
+    store.get_job_usage_summary.return_value = {}
+    store.get_job_usage_breakdown.return_value = []
     store.get_logs.return_value = []
     store.get_events.return_value = []
     store.get_agent_messages.return_value = []
@@ -65,7 +65,7 @@ def test_cli_job_details_preserve_cancelled_abort_history_without_comment() -> N
 
 
 def _diagnostic_store(*, error_reader=True):
-    methods = ["get_job", "get_job_cost_summary"]
+    methods = ["get_job", "get_job_usage_summary"]
     if error_reader:
         methods.append("list_job_errors")
     store = MagicMock(spec=methods)
@@ -76,7 +76,7 @@ def _diagnostic_store(*, error_reader=True):
         "account_id": "00000000-0000-0000-0000-000000000002",
         "project_id": None,
     }
-    store.get_job_cost_summary.return_value = {}
+    store.get_job_usage_summary.return_value = {}
     return store
 
 

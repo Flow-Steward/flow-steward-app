@@ -1,7 +1,7 @@
 """
 Semantic guardrail checks — single haiku LLM call.
 
-Batches all semantic rules into ONE prompt for cost efficiency (~$0.001).
+Batches all semantic rules into one prompt to reduce model calls.
 Same pattern as validation_node._llm_validate().
 """
 
@@ -36,7 +36,7 @@ def run_semantic_checks(
 ) -> list[GuardrailViolation]:
     """Run semantic (LLM-based) guardrail checks.
 
-    Batches all semantic rules into a SINGLE haiku call for cost efficiency.
+    Batches all semantic rules into a single model call.
     Returns violations for any rules that fail.
 
     Args:

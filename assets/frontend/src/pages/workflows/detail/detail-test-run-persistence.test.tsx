@@ -125,7 +125,7 @@ function installOwnedRememberedRun(initialRun: SimulateApi.WorkflowTestRunResult
     if (url.pathname === `/api/jobs/${jobId}/approvals`) return json({ job_id: jobId, approvals: [] });
     if (url.pathname === `/api/jobs/${jobId}/definition`) return json({ job_id: jobId, available: false, workflow_id: job.selected_workflow });
     if (url.pathname === `/api/v2/jobs/${jobId}/execution-steps`) return json({ job_id: jobId, run_terminal: terminal, child_invocations: [], steps: [], page: { count: 0, has_more: false, next_cursor: "" } });
-    if (url.pathname === `/api/jobs/${jobId}/cost-breakdown`) return json({ breakdown: [], total_cost_usd: 0 });
+    if (url.pathname === `/api/jobs/${jobId}/usage-breakdown`) return json({ breakdown: [], });
     if (url.pathname === `/api/jobs/${jobId}/decision-overrides`) return json({ job_id: jobId, overrides: [] });
     return previousFetch ? previousFetch(input, init) : new Response("{}");
   });
@@ -169,7 +169,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
       if (url.pathname === `/api/jobs/${jobId}/approvals`) return json({ job_id: jobId, approvals: [] });
       if (url.pathname === `/api/jobs/${jobId}/definition`) return json({ job_id: jobId, available: false, workflow_id: job.selected_workflow });
       if (url.pathname === `/api/v2/jobs/${jobId}/execution-steps`) return json({ job_id: jobId, run_terminal: false, child_invocations: [], steps: [], page: { count: 0, has_more: false, next_cursor: "" } });
-      if (url.pathname === `/api/jobs/${jobId}/cost-breakdown`) return json({ breakdown: [], total_cost_usd: 0 });
+      if (url.pathname === `/api/jobs/${jobId}/usage-breakdown`) return json({ breakdown: [], });
       if (url.pathname === `/api/jobs/${jobId}/decision-overrides`) return json({ job_id: jobId, overrides: [] });
       return previousFetch ? previousFetch(input, init) : new Response("{}");
     });

@@ -9,11 +9,11 @@ from .ui_projection_extras import _build_diagnostics, _build_previous_decisions
 from .ui_projection_helpers import (
     _STEP_STATUS_META,
     _as_datetime,
-    _build_cost_breakdown,
     _build_message_steps,
     _build_retry_step,
     _build_review_workspace,
     _build_runtime_steps,
+    _build_usage_breakdown,
     _humanize_identifier,
     _map_step_status,
     _normalize_dict,
@@ -358,10 +358,10 @@ def build_review_workspace(
     )
 
 
-def build_cost_breakdown_payload(
-    cost_breakdown: dict[str, Any] | None,
+def build_usage_breakdown_payload(
+    usage_breakdown: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    return _build_cost_breakdown(_normalize_dict(cost_breakdown))
+    return _build_usage_breakdown(_normalize_dict(usage_breakdown))
 
 
 def build_previous_decisions_payload(
@@ -418,7 +418,7 @@ def build_job_detail_sections(
     approval_gate: dict[str, Any] | None = None,
     approval_history: list[dict[str, Any]] | None = None,
     decision_overrides: list[dict[str, Any]] | None = None,
-    cost_breakdown: dict[str, Any] | None = None,
+    usage_breakdown: dict[str, Any] | None = None,
     causal_chain: dict[str, Any] | None = None,
     incident: dict[str, Any] | None = None,
     job_errors: list[dict[str, Any]] | None = None,
@@ -435,7 +435,7 @@ def build_job_detail_sections(
     normalized_approval_gate = _normalize_dict(approval_gate)
     normalized_approval_history = _normalize_rows(approval_history)
     normalized_decision_overrides = _normalize_rows(decision_overrides)
-    normalized_cost_breakdown = _normalize_dict(cost_breakdown)
+    normalized_usage_breakdown = _normalize_dict(usage_breakdown)
     normalized_causal_chain = _normalize_dict(causal_chain)
     normalized_incident = _normalize_dict(incident)
     normalized_job_errors = _normalize_rows(job_errors)
@@ -461,7 +461,7 @@ def build_job_detail_sections(
         project_id=str(normalized_job.get("project_id") or "").strip() or None,
         job_id=str(normalized_job.get("id") or "").strip() or None,
     )
-    cost_payload = build_cost_breakdown_payload(normalized_cost_breakdown)
+    usage_payload = build_usage_breakdown_payload(normalized_usage_breakdown)
     diagnostics = build_diagnostics_payload(
         job=normalized_job,
         runtime=normalized_runtime,
@@ -481,6 +481,6 @@ def build_job_detail_sections(
         "selected_step": selected_step_payload,
         "review_workspace": review_workspace,
         "previous_decisions": previous_decisions,
-        "cost_breakdown": cost_payload,
+        "usage_breakdown": usage_payload,
         "diagnostics": diagnostics,
     }
