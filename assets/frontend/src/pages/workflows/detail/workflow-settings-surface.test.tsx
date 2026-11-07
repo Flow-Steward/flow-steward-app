@@ -135,6 +135,12 @@ function fixture(options: FixtureOptions = {}) {
       }
       if (path === `/api/workflows/${workflowId}/export-policy`) return json(portability);
       if (path === `/api/workflows/${workflowId}/triggers`) return json({ incoming_webhooks: [], provider_triggers: [], catalog: [] });
+      if (path === `/api/workflows/${workflowId}/linked-projects`) return json({
+        workflow_id: workflowId, projects: [{ id: projectId, name: "Shipping project" }],
+      });
+      if (path === "/api/workflows/second-settings-fixture/linked-projects") return json({
+        workflow_id: "second-settings-fixture", projects: [],
+      });
       if (path === "/api/v2/projects") {
         expect(url.searchParams.get("page")).toBe("1");
         expect(url.searchParams.get("per_page")).toBe("200");
