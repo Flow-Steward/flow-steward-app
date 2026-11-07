@@ -151,11 +151,10 @@ def _mock_logger(
     bl.count_projects = count_projects
     bl.get_projects = get_projects
     bl.get_awaiting_approval_jobs = get_awaiting_approval_jobs
-    bl.get_job_cost_summary.return_value = {
+    bl.get_job_usage_summary.return_value = {
         "tokens_prompt": 0,
         "tokens_completion": 0,
         "tokens_total": 0,
-        "cost_usd": 0,
         "llm_calls": 0,
     }
     return bl

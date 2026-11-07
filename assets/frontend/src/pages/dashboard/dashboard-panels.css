@@ -1,10 +1,7 @@
-/* Remaining dashboard panels — quick links, model spend, load error. Same
+/* Remaining dashboard panels — quick links and load error. Same
  * published roles as the two sections above them, so the page survives a theme
  * switch instead of only working in dark.
  *
- * Design System gap: the bar-in-row spend track does not exist in the catalog;
- * it is assembled here from Card and the chart color family, and is worth
- * registering upstream.
  */
 
 .fs-dp {
@@ -126,64 +123,6 @@
   color: var(--fs-text-tertiary);
 }
 
-/* ---------- model spend ---------- */
-
-/* Five rows plus their gaps, reserved so switching the cut cannot move the
-   page under the pointer. */
-.fs-dp__spend {
-  display: flex;
-  flex-direction: column;
-  gap: var(--fs-space-050);
-  min-height: calc((var(--fs-dashboard-row-compact) * 5) + (var(--fs-space-050) * 4));
-  margin-top: var(--fs-space-150);
-}
-
-.fs-dp__spend-row {
-  display: grid;
-  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--fs-space-150);
-  min-width: 0;
-  min-height: var(--fs-dashboard-row-compact);
-  padding: 0 var(--fs-space-100);
-  font-size: var(--fs-type-field-label-size);
-  line-height: var(--fs-type-field-label-line-height);
-  color: var(--fs-text-secondary);
-}
-
-.fs-dp__spend-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fs-dp__spend-track {
-  min-width: 0;
-  height: var(--fs-space-075);
-  overflow: hidden;
-  border-radius: var(--fs-radius-full);
-  background: var(--fs-bg-surface-muted);
-}
-
-/* Full-strength chart role. Fading a token with opacity is a raw modification;
-   the chart family already carries the intended value. */
-.fs-dp__spend-fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--fs-radius-full);
-  background: var(--fs-chart-positive);
-}
-
-.fs-dp__spend-amount {
-  flex: none;
-  font-family: var(--ff-data);
-  font-weight: var(--fs-type-weight-medium);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum' 1;
-  color: var(--fs-text-primary);
-}
-
 /* ---------- empty and error ---------- */
 
 /* Empty states are plain blocks, never a chip or a badge. */
@@ -203,16 +142,6 @@
 .fs-dp--danger .fs-dp__title,
 .fs-dp--danger .fs-dp__title svg {
   color: var(--fs-text-danger);
-}
-
-@media (width <= 560px) {
-  .fs-dp__spend-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .fs-dp__spend-track {
-    display: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

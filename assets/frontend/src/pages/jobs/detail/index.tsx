@@ -187,7 +187,7 @@ export function JobsDetailPage({
       userTimezone,
     },
     summary: {
-      costRows,
+      usageRows,
       failureDiagnosticIds,
       failureEvidence,
       failureSummary,
@@ -196,9 +196,7 @@ export function JobsDetailPage({
       heroSummary,
       nextActionBody,
       nextActionTitle,
-      totalCostDisplay,
       totalTokensValue,
-      unknownCliTokensValue,
     },
     execution: {
       executionSteps,
@@ -435,7 +433,7 @@ export function JobsDetailPage({
         approvalSubmitting={approvalMutation.isPending}
         canMutate={canMutate}
         canonicalDetail={canonicalDetail}
-        costRows={costRows}
+        usageRows={usageRows}
         decisionHistory={decisionHistory}
         detail={detail}
         executionSteps={executionSteps}
@@ -470,9 +468,7 @@ export function JobsDetailPage({
         stepInspectorHost={embedded ? stepInspectorHost : undefined}
         stepInspectorChrome={embedded ? stepInspectorChrome : undefined}
         submitApprovalFromWorkspace={submitApprovalFromWorkspace}
-        totalCostDisplay={totalCostDisplay}
         totalTokensValue={totalTokensValue}
-        unknownCliTokensValue={unknownCliTokensValue}
         userTimezone={userTimezone}
       /> : null}
 

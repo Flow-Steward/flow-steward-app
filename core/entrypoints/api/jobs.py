@@ -669,7 +669,6 @@ def create_api_jobs_router(
                             "approval_gate": {"required": True, "thread_id": "thread-7"},
                             "approval_history": [],
                             "causal_chain": {},
-                            "cost_breakdown_raw": {"total_cost_usd": 0.14},
                             "decision_overrides": [],
                             "incident": {},
                             "job_errors": [],
@@ -731,7 +730,7 @@ def create_api_jobs_router(
             str, Path(description="Job identifier returned when the task was submitted.")
         ],
     ):
-        """Return current job status, summary, and cost metrics as JSON."""
+        """Return current job status, summary, and usage metrics as JSON."""
         try:
             payload = await build_job_detail_contract(
                 job_id=job_id,
@@ -753,7 +752,7 @@ def create_api_jobs_router(
         "/api/jobs/{job_id}/status",
         responses={
             200: {
-                "description": "Bounded job progress, active steps, wait state, and cost totals.",
+                "description": "Bounded job progress, active steps, wait state, and usage totals.",
                 "content": {
                     "application/json": {
                         "example": {
@@ -792,14 +791,10 @@ def create_api_jobs_router(
                                 "child_job_id": None,
                                 "approval_id": None,
                             },
-                            "cost": {
+                            "usage": {
                                 "tokens_prompt": 0,
                                 "tokens_completion": 0,
                                 "tokens_total": 0,
-                                "cost_usd": 0.0,
-                                "known_cost_usd": 0.0,
-                                "unknown_cli_tokens": 0,
-                                "cost_knownness": "known",
                                 "llm_calls": 0,
                             },
                         }

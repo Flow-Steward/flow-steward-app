@@ -275,7 +275,7 @@ _INTERNAL_OPENAPI_SUCCESS_MODEL_OVERRIDES: dict[tuple[str, str], Any] = {
     ("DELETE", "/api/jobs/{job_id}"): JobDeleteResultView,
     ("GET", "/api/jobs/{job_id}/trace"): JobTraceView,
     ("GET", "/api/jobs/{job_id}/incident"): JobIncidentDrilldownView,
-    ("GET", "/api/jobs/{job_id}/cost-breakdown"): JobCostBreakdownView,
+    ("GET", "/api/jobs/{job_id}/usage-breakdown"): JobUsageBreakdownView,
     ("GET", "/api/jobs/{job_id}/events"): JobEventsView,
     ("GET", "/api/jobs/{job_id}/messages"): JobMessagesView,
     ("GET", "/api/messages/{message_id}"): JobMessageDetailView,

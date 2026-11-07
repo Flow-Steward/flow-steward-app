@@ -100,9 +100,9 @@ def job_incident(job_id: str, limit: int = 100) -> str:
 
 
 @mcp.tool()
-def job_cost_breakdown(job_id: str) -> str:
-    """Return token and cost breakdown for one job."""
-    return api_tool_response("job_cost_breakdown", locals())
+def job_usage_breakdown(job_id: str) -> str:
+    """Return token usage breakdown for one job."""
+    return api_tool_response("job_usage_breakdown", locals())
 
 
 @mcp.tool()

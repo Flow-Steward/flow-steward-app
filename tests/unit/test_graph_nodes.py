@@ -102,12 +102,15 @@ def test_agent_node_publishes_only_the_host_owned_retry_channel() -> None:
     from core.application.orchestration.agents.base import AgentOutput
     from core.application.orchestration.graph.nodes import wrap_agent_as_node
 
+    events = []
+
     class _Agent:
         def execute(self, _agent_input):
             return AgentOutput(
                 status="fail",
                 artifacts={"error": "custom_http_failed"},
                 summary="custom HTTP failed",
+                metadata={"tokens": 23, "cost_usd": 0.17},
                 confidence=0.0,
                 operation_retry_signal={
                     "schema_version": "operation_retry_signal_v1",
@@ -131,9 +134,9 @@ def test_agent_node_publishes_only_the_host_owned_retry_channel() -> None:
         timeout_minutes=0,
         skills=["correct_draft"],
     )
-    with patch.dict(
-        sys.modules, {"core.application.orchestration.agents.common": _stub_agents_common_module()}
-    ):
+    common = _stub_agents_common_module()
+    common.emit_event = lambda *args: events.append(args)
+    with patch.dict(sys.modules, {"core.application.orchestration.agents.common": common}):
         node = wrap_agent_as_node(_Agent(), manifest)
         with patch(
             "core.application.orchestration.graph.nodes._validate_skill_input_contract",
@@ -152,6 +155,9 @@ def test_agent_node_publishes_only_the_host_owned_retry_channel() -> None:
     assert message["operation_retry"]["provenance"] == "agent_managed_custom_http"
     assert message["operation_retry"]["deadline_epoch_seconds"] == 130.0
     assert "retryable" not in message["artifacts"]
+    complete = next(event[4] for event in events if event[2] == "phase_complete")
+    assert complete["tokens"] == 23
+    assert "cost_usd" not in complete
 
 
 def test_extract_step_context_reads_the_cursor_step_from_the_pinned_definition():

@@ -165,54 +165,27 @@ class JobQueryServiceDetailsMixin:
         bl, _, _ = self._job_context(job_id, scope=scope)
         return JobCausalChainView.model_validate(self._build_job_causal_chain(bl, str(job_id)))
 
-    def get_cost_breakdown(
+    def get_usage_breakdown(
         self,
         job_id: str,
         *,
         scope: ScopeContext | None = None,
-    ) -> JobCostBreakdownView:
+    ) -> JobUsageBreakdownView:
         bl, _, _ = self._job_context(job_id, scope=scope)
-        rows = bl.get_job_cost_breakdown(str(job_id)) or []
-        breakdown: list[dict[str, Any]] = []
-        known_cost = 0.0
-        unknown_cli_tokens = 0
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            row_unknown_tokens = int(row.get("unknown_cli_tokens") or 0)
-            row_known_cost = float(row.get("known_cost_usd") or row.get("cost_usd") or 0)
-            row_cost_knownness = (
-                "unknown" if row_unknown_tokens > 0 and row.get("cost_usd") is None else "known"
-            )
-            payload = {
+        rows = bl.get_job_usage_breakdown(str(job_id)) or []
+        breakdown = [
+            {
                 "agent": row.get("agent"),
                 "model_used": row.get("model_used"),
-                "calls": int(row.get("calls") or 0),
-                "tokens_prompt": int(row.get("tokens_prompt") or 0),
-                "tokens_completion": int(row.get("tokens_completion") or 0),
-                "tokens_total": int(row.get("tokens_total") or 0),
-                "cost_usd": None if row_cost_knownness == "unknown" else row_known_cost,
-                "known_cost_usd": row_known_cost,
-                "unknown_cli_tokens": row_unknown_tokens,
-                "unknown_cost_calls": int(row.get("unknown_cost_calls") or 0),
-                "cost_knownness": row_cost_knownness,
+                **{
+                    key: int(row.get(key) or 0)
+                    for key in ("calls", "tokens_prompt", "tokens_completion", "tokens_total")
+                },
             }
-            known_cost += row_known_cost
-            unknown_cli_tokens += row_unknown_tokens
-            breakdown.append(payload)
-        if unknown_cli_tokens > 0 and known_cost > 0:
-            total_knownness = "partial"
-        elif unknown_cli_tokens > 0:
-            total_knownness = "unknown"
-        else:
-            total_knownness = "known"
-        return JobCostBreakdownView(
-            breakdown=breakdown,
-            total_cost_usd=known_cost,
-            known_cost_usd=known_cost,
-            unknown_cli_tokens=unknown_cli_tokens,
-            cost_knownness=total_knownness,
-        )
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        return JobUsageBreakdownView(breakdown=breakdown)
 
     def list_events(
         self,

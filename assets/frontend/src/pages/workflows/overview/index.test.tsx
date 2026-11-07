@@ -46,11 +46,9 @@ function renderPage(
   const messages: Record<string, string> = locale === "lt" ? {
     "react.workflows.overview_description": "Šios darbo eigos statistika ir naujausia veikla.",
     "react.workflows.completed_failed_counts": "Baigta: {completed} / nepavyko: {failed}",
-    "react.workflows.no_cost_data_recorded": "Išlaidų duomenų neužfiksuota",
     "react.workflows.finished_runs_only": "Tik baigti paleidimai",
     "react.workflows.active_statuses_hint": "Laukia, vykdoma arba laukia patvirtinimo",
     "react.workflows.active_now_count": "Dabar aktyvu: {count}",
-    "react.workflows.jobs_with_cost_data_count": "Užduočių su išlaidų duomenimis: {count}",
     "react.workflows.across_runs_count": "Per {count} paleidimus",
   } : {};
   return render(
@@ -71,7 +69,7 @@ describe("WorkflowsOverviewPage", () => {
     const actual = await vi.importActual<typeof WorkflowApi>("@/pages/workflows/shared/api");
     mockedFetchWorkflowStats.mockImplementation(actual.fetchWorkflowStats);
     mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "wf_missing", display_name: "Fixture workflow", enabled: true } as never);
-    const stats = { workflow_id: "wf_missing", total_runs: 1, completed_count: 1, failed_count: 0, active_count: 0, cancelled_count: 0, success_rate: 1, total_cost_usd: 0, jobs_with_cost: 0, avg_cost_per_run_usd: 0, avg_duration_seconds: null, last_run_at: null };
+    const stats = { workflow_id: "wf_missing", total_runs: 1, completed_count: 1, failed_count: 0, active_count: 0, cancelled_count: 0, success_rate: 1, avg_duration_seconds: null, last_run_at: null };
     let pending: ((response: Response) => void) | undefined;
     let calls = 0;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -115,23 +113,20 @@ describe("WorkflowsOverviewPage", () => {
 
   it("localizes empty workflow overview captions found in the browser", async () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "wf_missing", display_name: "Fixture workflow", description: "", enabled: false } as never);
-    mockedFetchWorkflowStats.mockResolvedValue({ workflow_id: "wf_missing", total_runs: 0, completed_count: 0, failed_count: 0, active_count: 0, cancelled_count: 0, success_rate: null, total_cost_usd: 0, jobs_with_cost: 0, avg_cost_per_run_usd: 0, avg_duration_seconds: null, last_run_at: null });
+    mockedFetchWorkflowStats.mockResolvedValue({ workflow_id: "wf_missing", total_runs: 0, completed_count: 0, failed_count: 0, active_count: 0, cancelled_count: 0, success_rate: null, avg_duration_seconds: null, last_run_at: null });
     renderPage("/registry/workflows/wf_missing", "lt");
     expect(await screen.findByText("Šios darbo eigos statistika ir naujausia veikla.")).toBeInTheDocument();
     expect(await screen.findByText("Baigta: 0 / nepavyko: 0")).toBeInTheDocument();
-    expect(screen.getByText("Išlaidų duomenų neužfiksuota")).toBeInTheDocument();
     expect(screen.getByText("Tik baigti paleidimai")).toBeInTheDocument();
     expect(screen.getByText("Laukia, vykdoma arba laukia patvirtinimo")).toBeInTheDocument();
   });
 
-  it("localizes populated workflow run and cost captions without changing workflow data", async () => {
+  it("localizes populated workflow run captions without changing workflow data", async () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "wf_missing", display_name: "Fixture workflow", description: "Owner-authored workflow description", enabled: true } as never);
-    mockedFetchWorkflowStats.mockResolvedValue({ workflow_id: "wf_missing", total_runs: 4, completed_count: 2, failed_count: 1, active_count: 1, cancelled_count: 0, success_rate: 0.5, total_cost_usd: 2, jobs_with_cost: 3, avg_cost_per_run_usd: 0.5, avg_duration_seconds: 60, last_run_at: null });
+    mockedFetchWorkflowStats.mockResolvedValue({ workflow_id: "wf_missing", total_runs: 4, completed_count: 2, failed_count: 1, active_count: 1, cancelled_count: 0, success_rate: 0.5, avg_duration_seconds: 60, last_run_at: null });
     renderPage("/registry/workflows/wf_missing", "lt");
     expect(await screen.findByText("Owner-authored workflow description")).toBeInTheDocument();
     expect(await screen.findByText("Dabar aktyvu: 1")).toBeInTheDocument();
-    expect(screen.getByText("Užduočių su išlaidų duomenimis: 3")).toBeInTheDocument();
-    expect(screen.getByText("Per 4 paleidimus")).toBeInTheDocument();
     expect(screen.getByText("Baigta: 2 / nepavyko: 1")).toBeInTheDocument();
   });
   beforeEach(() => {
@@ -159,8 +154,6 @@ describe("WorkflowsOverviewPage", () => {
       completed_runs: 0,
       failed_runs: 0,
       success_rate: null,
-      total_cost_usd: 0,
-      average_cost_usd: 0,
       average_duration_seconds: null,
       last_run_at: null,
       active_runs: 0,

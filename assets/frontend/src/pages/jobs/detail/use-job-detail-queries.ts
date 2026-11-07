@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchJobApproval,
   fetchJobApprovalHistory,
-  fetchJobCostBreakdown,
+  fetchJobUsageBreakdown,
   fetchJobDecisionOverrides,
   fetchJobDefinition,
   fetchJobIncident,
@@ -48,9 +48,9 @@ export function useJobDetailQueries(options: QueryOptions) {
     enabled: active,
     refetchInterval: isTerminal ? false : 15_000,
   });
-  const costBreakdownQuery = useQuery({
-    queryKey: ["jobs", "detail", jobId, "cost-breakdown"],
-    queryFn: () => fetchJobCostBreakdown(jobId),
+  const usageBreakdownQuery = useQuery({
+    queryKey: ["jobs", "detail", jobId, "usage-breakdown"],
+    queryFn: () => fetchJobUsageBreakdown(jobId),
     enabled: active,
     refetchInterval: isTerminal ? false : 20_000,
   });
@@ -89,7 +89,7 @@ export function useJobDetailQueries(options: QueryOptions) {
   return {
     approvalQuery,
     approvalHistoryQuery,
-    costBreakdownQuery,
+    usageBreakdownQuery,
     decisionOverridesQuery,
     definitionQuery,
     incidentQuery,

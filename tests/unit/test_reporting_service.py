@@ -68,7 +68,6 @@ class _FakeLogger:
                 "result": "completed",
                 "finished_date": "2026-04-01",
                 "duration_seconds": 120.0,
-                "cost_usd": 1.10,
             },
             {
                 "account_id": "acc_default",
@@ -79,7 +78,6 @@ class _FakeLogger:
                 "result": "failed",
                 "finished_date": "2026-04-02",
                 "duration_seconds": 180.0,
-                "cost_usd": 0.40,
             },
             {
                 "account_id": "acc_default",
@@ -90,7 +88,6 @@ class _FakeLogger:
                 "result": "completed",
                 "finished_date": "2026-04-01",
                 "duration_seconds": 240.0,
-                "cost_usd": 9.99,
             },
         ]
 
@@ -133,7 +130,7 @@ class _FakeJobQueryService:
     def validate_job_diagnostic_report_access(self, job_id: str, *, scope=None) -> None:
         return None
 
-    def get_cost_breakdown(self, job_id: int, *, scope=None) -> _View:
+    def get_usage_breakdown(self, job_id: int, *, scope=None) -> _View:
         return _View(
             {
                 "breakdown": [
@@ -143,7 +140,7 @@ class _FakeJobQueryService:
                         "calls": 3,
                         "tokens_prompt": 1000,
                         "tokens_completion": 500,
-                        "cost_usd": 0.9,
+                        "tokens_total": 1500,
                     },
                     {
                         "agent": "proofreader",
@@ -151,10 +148,9 @@ class _FakeJobQueryService:
                         "calls": 2,
                         "tokens_prompt": 800,
                         "tokens_completion": 200,
-                        "cost_usd": 0.52,
+                        "tokens_total": 1000,
                     },
                 ],
-                "total_cost_usd": 1.42,
             }
         )
 
@@ -187,20 +183,20 @@ def _service() -> ReportingService:
     )
 
 
-def test_report_generate_job_cost_breakdown_returns_chart_directive():
+def test_report_generate_job_usage_breakdown_returns_chart_directive():
     payload = _service().report_generate(
-        "job_cost_breakdown",
+        "job_usage_breakdown",
         {"job_id": 42},
         scope=ScopeContext(account_id="acc_default"),
         persist=False,
     )
 
-    assert payload["report_type"] == "job_cost_breakdown"
-    assert payload["payload"]["table"]["total_cost_display"] == "$1.42"
-    assert "Job 42 cost stats" in payload["summary_text"]
-    assert "Total spend: $1.42" in payload["summary_text"]
+    assert payload["report_type"] == "job_usage_breakdown"
+    assert payload["payload"]["table"]["total_tokens"] == 2500
+    assert "Job 42 usage stats" in payload["summary_text"]
+    assert "spend" not in payload["summary_text"].lower()
     assert "Tokens: 2,500" in payload["summary_text"]
-    assert "Top spender:" in payload["summary_text"]
+    assert payload["chart_payload"]["meta"]["unit"] == "tokens"
     assert payload["chart_payload"]["type"] == "chart"
     assert payload["chart_payload"]["chart_type"] in {"bar", "stacked_bar"}
     assert payload["directives"][0]["chart_library"] == "echarts"
@@ -239,7 +235,7 @@ def test_report_generate_activity_daily_filters_project_rows():
 
     assert payload["payload"]["project_id"] == "7"
     assert payload["payload"]["kpis"]["total_jobs"] == 2
-    assert payload["payload"]["kpis"]["total_spend_usd"] == 1.5
+    assert "total_spend_usd" not in payload["payload"]["kpis"]
     assert payload["chart_payload"]["dataset"]["x"] == [
         "2026-04-01",
         "2026-04-02",
@@ -266,7 +262,7 @@ def test_report_generate_project_summary_uses_actionable_project_copy():
     assert "Demo summary" in payload["summary_text"]
     assert "Finished jobs: 2 (1 completed, 1 failed)" in payload["summary_text"]
     assert "Next step:" in payload["summary_text"]
-    assert payload["payload"]["highlights"]["top_cost_center"]["agent"] is not None
+    assert "top_cost_center" not in payload["payload"]["highlights"]
 
 
 def test_report_generate_project_stats_is_numbers_first():
@@ -314,7 +310,7 @@ def test_report_generate_with_persist_false_is_ephemeral(monkeypatch):
     )
 
     payload = _service().report_generate(
-        "job_cost_breakdown",
+        "job_usage_breakdown",
         {"job_id": 42},
         scope=ScopeContext(account_id="acc_default"),
         persist=False,
@@ -359,7 +355,7 @@ def test_report_get_denies_cross_tenant_access(monkeypatch):
             "account_id": "acc_default",
             "tenant_id": "tenant-a",
             "project_id": None,
-            "report_type": "job_cost_breakdown",
+            "report_type": "job_usage_breakdown",
             "params_jsonb": {"job_id": 42},
             "payload_jsonb": {"snapshot": True},
             "chart_payload_jsonb": {},
@@ -498,7 +494,7 @@ def test_workflow_reports_filter_all_facts_and_secondary_aggregates(report_type)
     assert result["params"]["workflow_id"] == "release"
     assert result["payload"]["workflow_id"] == "release"
     assert result["payload"]["kpis"]["total_jobs"] == 1
-    assert sum(row["job_count"] for row in result["payload"]["spend_by_agent"]) == 1
+    assert "spend_by_agent" not in result["payload"]
 
 
 def test_reports_omitted_filters_preserve_restricted_membership():
@@ -546,7 +542,7 @@ def test_unknown_workflow_produces_empty_filtered_report():
         persist=False,
     )
     assert result["payload"]["kpis"]["total_jobs"] == 0
-    assert result["payload"]["spend_by_agent"] == []
+    assert "spend_by_agent" not in result["payload"]
 
 
 def test_workflow_restricted_caller_cannot_read_broad_persisted_report(monkeypatch):
@@ -731,3 +727,150 @@ def test_job_next_step_for_a_durable_wait_needs_no_one(status: str) -> None:
 
     assert next_step.startswith("No action is required")
     assert "approval" not in next_step.lower()
+
+
+@pytest.mark.parametrize("report_type", ["job_cost_breakdown", "unknown_report", ""])
+@pytest.mark.parametrize("restricted", [False, True])
+def test_saved_unsupported_report_is_not_disclosed(monkeypatch, report_type, restricted):
+    row = {
+        "id": "saved-retired-report",
+        "account_id": "acc_default",
+        "tenant_id": DEFAULT_TENANT_ID,
+        "report_type": report_type,
+        "params_jsonb": {"job_id": "foreign-job"},
+        "summary_text": "Retired accounting snapshot",
+        "payload_jsonb": {"sensitive_snapshot": "must not be disclosed"},
+    }
+    monkeypatch.setattr(
+        reporting_service_module.report_run_store, "get_report_run", lambda **kwargs: row
+    )
+    scope = ScopeContext(
+        account_id="acc_default",
+        allowed_workflow_ids=frozenset({"allowed-workflow"}) if restricted else frozenset(),
+        allowed_workspace_ids=frozenset({"allowed-workspace"}) if restricted else frozenset(),
+    )
+    with pytest.raises(ServiceNotFoundError, match="Report not found"):
+        _service().report_get(row["id"], scope=scope)
+
+
+@pytest.mark.parametrize("total, expected_total", [(None, 2500), (0, 0)])
+def test_usage_report_chart_matches_table_when_total_requires_component_fallback(
+    total, expected_total
+):
+    class Queries(_FakeJobQueryService):
+        def get_usage_breakdown(self, job_id, *, scope=None):
+            payload = super().get_usage_breakdown(job_id, scope=scope).dump()
+            for row in payload["breakdown"]:
+                if total is None:
+                    row.pop("tokens_total")
+                else:
+                    row["tokens_total"] = total
+            return _View(payload)
+
+    result = ReportingService(
+        get_logger_only=lambda: _FakeLogger(), job_query_service=lambda: Queries()
+    ).report_generate(
+        "job_usage_breakdown",
+        {"job_id": 42},
+        scope=ScopeContext(account_id="acc_default"),
+        persist=False,
+    )
+    assert result["payload"]["table"]["total_tokens"] == expected_total
+    if expected_total:
+        series = result["chart_payload"]["dataset"]["series"]
+        assert sum(sum(item["data"]) for item in series) == expected_total
+    else:
+        assert result["chart_payload"] == {}
+
+
+@pytest.mark.parametrize(
+    "report_type, payload",
+    [
+        ("job_summary", {"job": {"id": "job-1"}, "cost": {"cost_usd": 1.25}}),
+        ("activity_daily", {"daily": [], "spend_by_agent": []}),
+        ("activity_daily", {"daily": [{"date": "2026-11-01", "spend_usd": 1.25}]}),
+        ("project_summary", {"kpis": {"total_jobs": 1, "total_spend_usd": 1.25}}),
+        ("project_stats", {"highlights": {"top_cost_center": {"agent": "composer"}}}),
+    ],
+)
+def test_saved_supported_report_with_retired_accounting_snapshot_is_not_disclosed(
+    monkeypatch, report_type, payload
+):
+    row = {
+        "id": "saved-retired-snapshot",
+        "account_id": "acc_default",
+        "tenant_id": DEFAULT_TENANT_ID,
+        "report_type": report_type,
+        "params_jsonb": {"job_id": "job-1"},
+        "payload_jsonb": payload,
+    }
+    monkeypatch.setattr(
+        reporting_service_module.report_run_store, "get_report_run", lambda **kwargs: row
+    )
+    with pytest.raises(ServiceNotFoundError, match="Report not found"):
+        _service().report_get(row["id"], scope=ScopeContext(account_id="acc_default"))
+
+
+@pytest.mark.parametrize(
+    "business_details",
+    [
+        {},
+        {"cost": 25, "currency": "USD"},
+        {"shipping": {"costs": [{"cost_usd": 25}], "spend": 25}},
+    ],
+)
+def test_saved_token_usage_snapshot_remains_frozen_and_allows_arbitrary_text(
+    monkeypatch, business_details
+):
+    snapshot = {
+        "usage": {"rows": [{"tokens": 18, "model": "custom-model", "calls": 2}]},
+        "job": {"task_summary": "Review $25 price change and cost estimates"},
+        "result": {"root_cause": {"details": business_details}},
+    }
+    row = {
+        "id": "saved-usage-snapshot",
+        "account_id": "acc_default",
+        "tenant_id": DEFAULT_TENANT_ID,
+        "report_type": "job_summary",
+        "params_jsonb": {"job_id": "job-1"},
+        "payload_jsonb": snapshot,
+        "summary_text": "Original frozen summary mentioning cost and $25",
+    }
+    monkeypatch.setattr(
+        reporting_service_module.report_run_store, "get_report_run", lambda **kwargs: row
+    )
+    result = _service().report_get(row["id"], scope=ScopeContext(account_id="acc_default"))
+    assert result["payload"] == snapshot
+    assert result["summary_text"] == row["summary_text"]
+
+
+@pytest.mark.parametrize(
+    "report_type", ["job_summary", "activity_daily", "project_summary", "project_stats"]
+)
+@pytest.mark.parametrize("snapshot_state", ["missing", "null", "empty"])
+def test_legacy_accounting_report_without_snapshot_does_not_return_old_money(
+    monkeypatch, report_type, snapshot_state
+):
+    row = {
+        "id": "legacy-money-without-snapshot",
+        "account_id": "acc_default",
+        "tenant_id": DEFAULT_TENANT_ID,
+        "report_type": report_type,
+        "params_jsonb": {"job_id": 42},
+        "summary_text": "Historical report\nModel spend: $1.25",
+        "chart_payload_jsonb": {
+            "type": "chart",
+            "dataset": {"series": [{"name": "Model spend (USD)", "data": [1.25]}]},
+        },
+    }
+    if snapshot_state != "missing":
+        row["payload_jsonb"] = None if snapshot_state == "null" else {}
+    monkeypatch.setattr(
+        reporting_service_module.report_run_store, "get_report_run", lambda **kwargs: row
+    )
+    service = _service()
+    monkeypatch.setattr(
+        service, "_build_report", lambda *_args, **_kwargs: {"payload": {"fresh": True}}
+    )
+    with pytest.raises(ServiceNotFoundError, match="Report not found"):
+        service.report_get(row["id"], scope=ScopeContext(account_id="acc_default"))

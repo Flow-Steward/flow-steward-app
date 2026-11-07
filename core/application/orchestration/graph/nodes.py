@@ -376,8 +376,6 @@ def wrap_agent_as_node(agent: BaseAgent, manifest: AgentManifest):
             publish_agent_message(state, message)
             return {"agent_messages": [*(state.get("agent_messages") or []), message]}
 
-        # Estimate cost (heuristic — will be 0 if no usage data)
-        cost_usd = output.metadata.get("cost_usd", 0.0)
         tokens = output.metadata.get("tokens", 0)
 
         emit_event(
@@ -389,7 +387,6 @@ def wrap_agent_as_node(agent: BaseAgent, manifest: AgentManifest):
                 "status": output.status,
                 "confidence": output.confidence,
                 "summary": output.summary[:200],
-                "cost_usd": cost_usd,
                 "tokens": tokens,
             },
         )

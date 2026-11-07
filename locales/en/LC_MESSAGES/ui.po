@@ -553,9 +553,6 @@ msgstr "Attention"
 msgid "dashboard.classic.breakdown.column.p50"
 msgstr "P50"
 
-msgid "dashboard.classic.breakdown.column.spend"
-msgstr "Spend"
-
 msgid "dashboard.classic.breakdown.column.success"
 msgstr "Success"
 
@@ -601,9 +598,6 @@ msgstr "P50 Duration"
 msgid "dashboard.classic.kpi.queue_working"
 msgstr "Queue / Working"
 
-msgid "dashboard.classic.kpi.spend"
-msgstr "Spend"
-
 msgid "dashboard.classic.kpi.success_rate"
 msgstr "Success Rate"
 
@@ -636,12 +630,6 @@ msgstr "Project Breakdown"
 
 msgid "dashboard.classic.sections.recent_completions"
 msgstr "Recent Completions"
-
-msgid "dashboard.classic.sections.spend_breakdown"
-msgstr "Spend Breakdown"
-
-msgid "dashboard.classic.spend.empty"
-msgstr "No spend data"
 
 msgid "dashboard.classic.throughput.empty"
 msgstr "No throughput data for this range."
@@ -1328,27 +1316,6 @@ msgstr "Restart job #{job_id}?"
 
 msgid "jobs.detail.actions.advanced_diagnostics"
 msgstr "Advanced diagnostics"
-
-msgid "jobs.detail.cost.calls"
-msgstr "calls"
-
-msgid "jobs.detail.cost.empty"
-msgstr "No billable model activity has been recorded for this job yet."
-
-msgid "jobs.detail.cost.model_not_recorded"
-msgstr "Model not recorded"
-
-msgid "jobs.detail.cost.of_total"
-msgstr "of total"
-
-msgid "jobs.detail.cost.title"
-msgstr "Cost and resource usage"
-
-msgid "jobs.detail.cost.tokens"
-msgstr "tokens"
-
-msgid "jobs.detail.cost.unknown_agent"
-msgstr "Unknown agent"
 
 msgid "jobs.detail.diagnostics.causal_sequence"
 msgstr "Human-readable causal sequence"
@@ -3852,9 +3819,6 @@ msgstr "Live"
 msgid "react.dashboard.longest_running_value1"
 msgstr "Longest running {value1}"
 
-msgid "react.dashboard.model_spend"
-msgstr "Model spend"
-
 msgid "react.dashboard.more_in_the_queue"
 msgstr "more in the queue"
 
@@ -3866,9 +3830,6 @@ msgstr "No blocked jobs or failed runs. New items land here as they arrive."
 
 msgid "react.dashboard.no_failed_blocked_or_interrupted_jobs_in_this_range"
 msgstr "No failed, blocked or interrupted jobs in this range."
-
-msgid "react.dashboard.no_model_spend_in_this_range_widen_the_range_to_see_earlier_runs"
-msgstr "No model spend in this range. Widen the range to see earlier runs."
 
 msgid "react.dashboard.nothing_is_blocked_or_failing"
 msgstr "Nothing is blocked or failing."
@@ -3890,9 +3851,6 @@ msgstr "Review guardrails"
 
 msgid "react.dashboard.review_jobs"
 msgstr "Review jobs"
-
-msgid "react.dashboard.spend_breakdown"
-msgstr "Spend breakdown"
 
 msgid "react.dashboard.start_from_the_highest_priority_work"
 msgstr "Start from the highest-priority work"
@@ -5659,9 +5617,6 @@ msgstr ""
 msgid "react.jobs.copy_value1"
 msgstr "Copy {value1}"
 
-msgid "react.jobs.cost_telemetry_will_appear_once_billing_data_is_attached_to_this_run"
-msgstr "Cost telemetry will appear once billing data is attached to this run."
-
 msgid "react.jobs.current_step"
 msgstr "current step"
 
@@ -5805,9 +5760,6 @@ msgstr "Loading full text…"
 
 msgid "react.jobs.loading_job_detail"
 msgstr "Loading job detail…"
-
-msgid "react.jobs.no_billable_model_usage_recorded_for_this_job"
-msgstr "No billable model usage recorded for this job."
 
 msgid "react.jobs.no_execution_step_is_selected"
 msgstr "No execution step is selected."
@@ -6007,12 +5959,6 @@ msgstr "tokens ·"
 msgid "react.jobs.total"
 msgstr "Total:"
 
-msgid "react.jobs.unknown_cost_tokens"
-msgstr "Unknown-cost tokens:"
-
-msgid "react.jobs.unknown_cost_value1_tokens"
-msgstr "Unknown cost ({value1} tokens)"
-
 msgid "react.jobs.value1_bytes"
 msgstr "{value1} bytes"
 
@@ -6027,9 +5973,6 @@ msgstr "{value1}h {value2}m"
 
 msgid "react.jobs.value1_h_value2_min"
 msgstr "{value1} h {value2} min"
-
-msgid "react.jobs.value1_known_unknown_cost_value2_tokens"
-msgstr "{value1} known + unknown cost ({value2} tokens)"
 
 msgid "react.jobs.value1_m_value2_s"
 msgstr "{value1}m {value2}s"
@@ -14063,9 +14006,6 @@ msgstr "Stats and recent activity for this workflow."
 msgid "react.workflows.completed_failed_counts"
 msgstr "{completed} completed / {failed} failed"
 
-msgid "react.workflows.no_cost_data_recorded"
-msgstr "No cost data recorded"
-
 msgid "react.workflows.finished_runs_only"
 msgstr "Finished runs only"
 
@@ -14074,9 +14014,6 @@ msgstr "Pending, in progress, or awaiting approval"
 
 msgid "react.workflows.active_now_count"
 msgstr "{count} active now"
-
-msgid "react.workflows.jobs_with_cost_data_count"
-msgstr "{count} jobs with cost data"
 
 msgid "react.workflows.across_runs_count"
 msgstr "Across {count} runs"
@@ -14196,9 +14133,6 @@ msgid "react.jobs.completed_restart_help"
 msgstr ""
 "This run finished successfully. Restart the job only if you need Flow "
 "Steward to run the same task again."
-
-msgid "react.jobs.current_cost"
-msgstr "Current cost"
 
 msgid "react.jobs.schedule_run_now"
 msgstr "Schedule, run now"
@@ -15123,10 +15057,6 @@ msgstr "Agent:"
 msgid "react.workflows.agent_variant_d4f0bc5a"
 msgstr "agent"
 
-msgid "react.workflows.aggregated_job_activity_and_cost_across_all_projects_using_this_workflow"
-msgstr ""
-"Aggregated job activity and cost across all projects using this workflow."
-
 msgid "react.workflows.aggregations"
 msgstr "Aggregations"
 
@@ -15443,9 +15373,6 @@ msgstr "Available"
 
 msgid "react.workflows.available_variant_ddd9818a"
 msgstr "available"
-
-msgid "react.workflows.avg_cost_run"
-msgstr "Avg cost / run"
 
 msgid "react.workflows.avg_duration"
 msgstr "Avg duration"
@@ -20468,9 +20395,6 @@ msgstr "Tool action"
 
 msgid "react.workflows.total"
 msgstr "total"
-
-msgid "react.workflows.total_cost"
-msgstr "Total cost"
 
 msgid "react.workflows.total_runs"
 msgstr "Total runs"
@@ -29906,3 +29830,20 @@ msgstr "Some jobs could not be moved to Trash"
 
 msgid "react.jobs.trash_failed"
 msgstr "Could not move job to Trash."
+
+
+#: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
+msgid "jobs.detail.usage.title"
+msgstr "Model usage"
+
+#: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
+msgid "react.jobs.no_model_usage_recorded_for_this_job"
+msgstr "No model usage recorded for this job."
+
+#: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
+msgid "react.jobs.usage_telemetry_will_appear_once_model_usage_is_recorded"
+msgstr "Usage telemetry will appear once model usage is recorded."
+
+#: assets/frontend/src/pages/workflows/overview/index.tsx
+msgid "react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow"
+msgstr "Aggregated job activity across all projects using this workflow."

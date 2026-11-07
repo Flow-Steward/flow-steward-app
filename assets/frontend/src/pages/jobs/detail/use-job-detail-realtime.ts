@@ -25,7 +25,7 @@ import {
   reduceApprovalGate,
 } from "./job-detail-live-state";
 import {
-  costBreakdownStreamPatch,
+  usageBreakdownStreamPatch,
   decisionDiagnosticsPatch,
   jobDetailWithApprovalFrame,
   jobDetailWithoutStaleSummaries,
@@ -110,7 +110,7 @@ export function useJobDetailRealtime({
       ["jobs", "detail", targetJobId, "incident"],
       ["jobs", "detail", targetJobId, "messages"],
       ["jobs", "detail", targetJobId, "decision-overrides"],
-      ["jobs", "detail", targetJobId, "cost-breakdown"],
+      ["jobs", "detail", targetJobId, "usage-breakdown"],
       ["jobs", "detail", targetJobId, "approval-history"],
       approvalQueryKey(targetJobId),
     ];
@@ -296,24 +296,24 @@ export function useJobDetailRealtime({
           }),
         );
         dispatchApprovalsRefresh();
-      } else if (frameType === "cost") {
-        const projectedCostBreakdown = (current?: JobDetail) =>
-          costBreakdownStreamPatch(frameRecord, current);
+      } else if (frameType === "usage") {
+        const projectedUsageBreakdown = (current?: JobDetail) =>
+          usageBreakdownStreamPatch(frameRecord, current);
         queryClient.setQueryData<JobDetail | undefined>(
           queryKeys.jobDetail(jobId),
           (current) => ({
             ...(current ||
               ({ id: currentJobId, status: "unknown" } as JobDetail)),
-            cost: {
-              ...objectOrEmpty(current?.cost),
+            usage: {
+              ...objectOrEmpty(current?.usage),
               ...frameRecord,
             },
-            cost_breakdown: projectedCostBreakdown(current),
+            usage_breakdown: projectedUsageBreakdown(current),
             sections: mergeSectionsRecord(current, {
-              cost_breakdown: projectedCostBreakdown(current),
+              usage_breakdown: projectedUsageBreakdown(current),
             }),
             lifecycle: mergeLifecycleRecord(current, {
-              costs: projectedCostBreakdown(current),
+              usage: projectedUsageBreakdown(current),
             }),
           }),
         );

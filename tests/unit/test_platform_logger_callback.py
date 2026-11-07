@@ -382,7 +382,7 @@ def test_on_llm_end_reads_cache_tokens_from_response_metadata_fallback():
     assert kwargs["model_used"] == "chat"
 
 
-def test_on_llm_end_prices_exact_provider_and_model_from_start_metadata():
+def test_on_llm_end_records_provider_and_model_usage_without_money():
     from core.infrastructure.db.platform_logger import PlatformLoggerCallback
 
     fake_logger = MagicMock()
@@ -404,10 +404,10 @@ def test_on_llm_end_prices_exact_provider_and_model_from_start_metadata():
         run_id="priced-run",
     )
 
-    assert fake_logger.log_action.call_args.kwargs["cost_usd"] == 0.035
+    assert "cost_usd" not in fake_logger.log_action.call_args.kwargs
 
 
-def test_on_llm_end_prices_custom_route_by_provider_policy_and_preserves_identity():
+def test_on_llm_end_preserves_custom_route_identity_and_usage():
     from core.infrastructure.db.platform_logger import PlatformLoggerCallback
 
     fake_logger = MagicMock()
@@ -436,7 +436,7 @@ def test_on_llm_end_prices_custom_route_by_provider_policy_and_preserves_identit
     )
 
     logged = fake_logger.log_action.call_args.kwargs
-    assert logged["cost_usd"] == 0.116143
+    assert "cost_usd" not in logged
     assert logged["meta"]["provider_identity"] == "custom:provider-123"
     assert logged["meta"]["provider_type"] == "openai"
 
@@ -467,10 +467,10 @@ def test_on_llm_end_persists_model_from_start_when_provider_response_omits_it():
 
     logged = fake_logger.log_action.call_args.kwargs
     assert logged["model_used"] == "gpt-5.6-sol"
-    assert logged["cost_usd"] == 0.035
+    assert "cost_usd" not in logged
 
 
-def test_on_llm_end_persists_explicit_zero_for_known_priced_model_without_tokens():
+def test_on_llm_end_preserves_model_for_empty_token_usage():
     from core.infrastructure.db.platform_logger import PlatformLoggerCallback
 
     fake_logger = MagicMock()
@@ -494,10 +494,10 @@ def test_on_llm_end_persists_explicit_zero_for_known_priced_model_without_tokens
 
     logged = fake_logger.log_action.call_args.kwargs
     assert logged["model_used"] == "gpt-5.6-sol"
-    assert logged["cost_usd"] == 0.0
+    assert "cost_usd" not in logged
 
 
-def test_on_llm_end_keeps_unpriced_model_cost_unavailable():
+def test_on_llm_end_keeps_unknown_model_token_usage():
     from core.infrastructure.db.platform_logger import PlatformLoggerCallback
 
     fake_logger = MagicMock()
@@ -505,10 +505,10 @@ def test_on_llm_end_keeps_unpriced_model_cost_unavailable():
     callback.on_chat_model_start(
         {},
         [[SimpleNamespace(content="hello")]],
-        run_id="unknown-cost-run",
+        run_id="unknown-model-run",
         metadata={
             "flow_steward_provider": "openai",
-            "flow_steward_model": "unpriced-future-model",
+            "flow_steward_model": "unknown-future-model",
         },
     )
     callback.on_llm_end(
@@ -516,12 +516,15 @@ def test_on_llm_end_keeps_unpriced_model_cost_unavailable():
             llm_output={"token_usage": {"prompt_tokens": 100, "completion_tokens": 50}},
             generations=[],
         ),
-        run_id="unknown-cost-run",
+        run_id="unknown-model-run",
     )
 
     logged = fake_logger.log_action.call_args.kwargs
-    assert logged["model_used"] == "unpriced-future-model"
-    assert logged["cost_usd"] is None
+    assert logged["model_used"] == "unknown-future-model"
+    assert logged["tokens_prompt"] == 100
+    assert logged["tokens_completion"] == 50
+    assert logged["tokens_total"] == 150
+    assert "cost_usd" not in logged
 
 
 def test_on_llm_end_treats_openai_cached_tokens_as_prompt_subset():
@@ -554,10 +557,10 @@ def test_on_llm_end_treats_openai_cached_tokens_as_prompt_subset():
     logged = fake_logger.log_action.call_args.kwargs
     assert logged["tokens_prompt"] == 1_000
     assert logged["tokens_total"] == 1_000
-    assert logged["cost_usd"] == 0.0005
+    assert "cost_usd" not in logged
 
 
-def test_on_llm_end_prefers_finite_nonnegative_provider_reported_cost():
+def test_on_llm_end_ignores_provider_reported_money():
     from core.infrastructure.db.platform_logger import PlatformLoggerCallback
 
     fake_logger = MagicMock()
@@ -575,7 +578,10 @@ def test_on_llm_end_prefers_finite_nonnegative_provider_reported_cost():
         run_id="reported-cost-run",
     )
 
-    assert fake_logger.log_action.call_args.kwargs["cost_usd"] == 0.0123
+    logged = fake_logger.log_action.call_args.kwargs
+    assert "cost_usd" not in logged
+    assert logged["tokens_total"] == 120
+    assert logged["meta"]["provider_identity"] == "llmext_acme_llm"
 
 
 def test_on_llm_error_releases_started_provider_state():

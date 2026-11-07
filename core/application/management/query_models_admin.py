@@ -466,7 +466,6 @@ class AgentPerformanceView(ViewModel):
     agent_id: str
     invocations: int = 0
     avg_duration_secs: float | None = None
-    total_cost_usd: float | None = None
     error: str | None = None
 
 

@@ -449,7 +449,7 @@ WORKFLOW_AUTHORING_COMMAND_SPECS: tuple[CommandSpec, ...] = (
     _spec(
         _TOKEN_STATS,
         summary="Show workflow run statistics.",
-        description="Aggregate run counts, success rate, duration and cost of one workflow.",
+        description="Aggregate run counts, success rate, duration of one workflow.",
         example="flow-steward workflows stats --project-id proj_123 invoice_flow",
         fields=_TARGET_FIELDS,
         input_model=WorkflowTargetCommandInput,

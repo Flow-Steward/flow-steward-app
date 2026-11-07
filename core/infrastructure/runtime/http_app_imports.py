@@ -5,7 +5,7 @@ Provides:
   - React shell routes: /projects, /jobs/{id}, /settings, etc.
   - REST API: /api/workflow-runs, /webhook/providers/{provider_key}, /api/approvals/{thread_id}
   - JSON endpoints: /api/jobs/{id}, /api/jobs/{id}/logs, /api/jobs/{id}/approvals
-  - WebSocket: /ws/jobs/{id}  — replaces polling; pushes logs/status/approval/cost
+  - WebSocket: /ws/jobs/{id}  — replaces polling; pushes logs/status/approval/usage
 
 Task execution model:
   Tasks are NOT run synchronously in the web process.
@@ -263,7 +263,6 @@ from core.application.management.query_models import (
     GuardrailHistoryEntryView,
     GuardrailRecordView,
     JobCausalChainView,
-    JobCostBreakdownView,
     JobDecisionOverridesView,
     JobErrorsView,
     JobEventsView,
@@ -276,6 +275,7 @@ from core.application.management.query_models import (
     JobRuntimeJournalView,
     JobStepReplaysView,
     JobTraceView,
+    JobUsageBreakdownView,
     McpConnectorDeleteResultView,
     McpConnectorHealthView,
     McpConnectorListView,

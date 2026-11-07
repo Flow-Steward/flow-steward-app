@@ -867,7 +867,7 @@ class ReportGenerateRequest(BaseModel):
 
     report_type: Literal[
         "job_summary",
-        "job_cost_breakdown",
+        "job_usage_breakdown",
         "activity_daily",
         "core_health_summary",
         "project_summary",

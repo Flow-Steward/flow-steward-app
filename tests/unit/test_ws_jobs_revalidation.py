@@ -42,7 +42,7 @@ class _Store:
     def get_agent_messages(self, job_id: str, since_id: str = "") -> list:
         return []
 
-    def get_job_cost_summary(self, job_id: str) -> dict:
+    def get_job_usage_summary(self, job_id: str) -> dict:
         return {}
 
 

@@ -54,7 +54,7 @@ class _FakeReportingService:
         self.get_calls.append({"report_id": report_id, "scope": scope})
         return {
             "id": report_id,
-            "report_type": "job_cost_breakdown",
+            "report_type": "job_usage_breakdown",
             "status": "generated",
             "params": {"job_id": 42},
             "summary_text": "saved",

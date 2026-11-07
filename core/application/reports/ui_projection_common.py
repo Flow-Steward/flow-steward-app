@@ -109,28 +109,6 @@ def _format_duration_ms(value: Any) -> str:
     return " ".join(parts)
 
 
-def _format_currency(value: Any) -> str:
-    try:
-        amount = float(value or 0.0)
-    except Exception:
-        amount = 0.0
-    return f"${amount:,.2f}"
-
-
-def _format_cost_knownness_display(known_cost: Any, knownness: str, unknown_tokens: Any) -> str:
-    display = _format_currency(known_cost)
-    try:
-        token_count = int(unknown_tokens or 0)
-    except Exception:
-        token_count = 0
-    normalized = str(knownness or "").strip().lower()
-    if normalized == "partial" and token_count > 0:
-        return f"{display} known + unknown cost ({_format_token_count(token_count)} tokens)"
-    if normalized == "unknown" and token_count > 0:
-        return f"Unknown cost ({_format_token_count(token_count)} tokens)"
-    return display
-
-
 def _format_token_count(value: Any) -> str:
     try:
         count = int(value or 0)

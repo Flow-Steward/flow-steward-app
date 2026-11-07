@@ -33,10 +33,10 @@ from core.application.reports.reporting_helpers import (
     _tenant_id,
 )
 from core.application.reports.ui_projection_helpers import (
-    _build_cost_breakdown,
-    _format_currency,
+    _build_usage_breakdown,
     _humanize_identifier,
 )
+from core.application.reports.ui_projection_usage import _usage_row_total
 from core.infrastructure.db import report_run_store
 
 JOB_ID_IS_REQUIRED_MESSAGE = "job_id is required"
@@ -46,13 +46,62 @@ REPORT_NOT_FOUND_MESSAGE = "Report not found"
 SUPPORTED_REPORT_TYPES = frozenset(
     {
         "job_summary",
-        "job_cost_breakdown",
+        "job_usage_breakdown",
         "activity_daily",
         "core_health_summary",
         "project_summary",
         "project_stats",
     }
 )
+
+
+_RETIRED_ACCOUNTING_KEYS = frozenset(
+    {
+        "cost",
+        "costs",
+        "cost_breakdown",
+        "cost_breakdown_raw",
+        "cost_usd",
+        "known_cost_usd",
+        "total_cost_usd",
+        "cost_knownness",
+        "cost_display",
+        "total_cost_display",
+        "unknown_cli_tokens",
+        "unknown_cost_calls",
+        "spend",
+        "spend_usd",
+        "total_spend_usd",
+        "spend_by_agent",
+        "spend_breakdown",
+        "spend_availability",
+        "spend_known_count",
+        "spend_unknown_count",
+        "top_cost_center",
+        "top_spenders",
+    }
+)
+
+# Only these platform-owned report/chart containers carried accounting fields.
+# Diagnostic objects (for example result.root_cause) may contain business costs.
+_ACCOUNTING_REPORT_CONTAINERS = frozenset(
+    {"kpis", "highlights", "daily", "dataset", "formatted", "breakdown", "rows", "series", "data"}
+)
+_LEGACY_ACCOUNTING_REPORT_TYPES = frozenset(
+    {"job_summary", "activity_daily", "project_summary", "project_stats"}
+)
+
+
+def _contains_retired_accounting_fields(value: Any) -> bool:
+    if isinstance(value, dict):
+        return any(
+            key in _RETIRED_ACCOUNTING_KEYS
+            or (key in _ACCOUNTING_REPORT_CONTAINERS and _contains_retired_accounting_fields(item))
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_retired_accounting_fields(item) for item in value)
+    return False
 
 
 class ReportingService:
@@ -233,11 +282,6 @@ class ReportingService:
             params,
             scope=scope,
         )
-        spend_by_agent = self._analytics.analytics_query(
-            "dashboard_spend_by_agent",
-            params,
-            scope=scope,
-        )
         rows = list(activity.get("rows") or [])
         summary = _json_obj(activity.get("summary"))
         window = _json_obj(activity.get("window"))
@@ -256,16 +300,6 @@ class ReportingService:
         )
         if workflow_id:
             scope_label = f"{scope_label} · workflow {workflow_id}"
-        spend_rows = list(spend_by_agent.get("rows") or [])
-        top_agent_row = spend_rows[0] if spend_rows else {}
-        top_agent_label = (
-            _humanize_identifier((top_agent_row or {}).get("agent"))
-            or str((top_agent_row or {}).get("agent") or "")
-            if isinstance(top_agent_row, dict)
-            else ""
-        )
-        top_agent_cost = _format_currency((top_agent_row or {}).get("cost_usd") or 0.0)
-        top_agent_jobs = _safe_int((top_agent_row or {}).get("job_count"))
         latest_day = self._latest_active_day(rows)
         active_days = sum(1 for row in rows if _safe_int(row.get("total_jobs")) > 0)
 
@@ -285,15 +319,9 @@ class ReportingService:
             "window": window,
             "kpis": summary,
             "daily": rows,
-            "spend_by_agent": spend_rows,
             "highlights": {
                 "scope_label": scope_label,
                 "window_label": self._window_label(window),
-                "top_cost_center": {
-                    "agent": top_agent_label or None,
-                    "cost_display": top_agent_cost,
-                    "job_count": top_agent_jobs,
-                },
                 "latest_active_day": latest_day,
                 "active_days": active_days,
             },
@@ -318,10 +346,6 @@ class ReportingService:
             "window": window,
             "summary": summary,
             "rows": rows,
-            "spend_rows": spend_rows,
-            "top_agent_label": top_agent_label,
-            "top_agent_cost": top_agent_cost,
-            "top_agent_jobs": top_agent_jobs,
             "latest_day": latest_day,
             "active_days": active_days,
             "payload": payload,
@@ -348,7 +372,7 @@ class ReportingService:
         if normalized_type not in SUPPORTED_REPORT_TYPES:
             raise ServiceValidationError(f"Unsupported report_type '{report_type}'")
 
-        if normalized_type in {"job_summary", "job_cost_breakdown"}:
+        if normalized_type in {"job_summary", "job_usage_breakdown"}:
             job_id = _entity_id(safe_params.get("job_id"))
             if job_id is None:
                 raise ServiceValidationError(JOB_ID_IS_REQUIRED_MESSAGE)
@@ -384,8 +408,7 @@ class ReportingService:
             raise ServiceValidationError(JOB_ID_IS_REQUIRED_MESSAGE)
         logs_page = self._job_query_service().get_logs_page(job_id, scope=scope).dump()
         incident = self._job_query_service().get_incident_drilldown(job_id, scope=scope).dump()
-        cost = self._job_query_service().get_cost_breakdown(job_id, scope=scope).dump()
-        formatted_cost = _build_cost_breakdown(cost)
+        usage = self._job_query_service().get_usage_breakdown(job_id, scope=scope).dump()
 
         job = _json_obj(logs_page.get("job"))
         status = str(job.get("status") or "").strip().lower()
@@ -405,7 +428,6 @@ class ReportingService:
             f"Duration: {self._duration_display(duration_seconds)}",
             f"Events: {len(logs_page.get('events') or [])}",
             f"Agent messages: {len(logs_page.get('messages') or [])}",
-            f"Model spend: {formatted_cost.get('total_cost_display') or '$0.00'}",
             f"Next step: {self._job_next_step(status)}",
         ]
         if failure_reason:
@@ -433,6 +455,7 @@ class ReportingService:
                 "finished_at": job.get("finished_at"),
                 "duration_ms": duration_ms,
             },
+            "usage": _build_usage_breakdown(usage),
             "result": {
                 "failure_reason": failure_reason or None,
                 "root_cause": _json_obj(incident.get("root_cause")),
@@ -442,7 +465,6 @@ class ReportingService:
                 "events": len(logs_page.get("events") or []),
                 "messages": len(logs_page.get("messages") or []),
             },
-            "cost": formatted_cost,
             "deep_links": {
                 "job": f"/jobs/{job_id}",
                 "logs": f"/jobs/{job_id}",
@@ -456,7 +478,7 @@ class ReportingService:
             "project_id": payload["job"]["project_id"],
         }
 
-    def _report_job_cost_breakdown(
+    def _report_job_usage_breakdown(
         self,
         *,
         scope: ScopeContext,
@@ -466,7 +488,7 @@ class ReportingService:
         if job_id is None:
             raise ServiceValidationError(JOB_ID_IS_REQUIRED_MESSAGE)
         dataset = self._analytics.analytics_query(
-            "job_cost_breakdown",
+            "job_usage_breakdown",
             {"job_id": job_id},
             scope=scope,
         )
@@ -479,7 +501,7 @@ class ReportingService:
 
         raw_rows = list(_json_obj(dataset.get("payload")).get("breakdown") or [])
         agent_order: list[str] = []
-        agent_model_costs: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        agent_model_usage: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         model_totals: dict[str, float] = defaultdict(float)
         for row in raw_rows:
             if not isinstance(row, dict):
@@ -488,9 +510,9 @@ class ReportingService:
             model = str(row.get("model_used") or "Unspecified").strip() or "Unspecified"
             if agent not in agent_order:
                 agent_order.append(agent)
-            cost_usd = _safe_float(row.get("cost_usd"))
-            agent_model_costs[agent][model] += cost_usd
-            model_totals[model] += cost_usd
+            tokens = _usage_row_total(row)
+            agent_model_usage[agent][model] += tokens
+            model_totals[model] += tokens
 
         ordered_models = [
             model
@@ -499,9 +521,9 @@ class ReportingService:
         if len(ordered_models) <= 1:
             chart_series = [
                 {
-                    "name": "Cost (USD)",
+                    "name": "Tokens",
                     "data": [
-                        round(sum(agent_model_costs[agent].values()), 6) for agent in agent_order
+                        round(sum(agent_model_usage[agent].values()), 6) for agent in agent_order
                     ],
                 }
             ]
@@ -511,61 +533,36 @@ class ReportingService:
                 {
                     "name": model,
                     "data": [
-                        round(agent_model_costs[agent].get(model, 0.0), 6) for agent in agent_order
+                        round(agent_model_usage[agent].get(model, 0.0), 6) for agent in agent_order
                     ],
                 }
                 for model in ordered_models
             ]
             chart_type = "stacked_bar"
 
-        top_spender = ((formatted.get("top_spenders") or [None])[0]) if formatted else None
-        top_spender_label = (
-            str((top_spender or {}).get("agent_label") or "").strip()
-            if isinstance(top_spender, dict)
-            else ""
-        )
-        top_share = (
-            _safe_int((top_spender or {}).get("share_pct")) if isinstance(top_spender, dict) else 0
-        )
-        top_spender_cost = (
-            str((top_spender or {}).get("cost_display") or "").strip()
-            if isinstance(top_spender, dict)
-            else ""
-        )
         total_calls = sum(_safe_int(row.get("calls")) for row in (formatted.get("rows") or []))
         summary_lines = [
-            f"Job {job_id} cost stats",
-            f"Total spend: {formatted.get('total_cost_display') or '$0.00'}",
-            f"Billable buckets: {len(formatted.get('rows') or [])}",
+            f"Job {job_id} usage stats",
             f"Model calls: {total_calls}",
             f"Tokens: {formatted.get('total_tokens_display') or '0'}",
         ]
-        if top_spender_label:
-            top_spender_bits = [top_spender_label]
-            if top_share > 0:
-                top_spender_bits.append(f"{top_share}% share")
-            if top_spender_cost:
-                top_spender_bits.append(top_spender_cost)
-            summary_lines.append(f"Top spender: {' · '.join(top_spender_bits)}")
-        else:
-            summary_lines.append("Top spender: No billable model spend recorded yet.")
         summary_text = "\n".join(summary_lines)
 
         chart_payload = self._chart_directive(
             chart_type=chart_type,
-            title=f"Job {job_id} Cost Breakdown",
+            title=f"Job {job_id} Usage Breakdown",
             dataset={
                 "x": [_humanize_identifier(agent) or agent for agent in agent_order],
                 "series": chart_series,
             },
             meta={
-                "report_type": "job_cost_breakdown",
-                "unit": "usd",
+                "report_type": "job_usage_breakdown",
+                "unit": "tokens",
                 "job_id": job_id,
             },
             empty_state={
-                "title": "No billable activity",
-                "message": "This job has no recorded model spend yet.",
+                "title": "No model activity",
+                "message": "This job has no recorded token usage yet.",
             },
         )
         if not chart_series or not any(_series_has_values(series) for series in chart_series):
@@ -597,11 +594,6 @@ class ReportingService:
         )
         summary = snapshot["summary"]
         latest_day = snapshot["latest_day"] or {}
-        top_agent_bits = []
-        if snapshot["top_agent_label"]:
-            top_agent_bits.append(str(snapshot["top_agent_label"]))
-        if snapshot["top_agent_cost"] and snapshot["top_agent_cost"] != "$0.00":
-            top_agent_bits.append(str(snapshot["top_agent_cost"]))
         latest_day_text = ""
         if latest_day:
             latest_day_text = (
@@ -618,15 +610,12 @@ class ReportingService:
                 f"{int(summary.get('failed_count') or 0)} failed)"
             ),
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
-            f"Spend: {_format_currency(summary.get('total_spend_usd') or 0.0)}",
             (
                 "Typical duration: "
                 f"p50 {self._duration_display(summary.get('median_p50_seconds'))} · "
                 f"p95 {self._duration_display(summary.get('median_p95_seconds'))}"
             ),
         ]
-        if top_agent_bits:
-            summary_lines.append(f"Top cost center: {' · '.join(top_agent_bits)}")
         if latest_day_text:
             summary_lines.append(latest_day_text)
         summary_text = "\n".join(summary_lines)
@@ -650,11 +639,6 @@ class ReportingService:
         )
         summary = snapshot["summary"]
         latest_day = snapshot["latest_day"] or {}
-        top_bits = []
-        if snapshot["top_agent_label"]:
-            top_bits.append(str(snapshot["top_agent_label"]))
-        if snapshot["top_agent_cost"] and snapshot["top_agent_cost"] != "$0.00":
-            top_bits.append(str(snapshot["top_agent_cost"]))
         summary_lines = [
             f"{snapshot['scope_label']} summary",
             f"Window: {self._window_label(snapshot['window'])}",
@@ -664,15 +648,12 @@ class ReportingService:
                 f"{int(summary.get('failed_count') or 0)} failed)"
             ),
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
-            f"Spend: {_format_currency(summary.get('total_spend_usd') or 0.0)}",
             (
                 "Typical duration: "
                 f"p50 {self._duration_display(summary.get('median_p50_seconds'))} · "
                 f"p95 {self._duration_display(summary.get('median_p95_seconds'))}"
             ),
         ]
-        if top_bits:
-            summary_lines.append(f"Top cost center: {' · '.join(top_bits)}")
         if latest_day:
             summary_lines.append(
                 f"Latest active day: {latest_day.get('date')} "
@@ -701,14 +682,6 @@ class ReportingService:
             report_type="project_stats",
         )
         summary = snapshot["summary"]
-        top_cost_line = "Top cost center: No material spend recorded in this window."
-        if snapshot["top_agent_label"]:
-            top_cost_bits = [str(snapshot["top_agent_label"])]
-            if snapshot["top_agent_cost"]:
-                top_cost_bits.append(str(snapshot["top_agent_cost"]))
-            if snapshot["top_agent_jobs"] > 0:
-                top_cost_bits.append(f"{snapshot['top_agent_jobs']} jobs")
-            top_cost_line = f"Top cost center: {' · '.join(top_cost_bits)}"
         summary_lines = [
             f"{snapshot['scope_label']} stats",
             f"Window: {self._window_label(snapshot['window'])}",
@@ -716,10 +689,8 @@ class ReportingService:
             f"Completed: {int(summary.get('completed_count') or 0)}",
             f"Failed: {int(summary.get('failed_count') or 0)}",
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
-            f"Total spend: {_format_currency(summary.get('total_spend_usd') or 0.0)}",
             f"Median p50 duration: {self._duration_display(summary.get('median_p50_seconds'))}",
             f"Median p95 duration: {self._duration_display(summary.get('median_p95_seconds'))}",
-            top_cost_line,
             f"Active days: {snapshot['active_days']}",
         ]
         return {
@@ -806,14 +777,14 @@ class ReportingService:
         scope: ScopeContext,
     ) -> dict[str, Any]:
         normalized_type = str(report_type or "").strip().lower()
-        if normalized_type in {"job_summary", "job_cost_breakdown"}:
+        if normalized_type in {"job_summary", "job_usage_breakdown"}:
             self._job_query_service().validate_job_diagnostic_report_access(
                 str(params.get("job_id") or ""), scope=scope
             )
         if normalized_type == "job_summary":
             return self._report_job_summary(scope=scope, params=params)
-        if normalized_type == "job_cost_breakdown":
-            return self._report_job_cost_breakdown(scope=scope, params=params)
+        if normalized_type == "job_usage_breakdown":
+            return self._report_job_usage_breakdown(scope=scope, params=params)
         if normalized_type == "activity_daily":
             return self._report_activity_daily(scope=scope, params=params)
         if normalized_type == "project_summary":
@@ -902,8 +873,10 @@ class ReportingService:
             raise ServiceNotFoundError(REPORT_NOT_FOUND_MESSAGE)
         params = _json_obj(row.get("params_jsonb"))
         report_type = str(row.get("report_type") or "").strip().lower()
+        if report_type not in SUPPORTED_REPORT_TYPES:
+            raise ServiceNotFoundError(REPORT_NOT_FOUND_MESSAGE)
         project_id = coerce_optional_project_id(row.get("project_id"))
-        if report_type in {"job_summary", "job_cost_breakdown"}:
+        if report_type in {"job_summary", "job_usage_breakdown"}:
             self._job_query_service().validate_job_diagnostic_report_access(
                 str(params.get("job_id") or ""), scope=scope
             )
@@ -954,9 +927,20 @@ class ReportingService:
         if not isinstance(row, dict):
             raise ServiceNotFoundError(REPORT_NOT_FOUND_MESSAGE)
         self._enforce_report_scope(resolved_scope, row)
+        report_type = str(row.get("report_type") or "").strip().lower()
+        if report_type in _LEGACY_ACCOUNTING_REPORT_TYPES and not _json_obj(
+            row.get("payload_jsonb")
+        ):
+            # Without a snapshot we cannot establish that stored text/charts are
+            # usage-only. Keep the row intact; the operator can generate a new report.
+            raise ServiceNotFoundError(REPORT_NOT_FOUND_MESSAGE)
+        if any(
+            _contains_retired_accounting_fields(_json_obj(row.get(field)))
+            for field in ("payload_jsonb", "chart_payload_jsonb")
+        ):
+            raise ServiceNotFoundError(REPORT_NOT_FOUND_MESSAGE)
 
         persisted_params = _json_obj(row.get("params_jsonb"))
-        report_type = str(row.get("report_type") or "").strip().lower()
         payload: dict[str, Any] = {}
         has_payload_snapshot = "payload_jsonb" in row and row.get("payload_jsonb") is not None
         if has_payload_snapshot:

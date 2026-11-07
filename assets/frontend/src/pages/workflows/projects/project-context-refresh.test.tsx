@@ -59,7 +59,7 @@ function fixture(failSecond = false) {
     if (path === `/api/workflows/${workflowId}/contract-validation`) return json({ validation: { valid: true, errors: [], warnings: [] } });
     if (path === `/api/workflows/${workflowId}/contract`) return json({ ...detail, interface: callable, definition_issues: [] });
     if (path === `/api/workflows/${workflowId}/export-policy`) return json({ workflow_id: workflowId, extension_owned: false, protected: false, full_export_allowed: true, clone_allowed: true, structure_change_allowed: true });
-    if (path === `/api/workflows/${workflowId}/stats`) return json({ workflow_id: workflowId, total_runs: 0, completed_count: 0, failed_count: 0, active_count: 0, cancelled_count: 0, success_rate: null, total_cost_usd: 0, avg_cost_per_run_usd: 0, jobs_with_cost: 0, last_run_at: null, avg_duration_seconds: null });
+    if (path === `/api/workflows/${workflowId}/stats`) return json({ workflow_id: workflowId, total_runs: 0, completed_count: 0, failed_count: 0, active_count: 0, cancelled_count: 0, success_rate: null, last_run_at: null, avg_duration_seconds: null });
     if (path === `/api/workflows/${workflowId}/canvas-graph`) return json({ workflow: { id: workflowId, display_name: "Context fixture", enabled: true, callable_by_parent: false }, interface_contract: callable, output_contract: { output_mode: "none", expected_outputs: [], returned_files: [] }, groups: [], steps: [], edges: [], validation_issues: [], automation_rules: [] });
     // The Builder reads kept test outputs (workflow-level, outside the definition) on open.
     if (method === "GET" && path === `/api/workflows/${workflowId}/kept-test-outputs`) return json({ workflow_id: workflowId, kept_outputs: [] });

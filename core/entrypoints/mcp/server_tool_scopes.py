@@ -70,7 +70,7 @@ MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
     # --- jobs (read) -------------------------------------------------------
     "job_approval": _JOBS_READ,
     "job_approvals": _JOBS_READ,
-    "job_cost_breakdown": _JOBS_READ,
+    "job_usage_breakdown": _JOBS_READ,
     "job_decision_overrides": _JOBS_READ,
     "job_errors": _JOBS_READ,
     "job_events": _JOBS_READ,

@@ -9,7 +9,31 @@ from core.application.reports.ui_projection_common import (
     _bounded_diagnostic_value,
     _map_step_status,
 )
+from core.application.reports.ui_projection_usage import _build_usage_breakdown
 from core.infrastructure.security.secret_detection import contains_detected_secret
+
+
+@pytest.mark.parametrize(
+    ("reported_total", "completion", "expected_total"),
+    [(0, 5, 0), (None, None, 0), (None, 5, 15), (31, 5, 31)],
+)
+def test_usage_breakdown_preserves_zero_and_does_not_complete_partial_counts(
+    reported_total, completion, expected_total
+):
+    projection = _build_usage_breakdown(
+        {
+            "breakdown": [
+                {
+                    "agent": "writer",
+                    "tokens_prompt": 10,
+                    "tokens_completion": completion,
+                    "tokens_total": reported_total,
+                }
+            ]
+        }
+    )
+    assert projection["total_tokens"] == expected_total
+    assert projection["rows"][0]["tokens"] == expected_total
 
 
 @pytest.mark.parametrize(

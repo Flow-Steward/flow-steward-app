@@ -69,7 +69,6 @@ def log_action(
     tokens_prompt=None,
     tokens_completion=None,
     tokens_total=None,
-    cost_usd=None,
     model_used=None,
 ):
     clean_duration = max(0, int(duration)) if duration is not None else None
@@ -88,9 +87,12 @@ def log_action(
                     (project_id, job_id, task_id, task_summary, lifecycle_id, timestamp,
                      agent, action_type, status, iteration_no, cycle_no, duration,
                      payload, result, error, meta,
-                     tokens_prompt, tokens_completion, tokens_total, cost_usd, model_used)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING *
+                     tokens_prompt, tokens_completion, tokens_total, model_used)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                RETURNING id, project_id, job_id, task_id, task_summary, lifecycle_id,
+                          timestamp, agent, action_type, status, iteration_no, cycle_no,
+                          duration, payload, result, error, meta, tokens_prompt,
+                          tokens_completion, tokens_total, model_used
                 """,
                 (
                     project_id,
@@ -112,7 +114,6 @@ def log_action(
                     tokens_prompt,
                     tokens_completion,
                     tokens_total,
-                    cost_usd,
                     model_used,
                 ),
             )
@@ -148,7 +149,7 @@ def log_action(
         return row
 
 
-def get_job_cost_breakdown(
+def get_job_usage_breakdown(
     *,
     conn,
     logger: logging.Logger,
@@ -162,30 +163,17 @@ def get_job_cost_breakdown(
                        COUNT(*)                            AS calls,
                        COALESCE(SUM(tokens_prompt), 0)     AS tokens_prompt,
                        COALESCE(SUM(tokens_completion), 0) AS tokens_completion,
-                       COALESCE(SUM(tokens_total), 0)      AS tokens_total,
-                       SUM(cost_usd)                       AS cost_usd,
-                       COALESCE(SUM(cost_usd), 0)          AS known_cost_usd,
-                       COALESCE(SUM(
-                           COALESCE(tokens_total, tokens_prompt, 0)
-                           + CASE WHEN tokens_total IS NULL THEN COALESCE(tokens_completion, 0) ELSE 0 END
-                       ) FILTER (
-                           WHERE cost_usd IS NULL
-                             AND COALESCE(tokens_total, tokens_prompt, tokens_completion, 0) > 0
-                       ), 0)                               AS unknown_cli_tokens,
-                       COUNT(*) FILTER (
-                           WHERE cost_usd IS NULL
-                             AND COALESCE(tokens_total, tokens_prompt, tokens_completion, 0) > 0
-                       )                                   AS unknown_cost_calls
+                       COALESCE(SUM(COALESCE(tokens_total, tokens_prompt + tokens_completion)), 0)      AS tokens_total
                   FROM platform_action_log
                  WHERE job_id = %s AND action_type = 'llm_call'
                  GROUP BY agent, model_used
-                 ORDER BY known_cost_usd DESC, unknown_cli_tokens DESC
+                 ORDER BY tokens_total DESC, agent, model_used
                 """,
                 (job_id,),
             )
             return [dict(row) for row in cur.fetchall()]
     except Exception as exc:
-        logger.debug("get_job_cost_breakdown failed (non-fatal): %s", exc)
+        logger.debug("get_job_usage_breakdown failed (non-fatal): %s", exc)
         return []
 
 
@@ -253,7 +241,6 @@ def get_logs(
                     tokens_prompt,
                     tokens_completion,
                     tokens_total,
-                    cost_usd,
                     model_used
                   FROM platform_action_log
                  WHERE {sql_and.join(where)}
@@ -308,7 +295,6 @@ def get_latest_log_entry(
                     tokens_prompt,
                     tokens_completion,
                     tokens_total,
-                    cost_usd,
                     model_used
                 FROM platform_action_log
                 WHERE {where_sql}

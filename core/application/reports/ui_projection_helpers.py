@@ -30,8 +30,8 @@ from core.application.workflows.workflow_step_kinds import (
 )
 
 from . import ui_projection_common as _common
-from . import ui_projection_costs as _costs
 from . import ui_projection_review_workspace as _review
+from . import ui_projection_usage as _usage
 
 #: Pauses that are the active step still running (not a review gate).
 _SELF_RESUMING_WAIT_STATUSES = frozenset({STATUS_AWAITING_TIMER, STATUS_AWAITING_CHILD})
@@ -46,8 +46,6 @@ _normalize_role = _common._normalize_role
 _as_datetime = _common._as_datetime
 _format_datetime = _common._format_datetime
 _format_duration_ms = _common._format_duration_ms
-_format_currency = _common._format_currency
-_format_cost_knownness_display = _common._format_cost_knownness_display
 _format_token_count = _common._format_token_count
 _truncate_text = _common._truncate_text
 _step_runtime_summary = _common._step_runtime_summary
@@ -73,7 +71,7 @@ _override_supported = _review._override_supported
 _autonomy_gate_intro = _review._autonomy_gate_intro
 _autonomy_gate_content = _review._autonomy_gate_content
 _build_review_workspace = _review._build_review_workspace
-_build_cost_breakdown = _costs._build_cost_breakdown
+_build_usage_breakdown = _usage._build_usage_breakdown
 
 _LOGGER = logging.getLogger("platform.reports.ui_projection_helpers")
 _ARTIFACT_HANDLE_PREFIX = "artifact:"

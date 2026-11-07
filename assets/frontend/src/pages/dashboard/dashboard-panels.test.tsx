@@ -1,38 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
-import { ModelSpend, QuickLinks } from "@/pages/dashboard/dashboard-panels";
+import { QuickLinks } from "@/pages/dashboard/dashboard-panels";
 
-describe("dashboard model spend", () => {
-  it("renders unavailable and partial spend without inventing zero-dollar values", () => {
-    render(
-      <ModelSpend
-        breakdown={{
-          agent: [],
-          project: [
-            {
-              availability: "unavailable",
-              name: "Unknown project",
-              spend_usd: null,
-            },
-            {
-              availability: "partial",
-              name: "Partial project",
-              spend_usd: 1.25,
-            },
-          ],
-          workflow: [],
-        }}
-        rangeLabel="Last 24 hours"
-        total="Partial"
-      />,
-    );
-
-    expect(screen.getByText("Unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/\$1\.25 \(partial\)/)).toBeInTheDocument();
-    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
-  });
-
+describe("dashboard quick links", () => {
   it("hides registry and administration destinations without matching capabilities", () => {
     const { rerender } = render(
       <MemoryRouter>
