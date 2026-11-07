@@ -169,6 +169,24 @@ def test_fetch_refuses_a_redirect() -> None:
         clients.fetch_client_metadata(CLIENT_ID, resolve_ips=_public, open_request=_open)
 
 
+def test_fetch_identifies_the_product_to_a_metadata_endpoint_rejecting_generic_clients() -> None:
+    """Claude's public CIMD endpoint rejects the default Python user agent with 403."""
+
+    def _open(request, *, timeout, ips):
+        user_agent = request.get_header("User-agent") or ""
+        if not user_agent.startswith("FlowSteward/") or "https://flowsteward.org" not in user_agent:
+            raise HTTPError(request.full_url, 403, "Forbidden", Message(), None)
+        assert request.get_header("Accept") == "application/json"
+        assert ips == ("160.79.104.10",)
+        assert timeout == 5.0
+        return _Response(_document())
+
+    fetched = clients.fetch_client_metadata(CLIENT_ID, resolve_ips=_public, open_request=_open)
+    metadata = clients.validate_client_metadata(fetched.body, client_id=CLIENT_ID)
+    assert metadata.client_name == "Desktop agent"
+    assert metadata.redirect_uris == ("http://localhost/callback", "http://127.0.0.1/callback")
+
+
 def test_fetch_refuses_an_oversized_body() -> None:
     """C4: 70 KiB is over the 64 KiB limit."""
     body = b"{" + b" " * (70 * 1024) + b"}"

@@ -22,6 +22,7 @@ from core.application.auth.inbound_oauth_policy import (
     MAX_CLIENT_ID_LENGTH,
     valid_redirect_uri,
 )
+from core.infrastructure.config.version import APP_VERSION
 
 #: Owner default (questions file rows 2, 13): exact hosts, no subdomains, fixed in code.
 ALLOWED_CLIENT_ID_HOSTS: frozenset[str] = frozenset({"chatgpt.com", "claude.ai"})
@@ -190,7 +191,15 @@ def fetch_client_metadata(
     parsed = urlsplit(client_id)
     host = parsed.hostname or ""
     ips = resolve_ips(host, int(parsed.port or 443))
-    request = Request(client_id, headers={"Accept": "application/json"}, method="GET")
+    request = Request(
+        client_id,
+        headers={
+            "Accept": "application/json",
+            # Public CIMD endpoints can reject the generic Python user agent.
+            "User-Agent": f"FlowSteward/{APP_VERSION} (+https://flowsteward.org)",
+        },
+        method="GET",
+    )
     started = clock()
     try:
         if open_request is None:
