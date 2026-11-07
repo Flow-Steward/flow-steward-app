@@ -233,6 +233,8 @@ def test_forwarding_rule() -> None:
         ("POST", "/api/oauth/authorizations/abc/decision"),
         ("GET", "/api/settings/mcp-oauth"),
         ("PUT", "/api/settings/mcp-oauth"),
+        ("GET", "/api/settings/mcp-oauth/platform-clients"),
+        ("POST", "/api/settings/mcp-oauth/platform-clients/abc/revoke"),
     ],
 )
 def test_oauth_principal_denials(method: str, path: str) -> None:

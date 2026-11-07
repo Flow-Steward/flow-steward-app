@@ -107,6 +107,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0059](0059-workflow-report-documents.md) | Workflow Report Documents | Accepted |
 | [0060](0060-owned-agent-resource-lifecycle.md) | Journal-owned disposable agent resource lifecycle | Accepted |
 | [0061](0061-token-usage-without-monetary-accounting.md) | Token usage without monetary accounting | Accepted |
+| [0063](0063-microsoft-365-copilot-connection.md) | Connecting Microsoft 365 Copilot to the MCP server | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

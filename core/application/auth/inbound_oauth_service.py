@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from core.application.auth import inbound_oauth_platform_clients as platform_clients
 from core.application.auth import inbound_oauth_repository as repo
 from core.application.auth.agent_access_presets import (
     agent_access_preset,
@@ -102,6 +103,11 @@ class ConsentError(Exception):
         self.code = code
         self.status = status
         self.message = message or code
+
+
+def _client_kind(client_id: str) -> str:
+    """``platform`` for an admin-registered client (ADR 0063), ``cimd`` otherwise."""
+    return "platform" if platform_clients.is_platform_client_id(client_id) else "cimd"
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +238,24 @@ class InboundOAuthService:
             )
         return list(metadata.redirect_uris)
 
+    def _platform_redirect_uris(self, client_id: str, repeated: bool) -> list[str] | None:
+        """Redirect URIs of an active platform client, or None when it may not sign in."""
+        if repeated:
+            return None
+        with self._transaction() as conn:
+            registration = platform_clients.active_registration(conn, client_id)
+            if registration is None:
+                return None
+            return platform_clients.ensure_client_row(conn, registration, self.clock())
+
+    @staticmethod
+    def _platform_client_usable(conn: Any, client_id: str, account_id: str) -> bool:
+        """A platform client signs in only while registered, and only for its own account."""
+        if not platform_clients.is_platform_client_id(client_id):
+            return True
+        registration = platform_clients.active_registration(conn, client_id)
+        return registration is not None and registration.get("account_id") == account_id
+
     def _audit(self, action: str, *, username: str = "", status: str = "ok", **detail: Any) -> None:
         log_auth_audit_event(
             self.bl,
@@ -263,20 +287,32 @@ class InboundOAuthService:
         readiness = self.readiness()
         if not readiness.ready:
             return self._error_page(readiness.blockers[0])
-        try:
-            validate_client_id(client_id, allowed_hosts=self.allowed_client_hosts)
-            if "client_id" in duplicated:
-                raise ClientNotAllowedError("client_id is repeated")
-        except ClientNotAllowedError:
-            self._audit("oauth_client_rejected", status="denied", client_host=host_of(client_id))
-            return self._error_page(ClientNotAllowedError.code)
-        try:
-            redirect_uris = self._client_redirect_uris(client_id)
-        except ClientMetadataUnavailableError:
-            return self._error_page(ClientMetadataUnavailableError.code)
-        except InvalidClientMetadataError:
-            self._audit("oauth_client_rejected", status="denied", client_host=host_of(client_id))
-            return self._error_page(InvalidClientMetadataError.code)
+        platform = platform_clients.is_platform_client_id(client_id)
+        if platform:
+            # ADR 0063 decision 2: an admin-registered client, redirect URIs from its preset.
+            redirect_uris = self._platform_redirect_uris(client_id, "client_id" in duplicated)
+            if redirect_uris is None:
+                self._audit("oauth_client_rejected", status="denied", client_kind="platform")
+                return self._error_page(ClientNotAllowedError.code)
+        else:
+            try:
+                validate_client_id(client_id, allowed_hosts=self.allowed_client_hosts)
+                if "client_id" in duplicated:
+                    raise ClientNotAllowedError("client_id is repeated")
+            except ClientNotAllowedError:
+                self._audit(
+                    "oauth_client_rejected", status="denied", client_host=host_of(client_id)
+                )
+                return self._error_page(ClientNotAllowedError.code)
+            try:
+                redirect_uris = self._client_redirect_uris(client_id)
+            except ClientMetadataUnavailableError:
+                return self._error_page(ClientMetadataUnavailableError.code)
+            except InvalidClientMetadataError:
+                self._audit(
+                    "oauth_client_rejected", status="denied", client_host=host_of(client_id)
+                )
+                return self._error_page(InvalidClientMetadataError.code)
         redirect_uri = values.get("redirect_uri", "")
         if "redirect_uri" in duplicated or not redirect_uri_matches(redirect_uri, redirect_uris):
             return self._error_page("invalid_redirect_uri")
@@ -302,6 +338,10 @@ class InboundOAuthService:
         if state is not None and len(state) > MAX_STATE_LENGTH:
             return redirect_error("invalid_request")
         raw_resource = values.get("resource", "")
+        if not raw_resource and platform:
+            # ADR 0063 decision 3: a platform client that sends no resource is bound
+            # to this installation's MCP resource; a resource it does send must match.
+            raw_resource = readiness.resource
         if not raw_resource:
             return redirect_error("invalid_request")
         resource = normalize_resource(raw_resource)
@@ -382,6 +422,10 @@ class InboundOAuthService:
         caller = self._require_interactive(user)
         with self._transaction() as conn:
             row = self._pending(conn, request_id, browser_binding, for_update=False)
+            if not self._platform_client_usable(
+                conn, str(row["client_id"]), str(caller.get("account_id") or "")
+            ):
+                raise ConsentError(ClientNotAllowedError.code, 403)
         self._account_ready(str(caller.get("account_id") or ""))
         requested = repo.json_list(row.get("requested_scopes_jsonb"))
         offers = self._preset_offers(caller, requested)
@@ -395,6 +439,9 @@ class InboundOAuthService:
                 "client_id": client_id,
                 "client_name": str(row.get("client_name") or "") or host_of(client_id),
                 "client_host": host_of(client_id),
+                # A platform client was registered by an administrator of this
+                # installation; it publishes no identity document of its own.
+                "client_kind": _client_kind(client_id),
                 "redirect_uri": redirect_uri,
                 "redirect_uri_host": host_of(redirect_uri),
                 "redirect_uri_loopback": is_loopback_redirect_uri(redirect_uri),
@@ -430,6 +477,8 @@ class InboundOAuthService:
         now = self.clock()
         with self._transaction() as conn:
             row = self._pending(conn, request_id, browser_binding, for_update=True)
+            if not self._platform_client_usable(conn, str(row["client_id"]), account_id):
+                raise ConsentError(ClientNotAllowedError.code, 403)
             base = {"state": row.get("state"), "iss": issuer}
             if decision == "deny":
                 recorded = repo.record_decision(
@@ -596,6 +645,8 @@ class InboundOAuthService:
         code_hash: str,
         now: datetime,
     ) -> _ExchangeResult:
+        # ADR 0063: before any row lock, so a revocation cannot interleave.
+        platform_clients.lock_for_issuance(conn, client_id)
         consumed = repo.consume_code(conn, code_hash, now)
         if consumed is None:
             known = repo.find_code(conn, code_hash)
@@ -628,6 +679,8 @@ class InboundOAuthService:
         user_id = str(consumed["user_id"])
         account_id = str(consumed["account_id"])
         if not self._user_still_allowed(conn, user_id, account_id):
+            return _ExchangeResult(error=OAuthProtocolError("invalid_grant"))
+        if not self._platform_client_usable(conn, client_id, account_id):
             return _ExchangeResult(error=OAuthProtocolError("invalid_grant"))
         if not repo.oauth_enabled_for_account(conn, account_id):
             return _ExchangeResult(error=OAuthProtocolError("temporarily_unavailable", status=503))
@@ -682,6 +735,8 @@ class InboundOAuthService:
         token_hash: str,
         now: datetime,
     ) -> _ExchangeResult:
+        # ADR 0063: before the grant row lock, the order a revocation takes them in.
+        platform_clients.lock_for_issuance(conn, client_id)
         grant_id = repo.refresh_token_grant_id(conn, token_hash)
         if grant_id is None:
             return _ExchangeResult(error=OAuthProtocolError("invalid_grant"))
@@ -701,6 +756,7 @@ class InboundOAuthService:
             or grant["expires_at"] <= now
             or str(grant["client_id"]) != client_id
             or not self._user_still_allowed(conn, str(grant["user_id"]), account_id)
+            or not self._platform_client_usable(conn, client_id, account_id)
         ):
             return _ExchangeResult(error=OAuthProtocolError("invalid_grant"))
         if not repo.oauth_enabled_for_account(conn, account_id):
@@ -781,6 +837,7 @@ class InboundOAuthService:
             "client_id": client_id,
             "client_name": str(row.get("client_name_snapshot") or "") or host_of(client_id),
             "client_host": host_of(client_id),
+            "client_kind": _client_kind(client_id),
             "preset": str(row.get("preset") or ""),
             "scopes": repo.json_list(row.get("scopes_jsonb")),
             "allowed_project_ids": repo.json_list(row.get("allowed_project_ids_jsonb")),

@@ -130,7 +130,12 @@ export function isConfigurationReady(configuration: OAuthConfigurationView | und
   return configuration?.status === "ready_for_authorization" || configuration?.status === "verified";
 }
 
-export function configurationGuidance(status: OAuthConfigurationView["status"], t: I18nContextValue["t"] = fallbackContext.t): string {
+export function configurationGuidance(
+  status: OAuthConfigurationView["status"],
+  t: I18nContextValue["t"] = fallbackContext.t,
+  attentionCode: OAuthConfigurationView["attention_code"] = null,
+): string {
+  if (status === "needs_attention" && attentionCode) return attentionGuidance(attentionCode, t);
   const messages: Record<OAuthConfigurationView["status"], string> = {
     incomplete: t("react.extensions.oauth_final_incomplete_guidance", "Incomplete — complete every required field before connecting."),
     ready_for_authorization: t("react.extensions.oauth_final_ready_guidance", "Ready for authorization."),
@@ -138,6 +143,53 @@ export function configurationGuidance(status: OAuthConfigurationView["status"], 
     needs_attention: t("react.extensions.oauth_final_attention_guidance", "Needs attention — review the fields or replace the stored secret, then save."),
   };
   return messages[status];
+}
+
+function attentionGuidance(code: NonNullable<OAuthConfigurationView["attention_code"]>, t: I18nContextValue["t"]): string {
+  if (code === "configuration_deleting") {
+    return t("react.extensions.oauth_attention_configuration_deleting", "Needs attention — this configuration is being deleted. Refresh the page; if it is still listed, delete it again.");
+  }
+  return t("react.extensions.oauth_attention_invalid_client", "Needs attention — the provider rejected this app's client ID or client secret (invalid_client) the last time they were used. Check the client ID, select Replace and paste the current client secret, then save.");
+}
+
+/** Why connecting is unavailable for a provider, derived from its saved configurations. */
+export type OAuthProviderBlockedReason =
+  | { kind: "no_configuration" }
+  | { kind: "incomplete"; configurationName: string }
+  | { kind: "needs_attention"; configurationName: string; attentionCode: OAuthConfigurationView["attention_code"] }
+  | { kind: "callback_registration" };
+
+export function providerBlockedReason(
+  configurations: OAuthConfigurationView[] | undefined,
+  callbackRegistrationReady: boolean | undefined,
+): OAuthProviderBlockedReason | null {
+  const saved = configurations ?? [];
+  if (saved.some(isConfigurationReady)) {
+    return callbackRegistrationReady === true ? null : { kind: "callback_registration" };
+  }
+  const attention = saved.find((configuration) => configuration.status === "needs_attention");
+  if (attention) {
+    return { kind: "needs_attention", configurationName: attention.display_name, attentionCode: attention.attention_code ?? null };
+  }
+  const incomplete = saved.find((configuration) => configuration.status === "incomplete");
+  if (incomplete) return { kind: "incomplete", configurationName: incomplete.display_name };
+  return { kind: "no_configuration" };
+}
+
+export function providerBlockedGuidance(reason: OAuthProviderBlockedReason, t: I18nContextValue["t"] = fallbackContext.t): string {
+  if (reason.kind === "needs_attention") {
+    const why = reason.attentionCode
+      ? attentionGuidance(reason.attentionCode, t)
+      : configurationGuidance("needs_attention", t);
+    return t("react.extensions.oauth_blocked_needs_attention", "The OAuth configuration \"{value0}\" is not ready. {value1}", { value0: reason.configurationName, value1: why });
+  }
+  if (reason.kind === "incomplete") {
+    return t("react.extensions.oauth_blocked_incomplete", "The OAuth configuration \"{value0}\" is incomplete. Fill in every required field and save it.", { value0: reason.configurationName });
+  }
+  if (reason.kind === "callback_registration") {
+    return t("react.extensions.oauth_blocked_callback_registration", "The redirect URI of this provider is not registered yet. Register it in provider setup.");
+  }
+  return t("react.extensions.oauth_blocked_no_configuration", "No OAuth configuration is saved yet. Add one in provider setup and save it.");
 }
 
 export function oauthStatusLabel(status: string, t: I18nContextValue["t"] = fallbackContext.t): string {

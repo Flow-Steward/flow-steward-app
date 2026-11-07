@@ -45,7 +45,7 @@ describe("workflow connector resource picker rendering", () => {
 
     render(utils.renderConnectorInputMappingEditor());
 
-    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue(
+    expect(screen.getByRole("textbox", { name: "Provider resource" })).toHaveValue(
       "file-current",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -227,9 +227,9 @@ describe("connector literal controls", () => {
 
   it("renders declared controls and preserves typed literal mappings", () => {
     render(<LiteralHarness />);
-    expect(screen.getByRole("textbox", { name: "Parameter value 1" }).tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("textbox", { name: "Question" }).tagName).toBe("TEXTAREA");
     expect(screen.getByText("Write the question.")).toBeInTheDocument();
-    const query = screen.getByRole("textbox", { name: "Parameter value 1" });
+    const query = screen.getByRole("textbox", { name: "Question" });
     for (const value of ["Hello", "Hello ", "Hello world", "Hello world\n", "Hello world\nNext"]) {
       fireEvent.change(query, { target: { value } });
       expect(query).toHaveValue(value);
@@ -237,10 +237,10 @@ describe("connector literal controls", () => {
     expect(storedMapping()).toMatchObject({ query: 'literal:"Hello world\\nNext"' });
     fireEvent.change(query, { target: { value: "true" } });
     expect(storedMapping()).toMatchObject({ query: 'literal:"true"' });
-    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue("true");
-    expect(screen.getByRole("textbox", { name: "Parameter value 2" }).tagName).toBe("TEXTAREA");
-    expect(screen.getByRole("spinbutton", { name: "Parameter value 3" })).toHaveValue(2);
-    const enabled = screen.getByRole("combobox", { name: "Parameter value 4" });
+    expect(screen.getByRole("textbox", { name: "Question" })).toHaveValue("true");
+    expect(screen.getByRole("textbox", { name: "Data" }).tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("spinbutton", { name: "Count" })).toHaveValue(2);
+    const enabled = screen.getByRole("combobox", { name: "Enabled" });
     expect(enabled).toHaveValue("false");
     fireEvent.change(enabled, { target: { value: "true" } });
     expect(storedMapping()).toMatchObject({ enabled: "literal:true" });
@@ -251,19 +251,19 @@ describe("connector literal controls", () => {
 
   it("identifies malformed JSON and invalid integers with recoverable errors", () => {
     render(<LiteralHarness />);
-    const data = screen.getByRole("textbox", { name: "Parameter value 2" });
+    const data = screen.getByRole("textbox", { name: "Data" });
     fireEvent.change(data, { target: { value: "{" } });
     expect(data).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText(/valid JSON/i)).toBeInTheDocument();
     fireEvent.change(data, { target: { value: '{"ok":true}' } });
     expect(data).not.toHaveAttribute("aria-invalid", "true");
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Parameter value 3" }), { target: { value: "1.5" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Count" }), { target: { value: "1.5" } });
     expect(screen.getByText(/whole number/i)).toBeInTheDocument();
   });
 
   it("explains why decimal and exponent integer spellings are rejected", () => {
     render(<LiteralHarness />);
-    const count = screen.getByRole("spinbutton", { name: "Parameter value 3" });
+    const count = screen.getByRole("spinbutton", { name: "Count" });
     for (const value of ["1.0", "1e1"]) {
       fireEvent.change(count, { target: { value } });
       expect(count).toHaveAttribute("aria-invalid", "true");
@@ -286,7 +286,7 @@ describe("workflow artifact inputs", () => {
     render(utils.renderConnectorInputMappingEditor());
     expect(screen.getByText(/map a file artifact supplied or uploaded/i)).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Literal value" })).toBeDisabled();
-    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue("state.input_file");
+    expect(screen.getByRole("textbox", { name: "Input file" })).toHaveValue("state.input_file");
   });
 });
 
@@ -538,5 +538,92 @@ describe("optional explicit text literal validation", () => {
     fireEvent.change(note, { target: { value: " " } });
     expect(storedMapping()).toEqual({ note: 'literal:" "' });
     expect(note).not.toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+describe("the accessible name of a parameter's value", () => {
+  function renderParameters(mapping: Record<string, unknown>) {
+    const utils = createWorkflowConnectorRenderers({
+      connectorOutputRows: [],
+      connectorParameterRows: [
+        { name: "packages", label: "Package", widget_type: "json", required: true, help_text: "Exactly one package." },
+        { name: "quantity", label: "Quantity", widget_type: "integer", required: true },
+        { name: "note" },
+      ],
+      renderWorkflowVariableInput: ({ ariaLabel, ariaDescribedBy, value }: { ariaLabel: string; ariaDescribedBy?: string; value: string }) => (
+        <input aria-describedby={ariaDescribedBy} aria-label={ariaLabel} readOnly value={value} />
+      ),
+      replaceStepKindConfigField: vi.fn(),
+      selectedStep: { runtimeId: "a11y-step", raw: {} },
+      selectedConnectorId: "extension.fixture",
+      stepKindConfig: { operation_id: "rates", input_mapping: mapping },
+    });
+    render(utils.renderConnectorInputMappingEditor());
+  }
+
+  it("is the field's label from its metadata, with its help and error linked", () => {
+    renderParameters({ packages: "literal:", quantity: "literal:1.5", note: "state.note" });
+    const packages = screen.getByRole("textbox", { name: "Package" });
+    expect(packages).toBeRequired();
+    expect(packages).toHaveAccessibleDescription(/Exactly one package\./);
+    expect(packages).toHaveAccessibleDescription(/packages is required before saving or testing this action\./);
+    expect(packages).toHaveAttribute("aria-describedby", "connector-input-help-0 connector-input-error-0");
+
+    const quantity = screen.getByRole("spinbutton", { name: "Quantity" });
+    expect(quantity).toHaveAttribute("aria-invalid", "true");
+    expect(quantity).toHaveAttribute("aria-describedby", "connector-input-error-1");
+    expect(quantity).toHaveAccessibleDescription("Enter a whole number without a decimal point or exponent.");
+  });
+
+  it("keeps the numbered name for a parameter without a label", () => {
+    renderParameters({ note: "state.note" });
+    expect(screen.getByRole("textbox", { name: "Parameter value 3" })).toHaveValue("state.note");
+    expect(screen.queryByRole("textbox", { name: "Parameter value 1" })).not.toBeInTheDocument();
+  });
+});
+
+describe("rows held while typing", () => {
+  function Harness({ operationId, parameters, functionName = "" }: { operationId: string; parameters: Array<Record<string, unknown>>; functionName?: string }) {
+    // The action change itself stores the carried mapping (none here), as the Action select does.
+    const [state, setState] = useState<{ operationId: string; mapping: Record<string, unknown> }>({ operationId, mapping: {} });
+    const current = state.operationId === operationId ? state : { operationId, mapping: {} };
+    if (current !== state) setState(current);
+    const mapping = current.mapping;
+    const setMapping = (next: Record<string, unknown>) => setState({ operationId, mapping: next });
+    const utils = createWorkflowConnectorRenderers({
+      connectorOutputRows: [],
+      connectorParameterRows: parameters,
+      renderWorkflowVariableInput: ({ ariaLabel, value, onChange }: { ariaLabel: string; value: string; onChange: (value: string) => void }) => <input aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)} value={value} />,
+      replaceStepKindConfigField: (_kind: string, _field: string, value: Record<string, unknown>) => setMapping(value),
+      selectedStep: { runtimeId: "held-step", raw: {} },
+      selectedConnectorId: "extension.fixture",
+      stepKindConfig: { operation_id: operationId, function_name: functionName, input_mapping: mapping },
+    });
+    return utils.renderConnectorInputMappingEditor();
+  }
+
+  const address = { type: "object", required: ["name"], properties: { name: { type: "string" } } };
+
+  it.each([["an empty", ""], ["the same", "legacy_entry"]])("never carry over to another action with %s function_name", (_label, functionName) => {
+    const rates = [{ name: "ship_from", label: "Ship from", type: "json", required: true, schema: address }, { name: "amazon_order_id" }];
+    const plan = [{ name: "items", label: "Items", required: true }, { name: "source_address", label: "Source address", type: "json", required: true, schema: address }];
+    const view = render(<Harness functionName={functionName} operationId="get_rates" parameters={rates} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add parameter mapping" }));
+    // The required row has no value yet, so it is held rather than stored.
+    expect(screen.getByRole("combobox", { name: "Parameter 1" })).toHaveValue("ship_from");
+    expect(screen.getByRole("combobox", { name: "Parameter 2" })).toHaveValue("amazon_order_id");
+
+    expect(screen.getByRole("textbox", { name: "Ship from" })).toBeInTheDocument();
+
+    view.rerender(<Harness functionName={functionName} operationId="create_plan" parameters={plan} />);
+    expect(screen.getAllByRole("combobox", { name: /^Parameter \d+$/ }).map((select) => (select as HTMLSelectElement).value))
+      .toEqual(["items", "source_address"]);
+    // The nested-schema field of the old action is gone from the DOM, the new one is there.
+    expect(screen.queryByRole("textbox", { name: "Ship from" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Parameter value 2" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Items" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Source address" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "ship_from", selected: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "amazon_order_id", selected: true })).not.toBeInTheDocument();
   });
 });

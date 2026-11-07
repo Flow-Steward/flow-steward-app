@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -19,6 +19,23 @@ from core.application.extensions.oauth_lifecycle import (
 OAuthConfigurationStatus = Literal[
     "incomplete", "ready_for_authorization", "verified", "needs_attention"
 ]
+#: Why a configuration needs attention, from its stored ``last_error`` code. Only
+#: these known codes leave the service; any other stored detail stays internal.
+OAuthConfigurationAttentionCode = Literal["invalid_client", "configuration_deleting"]
+OAUTH_CONFIGURATION_ATTENTION_CODES: frozenset[str] = frozenset(
+    {"invalid_client", "configuration_deleting"}
+)
+
+
+def configuration_attention_code(row: Mapping[str, Any]) -> OAuthConfigurationAttentionCode | None:
+    """The allowlisted reason a stored configuration needs attention, if any."""
+    if str(row.get("status") or "") != "needs_attention":
+        return None
+    last_error = row.get("last_error")
+    code = str(last_error.get("code") or "") if isinstance(last_error, Mapping) else ""
+    if code not in OAUTH_CONFIGURATION_ATTENTION_CODES:
+        return None
+    return cast(OAuthConfigurationAttentionCode, code)
 
 
 class OAuthConfigurationSave(BaseModel):
@@ -58,6 +75,7 @@ class OAuthConfigurationView(BaseModel):
     fields: list[OAuthConfigurationFieldView]
     revision: int
     authorization_revision: int
+    attention_code: OAuthConfigurationAttentionCode | None = None
 
 
 class OAuthConfigurationConnectionImpact(BaseModel):

@@ -17,6 +17,7 @@ import type {
   OAuthConsentView,
   OAuthGrantsPage,
   PersonalTokenPage,
+  PlatformClientsView,
   ProfileField,
   ProfileSaveResult,
   UpdateUserInput,
@@ -519,6 +520,20 @@ export async function saveMcpOAuthSetting(enabled: boolean): Promise<McpOAuthSet
     method: "PUT",
     body: JSON.stringify({ enabled }),
   });
+}
+
+const PLATFORM_CLIENTS_PATH = "/api/settings/mcp-oauth/platform-clients";
+
+export async function fetchPlatformClients(): Promise<PlatformClientsView> {
+  return fetchJson<PlatformClientsView>(PLATFORM_CLIENTS_PATH);
+}
+
+export async function createPlatformClient(preset: string): Promise<PlatformClientsView> {
+  return fetchJson<PlatformClientsView>(PLATFORM_CLIENTS_PATH, { method: "POST", body: JSON.stringify({ preset }) });
+}
+
+export async function revokePlatformClient(clientId: string): Promise<PlatformClientsView> {
+  return fetchJson<PlatformClientsView>(`${PLATFORM_CLIENTS_PATH}/${encodeURIComponent(clientId)}/revoke`, { method: "POST" });
 }
 
 export async function fetchAgentAccessSetup(): Promise<AgentAccessSetup> {

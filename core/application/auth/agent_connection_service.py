@@ -225,6 +225,7 @@ class AgentConnectionService:
             "file_name": step.file_name,
             "archive_layout": step.archive_layout,
             "manifest_dir": step.manifest_dir,
+            "platform_preset": step.platform_preset,
             "url": values.get(step.link, "") if step.link else "",
         }
 

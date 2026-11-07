@@ -30150,3 +30150,171 @@ msgstr "Usage telemetry will appear once model usage is recorded."
 #: assets/frontend/src/pages/workflows/overview/index.tsx
 msgid "react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow"
 msgstr "Aggregated job activity across all projects using this workflow."
+
+msgid "react.extensions.locked_pages_title"
+msgstr "Some pages are unavailable until provider setup is ready"
+
+msgid "react.extensions.oauth_attention_configuration_deleting"
+msgstr "Needs attention — this configuration is being deleted. Refresh the page; if it is still listed, delete it again."
+
+msgid "react.extensions.oauth_attention_invalid_client"
+msgstr "Needs attention — the provider rejected this app's client ID or client secret (invalid_client) the last time they were used. Check the client ID, select Replace and paste the current client secret, then save."
+
+msgid "react.extensions.oauth_blocked_callback_registration"
+msgstr "The redirect URI of this provider is not registered yet. Register it in provider setup."
+
+msgid "react.extensions.oauth_blocked_incomplete"
+msgstr "The OAuth configuration \"{value0}\" is incomplete. Fill in every required field and save it."
+
+msgid "react.extensions.oauth_blocked_needs_attention"
+msgstr "The OAuth configuration \"{value0}\" is not ready. {value1}"
+
+msgid "react.extensions.oauth_blocked_no_configuration"
+msgstr "No OAuth configuration is saved yet. Add one in provider setup and save it."
+
+msgid "react.workflows.action_change_removed_inputs"
+msgstr "The new action does not accept these mapped inputs, so they were removed: {names}. Inputs both actions share were kept."
+
+msgid "react.workflows.action_source_change_removed_inputs"
+msgstr "Changing the action source removed these mapped inputs: {names}."
+
+msgid "react.agent_access.platform_admin_only_title"
+msgstr "An administrator does this step"
+
+msgid "react.agent_access.platform_admin_only_copy"
+msgstr "Ask a Flow Steward administrator to register Microsoft 365 on this page and build the agent. Once your organisation has added the agent, open it in Copilot and sign in to Flow Steward when it asks."
+
+msgid "react.agent_access.platform_unavailable"
+msgstr "The Microsoft 365 registration could not be loaded"
+
+msgid "react.agent_access.platform_loading"
+msgstr "Loading the registration…"
+
+msgid "react.agent_access.platform_action_failed"
+msgstr "The change was not saved."
+
+msgid "react.agent_access.portal_client_id"
+msgstr "Client ID"
+
+msgid "react.agent_access.portal_base_url"
+msgstr "Base URL"
+
+msgid "react.agent_access.portal_authorization_endpoint"
+msgstr "Authorization endpoint"
+
+msgid "react.agent_access.portal_token_endpoint"
+msgstr "Token endpoint"
+
+msgid "react.agent_access.portal_refresh_endpoint"
+msgstr "Refresh endpoint"
+
+msgid "react.agent_access.portal_scope"
+msgstr "Scope"
+
+msgid "react.agent_access.portal_client_secret"
+msgstr "Client secret"
+
+msgid "react.agent_access.portal_leave_empty"
+msgstr "Leave empty"
+
+msgid "react.agent_access.portal_pkce"
+msgstr "Enable PKCE"
+
+msgid "react.agent_access.portal_on"
+msgstr "On"
+
+msgid "react.agent_access.portal_restrict_app"
+msgstr "Restrict usage by app"
+
+msgid "react.agent_access.portal_any_app"
+msgstr "Any Teams app"
+
+msgid "react.agent_access.platform_create_help"
+msgstr "Flow Steward gives Microsoft 365 its own client ID. Microsoft returns people only to its documented address, and nobody can type another one."
+
+msgid "react.agent_access.platform_redirect"
+msgstr "Microsoft returns people to:"
+
+msgid "react.agent_access.platform_create"
+msgstr "Create the Microsoft 365 client"
+
+msgid "react.agent_access.platform_revoked_count"
+msgstr "Revoked earlier: {value1}"
+
+msgid "react.agent_access.platform_not_ready_title"
+msgstr "Cloud AI apps are not ready"
+
+msgid "react.agent_access.platform_not_ready_copy"
+msgstr "Fix what step 3 names first: Microsoft needs this installation's public HTTPS address."
+
+msgid "react.agent_access.portal_title"
+msgstr "2. In the Teams Developer Portal"
+
+msgid "react.agent_access.portal_help"
+msgstr "Open Tools > OAuth client registration > New OAuth client registration and enter these values. Choose your organisation under Restrict usage by org."
+
+msgid "react.agent_access.copy_value"
+msgstr "Copy {name}"
+
+msgid "react.agent_access.reference_id"
+msgstr "OAuth client registration ID"
+
+msgid "react.agent_access.reference_id_help"
+msgstr "The Developer Portal shows it after you save the registration. It is not a secret; it tells Microsoft which registration the agent signs in with. Then upload the package as the next step describes."
+
+msgid "react.agent_access.platform_revoke_help"
+msgstr "Revoking ends every Microsoft 365 sign-in to this installation at once. Create a new client and a new registration to connect again."
+
+msgid "react.agent_access.platform_revoke"
+msgstr "Revoke the Microsoft 365 client"
+
+msgid "react.agent_access.platform_revoke_confirm"
+msgstr "Revoke the Microsoft 365 client?"
+
+msgid "react.agent_access.platform_revoke_copy"
+msgstr "Everyone using the agent loses access now, and the agent package stops working."
+
+msgid "react.oauth.app_registered_by"
+msgstr "Registered by"
+
+msgid "react.oauth.app_registered_by_admin"
+msgstr "An administrator of this Flow Steward installation"
+
+msgid "react.oauth.app_registered_by_admin_short"
+msgstr "Registered by an administrator"
+
+msgid "react.agent_access.client_m365_description"
+msgstr "Copilot Chat for work accounts in Microsoft 365, Teams and Outlook, as an agent your organisation's administrator adds."
+
+msgid "react.agent_access.step_m365_admins"
+msgstr "Two administrators set this up once, in four steps"
+
+msgid "react.agent_access.step_m365_admins_description"
+msgstr "1. A Flow Steward administrator creates the Microsoft 365 client below. 2. A Microsoft 365 administrator registers it in the Teams Developer Portal and gets an OAuth client registration ID. 3. That ID is entered below to build the agent package. 4. The Microsoft 365 administrator uploads the package and makes the agent available. Making the agent available grants nothing in Flow Steward: each person still signs in, approves the access, and gets at most what their own Flow Steward role allows."
+
+msgid "react.agent_access.step_m365_package"
+msgstr "Register the sign-in and build the agent"
+
+msgid "react.agent_access.step_m365_package_description"
+msgstr "Create the Microsoft 365 client here, enter its values in the Teams Developer Portal under Tools > OAuth client registration, paste the registration ID it gives back, and download the agent package."
+
+msgid "react.agent_access.step_m365_upload"
+msgstr "Upload the agent in Microsoft 365"
+
+msgid "react.agent_access.step_m365_upload_description"
+msgstr "In the Microsoft 365 admin center open Agents, choose Upload custom agent and pick the downloaded zip, then make it available to the people who need it. To try it alone first, upload it in Teams under Apps > Manage your apps > Upload a custom app."
+
+msgid "react.agent_access.step_m365_connector"
+msgstr "Not verified: a connector instead of the agent"
+
+msgid "react.agent_access.step_m365_connector_description"
+msgstr "With Microsoft 365 Copilot licences, an administrator can try a custom connector (admin center > Copilot > Connectors > Connect to MCP server) with this address. Microsoft documents its sign-in form with a client secret, and the Microsoft 365 client here has none, so this may not work; use the agent package. A connector answers in Copilot's own words, without the agent's instructions or report view."
+
+msgid "react.agent_access.reason_no_terminal_m365"
+msgstr "Copilot Chat has no terminal or file access for this package."
+
+msgid "react.agent_access.platform_step_create"
+msgstr "1. Create the Microsoft 365 client"
+
+msgid "react.agent_access.platform_step_package"
+msgstr "3. Build the agent package"

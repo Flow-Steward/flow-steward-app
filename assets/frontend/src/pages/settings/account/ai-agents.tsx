@@ -273,7 +273,7 @@ export function AiAgentsSection() {
       {client && choice ? (
         <DsCard description={packageMeta?.needs_mcp ? t("react.agent_access.setup_description", "The address is this installation's public MCP address.") : t("react.agent_access.setup_description_no_mcp", "This package does not connect to this installation, so no token is needed.")} title={t("react.agent_access.step4_title", "4. Set up {client}", { client: client.label })}>
           {/* Blocked: only the package steps; no address to paste and no token to use. */}
-          <AgentSetupSteps packageId={choice.package_id} secret={secret} steps={mcpBlocked ? steps.filter((step) => !step.uses_mcp_url && !step.uses_token) : steps} />
+          <AgentSetupSteps packageId={choice.package_id} packageVersion={packageMeta?.version || ""} secret={secret} steps={mcpBlocked ? steps.filter((step) => !step.uses_mcp_url && !step.uses_token) : steps} />
         </DsCard>
       ) : null}
       {client && choice && packageMeta?.needs_mcp && !mcpBlocked ? (

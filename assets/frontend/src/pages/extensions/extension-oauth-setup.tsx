@@ -252,7 +252,7 @@ function OAuthConfigurationPanel({
         scope={scope}
       />
       {visibleSaveNotice ? <p aria-live="polite" className="fs-manifest-success" role="status">{saveNotice.message}</p> : null}
-      {active ? <p className="fs-manifest-description">{configurationGuidance(active.status, t)}</p> : null}
+      {active ? <p className="fs-manifest-description">{configurationGuidance(active.status, t, active.attention_code)}</p> : null}
       {active ? (
         <div className="fs-manifest-actions">
           <button className="fs-button sm ghost-danger" disabled={deleteBusy} onClick={onPreviewDelete} type="button">{t("react.extensions.delete_configuration", "Delete configuration")}</button>

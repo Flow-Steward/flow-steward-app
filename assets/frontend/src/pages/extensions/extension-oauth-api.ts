@@ -19,7 +19,11 @@ export type OAuthConfigurationView = {
   fields: OAuthConfigurationFieldView[];
   revision: number;
   authorization_revision: number;
+  /** Why a needs_attention configuration is blocked; only known codes are sent. */
+  attention_code?: OAuthConfigurationAttentionCode | null;
 };
+
+export type OAuthConfigurationAttentionCode = "invalid_client" | "configuration_deleting";
 
 export type OAuthConfigurationMutation = {
   configuration_id?: string;

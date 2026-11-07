@@ -40,6 +40,7 @@ import {
 } from "@/lib/utils/workspace-selection";
 import { stringFromUnknownValue, firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { oauthProvidersFromManifest } from "@/pages/extensions/extension-oauth-types";
+import { type OAuthProviderBlockedReason, providerBlockedReason } from "@/pages/extensions/extension-oauth-setup-model";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { localizeExtensionIdentity, localizeExtensionManifest, localeBundlesFrom } from "@/pages/extensions/extension-locale";
 import {
@@ -389,6 +390,17 @@ export function useExtensionsHubState() {
       return [provider.provider_id, readiness];
     }),
   ) as Record<string, "blocked" | "loading" | "ready">;
+  const oauthProviderBlockedReasons = Object.fromEntries(
+    oauthProviders.map((provider, index) => [
+      provider.provider_id,
+      oauthProviderReadiness[provider.provider_id] === "blocked"
+        ? providerBlockedReason(
+          oauthReadinessQueries[index]?.data,
+          oauthSetupStatusQueries[index]?.data?.callback_registration_ready,
+        )
+        : null,
+    ]),
+  ) as Record<string, OAuthProviderBlockedReason | null>;
   const oauthConnectionTypes = useMemo(
     () => oauthConnectionTypesFromManifest(manifestQuery.data),
     [manifestQuery.data],
@@ -815,6 +827,7 @@ export function useExtensionsHubState() {
     handleProjectSelection,
     manifestPages,
     oauthProviderReadiness,
+    oauthProviderBlockedReasons,
     projectOptions,
     activePageRequiresProject,
     projectsQuery,

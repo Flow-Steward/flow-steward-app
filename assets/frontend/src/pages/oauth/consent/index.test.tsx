@@ -122,6 +122,26 @@ describe("OAuthConsentPage", () => {
     expect(screen.queryByText("The app returns to this computer")).not.toBeInTheDocument();
   });
 
+  it("names an administrator, not a published identity, for a platform client", async () => {
+    mockedFetchConsent.mockResolvedValue(view({
+      client: {
+        client_id: "fs-platform-m365-0123456789abcdef0123456789abcdef",
+        client_name: "Microsoft 365 Copilot",
+        client_host: "",
+        client_kind: "platform",
+        redirect_uri: "https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect",
+        redirect_uri_host: "teams.microsoft.com",
+        redirect_uri_loopback: false,
+      },
+    }));
+    mountConsent("/oauth/consent?request=req-1");
+    expect(await screen.findByText("Allow Microsoft 365 Copilot to access Flow Steward?")).toBeInTheDocument();
+    expect(screen.getByText("Registered by")).toBeInTheDocument();
+    expect(screen.getByText("An administrator of this Flow Steward installation")).toBeInTheDocument();
+    expect(screen.queryByText("Identity published by")).not.toBeInTheDocument();
+    expect(screen.getByText("teams.microsoft.com")).toBeInTheDocument();
+  });
+
   it("warns when the redirect goes to this computer", async () => {
     mockedFetchConsent.mockResolvedValue(view({
       client: { ...view().client, redirect_uri: "http://127.0.0.1:53111/callback", redirect_uri_host: "127.0.0.1", redirect_uri_loopback: true },

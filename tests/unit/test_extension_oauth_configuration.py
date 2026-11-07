@@ -1066,6 +1066,58 @@ def test_invalid_client_marks_only_selected_configuration() -> None:
     assert untouched.status == "ready_for_authorization"
 
 
+def test_a_configuration_needing_attention_says_why_and_a_new_secret_clears_it() -> None:
+    from core.application.extensions.oauth_configuration import OAuthConfigurationSave
+
+    repo = MemoryRepository()
+    service = _service(repo=repo)
+    first = _create(service, "Primary")
+    second = _create(service, "Backup")
+
+    marked = service.mark_invalid_client(_scope(), "install-1", "example", first.configuration_id)
+    assert marked.attention_code == "invalid_client"
+    listed = {
+        row.configuration_id: row
+        for row in service.list_configurations(_scope(), "install-1", "example")
+    }
+    assert listed[first.configuration_id].attention_code == "invalid_client"
+    assert listed[second.configuration_id].attention_code is None
+
+    replaced = service.save_configuration(
+        _scope(),
+        "install-1",
+        "example",
+        OAuthConfigurationSave(
+            configuration_id=first.configuration_id,
+            display_name="Primary",
+            values={},
+            secret_replacements={"client_secret": "rotated-secret"},
+        ),
+        expected_revision=marked.revision,
+    )
+    assert replaced.status == "ready_for_authorization"
+    assert replaced.attention_code is None
+
+
+@pytest.mark.parametrize(
+    ("status", "last_error", "expected"),
+    [
+        ("needs_attention", {"code": "invalid_client"}, "invalid_client"),
+        ("needs_attention", {"code": "configuration_deleting"}, "configuration_deleting"),
+        ("needs_attention", {"code": "provider said: secret=canary"}, None),
+        ("needs_attention", {}, None),
+        ("needs_attention", "invalid_client", None),
+        ("ready_for_authorization", {"code": "invalid_client"}, None),
+    ],
+)
+def test_only_known_attention_codes_leave_the_service(status, last_error, expected) -> None:
+    from core.application.extensions.oauth_configuration_models import (
+        configuration_attention_code,
+    )
+
+    assert configuration_attention_code({"status": status, "last_error": last_error}) == expected
+
+
 def test_optional_non_secret_with_minimum_may_be_cleared_or_omitted() -> None:
     from core.application.extensions.oauth_configuration import OAuthConfigurationSave
 

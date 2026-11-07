@@ -170,6 +170,20 @@ your computer and, if it can, reads skills from a folder. Format: the usual
 | Operator | MCP tools; the skills where the client reads skill folders | Personal token in the `Authorization: Bearer` header of the server entry | AI agents page: `{"mcpServers": {"flow-steward": {"type": "http", "url": "<your address>/mcp", "headers": {"Authorization": "Bearer <token>"}}}}` filled in, and the skills archive | A client with another settings format needs the same address and header in its own form; the settings then hold the token | Yes | Not verified: depends on the client | — | — |
 | Developer | All four skills; terminal and files | None | AI agents page: the Developer skills archive; or the package README | Needs Git, Docker and a Flow Steward checkout | Yes | Not verified: depends on the client | — | — |
 
+### Microsoft 365 Copilot
+
+Copilot Chat for work accounts in Microsoft 365, Teams and Outlook; Microsoft's
+servers open the MCP connection. Format: a declarative agent package (Teams app
+manifest 1.30, declarative agent 1.9 with the Operator instructions and skills,
+and an MCP plugin 2.4 pointing at your address) that the AI agents page builds,
+or an administrator's custom connector. Built from Microsoft's documentation
+(ADR 0063); nothing here has run against a Microsoft 365 tenant yet.
+
+| Package | Functions | Auth | Setup | Limits | Prepared | Verified | Submitted | Published |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Operator | Workflow authoring, publishing and issue-report skills in the agent; MCP tools through the agent's plugin; reports as an MCP App inside the chat | OAuth sign-in (task 5) with a Microsoft 365 platform client a Flow Steward administrator registers (ADR 0063) | A Flow Steward administrator creates the Microsoft 365 client on the AI agents page; a Microsoft 365 administrator enters its values in the Teams Developer Portal (Tools > OAuth client registration), pastes the registration ID back, downloads the agent package and uploads it in the admin center (Agents > Upload custom agent) and makes it available; each person then signs in to Flow Steward and approves the access, which the agent's availability does not replace | Needs a public HTTPS address and cloud AI apps turned on; one package per installation, uploaded by each organisation's own administrator, so there is no store listing; the migration skill's offline converter is left out because Copilot has no terminal; agent skills are a Microsoft preview; a custom connector is not a supported path: Microsoft documents its sign-in form with a client secret and this client has none, it needs Microsoft 365 Copilot licences, and it shows no report view; whether the report view needs a CORS allowance for Microsoft's widget host is checked on the tenant (ADR 0063 decision 4); mobile is not documented by Microsoft | Yes | Not verified: needs a Microsoft 365 business tenant with admin rights | No | No |
+| Developer | Not offered: Copilot Chat has no terminal or file access for this package | — | — | — | — | — | — | — |
+
 ## Catalogs and what each one indexes
 
 A zip attached to a GitHub Release of `Flow-Steward/flow-steward-app` is an
@@ -204,3 +218,8 @@ release records the Core repository, commit, tag and version.
   [releasing extensions](https://geminicli.com/docs/extensions/releasing/),
   [MCP servers](https://geminicli.com/docs/tools/mcp-server/).
 - [Agent Plugins schema 1.0.0](https://agent-plugins.org/schemas/1.0.0/plugin.schema.json).
+- Microsoft: [MCP plugins for declarative agents](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/build-mcp-plugins),
+  [MCP Apps in Copilot](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugin-mcp-apps),
+  [OAuth for plugins](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/plugin-authentication-oauth),
+  [agent skills](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/declarative-agent-skills),
+  [custom federated connectors](https://learn.microsoft.com/en-us/microsoft-365/copilot/connectors/set-up-custom-federated-connectors).

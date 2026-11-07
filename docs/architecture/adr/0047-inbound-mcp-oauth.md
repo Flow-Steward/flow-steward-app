@@ -196,6 +196,11 @@ gets 403.
 Owner default, questions file row 2. `client_id` is an HTTPS URL; the
 authorization server fetches the document itself.
 
+Amended by [ADR 0063](0063-microsoft-365-copilot-connection.md) decision 2: an
+administrator can also register a public platform client from a fixed preset
+(Microsoft 365 Copilot); its opaque `client_id` and preset redirect URIs replace
+the CIMD fetch, and everything after the client check stays as written here.
+
 - Allowed `client_id`: `https`, host exactly `chatgpt.com` or `claude.ai`
   (fixed in code, no subdomains; row 13), non-empty path, no userinfo, query or
   fragment, at most 2048 characters. Anything else gets the error page

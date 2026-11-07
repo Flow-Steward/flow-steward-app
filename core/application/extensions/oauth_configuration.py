@@ -40,6 +40,7 @@ from core.application.extensions.oauth_configuration_models import (
     _PreparedChange,
     _PreparedDelete,
     _ResolvedProvider,
+    configuration_attention_code,
 )
 from core.application.extensions.oauth_configuration_policy import (
     _MESSAGE_CONFIGURATION_NOT_FOUND,
@@ -192,6 +193,7 @@ class OAuthConfigurationService:
             fields=fields,
             revision=int(row.get("configuration_revision") or 1),
             authorization_revision=int(row.get("authorization_revision") or 1),
+            attention_code=configuration_attention_code(row),
         )
 
     def list_configurations(

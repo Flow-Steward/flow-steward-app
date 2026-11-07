@@ -170,3 +170,23 @@ def test_install_commands_are_the_same_on_every_system() -> None:
                 assert lines[2].endswith(f"{setup.package_id}@{setup.package_id}")
                 assert "unzip" not in step.template
                 assert "Downloads" not in step.template
+
+
+def test_platform_steps_name_a_registered_preset_and_only_cloud_oauth_uses_them() -> None:
+    from core.application.auth.inbound_oauth_platform_clients import PLATFORM_PRESETS
+
+    found = []
+    for client in catalog.CLIENTS:
+        for setup in client.packages:
+            for step in setup.steps:
+                if step.kind != "platform":
+                    assert not step.platform_preset, (client.id, step.id)
+                    continue
+                found.append(step)
+                assert step.platform_preset in PLATFORM_PRESETS, (client.id, step.id)
+                assert client.connection == catalog.CONNECTION_CLOUD, client.id
+                assert setup.auth == catalog.AUTH_OAUTH, client.id
+                assert step.template == catalog.MCP_URL_TEMPLATE
+                assert step.file_name.startswith(f"{setup.package_id}-")
+                assert step.file_name.endswith(".zip")
+    assert [step.platform_preset for step in found] == [catalog.MICROSOFT_365_PRESET]

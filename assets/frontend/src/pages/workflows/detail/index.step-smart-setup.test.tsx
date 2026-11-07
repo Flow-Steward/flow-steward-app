@@ -2530,7 +2530,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
         `Required action inputs are missing: ${parameterName}.`,
       );
       const requiredInput = screen.getByRole("textbox", {
-        name: "Parameter value 1",
+        name: `${parameterName} (required)`,
       });
       expect(requiredInput).toBeRequired();
       expect(requiredInput).toHaveAttribute("aria-invalid", "true");
@@ -3044,7 +3044,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       name: "Choose resource",
     });
     const sourceSelect = screen.getByRole("combobox", { name: "Parameter source 1" });
-    const valueInput = screen.getByRole("textbox", { name: "Parameter value 1" });
+    const valueInput = screen.getByRole("textbox", { name: "Resource (required)" });
     expect(sourceSelect).toHaveValue("state");
     expect(valueInput).toHaveValue("state.upstream_resource_id");
 
@@ -3059,7 +3059,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     });
     scripts.forEach((script) => script.dispatchEvent(new Event("load")));
     await waitFor(() => expect(sourceSelect).toHaveValue("literal"));
-    expect(screen.getByRole("textbox", { name: "Parameter value 1" })).toHaveValue(
+    expect(screen.getByRole("textbox", { name: "Resource (required)" })).toHaveValue(
       "resource-42",
     );
     expect(pickerOpen).toHaveBeenCalledWith(

@@ -236,7 +236,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
   const mappingEditorKey = [
     textOrEmpty(selectedStep?.runtimeId) || "new",
     selectedConnectorId,
-    textOrEmpty(stepKindConfig.function_name),
+    textOrEmpty(stepKindConfig.operation_id || stepKindConfig.function_name || stepKindConfig.action_id),
   ].join(":");
 
   function renderConnectorInputMappingEditor( ) {
@@ -361,7 +361,13 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
               schema: t("react.workflows.literal_schema_error", "Enter a value matching the field's type and limits."),
             })[errorCode] : "";
             const valueMissing = connectorInputValueMissing(required, row.value);
-            const valueLabel = t("react.workflows.parameter_value_value0", "Parameter value {value0}", { value0: index + 1 });
+            // The field's own label (metadata) names its value control, so a screen reader hears
+            // "Package" as it is shown; a parameter without a label keeps the numbered name.
+            const valueLabel = textOrEmpty(parameter?.label).trim()
+              || t("react.workflows.parameter_value_value0", "Parameter value {value0}", { value0: index + 1 });
+            const helpId = textOrEmpty(parameter?.help_text) ? `connector-input-help-${index}` : "";
+            const errorId = valueMissing || literalError ? `connector-input-error-${index}` : "";
+            const describedBy = [helpId, errorId].filter(Boolean).join(" ") || undefined;
             const literalOptions = collectOptionsFromUnknown(
               parameter?.options,
               ["value"],
@@ -435,9 +441,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                       row,
                       renderWorkflowVariableInput,
                       {
-                        ariaDescribedBy: valueMissing
-                          ? `connector-input-error-${index}`
-                          : undefined,
+                        ariaDescribedBy: describedBy,
                         ariaInvalid: valueMissing,
                         ariaLabel: valueLabel,
                         ariaRequired: required,
@@ -453,7 +457,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                     )}
                     {row.mode !== "state" && row.mode !== "null" && literalOptions.length ? (
                         <select
-                          aria-describedby={valueMissing || literalError ? `connector-input-error-${index}` : undefined}
+                          aria-describedby={describedBy}
                           aria-invalid={Boolean(valueMissing || literalError) || undefined}
                           aria-label={valueLabel}
                           aria-required={required || undefined}
@@ -477,7 +481,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                     {row.mode === "literal" && !literalOptions.length && widget === "boolean" ? (
                       <select aria-label={valueLabel} aria-required={required || undefined}
                         aria-invalid={Boolean(valueMissing || literalError) || undefined}
-                        aria-describedby={valueMissing || literalError ? `connector-input-error-${index}` : undefined} className="fs-input mt-1 w-full"
+                        aria-describedby={describedBy} className="fs-input mt-1 w-full"
                         value={row.value} onChange={(event) => updateRow(index, { value: event.target.value })}>
                         <option value="">{t("react.workflows.choose_value", "Choose value")}</option>
                         <option value="true">{t("react.workflows.true", "True")}</option>
@@ -487,7 +491,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                     {row.mode === "literal" && !literalOptions.length && ["textarea", "json"].includes(widget) ? (
                       <textarea aria-label={valueLabel} aria-required={required || undefined}
                         aria-invalid={Boolean(valueMissing || literalError) || undefined}
-                        aria-describedby={literalError || valueMissing ? `connector-input-error-${index}` : undefined}
+                        aria-describedby={describedBy}
                         className="fs-input mt-1 w-full" value={row.value}
                         placeholder={textOrEmpty(parameter?.placeholder)}
                         onChange={(event) => updateRow(index, { value: event.target.value })} />
@@ -496,7 +500,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                         <input
                           type={row.mode === "literal" && ["number", "integer"].includes(widget) ? "number" : "text"}
                           step={widget === "integer" ? "1" : "any"}
-                          aria-describedby={valueMissing || literalError ? `connector-input-error-${index}` : undefined}
+                          aria-describedby={describedBy}
                           aria-invalid={Boolean(valueMissing || literalError) || undefined}
                           aria-label={valueLabel}
                           aria-required={required || undefined}
@@ -513,7 +517,7 @@ export function createWorkflowConnectorRenderers(ctx: WorkflowConnectorRenderCon
                         />
                     ) : null}
                   </label>
-                  {textOrEmpty(parameter?.help_text) ? <p className="mt-1 text-[11px] fs-ink-secondary">{textOrEmpty(parameter?.help_text)}</p> : null}
+                  {helpId ? <p className="mt-1 text-[11px] fs-ink-secondary" id={helpId}>{textOrEmpty(parameter?.help_text)}</p> : null}
                   {widget === "artifact_picker" ? <p className="mt-1 text-[11px] fs-ink-secondary">{t("react.workflows.map_artifact_input", "Map a file artifact supplied or uploaded to the workflow using a state path.")}</p> : null}
                   {valueMissing || literalError ? (
                     <p

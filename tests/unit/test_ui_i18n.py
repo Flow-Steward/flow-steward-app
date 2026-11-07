@@ -461,3 +461,68 @@ def test_build_client_i18n_payload_returns_current_locale_and_messages() -> None
 def test_for_each_concurrency_has_workflow_owned_translations() -> None:
     assert translate_ui_text("react.workflows.for_each_concurrency", locale="en") == "Concurrency"
     assert translate_ui_text("react.workflows.for_each_concurrency", locale="lt") == "Lygiagretumas"
+
+
+@pytest.mark.parametrize(
+    ("locale", "expected"),
+    [
+        (
+            "en",
+            {
+                "react.jobs.all_runs": "All runs",
+                "react.jobs.job_period": "Job period",
+                "react.jobs.jobs_could_not_be_trashed": "Some jobs could not be moved to Trash",
+                "react.jobs.trash_failed": "Could not move job to Trash.",
+                "jobs.detail.usage.title": "Model usage",
+                "react.jobs.no_model_usage_recorded_for_this_job": "No model usage recorded for "
+                "this job.",
+                "react.jobs.usage_telemetry_will_appear_once_model_usage_is_recorded": "Usage "
+                "telemetry "
+                "will appear "
+                "once model "
+                "usage is "
+                "recorded.",
+                "react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow": "Aggregated "
+                "job "
+                "activity "
+                "across "
+                "all "
+                "projects "
+                "using "
+                "this "
+                "workflow.",
+            },
+        ),
+        (
+            "lt",
+            {
+                "react.jobs.all_runs": "Visi vykdymai",
+                "react.jobs.job_period": "Užduočių laikotarpis",
+                "react.jobs.jobs_could_not_be_trashed": "Kai kurių užduočių nepavyko perkelti į "
+                "šiukšlinę",
+                "react.jobs.trash_failed": "Nepavyko perkelti užduoties į šiukšlinę.",
+                "jobs.detail.usage.title": "Modelių naudojimas",
+                "react.jobs.no_model_usage_recorded_for_this_job": "Šiai užduočiai modelių "
+                "naudojimas neužregistruotas.",
+                "react.jobs.usage_telemetry_will_appear_once_model_usage_is_recorded": "Naudojimo "
+                "telemetrija "
+                "bus rodoma "
+                "užregistravus "
+                "modelio "
+                "naudojimą.",
+                "react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow": "Bendra "
+                "užduočių "
+                "veikla "
+                "visuose "
+                "projektuose, "
+                "naudojančiuose "
+                "šią "
+                "darbo "
+                "eigą.",
+            },
+        ),
+    ],
+)
+def test_jobs_filters_and_usage_translations_survive_catalog_updates(locale, expected):
+    messages = ui_messages_for_locale(locale)
+    assert {key: messages.get(key) for key in expected} == expected

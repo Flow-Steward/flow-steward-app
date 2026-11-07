@@ -78,7 +78,7 @@ export function ConnectedAppsSection() {
             <tbody>
               {grants.map((grant) => (
                 <tr key={grant.id}>
-                  <td><strong>{appName(grant)}</strong><br /><span className="fs-field-helper">{grant.client_host}</span></td>
+                  <td><strong>{appName(grant)}</strong><br /><span className="fs-field-helper">{grant.client_kind === "platform" ? t("react.oauth.app_registered_by_admin_short", "Registered by an administrator") : grant.client_host}</span></td>
                   <td><span className={`fs-badge ${grant.status === "active" ? "green" : ""}`}>{statusLabel(grant, t)}</span></td>
                   <td title={grant.scopes.join(", ")}><strong>{oauthPresetLabel(grant.preset, t)}</strong><br /><span className="fs-field-helper">{grant.scopes.join(", ")}</span></td>
                   <td>{grant.allowed_project_ids.length ? t("react.oauth.project_count", "{value1} projects", { value1: String(grant.allowed_project_ids.length) }) : t("react.oauth.all_projects", "All projects within your access")}</td>

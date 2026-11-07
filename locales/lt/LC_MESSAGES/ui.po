@@ -30568,3 +30568,171 @@ msgstr "Naudojimo telemetrija bus rodoma užregistravus modelio naudojimą."
 #: assets/frontend/src/pages/workflows/overview/index.tsx
 msgid "react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow"
 msgstr "Bendra užduočių veikla visuose projektuose, naudojančiuose šią darbo eigą."
+
+msgid "react.extensions.locked_pages_title"
+msgstr "Kai kurie puslapiai nepasiekiami, kol teikėjo sąranka neparuošta"
+
+msgid "react.extensions.oauth_attention_configuration_deleting"
+msgstr "Reikia patikrinti — ši konfigūracija šalinama. Atnaujinkite puslapį; jei ji vis dar rodoma, pašalinkite ją dar kartą."
+
+msgid "react.extensions.oauth_attention_invalid_client"
+msgstr "Reikia patikrinti — teikėjas atmetė šios programos kliento ID arba kliento slaptąją reikšmę (invalid_client), kai jos buvo naudotos paskutinį kartą. Patikrinkite kliento ID, pasirinkite „Pakeisti“, įklijuokite dabartinę kliento slaptąją reikšmę ir išsaugokite."
+
+msgid "react.extensions.oauth_blocked_callback_registration"
+msgstr "Šio teikėjo peradresavimo URI dar neužregistruotas. Užregistruokite jį teikėjo sąrankoje."
+
+msgid "react.extensions.oauth_blocked_incomplete"
+msgstr "OAuth konfigūracija „{value0}“ neužbaigta. Užpildykite visus privalomus laukus ir išsaugokite."
+
+msgid "react.extensions.oauth_blocked_needs_attention"
+msgstr "OAuth konfigūracija „{value0}“ neparuošta. {value1}"
+
+msgid "react.extensions.oauth_blocked_no_configuration"
+msgstr "Dar neišsaugota jokia OAuth konfigūracija. Pridėkite ją teikėjo sąrankoje ir išsaugokite."
+
+msgid "react.workflows.action_change_removed_inputs"
+msgstr "Naujas veiksmas nepriima šių susietų įvesčių, todėl jos pašalintos: {names}. Abiem veiksmams bendros įvestys išsaugotos."
+
+msgid "react.workflows.action_source_change_removed_inputs"
+msgstr "Pakeitus veiksmo šaltinį pašalintos šios susietos įvestys: {names}."
+
+msgid "react.agent_access.platform_admin_only_title"
+msgstr "Šį žingsnį atlieka administratorius"
+
+msgid "react.agent_access.platform_admin_only_copy"
+msgstr "Paprašykite Flow Steward administratoriaus šiame puslapyje užregistruoti Microsoft 365 ir sukurti agentą. Kai jūsų organizacija pridės agentą, atidarykite jį Copilot ir prisijunkite prie Flow Steward, kai bus paprašyta."
+
+msgid "react.agent_access.platform_unavailable"
+msgstr "Nepavyko įkelti Microsoft 365 registracijos"
+
+msgid "react.agent_access.platform_loading"
+msgstr "Įkeliama registracija…"
+
+msgid "react.agent_access.platform_action_failed"
+msgstr "Pakeitimas neišsaugotas."
+
+msgid "react.agent_access.portal_client_id"
+msgstr "Client ID"
+
+msgid "react.agent_access.portal_base_url"
+msgstr "Base URL"
+
+msgid "react.agent_access.portal_authorization_endpoint"
+msgstr "Authorization endpoint"
+
+msgid "react.agent_access.portal_token_endpoint"
+msgstr "Token endpoint"
+
+msgid "react.agent_access.portal_refresh_endpoint"
+msgstr "Refresh endpoint"
+
+msgid "react.agent_access.portal_scope"
+msgstr "Scope"
+
+msgid "react.agent_access.portal_client_secret"
+msgstr "Client secret"
+
+msgid "react.agent_access.portal_leave_empty"
+msgstr "Palikite tuščią"
+
+msgid "react.agent_access.portal_pkce"
+msgstr "Enable PKCE"
+
+msgid "react.agent_access.portal_on"
+msgstr "Įjungta"
+
+msgid "react.agent_access.portal_restrict_app"
+msgstr "Restrict usage by app"
+
+msgid "react.agent_access.portal_any_app"
+msgstr "Any Teams app"
+
+msgid "react.agent_access.platform_create_help"
+msgstr "Flow Steward suteikia Microsoft 365 atskirą kliento ID. Microsoft grąžina žmones tik savo dokumentuotu adresu, ir niekas negali įrašyti kito."
+
+msgid "react.agent_access.platform_redirect"
+msgstr "Microsoft grąžina žmones į:"
+
+msgid "react.agent_access.platform_create"
+msgstr "Sukurti Microsoft 365 klientą"
+
+msgid "react.agent_access.platform_revoked_count"
+msgstr "Anksčiau atšaukta: {value1}"
+
+msgid "react.agent_access.platform_not_ready_title"
+msgstr "Debesijos DI programos neparuoštos"
+
+msgid "react.agent_access.platform_not_ready_copy"
+msgstr "Pirmiausia ištaisykite tai, ką nurodo 3 žingsnis: Microsoft reikia viešo šio diegimo HTTPS adreso."
+
+msgid "react.agent_access.portal_title"
+msgstr "2. Teams Developer Portal"
+
+msgid "react.agent_access.portal_help"
+msgstr "Atidarykite Tools > OAuth client registration > New OAuth client registration ir įveskite šias reikšmes. Lauke Restrict usage by org pasirinkite savo organizaciją."
+
+msgid "react.agent_access.copy_value"
+msgstr "Kopijuoti: {name}"
+
+msgid "react.agent_access.reference_id"
+msgstr "OAuth client registration ID"
+
+msgid "react.agent_access.reference_id_help"
+msgstr "Developer Portal jį parodo išsaugojus registraciją. Tai ne paslaptis: jis nurodo Microsoft, su kuria registracija agentas prisijungia. Tada įkelkite paketą, kaip aprašyta kitame žingsnyje."
+
+msgid "react.agent_access.platform_revoke_help"
+msgstr "Atšaukus iš karto nutraukiami visi Microsoft 365 prisijungimai prie šio diegimo. Norėdami vėl prisijungti, sukurkite naują klientą ir naują registraciją."
+
+msgid "react.agent_access.platform_revoke"
+msgstr "Atšaukti Microsoft 365 klientą"
+
+msgid "react.agent_access.platform_revoke_confirm"
+msgstr "Atšaukti Microsoft 365 klientą?"
+
+msgid "react.agent_access.platform_revoke_copy"
+msgstr "Visi agento naudotojai iš karto praranda prieigą, o agento paketas nustoja veikti."
+
+msgid "react.oauth.app_registered_by"
+msgstr "Užregistravo"
+
+msgid "react.oauth.app_registered_by_admin"
+msgstr "Šio Flow Steward diegimo administratorius"
+
+msgid "react.oauth.app_registered_by_admin_short"
+msgstr "Užregistravo administratorius"
+
+msgid "react.agent_access.client_m365_description"
+msgstr "Copilot Chat darbo paskyroms Microsoft 365, Teams ir Outlook kaip agentas, kurį prideda jūsų organizacijos administratorius."
+
+msgid "react.agent_access.step_m365_admins"
+msgstr "Du administratoriai tai nustato vieną kartą, keturiais žingsniais"
+
+msgid "react.agent_access.step_m365_admins_description"
+msgstr "1. Flow Steward administratorius toliau sukuria Microsoft 365 klientą. 2. Microsoft 365 administratorius jį užregistruoja Teams Developer Portal ir gauna OAuth client registration ID. 3. Šis ID įvedamas toliau, kad būtų sukurtas agento paketas. 4. Microsoft 365 administratorius įkelia paketą ir padaro agentą prieinamą. Agento prieinamumas Flow Steward nesuteikia nieko: kiekvienas žmogus vis tiek prisijungia, patvirtina prieigą ir gauna ne daugiau, nei leidžia jo paties Flow Steward vaidmuo."
+
+msgid "react.agent_access.step_m365_package"
+msgstr "Užregistruokite prisijungimą ir sukurkite agentą"
+
+msgid "react.agent_access.step_m365_package_description"
+msgstr "Čia sukurkite Microsoft 365 klientą, įveskite jo reikšmes Teams Developer Portal skiltyje Tools > OAuth client registration, įklijuokite gautą registracijos ID ir atsisiųskite agento paketą."
+
+msgid "react.agent_access.step_m365_upload"
+msgstr "Įkelkite agentą į Microsoft 365"
+
+msgid "react.agent_access.step_m365_upload_description"
+msgstr "Microsoft 365 administravimo centre atidarykite Agents, pasirinkite Upload custom agent ir atsisiųstą zip failą, tada padarykite jį prieinamą tiems, kam jo reikia. Norėdami pirmiausia išbandyti patys, įkelkite jį Teams skiltyje Apps > Manage your apps > Upload a custom app."
+
+msgid "react.agent_access.step_m365_connector"
+msgstr "Nepatikrinta: jungtis vietoj agento"
+
+msgid "react.agent_access.step_m365_connector_description"
+msgstr "Turėdamas Microsoft 365 Copilot licencijas, administratorius gali išbandyti pasirinktinę jungtį (administravimo centras > Copilot > Connectors > Connect to MCP server) su šiuo adresu. Microsoft jos prisijungimo formą aprašo su kliento paslaptimi (client secret), o čia esantis Microsoft 365 klientas jos neturi, todėl tai gali neveikti; naudokite agento paketą. Jungtis atsako Copilot žodžiais, be agento instrukcijų ir ataskaitos rodinio."
+
+msgid "react.agent_access.reason_no_terminal_m365"
+msgstr "Copilot Chat neturi terminalo ir prieigos prie failų, reikalingų šiam paketui."
+
+msgid "react.agent_access.platform_step_create"
+msgstr "1. Sukurkite Microsoft 365 klientą"
+
+msgid "react.agent_access.platform_step_package"
+msgstr "3. Sukurkite agento paketą"

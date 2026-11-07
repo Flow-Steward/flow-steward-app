@@ -326,7 +326,7 @@ it("blocks saving a required textarea after clearing or entering only whitespace
   });
   const view = await openMappingPage();
   try {
-    const prompt = await screen.findByRole("textbox", { name: "Parameter value 1" });
+    const prompt = await screen.findByRole("textbox", { name: "Prompt" });
     expect(prompt.tagName).toBe("TEXTAREA");
     for (const value of ["", "   ", "\n"]) {
       fireEvent.change(prompt, { target: { value } });
@@ -352,7 +352,7 @@ it("blocks saving decimal and exponent spellings for an integer input", async ()
   });
   const view = await openMappingPage();
   try {
-    const count = await screen.findByRole("spinbutton", { name: "Parameter value 2" });
+    const count = await screen.findByRole("spinbutton", { name: "Top N" });
     for (const value of ["1.0", "1e1"]) {
       fireEvent.change(count, { target: { value } });
       expect(screen.getByRole("button", { name: "Save parameters" })).toBeDisabled();
@@ -378,7 +378,7 @@ it("saves and reopens a required nullable parameter as null", async () => {
     expect(within(source).getByRole("option", { name: "Null value" })).toHaveProperty("selected", true);
     const save = screen.getByRole("button", { name: "Save parameters" });
     expect(save).toBeDisabled();
-    fireEvent.change(screen.getByRole("textbox", { name: "Parameter value 2" }), { target: { value: "after" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Note" }), { target: { value: "after" } });
     expect(save).toBeEnabled();
     fireEvent.click(save);
     await screen.findByText("Parameters saved");

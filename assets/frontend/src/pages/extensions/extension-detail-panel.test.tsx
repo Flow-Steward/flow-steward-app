@@ -313,6 +313,84 @@ describe("ExtensionDetailPanel marketplace links", () => {
     expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
   });
 
+  describe("a page locked by provider setup", () => {
+    const setup = { page_id: "setup-guide", title: "Setup Guide", components: [] };
+    const connection = {
+      page_id: "connection",
+      title: "Connection",
+      components: [{
+        component_id: "seller_connection",
+        type: "connection_form",
+        data: { oauth_provider_id: "provider-a", connection_type: "seller", oauth_intent: "import" },
+      }],
+    };
+    const manifest = {
+      oauth_providers: [{
+        provider_id: "provider-a",
+        display_name: "Identity",
+        setup_page_id: "setup-guide",
+        credential_fields: [{
+          field_id: "client_id", value_type: "text", required: true, secret: false,
+          label: "Client ID", help_text: "Provider client identifier.",
+        }],
+        authorization_intents: [{ intent_id: "import", user_inputs: [] }],
+      }],
+      connection_types: [{ connection_type_id: "seller", auth: { type: "oauth2", provider_id: "provider-a" } }],
+    };
+
+    function renderLocked(activeManifestPage: Record<string, unknown>, roles = ["admin"]) {
+      const setActiveExtensionPageId = vi.fn();
+      render(
+        <AuthContext.Provider value={{ session: { roles } } as never}>
+          <ExtensionDetailPanel
+            {...panelProps()}
+            activeManifestPage={activeManifestPage}
+            detailExtension={{ active: true, display_name: "Fixture", extension_id: "fixture.extension" } as never}
+            manifestPages={[setup, connection]}
+            manifestQuery={{ data: manifest, isError: false, isLoading: false }}
+            oauthProviderReadiness={{ "provider-a": "blocked" }}
+            oauthProviderBlockedReasons={{
+              "provider-a": { kind: "needs_attention", configurationName: "Test app", attentionCode: "invalid_client" },
+            }}
+            setActiveExtensionPageId={setActiveExtensionPageId}
+          />
+        </AuthContext.Provider>,
+      );
+      return { setActiveExtensionPageId };
+    }
+
+    it("names the page, the configuration and the fix next to the tabs", () => {
+      renderLocked(setup);
+      const tab = screen.getByRole("tab", { name: "Connection" });
+      expect(tab).toBeDisabled();
+      expect(tab).toHaveAccessibleDescription(/Connection/);
+      expect(tab).toHaveAccessibleDescription(/The OAuth configuration "Test app" is not ready\./);
+      expect(tab).toHaveAccessibleDescription(/invalid_client/);
+      expect(tab).toHaveAccessibleDescription(/select Replace and paste the current client secret, then save/);
+      // The fix is on the page already open, so no redundant navigation button.
+      expect(screen.queryByRole("button", { name: "Open provider setup" })).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Setup Guide" })).not.toHaveAttribute("aria-describedby");
+    });
+
+    it("explains the same reason on a deep-linked locked page and leads back to setup", async () => {
+      const user = userEvent.setup();
+      const { setActiveExtensionPageId } = renderLocked(connection);
+      expect(screen.getByText("Finish provider setup")).toBeVisible();
+      expect(screen.getByText(/The OAuth configuration "Test app" is not ready\./)).toBeVisible();
+      expect(screen.getAllByRole("button", { name: "Open provider setup" })).toHaveLength(1);
+      await user.click(screen.getByRole("button", { name: "Open provider setup" }));
+      expect(setActiveExtensionPageId).toHaveBeenCalledWith("setup-guide");
+    });
+
+    it("keeps the guard: the locked tab never opens and no connection form renders", async () => {
+      const user = userEvent.setup();
+      const { setActiveExtensionPageId } = renderLocked(setup);
+      await user.click(screen.getByRole("tab", { name: "Connection" }));
+      expect(setActiveExtensionPageId).not.toHaveBeenCalled();
+      expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
+    });
+  });
+
   it("routes a multi-provider locked page to the first provider that still needs setup", async () => {
     const user = userEvent.setup();
     const setActiveExtensionPageId = vi.fn();

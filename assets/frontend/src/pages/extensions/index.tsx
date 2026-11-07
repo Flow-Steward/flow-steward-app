@@ -380,6 +380,7 @@ export function ExtensionsHubPage() {
     manifestQuery,
     oauthConnectionTypes,
     oauthProviderReadiness,
+    oauthProviderBlockedReasons,
     projectConnectionsQuery,
     projectOptions,
     projectStateQuery,
@@ -699,6 +700,7 @@ export function ExtensionsHubPage() {
             manifestQuery={manifestQuery}
             oauthConnectionTypes={oauthConnectionTypes}
             oauthProviderReadiness={oauthProviderReadiness}
+            oauthProviderBlockedReasons={oauthProviderBlockedReasons}
             projectConnections={projectConnectionsQuery.data || []}
             projectConnectionsQuery={projectConnectionsQuery}
             projectOptions={projectOptions}

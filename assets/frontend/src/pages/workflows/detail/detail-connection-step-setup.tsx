@@ -12,12 +12,14 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
   connectorDefaultOutputMappingForOperation,
+  contractRows,
   listFromUnknown,
   objectOrEmpty,
   textOrEmpty,
   workflowVariableSuggestionPanelId,
 } from "@/pages/workflows/detail/detail-helpers";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
+import { carryConnectorInputMapping } from "./detail-connector-input-carry";
 import { HttpMapField, HttpStatusesField, HttpValueField } from "./detail-http-request-value-fields";
 import { HttpAuthSecretField } from "./detail-http-auth-secret";
 import type { WorkflowInterfaceFieldDraft } from "./detail-interface";
@@ -99,8 +101,12 @@ function connectorOptionIcon(connectorRows: unknown, connectorId: string): React
   return undefined;
 }
 
+/** Mapped inputs removed by the last action change, shown until another action is chosen. */
+type DroppedInputsNotice = { connectorId: string; operationId: string; names: string[] };
+
 export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSetupContext }>) {
   const { t } = useI18n();
+  const [droppedInputs, setDroppedInputs] = useState<DroppedInputsNotice | null>(null);
   const {
     connectorConnectionRequired,
     connectorConnectionSetupHref,
@@ -199,6 +205,9 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
                   const connector = listFromUnknown(connectorRows).find(
                     (row) => textOrEmpty(row.connector_id) === connectorId,
                   );
+                  // No action is chosen in the new source yet, so no mapped input can be kept.
+                  const carried = carryConnectorInputMapping(stepKindConfig.input_mapping, []);
+                  setDroppedInputs(carried.dropped.length ? { connectorId, operationId: "", names: carried.dropped } : null);
                   updateStepKindConfig("connector", {
                     connector_id: connectorId,
                     operation_id: "",
@@ -234,13 +243,18 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
                         row.operation_id || row.id || row.key || row.name,
                       ) === operationId,
                   );
+                  const nextConnectorId = textOrEmpty(operation?.runtime_connector_id) || selectedConnectorId;
+                  const carried = carryConnectorInputMapping(
+                    stepKindConfig.input_mapping,
+                    operationId ? contractRows(operation?.parameters) : [],
+                  );
+                  setDroppedInputs(carried.dropped.length ? { connectorId: nextConnectorId, operationId, names: carried.dropped } : null);
                   updateStepKindConfig("connector", {
-                    connector_id:
-                      textOrEmpty(operation?.runtime_connector_id) || selectedConnectorId,
+                    connector_id: nextConnectorId,
                     operation_id: operationId,
                     function_name: "",
                     action_id: "",
-                    input_mapping: {},
+                    input_mapping: carried.kept,
                     output_mapping:
                       connectorDefaultOutputMappingForOperation(operation),
                   });
@@ -252,6 +266,20 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
               />
             </label>
           </div>
+          {renderWhen(Boolean(
+            droppedInputs
+            && droppedInputs.connectorId === selectedConnectorId
+            && droppedInputs.operationId === selectedConnectorOperationId,
+          ), (
+            <p
+              className="rounded border border-[var(--fs-status-attention-border)] bg-[var(--fs-status-attention-wash)] px-2 py-1 text-xs text-[var(--fs-status-attention-ink)]"
+              role="status"
+            >
+              {droppedInputs?.operationId
+                ? t("react.workflows.action_change_removed_inputs", "The new action does not accept these mapped inputs, so they were removed: {names}. Inputs both actions share were kept.", { names: droppedInputs.names.join(", ") })
+                : t("react.workflows.action_source_change_removed_inputs", "Changing the action source removed these mapped inputs: {names}.", { names: droppedInputs?.names.join(", ") ?? "" })}
+            </p>
+          ))}
           {renderWhen(Boolean(staleConnectorOperationId), (
             <p className="rounded border border-[var(--fs-status-danger-border)] bg-[var(--fs-status-danger-bg)] px-2 py-1 text-xs text-[var(--fs-status-danger)]">
               {staleOperationMessage}

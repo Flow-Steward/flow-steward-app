@@ -15055,7 +15055,6 @@ msgstr ""
 msgid "react.workflows.concurrency_positive_integer"
 msgstr ""
 
-
 msgid "react.workflows.condition_result"
 msgstr ""
 
@@ -26012,7 +26011,6 @@ msgstr ""
 msgid "react.workflows.search_steps"
 msgstr ""
 
-
 msgid "react.workflows.unavailable_extension"
 msgstr ""
 
@@ -26027,7 +26025,6 @@ msgstr ""
 
 msgid "react.settings.description"
 msgstr ""
-
 
 msgid "react.workflows.delete_guard_checking"
 msgstr ""
@@ -26505,7 +26502,6 @@ msgstr ""
 msgid "react.workflows.hook_valid_json_required"
 msgstr ""
 
-
 msgid "react.workflows.step_parameters_saved_with_issues"
 msgstr ""
 
@@ -26583,7 +26579,6 @@ msgstr ""
 
 msgid "react.workflows.test_run_inactive_defaults"
 msgstr ""
-
 
 msgid "react.workflows.container_items_processed"
 msgstr ""
@@ -28107,6 +28102,7 @@ msgid "react.workflows.agent_file_formats_list"
 msgstr ""
 
 msgid "react.workflows.agent_file_formats_encoding"
+msgstr ""
 
 msgid "react.projects.secret_approval.loading"
 msgstr ""
@@ -29066,6 +29062,7 @@ msgid "react.workflows.report_fields_unknown"
 msgstr ""
 
 msgid "react.jobs.report"
+msgstr ""
 
 msgid "react.jobs.all_runs"
 msgstr ""
@@ -29078,7 +29075,6 @@ msgstr ""
 
 msgid "react.jobs.trash_failed"
 msgstr ""
-
 
 #: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
 msgid "jobs.detail.usage.title"
@@ -29094,4 +29090,172 @@ msgstr ""
 
 #: assets/frontend/src/pages/workflows/overview/index.tsx
 msgid "react.workflows.aggregated_job_activity_across_all_projects_using_this_workflow"
+msgstr ""
+
+msgid "react.extensions.locked_pages_title"
+msgstr ""
+
+msgid "react.extensions.oauth_attention_configuration_deleting"
+msgstr ""
+
+msgid "react.extensions.oauth_attention_invalid_client"
+msgstr ""
+
+msgid "react.extensions.oauth_blocked_callback_registration"
+msgstr ""
+
+msgid "react.extensions.oauth_blocked_incomplete"
+msgstr ""
+
+msgid "react.extensions.oauth_blocked_needs_attention"
+msgstr ""
+
+msgid "react.extensions.oauth_blocked_no_configuration"
+msgstr ""
+
+msgid "react.workflows.action_change_removed_inputs"
+msgstr ""
+
+msgid "react.workflows.action_source_change_removed_inputs"
+msgstr ""
+
+msgid "react.agent_access.platform_admin_only_title"
+msgstr ""
+
+msgid "react.agent_access.platform_admin_only_copy"
+msgstr ""
+
+msgid "react.agent_access.platform_unavailable"
+msgstr ""
+
+msgid "react.agent_access.platform_loading"
+msgstr ""
+
+msgid "react.agent_access.platform_action_failed"
+msgstr ""
+
+msgid "react.agent_access.portal_client_id"
+msgstr ""
+
+msgid "react.agent_access.portal_base_url"
+msgstr ""
+
+msgid "react.agent_access.portal_authorization_endpoint"
+msgstr ""
+
+msgid "react.agent_access.portal_token_endpoint"
+msgstr ""
+
+msgid "react.agent_access.portal_refresh_endpoint"
+msgstr ""
+
+msgid "react.agent_access.portal_scope"
+msgstr ""
+
+msgid "react.agent_access.portal_client_secret"
+msgstr ""
+
+msgid "react.agent_access.portal_leave_empty"
+msgstr ""
+
+msgid "react.agent_access.portal_pkce"
+msgstr ""
+
+msgid "react.agent_access.portal_on"
+msgstr ""
+
+msgid "react.agent_access.portal_restrict_app"
+msgstr ""
+
+msgid "react.agent_access.portal_any_app"
+msgstr ""
+
+msgid "react.agent_access.platform_create_help"
+msgstr ""
+
+msgid "react.agent_access.platform_redirect"
+msgstr ""
+
+msgid "react.agent_access.platform_create"
+msgstr ""
+
+msgid "react.agent_access.platform_revoked_count"
+msgstr ""
+
+msgid "react.agent_access.platform_not_ready_title"
+msgstr ""
+
+msgid "react.agent_access.platform_not_ready_copy"
+msgstr ""
+
+msgid "react.agent_access.portal_title"
+msgstr ""
+
+msgid "react.agent_access.portal_help"
+msgstr ""
+
+msgid "react.agent_access.copy_value"
+msgstr ""
+
+msgid "react.agent_access.reference_id"
+msgstr ""
+
+msgid "react.agent_access.reference_id_help"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke_help"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke_confirm"
+msgstr ""
+
+msgid "react.agent_access.platform_revoke_copy"
+msgstr ""
+
+msgid "react.oauth.app_registered_by"
+msgstr ""
+
+msgid "react.oauth.app_registered_by_admin"
+msgstr ""
+
+msgid "react.oauth.app_registered_by_admin_short"
+msgstr ""
+
+msgid "react.agent_access.client_m365_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_admins"
+msgstr ""
+
+msgid "react.agent_access.step_m365_admins_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_package"
+msgstr ""
+
+msgid "react.agent_access.step_m365_package_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_upload"
+msgstr ""
+
+msgid "react.agent_access.step_m365_upload_description"
+msgstr ""
+
+msgid "react.agent_access.step_m365_connector"
+msgstr ""
+
+msgid "react.agent_access.step_m365_connector_description"
+msgstr ""
+
+msgid "react.agent_access.reason_no_terminal_m365"
+msgstr ""
+
+msgid "react.agent_access.platform_step_create"
+msgstr ""
+
+msgid "react.agent_access.platform_step_package"
 msgstr ""

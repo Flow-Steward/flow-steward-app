@@ -37,6 +37,10 @@ import {
 import type { ProjectListItem } from "@/pages/projects/list/api";
 import { safeLinkHref } from "@/pages/jobs/detail/job-detail-core";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import {
+  providerBlockedGuidance,
+  type OAuthProviderBlockedReason,
+} from "@/pages/extensions/extension-oauth-setup-model";
 
 function extensionStateTone(state: string, active: boolean): DsBadgeTone {
   if (state === "broken") return "danger";
@@ -116,6 +120,8 @@ type ExtensionDetailPanelProps = {
   };
   oauthConnectionTypes: string[];
   oauthProviderReadiness: Record<string, "blocked" | "loading" | "ready">;
+  /** Why each blocked provider cannot connect yet; shown next to its locked pages. */
+  oauthProviderBlockedReasons?: Record<string, OAuthProviderBlockedReason | null>;
   projectOptions: ProjectListItem[];
   projectConnections: Array<Record<string, unknown>>;
   projectConnectionsQuery: {
@@ -431,6 +437,7 @@ function ManifestTabList({
   activePageOAuthBlocked,
   detailExtension,
   firstUnlockedManifestPage,
+  lockedNoticeId,
   manifestPages,
   pageIsLocked,
   setActiveExtensionPageId,
@@ -439,6 +446,7 @@ function ManifestTabList({
   activePageOAuthBlocked: boolean;
   detailExtension: ExtensionRecord;
   firstUnlockedManifestPage?: Record<string, unknown>;
+  lockedNoticeId?: string;
   manifestPages: Array<Record<string, unknown>>;
   pageIsLocked: (page: Record<string, unknown>) => boolean;
   setActiveExtensionPageId: (pageId: string) => void;
@@ -456,6 +464,7 @@ function ManifestTabList({
           return (
             <button
               aria-controls={`extension-page-panel-${domPageId}`}
+              aria-describedby={locked && lockedNoticeId ? lockedNoticeId : undefined}
               aria-disabled={locked}
               aria-selected={selected}
               className="fs-tab"
@@ -480,6 +489,50 @@ function ManifestTabList({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+type LockedPageNotice = {
+  pageTitle: string;
+  reason: OAuthProviderBlockedReason;
+  setupPageId: string;
+};
+
+function LockedPagesNotice({
+  activePageId,
+  canManageProject,
+  noticeId,
+  notices,
+  setActiveExtensionPageId,
+}: Readonly<{
+  activePageId: string;
+  canManageProject: boolean;
+  noticeId: string;
+  notices: LockedPageNotice[];
+  setActiveExtensionPageId: (pageId: string) => void;
+}>) {
+  const { t } = useI18n();
+  return (
+    <div id={noticeId}>
+      <DsAlert title={t("react.extensions.locked_pages_title", "Some pages are unavailable until provider setup is ready")} tone="warning">
+        <ul>
+          {notices.map((notice) => (
+            <li key={notice.pageTitle}>
+              <strong>{notice.pageTitle}</strong>{": "}
+              {canManageProject
+                ? providerBlockedGuidance(notice.reason, t)
+                : t("react.extensions.a_project_manager_must_finish_provider_setup_before_this_page_is_available", "A project manager must finish provider setup before this page is available.")}
+              {canManageProject && notice.setupPageId && notice.setupPageId !== activePageId ? (
+                <>
+                  {" "}
+                  <button className="fs-button sm" onClick={() => setActiveExtensionPageId(notice.setupPageId)} type="button">{t("react.extensions.open_provider_setup", "Open provider setup")}</button>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </DsAlert>
     </div>
   );
 }
@@ -613,6 +666,7 @@ function ManifestComponentSections({
 
 function ActiveManifestPagePanel({
   activeOAuthProviders,
+  activePageBlockedReason,
   activePageId,
   activePageOAuthBlocked,
   activePageSetupId,
@@ -624,6 +678,7 @@ function ActiveManifestPagePanel({
   panel,
 }: Readonly<{
   activeOAuthProviders: ActiveOAuthProvider[];
+  activePageBlockedReason: OAuthProviderBlockedReason | null;
   activePageId: string;
   activePageOAuthBlocked: boolean;
   activePageSetupId: string;
@@ -648,7 +703,7 @@ function ActiveManifestPagePanel({
   } else if (activePageOAuthBlocked) {
     content = (
       <DsAlert title={t("react.extensions.finish_provider_setup", "Finish provider setup")} tone="warning">
-        <p>{canManageProject ? t("react.extensions.save_a_ready_oauth_configuration_before_connecting_an_account", "Save a ready OAuth configuration before connecting an account.") : t("react.extensions.a_project_manager_must_finish_provider_setup_before_this_page_is_available", "A project manager must finish provider setup before this page is available.")}</p>
+        <p>{canManageProject ? (activePageBlockedReason ? providerBlockedGuidance(activePageBlockedReason, t) : t("react.extensions.save_a_ready_oauth_configuration_before_connecting_an_account", "Save a ready OAuth configuration before connecting an account.")) : t("react.extensions.a_project_manager_must_finish_provider_setup_before_this_page_is_available", "A project manager must finish provider setup before this page is available.")}</p>
         {canManageProject && activePageSetupId ? (
           <button className="fs-button sm" onClick={() => panel.setActiveExtensionPageId(activePageSetupId)} type="button">{t("react.extensions.open_provider_setup", "Open provider setup")}</button>
         ) : null}
@@ -713,6 +768,23 @@ export function ExtensionDetailPanel(panelProps: Readonly<ExtensionDetailPanelPr
   const activePageOAuthBlocked = !pageIsOAuthSetup
     && Boolean(activeManifestPage && pageIsLocked(activeManifestPage));
   const firstUnlockedManifestPage = manifestPages.find((page) => !pageIsLocked(page));
+  const lockedPageNotices = manifestPages.flatMap((page): LockedPageNotice[] => {
+    if (!pageIsLocked(page)) return [];
+    const blockedProviderId = oauthConnectionComponents(page)
+      .map(({ data }) => stringFrom(data.oauth_provider_id))
+      .find((providerId) => oauthProviderReadiness[providerId] === "blocked");
+    const reason = blockedProviderId ? panelProps.oauthProviderBlockedReasons?.[blockedProviderId] : null;
+    if (!blockedProviderId || !reason) return [];
+    return [{
+      pageTitle: stringFrom(page.title || page.label || manifestPageId(page)),
+      reason,
+      setupPageId: oauthProviders.find((provider) => provider.provider_id === blockedProviderId)?.setup_page_id || "",
+    }];
+  });
+  const lockedNoticeId = lockedPageNotices.length && !activePageOAuthBlocked ? "extension-locked-pages-notice" : undefined;
+  const activePageBlockedReason = activePageBlockedProviderId
+    ? panelProps.oauthProviderBlockedReasons?.[activePageBlockedProviderId] ?? null
+    : null;
   const activeOAuthProviders = activeOAuthProviderRows(
     oauthProviders,
     activePageId,
@@ -749,12 +821,23 @@ export function ExtensionDetailPanel(panelProps: Readonly<ExtensionDetailPanelPr
               activePageOAuthBlocked={activePageOAuthBlocked}
               detailExtension={detailExtension}
               firstUnlockedManifestPage={firstUnlockedManifestPage}
+              lockedNoticeId={lockedNoticeId}
               manifestPages={manifestPages}
               pageIsLocked={pageIsLocked}
               setActiveExtensionPageId={setActiveExtensionPageId}
             />
+            {lockedNoticeId ? (
+              <LockedPagesNotice
+                activePageId={activePageId}
+                canManageProject={canManageProject}
+                noticeId={lockedNoticeId}
+                notices={lockedPageNotices}
+                setActiveExtensionPageId={setActiveExtensionPageId}
+              />
+            ) : null}
             <ActiveManifestPagePanel
               activeOAuthProviders={activeOAuthProviders}
+              activePageBlockedReason={activePageBlockedReason}
               activePageId={activePageId}
               activePageOAuthBlocked={activePageOAuthBlocked}
               activePageSetupId={activePageSetupId}

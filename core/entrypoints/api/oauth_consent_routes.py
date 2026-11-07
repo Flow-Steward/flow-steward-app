@@ -15,6 +15,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
+from core.application.auth.inbound_oauth_platform_admin import (
+    create_platform_client,
+    platform_clients_view,
+    revoke_platform_client,
+)
 from core.application.auth.inbound_oauth_policy import BROWSER_BINDING_COOKIE
 from core.application.auth.inbound_oauth_service import ConsentError, InboundOAuthService
 
@@ -36,6 +41,12 @@ class McpOAuthSettingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool
+
+
+class PlatformClientRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    preset: str = Field(min_length=1, max_length=64)
 
 
 def _consent_error(error: ConsentError) -> JSONResponse:
@@ -137,6 +148,39 @@ def create_oauth_consent_router(
             account_id, actor = _admin_account(request)
             payload = await run_in_threadpool(
                 _service().set_account_setting, account_id, enabled=body.enabled, actor=actor
+            )
+        except ConsentError as error:
+            return _consent_error(error)
+        return JSONResponse(payload, headers=_NO_STORE)
+
+    @router.get("/api/settings/mcp-oauth/platform-clients", include_in_schema=False)
+    async def platform_clients_get(request: Request):
+        try:
+            account_id, _actor = _admin_account(request)
+            payload = await run_in_threadpool(platform_clients_view, _service(), account_id)
+        except ConsentError as error:
+            return _consent_error(error)
+        return JSONResponse(payload, headers=_NO_STORE)
+
+    @router.post("/api/settings/mcp-oauth/platform-clients", include_in_schema=False)
+    async def platform_clients_create(request: Request, body: PlatformClientRequest):
+        try:
+            account_id, actor = _admin_account(request)
+            payload = await run_in_threadpool(
+                create_platform_client, _service(), account_id, body.preset, actor=actor
+            )
+        except ConsentError as error:
+            return _consent_error(error)
+        return JSONResponse(payload, status_code=201, headers=_NO_STORE)
+
+    @router.post(
+        "/api/settings/mcp-oauth/platform-clients/{client_id}/revoke", include_in_schema=False
+    )
+    async def platform_clients_revoke(client_id: str, request: Request):
+        try:
+            account_id, actor = _admin_account(request)
+            payload = await run_in_threadpool(
+                revoke_platform_client, _service(), account_id, client_id, actor=actor
             )
         except ConsentError as error:
             return _consent_error(error)
