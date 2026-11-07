@@ -66,6 +66,17 @@ export function hookGroupId(hookId: string): string {
   return `${HOOK_ID_PREFIX}${hookId}`;
 }
 
+/**
+ * The canvas node that stands for a step. A root hook step is drawn as its frame, so an issue or a
+ * focus request on that step must reach `group:hook:<hook id>`; any other step keeps its own id.
+ */
+export function canvasNodeIdForStep(stepId: string, frames: ReadonlyMap<string, HookFrame> | undefined, graph: WorkflowCanvasGraph): string {
+  const frame = frames?.get(stepId);
+  if (!frame) return stepId;
+  const framed = graph.steps.some((step) => (step.step_id || step.id) === frame.stepId && !step.group_id && !step.for_each_id);
+  return framed ? `group:${hookGroupId(frame.hookId)}` : stepId;
+}
+
 export function hookMemberId(hookId: string, stepId: string): string {
   return `${HOOK_ID_PREFIX}${hookId}:${stepId}`;
 }

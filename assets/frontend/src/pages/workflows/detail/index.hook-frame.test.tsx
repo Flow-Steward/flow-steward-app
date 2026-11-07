@@ -452,6 +452,13 @@ it.each(["project withdrawal", "palette dismissal"] as const)("retires a pending
   const entry = "/registry/workflows/weekly_report/builder?project_id=project_alpha";
   const view = renderPage({ surface: "builder", initialEntry: entry });
   try {
+    // Hook declarations arrive independently of the author canvas. Wait for the
+    // initial authorized declaration before checking its rendered empty badge.
+    await waitFor(() => {
+      const declaration = hookAuthorityControllers.scope?.framesByHook.get("before_finish");
+      expect(declaration?.connected).toBe(false);
+      expect(declaration?.declarationPending).not.toBe(true);
+    }, { timeout: 5_000 });
     await waitFor(() => expect(within(frame()).getByText("Empty")).toBeInTheDocument());
     await chooseFirstHookStep();
     await waitFor(() => expect(hookAuthorityControllers.scope!.childWorkflowId).toBe("client_fix"));
@@ -894,25 +901,21 @@ it.each([403, 404])("withdraws Builder Hook authority when authorized link enume
   mockedFetchWorkflowLinkedProjects.mockImplementation(actualContext.fetchWorkflowLinkedProjects);
   const previous = fetchSpy.getMockImplementation()!;
   const membershipRequests: string[] = [];
-  const catalogRequests: string[] = [];
+  const perProjectEnumeration: string[] = [];
   fetchSpy.mockImplementation(async (input, init) => {
     const path = new URL(stringFromUnknownValue(input), "http://localhost").pathname;
-    if (path === "/api/v2/projects") {
-      catalogRequests.push(path);
-      return json({ projects: [{ id: "project_alpha", name: "Alpha project" }, { id: "project_beta", name: "Beta project" }], total_pages: 1 });
-    }
-    if (path === "/api/projects/project_beta/workflows") {
+    // Link enumeration is one read now; the Hook-of context still reads the chosen project.
+    if (path === "/api/workflows/weekly_report/linked-projects" || path === "/api/projects/project_beta/workflows") {
       membershipRequests.push(path);
       return json({ detail: "Selected project unavailable" }, status);
     }
+    if (path === "/api/projects/project_alpha/workflows") perProjectEnumeration.push(path);
     return previous(input, init);
   });
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_beta" });
   await screen.findByRole("group", { name: "Open step Prepare the order" });
-  await waitFor(() => expect(catalogRequests).toEqual(["/api/v2/projects"]));
-  await waitFor(() => expect(membershipRequests.length).toBeGreaterThan(0));
-  // Hook enumeration and the independent Hook-of context both validate this same endpoint.
-  expect([...new Set(membershipRequests)]).toEqual(["/api/projects/project_beta/workflows"]);
+  await waitFor(() => expect(membershipRequests).toContain("/api/workflows/weekly_report/linked-projects"));
+  expect(perProjectEnumeration).toEqual([]);
   expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
   expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
   fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });

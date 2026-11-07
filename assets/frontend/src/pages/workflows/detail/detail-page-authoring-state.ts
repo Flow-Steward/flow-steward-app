@@ -100,12 +100,12 @@ export function useWorkflowDetailAuthoringState(
   const [extractionGroup, setExtractionGroup] = useState<{ id: string; name: string } | null>(null);
   const [groupFormSaveFailed, setGroupFormSaveFailed] = useState(false);
   const [groupDraft, setGroupDraft] = useState<GroupDraft>(() => emptyGroupDraft());
-  // One request per added or inserted step: the canvas centres on that node once it exists.
-  const [builderCanvasFocus, setBuilderCanvasFocus] = useState<{ nodeId: string; nonce: number; place: boolean; creation: CanvasConfirmedCreation | null }>({ nodeId: "", nonce: 0, place: false, creation: null });
-  const focusCanvasNode = useCallback((nodeId: string, options: { place?: boolean; creation?: Omit<CanvasConfirmedCreation, "nodeId" | "nonce"> } = {}) => {
+  // One request per added or inserted step, or per opened issue: the canvas shows that node once it exists.
+  const [builderCanvasFocus, setBuilderCanvasFocus] = useState<{ nodeId: string; nonce: number; place: boolean; reveal: boolean; creation: CanvasConfirmedCreation | null }>({ nodeId: "", nonce: 0, place: false, reveal: false, creation: null });
+  const focusCanvasNode = useCallback((nodeId: string, options: { place?: boolean; reveal?: boolean; creation?: Omit<CanvasConfirmedCreation, "nodeId" | "nonce"> } = {}) => {
     setBuilderCanvasFocus((current) => {
       const nonce = current.nonce + 1;
-      return { nodeId, nonce, place: Boolean(options.place), creation: options.creation ? { ...options.creation, nodeId, nonce } : null };
+      return { nodeId, nonce, place: Boolean(options.place), reveal: Boolean(options.reveal), creation: options.creation ? { ...options.creation, nodeId, nonce } : null };
     });
   }, []);
   const [builderRuntimeActiveNodeId, setBuilderRuntimeActiveNodeId] =

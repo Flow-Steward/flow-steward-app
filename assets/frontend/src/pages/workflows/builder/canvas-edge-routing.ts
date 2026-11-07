@@ -67,17 +67,28 @@ function expanded(rect: CanvasRect, clearance = CLEARANCE): CanvasRect {
 function overlaps(a: CanvasRect, b: CanvasRect) {
   return a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y;
 }
+/** `overlaps(boundsOf(points), rect)` without building arrays: the hit tests run millions of times per route. */
+function hullOverlaps(points: readonly CanvasPoint[], rect: CanvasRect) {
+  let minX = points[0].x; let maxX = minX; let minY = points[0].y; let maxY = minY;
+  for (let i = 1; i < points.length; i++) {
+    const { x, y } = points[i];
+    if (x < minX) minX = x; else if (x > maxX) maxX = x;
+    if (y < minY) minY = y; else if (y > maxY) maxY = y;
+  }
+  // Same arithmetic as boundsOf (x + width), so a hit on the boundary stays exactly the same.
+  return minX <= rect.x + rect.width && minX + (maxX - minX) >= rect.x && minY <= rect.y + rect.height && minY + (maxY - minY) >= rect.y;
+}
 const halfway = (a: CanvasPoint, b: CanvasPoint): CanvasPoint => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 /** Recursive control hulls bound the whole curve, including narrow obstacles between samples. */
 function cubicHits(points: readonly CanvasPoint[], rect: CanvasRect, depth = 0): boolean {
-  if (!overlaps(boundsOf(points), rect)) return false;
+  if (!hullOverlaps(points, rect)) return false;
   if (depth === 12) return true;
   const [a, b, c, d] = points; const ab = halfway(a, b); const bc = halfway(b, c); const cd = halfway(c, d);
   const abc = halfway(ab, bc); const bcd = halfway(bc, cd); const middle = halfway(abc, bcd);
   return cubicHits([a, ab, abc, middle], rect, depth + 1) || cubicHits([middle, bcd, cd, d], rect, depth + 1);
 }
 function lineHits(a: CanvasPoint, b: CanvasPoint, rect: CanvasRect) {
-  if (!overlaps(boundsOf([a, b]), rect)) return false;
+  if (!hullOverlaps([a, b], rect)) return false;
   if (a.x === b.x || a.y === b.y) return true;
   let low = 0; let high = 1;
   for (const [start, delta, min, max] of [[a.x, b.x - a.x, rect.x, rect.x + rect.width], [a.y, b.y - a.y, rect.y, rect.y + rect.height]]) {
@@ -106,6 +117,22 @@ export function compactRoutePoints(points: readonly CanvasPoint[]): CanvasPoint[
     const a = result.at(-2); const b = result.at(-1)!;
     if (a && b && ((a.x === b.x && b.x === point.x) || (a.y === b.y && b.y === point.y)) && (b.x - a.x) * (point.x - b.x) + (b.y - a.y) * (point.y - b.y) > 0) result.pop();
     result.push(point);
+  }
+  return result;
+}
+/**
+ * Removes a spur: a run that goes along a line and comes back on the same line (down to a band and up
+ * again). The shortened run is part of a run already drawn clear, so it stays clear. The port leads
+ * (the first and the last run) keep their shape.
+ */
+export function dropRouteSpurs(points: readonly CanvasPoint[]): CanvasPoint[] {
+  let result = [...points];
+  for (let i = 2; i < result.length - 2; i++) {
+    const a = result[i - 1]; const b = result[i]; const c = result[i + 1];
+    const collinear = (a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y);
+    if (!collinear || (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) >= 0) continue;
+    result = compactRoutePoints([...result.slice(0, i), ...result.slice(i + 1)]);
+    i = 1;
   }
   return result;
 }
@@ -146,7 +173,8 @@ type DetourSearch = {
   /** The band line the path must reach, on one side of its ends; absent for the short way through the gap. */
   band?: { y: number; below: boolean };
 };
-type Visit = { xi: number; yi: number; band: boolean; dir: number; lead: boolean; g: number; h: number; key: string };
+/** `id` names the search state; `key` orders equal-cost states (see `stateOrder` in searchDetour). */
+type Visit = { xi: number; yi: number; band: boolean; dir: number; lead: boolean; g: number; h: number; key: number; id: number };
 function createVisitQueue() {
   const open: Visit[] = [];
   const precedes = (a: Visit, b: Visit) => a.g + a.h < b.g + b.h || (a.g + a.h === b.g + b.h && (a.h < b.h || (a.h === b.h && a.key < b.key)));
@@ -197,36 +225,62 @@ function searchDetour({ start, end, obstacles, endCards, approach, band }: Detou
   const xs = [...new Set([start.x, end.x, ...obstacles.flatMap((r) => lanes(r, DETOUR_CLEARANCE)), ...endCards.flatMap((r) => lanes(r, DETOUR_CLEARANCE))])].sort((a, b) => a - b);
   const ys = [...new Set([start.y, end.y, ...(band ? [band.y] : []), ...obstacles.flatMap((r) => rows(r, DETOUR_CLEARANCE)), ...endCards.flatMap((r) => rows(r, DETOUR_CLEARANCE))])].sort((a, b) => a - b);
   const pointOf = (visit: Visit) => ({ x: xs[visit.xi], y: ys[visit.yi] });
+  // A grid segment's clearance depends only on where it starts, its direction and which clearance applies;
+  // the search reaches the same segment from many states, so each answer is computed once (0 unknown, 1 clear, 2 blocked).
+  const clearance = new Uint8Array(xs.length * ys.length * 8);
+  const clearSegment = (visit: Visit, dir: number, a: CanvasPoint, b: CanvasPoint, lead: boolean) => {
+    const slot = ((visit.xi * ys.length + visit.yi) * 4 + dir) * 2 + (lead ? 1 : 0);
+    if (!clearance[slot]) clearance[slot] = segmentClear(a, b, lead) ? 1 : 2;
+    return clearance[slot] === 1;
+  };
   const heuristic = (point: CanvasPoint, reached: boolean) => Math.abs(point.x - end.x) +
     (!band || reached ? Math.abs(point.y - end.y) : Math.abs(point.y - band.y) + Math.abs(end.y - band.y));
   const queue = createVisitQueue();
-  const distances = new Map<string, number>(); const previous = new Map<string, string>(); const visits = new Map<string, Visit>();
-  const first: Visit = { xi: xs.indexOf(start.x), yi: ys.indexOf(start.y), band: !band, dir: -1, lead: true, g: 0, h: heuristic(start, !band), key: "" };
-  first.key = `${first.xi}:${first.yi}:${first.band ? 1 : 0}:-1:1`; distances.set(first.key, 0); visits.set(first.key, first); queue.push(first);
+  // Equal-cost states are taken in the order of their text key "xi:yi:band:dir:lead". That order is kept
+  // exactly, without building the text: each part ends in ":" so the parts never prefix one another, and the
+  // text order is the order of the parts' own text ranks ("10:" sorts before "2:"; "-1" before "0").
+  const textRanks = (count: number) => {
+    const ranks = new Array<number>(count);
+    Array.from({ length: count }, (_, index) => index)
+      .sort((a, b) => { const left = `${a}:`; const right = `${b}:`; return left < right ? -1 : left > right ? 1 : 0; })
+      .forEach((index, rank) => { ranks[index] = rank; });
+    return ranks;
+  };
+  const xRanks = textRanks(xs.length); const yRanks = textRanks(ys.length);
+  const stateOf = (xi: number, yi: number, reached: boolean, dir: number, lead: boolean) =>
+    ((((xi * ys.length + yi) * 2 + (reached ? 1 : 0)) * 5 + dir + 1) * 2) + (lead ? 1 : 0);
+  const stateOrder = (xi: number, yi: number, reached: boolean, dir: number, lead: boolean) =>
+    ((((xRanks[xi] * ys.length + yRanks[yi]) * 2 + (reached ? 1 : 0)) * 5 + dir + 1) * 2) + (lead ? 1 : 0);
+  const distances = new Map<number, number>(); const previous = new Map<number, Visit>();
+  const firstXi = xs.indexOf(start.x); const firstYi = ys.indexOf(start.y);
+  const first: Visit = { xi: firstXi, yi: firstYi, band: !band, dir: -1, lead: true, g: 0, h: heuristic(start, !band),
+    key: stateOrder(firstXi, firstYi, !band, -1, true), id: stateOf(firstXi, firstYi, !band, -1, true) };
+  distances.set(first.id, 0); queue.push(first);
   const steps = [[-1, 0], [1, 0], [0, -1], [0, 1]] as const;
   while (queue.size) {
-    const current = queue.pop(); if (current.g !== distances.get(current.key)) continue;
+    const current = queue.pop(); if (current.g !== distances.get(current.id)) continue;
     const point = pointOf(current);
     if (current.band && samePoint(point, end)) {
-      const walked = [point]; let key = current.key;
-      while (previous.has(key)) { key = previous.get(key)!; walked.unshift(pointOf(visits.get(key)!)); }
+      const walked = [point]; let visit = previous.get(current.id);
+      while (visit) { walked.unshift(pointOf(visit)); visit = previous.get(visit.id); }
       return walked;
     }
-    steps.forEach(([dx, dy], dir) => {
+    for (let dir = 0; dir < steps.length; dir++) {
+      const [dx, dy] = steps[dir];
       const xi = current.xi + dx; const yi = current.yi + dy;
-      if (xi < 0 || yi < 0 || xi >= xs.length || yi >= ys.length) return;
+      if (xi < 0 || yi < 0 || xi >= xs.length || yi >= ys.length) continue;
       const nextPoint = { x: xs[xi], y: ys[yi] };
-      if (band && (band.below ? nextPoint.y < Math.min(start.y, end.y) : nextPoint.y > Math.max(start.y, end.y))) return;
+      if (band && (band.below ? nextPoint.y < Math.min(start.y, end.y) : nextPoint.y > Math.max(start.y, end.y))) continue;
       const lead = current.lead && (current.dir < 0 || current.dir === dir);
-      if (!segmentClear(point, nextPoint, lead || intoEnd(point, nextPoint))) return;
+      if (!clearSegment(current, dir, point, nextPoint, lead || intoEnd(point, nextPoint))) continue;
       const reached = current.band || Boolean(band && (band.below ? nextPoint.y >= band.y : nextPoint.y <= band.y));
-      const key = `${xi}:${yi}:${reached ? 1 : 0}:${dir}:${lead ? 1 : 0}`;
+      const id = stateOf(xi, yi, reached, dir, lead);
       const turn = current.dir >= 0 && current.dir !== dir ? TURN_COST : 0;
       const g = current.g + turn + Math.abs(point.x - nextPoint.x) + Math.abs(point.y - nextPoint.y);
-      if (g >= (distances.get(key) ?? Infinity)) return;
-      const next = { xi, yi, band: reached, dir, lead, g, h: heuristic(nextPoint, reached), key };
-      distances.set(key, g); previous.set(key, current.key); visits.set(key, next); queue.push(next);
-    });
+      if (g >= (distances.get(id) ?? Infinity)) continue;
+      const next = { xi, yi, band: reached, dir, lead, g, h: heuristic(nextPoint, reached), key: stateOrder(xi, yi, reached, dir, lead), id };
+      distances.set(id, g); previous.set(id, current); queue.push(next);
+    }
   }
   return null;
 }
@@ -235,6 +289,21 @@ const GAP_WINDOW = 240;
 function windowAround(a: CanvasPoint, b: CanvasPoint): CanvasRect {
   const x = Math.min(a.x, b.x) - GAP_WINDOW; const y = Math.min(a.y, b.y) - GAP_WINDOW;
   return { x, y, width: Math.abs(a.x - b.x) + 2 * GAP_WINDOW, height: Math.abs(a.y - b.y) + 2 * GAP_WINDOW };
+}
+/** A band keeps this far from the cards it passes. */
+const BAND_GAP = 24;
+/**
+ * The band's line: the nearest horizontal line beyond both ends that no card in the corridor comes
+ * within BAND_GAP of. It climbs (or drops) only past the cards that stand in its way, so a card far up
+ * or down the same stripe of the canvas never pulls a connection across the whole canvas.
+ */
+function clearBandY(sourceY: number, targetY: number, cards: readonly CanvasRect[], below: boolean): number {
+  let y = below ? Math.max(sourceY, targetY) + BAND_GAP : Math.min(sourceY, targetY) - BAND_GAP;
+  for (;;) {
+    const crossed = cards.find((card) => y > card.y - BAND_GAP && y < card.y + card.height + BAND_GAP);
+    if (!crossed) return y;
+    y = below ? crossed.y + crossed.height + BAND_GAP : crossed.y - BAND_GAP;
+  }
 }
 function bandRoute(input: CanvasEdgeRouteInput): CanvasEdgeRoute {
   const { source, target } = input;
@@ -245,14 +314,12 @@ function bandRoute(input: CanvasEdgeRouteInput): CanvasEdgeRoute {
   const obstacles = [...input.obstacles, ...endCards];
   const corridorLeft = Math.min(start.x, end.x) - 32; const corridorRight = Math.max(start.x, end.x) + 32;
   const bandObstacles = obstacles.filter((rect) => rect.x <= corridorRight && rect.x + rect.width >= corridorLeft);
-  const minY = Math.min(source.y, target.y, ...bandObstacles.map((r) => r.y));
-  const maxY = Math.max(source.y, target.y, ...bandObstacles.map((r) => r.y + r.height));
   const below = input.backward || input.failure || input.repeat || input.sourceSide === "bottom" || input.targetSide === "bottom";
-  const bandY = below ? maxY + 24 : input.targetRowTop === undefined ? minY - 24 : input.targetRowTop - 24;
+  const bandY = input.targetRowTop !== undefined && !below ? input.targetRowTop - 24 : clearBandY(source.y, target.y, bandObstacles, below);
   const clear = (points: readonly CanvasPoint[]) => points.slice(1).every((p, i) => obstacles.every((r) => !lineHits(points[i], p, expanded(r))));
   const direct = [start, { x: start.x, y: bandY }, { x: end.x, y: bandY }, end];
   const finish = (middle: readonly CanvasPoint[], square: boolean): CanvasEdgeRoute => {
-    const points = compactRoutePoints([source, ...middle, last]);
+    const points = dropRouteSpurs(compactRoutePoints([source, ...middle, last]));
     return { path: square ? squarePath(points) : roundedPath(points), midpoint: polylineMidpoint(points), bounds: boundsOf(points), points, kind: below ? "lower-band" : "upper-band" };
   };
   const directClear = clear(direct);

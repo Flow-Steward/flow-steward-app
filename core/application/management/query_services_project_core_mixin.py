@@ -644,6 +644,44 @@ class ProjectQueryServiceCoreMixin:
             project_workflows=normalized_workflows,
         )
 
+    def list_workflow_linked_projects(
+        self,
+        workflow_id: Any,
+        *,
+        scope: ScopeContext | None = None,
+    ) -> WorkflowLinkedProjectsView:
+        """The projects that link *workflow_id*: as its default or as a listed workflow.
+
+        The answer is what each project's own bindings say
+        (``get_workflow_bindings``), over the projects the caller can list, in
+        list order. A project's list row names every workflow its bindings can
+        name, so only the projects whose row names this workflow are asked; a
+        failed bindings read fails the whole answer rather than dropping a link.
+        """
+        normalized_workflow_id = str(workflow_id or "").strip()
+        linked: list[ProjectGridRowView] = []
+        if not normalized_workflow_id:
+            return WorkflowLinkedProjectsView(workflow_id="", projects=linked)
+        page = 1
+        while True:
+            listing = self.list_projects(page=page, per_page=200, scope=scope)
+            for row in listing.projects:
+                if (
+                    normalized_workflow_id != row.operator_default_workflow_id
+                    and normalized_workflow_id not in row.workflow_ids
+                ):
+                    continue
+                bindings = self.get_workflow_bindings(row.id, scope=scope)
+                if (
+                    normalized_workflow_id == bindings.operator_default_workflow_id
+                    or normalized_workflow_id in bindings.workflow_ids
+                ):
+                    linked.append(row)
+            if page >= listing.total_pages:
+                break
+            page += 1
+        return WorkflowLinkedProjectsView(workflow_id=normalized_workflow_id, projects=linked)
+
     def get_policy(
         self,
         project_id: Any,

@@ -65,7 +65,11 @@ def test_authorized_status_carries_typed_declared_result_without_snapshot(value)
     result = asyncio.run(
         service.get_job_status("job-1", scope=SCOPE, include_workflow_result=True)
     ).dump()
-    assert result.get("workflow_result") == {"outputs": {"result": value}, "artifacts": {}}
+    assert result.get("workflow_result") == {
+        "outputs": {"result": value},
+        "artifacts": {},
+        "report_output": None,
+    }
     assert type(result["workflow_result"]["outputs"]["result"]) is type(value)
     assert reads == ["job", "project"]
     assert "must-not-escape" not in str(result)
@@ -163,7 +167,11 @@ def test_exact_compact_zero_step_contract_preserves_public_result(value):
             include_workflow_run=False,
         )
     )
-    assert result.get("workflow_result") == {"outputs": {"result": value}, "artifacts": {}}
+    assert result.get("workflow_result") == {
+        "outputs": {"result": value},
+        "artifacts": {},
+        "report_output": None,
+    }
     assert result["workflow_run"] is None
     assert result["sections"]["execution_steps"] == []
     assert source.calls == ["status"]
@@ -182,7 +190,11 @@ def test_mcp_result_bundle_forwards_typed_public_result_without_run_query(value)
     result = asyncio.run(
         build_job_result_bundle(job_query_service=source, job_id="job-1", scope=SCOPE)
     )
-    assert result.get("workflow_result") == {"outputs": {"result": value}, "artifacts": {}}
+    assert result.get("workflow_result") == {
+        "outputs": {"result": value},
+        "artifacts": {},
+        "report_output": None,
+    }
     assert source.calls == ["status"]
 
 

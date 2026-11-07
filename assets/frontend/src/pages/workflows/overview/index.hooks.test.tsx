@@ -172,14 +172,14 @@ describe("Workflow overview Hooks section", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const path = new URL(String(input), "http://localhost").pathname;
       requests.push(path);
-      if (path === "/api/v2/projects") return new Response(JSON.stringify({ projects: [{ id: "p-1", name: "Orders demo" }], total_pages: 1 }), { headers: { "content-type": "application/json" } });
-      if (path === "/api/projects/p-1/workflows") return new Response(JSON.stringify({ detail: "Project bindings unavailable" }), { status, headers: { "content-type": "application/json" } });
+      if (path === "/api/workflows/wf/linked-projects") return new Response(JSON.stringify({ detail: "Project bindings unavailable" }), { status, headers: { "content-type": "application/json" } });
       throw new Error(`Unexpected request ${path}`);
     });
     const view = renderPage("/registry/workflows/wf?tab=hooks&project_id=p-1");
     try {
       expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
-      expect(requests).toContain("/api/projects/p-1/workflows");
+      expect(requests).toContain("/api/workflows/wf/linked-projects");
+      expect(requests.filter((path) => /^\/api\/projects\/[^/]+\/workflows$/.test(path))).toEqual([]);
       expect(mockedHooks).not.toHaveBeenCalled();
       expect(mockedLinkedProject).not.toHaveBeenCalled();
       expect(screen.queryByRole("link", { name: /Edit the steps of hook/ })).not.toBeInTheDocument();
@@ -235,16 +235,17 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
   const waiting = new Map<string, (response: Response) => void>();
   const requested: string[] = [];
   const response = (value: unknown) => new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
-  let projectLists = 0;
+  const bothProjects = [{ id: "p-1", name: "Orders demo" }, { id: "p-2", name: "Second project" }];
+  // Every link read waits on one gate, so the page stays usable while it is open.
+  let releaseLinks!: () => void;
+  const linksGate = new Promise<void>((resolve) => { releaseLinks = resolve; });
   const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const path = new URL(String(input), "http://localhost").pathname; requested.push(path);
     if (path === "/api/workflows/wf") return response({ ...author, portability: { clone_allowed: true, full_export_allowed: true, structure_change_allowed: true } });
     if (path === "/api/workflows/wf/export-policy") return response({ clone_allowed: true, structure_change_allowed: true });
-    if (path === "/api/v2/projects") {
-      projectLists += 1;
-      if (projectLists > 1) return response({ projects: [{ id: "p-1", name: "Orders demo" }, { id: "p-2", name: "Second project" }], total_pages: 1 });
-    }
-    if (["/api/v2/projects", "/api/projects/p-1/workflows", "/api/projects/p-2/workflows", "/api/projects/p-2/workflows/wf/hooks", "/api/workflows/my_name_fix"].includes(path)) {
+    if (path === "/api/v2/projects") return response({ projects: bothProjects, total_pages: 1 });
+    if (path === "/api/workflows/wf/linked-projects") return linksGate.then(() => response({ workflow_id: "wf", projects: bothProjects }));
+    if (["/api/projects/p-2/workflows/wf/hooks", "/api/workflows/my_name_fix"].includes(path)) {
       return new Promise<Response>((resolve) => { waiting.set(path, resolve); });
     }
     throw new Error(`Unexpected request ${path}`);
@@ -262,14 +263,11 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
       expect(screen.getByRole("link", { name: "Projects" })).toBe(link);
       if (keepFocus) expect(link).toHaveFocus();
     }
-    await assertUsable(); expect(waiting.has("/api/v2/projects")).toBe(true);
-    await act(async () => { waiting.get("/api/v2/projects")?.(response({ projects: [{ id: "p-1", name: "Orders demo" }, { id: "p-2", name: "Second project" }], total_pages: 1 })); waiting.delete("/api/v2/projects"); await vi.advanceTimersByTimeAsync(0); });
+    await assertUsable(); expect(requested).toContain("/api/workflows/wf/linked-projects");
+    // Finding both linked projects must not select either without a user choice.
+    await act(async () => { releaseLinks(); await vi.advanceTimersByTimeAsync(0); });
     await assertUsable();
-    // Completing B first must not select it, or A, without a user choice.
-    await act(async () => { waiting.get("/api/projects/p-2/workflows")?.(response({ project_id: "p-2", workflow_ids: [], operator_default_workflow_id: "wf" })); waiting.delete("/api/projects/p-2/workflows"); await vi.advanceTimersByTimeAsync(0); });
-    await assertUsable();
-    await act(async () => { waiting.get("/api/projects/p-1/workflows")?.(response({ project_id: "p-1", workflow_ids: ["wf"] })); waiting.delete("/api/projects/p-1/workflows"); await vi.advanceTimersByTimeAsync(0); });
-    await assertUsable();
+    expect(requested.filter((path) => /^\/api\/projects\/[^/]+\/workflows$/.test(path))).toEqual([]);
     expect(requested.filter((path) => path.endsWith("/hooks"))).toEqual([]);
     const select = screen.getByRole("combobox", { name: "Project for hooks" });
     expect(select).toHaveTextContent("Choose a linked project");
@@ -294,9 +292,8 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
       reloadedRequests.push(path);
       if (path === "/api/workflows/wf") return response({ ...author, portability: { clone_allowed: true, full_export_allowed: true, structure_change_allowed: true } });
       if (path === "/api/workflows/wf/export-policy") return response({ clone_allowed: true, structure_change_allowed: true });
-      if (path === "/api/v2/projects") return response({ projects: [{ id: "p-1", name: "Orders demo" }, { id: "p-2", name: "Second project" }], total_pages: 1 });
-      if (path === "/api/projects/p-1/workflows") return response({ workflow_ids: ["wf"] });
-      if (path === "/api/projects/p-2/workflows") return response({ workflow_ids: [], operator_default_workflow_id: "wf" });
+      if (path === "/api/v2/projects") return response({ projects: bothProjects, total_pages: 1 });
+      if (path === "/api/workflows/wf/linked-projects") return response({ workflow_id: "wf", projects: bothProjects });
       if (path === "/api/projects/p-2/workflows/wf/hooks") return response({ project_id: "p-2", workflow_id: "wf", hooks: [{ ...hookRow(), project_id: "p-2" }] });
       throw new Error(`Unexpected reload request ${path}`);
     });
@@ -314,7 +311,7 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
     } finally { unmountReload(); }
     expect(requested.some((path) => /export-policy|\/dag|canvas/.test(path))).toBe(false);
   } finally {
-    view.unmount(); unmountIndicator(); waiting.forEach((resolve) => resolve(response({}))); waiting.clear();
+    view.unmount(); unmountIndicator(); releaseLinks(); waiting.forEach((resolve) => resolve(response({}))); waiting.clear();
     if (vi.isFakeTimers()) {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers();

@@ -71,6 +71,13 @@ function fixture({ linked = ["project-a", "project-b"], failProjects = false, fa
       return failProjects ? json({ detail: "Project catalog unavailable" }, 503)
         : json({ projects, page: 1, per_page: 200, total: 2, total_pages: 1 });
     }
+    if (method === "GET" && path === `/api/workflows/${workflowId}/linked-projects`) {
+      // Like the server: the project list, then the bindings of each project that lists the workflow.
+      await projectsReady;
+      if (failProjects) return json({ detail: "Project catalog unavailable" }, 503);
+      if (failBinding && linkedIds.has(failBinding)) return json({ detail: "Project binding unavailable" }, 503);
+      return json({ workflow_id: workflowId, projects: projects.filter((item) => linkedIds.has(item.id)) });
+    }
     const consumerProject = projects.find((item) => path === `/api/projects/${item.id}/workflows/${workflowId}/where-used`);
     if (method === "GET" && consumerProject) return json({ project_id: consumerProject.id, workflow_id: workflowId, consumers: [] });
     if (method === "GET" && path === foreignProjectBindingPath) {

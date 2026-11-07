@@ -41,6 +41,9 @@ function fixture(failSecond = false) {
       unexpected.push(`${method} ${path}?${url.searchParams}`);
       return json({ detail: "Unexpected Test Run history scope" }, 422);
     }
+    if (method === "GET" && path === `/api/workflows/${workflowId}/linked-projects`) return json({
+      workflow_id: workflowId, projects: projects.filter((project) => linked.has(project.id)),
+    });
     if (path === "/api/v2/projects") return json({ projects, page: 1, per_page: 200, total: 2, total_pages: 1 });
     const consumerProject = projects.find((item) => path === `/api/projects/${item.id}/workflows/${workflowId}/where-used`);
     if (method === "GET" && consumerProject) return json({ project_id: consumerProject.id, workflow_id: workflowId, consumers: [] });

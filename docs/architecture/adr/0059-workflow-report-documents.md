@@ -204,7 +204,7 @@ report output, not its values.
 ## Verified against code
 
 Checked in `claude/workflow-reports-20261106` at public main `5764b4ddb0`; the
-branch now sits on `codex/release-batch-0.9.12` (`83eb76929a`), which adds only
+branch now sits on release integration commit `83eb76929a`, which adds only
 the 0.9.12 version bump on top of that main:
 
 - `core/application/orchestration/template_step_runtime.py`: formats come from

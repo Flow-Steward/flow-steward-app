@@ -203,7 +203,7 @@ export function TemplateStepSetup({
       setField("text", undefined);
       if (typeof config.report !== "object" || config.report === null) setField(REPORT_FORMAT, emptyDefinition());
     } else {
-      setField(REPORT_FORMAT, undefined);
+      if (config.report !== undefined) setField(REPORT_FORMAT, undefined);
       if (typeof config.text !== "string") setField("text", "");
     }
   };

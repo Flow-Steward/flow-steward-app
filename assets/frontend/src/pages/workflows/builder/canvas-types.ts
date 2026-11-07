@@ -164,6 +164,8 @@ export type BuilderSurfaceProps = {
   focusNodeCreation?: CanvasConfirmedCreation | null;
   /** Place the focused node at the viewport centre first: a root step added without a connection. */
   focusNodePlace?: boolean;
+  /** Show an existing node (an opened issue's step): keep the zoom and move only if it is outside the free canvas beside the drawer. */
+  focusNodeReveal?: boolean;
   runtimeActiveNodeId?: string | null;
   runtimeMarks?: HookExecutionMarks;
   runtimeEdges?: ReadonlySet<string> | ReadonlyMap<string, number>;

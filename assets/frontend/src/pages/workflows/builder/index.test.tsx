@@ -1039,7 +1039,7 @@ describe("WorkflowsBuilderPage", () => {
     });
     expect(screen.queryByRole("group", { name: "Open step Review draft" })).not.toBeInTheDocument();
     expect(bodies.every((body) => body.dry_run === true)).toBe(true);
-  }, 15_000);
+  });
 
   it("shows what would make Apply refuse an enabled workflow's set", async () => {
     dryRunFetch(() =>

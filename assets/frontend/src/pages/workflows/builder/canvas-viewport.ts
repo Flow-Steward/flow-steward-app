@@ -175,6 +175,22 @@ export function canvasRevealViewport(bounds: CanvasPasteRect, pane: CanvasPasteB
 }
 
 /**
+ * Show one card the author asked about (an opened issue): it ends in the middle of the free pane at
+ * a readable zoom (at least `readableZoom`, never more than fits the pane, never zoomed out). A card
+ * already in view at a readable zoom keeps the current view.
+ */
+export function canvasFocusViewport(bounds: CanvasPasteRect, pane: CanvasPasteBounds, stage: Pick<DOMRect, "left" | "top">, current: { x: number; y: number; zoom: number }, readableZoom: number) {
+  if (current.zoom >= readableZoom && canvasPasteBoundsVisible(bounds, pane, stage, current)) return current;
+  const fits = Math.min((pane.right - pane.left) / Math.max(1, bounds.width), (pane.bottom - pane.top) / Math.max(1, bounds.height));
+  const zoom = Math.max(current.zoom, Math.min(readableZoom, fits));
+  return {
+    x: (pane.left + pane.right) / 2 - stage.left - (bounds.x + bounds.width / 2) * zoom,
+    y: (pane.top + pane.bottom) / 2 - stage.top - (bounds.y + bounds.height / 2) * zoom,
+    zoom,
+  };
+}
+
+/**
  * Where a root node goes so it sits in the middle of what the author sees, or
  * null when it cannot be placed there: a node inside a container keeps its
  * container layout, and an unmeasured canvas has no visible area yet.

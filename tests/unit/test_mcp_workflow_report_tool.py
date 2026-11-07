@@ -324,9 +324,10 @@ def test_the_job_result_tool_reads_the_model_view() -> None:
 class _Viewer:
     def __init__(self, handler: Any) -> None:
         self.transport = httpx.MockTransport(handler)
+        self.client_type = httpx.AsyncClient
 
     def client(self, **kwargs: Any) -> httpx.AsyncClient:
-        return httpx.AsyncClient(transport=self.transport, **kwargs)
+        return self.client_type(transport=self.transport, **kwargs)
 
 
 def _viewer(monkeypatch: pytest.MonkeyPatch, handler: Any) -> list[str]:

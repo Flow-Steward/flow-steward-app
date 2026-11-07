@@ -832,7 +832,6 @@ describe("ProjectsDetailPage", () => {
         ).toBeChecked();
       }
     },
-    10_000,
   );
 
   it("blocks save and never requests detail while a stale workflow binding stays selected", async () => {

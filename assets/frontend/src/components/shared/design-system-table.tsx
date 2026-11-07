@@ -2,6 +2,9 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useInRouterContext, useNavigate } from "react-router";
+import { appRoutePath } from "@/lib/routing/app-href";
+import { ignoreAsyncResult } from "@/lib/utils/async";
 import { DsCheckboxMark } from "./design-system-primitives";
 import { DsSelect } from "./design-system-selects";
 
@@ -505,4 +508,24 @@ export function BulkActionBar({
     </section>,
     dock,
   );
+}
+
+/** A table cell link to an app page. Inside the app's router a plain left click navigates client-side; outside it (or for a modified click) the anchor does what an anchor does. */
+export function DsTableLink({ href, children }: Readonly<{ href: string; children: ReactNode }>) {
+  return useInRouterContext() ? <RoutedTableLink href={href}>{children}</RoutedTableLink> : <a className="fs-link" href={href}>{children}</a>;
+}
+
+function RoutedTableLink({ href, children }: Readonly<{ href: string; children: ReactNode }>) {
+  const navigate = useNavigate();
+  // A full page load re-bootstraps the whole app; opening a grid row must not cost that.
+  const followInApp = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const path = appRoutePath(href);
+    if (!path) return;
+    event.preventDefault();
+    // The link has navigated; a row click handler must not navigate a second time.
+    event.stopPropagation();
+    ignoreAsyncResult(navigate(path));
+  };
+  return <a className="fs-link" href={href} onClick={followInApp}>{children}</a>;
 }

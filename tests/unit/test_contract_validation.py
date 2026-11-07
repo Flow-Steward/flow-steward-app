@@ -237,7 +237,7 @@ def _switch(step_id: str, selector: str, *case_ids: str) -> dict:
 class _EmptyIOResolver:
     """Stands in for IOResolver when a test is about step config, not data flow."""
 
-    def __init__(self, db):
+    def __init__(self, db, **_options):
         self.db = db
 
     def get_step_outputs(self, workflow_id: str, step_id: str):

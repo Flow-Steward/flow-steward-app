@@ -413,12 +413,12 @@ describe("summary graph counts and metadata isolation", () => {
     let resolveRetry!: (response: Response) => void; let projectReads = 0;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const path = new URL(String(input), "http://localhost").pathname;
-      if (path === "/api/v2/projects") {
+      // One read answers which projects link the workflow; no per-project binding reads.
+      if (path === "/api/workflows/wf-1/linked-projects") {
         projectReads += 1;
         if (projectReads === 1) return new Response(JSON.stringify({ error: "Project discovery unavailable" }), { status: 503, headers: { "content-type": "application/json" } });
         return new Promise<Response>((resolve) => { resolveRetry = resolve; });
       }
-      if (path === "/api/projects/p-first/workflows") return new Response(JSON.stringify({ workflow_ids: ["wf-1"] }), { headers: { "content-type": "application/json" } });
       throw new Error(`Unexpected request ${path}`);
     });
     vi.useFakeTimers();
@@ -433,7 +433,7 @@ describe("summary graph counts and metadata isolation", () => {
       expect(projectReads).toBe(2);
       expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
-      await act(async () => { resolveRetry(new Response(JSON.stringify({ projects: [{ id: "p-first" }], total_pages: 1 }), { headers: { "content-type": "application/json" } })); await vi.advanceTimersByTimeAsync(0); });
+      await act(async () => { resolveRetry(new Response(JSON.stringify({ workflow_id: "wf-1", projects: [{ id: "p-first", name: "First" }] }), { headers: { "content-type": "application/json" } })); await vi.advanceTimersByTimeAsync(0); });
       expect(screen.getByRole("link", { name: /open builder/i })).toHaveAttribute("href", "/registry/workflows/wf-1/builder?project_id=p-first");
       expect(mockedExportPolicy).not.toHaveBeenCalled();
       expect(mockedLinkedProject).toHaveBeenLastCalledWith("wf-1", { presentation: "background" });

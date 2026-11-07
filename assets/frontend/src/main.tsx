@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "@/app/App";
 import { AppProviders } from "@/app/providers";
+import { loadPlatformKitInBackground } from "@/app/platform-kit-loader";
 import "../../platform-components.css";
 import "@/styles/index.css";
 
@@ -28,13 +29,6 @@ window.addEventListener(
   { once: true },
 );
 
-try {
-  const platformKitUrl = "/static/platform-kit/index.js";
-  await import(/* @vite-ignore */ platformKitUrl);
-} catch (error) {
-  console.warn("Platform kit failed to load; continuing with the application UI.", error);
-}
-
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
@@ -48,3 +42,6 @@ createRoot(rootElement).render(
     </AppProviders>
   </StrictMode>,
 );
+
+// The app renders first; Platform Kit follows when the browser is idle (see the loader).
+loadPlatformKitInBackground();

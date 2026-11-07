@@ -109,6 +109,7 @@ from .query_models import (
     ToolsHealthView,
     ToolsListView,
     ToolValidationView,
+    WorkflowLinkedProjectsView,
     WorkflowReactionRuleView,
     WorkflowReactionsView,
 )
@@ -232,6 +233,7 @@ __all__ = [
     "ProjectSettingsHistoryListView",
     "ProjectSettingsHistoryPageView",
     "ProjectWorkflowBindingsView",
+    "WorkflowLinkedProjectsView",
     "ProjectWorkflowPreviewView",
     "ProjectsListView",
     "QueueHealthView",
