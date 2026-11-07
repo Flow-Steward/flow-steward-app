@@ -281,11 +281,11 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
             return api_error_response(e)
         return JSONResponse({"status": payload.status, "job_id": payload.job_id})
 
-    @router.get("/api/jobs/{job_id}/cost-breakdown")
-    async def api_job_cost_breakdown(request: Request, job_id: str):
-        """Return per-agent, per-model cost breakdown for a job."""
+    @router.get("/api/jobs/{job_id}/usage-breakdown")
+    async def api_job_usage_breakdown(request: Request, job_id: str):
+        """Return per-agent, per-model token usage breakdown for a job."""
         try:
-            payload = job_query_service().get_cost_breakdown(
+            payload = job_query_service().get_usage_breakdown(
                 job_id,
                 scope=request_scope(request),
             )

@@ -5113,8 +5113,8 @@ class TestJobEndpoints:
         resp = client.get("/api/jobs/999999/events")
         assert resp.status_code in (200, 404, 500, 503)
 
-    def test_api_job_cost_breakdown_nonexistent(self, client):
-        resp = client.get("/api/jobs/999999/cost-breakdown")
+    def test_api_job_usage_breakdown_nonexistent(self, client):
+        resp = client.get("/api/jobs/999999/usage-breakdown")
         assert resp.status_code in (200, 404, 500, 503)
 
     def test_api_job_logs_nonexistent(self, client):
@@ -5141,7 +5141,7 @@ class TestJobEndpoints:
             finished_at=None,
             duration_ms=None,
         )
-        mock_bl.get_job_cost_summary.return_value = {}
+        mock_bl.get_job_usage_summary.return_value = {}
         from core.application.jobs.workflow_run_models import WorkflowRunStateV1
 
         mock_bl.get_public_progress_snapshot.return_value = SimpleNamespace(
@@ -5239,7 +5239,7 @@ class TestJobEndpoints:
             last_error="",
             last_response_excerpt="",
         )
-        mock_bl.get_job_cost_summary.return_value = {}
+        mock_bl.get_job_usage_summary.return_value = {}
         from core.application.jobs.workflow_run_models import WorkflowRunStateV1
 
         mock_bl.get_public_progress_snapshot.return_value = SimpleNamespace(
@@ -6683,7 +6683,7 @@ class TestJobEndpoints:
         mock_bl.get_agent_messages.return_value = []
         mock_bl.list_job_decision_overrides.return_value = []
         mock_bl.list_job_errors.return_value = []
-        mock_bl.get_job_cost_breakdown.return_value = []
+        mock_bl.get_job_usage_breakdown.return_value = []
 
         with (
             patch.dict(
@@ -7509,7 +7509,6 @@ class TestJobEndpoints:
             "tokens_prompt": None,
             "tokens_completion": None,
             "tokens_total": None,
-            "cost_usd": None,
             "model_used": None,
         }
         prompt_resp = {
@@ -7526,7 +7525,6 @@ class TestJobEndpoints:
             "tokens_prompt": None,
             "tokens_completion": None,
             "tokens_total": None,
-            "cost_usd": None,
             "model_used": None,
         }
         routing_ev = {
@@ -11607,7 +11605,7 @@ class TestEndpointLevelOwnershipDeny:
             "duration_ms": 0,
         }
         mock_bl.get_project.return_value = {"id": 1, "name": "proj-a", "account_id": "acc_alpha"}
-        mock_bl.get_job_cost_summary.return_value = {}
+        mock_bl.get_job_usage_summary.return_value = {}
 
         cross_scope = ScopeContext(account_id="acc_other", actor_id="eve", principal_type="user")
         with (

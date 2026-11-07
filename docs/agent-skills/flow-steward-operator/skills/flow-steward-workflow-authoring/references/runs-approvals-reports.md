@@ -32,7 +32,7 @@ the user asked for, and never widen a query because a narrow one failed.
 - On failure: `job_errors`, `job_incident`, `job_trace`; for detail,
   `job_messages`, `job_logs`, `job_events` with their cursors;
   `job_runtime_journal` and `job_decision_overrides` when the question is about
-  routing decisions; `job_cost_breakdown` for tokens and cost.
+  routing decisions; `job_usage_breakdown` for token usage.
 - `workflow_stats(project_name, workflow_id)` for a workflow's run statistics.
 
 Present job ids, the observed status, the error or gate and the next useful
@@ -73,15 +73,15 @@ Only when the user asks, and after `job_status` shows the run's state:
 - Operational types `activity_daily`, `project_summary`, `project_stats` take
   `params.project_id`, an exact `params.workflow_id`, and either
   `params.range` (default `7d`) or ISO `params.start_date`/`params.end_date`.
-  Job types `job_summary` and `job_cost_breakdown` need `params.job_id`.
+  Job types `job_summary` and `job_usage_breakdown` need `params.job_id`.
 - `range="7d"` is a rolling 168-hour UTC window. Explicit dates are inclusive
   UTC calendar days. For a local "today", convert the user's local day to UTC
   boundaries; UTC-day aggregates cannot prove a local-day total, so label them
   UTC or use complete job pages filtered by timestamp.
 - `persist=false` skips storing the report but still needs report write
   permission. `report_get(report_id)` reads a stored report.
-- These are activity reports, not financial statements; do not derive spend
-  totals from incidental cost fields.
+- These reports describe activity and token usage. Use provider billing or
+  your own external analysis for financial totals.
 
 Return the actual window, filters, coverage, report id when stored, and the
 limitations together with the results.

@@ -285,11 +285,10 @@ class TestQueryServices:
             "finished_at": None,
             "duration_ms": 1500,
         }
-        bl.get_job_cost_summary.return_value = {
+        bl.get_job_usage_summary.return_value = {
             "tokens_prompt": 11,
             "tokens_completion": 7,
             "tokens_total": 18,
-            "cost_usd": 0.12,
             "llm_calls": 2,
         }
         bl.get_project.return_value = {
@@ -328,7 +327,12 @@ class TestQueryServices:
         assert payload["project_id"] == "proj-42"
         assert payload["mode"] == "greenfield"
         assert payload["runtime"]["current_step_id"] == "planning"
-        assert payload["cost"]["tokens_total"] == 18
+        assert payload["usage"] == {
+            "tokens_prompt": 11,
+            "tokens_completion": 7,
+            "tokens_total": 18,
+            "llm_calls": 2,
+        }
         assert payload["failure_summary"]["kind"] == "provider_rate_limit"
         assert payload["failure_summary"]["diagnostic_ids"]["request_id"] == "req-safe-42"
         assert payload["trigger"] == {
@@ -355,7 +359,7 @@ class TestQueryServices:
             "current_group_id": "",
             "current_agent": "",
         }
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project.return_value = {
             "id": "proj-42",
             "name": "Demo",
@@ -407,7 +411,7 @@ class TestQueryServices:
             "current_group_id": "per_record",
             "current_agent": "",
         }
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project.return_value = {
             "id": "proj-42",
             "name": "Demo",
@@ -470,7 +474,7 @@ class TestQueryServices:
             "duration_ms": 0,
         }
         bl.get_project.return_value = {"id": 7, "name": "Demo", "account_id": DEFAULT_ACCOUNT_ID}
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project_workflows.return_value = [
             {
                 "workflow_id": "weekly_report",
@@ -523,7 +527,7 @@ class TestQueryServices:
             "name": "Demo",
             "account_id": DEFAULT_ACCOUNT_ID,
         }
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project_workflows.return_value = []
 
         service = JobQueryService(
@@ -556,7 +560,7 @@ class TestQueryServices:
             "duration_ms": 0,
         }
         bl.get_project.return_value = {"id": 7, "name": "Demo", "account_id": DEFAULT_ACCOUNT_ID}
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project_workflows.return_value = []
 
         service = JobQueryService(
@@ -586,7 +590,7 @@ class TestQueryServices:
             "duration_ms": 0,
         }
         bl.get_project.return_value = {"id": 7, "name": "Demo", "account_id": DEFAULT_ACCOUNT_ID}
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project_workflows.return_value = []
 
         service = JobQueryService(
@@ -678,7 +682,7 @@ class TestQueryServices:
             "finished_at": None,
             "duration_ms": 0,
         }
-        job_store.get_job_cost_summary.return_value = {}
+        job_store.get_job_usage_summary.return_value = {}
         job_store.get_project_workflows.return_value = []
         get_project = MagicMock(
             return_value={"id": "7", "name": "Demo", "account_id": DEFAULT_ACCOUNT_ID}
@@ -2900,7 +2904,7 @@ class TestEventQueryEndpoints:
             "name": "Demo",
             "account_id": DEFAULT_ACCOUNT_ID,
         }
-        bl.get_job_cost_summary.return_value = {}
+        bl.get_job_usage_summary.return_value = {}
         bl.get_project_workflows.return_value = []
         service = JobQueryService(
             get_logger=lambda: bl,
@@ -5013,7 +5017,7 @@ class TestEventQueryEndpoints:
                 "finished_at": "2026-03-20T10:05:00+00:00",
             }
         ]
-        mock_bl.get_jobs_cost_summary.return_value = {21: {"cost_usd": 1.25}}
+        mock_bl.get_jobs_usage_summary.return_value = {21: {"tokens_total": 1250}}
 
         with (
             patch.dict(
@@ -5095,8 +5099,8 @@ class TestEventQueryEndpoints:
                 "finished_at": finished_at,
             }
         ]
-        mock_bl.get_jobs_cost_summary.return_value = {
-            77: {"cost_usd": 3.5, "dominant_agent": "composer"}
+        mock_bl.get_jobs_usage_summary.return_value = {
+            77: {"tokens_total": 3500, "dominant_agent": "composer"}
         }
 
         with (
@@ -5112,11 +5116,10 @@ class TestEventQueryEndpoints:
 
         assert resp.status_code == 200
         body = resp.json()
-        agent_rows = ((body.get("trends") or {}).get("spend_breakdown") or {}).get("agent") or []
-        assert agent_rows, "dashboard should emit agent spend rows for finished jobs in-range"
-        assert agent_rows[0]["name"] == "composer"
+        assert "spend_breakdown" not in body["trends"]
+        assert "spend" not in body["hero_kpis"]
 
-    def test_dashboard_fetch_cost_by_job_prefers_bulk_summary(self, client):
+    def test_dashboard_fetch_usage_by_job_prefers_bulk_summary(self, client):
         try:
             from tests import api_runtime_test_surface as api_runtime
         except Exception as exc:
@@ -5125,23 +5128,23 @@ class TestEventQueryEndpoints:
             )
 
         mock_bl = MagicMock()
-        mock_bl.get_jobs_cost_summary.return_value = {
-            11: {"cost_usd": 1.5, "dominant_agent": "proofreader"},
-            "12": {"cost_usd": 2.0, "dominant_agent": "composer"},
+        mock_bl.get_jobs_usage_summary.return_value = {
+            11: {"tokens_total": 1500, "dominant_agent": "proofreader"},
+            "12": {"tokens_total": 2000, "dominant_agent": "composer"},
         }
 
-        payload = api_runtime._dashboard_fetch_cost_by_job(
+        payload = api_runtime._dashboard_fetch_usage_by_job(
             bl=mock_bl,
             rows=[{"job_id": 11}, {"id": 12}, {"job_id": 11}],
         )
 
-        mock_bl.get_jobs_cost_summary.assert_called_once_with(["11", "12"])
-        assert payload["11"]["cost_usd"] == 1.5
+        mock_bl.get_jobs_usage_summary.assert_called_once_with(["11", "12"])
+        assert payload["11"]["tokens_total"] == 1500
         assert payload["11"]["dominant_agent"] == "proofreader"
-        assert payload["12"]["cost_usd"] == 2.0
+        assert payload["12"]["tokens_total"] == 2000
         assert payload["12"]["dominant_agent"] == "composer"
 
-    def test_dashboard_fetch_cost_by_job_falls_back_to_single_summary(self, client):
+    def test_dashboard_fetch_usage_by_job_falls_back_to_single_summary(self, client):
         try:
             from tests import api_runtime_test_surface as api_runtime
         except Exception as exc:
@@ -5150,20 +5153,20 @@ class TestEventQueryEndpoints:
             )
 
         mock_bl = MagicMock()
-        mock_bl.get_jobs_cost_summary.side_effect = RuntimeError("bulk unavailable")
-        mock_bl.get_job_cost_summary.side_effect = [
-            {"cost_usd": 3.25, "dominant_agent": "designer"},
+        mock_bl.get_jobs_usage_summary.side_effect = RuntimeError("bulk unavailable")
+        mock_bl.get_job_usage_summary.side_effect = [
+            {"tokens_total": 3250, "dominant_agent": "designer"},
             RuntimeError("single failed"),
         ]
 
-        payload = api_runtime._dashboard_fetch_cost_by_job(
+        payload = api_runtime._dashboard_fetch_usage_by_job(
             bl=mock_bl,
             rows=[{"job_id": 21}, {"job_id": 22}],
         )
 
-        assert payload["21"]["cost_usd"] == 3.25
+        assert payload["21"]["tokens_total"] == 3250
         assert payload["21"]["dominant_agent"] == "designer"
-        assert payload["22"]["cost_usd"] is None
+        assert payload["22"]["tokens_total"] == 0
         assert payload["22"]["dominant_agent"] is None
 
     def test_dashboard_summary_reads_historical_metrics_from_rollup_facts(self, client):
@@ -5213,7 +5216,6 @@ class TestEventQueryEndpoints:
                 "started_at": started_at,
                 "finished_at": finished_at,
                 "duration_seconds": 480.0,
-                "cost_usd": 4.25,
             }
         ]
         mock_bl.list_dashboard_daily_rollups.return_value = []
@@ -5233,11 +5235,8 @@ class TestEventQueryEndpoints:
         assert resp.status_code == 200
         body = resp.json()
         assert body["historical_metrics_source"] == "rollup_facts"
-        spend_kpi = (body.get("hero_kpis") or {}).get("spend") or {}
-        assert float(spend_kpi.get("value_usd") or 0.0) >= 4.25
-        agent_rows = ((body.get("trends") or {}).get("spend_breakdown") or {}).get("agent") or []
-        assert agent_rows
-        assert agent_rows[0]["name"] == "composer"
+        assert "spend" not in body["hero_kpis"]
+        assert "spend_breakdown" not in body["trends"]
 
     def test_project_detail_and_api_scheduled_jobs_share_job_rows(self, client):
         try:
@@ -5891,7 +5890,7 @@ class TestUIProjection:
             },
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={
+            usage_breakdown={
                 "breakdown": [
                     {
                         "agent": "designer",
@@ -5899,10 +5898,9 @@ class TestUIProjection:
                         "calls": 2,
                         "tokens_prompt": 1200,
                         "tokens_completion": 800,
-                        "cost_usd": 1.42,
+                        "tokens_total": 2000,
                     }
                 ],
-                "total_cost_usd": 1.42,
             },
             project_name="Demo Project",
             failure_reason="",
@@ -5926,9 +5924,9 @@ class TestUIProjection:
             "along with the context Flow Steward needs to continue."
         )
         assert projection["previous_decisions"] == []
-        assert projection["cost_breakdown"]["total_cost_display"] == "$1.42"
+        assert projection["usage_breakdown"]["total_tokens"] == 2000
 
-    def test_project_job_detail_marks_unknown_cli_cost_as_unknown(self):
+    def test_project_job_detail_preserves_tokens_without_a_known_model(self):
         from core.application.reports.ui_projection import project_job_detail
 
         projection = project_job_detail(
@@ -5941,7 +5939,7 @@ class TestUIProjection:
                 "started_at": "2026-03-24T09:12:00+00:00",
             },
             runtime={"current_step_id": "development", "active_agent": "composer"},
-            cost_breakdown={
+            usage_breakdown={
                 "breakdown": [
                     {
                         "agent": "composer",
@@ -5950,26 +5948,18 @@ class TestUIProjection:
                         "tokens_prompt": 22000,
                         "tokens_completion": 32,
                         "tokens_total": 22032,
-                        "cost_usd": None,
-                        "known_cost_usd": 0.0,
-                        "unknown_cli_tokens": 22032,
-                        "cost_knownness": "unknown",
                     }
                 ],
-                "total_cost_usd": 0.0,
-                "known_cost_usd": 0.0,
-                "unknown_cli_tokens": 22032,
-                "cost_knownness": "unknown",
             },
             project_name="Demo Project",
             failure_reason="",
             user_role="operator",
         )
 
-        row = projection["cost_breakdown"]["rows"][0]
-        assert row["cost_display"] == "Unknown"
-        assert row["cost_knownness"] == "unknown"
-        assert projection["cost_breakdown"]["unknown_cli_tokens"] == 22032
+        row = projection["usage_breakdown"]["rows"][0]
+        assert row["tokens"] == 22032
+        assert row["model"] == "Unspecified"
+        assert projection["usage_breakdown"]["total_tokens"] == 22032
 
     def test_project_job_detail_autonomy_gate_builds_user_facing_workspace(self):
         from core.application.reports.ui_projection import project_job_detail
@@ -6018,7 +6008,7 @@ class TestUIProjection:
             },
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="operator",
@@ -6051,7 +6041,7 @@ class TestUIProjection:
             events=[],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="operator",
@@ -6115,7 +6105,7 @@ class TestUIProjection:
             events=[],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="operator",
@@ -6176,7 +6166,7 @@ class TestUIProjection:
             events=[],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="Worker process died",
             user_role="operator",
@@ -6226,7 +6216,7 @@ class TestUIProjection:
             events=[],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="Worker process interrupted",
             user_role="operator",
@@ -6262,7 +6252,7 @@ class TestUIProjection:
                 }
             ],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="admin",
@@ -6285,7 +6275,7 @@ class TestUIProjection:
             runtime={"current_step_id": "delivery"},
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="viewer",
@@ -6314,7 +6304,7 @@ class TestUIProjection:
             runtime={"current_step_id": "implementation"},
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="viewer",
@@ -6356,7 +6346,7 @@ class TestUIProjection:
             ],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="operator",
@@ -6396,7 +6386,7 @@ class TestUIProjection:
             ],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="operator",
@@ -6443,7 +6433,7 @@ class TestUIProjection:
             ],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="viewer",
@@ -6494,7 +6484,7 @@ class TestUIProjection:
             ],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="viewer",
@@ -6551,7 +6541,7 @@ class TestUIProjection:
             ],
             approval_history=[],
             decision_overrides=[],
-            cost_breakdown={"breakdown": [], "total_cost_usd": 0.0},
+            usage_breakdown={"breakdown": []},
             project_name="Demo Project",
             failure_reason="",
             user_role="viewer",
@@ -7154,7 +7144,7 @@ def _restricted_job_read_case(identity=None, *, restricted=True):
         "id": PROJECT_UUID,
         "account_id": DEFAULT_ACCOUNT_ID,
     }
-    bl.get_job_cost_summary.return_value = {}
+    bl.get_job_usage_summary.return_value = {}
     runtime = AsyncMock(return_value={"current_step_id": "work"})
     artifact = MagicMock()
     service = JobQueryService(
@@ -7189,7 +7179,7 @@ def test_restricted_job_status_denies_foreign_workflow_before_projection(include
                 include_workflow_result=include_result,
             )
         )
-    bl.get_job_cost_summary.assert_not_called()
+    bl.get_job_usage_summary.assert_not_called()
     runtime.assert_not_awaited()
     artifact.assert_not_called()
 
@@ -7212,7 +7202,7 @@ def test_restricted_job_status_accepts_canonical_durable_workflow_encodings(iden
     result = asyncio.run(service.get_job_status("job-restricted", scope=scope)).dump()
     assert result["id"] == "job-restricted"
     assert result["status"] == "in_progress"
-    bl.get_job_cost_summary.assert_called_once_with("job-restricted")
+    bl.get_job_usage_summary.assert_called_once_with("job-restricted")
     runtime.assert_awaited_once()
 
 
@@ -7240,7 +7230,7 @@ def test_restricted_job_status_rejects_missing_or_lower_priority_workflow_author
     service, bl, runtime, artifact, scope = _restricted_job_read_case(identity)
     with pytest.raises(ServiceForbiddenError):
         asyncio.run(service.get_job_status("job-restricted", scope=scope))
-    bl.get_job_cost_summary.assert_not_called()
+    bl.get_job_usage_summary.assert_not_called()
     runtime.assert_not_awaited()
     artifact.assert_not_called()
 
@@ -7284,7 +7274,7 @@ def test_restricted_job_read_preserves_existing_access_error_controls(failure, e
         bl.get_project.side_effect = RuntimeError("database unavailable")
     with pytest.raises(error):
         asyncio.run(service.get_job_status("job-restricted", scope=scope))
-    bl.get_job_cost_summary.assert_not_called()
+    bl.get_job_usage_summary.assert_not_called()
     runtime.assert_not_awaited()
 
 
@@ -7328,3 +7318,39 @@ def test_restricted_job_children_omit_child_without_durable_workflow_identity():
     result = service.get_child_invocations("job-restricted", scope=scope)
     assert [entry["child_job_id"] for entry in result["invocations"]] == ["child-allowed"]
     assert result["truncated"] is False
+
+
+def test_job_usage_breakdown_preserves_model_tokens_and_calls_only():
+    store = MagicMock()
+    store.get_job_usage_breakdown.return_value = [
+        {
+            "agent": "composer",
+            "model_used": "custom-model",
+            "calls": 2,
+            "tokens_prompt": 11,
+            "tokens_completion": 7,
+            "tokens_total": 18,
+        },
+    ]
+    service = JobQueryService(
+        get_logger=lambda: store,
+        serialize_attention_job_row=lambda row: row,
+        serialize_awaiting_approval_job_row=lambda row: row,
+        job_attention_group=lambda *_: "running",
+        build_runtime_payload_for_api=AsyncMock(return_value={}),
+    )
+    with patch.object(service, "_job_context", return_value=(store, {}, None)):
+        payload = service.get_usage_breakdown("job-usage").dump()
+    assert payload == {
+        "breakdown": [
+            {
+                "agent": "composer",
+                "model_used": "custom-model",
+                "calls": 2,
+                "tokens_prompt": 11,
+                "tokens_completion": 7,
+                "tokens_total": 18,
+            }
+        ]
+    }
+    store.get_job_usage_breakdown.assert_called_once_with("job-usage")

@@ -26,7 +26,7 @@ import { PlatformExecutionWaterfall } from './components/platform-execution-wate
 import { PlatformReviewWorkspace } from './components/platform-review-workspace.js';
 import { PlatformEvidenceCard } from './components/platform-evidence-card.js';
 import { PlatformChart } from './components/platform-chart.js';
-import { PlatformCostBreakdown } from './components/platform-cost-breakdown.js';
+import { PlatformUsageBreakdown } from './components/platform-usage-breakdown.js';
 
 // Data Entry
 import { PlatformForm } from './components/platform-form.js';
@@ -62,7 +62,7 @@ const FS_ELEMENTS = {
   'platform-review-workspace': PlatformReviewWorkspace,
   'platform-evidence-card': PlatformEvidenceCard,
   'platform-chart': PlatformChart,
-  'platform-cost-breakdown': PlatformCostBreakdown,
+  'platform-usage-breakdown': PlatformUsageBreakdown,
   'platform-form':         PlatformForm,
   'platform-fieldset':     PlatformFieldset,
   'platform-repeater':     PlatformRepeater,
@@ -100,7 +100,7 @@ const MANIFEST_TYPE_MAP = {
   review_workspace: 'platform-review-workspace',
   evidence_card: 'platform-evidence-card',
   chart: 'platform-chart',
-  cost_breakdown: 'platform-cost-breakdown',
+  usage_breakdown: 'platform-usage-breakdown',
   confirm_action: 'platform-confirm',
   drawer_detail:  'platform-drawer',
   status_badge:   'platform-badge',

@@ -49,7 +49,7 @@ _api_error_response: Callable[..., JSONResponse] = _default_api_error_response
 
 def _require_dashboard_ports(job_store: Any, slo_store: Any) -> None:
     missing: list[str] = []
-    for name in ("list_jobs_for_attention", "get_jobs_cost_summary"):
+    for name in ("list_jobs_for_attention", "get_jobs_usage_summary"):
         if not callable(getattr(job_store, name, None)):
             missing.append(name)
     if _helpers._DASHBOARD_ROLLUP_READ_ENABLED:
@@ -229,10 +229,10 @@ def create_dashboard_metrics_router(
     return router
 
 
-_dashboard_fetch_cost_by_job = _helpers._dashboard_fetch_cost_by_job
+_dashboard_fetch_usage_by_job = _helpers._dashboard_fetch_usage_by_job
 
 
 __all__ = [
-    "_dashboard_fetch_cost_by_job",
+    "_dashboard_fetch_usage_by_job",
     "create_dashboard_metrics_router",
 ]

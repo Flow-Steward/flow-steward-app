@@ -1,12 +1,12 @@
-"""Reusable helpers for job cost aggregation queries."""
+"""Reusable helpers for job usage aggregation queries."""
 
 from __future__ import annotations
 
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 
 
-def get_job_cost_summary(*, conn, job_id: str, logger) -> dict:
-    """Return aggregated token and cost totals for a job."""
+def get_job_usage_summary(*, conn, job_id: str, logger) -> dict:
+    """Return aggregated token usage totals for a job."""
     try:
         with conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
             cur.execute(
@@ -14,17 +14,9 @@ def get_job_cost_summary(*, conn, job_id: str, logger) -> dict:
                 SELECT
                     COALESCE(SUM(tokens_prompt), 0)     AS tokens_prompt,
                     COALESCE(SUM(tokens_completion), 0) AS tokens_completion,
-                    COALESCE(SUM(tokens_total), 0)      AS tokens_total,
-                    COALESCE(SUM(cost_usd), 0)          AS cost_usd,
-                    COALESCE(SUM(
-                        COALESCE(tokens_total, tokens_prompt, 0)
-                        + CASE WHEN tokens_total IS NULL THEN COALESCE(tokens_completion, 0) ELSE 0 END
-                    ) FILTER (
-                        WHERE cost_usd IS NULL
-                          AND COALESCE(tokens_total, tokens_prompt, tokens_completion, 0) > 0
-                    ), 0)                               AS unknown_cli_tokens,
+                    COALESCE(SUM(COALESCE(tokens_total, tokens_prompt + tokens_completion)), 0)      AS tokens_total,
                     COUNT(*) FILTER (
-                        WHERE cost_usd IS NOT NULL
+                        WHERE action_type = 'llm_call'
                            OR model_used IS NOT NULL
                            OR COALESCE(tokens_total, tokens_prompt, tokens_completion, 0) > 0
                     ) AS llm_calls,
@@ -33,14 +25,14 @@ def get_job_cost_summary(*, conn, job_id: str, logger) -> dict:
                         FROM (
                             SELECT
                                 NULLIF(BTRIM(agent), '') AS agent_key,
-                                COALESCE(SUM(COALESCE(cost_usd, 0)), 0) AS agent_cost,
+                                COALESCE(SUM(COALESCE(tokens_total, tokens_prompt + tokens_completion)), 0) AS agent_tokens,
                                 MAX(timestamp) AS last_seen
                             FROM platform_action_log
                             WHERE job_id = %s
                             GROUP BY NULLIF(BTRIM(agent), '')
                         ) AS ranked
                         WHERE ranked.agent_key IS NOT NULL
-                        ORDER BY ranked.agent_cost DESC, ranked.last_seen DESC
+                        ORDER BY ranked.agent_tokens DESC, ranked.last_seen DESC
                         LIMIT 1
                     ) AS dominant_agent
                 FROM platform_action_log
@@ -50,12 +42,12 @@ def get_job_cost_summary(*, conn, job_id: str, logger) -> dict:
             )
             return dict(cur.fetchone() or {})
     except Exception as exc:
-        logger.debug("get_job_cost_summary failed (non-fatal): %s", exc)
+        logger.debug("get_job_usage_summary failed (non-fatal): %s", exc)
         return {}
 
 
-def get_jobs_cost_summary(*, conn, job_ids: list[str], logger) -> dict[str, dict]:
-    """Return aggregated token and cost totals for many jobs in one query."""
+def get_jobs_usage_summary(*, conn, job_ids: list[str], logger) -> dict[str, dict]:
+    """Return aggregated token usage totals for many jobs in one query."""
     try:
         normalized_ids: list[str] = []
         for raw in job_ids or []:
@@ -75,17 +67,9 @@ def get_jobs_cost_summary(*, conn, job_ids: list[str], logger) -> dict[str, dict
                         job_id,
                         COALESCE(SUM(tokens_prompt), 0)     AS tokens_prompt,
                         COALESCE(SUM(tokens_completion), 0) AS tokens_completion,
-                        COALESCE(SUM(tokens_total), 0)      AS tokens_total,
-                        COALESCE(SUM(cost_usd), 0)          AS cost_usd,
-                        COALESCE(SUM(
-                            COALESCE(tokens_total, tokens_prompt, 0)
-                            + CASE WHEN tokens_total IS NULL THEN COALESCE(tokens_completion, 0) ELSE 0 END
-                        ) FILTER (
-                            WHERE cost_usd IS NULL
-                              AND COALESCE(tokens_total, tokens_prompt, tokens_completion, 0) > 0
-                        ), 0)                               AS unknown_cli_tokens,
+                        COALESCE(SUM(COALESCE(tokens_total, tokens_prompt + tokens_completion)), 0)      AS tokens_total,
                         COUNT(*) FILTER (
-                            WHERE cost_usd IS NOT NULL
+                            WHERE action_type = 'llm_call'
                                OR model_used IS NOT NULL
                                OR COALESCE(tokens_total, tokens_prompt, tokens_completion, 0) > 0
                         ) AS llm_calls
@@ -99,13 +83,13 @@ def get_jobs_cost_summary(*, conn, job_ids: list[str], logger) -> dict[str, dict
                         ranked.agent_key AS dominant_agent,
                         ROW_NUMBER() OVER (
                             PARTITION BY ranked.job_id
-                            ORDER BY ranked.agent_cost DESC, ranked.last_seen DESC
+                            ORDER BY ranked.agent_tokens DESC, ranked.last_seen DESC
                         ) AS rn
                     FROM (
                         SELECT
                             job_id,
                             NULLIF(BTRIM(agent), '') AS agent_key,
-                            COALESCE(SUM(COALESCE(cost_usd, 0)), 0) AS agent_cost,
+                            COALESCE(SUM(COALESCE(tokens_total, tokens_prompt + tokens_completion)), 0) AS agent_tokens,
                             MAX(timestamp) AS last_seen
                         FROM platform_action_log
                         WHERE job_id = ANY(%s)
@@ -118,8 +102,6 @@ def get_jobs_cost_summary(*, conn, job_ids: list[str], logger) -> dict[str, dict
                     t.tokens_prompt,
                     t.tokens_completion,
                     t.tokens_total,
-                    t.cost_usd,
-                    t.unknown_cli_tokens,
                     t.llm_calls,
                     ra.dominant_agent
                 FROM totals t
@@ -142,8 +124,6 @@ def get_jobs_cost_summary(*, conn, job_ids: list[str], logger) -> dict[str, dict
             "tokens_prompt": 0,
             "tokens_completion": 0,
             "tokens_total": 0,
-            "cost_usd": 0.0,
-            "unknown_cli_tokens": 0,
             "llm_calls": 0,
             "dominant_agent": None,
         }
@@ -151,5 +131,5 @@ def get_jobs_cost_summary(*, conn, job_ids: list[str], logger) -> dict[str, dict
             by_job.setdefault(job_id, dict(zero))
         return by_job
     except Exception as exc:
-        logger.debug("get_jobs_cost_summary failed (non-fatal): %s", exc)
+        logger.debug("get_jobs_usage_summary failed (non-fatal): %s", exc)
         return {}

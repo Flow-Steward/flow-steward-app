@@ -40,8 +40,8 @@ export function detailLifecycleApproval(detailEntity: Entity): Entity {
   return objectOrEmpty(detailLifecycle(detailEntity).approval);
 }
 
-export function detailLifecycleCosts(detailEntity: Entity): Entity {
-  return objectOrEmpty(detailLifecycle(detailEntity).costs);
+export function detailLifecycleUsage(detailEntity: Entity): Entity {
+  return objectOrEmpty(detailLifecycle(detailEntity).usage);
 }
 
 export function detailSelectedStepProjection(detailEntity: Entity): Entity {
@@ -93,20 +93,20 @@ export function detailReviewWorkspaceProjection(detailEntity: Entity): Entity {
   return objectOrEmpty(detailEntity.review_workspace);
 }
 
-export function detailCostBreakdownProjection(detailEntity: Entity): Entity {
-  const sectionCosts = objectOrEmpty(detailSections(detailEntity).cost_breakdown);
-  if (Object.keys(sectionCosts).length) {
-    return sectionCosts;
+export function detailUsageBreakdownProjection(detailEntity: Entity): Entity {
+  const sectionUsage = objectOrEmpty(detailSections(detailEntity).usage_breakdown);
+  if (Object.keys(sectionUsage).length) {
+    return sectionUsage;
   }
-  const lifecycleCosts = detailLifecycleCosts(detailEntity);
-  if (Object.keys(lifecycleCosts).length) {
-    return lifecycleCosts;
+  const lifecycleUsage = detailLifecycleUsage(detailEntity);
+  if (Object.keys(lifecycleUsage).length) {
+    return lifecycleUsage;
   }
-  const projectionCosts = objectOrEmpty(detailProjection(detailEntity).cost_breakdown);
-  if (Object.keys(projectionCosts).length) {
-    return projectionCosts;
+  const projectionUsage = objectOrEmpty(detailProjection(detailEntity).usage_breakdown);
+  if (Object.keys(projectionUsage).length) {
+    return projectionUsage;
   }
-  return objectOrEmpty(detailEntity.cost_breakdown);
+  return objectOrEmpty(detailEntity.usage_breakdown);
 }
 
 export function detailPreviousDecisionRows(detailEntity: Entity): Entity[] {
@@ -358,7 +358,7 @@ export type CanonicalJobDetailView = {
     executionStepsPage: Entity;
     reviewWorkspace: Entity;
     previousDecisions: Entity[];
-    costBreakdown: Entity;
+    usageBreakdown: Entity;
     diagnostics: Entity;
   };
   projection: {
@@ -401,7 +401,7 @@ export function buildCanonicalJobDetailView({
       executionStepsPage: objectOrEmpty(detailSections(detailEntity).execution_steps_page),
       reviewWorkspace: detailReviewWorkspaceProjection(detailEntity),
       previousDecisions: detailPreviousDecisionRows(detailEntity),
-      costBreakdown: detailCostBreakdownProjection(detailEntity),
+      usageBreakdown: detailUsageBreakdownProjection(detailEntity),
       diagnostics: detailDiagnosticsProjection(detailEntity),
     },
     projection: {
@@ -521,9 +521,9 @@ export function mergeSectionsRecord(current: JobDetail | undefined, patch: Entit
       ...objectOrEmpty(sections.selected_step),
       ...objectOrEmpty(patch.selected_step),
     },
-    cost_breakdown: {
-      ...objectOrEmpty(sections.cost_breakdown),
-      ...objectOrEmpty(patch.cost_breakdown),
+    usage_breakdown: {
+      ...objectOrEmpty(sections.usage_breakdown),
+      ...objectOrEmpty(patch.usage_breakdown),
     },
     diagnostics: {
       ...objectOrEmpty(sections.diagnostics),
@@ -698,12 +698,8 @@ export function decisionDiagnosticsPatch(frameData: unknown, current?: JobDetail
   };
 }
 
-export function costBreakdownStreamPatch(frameRecord: Entity, current?: JobDetail): Entity {
-  const currentBreakdown = detailCostBreakdownProjection(objectOrEmpty(current as unknown));
-  const totalCostUsd =
-    finiteNumberOrNull(frameRecord.total_cost_usd) ??
-    finiteNumberOrNull(frameRecord.cost_usd) ??
-    finiteNumberOrNull(frameRecord.total_cost);
+export function usageBreakdownStreamPatch(frameRecord: Entity, current?: JobDetail): Entity {
+  const currentBreakdown = detailUsageBreakdownProjection(objectOrEmpty(current as unknown));
   const totalTokens =
     finiteNumberOrNull(frameRecord.total_tokens) ??
     finiteNumberOrNull(frameRecord.tokens_total) ??
@@ -711,31 +707,8 @@ export function costBreakdownStreamPatch(frameRecord: Entity, current?: JobDetai
 
   return {
     ...currentBreakdown,
-    ...(totalCostUsd !== null
-      ? {
-          total_cost_usd: totalCostUsd,
-          total_cost_display: firstReadableText(frameRecord.total_cost_display) || `$${totalCostUsd.toFixed(4)}`,
-        }
-      : {}),
     ...(totalTokens !== null ? { total_tokens: totalTokens } : {}),
-    ...(frameRecord.known_cost_usd !== undefined ? { known_cost_usd: frameRecord.known_cost_usd } : {}),
-    ...(frameRecord.unknown_cli_tokens !== undefined
-      ? { unknown_cli_tokens: frameRecord.unknown_cli_tokens }
-      : {}),
-    ...(frameRecord.cost_knownness !== undefined ? { cost_knownness: frameRecord.cost_knownness } : {}),
   };
-}
-
-export function costKnownnessDisplay(knownCostUsd: number, knownness: unknown, unknownTokens: number, t: I18nContextValue["t"] = fallbackContext.t): string {
-  const normalized = firstStringFromUnknownValue([knownness, ""]).trim().toLowerCase();
-  const knownDisplay = `$${knownCostUsd.toFixed(4)}`;
-  if (normalized === "partial" && unknownTokens > 0) {
-    return t("react.jobs.value1_known_unknown_cost_value2_tokens", "{value1} known + unknown cost ({value2} tokens)", { value1: String(knownDisplay), value2: String(unknownTokens.toLocaleString()) });
-  }
-  if (normalized === "unknown" && unknownTokens > 0) {
-    return t("react.jobs.unknown_cost_value1_tokens", "Unknown cost ({value1} tokens)", { value1: String(unknownTokens.toLocaleString()) });
-  }
-  return knownDisplay;
 }
 
 export type JobFinalAnswer = { source: string; outputs: Entity };
@@ -786,69 +759,20 @@ export function jobReportOutput(detailEntity: Entity): JobReportOutput | null {
   return { name, value: outputs[name] };
 }
 
-export type JobCostTotals = {
-  totalCostValue: number;
-  totalTokensValue: number;
-  unknownCliTokensValue: number;
-  totalCostKnownness: unknown;
-  totalCostDisplay: string;
-};
+export type JobUsageTotals = { totalTokensValue: number };
 
-/**
- * The cost card's totals, read from the same source as its rows. The compact
- * job detail always carries a cost section, but an empty one (no rows, zero
- * totals) when it skipped the ledger read; the rows then come from the
- * cost-breakdown endpoint, and so must the totals. Mixing the two showed a
- * real usage row next to "Total: $0.00 · Tokens: 0".
- */
-export function jobCostTotals({
-  projected,
-  breakdown,
-  detailCost,
-  rows,
-}: {
+/** Compact detail can omit usage rows; read totals from the same source as rows. */
+export function jobUsageTotals({ projected, breakdown, detailUsage, rows }: {
   projected: Entity;
   breakdown: Entity | undefined;
-  detailCost: Entity;
+  detailUsage: Entity;
   rows: Entity[];
-}, t: I18nContextValue["t"] = fallbackContext.t): JobCostTotals {
-  // The placeholder has no rows and nothing counted; a projection that carries
-  // totals (a live cost frame, say) stays authoritative even without rows.
-  const projectedEmpty =
-    !listFromUnknown(projected.rows).length &&
-    !(finiteNumberOrNull(projected.total_tokens) ?? 0) &&
-    !(finiteNumberOrNull(projected.known_cost_usd) ?? 0) &&
-    !(finiteNumberOrNull(projected.total_cost_usd) ?? 0);
+}): JobUsageTotals {
+  const projectedEmpty = !listFromUnknown(projected.rows).length && !(finiteNumberOrNull(projected.total_tokens) ?? 0);
   const source = projectedEmpty ? objectOrEmpty(breakdown) : projected;
+  const sourceTotal = source.total_tokens == null ? null : finiteNumberOrNull(source.total_tokens);
   const rowsTokens = rows.reduce((sum, row) => sum + (finiteNumberOrNull(row.tokens) ?? 0), 0);
-  const totalCostValue =
-    finiteNumberOrNull(source.known_cost_usd) ||
-    finiteNumberOrNull(source.total_cost_usd) ||
-    finiteNumberOrNull(detailCost.known_cost_usd) ||
-    finiteNumberOrNull(detailCost.cost_usd) ||
-    0;
-  const totalTokensValue =
-    finiteNumberOrNull(source.total_tokens) || rowsTokens || finiteNumberOrNull(detailCost.tokens_total) || 0;
-  const unknownCliTokensValue =
-    finiteNumberOrNull(source.unknown_cli_tokens) || finiteNumberOrNull(detailCost.unknown_cli_tokens) || 0;
-  const totalCostKnownness = source.cost_knownness || detailCost.cost_knownness || "known";
-  const totalCostDisplay =
-    firstReadableText(source.total_cost_display) ||
-    costKnownnessDisplay(totalCostValue, totalCostKnownness, unknownCliTokensValue, t);
-  return { totalCostValue, totalTokensValue, unknownCliTokensValue, totalCostKnownness, totalCostDisplay };
-}
-
-export function costRowDisplay(row: Entity, t: I18nContextValue["t"] = fallbackContext.t): string {
-  const projected = firstReadableText(row.cost_display);
-  if (projected) {
-    return projected;
-  }
-  const knownness = firstStringFromUnknownValue([row.cost_knownness, ""]).trim().toLowerCase();
-  if (knownness === "unknown") {
-    return t("dashboard.classic.breakdown.unknown_project", "Unknown");
-  }
-  const value = finiteNumberOrNull(row.known_cost_usd) ?? finiteNumberOrNull(row.cost_usd) ?? 0;
-  return `$${value.toFixed(4)}`;
+  return { totalTokensValue: sourceTotal ?? (rows.length ? rowsTokens : finiteNumberOrNull(detailUsage.tokens_total) ?? 0) };
 }
 
 export function projectIdFromPayload(payload: unknown): string | null {

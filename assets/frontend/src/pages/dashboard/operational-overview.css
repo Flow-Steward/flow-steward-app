@@ -4,8 +4,7 @@
  * MetricCard for the tiles, Segmented control for the range switch. No raw
  * color, radius, spacing or font size is introduced here.
  *
- * No chart lives here. Metric cards wrap in the responsive row; trend lines
- * belong to the spend block.
+ * Metric cards wrap in the responsive row.
  *
  * Design System gap: metric-card.md leaves clickable MetricCards open (Next
  * Pass 4) and publishes no responsive rules for 4/2/1-column rows (Next Pass 2).

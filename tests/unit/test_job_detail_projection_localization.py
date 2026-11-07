@@ -177,7 +177,6 @@ def test_completed_schedule_job_exposes_localization_keys_for_owned_projection_c
         ("started", "project_detail.jobs.grid.started"),
         ("duration", "jobs.columns.duration"),
         ("last_update", "react.jobs.last_update"),
-        ("current_cost", "react.jobs.current_cost"),
     ]
     assert projection["next_action"]["title_key"] == "react.jobs.no_action_required"
     assert projection["next_action"]["body_key"] == "react.jobs.completed_restart_help"

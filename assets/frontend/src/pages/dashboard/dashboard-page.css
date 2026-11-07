@@ -135,7 +135,7 @@
 
 .fs-dash__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--fs-right-context-rail-width);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--fs-dashboard-grid-gap);
   min-width: 0;
 }

@@ -206,6 +206,8 @@ def test_refresh_dashboard_job_facts_window_uses_uuid_safe_account_filter() -> N
 
     sql = "\n".join(call[0] for call in conn.cursor_obj.calls)
     assert result == {"deleted": 0, "inserted": 0}
+    assert "cost_usd" not in sql
+    assert "ORDER BY ranked.agent_tokens DESC" in sql
     assert "COALESCE(p.account_id, %s::uuid)" in sql
     assert "COALESCE(p.account_id, %s::uuid) = %s::uuid" in sql
     assert "BTRIM(account_id)" not in sql

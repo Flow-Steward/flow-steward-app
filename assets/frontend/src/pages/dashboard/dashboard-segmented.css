@@ -1,8 +1,7 @@
 /* Segmented control, small density.
  *
  * One definition for the whole dashboard: the range switch in Operational
- * overview and the breakdown switch in Model spend are the same published
- * component, so they must not drift apart in two files.
+ * overview uses the published segmented component.
  *
  * Design System gap: --fs-segmented-item-selected-shadow resolves through
  * --fs-shadow-surface to --fs-shadow-default, which is `none`, so the "surface

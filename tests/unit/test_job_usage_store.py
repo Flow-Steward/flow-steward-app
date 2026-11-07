@@ -51,35 +51,32 @@ def _make_logger() -> PlatformLogger:
     return logger
 
 
-def test_get_job_cost_summary_returns_row_payload() -> None:
+def test_get_job_usage_summary_returns_row_payload() -> None:
     logger = _make_logger()
     logger.conn.fetchone_results = [
         {
             "tokens_prompt": 11,
             "tokens_completion": 7,
             "tokens_total": 18,
-            "cost_usd": 0.25,
-            "unknown_cli_tokens": 8159103,
             "llm_calls": 2,
             "dominant_agent": "composer",
         }
     ]
 
-    payload = logger.get_job_cost_summary(41)
+    payload = logger.get_job_usage_summary(41)
 
     sql, params = logger.conn.calls[-1]
     assert "FROM platform_action_log" in sql
-    assert "unknown_cli_tokens" in sql
     assert "model_used IS NOT NULL" in sql
-    assert "COALESCE(SUM(cost_usd), 0)" in sql
+    assert "cost_usd" not in sql
+    assert "agent_tokens DESC" in sql
     assert params == (41, 41)
     assert payload["tokens_total"] == 18
-    assert payload["unknown_cli_tokens"] == 8159103
     assert payload["llm_calls"] == 2
     assert payload["dominant_agent"] == "composer"
 
 
-def test_get_jobs_cost_summary_normalizes_ids_and_backfills_zero_rows() -> None:
+def test_get_jobs_usage_summary_normalizes_ids_and_backfills_zero_rows() -> None:
     logger = _make_logger()
     logger.conn.fetchall_results = [
         [
@@ -88,24 +85,20 @@ def test_get_jobs_cost_summary_normalizes_ids_and_backfills_zero_rows() -> None:
                 "tokens_prompt": 10,
                 "tokens_completion": 5,
                 "tokens_total": 15,
-                "cost_usd": 1.5,
-                "unknown_cli_tokens": 22032,
                 "llm_calls": 1,
                 "dominant_agent": "proofreader",
             }
         ]
     ]
 
-    payload = logger.get_jobs_cost_summary([11, "12", 11, 0, "bad"])
+    payload = logger.get_jobs_usage_summary([11, "12", 11, 0, "bad"])
 
     sql, params = logger.conn.calls[-1]
     assert "WHERE job_id = ANY(%s)" in sql
-    assert "t.unknown_cli_tokens" in sql
+    assert "unknown_cli_tokens" not in sql
     assert "model_used IS NOT NULL" in sql
-    assert "COALESCE(SUM(cost_usd), 0)" in sql
+    assert "cost_usd" not in sql
+    assert "agent_tokens DESC" in sql
     assert params == (["11", "12", "bad"], ["11", "12", "bad"])
     assert payload["11"]["dominant_agent"] == "proofreader"
-    assert payload["11"]["unknown_cli_tokens"] == 22032
-    assert payload["12"]["cost_usd"] == 0.0
-    assert payload["12"]["unknown_cli_tokens"] == 0
     assert payload["12"]["dominant_agent"] is None

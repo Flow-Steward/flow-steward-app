@@ -1004,7 +1004,7 @@ Task (web UI / REST API / provider webhook)
 - **Multi-model support** — OpenAI, Anthropic (Claude), Google (Gemini); per-project and per-agent overrides
 - **Custom tools** — define extra HTTP calls agents can use, per project
 - **Internal project context** — Postgres-backed project memory supplies scoped context to workflow runs without a standalone project screen
-- **Cost tracking** — per-LLM-call token and USD cost tracking shown on the job log page
+- **Token usage** — per-LLM-call token usage shown on the job log page
 - **Extension notifications** — outbound notifications through a notification-provider extension installed from the extension catalog
 - **Optional UI testing** — Playwright flow runner is available for local/audit images and explicit test workflows; it is not part of production workflow runs
 - **Job queue management** — per-project RabbitMQ queues; cancel pending/running jobs from the UI

@@ -7,14 +7,14 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+from core.application.reports.dashboard_metrics_helpers import _dashboard_fetch_usage_by_job
 from core.entrypoints.api.dashboard_metrics import create_dashboard_metrics_router
 
 
 class _JobMetricsStore:
-    def __init__(self, *, cost_usd: float | None = 1.25, unknown_cli_tokens: int = 0) -> None:
+    def __init__(self) -> None:
         self.calls = 0
-        self.cost_usd = cost_usd
-        self.unknown_cli_tokens = unknown_cli_tokens
+        self.usage_calls = 0
 
     def list_jobs_for_attention(self, **_kwargs):
         self.calls += 1
@@ -30,11 +30,13 @@ class _JobMetricsStore:
             }
         ]
 
-    def get_jobs_cost_summary(self, job_ids):
+    def get_jobs_usage_summary(self, job_ids):
+        self.usage_calls += 1
         return {
             str(job_id): {
-                "cost_usd": self.cost_usd,
-                "unknown_cli_tokens": self.unknown_cli_tokens,
+                "tokens_prompt": 100,
+                "tokens_completion": 25,
+                "tokens_total": 125,
                 "dominant_agent": "writer",
             }
             for job_id in job_ids
@@ -70,7 +72,7 @@ class _JobQueryService:
         }
 
 
-def test_dashboard_uses_job_store_for_population_and_cost_and_observability_for_rollups() -> None:
+def test_dashboard_uses_job_store_for_population_and_usage_and_observability_for_rollups() -> None:
     job_store = _JobMetricsStore()
     slo_store = _SloRollupStore()
     app = FastAPI()
@@ -100,7 +102,9 @@ def test_dashboard_uses_job_store_for_population_and_cost_and_observability_for_
 
     assert response.status_code == 200
     assert response.json()["hero_kpis"]["completed"]["value"] == 1
-    assert response.json()["hero_kpis"]["spend"]["value_usd"] == 1.25
+    assert "spend" not in response.json()["hero_kpis"]
+    assert "spend_breakdown" not in response.json()["trends"]
+    assert job_store.usage_calls == 2
     assert job_store.calls == 2
 
 
@@ -134,78 +138,23 @@ def test_dashboard_reports_unavailable_instead_of_false_zero_when_job_projection
 
     assert response.status_code == 503
     assert "list_jobs_for_attention" in response.json()["error"]
-    assert "get_jobs_cost_summary" in response.json()["error"]
+    assert "get_jobs_usage_summary" in response.json()["error"]
 
 
-def test_dashboard_renders_unknown_job_cost_as_unavailable_not_zero() -> None:
-    app = FastAPI()
-    app.include_router(
-        create_dashboard_metrics_router(
-            request_scope=lambda _request, **_kwargs: SimpleNamespace(account_id="account-1"),
-            get_logger_only=lambda: object(),
-            get_job_metrics_store=lambda: _JobMetricsStore(cost_usd=None),
-            get_slo_store=lambda: _SloRollupStore(),
-            job_query_service=lambda: _JobQueryService(),
-            service_error_response=lambda exc, *_args, **_kwargs: JSONResponse(
-                {"error": str(exc)}, status_code=503
-            ),
-            api_error_response=lambda exc, *_args, **_kwargs: JSONResponse(
-                {"error": str(exc)}, status_code=500
-            ),
-            dashboard_default_range="7d",
-            dashboard_range_hours={"7d": 168},
-            dashboard_metrics_page_size=100,
-            dashboard_metrics_max_rows=0,
-            dashboard_triage_limit=25,
-            dashboard_rollup_read_enabled=True,
-        )
-    )
+def test_dashboard_store_retains_token_totals_and_dominant_agent() -> None:
+    store = _JobMetricsStore()
 
-    response = TestClient(app).get("/api/dashboard/summary?range=7d")
+    usage = _dashboard_fetch_usage_by_job(bl=store, rows=[{"job_id": "job-1"}])
 
-    assert response.status_code == 200
-    spend = response.json()["hero_kpis"]["spend"]
-    assert spend["value_usd"] is None
-    assert spend["display"] == "Unavailable"
-    assert spend["availability"] == "unavailable"
-    assert spend["unknown_jobs"] == 1
-    project_spend = response.json()["trends"]["spend_breakdown"]["project"]
-    assert project_spend == [
-        {"name": "Project One", "spend_usd": None, "availability": "unavailable"}
-    ]
-
-
-def test_dashboard_keeps_known_subtotal_and_marks_mixed_cost_partial() -> None:
-    app = FastAPI()
-    app.include_router(
-        create_dashboard_metrics_router(
-            request_scope=lambda _request, **_kwargs: SimpleNamespace(account_id="account-1"),
-            get_logger_only=lambda: object(),
-            get_job_metrics_store=lambda: _JobMetricsStore(
-                cost_usd=0.116143, unknown_cli_tokens=900
-            ),
-            get_slo_store=lambda: _SloRollupStore(),
-            job_query_service=lambda: _JobQueryService(),
-            service_error_response=lambda exc, *_args, **_kwargs: JSONResponse(
-                {"error": str(exc)}, status_code=503
-            ),
-            api_error_response=lambda exc, *_args, **_kwargs: JSONResponse(
-                {"error": str(exc)}, status_code=500
-            ),
-            dashboard_default_range="7d",
-            dashboard_range_hours={"7d": 168},
-            dashboard_metrics_page_size=100,
-            dashboard_metrics_max_rows=0,
-            dashboard_triage_limit=25,
-            dashboard_rollup_read_enabled=True,
-        )
-    )
-
-    spend = TestClient(app).get("/api/dashboard/summary?range=7d").json()["hero_kpis"]["spend"]
-
-    assert spend["value_usd"] == 0.116143
-    assert spend["availability"] == "partial"
-    assert spend["unknown_jobs"] == 1
+    assert usage == {
+        "job-1": {
+            "tokens_prompt": 100,
+            "tokens_completion": 25,
+            "tokens_total": 125,
+            "dominant_agent": "writer",
+        }
+    }
+    assert store.usage_calls == 1
 
 
 def test_dashboard_group_counts_are_not_limited_to_triage_preview() -> None:

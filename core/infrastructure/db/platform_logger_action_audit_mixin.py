@@ -30,7 +30,6 @@ class PlatformLoggerActionAuditMixin:
         tokens_prompt=None,
         tokens_completion=None,
         tokens_total=None,
-        cost_usd=None,
         model_used=None,
     ):
         return action_log_store.log_action(
@@ -53,7 +52,6 @@ class PlatformLoggerActionAuditMixin:
             tokens_prompt=tokens_prompt,
             tokens_completion=tokens_completion,
             tokens_total=tokens_total,
-            cost_usd=cost_usd,
             model_used=model_used,
         )
 

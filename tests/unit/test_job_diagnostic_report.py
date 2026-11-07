@@ -55,7 +55,7 @@ def test_job_diagnostic_report_redacts_nested_secrets_and_lists_artifacts() -> N
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     encoded = json.dumps(report)
@@ -81,7 +81,7 @@ def test_job_diagnostic_report_redacts_json_sensitive_text_without_corrupting_js
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     assert "secret-token-123456789" not in json.dumps(report)
@@ -114,7 +114,7 @@ def test_job_diagnostic_report_scans_the_serialized_bundle_once(monkeypatch) -> 
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     assert len(report["messages"]) == 500
@@ -145,7 +145,7 @@ def test_job_diagnostic_report_splits_oversized_security_scans(monkeypatch) -> N
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     assert len(report["messages"]) == 4
@@ -166,7 +166,7 @@ def test_job_diagnostic_report_supports_old_jobs_without_new_step_fields() -> No
         runtime_journal=[],
         causal_chain={},
         decisions=[],
-        cost_breakdown={},
+        usage_breakdown={},
     )
 
     assert report["steps"] == [{"id": "old-step"}]
@@ -502,8 +502,8 @@ def test_query_service_report_collects_persisted_streams_without_artifact_bodies
         def get_causal_chain(self, *_args, **_kwargs):
             return SimpleNamespace(dump=lambda: {"nodes": [{"id": "node-1"}]})
 
-        def get_cost_breakdown(self, *_args, **_kwargs):
-            return SimpleNamespace(dump=lambda: {"total_cost_usd": 0.01})
+        def get_usage_breakdown(self, *_args, **_kwargs):
+            return SimpleNamespace(dump=lambda: {"breakdown": []})
 
     async def _detail_contract(**_kwargs):
         return {

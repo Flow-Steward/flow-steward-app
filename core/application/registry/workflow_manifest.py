@@ -328,7 +328,7 @@ class WorkflowManifest:
     groups: list[GroupConfig] = field(default_factory=list)
     for_each: list[ForEachConfig] = field(default_factory=list)
     participants: list[WorkflowParticipant] = field(default_factory=list)
-    settings: dict = field(default_factory=dict)  # max_total_cost, notifications, etc.
+    settings: dict = field(default_factory=dict)  # notifications and workflow runtime settings
     tags: list[str] = field(default_factory=list)
     public_contract: WorkflowPublicContract = field(default_factory=WorkflowPublicContract)
     builder_metadata: dict = field(default_factory=dict)

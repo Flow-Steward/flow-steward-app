@@ -26,7 +26,7 @@ _TOKEN_REPORTS_DIAGNOSTICS = "reports.diagnostics"
 
 REPORT_TYPE_CHOICES = (
     ChoiceItem(value="job_summary", label="Job summary"),
-    ChoiceItem(value="job_cost_breakdown", label="Job cost breakdown"),
+    ChoiceItem(value="job_usage_breakdown", label="Job usage breakdown"),
     ChoiceItem(value="activity_daily", label="Daily activity"),
     ChoiceItem(value="core_health_summary", label="Core health summary"),
     ChoiceItem(value="project_summary", label="Project summary"),
@@ -41,7 +41,7 @@ class ReportGenerateCommandInput(BaseModel):
 
     report_type: Literal[
         "job_summary",
-        "job_cost_breakdown",
+        "job_usage_breakdown",
         "activity_daily",
         "core_health_summary",
         "project_summary",

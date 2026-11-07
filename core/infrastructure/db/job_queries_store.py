@@ -381,7 +381,7 @@ def get_workflow_stats(
     account_id: str | None = None,
     workspace_id: str | None = None,
 ) -> dict[str, Any]:
-    """Aggregate job + cost statistics for a single workflow."""
+    """Aggregate job statistics for a single workflow."""
     where: list[str] = ["j.selected_workflow = %s"]
     params: list[Any] = [str(workflow_id)]
     if column_exists("jobs", "deleted_at"):
@@ -427,23 +427,6 @@ def get_workflow_stats(
         )
         row = dict(cur.fetchone() or {})
 
-        cost_where = list(where)
-        cost_where.append("a.action_type = 'llm_call'")
-        cost_where_sql = "WHERE " + SQL_AND.join(cost_where)
-        cur.execute(
-            f"""
-            SELECT
-                COALESCE(SUM(a.cost_usd), 0)::float                              AS total_cost_usd,
-                COUNT(DISTINCT a.job_id)                                         AS jobs_with_cost
-            FROM platform_action_log a
-            JOIN jobs j ON j.id = a.job_id
-            JOIN projects p ON p.id = j.project_id
-            {cost_where_sql}
-            """,
-            tuple(params),
-        )
-        cost_row = dict(cur.fetchone() or {})
-
     total_runs = int(row.get("total_runs") or 0)
     completed = int(row.get("completed_count") or 0)
     failed = int(row.get("failed_count") or 0)
@@ -451,9 +434,6 @@ def get_workflow_stats(
     cancelled = int(row.get("cancelled_count") or 0)
     finished_runs = completed + failed
     success_rate = (completed / finished_runs) if finished_runs > 0 else None
-    total_cost = float(cost_row.get("total_cost_usd") or 0.0)
-    jobs_with_cost = int(cost_row.get("jobs_with_cost") or 0)
-    avg_cost = (total_cost / total_runs) if total_runs > 0 else 0.0
     last_run_at = row.get("last_run_at")
     if isinstance(last_run_at, datetime):
         last_run_at = last_run_at.astimezone(UTC).isoformat()
@@ -467,9 +447,6 @@ def get_workflow_stats(
         "active_count": active,
         "cancelled_count": cancelled,
         "success_rate": success_rate,
-        "total_cost_usd": total_cost,
-        "avg_cost_per_run_usd": avg_cost,
-        "jobs_with_cost": jobs_with_cost,
         "last_run_at": last_run_at,
         "avg_duration_seconds": avg_duration_seconds,
     }

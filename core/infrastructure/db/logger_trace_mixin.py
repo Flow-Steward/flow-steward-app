@@ -231,9 +231,6 @@ class PlatformLoggerTraceMixin:
                         "tokens_prompt": row.get("tokens_prompt"),
                         "tokens_completion": row.get("tokens_completion"),
                         "tokens_total": row.get("tokens_total"),
-                        "cost_usd": float(row.get("cost_usd") or 0)
-                        if row.get("cost_usd") is not None
-                        else None,
                         "payload": _redact_trace_value(
                             _trace_json_value(row.get("payload"), default={})
                         ),

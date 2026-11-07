@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   detailStepLabel,
-  jobCostTotals,
+  jobUsageTotals,
   jobDetailPollingInterval,
   jobFinalAnswer,
   jobReportOutput,
@@ -28,35 +28,22 @@ describe("jobDetailPollingInterval", () => {
   });
 });
 
-describe("job cost totals", () => {
-  // What the compact job detail really sends: a cost section with no rows and
-  // zero totals, because it skipped the ledger read.
-  const emptyCompactSection = { rows: [], total_tokens: 0, total_cost_usd: 0, known_cost_usd: 0, total_cost_display: "$0.00", has_data: false };
-  const breakdown = { breakdown: [], total_cost_usd: 0.000171, known_cost_usd: 0.000171, unknown_cli_tokens: 0, cost_knownness: "known" };
-  const fallbackRows = [{ agent_label: "acme_answerer", model: "acme/model", tokens: 868, calls: 1 }];
-
-  it("reads the totals from the cost-breakdown endpoint when the rows come from it", () => {
-    const totals = jobCostTotals({ projected: emptyCompactSection, breakdown, detailCost: {}, rows: fallbackRows });
-
-    expect(totals.totalTokensValue).toBe(868);
-    expect(totals.totalCostValue).toBeCloseTo(0.000171);
-    expect(totals.totalCostDisplay).toBe("$0.0002");
+describe("job usage totals", () => {
+  const rows = [{ agent_label: "answerer", model: "unknown/model", tokens: 868, calls: 1 }];
+  it.each([
+    { projected: { rows, total_tokens: 0 }, breakdown: {} },
+    { projected: { rows: [], total_tokens: 0 }, breakdown: { total_tokens: 0 } },
+  ])("preserves an authoritative zero over fallback rows", ({ projected, breakdown }) => {
+    expect(jobUsageTotals({ projected, breakdown, detailUsage: { tokens_total: 99 }, rows })).toEqual({ totalTokensValue: 0 });
   });
-
-  it("keeps the projected totals when the projection carries the rows", () => {
-    const projected = { rows: fallbackRows, total_tokens: 900, known_cost_usd: 0.5, total_cost_display: "$0.50" };
-    const totals = jobCostTotals({ projected, breakdown, detailCost: {}, rows: fallbackRows });
-
-    expect(totals.totalTokensValue).toBe(900);
-    expect(totals.totalCostDisplay).toBe("$0.50");
+  it("retains tokens from the breakdown when the compact section is empty", () => {
+    expect(jobUsageTotals({ projected: { rows: [], total_tokens: 0 }, breakdown: {}, detailUsage: {}, rows })).toEqual({ totalTokensValue: 868 });
   });
-
-  it("keeps a projection that counted something even without rows, such as a live cost frame", () => {
-    const projected = { rows: [], total_tokens: 900, total_cost_usd: 2.5, total_cost_display: "$2.5000" };
-    const totals = jobCostTotals({ projected, breakdown, detailCost: {}, rows: fallbackRows });
-
-    expect(totals.totalTokensValue).toBe(900);
-    expect(totals.totalCostDisplay).toBe("$2.5000");
+  it("falls back to known rows when the total is explicitly unknown", () => {
+    expect(jobUsageTotals({ projected: {}, breakdown: { total_tokens: null }, detailUsage: {}, rows })).toEqual({ totalTokensValue: 868 });
+  });
+  it("keeps projected totals when the projection carries rows or live usage", () => {
+    expect(jobUsageTotals({ projected: { total_tokens: 900 }, breakdown: {}, detailUsage: {}, rows })).toEqual({ totalTokensValue: 900 });
   });
 });
 

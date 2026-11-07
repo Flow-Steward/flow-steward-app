@@ -37,7 +37,7 @@ from core.application.workflows.workflow_definition_service import (
     },
 )
 def get_workflow_stats(workflow_id: str, request: Request):
-    """Aggregate job + cost statistics for a workflow."""
+    """Aggregate job statistics for a workflow."""
     db = _get_db()
     wf, scope = _resolve_workflow_scope_target(db, request, workflow_id)
     if not wf:

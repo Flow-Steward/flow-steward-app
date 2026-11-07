@@ -61,7 +61,7 @@ class _JobDiagnosticQueries(Protocol):
 
     def get_causal_chain(self, *args: Any, **kwargs: Any) -> Any: ...
 
-    def get_cost_breakdown(self, *args: Any, **kwargs: Any) -> Any: ...
+    def get_usage_breakdown(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 class JobQueryServiceCoreMixin:
@@ -653,7 +653,7 @@ class JobQueryServiceCoreMixin:
                 if public_result is not None
                 else None
             )
-        cost = bl.get_job_cost_summary(job_id)
+        usage = bl.get_job_usage_summary(job_id)
         runtime = await self._build_runtime_payload_for_api(job, bl)
         terminal_job = str(job.get("status") or "").strip().lower() in _TERMINAL_JOB_STATUSES
         persisted_step = str(job.get("current_step_id") or "").strip()
@@ -702,14 +702,6 @@ class JobQueryServiceCoreMixin:
 
         sanitized_invocation, _ = _sanitize_invocation_value(invocation)
         invocation = sanitized_invocation if isinstance(sanitized_invocation, dict) else {}
-        unknown_cli_tokens = int((cost or {}).get("unknown_cli_tokens") or 0)
-        known_cost_usd = float((cost or {}).get("cost_usd") or 0)
-        if unknown_cli_tokens > 0 and known_cost_usd > 0:
-            cost_knownness = "partial"
-        elif unknown_cli_tokens > 0:
-            cost_knownness = "unknown"
-        else:
-            cost_knownness = "known"
         acknowledged_at = job.get("acknowledged_at")
         return JobStatusView(
             id=str(job["id"]),
@@ -739,15 +731,11 @@ class JobQueryServiceCoreMixin:
             workflow_result=workflow_result,
             trigger=job_trigger({**job, "meta": meta, "invocation": invocation}),
             runtime=runtime or {},
-            cost=JobCostSummaryView(
-                tokens_prompt=int((cost or {}).get("tokens_prompt") or 0),
-                tokens_completion=int((cost or {}).get("tokens_completion") or 0),
-                tokens_total=int((cost or {}).get("tokens_total") or 0),
-                cost_usd=known_cost_usd,
-                known_cost_usd=known_cost_usd,
-                unknown_cli_tokens=unknown_cli_tokens,
-                cost_knownness=cost_knownness,
-                llm_calls=int((cost or {}).get("llm_calls") or 0),
+            usage=JobUsageSummaryView(
+                tokens_prompt=int((usage or {}).get("tokens_prompt") or 0),
+                tokens_completion=int((usage or {}).get("tokens_completion") or 0),
+                tokens_total=int((usage or {}).get("tokens_total") or 0),
+                llm_calls=int((usage or {}).get("llm_calls") or 0),
             ),
             failure_summary=build_job_failure_summary(job=job, runtime=runtime or {}),
         )
@@ -886,7 +874,7 @@ class JobQueryServiceCoreMixin:
         )
         journal_view = diagnostic_queries.get_runtime_journal(str(job_id), limit=500, scope=scope)
         causal_view = diagnostic_queries.get_causal_chain(str(job_id), scope=scope)
-        cost_view = diagnostic_queries.get_cost_breakdown(str(job_id), scope=scope)
+        usage_view = diagnostic_queries.get_usage_breakdown(str(job_id), scope=scope)
 
         def _dump(value: Any) -> dict[str, Any]:
             if hasattr(value, "dump"):
@@ -912,7 +900,7 @@ class JobQueryServiceCoreMixin:
             runtime_journal=journal_payload.get("runtime_journal") or [],
             causal_chain=_dump(causal_view),
             decisions=decisions_payload.get("overrides") or [],
-            cost_breakdown=_dump(cost_view),
+            usage_breakdown=_dump(usage_view),
         )
 
     def get_workflow_run(

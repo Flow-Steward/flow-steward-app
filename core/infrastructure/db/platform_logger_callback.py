@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import time
 import traceback
 from collections.abc import Mapping
@@ -15,7 +14,6 @@ from core.application.observability.job_trace_context import (
     TRACE_CONTEXT_KEY,
     job_trace_carriers,
 )
-from core.application.observability.llm_costs import estimate_llm_cost_usd
 from core.application.observability.llm_usage import usage_from_llm_result
 from core.application.observability.workflow_telemetry import (
     OUTCOME_CANCELLED,
@@ -121,7 +119,7 @@ class PlatformLoggerCallback(BaseCallbackHandler):
         metadata=None,
         **_kwargs,
     ) -> None:
-        """Remember the selected route identity for exact cost resolution."""
+        """Remember the selected route identity for usage attribution."""
         del serialized, messages
         run_key = self._run_id_str(run_id)
         provider = str((metadata or {}).get("flow_steward_provider") or "").strip()
@@ -363,14 +361,6 @@ class PlatformLoggerCallback(BaseCallbackHandler):
                 "node_name": node_name,
             },
         )
-
-    @staticmethod
-    def _reported_cost_usd(llm_output: dict) -> float | None:
-        value = llm_output.get("cost_usd")
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None
-        normalized = float(value)
-        return normalized if math.isfinite(normalized) and normalized >= 0 else None
 
     # ------------------------------------------------------------------
     # LangChain callbacks
@@ -657,7 +647,7 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             logger.debug("on_chain_error runtime update failed (non-fatal): %s", e)
 
     def on_llm_end(self, response=None, *, run_id=None, name=None, **kwargs):
-        """Record one completed model call with its normalized usage and cost.
+        """Record one completed model call with its normalized token usage.
 
         A repeated callback for the same run is the same call and is recorded
         once; a retry is a new run and is recorded on its own.
@@ -702,22 +692,6 @@ class PlatformLoggerCallback(BaseCallbackHandler):
             )
             provider_type = started_provider_type or provider_identity
 
-            cost = self._reported_cost_usd(llm_output)
-            if (
-                cost is None
-                and usage is not None
-                and usage.input_tokens is not None
-                and usage.output_tokens is not None
-            ):
-                cost = estimate_llm_cost_usd(
-                    model,
-                    usage.uncached_input_tokens or 0,
-                    usage.output_tokens,
-                    usage.cache_write_tokens or 0,
-                    usage.cache_read_tokens or 0,
-                    provider=provider_type,
-                )
-
             parent_run_id = self._run_id_str(kwargs.get("parent_run_id"))
             self.logger.log_action(
                 self.project_id,
@@ -740,7 +714,6 @@ class PlatformLoggerCallback(BaseCallbackHandler):
                 tokens_prompt=usage.input_tokens if usage else None,
                 tokens_completion=usage.output_tokens if usage else None,
                 tokens_total=usage.total_tokens if usage else None,
-                cost_usd=cost,
                 model_used=model or None,
             )
         except Exception as e:

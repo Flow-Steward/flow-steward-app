@@ -328,7 +328,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
       if (url.pathname === `/api/jobs/${jobId}/definition`) return json({ job_id: jobId, available: false, workflow_id: "weekly_report" });
       if (url.pathname === `/api/v2/jobs/${jobId}/execution-steps`) return json({ job_id: jobId, run_terminal: true, child_invocations: [], steps,
         page: { count: steps.length, has_more: false, next_cursor: "" } });
-      if (url.pathname === `/api/jobs/${jobId}/cost-breakdown`) return json({ breakdown: [], total_cost_usd: 0 });
+      if (url.pathname === `/api/jobs/${jobId}/usage-breakdown`) return json({ breakdown: [], });
       if (url.pathname === `/api/jobs/${jobId}/approval`) return json({ job_id: jobId });
       if (url.pathname === `/api/jobs/${jobId}/approvals`) return json({ job_id: jobId, approvals: [] });
       if (url.pathname === `/api/jobs/${jobId}/decision-overrides`) return json({ job_id: jobId, overrides: [] });
@@ -603,7 +603,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
       if (url.pathname === `/api/jobs/${jobId}/approvals`) return json({ job_id: jobId, approvals: [] });
       if (url.pathname === `/api/jobs/${jobId}/definition`) return json({ job_id: jobId, available: false, workflow_id: "weekly_report" });
       if (url.pathname === `/api/v2/jobs/${jobId}/execution-steps`) return json({ job_id: jobId, run_terminal: approved, child_invocations: [], steps: [], page: { count: 0, has_more: false, next_cursor: "" } });
-      if (url.pathname === `/api/jobs/${jobId}/cost-breakdown`) return json({ breakdown: [], total_cost_usd: 0 });
+      if (url.pathname === `/api/jobs/${jobId}/usage-breakdown`) return json({ breakdown: [], });
       if (url.pathname === `/api/jobs/${jobId}/decision-overrides`) return json({ job_id: jobId, overrides: [] });
       return fallback(input, init);
     });
@@ -643,7 +643,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
       display_name: "Weekly Report",
       description: "Workflow-level description",
       enabled: true,
-      
+
       steps: [], groups: [],
     } as never);
     mockedFetchWorkflowDag.mockResolvedValueOnce({
@@ -686,7 +686,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
       display_name: "Weekly Report",
       description: "Workflow-level description",
       enabled: true,
-      
+
       steps: [], groups: [],
     } as never);
     mockedFetchWorkflowDag.mockResolvedValueOnce({

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import copy
 import json
-import math
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -307,9 +306,6 @@ class ExtensionChatModel(BaseChatModel):
         if usage is not None:
             # usage_metadata cannot hold an unknown count; this keeps it unknown.
             llm_output[LLM_OUTPUT_USAGE_KEY] = usage.as_dict()
-        reported_cost = _reported_cost_usd((result or {}).get("usage"))
-        if reported_cost is not None:
-            llm_output["cost_usd"] = reported_cost
         return ChatResult(
             generations=[ChatGeneration(message=ai_message)],
             llm_output=llm_output,
@@ -498,16 +494,6 @@ class ExtensionChatModel(BaseChatModel):
         raise ExtensionLLMError(
             f"extension provider '{self.provider_key}' call to '{op_id}' failed: {last_detail}"
         )
-
-
-def _reported_cost_usd(usage: Any) -> float | None:
-    if not isinstance(usage, dict):
-        return None
-    value = usage.get("cost_usd")
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    normalized = float(value)
-    return normalized if math.isfinite(normalized) and normalized >= 0 else None
 
 
 def _response_tool_calls(value: Any) -> list[dict[str, Any]]:

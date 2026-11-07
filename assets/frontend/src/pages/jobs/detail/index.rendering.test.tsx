@@ -11,6 +11,7 @@ import {
   mockedFetchJobDetail,
   mockedFetchJobExecutionStepsPage,
   mockedFetchJobIncident,
+  mockedFetchJobUsageBreakdown,
   primeApi,
   renderEmbeddedPage,
   renderPage,
@@ -46,6 +47,26 @@ afterEach(() => {
 });
 
 describe("JobsDetailPage canonical rendering", () => {
+  it.each([
+    { recordedTotal: 0, completion: 30, expectedTotal: 0 },
+    { recordedTotal: null, completion: 30, expectedTotal: 80 },
+    { recordedTotal: null, completion: null, expectedTotal: 0 },
+    { recordedTotal: 200, completion: 30, expectedTotal: 200 },
+  ])("shows effective raw usage tokens when recorded total is $recordedTotal and completion is $completion", async ({ recordedTotal, completion, expectedTotal }) => {
+    primeApi(jobPayload({ usage: {}, sections: { usage_breakdown: { rows: [], total_tokens: 0 } } }));
+    mockedFetchJobUsageBreakdown.mockResolvedValue({
+      breakdown: [{ agent: "Planner", model_used: "unknown/model", calls: 1,
+        tokens_prompt: 50, tokens_completion: completion, tokens_total: recordedTotal }],
+    });
+
+    renderPage();
+
+    const modelUsage = await screen.findByText(/unknown\/model/);
+    const usage = screen.getByTestId("job-usage-breakdown");
+    expect(modelUsage).toHaveTextContent(new RegExp(`\\b${expectedTotal} tokens · 1 calls\\b`));
+    expect(within(usage).getByText(`Tokens: ${expectedTotal}`)).toBeInTheDocument();
+  });
+
   it("lets each repeated loop execution open its own recorded inputs", async () => {
     primeApi(jobPayload({
       status: "completed",
@@ -777,19 +798,15 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
               summary: "Decision sourced from sections.",
             },
           ],
-          cost_breakdown: {
+          usage_breakdown: {
             rows: [
               {
                 agent_label: "Planner",
                 model: "gpt-5",
                 tokens: 200,
                 calls: 1,
-                cost_usd: 0.12,
-                cost_display: "$0.1200",
               },
             ],
-            total_cost_usd: 0.12,
-            total_cost_display: "$0.12",
           },
           diagnostics: {
             tabs: {
@@ -815,6 +832,10 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
     expect(await screen.findByRole("button", { name: /Section Step/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Stale Top Level Step/i })).not.toBeInTheDocument();
     expect(screen.getByText("Section review workspace")).toBeInTheDocument();
+    const usage = screen.getByTestId("job-usage-breakdown");
+    expect(within(usage).getByText("Planner")).toBeInTheDocument();
+    expect(within(usage).getByText(/gpt-5/)).toHaveTextContent("200 tokens · 1 calls");
+    expect(usage).not.toHaveTextContent(/cost|billable|\$/i);
   });
 
   it("prefers nested projection payload over stale top-level projection aliases", async () => {
@@ -950,19 +971,15 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
               summary: "Decision sourced from nested projection.",
             },
           ],
-          cost_breakdown: {
+          usage_breakdown: {
             rows: [
               {
                 agent_label: "Planner",
                 model: "gpt-5",
                 tokens: 200,
                 calls: 1,
-                cost_usd: 0.12,
-                cost_display: "$0.1200",
               },
             ],
-            total_cost_usd: 0.12,
-            total_cost_display: "$0.12",
           },
           diagnostics: {
             tabs: {

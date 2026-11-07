@@ -32,7 +32,6 @@ import {
 import { ReportView } from "@/components/report";
 import { useReportLabels } from "@/components/report/use-report-labels";
 import {
-  costRowDisplay,
   jobFinalAnswer,
   jobProjectionText,
   jobReportOutput,
@@ -80,7 +79,7 @@ type JobDetailPrimaryContentProps = {
   approvalSubmitting: boolean;
   canMutate: boolean;
   canonicalDetail: CanonicalJobDetailView;
-  costRows: Entity[];
+  usageRows: Entity[];
   decisionHistory: Entity[];
   detail: JobDetail | undefined;
   executionSteps: Entity[];
@@ -115,9 +114,7 @@ type JobDetailPrimaryContentProps = {
   stepInspectorHost?: DrawerGeometry | null;
   stepInspectorChrome?: ReactNode;
   submitApprovalFromWorkspace: (threadId: string, payload: ApprovalDecisionPayload) => Promise<void>;
-  totalCostDisplay: string;
   totalTokensValue: number;
-  unknownCliTokensValue: number;
   userTimezone: string;
 };
 
@@ -767,33 +764,26 @@ function JobDecisionHistoryCard({
   );
 }
 
-function JobCostBreakdownCard({
-  costRows,
-  totalCostDisplay,
+function JobUsageBreakdownCard({
+  usageRows,
   totalTokensValue,
-  unknownCliTokensValue,
 }: Readonly<JobDetailPrimaryContentProps>) {
   const { t } = useI18n();
   return (
-    <DsCard testId="job-cost-breakdown" title={t("jobs.detail.cost.title", "Cost and resource usage")}>
+    <DsCard testId="job-usage-breakdown" title={t("jobs.detail.usage.title", "Model usage")}>
       <div className="space-y-2">
         {createElement(
-          "platform-cost-breakdown",
+          "platform-usage-breakdown",
           {},
           <>
             <div className="flex flex-wrap items-center gap-2 fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-primary">
-              <span>{t("react.jobs.total", "Total:")} {totalCostDisplay}</span>
               <span>
                 {t("react.jobs.tokens", "Tokens:")} {firstStringFromUnknownValue([totalTokensValue, 0])}
               </span>
-              {unknownCliTokensValue > 0 ? (
-                <span>
-                  {t("react.jobs.unknown_cost_tokens", "Unknown-cost tokens:")} {unknownCliTokensValue.toLocaleString()}
-                </span>
-              ) : null}
+
             </div>
             <div className="mt-2 space-y-2">
-              {costRows.map((row, index) => (
+              {usageRows.map((row, index) => (
                 <div
                   className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-xs fs-ink-primary"
                   key={
@@ -815,7 +805,6 @@ function JobCostBreakdownCard({
                         "agent",
                       ])}
                     </span>
-                    <span>{costRowDisplay(row, t)}</span>
                   </div>
                   <p className="mt-1 fs-ink-tertiary">
                     {firstStringFromUnknownValue([
@@ -828,9 +817,9 @@ function JobCostBreakdownCard({
                   </p>
                 </div>
               ))}
-              {!costRows.length ? (
+              {!usageRows.length ? (
                 <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-secondary">
-                  {t("react.jobs.no_billable_model_usage_recorded_for_this_job", "No billable model usage recorded for this job.")} </div>
+                  {t("react.jobs.no_model_usage_recorded_for_this_job", "No model usage recorded for this job.")} </div>
               ) : null}
             </div>
           </>,
@@ -858,7 +847,7 @@ function LoadedJobDetailPrimaryContent(
       <JobExecutionWaterfall {...props} />
       <JobStepInspectorDrawer {...props} />
       <JobDecisionHistoryCard {...props} />
-      <JobCostBreakdownCard {...props} />
+      <JobUsageBreakdownCard {...props} />
     </>
   );
 }
@@ -884,9 +873,9 @@ function EmptyJobDetailPrimaryContent() {
         <p className="fs-empty-copy">
           {t("react.jobs.select_a_job_with_runtime_steps_to_inspect_details", "Select a job with runtime steps to inspect details.")} </p>
       </DsCard>
-      <DsCard testId="job-cost-breakdown" title={t("jobs.detail.cost.title", "Cost and resource usage")}>
+      <DsCard testId="job-usage-breakdown" title={t("jobs.detail.usage.title", "Model usage")}>
         <p className="fs-empty-copy">
-          {t("react.jobs.cost_telemetry_will_appear_once_billing_data_is_attached_to_this_run", "Cost telemetry will appear once billing data is attached to this run.")} </p>
+          {t("react.jobs.usage_telemetry_will_appear_once_model_usage_is_recorded", "Usage telemetry will appear once model usage is recorded.")} </p>
       </DsCard>
     </>
   );

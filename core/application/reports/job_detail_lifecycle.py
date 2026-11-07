@@ -81,7 +81,7 @@ def _build_lifecycle_contract(
     diagnostics = _payload_nested_dict(normalized_sections, "diagnostics")
     diagnostics_tabs = _payload_nested_dict(diagnostics, "tabs")
     diagnostics_root_cause = _payload_nested_dict(diagnostics, "root_cause")
-    cost_payload = _payload_nested_dict(normalized_sections, "cost_breakdown")
+    usage_payload = _payload_nested_dict(normalized_sections, "usage_breakdown")
     status_meta = job_status_meta(status_payload.get("status"))
     step = _step_payload(status_payload=status_payload, runtime=runtime)
     approval_state_code = _approval_state(
@@ -109,7 +109,7 @@ def _build_lifecycle_contract(
         "step": step,
         "runtime": dict(diagnostics_tabs.get("runtime") or {}),
         "errors": dict(diagnostics_tabs.get("errors") or {}),
-        "costs": cost_payload,
+        "usage": usage_payload,
         "approval": {
             "state": approval_state_code,
             "label": approval_meta["label"],

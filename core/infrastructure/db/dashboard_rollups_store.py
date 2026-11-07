@@ -168,8 +168,7 @@ def list_dashboard_job_facts(
                 result,
                 started_at,
                 finished_at,
-                duration_seconds,
-                cost_usd
+                duration_seconds
             FROM dashboard_job_facts
             {where_sql}
             ORDER BY finished_at DESC, job_id DESC
@@ -213,7 +212,6 @@ def list_dashboard_daily_rollups(
                 rollup_date,
                 completed_count,
                 failed_count,
-                spend_usd,
                 p50_seconds,
                 p95_seconds,
                 refreshed_at
@@ -563,27 +561,19 @@ def refresh_dashboard_job_facts_window(
                 JOIN projects p ON p.id = j.project_id
                 WHERE {where_sql}
             ),
-            cost_totals AS (
-                SELECT
-                    bal.job_id,
-                    COALESCE(SUM(COALESCE(bal.cost_usd, 0)), 0)::double precision AS cost_usd
-                FROM platform_action_log bal
-                JOIN in_scope_jobs sj ON sj.id = bal.job_id
-                GROUP BY bal.job_id
-            ),
             ranked_agents AS (
                 SELECT
                     ranked.job_id,
                     ranked.agent_key,
                     ROW_NUMBER() OVER (
                         PARTITION BY ranked.job_id
-                        ORDER BY ranked.agent_cost DESC, ranked.last_seen DESC
+                        ORDER BY ranked.agent_tokens DESC, ranked.last_seen DESC
                     ) AS rn
                 FROM (
                     SELECT
                         bal.job_id,
                         NULLIF(BTRIM(bal.agent), '') AS agent_key,
-                        COALESCE(SUM(COALESCE(bal.cost_usd, 0)), 0)::double precision AS agent_cost,
+                        COALESCE(SUM(COALESCE(NULLIF(bal.tokens_total, 0), COALESCE(bal.tokens_prompt, 0) + COALESCE(bal.tokens_completion, 0))), 0) AS agent_tokens,
                         MAX(bal.timestamp) AS last_seen
                     FROM platform_action_log bal
                     JOIN in_scope_jobs sj ON sj.id = bal.job_id
@@ -609,7 +599,6 @@ def refresh_dashboard_job_facts_window(
                 finished_at,
                 finished_date,
                 duration_seconds,
-                cost_usd,
                 refreshed_at
             )
             SELECT
@@ -629,11 +618,8 @@ def refresh_dashboard_job_facts_window(
                         THEN EXTRACT(EPOCH FROM (sj.finished_at - sj.started_at))::double precision
                     ELSE NULL
                 END AS duration_seconds,
-                COALESCE(ct.cost_usd, 0)::double precision AS cost_usd,
                 NOW()
             FROM in_scope_jobs sj
-            LEFT JOIN cost_totals ct
-                ON ct.job_id = sj.id
             LEFT JOIN dominant_agents da
                 ON da.job_id = sj.id
             WHERE sj.result IS NOT NULL
@@ -677,7 +663,6 @@ def refresh_dashboard_daily_rollups_window(
                 rollup_date,
                 completed_count,
                 failed_count,
-                spend_usd,
                 p50_seconds,
                 p95_seconds,
                 refreshed_at
@@ -687,7 +672,6 @@ def refresh_dashboard_daily_rollups_window(
                 finished_date AS rollup_date,
                 SUM(CASE WHEN result = 'completed' THEN 1 ELSE 0 END)::integer AS completed_count,
                 SUM(CASE WHEN result = 'failed' THEN 1 ELSE 0 END)::integer AS failed_count,
-                COALESCE(SUM(cost_usd), 0)::double precision AS spend_usd,
                 PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY duration_seconds)
                     FILTER (WHERE duration_seconds IS NOT NULL) AS p50_seconds,
                 PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_seconds)

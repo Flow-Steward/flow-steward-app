@@ -143,7 +143,7 @@ def _build_contract_payload(
     approval_gate: dict[str, Any],
     approval_history: list[dict[str, Any]],
     causal_chain: dict[str, Any],
-    cost_breakdown_raw: dict[str, Any],
+    usage_breakdown_raw: dict[str, Any],
     decision_overrides: list[dict[str, Any]],
     incident: dict[str, Any],
     job_errors: list[dict[str, Any]],
@@ -247,7 +247,7 @@ def _build_contract_payload(
     payload["approval_gate"] = _bounded_approval_gate(approval_gate)
     payload["approval_history"] = _bounded(approval_history)
     payload["causal_chain"] = _bounded(causal_chain)
-    payload["cost_breakdown_raw"] = _bounded(cost_breakdown_raw)
+    payload["usage_breakdown_raw"] = _bounded(usage_breakdown_raw)
     payload["decision_overrides"] = _bounded(decision_overrides)
     payload["incident"] = _bounded(incident)
     payload["job_errors"] = _bounded(job_errors)

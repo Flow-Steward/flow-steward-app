@@ -1478,13 +1478,13 @@ External webhook invocation belongs to CRM/ERP, forms, and other event providers
 | Jobs | `job_list(project_id="", workflow_id="", status="", group_by="", search="", page=1, per_page=25)` | Find scoped jobs without knowing job IDs; `group_by="attention"` groups one page of jobs for triage (`has_more` marks an incomplete answer). Status group keys select their whole group. |
 | Approvals | `job_approvals_pending(page=1, per_page=25)` | List one page (at most 200) of jobs awaiting approval in the current scope, with `total` and `has_more`. Queue failures return errors. |
 | Jobs | `job_result(job_id, include_messages_limit=100, include_logs_limit=50)` | Return an agent-friendly status/result/findings/artifacts bundle from the newest messages and logs. `completed` is true only for success; `terminal`, `outcome` and `truncated` qualify it. Both limits accept 1–2000; zero does not disable inclusion. |
-| Jobs | `job_status(job_id)` | Return bounded polling progress, current step/group, durable wait and cost. Active steps are capped at 32 and scalar text at 512 characters; counts and truncation indicators are included. Use the dedicated result, approval, errors and trace tools for detail. |
+| Jobs | `job_status(job_id)` | Return bounded polling progress, current step/group, durable wait and token usage. Active steps are capped at 32 and scalar text at 512 characters; counts and truncation indicators are included. Use the dedicated result, approval, errors and trace tools for detail. |
 | Jobs | `job_runtime_journal(job_id)` | Return runtime journal entries. |
 | Jobs | `job_decision_overrides(job_id, active_only=false, domain="", limit=200)` | List deterministic decision overrides. |
 | Jobs | `job_errors(job_id, limit=200)` | List structured job errors. |
 | Jobs | `job_trace(job_id, limit=1000)` | Return execution trace rows. |
 | Jobs | `job_incident(job_id, limit=100)` | Return incident drilldown data. |
-| Jobs | `job_cost_breakdown(job_id)` | Return token/cost details. |
+| Jobs | `job_usage_breakdown(job_id)` | Return token usage by model and agent. |
 | Jobs | `job_events(job_id, since_id="", limit=200)` | List domain events, optionally incrementally. |
 | Jobs | `job_messages(job_id, since_id="", before_id="", limit=200)` | List agent/runtime messages. |
 | Jobs | `job_logs(job_id, since_id="", before_id="", newest=false, limit=25)` | List job logs. Use `last_id` with `since_id` for newer entries, or `next_before_id` with `before_id` for older history. Terminal jobs open at the newest window by default. |
@@ -1495,7 +1495,7 @@ External webhook invocation belongs to CRM/ERP, forms, and other event providers
 | Lifecycle | `job_acknowledge(job_id, actor="")` | Mark a job as acknowledged. The token's user is the recorded actor; `actor` is journaled beside it. |
 | Lifecycle | `job_unacknowledge(job_id)` | Remove acknowledgment. |
 | Lifecycle | `job_restart(job_id)` | Re-enqueue a finished job with the same inputs. A running, queued or waiting (timer, child, approval) run is refused with a conflict. |
-| Reports | `report_generate(report_type, params=null, persist=true)` | Generate an operator report. `report_type` must be one of `job_summary`, `job_cost_breakdown`, `activity_daily`, `project_summary`, `project_stats`, `core_health_summary`; anything else returns `invalid_argument`. |
+| Reports | `report_generate(report_type, params=null, persist=true)` | Generate an operator report. `report_type` must be one of `job_summary`, `job_usage_breakdown`, `activity_daily`, `project_summary`, `project_stats`, `core_health_summary`; anything else returns `invalid_argument`. |
 | Reports | `report_get(report_id)` | Fetch a persisted report. |
 | Notifications | `project_notification_routes(project_name, enabled_only=false)` | List project notification routes. |
 | Notifications | `project_notification_deliveries(project_name, job_id="", limit=200)` | List notification delivery records. |
@@ -1613,7 +1613,7 @@ http://localhost:8099/jobs/{job_id}
   unavailable* for a run that pinned none; while the run waits, the Wait step's
   due time or a link to the child job it waits for; and the active lanes of a
   parallel group with their step and status
-- **💰 Cost summary** — token count and estimated USD cost displayed in the header once LLM calls start
+- **Token usage** — token counts displayed once LLM calls start
 - **Story checklist** — live per-story status panel (pending / in_progress / completed / failed)
 - **Cancel job** — available to administrators and operators for `pending`,
   `in_progress`, `running`, `resume_pending`, and `awaiting_approval` jobs
@@ -1680,7 +1680,7 @@ action that was already sent is not rolled back.
 From the deployment host:
 
 ```bash
-# Job status + cost summary
+# Job status + token usage summary
 ./flow-steward jobs show {job_id}
 
 # Incremental logs (use last_id from the previous response as --since-id)
@@ -1726,7 +1726,7 @@ Flow Steward keeps its own run/span trace model in the platform database. Use th
 
 - per-step execution order, including loop iterations and parallel lanes
 - prompt/tool/message linkage
-- token and cost summaries
+- token usage summaries
 - workflow/runtime state transitions
 
 ### RabbitMQ Management UI

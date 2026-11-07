@@ -215,7 +215,6 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/management/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/observability/job_trace_context.py \
-    core/application/observability/llm_costs.py \
     core/application/observability/llm_usage.py \
     core/application/observability/workflow_telemetry.py \
     core/application/observability/
@@ -282,7 +281,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/db/extension_release_membership_lock.py \
     core/infrastructure/db/job_admin_store.py \
     core/infrastructure/db/job_attachment_store.py \
-    core/infrastructure/db/job_cost_store.py \
+    core/infrastructure/db/job_usage_store.py \
     core/infrastructure/db/job_error_store.py \
     core/infrastructure/db/job_queries_store.py \
     core/infrastructure/db/job_scope_contract.py \

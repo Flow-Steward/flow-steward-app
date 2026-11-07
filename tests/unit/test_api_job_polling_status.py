@@ -149,7 +149,7 @@ def test_polling_http_real_service_enforces_pat_workflow_boundary(workflow, expe
         "thread_id": "thread-1",
     }
     bl.get_project.return_value = {"id": project_id, "account_id": DEFAULT_ACCOUNT_ID}
-    bl.get_job_cost_summary.return_value = {}
+    bl.get_job_usage_summary.return_value = {}
     runtime = AsyncMock(return_value={"current_step_id": "work", "private_debug": "not-public"})
     service = JobQueryService(
         get_logger=lambda: bl,
@@ -173,7 +173,7 @@ def test_polling_http_real_service_enforces_pat_workflow_boundary(workflow, expe
     assert response.status_code == expected, response.text
     if expected == 403:
         assert response.json() == {"error": "Access denied"}
-        bl.get_job_cost_summary.assert_not_called()
+        bl.get_job_usage_summary.assert_not_called()
         runtime.assert_not_awaited()
     else:
         result = response.json()
@@ -183,3 +183,18 @@ def test_polling_http_real_service_enforces_pat_workflow_boundary(workflow, expe
         assert "runtime" not in result
         assert "private_debug" not in result
         runtime.assert_awaited_once()
+
+
+def test_polling_status_returns_token_usage_summary():
+    usage = {"tokens_prompt": 11, "tokens_completion": 7, "tokens_total": 18, "llm_calls": 2}
+    response = _client(
+        {
+            "id": "job-1",
+            "status": "completed",
+            "task_summary": "Usage projection",
+            "usage": usage,
+        }
+    ).get("/api/jobs/job-1/status")
+    assert response.status_code == 200, response.text
+    assert response.json()["usage"] == usage
+    assert "cost" not in response.json()

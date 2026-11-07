@@ -40,7 +40,7 @@ class AgentOutput:
     artifacts: dict[str, Any]  # Named outputs matching manifest's outputs list
     summary: str  # Human-readable summary for orchestrator journal
     confidence: float = 1.0  # 0.0 - 1.0
-    metadata: dict = field(default_factory=dict)  # Telemetry: tokens, duration, model, cost
+    metadata: dict = field(default_factory=dict)  # Telemetry: tokens, duration, model
     operation_retry_signal: dict[str, Any] | None = None  # Host-owned runtime channel.
 
     def is_success(self) -> bool:

@@ -1132,7 +1132,7 @@ it("keeps actual ordinary-step marks updating with Results closed and resets the
       current_step_id: first ? "done" : "plan", started_at: started, finished_at: terminal ? "2026-10-18T12:24:00.033Z" : null,
       execution_steps: [], task_summary: "Run ordinary workflow from the builder.",
     };
-    else if (match[2] === "cost-breakdown") payload = { breakdown: [], total_cost_usd: 0 };
+    else if (match[2] === "usage-breakdown") payload = { breakdown: [], };
     else if (match[2] === "approval-history") payload = { job_id: jobId, approvals: [] };
     else if (match[2] === "decision-overrides") payload = { job_id: jobId, overrides: [] };
     else payload = { job_id: jobId };
@@ -2114,7 +2114,7 @@ function installRunBarFixture() {
       steps: [{ step_id: "plan", step_execution_id: `${id}-plan`, occurrence: 1, attempt: 1,
         status: real.status, started_at: "2026-10-18T12:00:00.000Z", finished_at: "2026-10-18T12:00:00.017Z", duration_ms: 17 }],
       page: { count: 1, has_more: false, next_cursor: "" } });
-    if (suffix === "cost-breakdown") return runBarJson({ breakdown: [], total_cost_usd: 0 });
+    if (suffix === "usage-breakdown") return runBarJson({ breakdown: [], });
     if (suffix === "approval-history") return runBarJson({ job_id: id, approvals: [] });
     if (suffix === "decision-overrides") return runBarJson({ job_id: id, overrides: [] });
     return runBarJson({ job_id: id });

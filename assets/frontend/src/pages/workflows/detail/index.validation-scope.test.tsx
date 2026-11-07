@@ -43,7 +43,7 @@ it("keeps a past owned result available after explicit history selection when th
     }
     if (path === `/api/jobs/${jobId}/definition`) return json({ job_id: jobId, available: true, workflow_id: "weekly_report", revision: 7, digest: "previous-success-archive", schema_version: 1, steps: [{ step_id: "plan", display_name: "Plan work", step_kind: "set_variable" }], groups: [], for_each: [], execution_graph: { schema_version: 1, entry: { kind: "step", id: "plan" }, edges: [] } });
     if (path === `/api/v2/jobs/${jobId}/execution-steps`) return json({ job_id: jobId, run_terminal: true, steps: [], child_invocations: [], page: { count: 0, has_more: false, next_cursor: "" } });
-    if (path === `/api/jobs/${jobId}/cost-breakdown`) return json({ breakdown: [], total_cost_usd: 0 });
+    if (path === `/api/jobs/${jobId}/usage-breakdown`) return json({ breakdown: [], });
     if (path === `/api/jobs/${jobId}/approval`) return json({ job_id: jobId, approvals: [] });
     if (path === `/api/jobs/${jobId}/decision-overrides`) return json({ job_id: jobId, overrides: [] });
     if (!original) throw new Error(`Missing fixture response for ${path}`);

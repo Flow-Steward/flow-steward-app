@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
-from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -81,16 +80,15 @@ def persisted_diagnostic_report(request, pg_conn, default_account):
             cur.execute(
                 "INSERT INTO platform_action_log "
                 "(id, project_id, job_id, timestamp, agent, action_type, status, "
-                "payload, cost_usd, tokens_total, model_used) "
+                "payload, tokens_total, model_used) "
                 "VALUES (%s, %s, %s, %s, 'fixture', 'diagnostic_fixture', 'ok', "
-                "%s::jsonb, %s, 3, 'fixture-model')",
+                "%s::jsonb, 3, 'fixture-model')",
                 (
                     log_id,
                     project_id,
                     job_id,
                     timestamp,
                     json.dumps({"password": marker, "ordinal": 1}),
-                    Decimal("0.000123"),
                 ),
             )
             cur.execute(
