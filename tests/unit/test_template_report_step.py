@@ -226,7 +226,10 @@ def test_the_regular_result_redaction_leaves_a_compiled_report_unchanged() -> No
     sessions = regions["fields"].index("sessions")
     tokens = regions["fields"].index("tokens_used")
     assert all(row[sessions] == 42 for row in regions["rows"])
-    assert all("abc123def456" not in row[tokens] for row in regions["rows"])
+    assert all(
+        "abc123def456" not in row[tokens]  # pragma: allowlist secret - synthetic marker
+        for row in regions["rows"]
+    )
 
     public = {"outputs": {"sales_report": report}, "artifacts": {}}
     assert redact(public) == public

@@ -131,7 +131,12 @@ def test_unknown_interface_fields_are_refused() -> None:
 
 SAMPLE = {"artifact_id": "art-1", "filename": "sample.csv", "size_bytes": 10}
 STORED_INPUTS = [
-    {"name": "api", "type": "secret", "required": True, "default_secret_ref": "ref-api"},
+    {
+        "name": "api",
+        "type": "secret",
+        "required": True,
+        "default_secret_ref": "ref-api",  # pragma: allowlist secret - synthetic test reference
+    },
     {"name": "upload", "type": "file", "required": False, "sample_file": SAMPLE},
     {"name": "region", "type": "string", "required": False},
 ]
@@ -184,7 +189,10 @@ def test_a_public_round_trip_keeps_secret_references_and_test_files() -> None:
     store = _authority_store()
     _apply(store, _inputs_patch(copy.deepcopy(PUBLIC_INPUTS)))
     saved = _saved_inputs(store)
-    assert saved["api"]["default_secret_ref"] == "ref-api"
+    assert (
+        saved["api"]["default_secret_ref"]
+        == "ref-api"  # pragma: allowlist secret - synthetic test reference
+    )
     assert saved["upload"]["sample_file"] == SAMPLE
     assert saved["region"]["required"] is True
     assert "default_configured" not in saved["api"]
@@ -194,7 +202,11 @@ def test_a_public_round_trip_keeps_secret_references_and_test_files() -> None:
     ("row", "field"),
     [
         (
-            {"name": "api", "type": "secret", "default_secret_ref": "ref-other"},
+            {
+                "name": "api",
+                "type": "secret",
+                "default_secret_ref": "ref-other",  # pragma: allowlist secret - synthetic test reference
+            },
             "default_secret_ref",
         ),
         (
@@ -202,7 +214,11 @@ def test_a_public_round_trip_keeps_secret_references_and_test_files() -> None:
             "sample_file",
         ),
         (
-            {"name": "fresh", "type": "secret", "default_secret_ref": "ref-api"},
+            {
+                "name": "fresh",
+                "type": "secret",
+                "default_secret_ref": "ref-api",  # pragma: allowlist secret - synthetic test reference
+            },
             "default_secret_ref",
         ),
     ],
@@ -220,7 +236,10 @@ def test_supplied_input_authority_is_refused(row: dict[str, Any], field: str) ->
 def test_echoing_the_stored_authority_is_accepted() -> None:
     store = _authority_store()
     _apply(store, _inputs_patch(copy.deepcopy(STORED_INPUTS)))
-    assert _saved_inputs(store)["api"]["default_secret_ref"] == "ref-api"
+    assert (
+        _saved_inputs(store)["api"]["default_secret_ref"]
+        == "ref-api"  # pragma: allowlist secret - synthetic test reference
+    )
 
 
 @pytest.mark.parametrize(
@@ -237,7 +256,11 @@ def test_authority_follows_only_the_same_field_and_type(rows: list, absent: str)
     _apply(store, _inputs_patch(rows))
     saved = _saved_inputs(store)
     assert "default_secret_ref" not in saved.get(absent, {})
-    assert all(row.get("default_secret_ref") != "ref-api" for row in saved.values())
+    assert all(
+        row.get("default_secret_ref")
+        != "ref-api"  # pragma: allowlist secret - synthetic test reference
+        for row in saved.values()
+    )
 
 
 def test_a_refused_interface_change_refuses_the_whole_set() -> None:
