@@ -34,27 +34,29 @@ INSTALLER_SPEC = CommandSpec(
             default="production",
             option_name="--environment",
             description=(
-                "Production installs the minimal runtime; Development installs the complete "
-                "contributor preset. AC17-R92: the default profile is Compact, which is a "
-                "production topology, so these two defaults have to agree -- otherwise the "
-                "questionnaire refuses its own default answers."
+                "Production runs the application. Development is for contributors "
+                "and requires restarting with --from-source."
             ),
         ),
         FieldSpec(
             key="deployment_profile",
-            label="Deployment profile",
+            label="How to run Flow Steward",
             type=FieldType.SINGLE_SELECT,
             choices=(
-                ChoiceItem(value="compact", label="Compact single-runtime deployment"),
-                ChoiceItem(value="scalable", label="Scalable multi-container runtime"),
+                ChoiceItem(
+                    value="compact",
+                    label="Compact — app and background workers together; fewer resources",
+                ),
+                ChoiceItem(
+                    value="scalable",
+                    label="Scalable — separate services; scale workers independently",
+                ),
             ),
             default="compact",
             option_name="--deployment-profile",
             description=(
-                "Runtime topology used for the production deployment. Compact runs the "
-                "whole platform as one runtime and is the default. Production uses published "
-                "images; local builds require --from-source. Scalable runs each service in its "
-                "own container."
+                "Compact keeps the app and background workers together and uses fewer "
+                "resources. Scalable separates services so workers can grow independently."
             ),
         ),
         FieldSpec(
@@ -69,17 +71,17 @@ INSTALLER_SPEC = CommandSpec(
         ),
         FieldSpec(
             key="ingress_mode",
-            label="Ingress owner",
+            label="Website access",
             type=FieldType.SINGLE_SELECT,
             choices=(
-                ChoiceItem(value="bundled_traefik", label="Bundled Traefik"),
-                ChoiceItem(value="external_traefik", label="Existing Traefik"),
-                ChoiceItem(value="external_proxy", label="Existing reverse proxy"),
-                ChoiceItem(value="platform", label="Hosting platform ingress"),
+                ChoiceItem(value="bundled_traefik", label="Let Flow Steward publish the site"),
+                ChoiceItem(value="external_traefik", label="Use my existing Traefik"),
+                ChoiceItem(value="external_proxy", label="Use my existing Nginx or Apache"),
+                ChoiceItem(value="platform", label="My hosting platform handles website access"),
             ),
             default="bundled_traefik",
             option_name="--ingress-mode",
-            description="Component that owns public routing and TLS.",
+            description="Choose how people will reach this website.",
         ),
         FieldSpec(
             key="worker_processes",
@@ -89,22 +91,23 @@ INSTALLER_SPEC = CommandSpec(
             option_name="--worker-processes",
             visible_if={"deployment_profile": "compact"},
             description="Number of queue-worker processes inside the Compact runtime.",
+            advanced=True,
         ),
         FieldSpec(
             key="file_storage",
             label="File storage",
             type=FieldType.SINGLE_SELECT,
             choices=(
-                ChoiceItem(value="local_fs", label="Local persistent filesystem"),
-                ChoiceItem(value="bundled", label="Bundled self-hosted storage"),
-                ChoiceItem(value="external_s3", label="External S3-compatible storage"),
+                ChoiceItem(
+                    value="bundled", label="Included SeaweedFS — managed with this installation"
+                ),
+                ChoiceItem(value="external_s3", label="My own S3-compatible storage"),
             ),
             default="bundled",
             option_name="--file-storage",
             description=(
-                "Storage backend selected for new artifacts. Scalable defaults to bundled "
-                "self-hosted storage; Compact uses the local persistent filesystem unless you "
-                "choose external S3-compatible storage here or pass --file-storage bundled."
+                "SeaweedFS is included by default. Choose external storage only if you "
+                "already have an S3-compatible service."
             ),
         ),
         FieldSpec(
@@ -151,19 +154,25 @@ INSTALLER_SPEC = CommandSpec(
             option_name="--allow-insecure-s3-http",
             visible_if={"file_storage": "external_s3"},
             description="Development only: explicitly allow an unencrypted S3 endpoint.",
+            advanced=True,
         ),
         FieldSpec(
             key="tls_mode",
-            label="Network and TLS",
+            label="HTTPS certificate",
             type=FieldType.SINGLE_SELECT,
             choices=(
-                ChoiceItem(value="local", label="Local/private generated certificate"),
-                ChoiceItem(value="self_signed", label="Hostname generated certificate"),
-                ChoiceItem(value="provided", label="Operator-provided certificate"),
-                ChoiceItem(value="acme", label="Bundled ACME certificate"),
+                ChoiceItem(
+                    value="local",
+                    label="Local/private trial — generated certificate, browser warning",
+                ),
+                ChoiceItem(
+                    value="self_signed", label="Generated certificate for my hostname (advanced)"
+                ),
+                ChoiceItem(value="provided", label="Use my certificate files"),
+                ChoiceItem(value="acme", label="Public HTTPS — free Let's Encrypt certificate"),
                 ChoiceItem(value="reverse_proxy", label="Existing reverse-proxy TLS"),
-                ChoiceItem(value="external_resolver", label="Existing Traefik resolver"),
-                ChoiceItem(value="external_certificate", label="Existing Traefik certificate"),
+                ChoiceItem(value="external_resolver", label="Traefik obtains the certificate"),
+                ChoiceItem(value="external_certificate", label="Use my certificate in Traefik"),
                 ChoiceItem(value="platform_managed", label="Hosting platform TLS"),
             ),
             default="local",
@@ -172,7 +181,7 @@ INSTALLER_SPEC = CommandSpec(
         ),
         FieldSpec(
             key="public_host",
-            label="Public host (domain or IP)",
+            label="Website domain or IP",
             type=FieldType.TEXT,
             default="localhost",
             option_name="--public-host",
@@ -188,6 +197,7 @@ INSTALLER_SPEC = CommandSpec(
             default=8099,
             option_name="--public-port",
             description="HTTPS/public endpoint port.",
+            advanced=True,
         ),
         FieldSpec(
             key="redirect_http_port",
@@ -230,6 +240,7 @@ INSTALLER_SPEC = CommandSpec(
             option_name="--reverse-proxy-backend-host",
             visible_if={"tls_mode": "reverse_proxy"},
             description="Loopback address exposed to the existing host reverse proxy.",
+            advanced=True,
         ),
         FieldSpec(
             key="reverse_proxy_backend_port",
@@ -239,6 +250,7 @@ INSTALLER_SPEC = CommandSpec(
             option_name="--reverse-proxy-backend-port",
             visible_if={"tls_mode": "reverse_proxy"},
             description="Private HTTP port used only by the existing host reverse proxy.",
+            advanced=True,
         ),
         FieldSpec(
             key="reverse_proxy_mcp_port",
@@ -252,11 +264,11 @@ INSTALLER_SPEC = CommandSpec(
         ),
         FieldSpec(
             key="proxy_placement",
-            label="Proxy placement",
+            label="Where does your web server run?",
             type=FieldType.SINGLE_SELECT,
             choices=(
-                ChoiceItem(value="host", label="Host"),
-                ChoiceItem(value="docker", label="Docker network"),
+                ChoiceItem(value="host", label="On this server"),
+                ChoiceItem(value="docker", label="In a Docker container"),
             ),
             default="host",
             option_name="--proxy-placement",
@@ -265,7 +277,7 @@ INSTALLER_SPEC = CommandSpec(
         ),
         FieldSpec(
             key="proxy_kind",
-            label="Proxy kind",
+            label="Which web server do you use?",
             type=FieldType.SINGLE_SELECT,
             choices=(
                 ChoiceItem(value="nginx", label="Nginx"),
@@ -331,7 +343,7 @@ INSTALLER_SPEC = CommandSpec(
         ),
         FieldSpec(
             key="acme_contact",
-            label="ACME contact",
+            label="Email for certificate renewal notices",
             type=FieldType.TEXT,
             option_name="--acme-contact",
             visible_if={"tls_mode": "acme"},
@@ -339,6 +351,7 @@ INSTALLER_SPEC = CommandSpec(
         ),
         FieldSpec(
             key="acme_directory_url",
+            default="https://acme-v02.api.letsencrypt.org/directory",
             label="ACME directory URL",
             type=FieldType.TEXT,
             option_name="--acme-directory-url",

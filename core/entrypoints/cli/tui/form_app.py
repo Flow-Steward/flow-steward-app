@@ -28,6 +28,8 @@ from core.entrypoints.cli.platform.input_resolution import (
 )
 
 ChoiceLoader = Callable[[str], tuple[ChoiceItem, ...] | Awaitable[tuple[ChoiceItem, ...]]]
+FieldResolver = Callable[[FieldSpec, dict[str, Any]], FieldSpec]
+ValuesNormalizer = Callable[[dict[str, Any], frozenset[str]], dict[str, Any]]
 
 MINIMUM_SIZE_MESSAGE = "Textual requires a terminal of at least 60x20; use --plain."
 
@@ -61,12 +63,18 @@ class CommandFormApp(App[FormOutcome]):
         terminal_size: tuple[int, int],
         color_enabled: bool = True,
         animation_enabled: bool = True,
+        field_resolver: FieldResolver | None = None,
+        values_normalizer: ValuesNormalizer | None = None,
     ) -> None:
         css_path = "theme.tcss" if color_enabled else "theme_monochrome.tcss"
         super().__init__(css_path=css_path, ansi_color=color_enabled)
         if not animation_enabled:
             self.animation_level = "none"
         self.spec = spec
+        self.field_resolver = field_resolver
+        self.values_normalizer = values_normalizer
+        self._fields = spec.fields
+        self._explicit_keys = set(initial_values)
         self.initial_values = dict(initial_values)
         self.choice_loader = choice_loader
         self.terminal_size = terminal_size
@@ -89,6 +97,7 @@ class CommandFormApp(App[FormOutcome]):
         self._draft_values: dict[str, Any] = {
             field.key: self._initial_seed(field) for field in spec.fields
         }
+        self._apply_context()
 
     def compose(self) -> ComposeResult:
         width, height = self.terminal_size
@@ -111,7 +120,7 @@ class CommandFormApp(App[FormOutcome]):
     async def on_mount(self) -> None:
         provider_results: dict[str, tuple[ChoiceItem, ...]] = {}
         failed_providers: set[str] = set()
-        for field in self.spec.fields:
+        for field in self._fields:
             provider = field.choice_provider
             if not provider:
                 continue
@@ -140,10 +149,16 @@ class CommandFormApp(App[FormOutcome]):
         self._focus_form_start()
 
     async def on_input_changed(self, event: Input.Changed) -> None:
+        if not event.input.is_mounted:
+            return
         field = self._field_from_widget_id(event.input.id or "")
         if field is None:
             return
         previous = self._draft_values.get(field.key)
+        if event.value != previous and not (
+            field.type is FieldType.INTEGER and str(previous) == event.value
+        ):
+            self._explicit_keys.add(field.key)
         self._draft_values[field.key] = event.value
         self._help_text = _field_help(field)
         self._field_errors = {
@@ -157,12 +172,16 @@ class CommandFormApp(App[FormOutcome]):
             await self._refresh_form_fields(event.input.id)
 
     async def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        if not event.checkbox.is_mounted:
+            return
         widget_id = event.checkbox.id or ""
         if not widget_id.startswith("choice-"):
             field = self._field_from_widget_id(widget_id)
             if field is not None and widget_id.startswith("field-"):
                 previous = self._draft_values.get(field.key)
                 self._draft_values[field.key] = event.checkbox.value
+                if previous != event.checkbox.value:
+                    self._explicit_keys.add(field.key)
                 if self._controller_visibility_changed(field.key, previous):
                     await self._refresh_form_fields(widget_id)
             return
@@ -176,17 +195,23 @@ class CommandFormApp(App[FormOutcome]):
         if field.type is not FieldType.SINGLE_SELECT:
             previous = self._draft_values.get(field.key)
             self._draft_values[field.key] = self._selected_choices(field)
+            if previous != self._draft_values[field.key]:
+                self._explicit_keys.add(field.key)
             if self._controller_visibility_changed(field.key, previous):
                 await self._refresh_form_fields(widget_id)
             return
         if not event.value:
             previous = self._draft_values.get(field.key)
             self._draft_values[field.key] = self._single_choice_value(field)
+            if previous != self._draft_values[field.key]:
+                self._explicit_keys.add(field.key)
             if self._controller_visibility_changed(field.key, previous):
                 await self._refresh_form_fields(widget_id)
             return
         previous = self._draft_values.get(field.key)
         self._draft_values[field.key] = selected
+        if previous != selected:
+            self._explicit_keys.add(field.key)
         for choice in self._choices.get(field.key, ()):
             if choice.value == selected:
                 continue
@@ -301,7 +326,7 @@ class CommandFormApp(App[FormOutcome]):
     def _form_field_widgets(self) -> ComposeResult:
 
         grouped_keys = _grouped_field_keys(self.spec)
-        by_key = {field.key: field for field in self.spec.fields}
+        by_key = {field.key: field for field in self._fields}
         for group in self.spec.exactly_one_of:
             group_fields = tuple(
                 by_key[key]
@@ -342,7 +367,7 @@ class CommandFormApp(App[FormOutcome]):
             for field in self._visible_fields(advanced=True):
                 yield from self._compose_field(field)
         else:
-            for field in self.spec.fields:
+            for field in self._fields:
                 if not field.advanced or not field_is_visible(field, self._draft_values):
                     continue
                 if field.key in self._choice_errors:
@@ -425,14 +450,16 @@ class CommandFormApp(App[FormOutcome]):
         for line in self._review_lines(values, changed=False):
             yield Static(line)
         yield Static("Default/inherited values", id="review-defaults")
-        for field in self.spec.fields:
+        for field in self._fields:
             if (
                 field.key in values
                 and field_is_visible(field, values)
                 and field.key not in self.initial_values
                 and field.default is not None
             ):
-                yield Static(f"{field.label}: {_display_value(field, values[field.key])}")
+                yield Static(
+                    f"{field.label}: {self._display_field_value(field, values[field.key])}"
+                )
         yield Static("Warnings", id="review-warnings", classes="required")
         yield Static("! Review carefully before applying this command.")
         yield Static("Side effects", id="review-side-effects", classes="required")
@@ -446,13 +473,19 @@ class CommandFormApp(App[FormOutcome]):
         )
 
     def _review_lines(self, values: dict[str, Any], *, changed: bool) -> Iterable[str]:
-        for field in self.spec.fields:
+        for field in self._fields:
             if field.key not in values or not field_is_visible(field, values):
                 continue
             previous = self.initial_values.get(field.key, field.default)
             is_changed = values[field.key] != previous
             if is_changed is changed:
-                yield f"{field.label}: {_display_value(field, values[field.key])}"
+                yield f"{field.label}: {self._display_field_value(field, values[field.key])}"
+
+    def _display_field_value(self, field: FieldSpec, value: object) -> str:
+        if field.secret or field.type not in {FieldType.SINGLE_SELECT, FieldType.MULTI_SELECT}:
+            return _display_value(field, value)
+        labels = {choice.value: choice.label for choice in self._choices.get(field.key, ())}
+        return ", ".join(labels.get(item, item) for item in _as_list(value))
 
     def _request_review(self) -> None:
         values = self._current_values()
@@ -565,7 +598,7 @@ class CommandFormApp(App[FormOutcome]):
     def _current_values(self) -> dict[str, Any]:
         self._capture_visible_values()
         values: dict[str, Any] = {}
-        for field in self.spec.fields:
+        for field in self._fields:
             if not field_is_visible(field, self._draft_values):
                 continue
             if self._has_no_alternative(field):
@@ -581,10 +614,13 @@ class CommandFormApp(App[FormOutcome]):
                 continue
             values[field.key] = self._read_widget_value(field)
         self._draft_values.update(values)
+        if self.values_normalizer is not None:
+            self._apply_context()
+            values = dict(self._draft_values)
         return {key: value for key, value in values.items() if value not in (None, [], "")}
 
     def _capture_visible_values(self) -> None:
-        for field in self.spec.fields:
+        for field in self._fields:
             try:
                 self._draft_values[field.key] = self._read_widget_value(field)
             except NoMatches:
@@ -613,7 +649,7 @@ class CommandFormApp(App[FormOutcome]):
 
     def _validate_values(self, values: dict[str, Any]) -> dict[str, str]:
         preliminary_issues: list[FieldIssue] = []
-        for field in self.spec.fields:
+        for field in self._fields:
             if not field_is_visible(field, values):
                 continue
             if field.required and field.key not in values:
@@ -633,7 +669,7 @@ class CommandFormApp(App[FormOutcome]):
         validation = validate_command_input(
             input_model=self.spec.input_model,
             values=values,
-            fields=self.spec.fields,
+            fields=self._fields,
             exactly_one_of=self.spec.exactly_one_of,
             preliminary_issues=tuple(preliminary_issues),
         )
@@ -687,16 +723,23 @@ class CommandFormApp(App[FormOutcome]):
         return ""
 
     def _field_controls_visibility(self, field_key: str) -> bool:
-        return any(field_key in field.visible_if for field in self.spec.fields)
+        return any(field_key in field.visible_if for field in self._fields)
 
     def _controller_visibility_changed(self, field_key: str, previous: object) -> bool:
+        if self.field_resolver is not None or self.values_normalizer is not None:
+            normalized = self._normalized_values()
+            if (
+                normalized != self._draft_values
+                or self._resolved_fields(normalized) != self._fields
+            ):
+                return True
         if not self._field_controls_visibility(field_key):
             return False
         previous_values = dict(self._draft_values)
         previous_values[field_key] = previous
         return any(
             field_is_visible(field, previous_values) != field_is_visible(field, self._draft_values)
-            for field in self.spec.fields
+            for field in self._fields
         )
 
     def _visible_fields(
@@ -709,7 +752,7 @@ class CommandFormApp(App[FormOutcome]):
         excluded_keys = excluded_keys or set()
         fields = tuple(
             field
-            for field in self.spec.fields
+            for field in self._fields
             if field_is_visible(field, self._draft_values)
             and field.advanced is advanced
             and field.key not in excluded_keys
@@ -721,12 +764,32 @@ class CommandFormApp(App[FormOutcome]):
 
     async def _refresh_form_fields(self, focus_id: str | None) -> None:
         self._capture_visible_values()
+        self._apply_context()
         await self.screen.remove_children(self.query(".form-field-region"))
         await self.screen.mount_all(self._compose_form_fields(), after="#validation-errors")
         self._restore_widget_or_form(focus_id)
 
     def _field_by_key(self, key: str) -> FieldSpec | None:
-        return next((field for field in self.spec.fields if field.key == key), None)
+        return next((field for field in self._fields if field.key == key), None)
+
+    def _normalized_values(self) -> dict[str, Any]:
+        values = dict(self._draft_values)
+        if self.values_normalizer is not None:
+            return self.values_normalizer(values, frozenset(self._explicit_keys))
+        return values
+
+    def _resolved_fields(self, values: dict[str, Any]) -> tuple[FieldSpec, ...]:
+        if self.field_resolver is None:
+            return self.spec.fields
+        return tuple(self.field_resolver(field, values) for field in self.spec.fields)
+
+    def _apply_context(self) -> None:
+        self._draft_values = self._normalized_values()
+        self._fields = self._resolved_fields(self._draft_values)
+        if self.field_resolver is not None:
+            for field in self._fields:
+                if not field.choice_provider:
+                    self._choices[field.key] = tuple(field.choices)
 
     def _field_from_widget_id(self, widget_id: str) -> FieldSpec | None:
         if widget_id.startswith("field-"):

@@ -53,6 +53,19 @@ docker info
 
 ## Install and open
 
+The guided installer asks how to run the application and how to publish its
+website. **Compact** keeps the app and background workers together and uses
+fewer resources. **Scalable** runs separate services so workers can scale
+independently. Both use included **SeaweedFS** by default; external S3 is optional.
+Technical settings stay behind `./install.sh --advanced` or the Textual Advanced
+section (`./install.sh --tui`).
+
+If Nginx or Apache already serves the host, choose that option and the actual web
+server. HTTPS settings are derived automatically. At completion, the installer
+prints a complete new-site configuration and an alternative for an existing
+HTTPS site before the first-administrator link. Applying host web-server changes
+remains a separate operator step.
+
 Use a full (not shallow) Git clone, then run:
 
 ```bash

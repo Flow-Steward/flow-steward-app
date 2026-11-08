@@ -140,6 +140,37 @@ are never built locally. Unavailable images, unsupported architecture, failed
 discovery, and invalid provenance stop installation; there is no automatic source
 fallback. Existing official installs retain their identity when rerun.
 
+### Guided installation choices
+
+The ordinary questionnaire keeps the deployment choice visible:
+
+- **Compact:** app and background workers together, using fewer resources.
+- **Scalable:** separate services, with independently scalable workers.
+- **File storage:** included SeaweedFS (default) or your own S3-compatible service.
+
+For an existing Nginx or Apache, select your actual web server and whether it
+runs on the host or in Docker. The installer derives reverse-proxy HTTPS and
+public port 443; it does not ask for internal ports, trusted CIDRs, internal
+extension origins or certificate paths. External S3 and certificate choices ask
+for their own required information. Use `--advanced` for technical overrides.
+Explicit command-line values are retained; incompatible explicit choices report
+validation errors. Existing saved LocalFS installations remain readable and are
+never silently migrated or deleted.
+
+The completion screen distinguishes a running local application from a publicly
+configured website. It prints a complete HTTP Nginx/Apache site for obtaining a
+new certificate and proxy directives for an existing HTTPS site. Keep existing
+certificate settings when using the latter. Certbot HTTP validation needs a
+publicly reachable port 80; CDN-only firewall rules may require DNS validation or
+a CDN origin certificate instead. A Cloudflare edge certificate protects the
+browser-to-Cloudflare leg; origin HTTPS is configured separately. The installer
+does not edit host proxy files, issue certificates or request sudo.
+
+The same nonsecret proxy instructions are included in public installer JSON.
+The one-time administrator URL remains on stderr and is excluded from JSON and
+the private release-handoff envelope. Technical process output is available with
+`--verbose`; ordinary completion shows a short summary and the next steps.
+
 Only `./install.sh --from-source` builds the current checkout and its installer.
 This explicit mode needs no release discovery and creates a source installation.
 Repeat the flag when resuming or updating it. The flag cannot replace an official
