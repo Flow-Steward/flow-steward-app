@@ -93,6 +93,7 @@ x-app-worker-environment: &app-worker-environment
   FS_BASE64_FILE_MAX_BYTES: ${FS_BASE64_FILE_MAX_BYTES:-52428800}
   FS_WORKFLOW_TEST_FILE_MAX_BYTES: ${FS_WORKFLOW_TEST_FILE_MAX_BYTES:-52428800}
   FS_FILE_PREVIEW_MAX_BYTES: ${FS_FILE_PREVIEW_MAX_BYTES:-20971520}
+  FS_MCP_HTTP_RESPONSE_MAX_BYTES: ${FS_MCP_HTTP_RESPONSE_MAX_BYTES:-4194304}
   FS_AGENT_TEXT_FILE_EXTENSIONS: ${FS_AGENT_TEXT_FILE_EXTENSIONS:-txt,md,markdown,json,xml,csv,tsv,yaml,yml,rtf}
   FS_AGENT_FILE_INLINE_MAX_CHARS: ${FS_AGENT_FILE_INLINE_MAX_CHARS:-2000000}
   FS_AGENT_FILE_PAGE_CHARS: ${FS_AGENT_FILE_PAGE_CHARS:-20000}
@@ -390,7 +391,7 @@ services:
         - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/app
       args:
         BUILD_SHA: ${FS_BUILD_SHA:-unknown}
-    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.12}
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.13}
     user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
     environment:
       # A uid the image's /etc/passwd does not know has no home to resolve: the
@@ -427,7 +428,7 @@ services:
         - type=local,src=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/frontend
       args:
         BUILD_SHA: ${FS_BUILD_SHA:-unknown}
-    image: ${FS_FRONTEND_IMAGE:-flow-steward-frontend:0.9.12}
+    image: ${FS_FRONTEND_IMAGE:-flow-steward-frontend:0.9.13}
     user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
     environment:
       # A uid the image's /etc/passwd does not know has no home to resolve: the
@@ -480,7 +481,7 @@ services:
         - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/app,mode=min
       args:
         BUILD_SHA: ${FS_BUILD_SHA:-unknown}
-    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.12}
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.13}
     user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
     expose:
       - "8099"
@@ -554,7 +555,7 @@ services:
 
   # Browser archive operations share the CLI installer services and normal API auth.
   fs-extension-installer:
-    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.12}
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.13}
     restart: always
     user: "${FS_HOST_UID:-1000}:${FS_HOST_GID:-1000}"
     environment:
@@ -604,7 +605,7 @@ services:
         - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/cli,mode=min
       args:
         FS_BUILD_REVISION: ${FS_BUILD_REVISION:-unknown}
-    image: ${FS_CLI_IMAGE:-flow-steward-cli:0.9.12}
+    image: ${FS_CLI_IMAGE:-flow-steward-cli:0.9.13}
     profiles: ["cli"]
     entrypoint: ["python", "-m", "core.entrypoints.cli.warm_runtime"]
     restart: always
@@ -641,7 +642,7 @@ services:
       - artifact-storage
 
   fs-extension-manager:
-    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.12}
+    image: ${FS_APP_IMAGE:-flow-steward-app:0.9.13}
     profiles: ["cli"]
     restart: "no"
     command: ["true"]
@@ -683,7 +684,7 @@ services:
         - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/frontend,mode=min
       args:
         BUILD_SHA: ${FS_BUILD_SHA:-unknown}
-    image: ${FS_FRONTEND_IMAGE:-flow-steward-frontend:0.9.12}
+    image: ${FS_FRONTEND_IMAGE:-flow-steward-frontend:0.9.13}
     profiles: ["development"]
     depends_on:
       fs-app:
@@ -864,7 +865,7 @@ services:
         - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/worker,mode=min
       args:
         BUILD_SHA: ${FS_BUILD_SHA:-unknown}
-    image: ${FS_WORKER_IMAGE:-flow-steward-worker:0.9.12}
+    image: ${FS_WORKER_IMAGE:-flow-steward-worker:0.9.13}
     environment:
       # AC17-R123: a role that runs extension steps must be able to hand one a URL
       # for an artifact this storage cannot presign, and it serves that URL itself.
@@ -914,7 +915,7 @@ services:
         - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/control,mode=min
       args:
         BUILD_SHA: ${FS_BUILD_SHA:-unknown}
-    image: ${FS_CONTROL_IMAGE:-flow-steward-control:0.9.12}
+    image: ${FS_CONTROL_IMAGE:-flow-steward-control:0.9.13}
     environment:
       <<: *role-common-environment
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-local-dev-encryption-key-not-for-production}

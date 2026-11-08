@@ -84,7 +84,7 @@ class ReleaseUpgradeRequest(_ClosedModel):
 
     target_version: str = ""
     dry_run: bool = False
-    timeout_seconds: int = Field(default=180, ge=1, le=3600)
+    timeout_seconds: int = Field(default=1800, ge=1, le=3600)
 
     @model_validator(mode="after")
     def validate_target_version(self) -> Self:

@@ -1857,3 +1857,49 @@ def test_no_switch_is_asked_of_an_installation_that_stays(tmp_path: Path) -> Non
     service.install(InstallConfig(), explicit_fields=frozenset({"deployment_profile"}))
 
     assert not any("switch" in call for call in gateway.calls)
+
+
+@pytest.mark.parametrize("cli_repair_fails", [False, True])
+def test_release_publication_requires_cli_identity_for_final_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cli_repair_fails: bool
+) -> None:
+    import hashlib
+
+    gateway = _installed_gateway(ImageCurrency(source_revision=_NEW, running_revision=_OLD))
+    service = _installed_service(tmp_path, gateway)
+    previous = _release_identity("1.2.3", "2")
+    target = _release_identity("1.3.0", "2")
+    service.state.stage_pending_release(previous)
+    service.state.publish_installed_release(previous)
+    env_file = tmp_path / "installed.env"
+    env_file.write_text("FS_RELEASE_VERSION=1.2.3\n")
+    cli_digest = [""]
+
+    def ensure_cli(_config, *, log):
+        del log
+        if "1.3.0" in env_file.read_text() and cli_repair_fails:
+            raise InstallerFailure(
+                code="cli_runtime_unavailable",
+                cause="CLI identity repair failed",
+                remediation="Resume the installation.",
+                exit_code=8,
+                retryable=True,
+                step="cli_runtime",
+            )
+        cli_digest[0] = hashlib.sha256(env_file.read_bytes()).hexdigest()
+
+    def publish_environment(_config, release):
+        env_file.write_text(f"FS_RELEASE_VERSION={release.version}\n")
+
+    monkeypatch.setattr(gateway, "ensure_cli_runtime", ensure_cli)
+    monkeypatch.setattr(gateway, "publish_release_environment", publish_environment)
+    if cli_repair_fails:
+        with pytest.raises(InstallerFailure, match="CLI identity repair failed"):
+            service.install(InstallConfig(), target_release=target)
+        assert service.state.load_installed_release() == previous
+        assert service.state.load_pending_release() == target
+    else:
+        result = service.install(InstallConfig(), target_release=target)
+        assert result.status == "installed"
+        assert service.state.load_installed_release() == target
+        assert cli_digest[0] == hashlib.sha256(env_file.read_bytes()).hexdigest()

@@ -29,8 +29,7 @@ def test_proxy_fragments_route_exact_mcp_paths_and_app_fallback(kind: str, profi
     assert "Authorization" in rendered or kind == "apache"
 
 
-def test_a_stored_caddy_choice_is_carried_forward_rather_than_rejected(
-) -> None:
+def test_a_stored_caddy_choice_is_carried_forward_rather_than_rejected() -> None:
     """Caddy left the supported set; an installation that chose it must still load.
 
     Every configuration read goes through DeploymentConfig.model_validate, including
@@ -67,6 +66,36 @@ def test_proxy_backend_rejects_non_authority_input(backend: str) -> None:
             deployment_profile="compact",
             public_host="flow.example.test",
             app_backend=backend,
+        )
+
+
+@pytest.mark.parametrize("kind", ("nginx", "apache"))
+def test_ipv6_public_address_is_accepted_and_bracketed_in_server_name(kind: str) -> None:
+    rendered = render_proxy_fragment(
+        ProxyRenderConfig(
+            kind=kind,  # type: ignore[arg-type]
+            deployment_profile="compact",
+            public_host="2001:db8::9",
+            app_backend="127.0.0.1:18099",
+        )
+    )
+
+    if kind == "nginx":
+        assert "server_name [2001:db8::9];" in rendered
+        assert "listen [::]:80;" in rendered
+    else:
+        assert "<VirtualHost [2001:db8::9]:80>" in rendered
+        assert "ServerName" not in rendered
+
+
+@pytest.mark.parametrize("host", ("fe80::1%eth0", "2001:db8::9;return 200", "2001:db8::9\n"))
+def test_ipv6_public_address_cannot_inject_a_scope_or_directive(host: str) -> None:
+    with pytest.raises(ValueError, match="host"):
+        ProxyRenderConfig(
+            kind="nginx",
+            deployment_profile="compact",
+            public_host=host,
+            app_backend="127.0.0.1:18099",
         )
 
 
@@ -150,8 +179,7 @@ def test_compact_renders_one_backend_because_it_runs_one_container() -> None:
     assert result.fragment.count("127.0.0.1:18099") >= 2
 
 
-def test_an_installation_without_an_external_proxy_is_told_so(
-) -> None:
+def test_an_installation_without_an_external_proxy_is_told_so() -> None:
     """Refusing by naming the mode beats rendering a fragment for nobody."""
     from core.application.management.errors import ServicePreconditionError
 
@@ -161,7 +189,6 @@ def test_an_installation_without_an_external_proxy_is_told_so(
         deployment_profile="compact",
         file_storage="local_fs",
     )
-    service.read_active().__dict__  # touch, so the override below is unambiguous
     from core.application.lifecycle.contracts import DeploymentConfig
 
     bundled = DeploymentConfig(

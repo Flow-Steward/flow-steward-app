@@ -22,6 +22,7 @@ from pydantic import (
     model_validator,
 )
 
+from core.application.lifecycle.routing_policy import INGRESS_TLS_MODES
 from core.application.management.command_specs.contracts import OperationStep
 
 
@@ -190,12 +191,7 @@ class DeploymentConfig(_ClosedModel):
                 )
         if self.tls_mode == "reverse_proxy" and self.reverse_proxy_backend_host != "127.0.0.1":
             raise ValueError("reverse_proxy_backend_host must be 127.0.0.1")
-        allowed_pairs = {
-            "bundled_traefik": {"local", "self_signed", "provided", "acme"},
-            "external_traefik": {"external_resolver", "external_certificate"},
-            "external_proxy": {"reverse_proxy"},
-            "platform": {"platform_managed"},
-        }
+        allowed_pairs = INGRESS_TLS_MODES
         if self.tls_mode not in allowed_pairs[self.ingress_mode]:
             # AC17-R78: the table an operator needs is on the line above; saying only that the
             # pair is incompatible made them guess which of the two to change and what to.

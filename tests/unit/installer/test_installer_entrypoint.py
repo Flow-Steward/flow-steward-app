@@ -163,7 +163,7 @@ def test_default_installer_uses_plain_questions_and_cancels_without_install(
     )
     assert result.exit_code == 10, result.output
     assert "Environment" in result.output
-    assert f"Deployment profile: {profile}" in result.output
+    assert f"How to run Flow Steward: {profile.capitalize()}" in result.output
     assert "Apply this change?" in result.output
     assert "\x1b[" not in result.output
     assert service.configs == []
@@ -220,7 +220,7 @@ def test_plain_installer_collects_external_traefik_inputs_before_review(
             "--tls-mode",
             "external_resolver",
             "--file-storage",
-            "local_fs",
+            "bundled",
             "--worker-processes",
             "2",
             "--runtime-http-port",
@@ -274,7 +274,7 @@ def test_plain_installer_asks_for_public_domain_and_reviews_it_before_install(
             "--tls-mode",
             "self_signed",
             "--file-storage",
-            "local_fs",
+            "bundled",
             "--worker-processes",
             "2",
             "--runtime-http-port",
@@ -295,8 +295,8 @@ def test_plain_installer_asks_for_public_domain_and_reviews_it_before_install(
         input="cli.example.test\nn\n",
     )
     assert result.exit_code == 10, result.output
-    assert "Public host (domain or IP) [localhost]:" in result.output
-    assert "Public host (domain or IP): cli.example.test" in result.output
+    assert "Website domain or IP [localhost]:" in result.output
+    assert "Website domain or IP: cli.example.test" in result.output
     assert service.configs == []
 
 
@@ -772,14 +772,14 @@ def test_noninteractive_installer_uses_validated_defaults_without_prompt(monkeyp
     assert result.exit_code == 0, result.output
     assert "Environment" not in result.output
     # AC17-R92: Compact is the default profile, which implies a production install and
-    # local file storage. Most operators clone the repository and install with defaults.
+    # bundled SeaweedFS. Most operators clone the repository and install with defaults.
     assert service.configs[0].deployment_profile == "compact"
     assert service.configs[0].environment == "production"
-    assert service.configs[0].file_storage == "local_fs"
+    assert service.configs[0].file_storage == "bundled"
     assert "https://localhost:8099" in result.output
 
 
-def test_noninteractive_compact_install_defaults_to_local_storage(monkeypatch) -> None:
+def test_noninteractive_compact_install_defaults_to_seaweedfs(monkeypatch) -> None:
     service = FakeService()
     monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
 
@@ -799,13 +799,13 @@ def test_noninteractive_compact_install_defaults_to_local_storage(monkeypatch) -
     )
 
     assert result.exit_code == 0, result.output
-    assert service.configs[0].file_storage == "local_fs"
+    assert service.configs[0].file_storage == "bundled"
     assert service.configs[0].worker_processes == 4
     # AC17-R157: what the operator typed reaches the service, not only the merged config
     assert service.explicit_fields == {"environment", "deployment_profile", "worker_processes"}
 
 
-def test_installer_accepts_explicit_local_storage_for_scalable(monkeypatch) -> None:
+def test_new_installer_rejects_explicit_local_storage_for_scalable(monkeypatch) -> None:
     service = FakeService()
     monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
 
@@ -824,9 +824,9 @@ def test_installer_accepts_explicit_local_storage_for_scalable(monkeypatch) -> N
         ],
     )
 
-    assert result.exit_code == 0, result.output
-    assert service.configs[0].deployment_profile == "scalable"
-    assert service.configs[0].file_storage == "local_fs"
+    assert result.exit_code == 2, result.output
+    assert "local_fs" in result.output
+    assert service.configs == []
 
 
 def test_non_tty_never_prompts_even_without_non_interactive_flag(monkeypatch) -> None:
@@ -1143,16 +1143,31 @@ def test_plain_tls_paths_enforce_launcher_mount_provenance(
     monkeypatch.setattr(
         installer, "_terminal_facts", lambda: TerminalFacts(True, True, 120, 40, "xterm", False)
     )
+    flags = [
+        "--environment",
+        "production",
+        "--deployment-profile",
+        "compact",
+        "--ingress-mode",
+        "bundled_traefik",
+        "--tls-mode",
+        "provided",
+        "--file-storage",
+        "bundled",
+        "--public-host",
+        "cli.example.test",
+    ]
+    if predeclared:
+        flags += [
+            "--certificate-path",
+            "/outside/cert.pem",
+            "--private-key-path",
+            "/outside/key.pem",
+        ]
     result = CliRunner().invoke(
         installer.installer_command,
-        ["--certificate-path", "/outside/cert.pem", "--private-key-path", "/outside/key.pem"]
-        if predeclared
-        else [],
-        input="\n" * 6
-        + "3\n"
-        + "\n" * 5
-        + ("" if predeclared else "/outside/cert.pem\n/outside/key.pem\n")
-        + "y\n",
+        flags,
+        input=("" if predeclared else "/outside/cert.pem\n/outside/key.pem\n") + "y\n",
     )
     if predeclared:
         assert result.exit_code == 0, result.output
@@ -1622,15 +1637,13 @@ def test_main_exits_with_parser_status_and_restores_signal_handlers(
 @pytest.mark.parametrize(
     ("answered", "supplied", "expected"),
     [
-        ("bundled", set(), "local_fs"),
+        ("bundled", set(), "bundled"),
         ("local_fs", set(), "local_fs"),
         ("external_s3", set(), "external_s3"),
         ("bundled", {"file_storage"}, "bundled"),
     ],
 )
-def test_compact_keeps_an_answered_file_storage_and_replaces_only_the_scalable_default(
-    answered, supplied, expected
-):
+def test_compact_keeps_seaweedfs_and_explicit_legacy_storage_values(answered, supplied, expected):
     values = {
         "deployment_profile": "compact",
         "environment": "production",

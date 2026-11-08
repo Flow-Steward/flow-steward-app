@@ -20,7 +20,10 @@ from core.application.management.mcp_connector_common import (
     MCP_OUTPUT_PROJECTION_WHOLE_OBJECT_RESULT,
     _project_mcp_output_contract,
 )
-from core.application.management.mcp_connector_http import mcp_tool_transport_headers
+from core.application.management.mcp_connector_http import (
+    McpResponseSizeLimitError,
+    mcp_tool_transport_headers,
+)
 from core.application.management.mcp_connector_protocol import McpToolInvocationError
 from core.application.orchestration.agents.common_tool_runtime import (
     MCP_CANONICAL_TOOL_ID_METADATA_KEY,
@@ -413,6 +416,11 @@ def _invoke_remote_mcp_tool(
         if generated_transport_headers:
             rpc_kwargs["generated_transport_headers"] = generated_transport_headers
         payload = mcp_connector_rpc_post(bl, **rpc_kwargs)
+    except McpResponseSizeLimitError as exc:
+        raise RuntimeError(
+            f"MCP server response exceeded the configured limit of {exc.max_bytes} bytes. "
+            "Increase FS_MCP_HTTP_RESPONSE_MAX_BYTES or reduce the server response."
+        ) from exc
     except Exception as exc:
         logger.exception("MCP projected tool call failed for connector %s", connector_id)
         raise RuntimeError("MCP tool call failed; verify the connector and retry") from exc

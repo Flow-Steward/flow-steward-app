@@ -31,7 +31,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `173` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `174` |
 | `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `36` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
@@ -51,22 +51,22 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `820`
-- Cataloged variables from `.env.example*` or manifest: `599`
-- Raw audit-only names outside examples/manifest: `221`
-- Unique variables in shipped `.env.example*` files: `377`
-- Variables in canonical manifest: `509`
+- Raw env-like names discovered by audit: `823`
+- Cataloged variables from `.env.example*` or manifest: `600`
+- Raw audit-only names outside examples/manifest: `223`
+- Unique variables in shipped `.env.example*` files: `378`
+- Variables in canonical manifest: `510`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
 - Internal Runtime: `136`
-- Public / Operator: `330`
+- Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
 - Tooling Internal: `78`
 
 Raw audit-only names by scope:
-- Internal Runtime: `3`
+- Internal Runtime: `5`
 - Script Internal: `125`
 - Test Only: `44`
 - Tooling Internal: `8`
@@ -282,11 +282,11 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### images
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.12` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.12` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.12` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
-| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.12` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.12` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
+| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.13` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.13` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.13` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
+| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.13` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.13` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
 | `POSTGRES_IMAGE` | production_images | production | no | no | `fs-postgres-extended:0.1.0-pgvector-0.8.5` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins; Official installs and upgrades pin the release's flow-steward-postgres digest (0.9.2+); Source installs build this versioned tag locally. Do not use a floating pg17/latest tag. | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.postgres-extended.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `RABBITMQ_IMAGE` | production_images | production | no | no | `rabbitmq:3.13-management` | .env.example.prod | Docker Compose (3) | Official release discovery and third-party infrastructure pins | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `TRAEFIK_IMAGE` | production_images | production | no | no | `traefik:v3.3` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins | `infra/docker/compact/ingress-bundled_traefik.yaml`<br>`infra/docker/docker-compose.oauth-browser.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
@@ -303,6 +303,10 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_MCP_CATALOG_URL` | static_catalogs | production, local_development | no | no | `https://raw.githubusercontent.com/Flow-Steward/mcps/main/index.json` | .env.example, .env.example.prod | Config (1) | Absolute HTTPS URL of the MCP server catalog JSON index (the official catalog or a private MCP registry's GET /v0.1/servers response). Defaults to the official Flow Steward catalog; an explicitly empty value hides the MCP catalog and keeps adding a custom MCP server. | `core/infrastructure/config/runtime_config.py` |
 | `FS_WORKER_MCP_BEARER_TOKEN` | mcp | production, local_development | no | yes | - | .env.example, .env.example.prod | CLI (1), Docker Compose (3), Tooling (1) | Dedicated least-privilege bearer used by the worker MCP project-read readiness probe; never share a browser session token. | `core/application/tooling/ops/deployment_doctor_common.py`<br>`core/entrypoints/cli/ops/candidate_runtime_preflight.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `MCP_URL` | core_runtime | production, local_development | yes | no | `http://fs-mcp:8100/mcp` | .env.example.prod | Application (2), Docker Compose (3), Tests (1) | Public runtime | `core/application/monitoring/runtime_composition.py`<br>`core/application/orchestration/tools/mcp_tools_client.py`<br>`tests/e2e/test_rbac_ui_api_mcp_matrix.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+#### mcp-connectors
+| Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
+|---|---|---|---|---|---|---|---|---|---|
+| `FS_MCP_HTTP_RESPONSE_MAX_BYTES` | core_runtime | production, local_development | no | no | `4194304` | .env.example | Config (1), Docker Compose (3) | Maximum remote MCP HTTP response body, including JSON and SSE envelopes, in bytes. Default 4 MiB; range 1024 .. 1073741824. Invalid text uses the default; numeric values clamp to the supported range. Apply the host setting to restart runtimes. | `core/infrastructure/config/mcp_connector_limits.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 #### memory
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
@@ -782,7 +786,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_COMPOSE_FILES` | core_runtime | production, local_development | no | no | - | - | CLI scripts (3), Tooling (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/tooling/quality/runtime_routing.py`<br>`core/entrypoints/cli/scripts/db_restore.sh`<br>`core/entrypoints/cli/scripts/docker_compose_env.sh`<br>`core/entrypoints/cli/scripts/flow_steward_launcher.sh` |
 | `FS_COMPOSE_PROD_FILE` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
 | `FS_COMPOSE_PROFILES` | core_runtime | production, local_development | no | no | - | - | CLI scripts (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh`<br>`core/entrypoints/cli/scripts/flow_steward_launcher.sh` |
-| `FS_CONFIGURATION_STATE_ROOT` | core_runtime | production | no | no | - | - | CLI (2) | Container-local configuration state root used when an immutable candidate CLI must not read mutable repository state. | `core/entrypoints/cli/compact_platform_runtime.py`<br>`core/entrypoints/cli/lifecycle_runtime.py` |
+| `FS_CONFIGURATION_STATE_ROOT` | core_runtime | production | no | no | - | - | CLI (3) | Container-local configuration state root used when an immutable candidate CLI must not read mutable repository state. | `core/entrypoints/cli/compact_platform_runtime.py`<br>`core/entrypoints/cli/lifecycle_runtime.py`<br>`core/entrypoints/cli/platform_runtime.py` |
 | `FS_DOCKER_DIR` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
 | `FS_DOCKER_GID` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1), Docker Compose (3) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/flow_steward_launcher.sh`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_DOCKER_HOST_PROJECT_ROOT` | production_host_paths | production, local_development | no | no | - | - | CLI (7), CLI scripts (1), Docker Compose (3), Tooling (1) | Launcher-injected absolute host checkout path used for controlled host-path projection into isolated CLI and lifecycle Compose runtimes. | `core/application/tooling/quality/runtime_routing.py`<br>`core/entrypoints/cli/bootstrap_recovery.py`<br>`core/entrypoints/cli/doctor.py`<br>`core/entrypoints/cli/installer.py`<br>`core/entrypoints/cli/lifecycle_lock_probe.py`<br>`core/entrypoints/cli/lifecycle_runtime.py`<br>+6 more in JSON audit |
@@ -965,7 +969,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 
 | Scope | Count | Common Usage Areas |
 |---|---|---|
-| Internal Runtime | `3` | CLI scripts (3), Tests (1) |
+| Internal Runtime | `5` | CLI scripts (3), Tooling (2), Tests (1) |
 | Script Internal | `125` | CLI scripts (191), CLI (12), Tests (7), Tooling (6), Database (3) |
 | Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |

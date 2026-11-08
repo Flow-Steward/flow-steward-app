@@ -18,6 +18,10 @@ _OPERATIONS = (
     "status",
     "doctor",
     "proxy-fragment",
+    "config-show",
+    "config-set",
+    "config-validate",
+    "config-apply",
     "database-status",
     "database-preflight",
     "database-upgrade",
@@ -222,8 +226,42 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
     return command
 
 
+def _configuration_argv(operation: str, arguments: list[str]) -> list[str]:
+    """Restrict raw forwarding to one declared host configuration command.
+
+    The launcher and registry declare the same four operation IDs. Click retains
+    sole ownership of field options, types, review and confirmation policies.
+    Embedded/provider commands do not have the installed host state or tooling.
+    """
+    if not str(_runtime_env.get("FS_CONFIGURATION_STATE_ROOT") or "").strip():
+        raise ValueError("Configuration commands require the installed host management runtime.")
+    words = list(arguments)
+    global_flags = {"--json", "--plain", "--tui", "--no-color", "--non-interactive", "--verbose"}
+    while words and words[0] in global_flags:
+        words.pop(0)
+    expected = operation.removeprefix("config-")
+    group_help = words in (["config", "--help"], ["config", "-h"])
+    if not (words[:2] == ["config", expected] or (expected == "show" and group_help)):
+        raise ValueError(f"{operation} accepts only its matching config command.")
+    return arguments
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    configuration_argv = None
+    if arguments and arguments[0] in {
+        "config-show",
+        "config-set",
+        "config-validate",
+        "config-apply",
+    }:
+        try:
+            configuration_argv = _configuration_argv(arguments[0], arguments[1:])
+        except ValueError as exc:
+            _parser().error(str(exc))
+        args = _parser().parse_args(arguments[:1])
+    else:
+        args = _parser().parse_args(arguments)
     operation = args.operation
     if (args.fix or args.ids) and operation != "doctor":
         _parser().error("--fix and check ids are for doctor")
@@ -256,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     if inherited_root is None:
         _runtime_env[root_variable] = "/data/state"
     try:
-        from click.exceptions import Exit
+        from click.exceptions import ClickException, Exit
 
         from core.entrypoints.cli.compact_platform_runtime import CompactPlatformRuntime
 
@@ -268,11 +306,16 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             result = click_module.click_app.main(
-                args=_canonical_argv(args),
+                args=configuration_argv
+                if configuration_argv is not None
+                else _canonical_argv(args),
                 prog_name="flow-steward-platform",
                 standalone_mode=False,
             )
         except Exit as exc:
+            return int(exc.exit_code)
+        except ClickException as exc:
+            exc.show()
             return int(exc.exit_code)
         except ValueError as exc:
             _parser().error(str(exc))

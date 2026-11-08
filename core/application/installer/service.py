@@ -320,7 +320,7 @@ class InstallerService:
                     config, log=log, changed=bool(recorded_change)
                 )
                 if target_release is not None:
-                    self._publish_release(config, target_release)
+                    self._publish_release(config, target_release, log=log)
                 # AC17-R158: also finishes a cleanup an interrupted update left.
                 pruned = self.gateway.prune_superseded_releases(
                     config, current=currency.source_revision, previous="", log=log
@@ -447,7 +447,7 @@ class InstallerService:
             )
             self.state.save_journal(journal)
             if target_release is not None:
-                self._publish_release(config, target_release)
+                self._publish_release(config, target_release, log=log)
             if bootstrap_state is None:
                 bootstrap_state = BootstrapVerification(bootstrap_required=True)
             bootstrap_url, bootstrap_setup_url, bootstrap_instruction = self._bootstrap_handoff(
@@ -651,7 +651,7 @@ class InstallerService:
         readiness_warnings = self._verify_shared_readiness(config, log=log)
         converged = self._converge_compact_workers(config, log=log)
         if target_release is not None:
-            self._publish_release(config, target_release)
+            self._publish_release(config, target_release, log=log)
         # AC17-R158: only once the update is verified, keeping the rollback it came from.
         self.gateway.record_installed_releases(
             current=currency.source_revision, previous=currency.running_revision
@@ -848,9 +848,13 @@ class InstallerService:
         host = f"[{config.public_host}]" if ":" in config.public_host else config.public_host
         return f"https://{host}:{config.public_port}"
 
-    def _publish_release(self, config: InstallConfig, release: ReleaseIdentity) -> None:
-        """Publish runtime markers and atomic identity only after final readiness."""
+    def _publish_release(
+        self, config: InstallConfig, release: ReleaseIdentity, *, log: InstallerLog
+    ) -> None:
+        """Verify final CLI identity before committing an official installed release."""
         self.gateway.publish_release_environment(config, release)
+        if config.deployment_profile == "scalable":
+            self.gateway.ensure_cli_runtime(config, log=log)
         self.state.publish_installed_release(release)
 
     def _verify_shared_readiness(

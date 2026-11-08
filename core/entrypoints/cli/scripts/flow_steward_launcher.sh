@@ -1522,6 +1522,26 @@ run_isolated_cli_command() {
 }
 
 run_compact_platform_command() {
+  # Configuration field parsing and confirmation belong to canonical Click.
+  # Preserve the original argv; the image verifies this fixed operation's path.
+  if [ "$top_level_command" = "config" ]; then
+    case "2:config:$launcher_subcommand" in
+      2:config:show) compact_operation=config-show ;;
+      2:config:set) compact_operation=config-set ;;
+      2:config:validate) compact_operation=config-validate ;;
+      2:config:apply) compact_operation=config-apply ;;
+      2:config:)
+        [ "$compact_help_requested" -eq 1 ] || fail "Choose config show, set, validate or apply." 2
+        compact_operation=config-show
+        ;;
+      *) fail "Unsupported Compact configuration command." 2 ;;
+    esac
+    compact_no_tty_flag="-T"
+    if [ -t 0 ] && [ -t 1 ]; then
+      compact_no_tty_flag=""
+    fi
+    exec_compose_command run --rm --no-deps $compact_no_tty_flag fs-cli "$compact_operation" "$@"
+  fi
   compact_word_count=0
   compact_word_1=""
   compact_word_2=""
@@ -1807,6 +1827,7 @@ Platform commands:
   status
   doctor
   proxy-fragment
+  config show|set|validate|apply (host management only)
   maintenance status|enable|disable
   release info|check|upgrade
   database status|upgrade|restore-parity-capture|restore-parity-verify
@@ -1830,7 +1851,8 @@ runtime itself can do the work (AC17-R59): extensions install, extensions
 uninstall.
 
 Refused on a Compact installation, because they are dispatched to a retained CLI
-container this profile does not have: config, stack (AC17-R140). To update a
+container this profile does not have: stack (AC17-R140). Host config commands use
+the installed one-shot management image; provider consoles cannot run them. To update a
 Compact installation, rerun ./install.sh from updated sources; to switch it to
 Scalable, run ./install.sh --deployment-profile scalable.
 
@@ -1851,7 +1873,7 @@ Activate an exact newer official release while maintenance remains enabled.
 
 Options:
   --target-version X.Y.Z  Select an exact stable release (default: latest).
-  --timeout-seconds N     Bound the installer handoff (default: 180).
+  --timeout-seconds N     Bound the complete installer handoff (default: 1800).
   --dry-run               Resolve and review without activation.
   --confirm               Confirm the reviewed release activation.
   --json                   Emit one JSON document.
@@ -2210,11 +2232,9 @@ for arg in "$@"; do
   # FS_COMPOSE_FILES to docker-compose.prod.yaml and exec's a long-running `fs-cli`
   # container, and a Compact installation has neither: its own compose declares `fs-cli`
   # as a one-shot `platform_runtime` runner (profiles [cli], restart "no"), and the
-  # flow-steward-cli image is absent by design. `config` and `stack` failed exactly this
-  # way on a live Compact install ("The final fs-cli start attempt failed"), and are now
-  # refused by name further down (AC17-R140); they are marked here only so that refusal
-  # can find them. Adding commands would only widen the refusal. See the R51 note.
-  if [ "$top_level_command" = "config" ] || [ "$top_level_command" = "stack" ]; then
+  # `stack` still requires that retained runtime. Host `config` instead uses the
+  # installed one-shot management role and canonical lifecycle service.
+  if [ "$top_level_command" = "stack" ]; then
     compact_retained_cli_command=1
   fi
   previous_arg=$arg
@@ -2400,7 +2420,8 @@ fi
 if \
   [ "$compact_mode" -eq 1 ] &&
   [ "$compact_help_requested" -eq 1 ] &&
-  [ "$compact_product_dispatch" -ne 1 ]; then
+  [ "$compact_product_dispatch" -ne 1 ] &&
+  [ "$top_level_command" != "config" ]; then
   if [ "$top_level_command" = "release" ]; then
     render_compact_release_help "$launcher_subcommand"
     exit 0
@@ -2409,19 +2430,15 @@ if \
   exit 0
 fi
 
-# AC17-R140: `config` and `stack` dispatch to a retained fs-cli container, and a Compact
+# AC17-R140: `stack` dispatches to a retained fs-cli container, and a Compact
 # installation has none -- its own compose declares fs-cli as a one-shot runner. They
 # used to be accepted, fail to start that container, and advise "rerun ./install.sh",
 # which cannot create one: an operator of a working installation was told to reinstall
 # it. This launcher already knew, and said so in its help, so it now refuses the way it
 # refuses `environment`, before Docker is asked anything. Placed after the help above,
-# so `config --help` still answers with the page that explains this.
+# so `stack --help` still answers with the page that explains this.
 if [ "$compact_mode" -eq 1 ] && [ "$compact_retained_cli_command" -eq 1 ]; then
-  compact_config_hint=""
-  if [ "$top_level_command" = "config" ]; then
-    compact_config_hint=" Host settings on Compact: ./install.sh --setting NAME=VALUE. Settings: https://docs.flowsteward.org/docs/reference/host-settings"
-  fi
-  fail "Unsupported Compact platform command: $top_level_command runs in a retained CLI container, and a Compact installation does not have one, so reinstalling will not help. To update this installation, rerun ./install.sh from updated sources; for its state, run ./flow-steward status. To switch this installation to Scalable, run ./install.sh --deployment-profile scalable.${compact_config_hint}" 2
+  fail "Unsupported Compact platform command: $top_level_command runs in a retained CLI container, and a Compact installation does not have one, so reinstalling will not help. To update this installation, rerun ./install.sh from updated sources; for its state, run ./flow-steward status. To switch this installation to Scalable, run ./install.sh --deployment-profile scalable." 2
 fi
 
 if ! command -v docker >/dev/null 2>&1; then

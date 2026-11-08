@@ -165,7 +165,7 @@ def _app() -> tuple[Any, _Runtime]:
     return build_click_app(ServiceRegistry(cast(Any, runtime)), SimpleNamespace()), runtime
 
 
-def _real_service_app(*, outcome: str, expected_timeout_seconds: int = 180) -> Any:
+def _real_service_app(*, outcome: str, expected_timeout_seconds: int = 1800) -> Any:
     installed = _release_identity("1.0.0")
     target = _release_identity("2.0.0")
     published = PublishedRelease(
@@ -261,9 +261,9 @@ def test_release_specs_are_exact_and_closed() -> None:
         "dry_run": "--dry-run",
         "timeout_seconds": "--timeout-seconds",
     }
-    assert upgrade.fields[2].default == 180
-    assert ReleaseUpgradeRequest().timeout_seconds == 180
-    assert PreparedReleaseUpgrade.model_fields["timeout_seconds"].default == 180
+    assert upgrade.fields[2].default == 1800
+    assert ReleaseUpgradeRequest().timeout_seconds == 1800
+    assert PreparedReleaseUpgrade.model_fields["timeout_seconds"].default == 1800
     assert upgrade.fields[2].advanced is True
 
 
@@ -346,7 +346,7 @@ def test_release_json_reports_unsupported_host_architecture_actionably(
 
 @pytest.mark.parametrize(
     ("timeout_args", "expected_timeout_seconds"),
-    [((), 180), (("--timeout-seconds", "600"), 600)],
+    [((), 1800), (("--timeout-seconds", "600"), 600)],
     ids=["default", "explicit"],
 )
 def test_upgrade_requires_review_and_forwards_exact_typed_request(
@@ -482,7 +482,7 @@ def test_real_release_service_migration_json_keeps_maintenance_enabled() -> None
 
 @pytest.mark.parametrize(
     ("timeout_args", "expected_timeout_seconds"),
-    [((), 180), (("--timeout-seconds", "600"), 600)],
+    [((), 1800), (("--timeout-seconds", "600"), 600)],
     ids=["default", "explicit"],
 )
 def test_real_release_service_success_json_reports_target_as_current(
@@ -501,7 +501,7 @@ def test_real_release_service_success_json_reports_target_as_current(
 
 @pytest.mark.parametrize(
     ("timeout_kwargs", "expected_timeout_seconds"),
-    [({}, 180), ({"timeout_seconds": 600}, 600)],
+    [({}, 1800), ({"timeout_seconds": 600}, 600)],
     ids=["default", "explicit"],
 )
 def test_release_preview_preserves_the_exact_typed_execution_input(

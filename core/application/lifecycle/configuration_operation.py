@@ -202,6 +202,26 @@ class _ConfigurationOperationGateway:
                 step="validate_target",
                 details=_configuration_failure_details(exc),  # AC17-R174: say what, too
             ) from exc
+        if self.context.target.stack_environment == "production":
+            # Only apply prepares images. The public validate operation stays
+            # read-only, and no snapshots or active files have changed yet.
+            try:
+                self.adapter.prepare_target_images(
+                    self.context.candidate,
+                    self.context.target,
+                    self.context.prepared[2],
+                )
+            except Exception as exc:
+                raise LifecycleError.stable_failure(
+                    code="configuration_images_unavailable",
+                    cause="The target production images could not be prepared.",
+                    remediation=(
+                        "Restore the exact installed images or registry access, then rerun "
+                        "flow-steward config apply. Local source builds are disabled."
+                    ),
+                    step="validate_target",
+                    details=_configuration_failure_details(exc),
+                ) from exc
 
     def _execute_capture_before(self) -> None:
         try:

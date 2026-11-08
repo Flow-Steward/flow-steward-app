@@ -4585,7 +4585,8 @@
     "canonical_name": "FS_CONFIGURATION_STATE_ROOT",
     "code_read_locations": [
       "core/entrypoints/cli/compact_platform_runtime.py",
-      "core/entrypoints/cli/lifecycle_runtime.py"
+      "core/entrypoints/cli/lifecycle_runtime.py",
+      "core/entrypoints/cli/platform_runtime.py"
     ],
     "conditional_groups": [
       "core_runtime"
@@ -5747,7 +5748,7 @@
     ],
     "default_example_value": "https://raw.githubusercontent.com/Flow-Steward/extensions/main/index.json",
     "documented_sources": [
-      ".env.example:141",
+      ".env.example:143",
       ".env.example.prod:139"
     ],
     "environments": [
@@ -6617,7 +6618,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example:145",
+      ".env.example:147",
       ".env.example.prod:13"
     ],
     "environments": [
@@ -7424,7 +7425,7 @@
     ],
     "default_example_value": "https://raw.githubusercontent.com/Flow-Steward/mcps/main/index.json",
     "documented_sources": [
-      ".env.example:142",
+      ".env.example:144",
       ".env.example.prod:140"
     ],
     "environments": [
@@ -7486,6 +7487,32 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "FS_MCP_GROUNDING_REQUIRED"
+  },
+  {
+    "canonical_name": "FS_MCP_HTTP_RESPONSE_MAX_BYTES",
+    "code_read_locations": [
+      "core/infrastructure/config/mcp_connector_limits.py",
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "4194304",
+    "documented_sources": [
+      ".env.example:123"
+    ],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Maximum remote MCP HTTP response body, including JSON and SSE envelopes, in bytes. Default 4 MiB; range 1024 .. 1073741824. Invalid text uses the default; numeric values clamp to the supported range. Apply the host setting to restart runtimes.",
+    "owning_subsystem": "mcp-connectors",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_MCP_HTTP_RESPONSE_MAX_BYTES"
   },
   {
     "canonical_name": "FS_MCP_IMAGE_REVISION",
@@ -7849,7 +7876,7 @@
     ],
     "default_example_value": "[]",
     "documented_sources": [
-      ".env.example:148",
+      ".env.example:150",
       ".env.example.prod:17"
     ],
     "environments": [
@@ -7875,7 +7902,7 @@
     ],
     "default_example_value": "{}",
     "documented_sources": [
-      ".env.example:146",
+      ".env.example:148",
       ".env.example.prod:15"
     ],
     "environments": [
@@ -8884,7 +8911,7 @@
     ],
     "default_example_value": "100",
     "documented_sources": [
-      ".env.example:135",
+      ".env.example:137",
       ".env.example.ops:226"
     ],
     "environments": [
@@ -8908,7 +8935,7 @@
     ],
     "default_example_value": "10",
     "documented_sources": [
-      ".env.example:132",
+      ".env.example:134",
       ".env.example.ops:225"
     ],
     "environments": [
@@ -9118,7 +9145,7 @@
     ],
     "default_example_value": "compose-local",
     "documented_sources": [
-      ".env.example:154",
+      ".env.example:156",
       ".env.example.prod:146"
     ],
     "environments": [
@@ -10788,6 +10815,44 @@
     "variable_name": "FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_ROWS"
   },
   {
+    "canonical_name": "FS_TASK_RESOURCE_OWNER",
+    "code_read_locations": [
+      "core/application/tooling/anonymous_installer_acceptance.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_TASK_RESOURCE_OWNER"
+  },
+  {
+    "canonical_name": "FS_TASK_RESOURCE_TOKEN",
+    "code_read_locations": [
+      "core/application/tooling/anonymous_installer_acceptance.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": true,
+    "variable_name": "FS_TASK_RESOURCE_TOKEN"
+  },
+  {
     "canonical_name": "FS_TASK_UPLOAD_BODY_READ_TIMEOUT_SECONDS",
     "code_read_locations": [
       "core/infrastructure/config/task_upload.py"
@@ -10797,7 +10862,7 @@
     ],
     "default_example_value": "120",
     "documented_sources": [
-      ".env.example:129"
+      ".env.example:131"
     ],
     "environments": [
       "production",
@@ -10820,7 +10885,7 @@
     ],
     "default_example_value": "4",
     "documented_sources": [
-      ".env.example:123"
+      ".env.example:125"
     ],
     "environments": [
       "production",
@@ -10843,7 +10908,7 @@
     ],
     "default_example_value": "2",
     "documented_sources": [
-      ".env.example:125"
+      ".env.example:127"
     ],
     "environments": [
       "production",
@@ -10866,7 +10931,7 @@
     ],
     "default_example_value": "2",
     "documented_sources": [
-      ".env.example:127"
+      ".env.example:129"
     ],
     "environments": [
       "production",
@@ -11951,7 +12016,7 @@
     ],
     "default_example_value": "https://raw.githubusercontent.com/Flow-Steward/workflows/main/index.json",
     "documented_sources": [
-      ".env.example:139",
+      ".env.example:141",
       ".env.example.prod:137"
     ],
     "environments": [

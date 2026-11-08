@@ -140,6 +140,37 @@ are never built locally. Unavailable images, unsupported architecture, failed
 discovery, and invalid provenance stop installation; there is no automatic source
 fallback. Existing official installs retain their identity when rerun.
 
+### Guided installation choices
+
+The ordinary questionnaire keeps the deployment choice visible:
+
+- **Compact:** app and background workers together, using fewer resources.
+- **Scalable:** separate services, with independently scalable workers.
+- **File storage:** included SeaweedFS (default) or your own S3-compatible service.
+
+For an existing Nginx or Apache, select your actual web server and whether it
+runs on the host or in Docker. The installer derives reverse-proxy HTTPS and
+public port 443; it does not ask for internal ports, trusted CIDRs, internal
+extension origins or certificate paths. External S3 and certificate choices ask
+for their own required information. Use `--advanced` for technical overrides.
+Explicit command-line values are retained; incompatible explicit choices report
+validation errors. Existing saved LocalFS installations remain readable and are
+never silently migrated or deleted.
+
+The completion screen distinguishes a running local application from a publicly
+configured website. It prints a complete HTTP Nginx/Apache site for obtaining a
+new certificate and proxy directives for an existing HTTPS site. Keep existing
+certificate settings when using the latter. Certbot HTTP validation needs a
+publicly reachable port 80; CDN-only firewall rules may require DNS validation or
+a CDN origin certificate instead. A Cloudflare edge certificate protects the
+browser-to-Cloudflare leg; origin HTTPS is configured separately. The installer
+does not edit host proxy files, issue certificates or request sudo.
+
+The same nonsecret proxy instructions are included in public installer JSON.
+The one-time administrator URL remains on stderr and is excluded from JSON and
+the private release-handoff envelope. Technical process output is available with
+`--verbose`; ordinary completion shows a short summary and the next steps.
+
 Only `./install.sh --from-source` builds the current checkout and its installer.
 This explicit mode needs no release discovery and creates a source installation.
 Repeat the flag when resuming or updating it. The flag cannot replace an official
@@ -2256,6 +2287,20 @@ installation. The exact origin, active configuration, and target are checked
 again under the lifecycle lock. On interruption, follow the printed recovery
 action and rerun the same command; maintenance remains enabled.
 
+The standard upgrade command allows up to 30 minutes for the complete installer
+handoff, including cold image downloads and service startup. It uses published
+images; a timeout never switches to a source build. `--timeout-seconds` remains an
+advanced override, and is not required for an ordinary upgrade.
+
+If the installer times out or cannot start, the CLI reports the specific cause,
+target version, saved handoff phase and diagnostic log when writable. Keep
+maintenance enabled, inspect `release info` and `maintenance status`, correct the
+reported problem, then use the printed same-target resume command. A checkout
+already at the target version does not by itself mean activation succeeded.
+Do not delete pending release state or disable maintenance to bypass a failure.
+Before reporting success on Scalable, the installer also synchronizes the CLI
+runtime with the final release environment so Doctor can run immediately.
+
 During final readiness, the installer can request one refresh of stale security
 posture or workflow-knowledge evidence through the installed runtime. It waits
 for real completion; requesting a refresh is not a passing check. Maintenance
@@ -2547,17 +2592,34 @@ this installation. On **Scalable**:
 ./flow-steward config apply
 ```
 
-On **Compact**, where `config` is not available, rerun the installer from the
-installation folder with the setting:
+On a Docker host, **Compact uses the same commands** through a one-shot
+management container. It also retains `./install.sh --setting NAME=VALUE` as an
+installer convenience. A provider console without host Docker does not expose
+configuration changes through these host commands.
 
-```bash
-./install.sh --setting FS_ALLOW_PRIVATE_REMOTE_URLS=1
-```
-
-It keeps the installation, records the setting and restarts the runtime.
 Separate several settings with spaces (`config set`) or commas (`--setting`);
 an empty value (`FS_ALLOW_PRIVATE_REMOTE_URLS=`) resets one to its default.
 Secrets and values the installer manages are never set this way.
+
+### Change the website domain on a Docker host
+
+On Compact or Scalable, stage the new public name and actual proxy kind, validate,
+then review and apply. Run as the deployment user from the installation folder:
+
+```bash
+./flow-steward config show
+./flow-steward config set --public-host flow.example.com --public-port 443 --proxy-kind apache
+./flow-steward config validate
+./flow-steward config apply --confirm
+./flow-steward doctor
+```
+
+Use `--proxy-kind nginx` for Nginx. This changes the saved application
+configuration; update the external proxy, DNS and certificates separately.
+Applying uses the shared lifecycle lock, preservation checks and rollback. A
+missing immutable production image stops the operation; it never falls back to
+building sources. Compact keeps its one runtime and does not create a permanent
+CLI container. `config set` only stages changes until `config apply` succeeds.
 
 ### Optional overlays
 

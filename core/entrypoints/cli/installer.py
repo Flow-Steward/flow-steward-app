@@ -26,6 +26,8 @@ from core.application.installer.errors import InstallerFailure
 from core.application.installer.redaction import redact_installer_text
 from core.application.installer.service import InstallerService
 from core.application.installer.spec import INSTALLER_SPEC
+from core.application.installer.wizard import installation_error_message
+from core.application.installer.wizard import normalize_install_values as _with_defaults
 from core.application.lifecycle.configuration_service import ConfigurationService
 from core.application.lifecycle.contracts import DeploymentConfig
 from core.application.lifecycle.errors import LifecycleError
@@ -50,6 +52,13 @@ from core.application.release.service import (
     ReleaseInstallRequest,
     release_platform_for_machine,
 )
+from core.entrypoints.cli.installer_completion import (
+    announce_proxy_setup,
+    prepare_completion,
+    public_installation_result,
+)
+from core.entrypoints.cli.installer_form import collect_interactive as _collect_interactive
+from core.entrypoints.cli.installer_form import confirm_installation
 from core.entrypoints.cli.platform.modes import OutputMode, TerminalFacts, select_mode
 from core.entrypoints.cli.platform.renderers import (
     JSONRenderer,
@@ -100,6 +109,7 @@ def _params() -> list[click.Parameter]:
         click.Option(["--no-color"], is_flag=True, help="Disable color."),
         click.Option(["--verbose"], is_flag=True, help="Stream redacted technical output."),
         click.Option(["--non-interactive"], is_flag=True, help="Never prompt."),
+        click.Option(["--advanced"], is_flag=True, help="Show advanced installation settings."),
         click.Option(["--confirm"], is_flag=True, help="Confirm the reviewed installation plan."),
         click.Option(
             ["--from-source"],
@@ -118,6 +128,7 @@ def _callback(**values: Any) -> None:
     verbose = bool(values.pop("verbose"))
     non_interactive = bool(values.pop("non_interactive")) or json_requested
     confirmed = bool(values.pop("confirm"))
+    advanced = bool(values.pop("advanced"))
     from_source = bool(values.pop("from_source"))
     terminal = _terminal_facts()
     decision = select_mode(
@@ -139,7 +150,7 @@ def _callback(**values: Any) -> None:
         animation_enabled=decision.animation_enabled,
     )
     try:
-        service = _create_service(stream_output=verbose or not json_requested)
+        service = _create_service(stream_output=verbose)
         classification = service.inspect()
     except Exception as exc:
         log_path = _write_emergency_log(exc)
@@ -164,12 +175,22 @@ def _callback(**values: Any) -> None:
     if not needs_review or non_interactive:
         normalized = _with_defaults(supplied, supplied_keys=set(supplied))
     else:
-        normalized, form_confirmed = _collect_interactive(
-            supplied,
-            renderer=renderer,
-            decision=decision,
-            terminal=terminal,
-        )
+        version_file = _ROOT / "VERSION"
+        if version_file.is_file():
+            click.echo(f"Flow Steward {version_file.read_text().strip()} — installation")
+        try:
+            normalized, form_confirmed = _collect_interactive(
+                supplied,
+                renderer=renderer,
+                decision=decision,
+                terminal=terminal,
+                advanced=advanced,
+                from_source=from_source,
+            )
+        except InstallerFailure as exc:
+            _render_failure(
+                renderer, exc.code, exc.cause, ExitCode(exc.exit_code), hint=exc.remediation
+            )
         confirmed = confirmed or form_confirmed
     if normalized.get("environment") == "development" and not from_source:
         _render_failure(
@@ -184,9 +205,13 @@ def _callback(**values: Any) -> None:
         _validate_container_paths(normalized, supplied_keys=path_supplied_keys)
         config = InstallConfig.model_validate(normalized)
     except Exception as exc:
-        _render_failure(renderer, "validation_failed", str(exc), ExitCode.VALIDATION)
+        _render_failure(
+            renderer, "validation_failed", installation_error_message(exc), ExitCode.VALIDATION
+        )
     if needs_review and not confirmed:
-        if decision.can_prompt and renderer.confirm_review(INSTALLER_SPEC, config.model_dump()):
+        if decision.can_prompt and confirm_installation(
+            renderer, config.model_dump(), advanced=advanced
+        ):
             confirmed = True
         else:
             _render_failure(
@@ -232,7 +257,7 @@ def _callback(**values: Any) -> None:
             if handoff_result is None:
                 # The first service was read-only classification. Recreate it after exact
                 # image resolution so its gateway sees only the verified release inputs.
-                service = _create_service(stream_output=verbose or not json_requested)
+                service = _create_service(stream_output=verbose)
         except LifecycleError as exc:
             _render_failure(
                 renderer,
@@ -294,6 +319,7 @@ def _callback(**values: Any) -> None:
                     retryable=False,
                     log_path=log_path,
                 )
+    result, proxy_setup = prepare_completion(result, _ROOT)
     if result.status == "already_installed" and not json_requested:
         _render_already_installed(result)
         _announce_changes(result)
@@ -302,18 +328,29 @@ def _callback(**values: Any) -> None:
         # already installed" and nothing else, while the link they were holding had just
         # been invalidated -- a dead end replaced by silence. The announcement is a no-op
         # unless bootstrap is still required and a live token exists.
+        announce_proxy_setup(proxy_setup)
         _announce_setup_link(result)
         return
     execution = ExecutionResult(
         result=result,
-        public_result=result.model_dump(mode="json"),
+        public_result=public_installation_result(result, proxy_setup),
         operation_id=result.operation_id,
         log_path=result.log_path,
     )
-    renderer.render_result(INSTALLER_SPEC, execution)
+    if json_requested:
+        renderer.render_result(INSTALLER_SPEC, execution)
+    else:
+        click.echo("Flow Steward is installed.")
+        if result.product_url:
+            click.echo(f"Website: {result.product_url}")
+        for warning in result.warnings:
+            click.echo(f"Warning: {warning}")
+        if result.log_path:
+            click.echo(f"Log: {result.log_path}")
     if not json_requested:
         _announce_update(result)
         _announce_changes(result)
+        announce_proxy_setup(proxy_setup)
     _announce_setup_link(result)
 
 
@@ -416,33 +453,6 @@ installer_command = click.Command(
 )
 
 
-def _collect_interactive(
-    supplied: dict[str, Any], *, renderer: Any, decision: Any, terminal: TerminalFacts
-) -> tuple[dict[str, Any], bool]:
-    if decision.output_mode is OutputMode.PLAIN:
-        values = renderer.collect_missing(INSTALLER_SPEC.fields, supplied, include_optional=True)
-        return _with_defaults(values, supplied_keys=set(supplied)), False
-    from core.entrypoints.cli.tui.form_app import CommandFormApp, FormOutcome
-
-    def choices(_provider: str) -> tuple[Any, ...]:
-        return ()
-
-    outcome = CommandFormApp(
-        spec=INSTALLER_SPEC,
-        initial_values=supplied,
-        choice_loader=choices,
-        terminal_size=(terminal.columns, terminal.rows),
-        color_enabled=decision.color_enabled,
-        animation_enabled=decision.animation_enabled,
-    ).run() or FormOutcome(status="cancelled")
-    if outcome.status == "plain_fallback":
-        values = renderer.collect_missing(INSTALLER_SPEC.fields, supplied, include_optional=True)
-        return _with_defaults(values, supplied_keys=set(supplied)), False
-    if outcome.status != "confirmed":
-        _render_failure(renderer, "cancelled", "Installation cancelled.", ExitCode.INTERRUPTED)
-    return _with_defaults(outcome.values, supplied_keys=set(supplied)), True
-
-
 def _recorded_installation_values(root: Path) -> dict[str, Any]:
     """Recover the configuration an existing installation was installed with.
 
@@ -465,6 +475,14 @@ def _recorded_installation_values(root: Path) -> dict[str, Any]:
         active = None
     if active is not None:
         return active.model_dump(mode="python")
+    # Preflight can fail before stack.toml or .env exist. The unfinished journal
+    # still owns the reviewed answers, including the pending release's profile.
+    try:
+        journal = InstallerStateStore(installer_state_root(root)).load_journal()
+    except (OSError, ValueError):
+        journal = None
+    if journal is not None and journal.status != "completed":
+        return journal.config.model_dump(mode="python")
     for name, environment in ((".env.prod", "production"), (".env", "development")):
         path = root / name
         if not path.is_file():
@@ -483,37 +501,6 @@ def _recorded_installation_values(root: Path) -> dict[str, Any]:
                 break
         return recorded
     return {}
-
-
-def _with_defaults(
-    values: dict[str, Any], *, supplied_keys: set[str] | None = None
-) -> dict[str, Any]:
-    normalized = dict(values)
-    explicit = supplied_keys if supplied_keys is not None else set(normalized)
-    file_storage_supplied = "file_storage" in (explicit)
-    if "tls_mode" in explicit and "ingress_mode" not in explicit:
-        normalized["ingress_mode"] = {
-            "reverse_proxy": "external_proxy",
-            "external_resolver": "external_traefik",
-            "external_certificate": "external_traefik",
-            "platform_managed": "platform",
-        }.get(str(normalized.get("tls_mode")), "bundled_traefik")
-    for field in INSTALLER_SPEC.fields:
-        if field.key not in normalized and field.default is not None:
-            default = field.default
-            normalized[field.key] = list(default) if isinstance(default, tuple) else default
-    # The spec default "bundled" is the Scalable default; Compact defaults to the local
-    # filesystem. Only that default is replaced: an answered local_fs or external_s3
-    # (with its S3 settings) is kept, and --file-storage bundled stays explicit.
-    if (
-        normalized.get("deployment_profile") == "compact"
-        and not file_storage_supplied
-        and normalized.get("file_storage") == "bundled"
-    ):
-        normalized["file_storage"] = "local_fs"
-    if normalized.get("environment") == "production":
-        normalized["development_tools"] = ()
-    return normalized
 
 
 def _validate_container_paths(values: dict[str, Any], *, supplied_keys: set[str]) -> None:

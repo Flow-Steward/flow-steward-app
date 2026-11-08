@@ -20,6 +20,7 @@ from core.application.extensions.lifecycle_descriptor_io import (
     _resolve_hostname_ips,
 )
 from core.application.management.mcp_connector_header_secrets import connector_has_headers
+from core.infrastructure.config.mcp_connector_limits import mcp_http_response_max_bytes
 from core.infrastructure.config.version import APP_VERSION
 
 from .errors import (
@@ -46,7 +47,12 @@ _BLOCKED_MCP_HOSTS = {"localhost", "localhost.localdomain"}
 _DEFAULT_USER_AGENT = f"flow-steward/{APP_VERSION}"
 
 
-_MAX_MCP_HTTP_RESPONSE_BYTES = 4 * 1024 * 1024
+class McpResponseSizeLimitError(ServiceValidationError):
+    """A local transport bound, safe to explain without reflecting remote content."""
+
+    def __init__(self, *, max_bytes: int, purpose: str) -> None:
+        self.max_bytes = max_bytes
+        super().__init__(f"{purpose} exceeded the response size limit ({max_bytes} bytes)")
 
 
 _MCP_CREDENTIAL_QUERY_MARKERS = (
@@ -78,7 +84,7 @@ def read_bounded_http_body(response: Any, *, max_bytes: int, purpose: str) -> by
     limit = max(1, int(max_bytes))
     payload = response.read(limit + 1)
     if len(payload) > limit:
-        raise ServiceValidationError(f"{purpose} exceeded the response size limit")
+        raise McpResponseSizeLimitError(max_bytes=limit, purpose=purpose)
     return payload
 
 
@@ -538,7 +544,7 @@ def _json_rpc_post_with_metadata(
         with response_context as response:
             raw = read_bounded_http_body(
                 response,
-                max_bytes=_MAX_MCP_HTTP_RESPONSE_BYTES,
+                max_bytes=mcp_http_response_max_bytes(),
                 purpose="MCP server response",
             ).decode("utf-8")
             response_headers = {key.lower(): value for key, value in response.headers.items()}

@@ -693,3 +693,32 @@ def test_preflight_checks_installer_native_and_index_tags(tmp_path: Path) -> Non
         "docker.io/flowsteward/flow-steward-installer:1.2.3-arm64",
         "docker.io/flowsteward/flow-steward-installer:1.2.3",
     }
+
+
+def test_stable_release_waits_for_anonymous_installer_pulls_and_retains_evidence() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    steps = workflow["jobs"]["publish"]["steps"]
+    names = [step.get("name", "") for step in steps]
+    anonymous = next(
+        (i for i, step in enumerate(steps) if "anonymous-installer" in step.get("run", "")), None
+    )
+    assert anonymous is not None, "Stable publication needs actual anonymous installer pulls"
+    assert names.index("Copy to available registries and verify complete release sets") < anonymous
+    assert anonymous < names.index(
+        "Publish stable GitHub Release after a complete registry verifies"
+    )
+    upload = next(
+        step for step in steps if step.get("name") == "Retain registry verification evidence"
+    )
+    assert upload["if"] == "always()"
+    assert "anonymous-installer" in upload["with"]["path"]
+
+
+def test_readme_install_command_matches_candidate_version() -> None:
+    root = Path(__file__).resolve().parents[2]
+    version = (root / "VERSION").read_text().strip()
+    assert (
+        f"git clone --branch v{version} https://github.com/Flow-Steward/flow-steward-app.git"
+        in (root / "README.md").read_text()
+    )

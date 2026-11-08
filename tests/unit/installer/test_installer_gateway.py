@@ -10264,3 +10264,76 @@ def test_installer_reissue_retains_snapshot_when_compensation_only_exits_zero(tm
     assert raised.value.code == "bootstrap_recovery_needed"
     assert process.attempts == 2
     assert (gateway.state_store.root / "operations/bootstrap-token-reissue/manifest.json").is_file()
+
+
+@pytest.mark.parametrize("profile", ["compact", "scalable"])
+@pytest.mark.parametrize("foreign_backend", [False, True])
+def test_reverse_proxy_update_checks_published_backends_not_proxy_tls_port(
+    tmp_path: Path, profile: str, foreign_backend: bool
+) -> None:
+    config = InstallConfig(
+        deployment_profile=profile,
+        environment="production",
+        ingress_mode="external_proxy",
+        tls_mode="reverse_proxy",
+        public_port=24444,
+        reverse_proxy_backend_port=18499,
+        reverse_proxy_mcp_port=18500,
+    )
+    gateway, _process = _port_preflight(
+        tmp_path,
+        busy={24444, 18499, 18500},
+        owned="" if foreign_backend else "127.0.0.1:18499->8099/tcp, 127.0.0.1:18500->8100/tcp",
+        env={
+            "APP_PORT": "24444",
+            "FS_REVERSE_PROXY_BACKEND_PORT": "18499",
+            "FS_REVERSE_PROXY_MCP_PORT": "18500",
+            **({"FS_COMPACT_IMAGE": "sha256:" + "e" * 64} if profile == "compact" else {}),
+        },
+        config=config,
+    )
+    log = gateway.state_store.open_log("reverse-proxy-update-ports")
+    try:
+        if foreign_backend:
+            with pytest.raises(InstallerFailure) as raised:
+                gateway.update_preflight(config, log=log)
+            assert raised.value.code == "port_conflict"
+            assert "18499" in raised.value.cause
+            assert "FS_REVERSE_PROXY_BACKEND_PORT" in raised.value.remediation
+        else:
+            gateway.update_preflight(config, log=log)
+    finally:
+        log.close()
+
+
+@pytest.mark.parametrize("profile", ["compact", "scalable"])
+def test_reverse_proxy_update_resolves_backend_ports_from_installed_environment(
+    tmp_path: Path, profile: str
+) -> None:
+    config = InstallConfig(
+        deployment_profile=profile,
+        environment="production",
+        ingress_mode="external_proxy",
+        tls_mode="reverse_proxy",
+        reverse_proxy_backend_port=18099,
+        reverse_proxy_mcp_port=18100,
+    )
+    gateway, _process = _port_preflight(
+        tmp_path,
+        busy=set(),
+        owned="",
+        env={
+            "APP_PORT": "443",
+            "FS_REVERSE_PROXY_BACKEND_PORT": "18499",
+            "FS_REVERSE_PROXY_MCP_PORT": "18500",
+        },
+        config=config,
+    )
+    log = gateway.state_store.open_log("reverse-proxy-resolved-ports")
+    try:
+        expected = [(18499, "FS_REVERSE_PROXY_BACKEND_PORT in .env.prod")]
+        if profile == "scalable":
+            expected.append((18500, "FS_REVERSE_PROXY_MCP_PORT in .env.prod"))
+        assert gateway._installed_host_ports(config, 18099, log=log) == tuple(expected)
+    finally:
+        log.close()

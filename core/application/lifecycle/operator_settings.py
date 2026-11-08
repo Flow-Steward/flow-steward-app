@@ -12,8 +12,8 @@ Whatever name `config show`, an error message or the Host settings page shows,
 - host settings: environment-manifest entries flagged ``operator_settable``
   (``FS_ALLOW_PRIVATE_REMOTE_URLS``). Never a secret, never an installer-managed key.
 
-On Compact, where `config` is not available, a host setting is set with
-``./install.sh --setting NAME=VALUE``.
+On a Docker host, Compact and Scalable both use ``config set`` and ``config apply``.
+Compact also retains ``./install.sh --setting NAME=VALUE`` as an installer convenience.
 """
 
 from __future__ import annotations

@@ -45,7 +45,7 @@ _TLS_CHOICES = tuple(
 CONFIG_COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec(
         command_id=_TOKEN_CONFIG_SHOW,
-        compact_support=CompactSupport.RETAINED_CLI,
+        compact_support=CompactSupport.PLATFORM,
         path=("config", "show"),
         summary="Show active and pending installed configuration.",
         description=(
@@ -65,7 +65,7 @@ CONFIG_COMMAND_SPECS: tuple[CommandSpec, ...] = (
     ),
     CommandSpec(
         command_id=_TOKEN_CONFIG_VALIDATE,
-        compact_support=CompactSupport.RETAINED_CLI,
+        compact_support=CompactSupport.PLATFORM,
         path=("config", "validate"),
         summary="Validate installed and pending configuration without mutation.",
         description=(
@@ -85,7 +85,7 @@ CONFIG_COMMAND_SPECS: tuple[CommandSpec, ...] = (
     ),
     CommandSpec(
         command_id=_TOKEN_CONFIG_SET,
-        compact_support=CompactSupport.RETAINED_CLI,
+        compact_support=CompactSupport.PLATFORM,
         path=("config", "set"),
         summary="Stage an approved declarative configuration patch.",
         description=(
@@ -375,7 +375,7 @@ CONFIG_COMMAND_SPECS: tuple[CommandSpec, ...] = (
     ),
     CommandSpec(
         command_id=_TOKEN_CONFIG_APPLY,
-        compact_support=CompactSupport.RETAINED_CLI,
+        compact_support=CompactSupport.PLATFORM,
         path=("config", "apply"),
         summary="Apply the pending configuration safely.",
         description=(

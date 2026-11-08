@@ -64,6 +64,24 @@ Expose only the curated documentation surface you need:
 | `FS_OPENAPI_PUBLIC_REQUIRE_AUTH` | Requires auth for the public schema and Swagger UI; defaults to `1`. |
 | `FS_OPENAPI_INTERNAL_REQUIRE_AUTH` | Requires auth for the internal schema and Swagger UI; defaults to `1`. |
 
+## Remote MCP Response Size
+
+`FS_MCP_HTTP_RESPONSE_MAX_BYTES` limits the complete HTTP response body from a remote
+MCP connector, including JSON and SSE envelopes. The default is `4194304` bytes
+(4 MiB). Values from `1024` to `1073741824` bytes are supported; invalid text uses
+the default, and numeric values outside the range are clamped.
+
+For example, allow 32 MiB on either Compact or Scalable:
+
+```bash
+./flow-steward config set FS_MCP_HTTP_RESPONSE_MAX_BYTES=33554432
+./flow-steward config apply --confirm
+```
+
+Applying the setting recreates the affected runtime containers. An oversized tool
+response reports the byte limit and names this setting without including remote
+response content. The setting can also be supplied in the deployment environment.
+
 ## Uploads And File Types
 
 General attachment policy is deployment-level:

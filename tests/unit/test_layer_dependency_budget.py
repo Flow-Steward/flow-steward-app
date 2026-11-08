@@ -144,6 +144,12 @@ DECOMPOSED_ADAPTER_BOUNDARIES = {
                 "core.application.lifecycle.stack_service.StackRuntimeState",
             }
         ),
+        "core/infrastructure/lifecycle/docker_image_preparation.py": frozenset(
+            {
+                "core.application.lifecycle.stack_service.StackGatewayError",
+                "core.application.release.images.all_release_roles",
+            }
+        ),
         "core/infrastructure/lifecycle/docker_preservation_gateway.py": frozenset(
             {
                 "core.application.lifecycle.preservation_service.UNKNOWN",
