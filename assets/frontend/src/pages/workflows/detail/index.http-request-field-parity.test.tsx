@@ -16,9 +16,6 @@ const retireBridgeObserver = () => { restoreBridgeObserver?.(); };
 beforeEach(retireBridgeObserver);
 afterEach(retireBridgeObserver);
 
-// Each case renders the whole workflow page: 1-2 s alone, past the 5 s default under the full suite.
-vi.setConfig({ testTimeout: 15_000 });
-
 const config = {
   method: " post ", url: "https://example.test/items/{{ state.inputs.id }}",
   response_target: "state.response", expected_statuses: [200, 201], timeout_seconds: 30,
@@ -242,7 +239,7 @@ it("stages an incomplete new HTTP config through the actual local authoring acti
   await userEvent.click(add);
   await waitFor(() => expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure not applied"));
   expect(postedChangeSets()).toEqual([]);
-}, 15_000);
+});
 
 
 it("keeps a newer partial CSV through the actual held Save ACK and changed-config refetch", async () => {
@@ -532,7 +529,7 @@ it.each([
     restoreObserver();
     await act(async () => { releaseValidation(); if (started && !accepted) boundary.reject(); });
   }
-}, 15_000);
+});
 
 it.each(["Step label", "Optional step"] as const)("retains a current URL server refusal after a newer %s edit", async (control) => {
   const boundary = install(); boundary.hold();
@@ -556,4 +553,4 @@ it.each(["Step label", "Optional step"] as const)("retains a current URL server 
     await act(async () => { if (started && !settled) boundary.reject(); });
     view.unmount();
   }
-}, 15_000);
+});
