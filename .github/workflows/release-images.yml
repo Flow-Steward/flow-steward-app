@@ -412,12 +412,23 @@ jobs:
           fi
           python3 "$FS_RELEASE_TOOLING/scripts/release/official_release.py" verify --root "$FS_RELEASE_SOURCE" --version "$FS_RELEASE_VERSION" --revision "$FS_RELEASE_REVISION" --evidence "$FS_RELEASE_EVIDENCE"
           python3 "$FS_RELEASE_TOOLING/core/entrypoints/cli/scripts/release-automation.py" evidence --root "$FS_RELEASE_SOURCE" --tag "$RELEASE_TAG" --evidence "$FS_RELEASE_EVIDENCE" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR"
+      - name: Require anonymous installer pulls before stable publication
+        run: |
+          python3 -m core.entrypoints.cli.agent_resources --registry "$RUNNER_TEMP/release-resources" --owner "anonymous-installer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" run -- python3 "$FS_RELEASE_TOOLING/core/entrypoints/cli/scripts/release-automation.py" anonymous-installer --root "$FS_RELEASE_SOURCE" --tag "$RELEASE_TAG" --artifact-dir "$FS_RELEASE_ARTIFACT_DIR" --evidence "$FS_RELEASE_EVIDENCE" --acceptance-dir "$RUNNER_TEMP/anonymous-installer"
+        working-directory: tooling
+      - name: Clean anonymous acceptance resources
+        if: always()
+        working-directory: tooling
+        run: python3 -m core.entrypoints.cli.agent_resources --registry "$RUNNER_TEMP/release-resources" --owner "anonymous-installer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" cleanup --apply
       - name: Retain registry verification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-verification-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/release-verification.json
+          path: |
+            ${{ runner.temp }}/release-verification.json
+            ${{ runner.temp }}/anonymous-installer/
+            ${{ runner.temp }}/release-resources/
           retention-days: 90
           if-no-files-found: warn
       - name: Publish stable GitHub Release after a complete registry verifies

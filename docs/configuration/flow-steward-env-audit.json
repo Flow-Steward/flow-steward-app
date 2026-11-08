@@ -10815,6 +10815,44 @@
     "variable_name": "FS_TABULAR_FEED_READ_ROWS_SCAN_MAX_ROWS"
   },
   {
+    "canonical_name": "FS_TASK_RESOURCE_OWNER",
+    "code_read_locations": [
+      "core/application/tooling/anonymous_installer_acceptance.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_TASK_RESOURCE_OWNER"
+  },
+  {
+    "canonical_name": "FS_TASK_RESOURCE_TOKEN",
+    "code_read_locations": [
+      "core/application/tooling/anonymous_installer_acceptance.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": true,
+    "variable_name": "FS_TASK_RESOURCE_TOKEN"
+  },
+  {
     "canonical_name": "FS_TASK_UPLOAD_BODY_READ_TIMEOUT_SECONDS",
     "code_read_locations": [
       "core/infrastructure/config/task_upload.py"

@@ -137,6 +137,16 @@ recorded independently; artifacts are not deleted or rolled back automatically.
 
 ## Anonymous installer acceptance before stable release
 
+The publication workflow performs this check through the
+`release-automation.py anonymous-installer` adapter before creating a stable
+GitHub Release. It creates a fresh labelled Docker-in-Docker daemon and image
+volume for each registry, with an empty credential configuration and a Docker-only
+client path. The helper compares actual downloaded image identities with the
+already verified native-archive evidence, records anonymous failures in registry
+availability, and removes its exact disposable resources. Logs and resource
+receipts are retained even on failure. The manual procedure below uses the same
+acceptance contract.
+
 Authenticated `official-release-verify.sh` checks artifact bytes, platform configs,
 and labels using the publisher's credentials. It does not prove that the default
 anonymous bootstrap can download the installer. Before publishing the stable
@@ -248,9 +258,9 @@ The full gate builds its PostgreSQL dependency and audit image on a dedicated
 runner, with the repository's development example environment and disposable audit
 DB/broker. It does not connect to a production installation.
 
-After local release verification and a reviewed VERSION change, push the matching
+After local impacted verification and reviewed versioned notes, push the matching
 stable tag `vX.Y.Z`. The workflow validates the tag, VERSION, clean source and main
-ancestry, runs complete Tier 2 + Tier 3 checks, builds each native role set and
+ancestry, records publication scope without starting a full quality run, builds each native role set and
 retains OCI archives for 30 days. It validates archive checksums before accessing
 registries and rejects any existing version whose child/index digests differ.
 No latest aliases or prerelease images are produced.

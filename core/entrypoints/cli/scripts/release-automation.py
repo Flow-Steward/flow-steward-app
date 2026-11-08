@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT))
 
+from core.application.tooling.anonymous_installer_acceptance import accept_installers  # noqa: E402
 from core.application.tooling.release_automation import (  # noqa: E402
     preflight_registry,
     registry_namespaces,
@@ -29,11 +30,14 @@ from core.infrastructure.runtime_env import runtime_env  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("identity", "notes", "preflight", "evidence"))
+    parser.add_argument(
+        "action", choices=("identity", "notes", "preflight", "evidence", "anonymous-installer")
+    )
     parser.add_argument("--tag", required=True)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--artifact-dir", type=Path)
     parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--acceptance-dir", type=Path)
     parser.add_argument("--preflight-output", type=Path)
     parser.add_argument("--previous-tag")
     parser.add_argument("--release-history", type=Path)
@@ -84,6 +88,19 @@ def main() -> int:
                 args.preflight_output.write_text(
                     json.dumps({"available": available}) + "\n", encoding="utf-8"
                 )
+        elif args.action == "anonymous-installer":
+            if args.evidence is None or args.acceptance_dir is None or args.artifact_dir is None:
+                parser.error(
+                    "anonymous-installer requires --evidence, --artifact-dir and --acceptance-dir"
+                )
+            accept_installers(
+                args.evidence,
+                version=version,
+                revision=revision,
+                namespaces=namespaces,
+                artifact_dir=args.artifact_dir,
+                directory=args.acceptance_dir,
+            )
         else:
             if args.evidence is None:
                 parser.error("evidence requires --evidence")
