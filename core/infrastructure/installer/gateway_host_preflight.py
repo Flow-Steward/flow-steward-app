@@ -229,6 +229,24 @@ class HostPreflightOperations:
             raw = str(self._environment.get(name) or persisted.get(name) or "").strip()
             return int(raw) if raw.isdigit() and 1 <= int(raw) <= 65535 else default
 
+        if config.tls_mode == "reverse_proxy":
+            # External TLS belongs to the operator's proxy. The host overlays publish
+            # only these private backends; APP_PORT records the public website port.
+            ports = [
+                (
+                    resolved("FS_REVERSE_PROXY_BACKEND_PORT", config.reverse_proxy_backend_port),
+                    "FS_REVERSE_PROXY_BACKEND_PORT in .env.prod",
+                )
+            ]
+            if config.deployment_profile == "scalable":
+                ports.append(
+                    (
+                        resolved("FS_REVERSE_PROXY_MCP_PORT", config.reverse_proxy_mcp_port),
+                        "FS_REVERSE_PROXY_MCP_PORT in .env.prod",
+                    )
+                )
+            return tuple(ports)
+
         recorded = self._published_host_ports(config, public_port)
         app_port = resolved("APP_PORT", public_port)
         ports: list[tuple[int, str]] = [(app_port, "APP_PORT in .env.prod")]
