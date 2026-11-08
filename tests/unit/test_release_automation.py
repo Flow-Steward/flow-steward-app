@@ -587,6 +587,71 @@ assertTagMatchesRevision().then(() => process.exit(0)).catch(() => process.exit(
     assert (result.returncode == 0) == (kind in {"direct", "annotated"}), result.stderr
 
 
+@pytest.mark.parametrize("existing", [None, "registry-only", "human-edited"])
+def test_publication_uses_product_notes_and_keeps_registry_results_as_footer(
+    existing: str | None,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    release = next(
+        step
+        for step in workflow["jobs"]["publish"]["steps"]
+        if step.get("name", "").startswith("Publish stable GitHub Release")
+    )
+    notes = "## Flow Steward 1.2.3\n\n### Fixes\n\n- Preserve the customer's report after reopening a completed job."
+    edited = notes + "\n\nAdditional upgrade guidance written by the publisher."
+    wanted = edited if existing == "human-edited" else notes
+    node = f"""
+const scenario = {json.dumps(existing)};
+const notes = {json.dumps(notes)};
+const wanted = {json.dumps(wanted)};
+const notice = 'Registry availability: verified complete AMD64 and ARM64 images: ghcr.io/flow-steward. See attached digest evidence.';
+const fs = {{readFileSync: () => JSON.stringify({{registries: [{{status:'verified', namespace:'ghcr.io/flow-steward'}}]}}), writeFileSync: () => {{}}}};
+const fakeRequire = name => {{
+  if (name === 'node:fs' || name === 'fs') return fs;
+  if (name === 'node:child_process') return {{execFileSync: () => JSON.stringify({{body:wanted}})}};
+  throw new Error('Unexpected module: ' + name);
+}};
+process.env.RELEASE_TAG='v1.2.3';
+process.env.FS_RELEASE_REVISION='a'.repeat(40);
+process.env.FS_RELEASE_TOOLING='/tooling';
+process.env.FS_RELEASE_SOURCE='/source';
+process.env.FS_RELEASE_PREVIOUS_TAG='v1.2.2';
+process.env.FS_RELEASE_NOTES_SHA256='b'.repeat(64);
+process.env.RUNNER_TEMP='/temporary';
+let published;
+const github = {{rest: {{
+  git: {{getRef: async () => ({{data: {{object: {{type:'commit', sha:'a'.repeat(40)}}}}}})}},
+  repos: {{
+    getReleaseByTag: async () => {{if (scenario === null) {{const e=new Error('missing');e.status=404;throw e;}}
+      return {{data: {{id:1, draft:false, prerelease:false, body: scenario === 'human-edited' ? wanted + '\\n\\nRegistry availability: old mirror.' : 'Registry availability: old mirror.'}}}};}},
+    createRelease: async args => {{published=args.body;return {{data: {{id:1,draft:false,prerelease:false,body:args.body}}}};}},
+    updateRelease: async args => {{published=args.body;return {{data: {{id:1,draft:false,prerelease:false,body:args.body}}}};}},
+    uploadReleaseAsset: async () => ({{}}),
+  }}
+}}}};
+const context = {{repo: {{owner:'Flow-Steward',repo:'flow-steward-app'}},runId:7}};
+const AsyncFunction = Object.getPrototypeOf(async function(){{}}).constructor;
+new AsyncFunction('require','github','context',{json.dumps(release["with"]["script"])})(fakeRequire,github,context)
+ .then(() => {{if (published !== wanted + '\\n\\n' + notice) throw new Error('Incorrect published product notes: ' + published);}})
+ .catch(error => {{console.error(error.message);process.exitCode=1;}});
+"""
+    result = subprocess.run(["node", "-e", node], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_release_resolves_product_notes_before_native_builds() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((root / ".github/workflows/release-images.yml").read_text())
+    resolve = workflow["jobs"]["resolve"]
+    notes = next((step for step in resolve["steps"] if step.get("id") == "release-notes"), None)
+    assert notes is not None, "Missing product notes must stop the resolve job before native builds"
+    assert "listReleases" in notes["with"]["script"]
+    assert "release-automation.py" in notes["with"]["script"]
+    assert "notes_sha256" in resolve["outputs"]
+    assert "resolve" in workflow["jobs"]["native"]["needs"]
+
+
 def test_complete_release_requires_installer_evidence(tmp_path: Path) -> None:
     value = evidence()
     for registry in value["registries"]:

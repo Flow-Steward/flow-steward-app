@@ -35,6 +35,8 @@ jobs:
       revision: ${{ steps.identity.outputs.revision }}
       artifact_run_id: ${{ steps.identity.outputs.artifact_run_id }}
       reuse: ${{ steps.identity.outputs.reuse }}
+      notes_sha256: ${{ steps.release-notes.outputs.notes_sha256 }}
+      previous_tag: ${{ steps.release-notes.outputs.previous_tag }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
         with:
@@ -62,6 +64,24 @@ jobs:
               printf 'reuse=true\n' >> "$GITHUB_OUTPUT"
             fi
           fi
+      - name: Validate product release notes before native builds
+        id: release-notes
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          RELEASE_TAG: ${{ steps.identity.outputs.tag }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const {execFileSync} = require('node:child_process');
+            const history = await github.paginate(github.rest.repos.listReleases, {...context.repo, per_page: 100});
+            const path = `${process.env.RUNNER_TEMP}/release-history.json`;
+            fs.writeFileSync(path, JSON.stringify(history.map(({tag_name, draft, prerelease}) => ({tag_name, draft, prerelease}))));
+            const notes = JSON.parse(execFileSync('python3', [
+              'core/entrypoints/cli/scripts/release-automation.py', 'notes',
+              '--tag', process.env.RELEASE_TAG, '--release-history', path,
+            ], {encoding: 'utf8'}));
+            core.setOutput('notes_sha256', notes.notes_sha256);
+            core.setOutput('previous_tag', notes.previous_tag);
   quality:
     needs: resolve
     runs-on: ${{ vars.RELEASE_GATE_RUNNER || 'ubuntu-24.04' }}
@@ -402,9 +422,13 @@ jobs:
           if-no-files-found: warn
       - name: Publish stable GitHub Release after a complete registry verifies
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          FS_RELEASE_NOTES_SHA256: ${{ needs.resolve.outputs.notes_sha256 }}
+          FS_RELEASE_PREVIOUS_TAG: ${{ needs.resolve.outputs.previous_tag }}
         with:
           script: |
             const fs = require('node:fs');
+            const {execFileSync} = require('node:child_process');
             const tag = process.env.RELEASE_TAG;
             const focusedNotice = tag === 'v0.9.9'
               ? `Focused acceptance (full suite not rerun) for revision ${process.env.FS_RELEASE_REVISION}. The v0.9.8 publication gate failed: https://github.com/Flow-Steward/flow-steward-app/actions/runs/41591208411. The user requested focused failed and impacted tests instead of another full gate. See the quality artifact for the selected paths and results: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}.`
@@ -415,7 +439,21 @@ jobs:
             const available = evidence.registries.filter(registry => registry.status === 'verified').map(registry => registry.namespace);
             const unavailable = evidence.registries.filter(registry => registry.status === 'incomplete').map(registry => registry.namespace);
             const registryNotice = `Registry availability: verified complete AMD64 and ARM64 images: ${available.join(', ')}.${unavailable.length ? ` Unavailable or incomplete: ${unavailable.join(', ')}.` : ''} See attached digest evidence.`;
-            const defaultBody = registryNotice;
+            function productNotes(existingBody) {
+              const args = [
+                `${process.env.FS_RELEASE_TOOLING}/core/entrypoints/cli/scripts/release-automation.py`, 'notes',
+                '--root', process.env.FS_RELEASE_SOURCE, '--tag', tag,
+                '--previous-tag', process.env.FS_RELEASE_PREVIOUS_TAG,
+                '--expected-notes-sha256', process.env.FS_RELEASE_NOTES_SHA256,
+              ];
+              if (existingBody !== undefined) {
+                const path = `${process.env.RUNNER_TEMP}/existing-release-notes.md`;
+                fs.writeFileSync(path, existingBody);
+                args.push('--existing-body', path);
+              }
+              return JSON.parse(execFileSync('python3', args, {encoding: 'utf8'})).body.trim();
+            }
+            const defaultBody = `${productNotes()}\n\n${registryNotice}`;
             async function assertTagMatchesRevision() {
               let object = (await github.rest.git.getRef({...context.repo, ref: `tags/${tag}`})).data.object;
               for (let depth = 0; object.type === 'tag' && depth < 8; depth++) {
@@ -434,14 +472,13 @@ jobs:
               ({data: release} = await github.rest.repos.createRelease({
                 ...context.repo, tag_name: tag,
                 name: tag, draft: false, prerelease: false,
-                body: focusedNotice ? `${defaultBody}\n\n${focusedNotice}` : defaultBody
+                body: focusedNotice ? `${productNotes()}\n\n${focusedNotice}\n\n${registryNotice}` : defaultBody
               }));
             }
             if (release.draft || release.prerelease) throw new Error('Existing release must be stable and non-draft; review it manually');
-            let body = release.body || '';
-            body = body.replace(/^Registry availability:.*$/gm, '').replace('Native AMD64 and ARM64 images verified in both GHCR and Docker Hub. See attached digest evidence.', '').trim();
-            body = `${registryNotice}${body ? `\n\n${body}` : ''}`;
+            let body = productNotes(release.body || '');
             if (focusedNotice && !body.includes(focusedNotice)) body += `\n\n${focusedNotice}`;
+            body = `${body}\n\n${registryNotice}`;
             if (body !== release.body) {
               await assertTagMatchesRevision();
               ({data: release} = await github.rest.repos.updateRelease({...context.repo, release_id: release.id, body}));

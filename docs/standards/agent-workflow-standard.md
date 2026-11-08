@@ -98,6 +98,29 @@ AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `l
 - `MUST` report exact commands, achieved tier, candidate provenance, and blocked or unrun verification.
 - `MUST NOT` combine results from different commits or environments into one green result, except input-scoped evidence whose fingerprint matches the final tree.
 
+## Product Release Notes
+
+- Before creating a new release tag, the publisher `MUST` commit reviewed notes
+  at `docs/releases/<version>.md`, alongside the matching `VERSION` change.
+- Notes `MUST` describe the user-visible features, improvements and fixes that
+  actually ship. Review the complete comparison from the previous published
+  stable tag, not only changes since the release branch was created. Do not list
+  planned work or separately deferred extensions as released features.
+- Group changes into readable product sections, omit empty categories, and
+  include the exact previous-stable-to-current-tag changelog link. Explain
+  breaking changes, compatibility requirements and upgrade actions when relevant.
+- The publication workflow `MUST` validate the versioned notes before native
+  builds and bind their digest to the resolved release candidate. Missing notes,
+  placeholders, empty product sections and a wrong changelog stop publication.
+- Registry availability `MUST` be a generated footer, never a replacement for
+  product notes. Publication retries `MUST` preserve valid human edits and repair
+  a technical-only description from the reviewed versioned notes.
+- Verification statements `MUST` retain their actual scope and limitations.
+  A registry check or successful publication is not a full test-suite pass.
+
+See [release-note authoring](../releases/README.md) and the
+[release-note template](../releases/TEMPLATE.md).
+
 ## Owned Runtime Resource Cleanup
 
 Cleanup is part of task completion, not optional follow-up work. This section applies to

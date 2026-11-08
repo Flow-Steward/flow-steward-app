@@ -81,9 +81,30 @@ the active Docker context. The Docker daemon server architecture must match
 `FS_RELEASE_PLATFORM`; the build command refuses remote, emulated, and legacy
 `docker`-driver builders because the release output is an OCI archive.
 
+## Prepare product release notes before tagging
+
+Follow the canonical
+[Product Release Notes standard](../standards/agent-workflow-standard.md#product-release-notes)
+and [authoring checklist](../releases/README.md). Commit
+`docs/releases/<version>.md` with the matching `VERSION` change before creating
+the immutable tag. Describe shipped features, improvements and fixes, plus any
+compatibility or upgrade actions. Review the complete comparison from the
+previous published stable release, not only the release branch's own commits.
+
+The resolve job validates the versioned file against published release metadata
+before either native build starts. Missing files, empty or placeholder sections,
+wrong versions and incorrect changelog links fail closed. Publication rechecks
+the file digest against the resolve result.
+
+New releases use these reviewed notes. Retries preserve valid human edits and
+repair a registry-only description from the source notes. Registry availability
+is appended as a footer; technical provenance does not replace product notes or
+imply that unexecuted tests passed.
+
 ## Sequence
 
-1. Create and push the immutable tag only after the full release gate passes.
+1. Complete selected verification and any separately requested full acceptance,
+   commit the reviewed versioned notes, then create and push the immutable tag.
 2. On native AMD64, set `FS_RELEASE_PLATFORM=linux/amd64` and run
    `scripts/release/official-release-build.sh`.
 3. On native ARM64, use the same tag, revision, and artifact directory, set
@@ -101,8 +122,11 @@ the active Docker context. The Docker daemon server architecture must match
    never rebuilt.
 
 GitHub Actions orchestrates the same native build and publication scripts as
-described below. Local contributor gates remain required; automated publication
-also runs the canonical full Docker gate on the exact tagged commit (ADR 0048).
+described below. Local contributor gates remain required. Ordinary automated
+publication validates the notes, exact source identity, native archives and
+registry evidence; it does not start a full quality run. If complete exact-SHA
+quality evidence is explicitly required, obtain it through a separately requested
+run before publication.
 
 Verification requires exactly `linux/amd64` and `linux/arm64` for every canonical
 release role, including `postgres`, plus the installer artifact, and checks the
