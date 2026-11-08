@@ -475,6 +475,14 @@ def _recorded_installation_values(root: Path) -> dict[str, Any]:
         active = None
     if active is not None:
         return active.model_dump(mode="python")
+    # Preflight can fail before stack.toml or .env exist. The unfinished journal
+    # still owns the reviewed answers, including the pending release's profile.
+    try:
+        journal = InstallerStateStore(installer_state_root(root)).load_journal()
+    except (OSError, ValueError):
+        journal = None
+    if journal is not None and journal.status != "completed":
+        return journal.config.model_dump(mode="python")
     for name, environment in ((".env.prod", "production"), (".env", "development")):
         path = root / name
         if not path.is_file():
