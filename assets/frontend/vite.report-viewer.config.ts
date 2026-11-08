@@ -10,8 +10,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
 const VIEWER_HTML = "report-viewer.html";
@@ -40,38 +40,43 @@ function singleFileViewer(): Plugin {
   return {
     name: "flow-steward-viewer-single-file",
     enforce: "post",
-    generateBundle(_options, bundle) {
-      const page = bundle[VIEWER_HTML];
-      if (!page || page.type !== "asset") {
-        this.error(`${VIEWER_HTML} was not emitted`);
-      }
-      let html = String(page.source);
-      for (const [fileName, item] of Object.entries(bundle)) {
-        if (fileName === VIEWER_HTML) continue;
-        const name = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        if (item.type === "chunk" && item.isEntry) {
-          const tag = new RegExp(`<script[^>]*src="[^"]*${name}"[^>]*></script>`);
-          if (!tag.test(html)) this.error(`no script tag for ${fileName}`);
-          html = html.replace(tag, () => `<script type="module">${escapeForScript(item.code)}</script>`);
-          delete bundle[fileName];
-        } else if (item.type === "asset" && fileName.endsWith(".css")) {
-          const tag = new RegExp(`<link[^>]*href="[^"]*${name}"[^>]*>`);
-          if (!tag.test(html)) this.error(`no stylesheet link for ${fileName}`);
-          html = html.replace(tag, () => `<style>${escapeForStyle(String(item.source))}</style>`);
-          delete bundle[fileName];
+    // After Vite's own post hooks: its import analysis still rewrites the
+    // preload marker of the lazily loaded chart engine in the entry chunk.
+    generateBundle: {
+      order: "post",
+      handler(_options, bundle) {
+        const page = bundle[VIEWER_HTML];
+        if (!page || page.type !== "asset") {
+          this.error(`${VIEWER_HTML} was not emitted`);
         }
-      }
-      const leftovers = Object.keys(bundle).filter((fileName) => fileName !== VIEWER_HTML);
-      if (leftovers.length) {
-        this.error(`the viewer must be one file; also emitted: ${leftovers.join(", ")}`);
-      }
-      const notices = fs.readFileSync(NOTICES, "utf-8");
-      html = html.replace(
-        "</head>",
-        () =>
-          `<script type="text/plain" id="fs-third-party-notices">${escapeForScript(notices)}</script>\n</head>`,
-      );
-      page.source = html;
+        let html = String(page.source);
+        for (const [fileName, item] of Object.entries(bundle)) {
+          if (fileName === VIEWER_HTML) continue;
+          const name = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (item.type === "chunk" && item.isEntry) {
+            const tag = new RegExp(`<script[^>]*src="[^"]*${name}"[^>]*></script>`);
+            if (!tag.test(html)) this.error(`no script tag for ${fileName}`);
+            html = html.replace(tag, () => `<script type="module">${escapeForScript(item.code)}</script>`);
+            delete bundle[fileName];
+          } else if (item.type === "asset" && fileName.endsWith(".css")) {
+            const tag = new RegExp(`<link[^>]*href="[^"]*${name}"[^>]*>`);
+            if (!tag.test(html)) this.error(`no stylesheet link for ${fileName}`);
+            html = html.replace(tag, () => `<style>${escapeForStyle(String(item.source))}</style>`);
+            delete bundle[fileName];
+          }
+        }
+        const leftovers = Object.keys(bundle).filter((fileName) => fileName !== VIEWER_HTML);
+        if (leftovers.length) {
+          this.error(`the viewer must be one file; also emitted: ${leftovers.join(", ")}`);
+        }
+        const notices = fs.readFileSync(NOTICES, "utf-8");
+        html = html.replace(
+          "</head>",
+          () =>
+            `<script type="text/plain" id="fs-third-party-notices">${escapeForScript(notices)}</script>\n</head>`,
+        );
+        page.source = html;
+      },
     },
   };
 }
@@ -79,6 +84,7 @@ function singleFileViewer(): Plugin {
 export default defineConfig({
   base: "./",
   publicDir: false,
+  // The shared design-system CSS uses Tailwind directives (@reference, theme()).
   plugins: [react(), tailwindcss(), singleFileViewer()],
   resolve: {
     alias: [{ find: "@", replacement: path.resolve(__dirname, "./src") }],

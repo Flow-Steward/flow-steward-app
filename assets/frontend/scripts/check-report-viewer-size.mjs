@@ -23,6 +23,11 @@ const problems = [];
 if (raw > RAW_BUDGET_BYTES) problems.push(`raw size ${raw} exceeds ${RAW_BUDGET_BYTES}`);
 if (gzip > GZIP_BUDGET_BYTES) problems.push(`gzip size ${gzip} exceeds ${GZIP_BUDGET_BYTES}`);
 if (!html.includes('id="fs-third-party-notices"')) problems.push("third-party notices are missing");
+// Vite placeholders left in the inlined code throw in the browser (a report
+// with a chart showed nothing in 0.9.12).
+if (/__VITE_[A-Z_]+__/.test(html.toString("utf-8"))) {
+  problems.push("the viewer still contains an unreplaced Vite placeholder");
+}
 if (/<script[^>]*\ssrc=|<link[^>]*rel="stylesheet"/i.test(html.toString("utf-8"))) {
   problems.push("the viewer references an external script or stylesheet");
 }
