@@ -1851,7 +1851,7 @@ Activate an exact newer official release while maintenance remains enabled.
 
 Options:
   --target-version X.Y.Z  Select an exact stable release (default: latest).
-  --timeout-seconds N     Bound the installer handoff (default: 180).
+  --timeout-seconds N     Bound the complete installer handoff (default: 1800).
   --dry-run               Resolve and review without activation.
   --confirm               Confirm the reviewed release activation.
   --json                   Emit one JSON document.

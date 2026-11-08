@@ -4963,7 +4963,7 @@ def test_compact_release_help_exposes_upgrade_options_without_starting_docker(
     assert upgrade.returncode == 0, upgrade.stderr
     for option in ("--target-version", "--dry-run", "--timeout-seconds", "--confirm", "--tui"):
         assert option in upgrade.stdout
-    assert "default: 180" in upgrade.stdout
+    assert "default: 1800" in upgrade.stdout
     assert "Product commands" not in upgrade.stdout
     assert _log(fake_repo) == ""
 

@@ -2256,6 +2256,20 @@ installation. The exact origin, active configuration, and target are checked
 again under the lifecycle lock. On interruption, follow the printed recovery
 action and rerun the same command; maintenance remains enabled.
 
+The standard upgrade command allows up to 30 minutes for the complete installer
+handoff, including cold image downloads and service startup. It uses published
+images; a timeout never switches to a source build. `--timeout-seconds` remains an
+advanced override, and is not required for an ordinary upgrade.
+
+If the installer times out or cannot start, the CLI reports the specific cause,
+target version, saved handoff phase and diagnostic log when writable. Keep
+maintenance enabled, inspect `release info` and `maintenance status`, correct the
+reported problem, then use the printed same-target resume command. A checkout
+already at the target version does not by itself mean activation succeeded.
+Do not delete pending release state or disable maintenance to bypass a failure.
+Before reporting success on Scalable, the installer also synchronizes the CLI
+runtime with the final release environment so Doctor can run immediately.
+
 During final readiness, the installer can request one refresh of stale security
 posture or workflow-knowledge evidence through the installed runtime. It waits
 for real completion; requesting a refresh is not a passing check. Maintenance

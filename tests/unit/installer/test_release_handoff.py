@@ -1251,3 +1251,118 @@ def test_generic_schema_failure_is_not_reported_as_migration_required(tmp_path: 
 
     assert raised.value.code == "release_handoff_failed"
     assert state.load_release_handoff().phase == "checkout_applied"
+
+
+@pytest.mark.parametrize("json_output", [False, True], ids=["plain", "json"])
+@pytest.mark.parametrize("failure", ["timeout", "start"])
+def test_release_process_failure_reports_cause_and_resumes_exact_target(
+    tmp_path: Path, failure: str, json_output: bool
+) -> None:
+    from types import SimpleNamespace
+
+    from click.testing import CliRunner
+
+    from core.application.release.service import PreparedReleaseUpgrade, ReleaseUpgradeRequest
+    from core.entrypoints.cli.platform.click_adapter import build_click_app
+    from core.entrypoints.cli.platform.service_registry import ServiceRegistry
+
+    previous = _release("1.0.9", "a")
+    target = _release()
+    git = FakeGit(target)
+    calls = []
+    state_holder = {}
+
+    def installer(command, _environment, timeout):
+        calls.append(timeout)
+        if len(calls) == 1:
+            if failure == "timeout":
+                raise TimeoutError(f"Process exceeded {timeout} seconds")
+            raise PermissionError("Cannot execute installer: token=private-test-value")
+        state_holder["state"].publish_installed_release(target)
+        return _successful_child(command)
+
+    handoff, state = _handoff(tmp_path, git=git, installer=installer)
+    state_holder["state"] = state
+    state.publish_installed_release(previous)
+
+    class Service:
+        def prepare_upgrade(self, request):
+            return PreparedReleaseUpgrade(
+                installed_release=previous,
+                target_release=target,
+                release_source="https://example.invalid/release",
+                deployment_profile="scalable",
+                platform="linux/amd64",
+                timeout_seconds=request.timeout_seconds,
+            )
+
+        def review_upgrade(self, prepared):
+            return {"target_version": prepared.target_release.version}
+
+        def upgrade(self, prepared, **_kwargs):
+            return handoff.activate(target, timeout_seconds=prepared.timeout_seconds)
+
+    app = build_click_app(
+        ServiceRegistry(SimpleNamespace(release_service=Service())), SimpleNamespace()
+    )
+    arguments = ["release", "upgrade", "--non-interactive", "--confirm"]
+    if json_output:
+        arguments.append("--json")
+    failed = CliRunner().invoke(app, arguments)
+    assert failed.exit_code != 0
+    expected_code = (
+        "release_upgrade_timeout" if failure == "timeout" else "release_installer_start_failed"
+    )
+    assert expected_code in failed.output, failed.output
+    assert "internal_error" not in failed.output
+    assert "private-test-value" not in failed.output
+    if json_output:
+        payload = json.loads(failed.output)
+        assert payload["error"]["details"]["phase"] == "checkout_applied"
+        assert payload["error"]["details"]["target_version"] == target.version
+        log_path = Path(payload["log_path"])
+        hint = payload["error"]["hint"]
+    else:
+        log_path = Path(failed.output.split("Log: ")[-1].strip())
+        hint = failed.output
+    assert "maintenance" in hint.lower() and "enabled" in hint.lower()
+    assert "release upgrade --target-version 1.0.10" in hint
+    assert "--timeout-seconds" not in hint
+    assert "release info" in hint
+    assert log_path.is_file()
+    log = log_path.read_text()
+    assert "TimeoutError" in log if failure == "timeout" else "PermissionError" in log
+    assert "private-test-value" not in log
+    assert log_path.stat().st_mode & 0o777 == 0o600
+    assert state.load_installed_release() == previous
+    assert state.load_pending_release() == target
+    assert state.load_release_handoff().phase == "checkout_applied"
+    resumed = CliRunner().invoke(app, arguments)
+    assert resumed.exit_code == 0, resumed.output
+    assert state.load_installed_release() == target
+    assert state.load_pending_release() is None
+    assert state.load_release_handoff().phase == "installer_completed"
+    assert calls == [ReleaseUpgradeRequest().timeout_seconds] * 2
+    assert sum("checkout" in command for command in git.commands) == 1
+
+
+@pytest.mark.parametrize("failure_type", [TimeoutError, PermissionError])
+def test_fresh_install_does_not_receive_release_upgrade_recovery(
+    tmp_path: Path, failure_type: type[OSError]
+) -> None:
+    target = _release()
+
+    def installer(*_args):
+        raise failure_type("installer process unavailable")
+
+    handoff, state = _handoff(tmp_path, git=FakeGit(target), installer=installer)
+    with pytest.raises(failure_type):
+        handoff.install_exact(
+            target,
+            config=InstallConfig(environment="production", deployment_profile="scalable"),
+            explicit_fields=frozenset(),
+            timeout_seconds=1800,
+        )
+    assert state.load_installed_release() is None
+    assert state.load_pending_release() == target
+    assert state.load_release_handoff().phase == "checkout_applied"

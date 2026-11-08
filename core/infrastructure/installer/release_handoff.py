@@ -7,10 +7,12 @@ import os
 import sys
 import tempfile
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
+from uuid import uuid4
 
 from core.application.installer.contracts import InstallConfig, InstallRunResult
+from core.application.installer.redaction import redact_installer_text
 from core.application.lifecycle.errors import LifecycleError
 from core.application.management.command_specs.contracts import ExitCode
 from core.application.release.activation import ReleaseHandoffJournal
@@ -39,6 +41,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 repo = Path(sys.argv[1]).resolve()
 expected = sys.argv[2]
@@ -202,11 +205,16 @@ class InstallerReleaseHandoff:
             )
             if journal.phase == "installer_completed":
                 return self._completed_without_child(release)
-            outcome = self._run_installer(
-                release,
-                timeout_seconds=timeout_seconds,
-                inherited_locks=inherited_locks,
-            )
+            try:
+                outcome = self._run_installer(
+                    release,
+                    timeout_seconds=timeout_seconds,
+                    inherited_locks=inherited_locks,
+                )
+            except (TimeoutError, OSError) as exc:
+                raise self._installer_process_failure(
+                    release, exc=exc, timeout_seconds=timeout_seconds
+                ) from exc
             if outcome.returncode != 0:
                 error, log_path = self._child_error(outcome)
                 if error["code"] in _MIGRATION_CODES:
@@ -474,6 +482,54 @@ class InstallerReleaseHandoff:
             environment,
             timeout_seconds,
             tuple(inherited_locks.values()),
+        )
+
+    def _installer_process_failure(
+        self, release: ReleaseIdentity, *, exc: OSError, timeout_seconds: int
+    ) -> LifecycleError:
+        timed_out = isinstance(exc, TimeoutError)
+        code = "release_upgrade_timeout" if timed_out else "release_installer_start_failed"
+        detail = redact_installer_text(f"{type(exc).__name__}: {exc}")
+        cause = (
+            f"Release {release.version} installer exceeded its {timeout_seconds}-second "
+            f"activation budget. {detail}"
+            if timed_out
+            else f"Release {release.version} installer could not start. {detail}"
+        )
+        operation_id = uuid4().hex
+        log_path = None
+        try:
+            with closing(self.state.open_log(operation_id)) as log:
+                log.write(f"{code} target={release.version} phase=checkout_applied {detail}")
+                log_path = str(log.path)
+        except OSError:
+            # A logging failure must not replace the process error or change pending state.
+            log_path = None
+        resume = f"./flow-steward release upgrade --target-version {release.version}"
+        remediation = (
+            "Keep maintenance enabled and preserve the installation state. "
+            "Inspect ./flow-steward release info and ./flow-steward maintenance status. "
+        )
+        if not timed_out:
+            remediation += "Correct executable/filesystem access for the reported error. "
+        remediation += f"Resume the saved target with: {resume}."
+        return LifecycleError(
+            code=code,
+            summary="Release activation did not complete.",
+            cause=cause,
+            remediation=remediation,
+            retryable=False,
+            step="installer_handoff",
+            exit_code=ExitCode.RECOVERY_REQUIRED,
+            operation_id=operation_id,
+            log_path=log_path,
+            recovery_command=resume,
+            details={
+                "target_version": release.version,
+                "phase": "checkout_applied",
+                "timeout_seconds": timeout_seconds,
+                "diagnostic_log_available": log_path is not None,
+            },
         )
 
     def complete_install(self, release: ReleaseIdentity) -> None:
