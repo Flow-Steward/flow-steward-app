@@ -89,6 +89,16 @@ Optional override to permit private remote extension URLs, private MCP connector
 - Compact (Docker host): `./flow-steward config set FS_ALLOW_PRIVATE_REMOTE_URLS=1`, then `./flow-steward config apply`
 - Reset to the default: `FS_ALLOW_PRIVATE_REMOTE_URLS=` (an empty value)
 
+### `FS_MCP_HTTP_RESPONSE_MAX_BYTES`
+
+Maximum remote MCP HTTP response body, including JSON and SSE envelopes, in bytes. Default 4 MiB; range 1024 .. 1073741824. Invalid text uses the default; numeric values clamp to the supported range. Apply the host setting to restart runtimes.
+
+- Default: `4194304`
+- Accepts: text
+- Scalable: `flow-steward config set FS_MCP_HTTP_RESPONSE_MAX_BYTES=VALUE`, then `flow-steward config apply`
+- Compact (Docker host): `./flow-steward config set FS_MCP_HTTP_RESPONSE_MAX_BYTES=VALUE`, then `./flow-steward config apply`
+- Reset to the default: `FS_MCP_HTTP_RESPONSE_MAX_BYTES=` (an empty value)
+
 ## Installation settings
 
 Typed settings of the installation, named as `flow-steward config show` prints

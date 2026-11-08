@@ -813,6 +813,7 @@
     "core/infrastructure/config/env_registry.py",
     "core/infrastructure/config/extension_dependencies.py",
     "core/infrastructure/config/installation_mode.py",
+    "core/infrastructure/config/mcp_connector_limits.py",
     "core/infrastructure/config/memory_config.py",
     "core/infrastructure/config/monitoring_runtime.py",
     "core/infrastructure/config/openapi_docs_config.py",
