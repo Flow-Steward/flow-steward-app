@@ -229,6 +229,13 @@ class ConfigurationState(Protocol):
 class ConfigurationApplyGateway(Protocol):
     """Technical effects orchestrated by ``config apply``."""
 
+    def prepare_target_images(
+        self,
+        config: DeploymentConfig,
+        target: ComposeTarget,
+        environment: Mapping[str, str],
+    ) -> None: ...
+
     def validate_target(
         self,
         config: DeploymentConfig,

@@ -87,6 +87,9 @@ class FakeConfigurationGateway:
         self.images_preserved = True
         self.activation_source_environments: list[dict[str, str]] = []
 
+    def prepare_target_images(self, _config, _target, _environment) -> None:
+        return None
+
     def validate_target(
         self,
         _config,

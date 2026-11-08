@@ -2592,17 +2592,34 @@ this installation. On **Scalable**:
 ./flow-steward config apply
 ```
 
-On **Compact**, where `config` is not available, rerun the installer from the
-installation folder with the setting:
+On a Docker host, **Compact uses the same commands** through a one-shot
+management container. It also retains `./install.sh --setting NAME=VALUE` as an
+installer convenience. A provider console without host Docker does not expose
+configuration changes through these host commands.
 
-```bash
-./install.sh --setting FS_ALLOW_PRIVATE_REMOTE_URLS=1
-```
-
-It keeps the installation, records the setting and restarts the runtime.
 Separate several settings with spaces (`config set`) or commas (`--setting`);
 an empty value (`FS_ALLOW_PRIVATE_REMOTE_URLS=`) resets one to its default.
 Secrets and values the installer manages are never set this way.
+
+### Change the website domain on a Docker host
+
+On Compact or Scalable, stage the new public name and actual proxy kind, validate,
+then review and apply. Run as the deployment user from the installation folder:
+
+```bash
+./flow-steward config show
+./flow-steward config set --public-host flow.example.com --public-port 443 --proxy-kind apache
+./flow-steward config validate
+./flow-steward config apply --confirm
+./flow-steward doctor
+```
+
+Use `--proxy-kind nginx` for Nginx. This changes the saved application
+configuration; update the external proxy, DNS and certificates separately.
+Applying uses the shared lifecycle lock, preservation checks and rollback. A
+missing immutable production image stops the operation; it never falls back to
+building sources. Compact keeps its one runtime and does not create a permanent
+CLI container. `config set` only stages changes until `config apply` succeeds.
 
 ### Optional overlays
 

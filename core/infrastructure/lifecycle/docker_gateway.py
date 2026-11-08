@@ -41,6 +41,7 @@ from .docker_gateway_contracts import (
     _MESSAGE_JSON,
     DockerRollbackDependencies,
 )
+from .docker_image_preparation import prepare_production_images
 from .docker_preservation_gateway import DockerPreservationGateway as DockerPreservationGateway
 from .docker_preservation_gateway import DockerPreservationSnapshot as DockerPreservationSnapshot
 from .docker_preservation_gateway import ProcessRunner as ProcessRunner
@@ -168,6 +169,15 @@ class DockerLifecycleGateway:
                     line.strip() for line in inventory.stdout.splitlines() if line.strip()
                 )
             )
+            if target.stack_environment == "production":
+                prepare_production_images(
+                    images=images,
+                    services=services,
+                    environment=environment,
+                    run=self._run,
+                    timeout_seconds=timeout_seconds,
+                )
+                return
             if images:
                 try:
                     inspected = self._run(
@@ -264,6 +274,10 @@ class DockerLifecycleGateway:
             "--wait-timeout",
             str(timeout_seconds),
         ]
+        if target.stack_environment == "production":
+            # Preparation resolved the immutable set before lifecycle mutation.
+            # Reconciliation must never implicitly build or replace it.
+            arguments.extend(("--no-build", "--pull", "never"))
         if remove_orphans:
             arguments.append("--remove-orphans")
         if no_dependencies:

@@ -1656,21 +1656,7 @@ def test_compact_maintenance_preserves_the_host_management_guard(
 @pytest.mark.parametrize(
     "args",
     (
-        # The two the peer measured on a READY Compact installation: exit 8 and
-        # "rerun ./install.sh, then retry".
-        ("config", "show"),
         ("stack", "status"),
-        # And the two a previous version of this test pinned as dispatched into a
-        # retained runtime -- green only because the fake supplied a container a
-        # Compact installation does not have by construction.
-        (
-            "config",
-            "set",
-            "--deployment-profile",
-            "scalable",
-            "--json",
-            "--non-interactive",
-        ),
         ("stack", "recover", "--operation-id", "operation-1", "--confirm", "--json"),
     ),
 )
@@ -1705,9 +1691,6 @@ def test_compact_refuses_the_commands_it_has_no_runtime_for(
     assert "reinstalling will not help" in result.stderr
     assert "rerun ./install.sh from updated sources" in result.stderr
     assert "Remediation: rerun ./install.sh, then retry" not in result.stderr
-    # `config set NAME=VALUE` out of habit: the Compact path for host settings.
-    compact_path = "Host settings on Compact: ./install.sh --setting NAME=VALUE"
-    assert (compact_path in result.stderr) is (args[0] == "config")
     assert _log(fake_repo) == ""
 
 
@@ -4838,7 +4821,8 @@ def test_compact_help_matches_what_the_launcher_actually_dispatches(
     assert "extensions install" in result.stdout
     # named as refused, with the reason and the path that does work (AC17-R140)
     assert "Refused on a Compact installation" in result.stdout
-    assert "config, stack" in result.stdout
+    assert "config show|set|validate|apply" in result.stdout
+    assert "does not have: stack" in result.stdout
     assert "rerun ./install.sh from updated sources" in result.stdout
     assert _log(fake_repo) == ""
 

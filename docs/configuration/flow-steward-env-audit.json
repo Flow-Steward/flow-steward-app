@@ -4585,7 +4585,8 @@
     "canonical_name": "FS_CONFIGURATION_STATE_ROOT",
     "code_read_locations": [
       "core/entrypoints/cli/compact_platform_runtime.py",
-      "core/entrypoints/cli/lifecycle_runtime.py"
+      "core/entrypoints/cli/lifecycle_runtime.py",
+      "core/entrypoints/cli/platform_runtime.py"
     ],
     "conditional_groups": [
       "core_runtime"

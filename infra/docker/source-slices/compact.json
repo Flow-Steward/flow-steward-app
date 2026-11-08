@@ -396,6 +396,7 @@
     "core/application/lifecycle/preservation_repository.py",
     "core/application/lifecycle/preservation_service.py",
     "core/application/lifecycle/proxy_renderer.py",
+    "core/application/lifecycle/routing_policy.py",
     "core/application/lifecycle/runtime_installation_context.py",
     "core/application/lifecycle/setting_names.py",
     "core/application/lifecycle/stack_models.py",
@@ -1548,6 +1549,7 @@
     "core/infrastructure/lifecycle/configuration_store.py",
     "core/infrastructure/lifecycle/docker_gateway.py",
     "core/infrastructure/lifecycle/docker_gateway_contracts.py",
+    "core/infrastructure/lifecycle/docker_image_preparation.py",
     "core/infrastructure/lifecycle/docker_preservation_gateway.py",
     "core/infrastructure/lifecycle/docker_profile_runtime_state.py",
     "core/infrastructure/lifecycle/docker_rollback_operations.py",
@@ -1746,7 +1748,7 @@
     },
     {
       "path": "core/entrypoints/cli/lifecycle_click_app.py",
-      "consumer": "core/entrypoints/cli/platform_runtime.py:263 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
+      "consumer": "core/entrypoints/cli/platform_runtime.py:301 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
     },
     {
       "path": "core/entrypoints/cli/platform/service_bindings/config.py",
