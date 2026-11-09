@@ -15,6 +15,7 @@ from functools import lru_cache
 CANONICAL_PROGRAM = "flow-steward"
 _SAFE_PREFIX = re.compile(r"[A-Za-z0-9_./~+-]{1,256}")
 _prefix = CANONICAL_PROGRAM
+_LAUNCHER_COMMANDS = frozenset({"completion", "shell"})
 
 
 def set_invocation_prefix(value: str | None) -> None:
@@ -33,7 +34,12 @@ def invocation_prefix() -> str:
 def _command_pattern() -> re.Pattern[str]:
     from core.application.management.command_specs.registry import PUBLIC_COMMAND_SPECS
 
-    roots = sorted({spec.path[0] for spec in PUBLIC_COMMAND_SPECS}, key=len, reverse=True)
+    # `completion` and `shell` are served by the launchers themselves, not the registry.
+    roots = sorted(
+        {spec.path[0] for spec in PUBLIC_COMMAND_SPECS} | _LAUNCHER_COMMANDS,
+        key=len,
+        reverse=True,
+    )
     words = "|".join(re.escape(root) for root in roots)
     # A canonical or ./-prefixed name followed by a public command or a root flag.
     # Image, container and project names (flow-steward-app, flow-steward_default) never

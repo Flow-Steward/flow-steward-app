@@ -54,10 +54,14 @@ def test_names_that_are_not_commands_are_left_alone(text: str) -> None:
     assert with_invocation_prefix(text) == text
 
 
-def test_root_flags_count_as_commands() -> None:
+def test_root_flags_and_launcher_commands_count_as_commands() -> None:
     set_invocation_prefix("./flow-steward")
 
     assert with_invocation_prefix("See flow-steward --help") == "See ./flow-steward --help"
+    assert with_invocation_prefix('eval "$(flow-steward completion zsh)"') == (
+        'eval "$(./flow-steward completion zsh)"'
+    )
+    assert with_invocation_prefix("Run flow-steward shell.") == "Run ./flow-steward shell."
 
 
 @pytest.mark.parametrize("unsafe", ["rm -rf /;", "$(id)", "a b", "", "x" * 300])

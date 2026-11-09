@@ -1847,6 +1847,7 @@ run_compact_platform_command() {
 }
 
 render_doctor_help() {
+  clear_launcher_status
   cat <<'EOF'
 Usage: flow-steward doctor [OPTIONS] [ids ...]
 
@@ -1866,6 +1867,7 @@ EOF
 }
 
 render_compact_help() {
+  clear_launcher_status
   cat <<'EOF'
 Usage: flow-steward [OPTIONS] COMMAND [ARGS]...
 
@@ -1901,25 +1903,22 @@ Product commands (run `flow-steward COMMAND --help` for each):
 
 Not available on Compact, because they run in tooling services this deployment
 does not include: quality lint, quality release-gate, testing, extensions test.
+Instead of extensions install and extensions uninstall, add or remove
+extensions in the web UI or through the API.
 
-Dispatched to a service a Compact deployment does not define, although the
-runtime itself can do the work (AC17-R59): extensions install, extensions
-uninstall.
+Refused on a Compact installation, because they need a CLI container this
+profile does not have: stack, environment. Host config commands use the
+installed one-shot management image; provider consoles cannot run them. To
+update a Compact installation, rerun ./install.sh from updated sources; to
+switch it to Scalable, run ./install.sh --deployment-profile scalable.
 
-Refused on a Compact installation, because they are dispatched to a retained CLI
-container this profile does not have: stack (AC17-R140). Host config commands use
-the installed one-shot management image; provider consoles cannot run them. To update a
-Compact installation, rerun ./install.sh from updated sources; to switch it to
-Scalable, run ./install.sh --deployment-profile scalable.
-
-Refused by this launcher on a Compact installation, because it has no dispatch
-for this command on this profile: environment. AC17-R115: it failed here
-without being listed, so an operator met a flat refusal after reading a help
-that implied they would work.
+Tab completion: eval "$(flow-steward completion zsh)" (or bash, fish) in your
+shell profile. Interactive prompt with completion and history: flow-steward shell.
 EOF
 }
 
 render_compact_release_help() {
+  clear_launcher_status
   case "${1:-}" in
     upgrade)
       cat <<'EOF'

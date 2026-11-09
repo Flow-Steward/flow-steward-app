@@ -134,9 +134,21 @@ _TABLE_COLUMNS: dict[str, dict[str, tuple[str, ...]]] = {
             "roles",
             "is_active",
             "must_change_password",
-            "account_id",
         )
     },
+}
+_USER_FACTS = ("email", "roles", "is_active", "must_change_password", "id")
+# The facts worth showing of a nested record, per command; other records show everything.
+_RECORD_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
+    command: {"user": _USER_FACTS}
+    for command in (
+        "users.create",
+        "users.set-password",
+        "users.set-roles",
+        "users.set-active",
+        "users.unlock",
+        "users.force-reset",
+    )
 }
 _ISO_DATETIME = re.compile(
     r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]00:?00)?([+-]\d{2}:?\d{2})?$"
@@ -309,6 +321,7 @@ def payload_blocks(
     skip: Iterable[str] = (),
     bullet: bool = False,
     columns: Mapping[str, Sequence[str]] | None = None,
+    fields: Mapping[str, Sequence[str]] | None = None,
 ) -> list[Block]:
     """Lay out a result mapping as pairs, sections and tables, in the model's field order."""
     skipped = set(skip) | _HIDDEN_KEYS
@@ -331,6 +344,9 @@ def payload_blocks(
             pending.append((humanize_key(key), format_field(key, value)))
         elif isinstance(value, Mapping):
             flush()
+            chosen = (fields or {}).get(key)
+            if chosen:
+                value = {name: value[name] for name in chosen if name in value}
             blocks.append(Line(humanize_key(key), "heading", indent))
             blocks.extend(payload_blocks(value, indent=indent + 2))
         elif isinstance(value, Sequence):
@@ -470,7 +486,13 @@ def result_blocks(
     if payload_warnings:
         skip.add("warnings")
     blocks.extend(
-        payload_blocks(payload, indent=2, skip=skip, columns=_TABLE_COLUMNS.get(spec.command_id))
+        payload_blocks(
+            payload,
+            indent=2,
+            skip=skip,
+            columns=_TABLE_COLUMNS.get(spec.command_id),
+            fields=_RECORD_FIELDS.get(spec.command_id),
+        )
     )
     blocks.extend(empty or paging)
     for message in (*payload_warnings, *(warning.message for warning in warnings)):

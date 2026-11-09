@@ -135,16 +135,7 @@ def test_a_list_of_records_is_a_table_with_chosen_columns(capsys) -> None:
     lines = output.splitlines()
     header = next(line for line in lines if "Email" in line)
 
-    assert header.split() == [
-        "ID",
-        "Email",
-        "Name",
-        "Roles",
-        "Active",
-        "Password",
-        "reset",
-        "Account",
-    ]
+    assert header.split() == ["ID", "Email", "Name", "Roles", "Active", "Password", "reset"]
     assert "Password hash version" not in output
     assert any("usr_2" in line and "bob@acme.io" in line and "no" in line for line in lines)
     assert "admin, operator" in output
