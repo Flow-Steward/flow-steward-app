@@ -9,6 +9,8 @@ type RunOptions = {
   blockedReason: string; contract: unknown; contractReady: boolean; summary: string;
   inputs: Record<string, string>; fieldErrors: Record<string, string>; testBusy: boolean;
   open: boolean; launchLock: { current: symbol | null };
+  /** The run started: the builder follows it on the canvas like a Test Run. */
+  onStarted?: (jobId: string) => void;
 };
 
 /** Ordinary jobs never enter the test controller, history, samples or result cache. */
@@ -61,6 +63,7 @@ export function useWorkflowNormalRunController(options: RunOptions) {
       }, crypto.randomUUID());
       if (!isCurrent()) return;
       setJobId(response.job_id); setAcknowledged(false); setFiles({});
+      draft.onStarted?.(response.job_id);
     } catch (error) {
       if (isCurrent()) setMessage(error instanceof Error && error.message ? error.message : t("react.workflows.normal_run_failed", "Workflow could not start."));
     } finally {

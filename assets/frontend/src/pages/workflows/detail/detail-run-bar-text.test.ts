@@ -75,3 +75,12 @@ it("says until when a wait step waits", () => {
   expect(text.title).toBe("Waiting until 03:08:51 PM");
   expect(text.sub).toBe("Classify request · 0 steps done · 3.0 s");
 });
+
+it("calls a live run a run, not a Test Run", () => {
+  const running = runBarText(input({ liveRun: true, snapshot: snapshot([{ stepId: "classify", stepExecutionId: "x", status: "in_progress" }]) }), t);
+  expect(running.title).toBe("Run in progress");
+  const finished = runBarText(input({ liveRun: true, statusCode: "completed", isTerminal: true, durationMs: 14000, snapshot: snapshot([done("a", 1)], { terminal: true }) }), t);
+  expect(finished.title).toBe("Run finished in 14 s");
+  expect(runBarText(input({ liveRun: true, statusCode: "cancelled", isTerminal: true }), t).title).toBe("Run stopped");
+  expect(runBarText(input({ liveRun: true, statusCode: "failed", isTerminal: true, snapshot: snapshot([], { terminal: true }) }), t).title).toBe("Run failed");
+});
