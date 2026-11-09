@@ -332,21 +332,39 @@ def _callback(**values: Any) -> None:
     if json_requested:
         renderer.render_result(INSTALLER_SPEC, execution)
     else:
-        click.echo("Flow Steward is installed.")
-        if result.product_url:
-            click.echo(f"Website: {result.product_url}")
-        for warning in result.warnings:
-            click.echo(f"Warning: {warning}")
-        if result.log_path:
-            click.echo(f"Log: {result.log_path}")
+        _render_installed(result)
     if not json_requested:
-        _announce_update(result)
         _announce_changes(result)
         announce_proxy_setup(proxy_setup)
     _announce_setup_link(result)
 
 
-def _announce_update(result: InstallRunResult) -> None:
+def _render_installed(result: InstallRunResult) -> None:
+    """The closing block: what happened, where it is, what to look at."""
+    updated = bool(result.updated_to_revision)
+    click.echo()
+    click.secho(
+        "✓ Flow Steward is updated." if updated else "✓ Flow Steward is installed.",
+        fg="green",
+        bold=True,
+    )
+    if result.product_url:
+        click.echo(f"  Website: {result.product_url}")
+    # The update sentence travels in warnings for the JSON result; on screen it is the
+    # update note, said once, not a warning.
+    update_note = ""
+    for warning in result.warnings:
+        if updated and warning.startswith(("Updated from ", "Updated to ")):
+            update_note = warning
+            continue
+        click.secho(f"  Warning: {warning}", fg="yellow")
+    if updated:
+        _announce_update(result, note=update_note)
+    if result.log_path:
+        click.secho(f"  Log: {result.log_path}", dim=True)
+
+
+def _announce_update(result: InstallRunResult, *, note: str = "") -> None:
     """Say in a sentence that the running version changed, and from what to what.
 
     AC17-R141: the defect was an update reported and not applied with nothing on the
@@ -355,7 +373,9 @@ def _announce_update(result: InstallRunResult) -> None:
     """
     if not result.updated_to_revision:
         return
-    click.echo()
+    if note:
+        click.echo(f"  {note}")
+        return
     if not result.updated_from_revision:
         click.echo(
             f"Updated to {result.updated_to_revision}; the runtime was not running, so the "

@@ -95,9 +95,37 @@ _LABELS = {
     "must_change_password": "Password reset",
     "display_name": "Name",
     "account_id": "Account",
+    "size_bytes": "Size",
+    "verification_status": "Verified",
+}
+# What a change did, said as a sentence; commands not listed say "<subject>: <status>".
+_MESSAGES = {
+    "backup.create": "Backup created and verified",
+    "backup.verify": "Backup verified",
+    "clone.create": "Clone archive created",
+    "clone.restore": "Clone restored",
+    "config.set": "Setting recorded; apply it with flow-steward config apply",
+    "config.apply": "Configuration applied",
+    "users.create": "User created",
+    "users.set-password": "Password changed",
+    "users.set-roles": "Roles changed",
+    "users.set-active": "User updated",
+    "users.unlock": "User unlocked",
+    "users.force-reset": "Password reset required at next sign-in",
+    "extensions.install": "Extension installed",
+    "extensions.uninstall": "Extension uninstalled",
+    "extensions.enable": "Extension enabled",
+    "extensions.disable": "Extension disabled",
+    "jobs.cancel": "Job cancelled",
+    "jobs.restart": "Job restarted",
+    "jobs.approve": "Approved",
+    "jobs.reject": "Rejected",
+    "release.upgrade": "Release upgraded",
+    "database.upgrade": "Database upgraded",
 }
 # The columns worth a table cell, per command and list field; other lists pick their own.
 _TABLE_COLUMNS: dict[str, dict[str, tuple[str, ...]]] = {
+    "backup.list": {"backups": ("path", "size_bytes", "created_at", "verification_status")},
     "users.list": {
         "users": (
             "id",
@@ -128,12 +156,41 @@ def humanize_key(key: str) -> str:
     return " ".join(rendered)
 
 
+_PYDANTIC_PREFIXES = ("Value error, ", "Assertion failed, ")
+
+
+def readable_issue(message: str) -> str:
+    """``Value error, Invalid email address`` -> ``invalid email address``."""
+    text = str(message).strip()
+    for prefix in _PYDANTIC_PREFIXES:
+        if text.startswith(prefix):
+            text = text[len(prefix) :]
+    return text[:1].lower() + text[1:] if text[:2] != text[:2].upper() else text
+
+
 def humanize_value(value: str) -> str:
     """``already_enabled`` -> ``already enabled``; other text is kept as written."""
     text = str(value)
     if re.fullmatch(r"[a-z0-9]+(?:_[a-z0-9]+)+", text):
         return text.replace("_", " ")
     return text
+
+
+def format_bytes(value: int) -> str:
+    """``699923`` -> ``684 KiB``."""
+    size = float(value)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if size < 1024:
+            return f"{size:.0f} {unit}" if unit == "B" or size >= 10 else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TiB"
+
+
+def format_field(key: str, value: Any) -> str:
+    """A scalar formatted with what its field name says about it."""
+    if isinstance(value, int) and not isinstance(value, bool) and str(key).endswith("bytes"):
+        return format_bytes(value)
+    return format_scalar(value)
 
 
 def format_scalar(value: Any) -> str:
@@ -222,7 +279,15 @@ def _list_blocks(
         columns = _grid_columns(items, preferred)
         if columns:
             rows = tuple(
-                tuple(_compact(row.get(column, "")) for column in columns) for row in items
+                tuple(
+                    ""
+                    if row.get(column) is None
+                    else format_field(column, row[column])
+                    if _is_scalar(row[column])
+                    else _compact(row.get(column, ""))
+                    for column in columns
+                )
+                for row in items
             )
             return [
                 Line(f"{label} ({len(items)})", "heading", indent),
@@ -263,7 +328,7 @@ def payload_blocks(
             blocks.append(Line(humanize_key(key), "heading", indent))
             blocks.extend(Line(line, "plain", indent + 2) for line in value.rstrip().splitlines())
         elif _is_scalar(value):
-            pending.append((humanize_key(key), format_scalar(value)))
+            pending.append((humanize_key(key), format_field(key, value)))
         elif isinstance(value, Mapping):
             flush()
             blocks.append(Line(humanize_key(key), "heading", indent))
@@ -374,21 +439,27 @@ def result_blocks(
     spec: CommandSpec,
     payload: Mapping[str, Any],
     warnings: Sequence[CLIWarning] = (),
+    *,
+    log_path: str | None = None,
 ) -> list[Block]:
     """The whole human answer of a successful command."""
     status = payload.get("status")
     status_text = str(status).strip() if _is_scalar(status) and status is not None else ""
     blocks: list[Block] = []
     skip: set[str] = {*_NEXT_KEYS}
+    if log_path and payload.get("log_path") == log_path:
+        skip.add("log_path")  # the renderer prints "Log:" once
     if spec.operation_type is OperationType.READ:
         blocks.append(Line(humanize_key(_command_words(spec)), "heading"))
     else:
         tone = _status_tone(status_text) if status_text else "success"
-        headline = (
-            f"{humanize_key(spec.path[0])}: {humanize_value(status_text)}"
-            if status_text
-            else f"Done: {_command_words(spec)}"
-        )
+        message = _MESSAGES.get(spec.command_id)
+        if message and tone == "success":
+            headline = with_invocation_prefix(message)
+        elif status_text:
+            headline = f"{humanize_key(spec.path[0])}: {humanize_value(status_text)}"
+        else:
+            headline = f"Done: {_command_words(spec)}"
         blocks.append(Line(f"{_mark(tone)} {headline}", tone))
         skip |= _HEADLINE_KEYS
     empty = _empty_listing(spec, payload)

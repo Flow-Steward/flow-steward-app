@@ -28,6 +28,7 @@ from core.entrypoints.cli.platform.command_names import (
     set_invocation_prefix,
     with_invocation_prefix,
 )
+from core.entrypoints.cli.platform.result_view import humanize_key, readable_issue
 
 # The host launcher passes the name the operator ran (./flow-steward, or a path to it);
 # without it (the Compact image on a platform) commands are shown as `flow-steward`.
@@ -750,10 +751,10 @@ def _render_fallback_result(
         )
         click.echo(json.dumps(payload.model_dump(mode="json"), ensure_ascii=False, default=str))
         return
-    click.echo(f"Error: {with_invocation_prefix(result.error.message)}", err=True)
-    click.echo(f"Code: {result.error.code}", err=True)
+    click.secho(f"✗ {with_invocation_prefix(result.error.message)}", fg="red", bold=True, err=True)
     if result.error.hint:
-        click.echo(with_invocation_prefix(result.error.hint), err=True)
+        click.echo(f"  Fix: {with_invocation_prefix(result.error.hint)}", err=True)
+    click.secho(f"  Code: {result.error.code}", dim=True, err=True)
 
 
 def _version_option() -> click.Option:
@@ -810,7 +811,10 @@ def _fail(
     field_issues = tuple(issues)
     message = (
         cause
-        or "; ".join(f"{issue.field}: {issue.message}" for issue in field_issues)
+        or "; ".join(
+            f"{humanize_key(issue.field)}: {readable_issue(issue.message)}"
+            for issue in field_issues
+        )
         or "Invalid input."
     )
     if json_requested:
@@ -828,13 +832,13 @@ def _fail(
             )
         )
     else:
-        click.echo(f"Error: {with_invocation_prefix(message)}", err=True)
+        click.secho(f"✗ {with_invocation_prefix(message)}", fg="red", bold=True, err=True)
         if hint:
-            click.echo(f"Hint: {with_invocation_prefix(hint)}", err=True)
+            click.echo(f"  Fix: {with_invocation_prefix(hint)}", err=True)
         if operation_id:
-            click.echo(f"Operation ID: {operation_id}", err=True)
+            click.secho(f"  Operation ID: {operation_id}", dim=True, err=True)
         if log_path:
-            click.echo(f"Log: {log_path}", err=True)
+            click.secho(f"  Log: {log_path}", dim=True, err=True)
     raise click.exceptions.Exit(int(exit_code))
 
 

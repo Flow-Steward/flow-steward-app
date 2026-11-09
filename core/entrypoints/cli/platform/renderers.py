@@ -45,6 +45,7 @@ from core.entrypoints.cli.platform.result_view import (
     humanize_key,
     payload_blocks,
     plan_blocks,
+    readable_issue,
     result_blocks,
 )
 from core.entrypoints.cli.platform.step_progress import live_steps, redirected_steps
@@ -167,7 +168,9 @@ def _error_blocks(error: CLIErrorDetail) -> list[Block]:
         Line(f"{FAILURE_MARK} {with_invocation_prefix(error.message)}", "error"),
     ]
     for issue in error.field_issues:
-        blocks.append(Line(f"{humanize_key(issue.field)}: {issue.message}", "warning", 2))
+        blocks.append(
+            Line(f"{humanize_key(issue.field)}: {readable_issue(issue.message)}", "warning", 2)
+        )
     if error.hint:
         blocks.append(Line(f"Fix: {with_invocation_prefix(error.hint)}", "label", 2))
     if error.retryable:
@@ -202,7 +205,9 @@ class PlainRenderer:
             click.echo(json.dumps(report, ensure_ascii=False, default=str, indent=2))
             return
         else:
-            emit_plain(result_blocks(spec, _data(result), result.warnings))
+            emit_plain(
+                result_blocks(spec, _data(result), result.warnings, log_path=result.log_path)
+            )
         if result.log_path:
             click.echo(f"Log: {result.log_path}")
 
@@ -421,7 +426,9 @@ class RichRenderer(PlainRenderer):
                     )
             else:
                 # The shared layout prints the result's warnings itself.
-                emit_rich(console, result_blocks(spec, payload, result.warnings))
+                emit_rich(
+                    console, result_blocks(spec, payload, result.warnings, log_path=result.log_path)
+                )
             if spec.command_id in _OWN_LAYOUT_COMMANDS or spec.command_id in _CONFIG_TEXT_RENDERERS:
                 for warning in result.warnings:
                     console.print(

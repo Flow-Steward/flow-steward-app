@@ -71,7 +71,7 @@ def test_a_change_prints_a_result_line_and_the_facts_not_the_object(capsys) -> N
         capsys,
     )
 
-    assert output.splitlines()[0] == "✓ Users: created"
+    assert output.splitlines()[0] == "✓ User created"
     assert "anna@acme.io" in output
     assert "Active:" in output and "yes" in output
     assert "Roles:" in output and "admin" in output
@@ -281,3 +281,29 @@ def test_page_based_results_offer_the_next_page_through_the_commands_own_options
     assert "Showing 2 of 5 (page 1 of 3)." in output
     assert "Next page: ./flow-steward jobs list --offset 2 --limit 2" in output
     assert "Total pages" not in output
+
+
+def test_a_known_change_says_what_happened_and_sizes_read_in_units(capsys) -> None:
+    emit_plain(
+        result_blocks(
+            _spec("backup.create"),
+            {
+                "path": "backups/one.dump.enc",
+                "size_bytes": 699923,
+                "log_path": "/x/op.log",
+            },
+            log_path="/x/op.log",
+        )
+    )
+    output = capsys.readouterr().out
+
+    assert output.splitlines()[0] == "✓ Backup created and verified"
+    assert "Size: 684 KiB" in output
+    assert "/x/op.log" not in output  # the renderer prints "Log:" once
+
+
+def test_validation_messages_lose_the_library_prefix() -> None:
+    from core.entrypoints.cli.platform.result_view import readable_issue
+
+    assert readable_issue("Value error, Invalid email address") == "invalid email address"
+    assert readable_issue("URL must use https") == "URL must use https"

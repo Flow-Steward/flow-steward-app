@@ -3895,6 +3895,25 @@
     "variable_name": "FS_CLI_IMAGE"
   },
   {
+    "canonical_name": "FS_CLI_INVOCATION",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/flow_steward_launcher.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_CLI_INVOCATION"
+  },
+  {
     "canonical_name": "FS_CLI_OPERATION_LOG_ROOT",
     "code_read_locations": [
       "core/entrypoints/cli/platform/operation_log.py"
@@ -12629,6 +12648,7 @@
     "canonical_name": "HOME",
     "code_read_locations": [
       "tests/unit/test_docker_compose_env.py",
+      "core/entrypoints/cli/scripts/flow_steward_launcher.sh",
       "infra/docker/docker-compose.oauth-browser.yaml"
     ],
     "conditional_groups": [],

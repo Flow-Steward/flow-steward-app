@@ -14,6 +14,12 @@ from importlib.util import find_spec
 import click
 
 from core.application.management.command_specs.contracts import ChoiceItem, FieldSpec
+from core.infrastructure.config.runtime_env import runtime_env
+
+# prompt-toolkit asks the terminal for the cursor position and warns when it gets no
+# answer -- which is what some web consoles and docker exec relays do. The choice list
+# does not need it, so it is never asked.
+runtime_env.setdefault("PROMPT_TOOLKIT_NO_CPR", "1")
 
 
 def arrow_keys_available() -> bool:
