@@ -1384,7 +1384,7 @@ msgstr ""
 "neapdorotas vykdymo kontekstas."
 
 msgid "jobs.detail.execution_waterfall"
-msgstr "Vykdymo laiko juosta"
+msgstr "Vykdymo žingsniai"
 
 msgid "jobs.detail.inspector.description"
 msgstr ""
@@ -5982,7 +5982,7 @@ msgstr ""
 "Pasirinkite užduotį su vykdymo žingsniais, kad peržiūrėtumėte informaciją."
 
 msgid "react.jobs.select_a_step_from_the_execution_waterfall"
-msgstr "Pasirinkite žingsnį vykdymo laiko juostoje."
+msgstr "Pasirinkite žingsnį iš vykdymo žingsnių."
 
 msgid "react.jobs.select_a_step_to_inspect_runtime_details_and_context"
 msgstr "Pasirinkite žingsnį vykdymo informacijai ir kontekstui peržiūrėti."

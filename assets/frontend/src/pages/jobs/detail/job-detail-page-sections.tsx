@@ -615,7 +615,7 @@ function JobExecutionWaterfall({
       className="min-w-0"
       description={t("react.jobs.select_a_step_to_inspect_runtime_details_and_context", "Select a step to inspect runtime details and context.")}
       testId="job-execution-waterfall"
-      title={t("jobs.detail.execution_waterfall", "Execution waterfall")}
+      title={t("jobs.detail.execution_waterfall", "Execution steps")}
     >
       {/* No platform-kit wrapper: its shadow shell drew a second frame and an empty header above the list. */}
         <div className="space-y-2">
@@ -874,7 +874,7 @@ function EmptyJobDetailPrimaryContent() {
         testId="job-next-action"
         title={t("jobs.detail.next_action.title", "Next action")}
       />
-      <DsCard testId="job-execution-waterfall" title={t("jobs.detail.execution_waterfall", "Execution waterfall")}>
+      <DsCard testId="job-execution-waterfall" title={t("jobs.detail.execution_waterfall", "Execution steps")}>
         <p className="fs-empty-copy">{t("react.jobs.no_execution_steps_are_available", "No execution steps are available.")}</p>
       </DsCard>
       <DsCard testId="job-step-inspector" title={t("react.jobs.step_inspector", "Step inspector")}>

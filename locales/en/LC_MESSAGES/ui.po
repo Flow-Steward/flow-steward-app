@@ -1374,7 +1374,7 @@ msgstr ""
 "still contain raw runtime context."
 
 msgid "jobs.detail.execution_waterfall"
-msgstr "Execution waterfall"
+msgstr "Execution steps"
 
 msgid "jobs.detail.inspector.description"
 msgstr ""
@@ -5887,7 +5887,7 @@ msgid "react.jobs.select_a_job_with_runtime_steps_to_inspect_details"
 msgstr "Select a job with runtime steps to inspect details."
 
 msgid "react.jobs.select_a_step_from_the_execution_waterfall"
-msgstr "Select a step from the execution waterfall."
+msgstr "Select a step from the execution steps."
 
 msgid "react.jobs.select_a_step_to_inspect_runtime_details_and_context"
 msgstr "Select a step to inspect runtime details and context."

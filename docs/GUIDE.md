@@ -1651,7 +1651,7 @@ http://localhost:8099/jobs/{job_id}
   `in_progress`, `running`, `resume_pending`, and `awaiting_approval` jobs
 - **Restart job** — available to administrators and operators after the job reaches a terminal status
 
-Open **Jobs**, select a job, then select a step in **Execution waterfall** to
+Open **Jobs**, select a job, then select a step in **Execution steps** to
 open the **Step details** drawer (the step inspector). It shows recorded inputs,
 outputs, and step facts. An **Errors** section appears when the selected step
 has a recorded failure. The job page combines its execution summary with this
