@@ -284,7 +284,7 @@ describe("AiAgentsSection", () => {
       fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
       expect(await within(block).findByRole("button", { name: "Copied" })).toBeInTheDocument();
       expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`Bearer ${SECRET}`));
-      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(document.querySelector(".fs-toast")).toBeNull();
       await waitFor(() => expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument(), { timeout: 3000 });
     } finally {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
