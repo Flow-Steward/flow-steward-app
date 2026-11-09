@@ -1768,7 +1768,7 @@
   --fs-action-accent: #ff7504;
   --fs-action-accent-hover: #ff9233;
   --fs-action-accent-active: #ffa65c;
-  --fs-action-accent-text: #190d02;
+  --fs-action-accent-text: #fff;
   --fs-action-accent-wash: rgb(255 117 4 / 12%);
 
   /* Status roles */
