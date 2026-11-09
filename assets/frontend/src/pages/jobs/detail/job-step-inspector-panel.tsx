@@ -94,7 +94,7 @@ export function StepInspectorPanel({
     return (
       <DsCard
         className="min-w-0"
-        description={t("react.jobs.select_a_step_from_the_execution_waterfall", "Select a step from the execution waterfall.")}
+        description={t("react.jobs.select_a_step_from_the_execution_waterfall", "Select a step from the execution steps.")}
         testId={testId}
         title={t("react.jobs.step_inspector", "Step inspector")}
       >
@@ -273,13 +273,15 @@ export function StepInspectorPanel({
           </section>
         ) : null}
 
-        {/* No Summary block: the line under the step's title already says it, word for word. */}
+        {/* No Summary block: the line under the step's title already says it, word for word.
+            Result, Message and Next action follow the same rule: a text already shown is not repeated. */}
         {[
           [t("jobs.detail.inspector.result", "Result"), result],
           [t("registry.workflow_detail.field.message", "Message"), message],
           [t("jobs.detail.next_action.title", "Next action"), nextAction],
         ]
-          .filter(([, value]) => Boolean(value))
+          .filter(([, value], index, rows) => Boolean(value) && value.trim() !== firstReadableText(summary, status).trim()
+            && !rows.slice(0, index).some(([, earlier]) => earlier.trim() === value.trim()))
           .map(([label, value]) => (
             <div
               className="min-w-0 fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-primary"
