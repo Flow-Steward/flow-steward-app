@@ -8,6 +8,10 @@ export type AccountProfile = {
   account_ids: string[];
   timezone: string;
   locale: string;
+  /** Date pattern id ("D MMM YYYY", "MM/DD/YYYY", ...). */
+  date_format: string;
+  /** "24h" or "12h". */
+  time_format: string;
   auth_source: string;
 };
 
@@ -128,7 +132,7 @@ export type UpdateUserInput = Partial<
   >
 >;
 
-export type ProfileField = "display_name" | "timezone" | "locale";
+export type ProfileField = "display_name" | "timezone" | "locale" | "date_format" | "time_format";
 
 export type ProfileSaveResult = {
   succeeded: ProfileField[];

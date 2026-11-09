@@ -29,6 +29,10 @@ export type AuthUser = {
   must_change_password?: boolean;
   timezone?: string;
   locale?: string;
+  /** Date pattern id from the profile ("D MMM YYYY", "MM/DD/YYYY", ...). */
+  date_format?: string;
+  /** "24h" or "12h". */
+  time_format?: string;
 };
 
 export type I18nBootstrap = {

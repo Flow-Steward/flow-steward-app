@@ -11544,6 +11544,12 @@ msgstr ""
 msgid "react.settings.custom_scanner_rule"
 msgstr ""
 
+msgid "react.settings.date_format"
+msgstr ""
+
+msgid "react.settings.dates_and_times_read_like"
+msgstr ""
+
 msgid "react.settings.deactivate_user"
 msgstr ""
 
@@ -12607,6 +12613,15 @@ msgid "react.settings.this_settings_area_is_available_as_a_dedicated_react_scree
 msgstr ""
 
 msgid "react.settings.threshold"
+msgstr ""
+
+msgid "react.settings.time_format"
+msgstr ""
+
+msgid "react.settings.time_format_12h"
+msgstr ""
+
+msgid "react.settings.time_format_24h"
 msgstr ""
 
 msgid "react.settings.token"

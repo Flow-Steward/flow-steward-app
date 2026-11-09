@@ -33,6 +33,7 @@ import type { CreateWorkflowForm } from "@/pages/workflows/list/create-workflow-
 
 import "@/pages/extensions/marketplace-catalog.css";
 import "./catalog-dialog.css";
+import { formatDate, toDate } from "@/lib/time/date-time-format";
 
 export type CatalogTab = "template" | "scratch";
 
@@ -51,10 +52,7 @@ const NO_LABELS: CatalogLabels = { categories: {}, integrations: {} };
 
 function formatDay(value: string | undefined): string {
   if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ""
-    : date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return toDate(value) ? formatDate(value) : "";
 }
 
 /**

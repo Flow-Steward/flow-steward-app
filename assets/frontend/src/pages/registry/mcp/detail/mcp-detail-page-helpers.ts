@@ -8,6 +8,7 @@ export { keyValueRowProblem, RESERVED_OAUTH_PARAMETER_IDENTITIES, type KeyValueR
 import { isHttpError } from "@/lib/http/errors";
 
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { formatUserDateTime } from "@/lib/time/user-timezone";
 
 /** The `message` state reports successes and failures alike, so the outcome
  *  travels with the text and picks the alert tone. */
@@ -80,8 +81,7 @@ export function formatDateTime(value: string, t: I18nContextValue["t"] = fallbac
   if (!value) {
     return t("react.registry.mcp_final_never_date", "Never");
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return formatUserDateTime(value);
 }
 
 export function apiErrorCode(error: unknown): string {

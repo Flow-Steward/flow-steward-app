@@ -11896,6 +11896,12 @@ msgstr "Pasirinktinė tikrinimo modulio konfigūracija."
 msgid "react.settings.custom_scanner_rule"
 msgstr "Pasirinktinė tikrinimo modulio taisyklė."
 
+msgid "react.settings.date_format"
+msgstr "Datos formatas"
+
+msgid "react.settings.dates_and_times_read_like"
+msgstr "Datos ir laikas visur Flow Steward rodomi taip: {example}."
+
 msgid "react.settings.deactivate_user"
 msgstr "Išjungti naudotoją"
 
@@ -12969,6 +12975,15 @@ msgstr "Ši nustatymų sritis pasiekiama atskirame React rodinyje."
 
 msgid "react.settings.threshold"
 msgstr "Slenkstis"
+
+msgid "react.settings.time_format"
+msgstr "Laiko formatas"
+
+msgid "react.settings.time_format_12h"
+msgstr "12 valandų"
+
+msgid "react.settings.time_format_24h"
+msgstr "24 valandų"
 
 msgid "react.settings.token"
 msgstr "Prieigos raktas"

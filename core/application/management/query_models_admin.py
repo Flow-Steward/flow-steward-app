@@ -278,6 +278,8 @@ class AuthUserView(ViewModel):
     must_change_password: bool = False
     timezone: str = ""
     locale: str = ""
+    date_format: str = ""
+    time_format: str = ""
 
 
 class AuthMeView(ViewModel):
@@ -316,6 +318,12 @@ class UserTimezoneResultView(ViewModel):
 class UserLocaleResultView(ViewModel):
     status: str = "ok"
     locale: str = "en"
+
+
+class UserDateTimeFormatResultView(ViewModel):
+    status: str = "ok"
+    date_format: str = "D MMM YYYY"
+    time_format: str = "24h"
 
 
 class AuthUsersListView(ViewModel):

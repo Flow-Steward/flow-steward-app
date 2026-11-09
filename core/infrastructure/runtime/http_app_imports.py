@@ -315,6 +315,7 @@ from core.application.management.query_models import (
     SkillDiffView,
     ToolDiffView,
     TrashListView,
+    UserDateTimeFormatResultView,
     UserEmailChangeRequestResultView,
     UserEmailChangeStatusView,
     UserLocaleResultView,

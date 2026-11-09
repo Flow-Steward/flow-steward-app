@@ -22,6 +22,7 @@ import type {
   AgentClient,
   OAuthPresetId,
 } from "@/pages/settings/shared/types";
+import { formatDateTime } from "@/lib/time/date-time-format";
 
 type Translate = I18nContextValue["t"];
 
@@ -200,7 +201,7 @@ export function AiAgentsSection() {
       return (
         <DsAlert title={t("react.agent_access.uncertain_title", "We could not confirm whether the token was created")} tone="warning">
           <p>{t("react.agent_access.uncertain_copy", "The answer was lost. Check again: it asks about the same attempt, so it never creates a second token. Tokens this wizard created are listed below; revoke any you do not want.")}</p>
-          <ul>{wizardTokens.map((token) => <li key={token.id}>{token.label} · {token.created_at ? new Date(token.created_at).toLocaleString() : ""}</li>)}</ul>
+          <ul>{wizardTokens.map((token) => <li key={token.id}>{token.label} · {token.created_at ? formatDateTime(token.created_at) : ""}</li>)}</ul>
           <div className="fs-footer-actions">
             <button className="fs-button primary" onClick={() => attempt.current && ignoreAsyncResult(send(attempt.current))} type="button">{t("react.agent_access.check_again", "Check again")}</button>
             <a className="fs-button" href="/settings/account?tab=tokens">{t("react.agent_access.open_personal_tokens", "Open personal tokens")}</a>

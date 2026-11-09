@@ -10,6 +10,7 @@ import type { ArchiveLayout } from "@/pages/settings/account/agent-package-archi
 import { PlatformClientStep } from "@/pages/settings/account/ai-agents-platform";
 import { fetchAgentAccessToken, revokePersonalToken } from "@/pages/settings/shared/api";
 import type { AgentAccessToken, AgentSetupStep } from "@/pages/settings/shared/types";
+import { formatDate } from "@/lib/time/date-time-format";
 
 type Translate = I18nContextValue["t"];
 
@@ -22,8 +23,7 @@ function fillToken(content: string, secret: string, placeholder: string): string
 
 function formatDay(value: string | null | undefined): string {
   if (!value) return "—";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  return formatDate(value);
 }
 
 function downloadBlob(fileName: string, blob: Blob) {

@@ -9,7 +9,7 @@ import { DsLoader } from "@/components/shared/ds-loader";
 import { DsSwitch } from "@/components/shared/ds-switch";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
-import { browserTimezone, useUserTimezone } from "@/lib/time/user-timezone";
+import { browserTimezone, formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { fetchWorkflowContract, type WorkflowContractField } from "@/pages/projects/detail/api";
 import { fetchProjectWorkflowBindings } from "@/pages/projects/workflows/api";
 import { ProjectWorkflowInputFields } from "@/pages/projects/detail/project-workflow-input-fields";
@@ -57,7 +57,7 @@ function scheduleSummary(expression: string, timezone: string, t: Translate): st
 function scheduleRowState(job: ScheduledJob, expression: string, timezone: string, t: Translate, locale: string): string {
   if (!job.enabled) return t("react.workflows.paused", "Paused");
   const clientNext = nextCronRuns(expression, timezone, 1)?.[0];
-  const serverNext = textOrEmpty(job.next_run_at_user_local) || textOrEmpty(job.next_run_at_utc);
+  const serverNext = textOrEmpty(job.next_run_at_utc) ? formatUserDateTime(job.next_run_at_utc) : textOrEmpty(job.next_run_at_user_local);
   const next = clientNext ? formatScheduleRun(clientNext, locale) : serverNext;
   return next ? t("react.workflows.schedule_next_run", "Next {time}", { time: next }) : t("react.workflows.schedule_on", "On");
 }

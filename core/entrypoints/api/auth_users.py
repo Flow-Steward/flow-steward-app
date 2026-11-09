@@ -50,6 +50,7 @@ from core.application.settings.ui_i18n import (
     normalize_ui_locale,
     resolve_ui_locale,
 )
+from core.entrypoints.api import auth_users_date_time_format as _date_time_format
 from core.entrypoints.api import auth_users_email_change as _email_change_helpers
 
 _ERR_EMAIL_NOT_SET_UP = (
@@ -255,6 +256,7 @@ def create_auth_users_router(
                 except Exception:
                     user_locale = str(user.get("locale") or "").strip()
         user_locale = normalize_ui_locale(user_locale)
+        date_format, time_format = _date_time_format.session_date_time_format(user, get_logger_only)
         return {
             "authenticated": True,
             "local_auth_enabled": local_auth_enabled(),
@@ -275,8 +277,25 @@ def create_auth_users_router(
                 "must_change_password": must_change_password,
                 "timezone": user_timezone,
                 "locale": user_locale,
+                "date_format": date_format,
+                "time_format": time_format,
             },
         }
+
+    @router.patch("/api/users/me/date-time-format")
+    async def api_user_update_date_time_format(request: Request):
+        """Update the authenticated user's date pattern and clock."""
+        user = request_auth_user_payload(request)
+        user_id = str(user.get("id") or "").strip() if isinstance(user, dict) else ""
+        if not user_id:
+            return JSONResponse({"error": err_authentication_required}, status_code=401)
+        return await _date_time_format.save_date_time_format(
+            request,
+            user_id,
+            get_logger_only=get_logger_only,
+            err_invalid_json_body=err_invalid_json_body,
+            err_database_not_configured=err_database_not_configured,
+        )
 
     @router.patch("/api/users/me/profile")
     async def api_user_update_profile(request: Request, body: AuthUserProfileUpdateRequest):

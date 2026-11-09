@@ -20,6 +20,7 @@ import {
 import { type McpConnectorRecord } from "@/pages/registry/mcp/api";
 
 import { fetchProjectsList } from "@/pages/projects/list/api";
+import { formatUserDateTime } from "@/lib/time/user-timezone";
 
 export type FormSubmitEvent = {
   currentTarget: HTMLFormElement;
@@ -106,7 +107,7 @@ export function formatLastSync(value: string, status: string, t: I18nContextValu
   if (Number.isNaN(date.getTime())) {
     return status === "failed" ? t("settings.mcp.oauth.failed", "Failed") : value;
   }
-  return `${date.toLocaleString()}${status === "failed" ? ` (${t("react.extensions.failed", "failed")})` : ""}`;
+  return `${formatUserDateTime(date)}${status === "failed" ? ` (${t("react.extensions.failed", "failed")})` : ""}`;
 }
 
 /** What the Health column shows: a turned-off connector reads as disabled. */

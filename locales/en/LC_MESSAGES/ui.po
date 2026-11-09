@@ -11720,6 +11720,12 @@ msgstr "Custom scanner configuration."
 msgid "react.settings.custom_scanner_rule"
 msgstr "Custom scanner rule."
 
+msgid "react.settings.date_format"
+msgstr "Date format"
+
+msgid "react.settings.dates_and_times_read_like"
+msgstr "Dates and times read like {example} everywhere in Flow Steward."
+
 msgid "react.settings.deactivate_user"
 msgstr "Deactivate user"
 
@@ -12773,6 +12779,15 @@ msgstr "This settings area is available as a dedicated React screen."
 
 msgid "react.settings.threshold"
 msgstr "Threshold"
+
+msgid "react.settings.time_format"
+msgstr "Time format"
+
+msgid "react.settings.time_format_12h"
+msgstr "12-hour"
+
+msgid "react.settings.time_format_24h"
+msgstr "24-hour"
 
 msgid "react.settings.token"
 msgstr "Token"

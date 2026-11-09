@@ -356,7 +356,7 @@ function JobRunOverviewCard(props: Readonly<JobDetailPrimaryContentProps>) {
                 {fact.id === "status" ? (
                   <dd><DsBadge tone={statusTone}>{normalizeValue(fact.value)}</DsBadge></dd>
                 ) : (
-                  <dd className={NUMERIC_FACT_IDS.has(firstReadableText(fact.id)) ? "is-number" : undefined}>{normalizeValue(fact.value)}</dd>
+                  <dd className={NUMERIC_FACT_IDS.has(firstReadableText(fact.id)) ? "is-number" : undefined}>{firstReadableText(fact.at) ? normalizeTimestamp(fact.at, userTimezone) : normalizeValue(fact.value)}</dd>
                 )}
               </div>
             ))}

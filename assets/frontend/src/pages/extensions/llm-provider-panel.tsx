@@ -28,6 +28,7 @@ import { invalidateModelRoutingQueries, providerErrorMessage } from "@/lib/utils
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 import "@/pages/extensions/extension-manifest.css";
+import { formatDate, formatDateTime, formatTime, toDate } from "@/lib/time/date-time-format";
 
 type Contract = Record<string, unknown>;
 
@@ -91,12 +92,10 @@ function httpsUrl(value: string): string {
 /** "10:42" today, otherwise a short date and time. */
 function checkedAt(value: string | null | undefined): string {
   if (!value) return "";
-  const at = new Date(value);
-  if (Number.isNaN(at.getTime())) return "";
-  const today = at.toDateString() === new Date().toDateString();
-  return today
-    ? at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : at.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  const at = toDate(value);
+  if (!at) return "";
+  const today = formatDate(at) === formatDate(new Date());
+  return today ? formatTime(at) : formatDateTime(at);
 }
 
 /** A discovery failure the server recorded is a bare category such as `timeout`. */

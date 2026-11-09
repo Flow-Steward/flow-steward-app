@@ -36,6 +36,7 @@ import {
   useWorkflowRestoreContext,
   type WorkflowRestoreContext,
 } from "@/pages/registry/changelog/use-workflow-restore-context";
+import { formatDateTime } from "@/lib/time/date-time-format";
 
 const ENTITY_TYPE_OPTIONS = [
   "",
@@ -122,15 +123,7 @@ function formatUserDateTime(value: unknown, timezone?: string): string {
   if (!raw) {
     return "—";
   }
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) {
-    return raw;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  }).format(date);
+  return formatDateTime(raw, timezone ? { timezone } : undefined);
 }
 
 function summarizeStats(stats: Record<string, unknown> | undefined, t: I18nContextValue["t"] = fallbackContext.t) {

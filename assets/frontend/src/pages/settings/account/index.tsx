@@ -14,6 +14,7 @@ import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { addDays, formatCalendarDay, todayIn, wholeDaysBetween } from "@/lib/time/calendar-days";
+import { DATE_FORMATS, DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT, formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime, formatTime as formatDisplayTime, isDateFormat, isTimeFormat, TIME_FORMATS, type TimeFormat } from "@/lib/time/date-time-format";
 import { useUserTimezone } from "@/lib/time/user-timezone";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
@@ -104,7 +105,10 @@ function getAccountTabs(t: I18nContextValue["t"] = fallbackContext.t) {
   return [...getBuiltInAccountTabs(t), ...EXTENSION_ACCOUNT_TABS.map((tab) => ({ key: tab.key, label: tab.label }))];
 }
 const FALLBACK_TIMEZONES = ["UTC", "Europe/London", "Europe/Paris", "Europe/Vilnius", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"];
-const EMPTY_PROFILE: AccountProfile = { id: "", email: "", username: "", display_name: "", roles: [], account_id: "", account_ids: [], timezone: "", locale: "", auth_source: "" };
+const EMPTY_PROFILE: AccountProfile = { id: "", email: "", username: "", display_name: "", roles: [], account_id: "", account_ids: [], timezone: "", locale: "", date_format: "", time_format: "", auth_source: "" };
+const PROFILE_FIELDS: ProfileField[] = ["display_name", "timezone", "locale", "date_format", "time_format"];
+/** The sample every format choice is drawn with: a day past the 12th, so day and month never read alike. */
+const FORMAT_SAMPLE = "2026-12-31T16:05:00Z";
 
 function tabPageRecord(tab: AccountProfileTabExtension): RegisteredPageRecord {
   return { key: `account_${tab.key}`, page_key: `account_${tab.key}`, label: tab.label, title: tab.title || tab.label, path: `/settings/account?tab=${encodeURIComponent(tab.key)}`, component_key: tab.componentKey };
@@ -116,8 +120,16 @@ function initials(value: string) {
 
 function formatDate(value?: string, t: I18nContextValue["t"] = fallbackContext.t) {
   if (!value) return t("account.tokens.never", "Never");
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  return formatDisplayDate(value);
+}
+
+function dateFormatOptions(locale: string): DsOption[] {
+  return DATE_FORMATS.map((dateFormat) => ({ value: dateFormat, label: formatDisplayDate(FORMAT_SAMPLE, { dateFormat, locale, timezone: "UTC" }) }));
+}
+
+function timeFormatOptions(locale: string, t: I18nContextValue["t"]): DsOption[] {
+  const labels: Record<TimeFormat, string> = { "24h": t("react.settings.time_format_24h", "24-hour"), "12h": t("react.settings.time_format_12h", "12-hour") };
+  return TIME_FORMATS.map((timeFormat) => ({ value: timeFormat, label: `${labels[timeFormat]} · ${formatDisplayTime(FORMAT_SAMPLE, { timeFormat, locale, timezone: "UTC" })}` }));
 }
 
 function timezoneOptions(current: string): DsOption[] {
@@ -190,7 +202,7 @@ export function SettingsAccountPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [pendingTab, setPendingTab] = useState("");
   const [discardOpen, setDiscardOpen] = useState(false);
-  const dirtyFields = useMemo(() => (["display_name", "timezone", "locale"] as ProfileField[]).filter((field) => draft[field] !== saved[field]), [draft, saved]);
+  const dirtyFields = useMemo(() => PROFILE_FIELDS.filter((field) => draft[field] !== saved[field]), [draft, saved]);
 
   // The fallback language only fills a profile that has none; a change of the
   // interface language (which saving the language itself causes) must not
@@ -202,17 +214,19 @@ export function SettingsAccountPage() {
 
   useEffect(() => {
     if (!profileQuery.data) return;
-    const normalized = {
+    const normalized: AccountProfile = {
       ...profileQuery.data.profile,
       timezone: profileQuery.data.profile.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       locale: profileQuery.data.profile.locale || localeFallbackRef.current,
+      date_format: isDateFormat(profileQuery.data.profile.date_format) ? profileQuery.data.profile.date_format : DEFAULT_DATE_FORMAT,
+      time_format: isTimeFormat(profileQuery.data.profile.time_format) ? profileQuery.data.profile.time_format : DEFAULT_TIME_FORMAT,
     };
     const previousSaved = savedRef.current;
     setSaved(normalized);
     // A field the user is still editing stays as typed.
     setDraft((previous) => {
       const next = { ...normalized };
-      for (const field of ["display_name", "timezone", "locale"] as ProfileField[]) {
+      for (const field of PROFILE_FIELDS) {
         if (previous[field] !== previousSaved[field]) next[field] = previous[field];
       }
       return next;
@@ -400,6 +414,9 @@ export function SettingsAccountPage() {
           <label className="fs-field full"><RequiredLabel>{t("react.settings.display_name", "Display name")}</RequiredLabel><input autoComplete="name" className="fs-input" id="account-display-name" name="display-name" onChange={(event) => setDraft((value) => ({ ...value, display_name: event.target.value }))} required value={draft.display_name} /></label>
           <div className="fs-field"><span className="fs-field-label">{t("account.timezone.title", "Timezone")}</span><SingleCombobox ariaLabel={t("account.timezone.title", "Timezone")} onChange={(timezone) => setDraft((value) => ({ ...value, timezone }))} options={timezoneOptions(draft.timezone)} value={draft.timezone} /><span className="fs-field-helper">{t("react.settings.used_for_dates_schedules_and_activity_timestamps", "Used for dates, schedules and activity timestamps.")}</span></div>
           <div className="fs-field"><span className="fs-field-label">{t("react.settings.interface_language", "Interface language")}</span><DsSelect ariaLabel={t("react.settings.interface_language", "Interface language")} onChange={(locale) => setDraft((value) => ({ ...value, locale }))} options={localeChoices} value={draft.locale} /><span className="fs-field-helper">{t("react.settings.applies_after_the_profile_refresh_completes", "Applies after the profile refresh completes.")}</span></div>
+          <div className="fs-field"><span className="fs-field-label">{t("react.settings.date_format", "Date format")}</span><DsSelect ariaLabel={t("react.settings.date_format", "Date format")} onChange={(date_format) => setDraft((value) => ({ ...value, date_format }))} options={dateFormatOptions(draft.locale || currentLocale)} value={draft.date_format} /></div>
+          <div className="fs-field"><span className="fs-field-label">{t("react.settings.time_format", "Time format")}</span><DsSelect ariaLabel={t("react.settings.time_format", "Time format")} onChange={(time_format) => setDraft((value) => ({ ...value, time_format }))} options={timeFormatOptions(draft.locale || currentLocale, t)} value={draft.time_format} /></div>
+          <div className="fs-field full"><span className="fs-field-helper" data-testid="date-time-format-preview">{t("react.settings.dates_and_times_read_like", "Dates and times read like {example} everywhere in Flow Steward.", { example: formatDisplayDateTime(FORMAT_SAMPLE, { dateFormat: isDateFormat(draft.date_format) ? draft.date_format : DEFAULT_DATE_FORMAT, timeFormat: isTimeFormat(draft.time_format) ? draft.time_format : DEFAULT_TIME_FORMAT, locale: draft.locale || currentLocale, timezone: "UTC" }) })}</span></div>
         </div>
         {profileFeedbackMessage ? <DsAlert tone={profileFeedbackKind === "success" ? "success" : "warning"} title={profileFeedbackKind === "error" ? t("react.settings.profile_was_not_saved", "Profile was not saved") : t("react.settings.profile_update", "Profile update")}>{profileFeedbackMessage}</DsAlert> : null}
       </DsCard>

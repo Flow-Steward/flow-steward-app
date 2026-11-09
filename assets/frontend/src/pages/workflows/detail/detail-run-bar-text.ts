@@ -124,7 +124,7 @@ export function runBarText(input: RunBarTextInput, t: T): RunBarText {
   if (group === "waiting") {
     const due = text(record(record(record(detail).runtime).workflow_wait).due_at);
     const step = waitingSteps.at(-1);
-    const time = due ? runClockTime(due, input.timezone, "locale") : "";
+    const time = due ? runClockTime(due, input.timezone) : "";
     return {
       tone: "attention",
       title: time ? t("react.workflows.run_bar_waiting_until", "Waiting until {time}", { time }) : t("react.workflows.test_run_waiting", "Waiting"),

@@ -5,6 +5,8 @@
  * next runs while the author changes the timing.
  */
 
+import { formatWallClock } from "@/lib/time/date-time-format";
+
 export type ScheduleRepeat = "daily" | "weekly" | "monthly" | "custom";
 
 export type FriendlySchedule = { mode: ScheduleRepeat; time: string; weekday: string; monthDay: string };
@@ -123,8 +125,8 @@ export function nextCronRuns(expression: string, timezone: string, count: number
   return runs;
 }
 
-/** "Mon, 5 Oct · 09:00": the wall-clock run, day first, 24-hour time. */
+/** "Mon, 5 Oct · 09:00": the wall-clock run, day first, in the reader's own 12/24-hour clock. */
 export function formatScheduleRun(run: Date, locale?: string): string {
   const day = run.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" });
-  return `${day} · ${pad(run.getHours())}:${pad(run.getMinutes())}`;
+  return `${day} · ${formatWallClock(run.getHours(), run.getMinutes(), locale ? { locale } : undefined)}`;
 }

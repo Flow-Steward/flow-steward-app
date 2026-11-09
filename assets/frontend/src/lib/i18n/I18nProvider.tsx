@@ -4,6 +4,7 @@ import { I18nContext, fallbackSupportedLocales, type TranslateParams } from "@/l
 import { useAuth } from "@/lib/auth/useAuth";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { interpolate } from "@/lib/i18n/interpolate";
+import { setDateTimePreferences } from "@/lib/time/date-time-format";
 
 const EMPTY_MESSAGES: Record<string, string> = {};
 
@@ -16,6 +17,10 @@ export function I18nProvider({ children }: Readonly<PropsWithChildren>) {
     ? bootstrap.supported_locales
     : fallbackSupportedLocales;
   const messages = bootstrap?.messages && typeof bootstrap.messages === "object" ? bootstrap.messages : EMPTY_MESSAGES;
+  const user = auth.session?.user;
+  // Set before the children render, so the first frame already reads the reader's own format.
+  setDateTimePreferences({ dateFormat: user?.date_format, timeFormat: user?.time_format, timezone: user?.timezone, locale });
+  const dateTimeFormat = [user?.date_format, user?.time_format, user?.timezone].join("|");
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -33,8 +38,9 @@ export function I18nProvider({ children }: Readonly<PropsWithChildren>) {
       supportedLocales,
       messages,
       t,
+      dateTimeFormat,
     }),
-    [fallbackLocale, locale, messages, supportedLocales, t],
+    [dateTimeFormat, fallbackLocale, locale, messages, supportedLocales, t],
   );
 
   return (

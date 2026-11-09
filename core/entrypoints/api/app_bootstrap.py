@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from core.application.auth.effective_permissions import resolve_effective_permissions
 from core.application.extensions.system_email import system_email_available
+from core.application.settings.date_time_format import stored_date_format, stored_time_format
 from core.infrastructure.config.installation_mode import installation_mode
 
 
@@ -60,9 +61,15 @@ def _principal_type(principal: Any, auth_user: Mapping[str, Any] | None) -> str:
     return "viewer"
 
 
-def _user_summary(auth_user: Mapping[str, Any] | None) -> dict[str, Any] | None:
+def _user_summary(
+    auth_user: Mapping[str, Any] | None,
+    date_time_format_reader: Callable[[Mapping[str, Any]], tuple[str, str]] | None = None,
+) -> dict[str, Any] | None:
     if not isinstance(auth_user, Mapping):
         return None
+    stored_date, stored_time = "", ""
+    if callable(date_time_format_reader):
+        stored_date, stored_time = date_time_format_reader(auth_user)
     return {
         "id": str(auth_user.get("id") or ""),
         "username": str(auth_user.get("username") or ""),
@@ -74,6 +81,8 @@ def _user_summary(auth_user: Mapping[str, Any] | None) -> dict[str, Any] | None:
         "account_memberships": list(auth_user.get("account_memberships") or []),
         "timezone": str(auth_user.get("timezone") or ""),
         "locale": str(auth_user.get("locale") or ""),
+        "date_format": stored_date_format(stored_date),
+        "time_format": stored_time_format(stored_time),
         "principal_type": str(auth_user.get("principal_type") or "user"),
     }
 
@@ -147,6 +156,7 @@ def create_api_app_bootstrap_router(
     registered_pages_resolver: Callable[..., Any] | None = None,
     shell_navigation_resolver: Callable[..., Any] | None = None,
     external_sign_in_resolver: Callable[..., Any] | None = None,
+    date_time_format_reader: Callable[[Mapping[str, Any]], tuple[str, str]] | None = None,
     api_error_response: Callable[..., JSONResponse],
 ) -> APIRouter:
     router = APIRouter(tags=["api-app-bootstrap"])
@@ -214,7 +224,9 @@ def create_api_app_bootstrap_router(
                     "bootstrap_required": bootstrap_required,
                     "external_auth_enabled": external_enabled,
                     "auth_source": auth_source if authenticated else "",
-                    "user": _user_summary(auth_user if authenticated else None),
+                    "user": _user_summary(
+                        auth_user if authenticated else None, date_time_format_reader
+                    ),
                     "roles": _normalized_roles(auth_user if authenticated else None),
                     "permissions": permissions,
                     "account_memberships": list(

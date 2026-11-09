@@ -9,6 +9,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { fetchOAuthGrants, revokeOAuthGrant } from "@/pages/settings/shared/api";
 import { oauthNotice, oauthPresetLabel } from "@/pages/settings/shared/oauth-copy";
 import type { OAuthGrant } from "@/pages/settings/shared/types";
+import { formatDate } from "@/lib/time/date-time-format";
 
 type Translate = I18nContextValue["t"];
 
@@ -16,8 +17,7 @@ const OAUTH_GRANTS_QUERY_KEY = ["settings", "account", "oauth-grants"] as const;
 
 function formatDay(value: string | null | undefined) {
   if (!value) return "—";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  return formatDate(value);
 }
 
 function statusLabel(grant: OAuthGrant, t: Translate = fallbackContext.t) {

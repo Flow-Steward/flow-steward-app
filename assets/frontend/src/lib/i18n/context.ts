@@ -11,6 +11,8 @@ export type I18nContextValue = {
   supportedLocales: I18nBootstrap["supported_locales"];
   messages: Record<string, string>;
   t: (key: string, defaultText?: string, params?: TranslateParams) => string;
+  /** The reader's date pattern, clock and zone; a change re-renders every translated view. */
+  dateTimeFormat?: string;
 };
 
 export const fallbackSupportedLocales = [{ code: "en", label: "English", native_label: "English" }];

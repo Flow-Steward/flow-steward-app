@@ -1027,7 +1027,9 @@ CREATE TABLE public.users (
     deleted_by text,
     timezone character varying(64),
     locale character varying(16),
-    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
+    date_format character varying(16),
+    time_format character varying(8)
 );
 
 
