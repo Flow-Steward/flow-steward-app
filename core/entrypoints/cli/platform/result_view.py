@@ -504,7 +504,11 @@ def result_blocks(
 def plan_blocks(spec: CommandSpec, plan: Mapping[str, Any]) -> list[Block]:
     """The impact plan shown before a confirmation, as readable sections."""
     blocks: list[Block] = [Line(f"Impact plan: {_command_words(spec)}", "heading")]
-    sections = (("remove", "error"), ("affected", "warning"), ("retained", "success"))
+    sections: tuple[tuple[str, Tone], ...] = (
+        ("remove", "error"),
+        ("affected", "warning"),
+        ("retained", "success"),
+    )
     section_keys = {key for key, _ in sections}
     blocks.extend(payload_blocks(plan, indent=2, skip=section_keys))
     for key, tone in sections:
