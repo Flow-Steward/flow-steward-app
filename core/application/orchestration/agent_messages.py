@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from core.application.orchestration.models import AgentMessageV1, validate_agent_message_payload
@@ -69,6 +69,42 @@ def get_state_messages(state: Mapping[str, Any] | None) -> list[dict]:
         merged.append(item)
         seen.add(identity)
     return _sort_messages_by_recency(merged)
+
+
+def latest_state_message(
+    state: Mapping[str, Any] | None, matches: Callable[[Mapping[str, Any]], bool]
+) -> dict | None:
+    """The newest valid message of the run state that *matches* accepts.
+
+    Only the entries *matches* accepts are validated, so the cost does not grow
+    with the size of each earlier step's payload. Among them the order is the one
+    ``get_state_messages`` gives state messages (recency key, first copy of a
+    message identity wins). Stored job messages are not read: a caller that also
+    needs a result the checkpoint lost falls back to ``get_state_messages``.
+    """
+    if not isinstance(state, Mapping):
+        return None
+    raw = state.get("agent_messages")
+    if not isinstance(raw, list):
+        return None
+    best: dict | None = None
+    best_key: tuple[int, str, int] | None = None
+    seen: set[tuple[Any, ...]] = set()
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict) or not matches(item):
+            continue
+        model, errors = validate_agent_message_payload(item)
+        if model is None or errors:
+            continue
+        message = model.model_dump()
+        identity = _message_identity(message)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        key = _message_recency_key(message, index)
+        if best_key is None or key > best_key:
+            best, best_key = message, key
+    return best
 
 
 def _message_identity(message: Mapping[str, Any]) -> tuple[Any, ...]:

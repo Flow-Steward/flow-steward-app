@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -27,6 +29,29 @@ from core.application.workflows.execution_graph import Edge
 
 TRACE_LIMIT = 1000
 TRACE_KEY = "workflow_run_trace"
+
+#: The trace this process last built for a job, by job id. The hub appends to
+#: the trace after every step and gets back the very object it returned the step
+#: before; that object was validated when it was built, so validating all of its
+#: up to TRACE_LIMIT transitions again on every step only made each step slower
+#: than the one before. A trace from anywhere else (a checkpoint after a restart,
+#: another worker, a caller's copy) is a different object and is validated whole.
+_BUILT_TRACES: OrderedDict[str, dict[str, Any]] = OrderedDict()
+_BUILT_TRACES_LIMIT = 32
+_BUILT_TRACES_LOCK = threading.Lock()
+
+
+def _built_here(job_id: str, trace: Mapping[str, Any]) -> bool:
+    with _BUILT_TRACES_LOCK:
+        return _BUILT_TRACES.get(job_id) is trace
+
+
+def _remember_built(job_id: str, trace: dict[str, Any]) -> None:
+    with _BUILT_TRACES_LOCK:
+        _BUILT_TRACES[job_id] = trace
+        _BUILT_TRACES.move_to_end(job_id)
+        while len(_BUILT_TRACES) > _BUILT_TRACES_LIMIT:
+            _BUILT_TRACES.popitem(last=False)
 
 
 def edge_fact(
@@ -92,8 +117,15 @@ def append_run_trace(
     if str(state.get("task_source") or "").lower() == "step_test_run":
         return None
     previous = state.get(TRACE_KEY)
+    built_here = isinstance(previous, Mapping) and _built_here(
+        str(state.get("job_id") or ""), previous
+    )
     if isinstance(previous, Mapping):
-        trace = PublicWorkflowTraceV1.model_validate(previous).model_dump(mode="json")
+        trace = (
+            dict(previous)
+            if built_here
+            else PublicWorkflowTraceV1.model_validate(previous).model_dump(mode="json")
+        )
         ref = state.get("workflow_definition_ref")
         if (
             not isinstance(ref, Mapping)
@@ -148,4 +180,10 @@ def append_run_trace(
         trace["truncated"] = True
         retained = retained[-TRACE_LIMIT:]
     trace["transitions"] = retained
-    return PublicWorkflowTraceV1.model_validate(trace).model_dump(mode="json")
+    if not built_here:
+        trace = PublicWorkflowTraceV1.model_validate(trace).model_dump(mode="json")
+    # Built from a validated trace and individually validated new facts, with
+    # consecutive sequences and an explicit truncation: the model's invariants
+    # hold by construction, so the next append can trust this exact object.
+    _remember_built(trace["job_id"], trace)
+    return trace
