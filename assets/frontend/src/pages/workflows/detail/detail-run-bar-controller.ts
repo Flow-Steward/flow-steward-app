@@ -47,11 +47,16 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 function text_(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
-/** A run started with "Run workflow" (live), not as a Test Run: its own task source says so. */
+/**
+ * A run started with "Run workflow" (live), not as a Test Run. The full detail names its task
+ * source; the compact detail the bar reads names only its trigger ("test_run" for a Test Run).
+ */
 export function isLiveRun(detail: unknown): boolean {
   const data = record(detail);
   const source = text_(record(data.job).task_source) || text_(data.task_source);
-  return Boolean(source) && source !== "workflow_test_run";
+  if (source) return source !== "workflow_test_run";
+  const trigger = text_(record(data.trigger).kind) || text_(record(record(data.job).trigger).kind);
+  return Boolean(trigger) && trigger !== "test_run";
 }
 
 /** The approval the selected run waits on, when every source names the same one. */

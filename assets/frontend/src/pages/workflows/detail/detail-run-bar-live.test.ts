@@ -9,6 +9,9 @@ describe("a run the builder follows", () => {
     expect(isLiveRun({ job: { task_source: "workflow_run" } })).toBe(true);
     expect(isLiveRun({ task_source: "ui" })).toBe(true);
     expect(isLiveRun({ job: { task_source: "workflow_test_run" } })).toBe(false);
+    // The compact detail the run bar reads carries only the trigger.
+    expect(isLiveRun({ trigger: { kind: "manual_ui", label: "Started in the app" } })).toBe(true);
+    expect(isLiveRun({ trigger: { kind: "test_run" } })).toBe(false);
     // Unknown is not live: the bar keeps calling it a Test Run, as before.
     expect(isLiveRun({})).toBe(false);
     expect(isLiveRun(null)).toBe(false);
