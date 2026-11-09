@@ -78,6 +78,7 @@ MCP_TOOL_ROUTES: dict[str, AppApiRoute] = {
     "job_approval_decide": _route("POST", "/api/approvals/{thread_id}"),
     "project_list": _route("GET", "/api/projects"),
     "project_jobs": _route("GET", "/api/projects/{project_id}/jobs"),
+    "project_connections": _route("GET", "/api/projects/{project_id}/connections"),
     "workflow_list": _route("GET", "/api/projects/{project_id}/workflow-catalog"),
     "workflow_validate": _route(
         "GET", "/api/projects/{project_id}/workflows/{workflow_id}/validate"

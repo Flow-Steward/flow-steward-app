@@ -24,6 +24,18 @@ def project_jobs(project_name: str, limit: int = 10, page: int = 1, status: str 
 
 
 @mcp.tool()
+def project_connections(project_name: str) -> str:
+    """List the connections a project's steps can use, without secrets.
+
+    Each row has `connection_id`, `display_name`, `extension_id`, `connection_type`
+    and its health. A connector step names its connection by this id in
+    `connection_binding_jsonb.connection_id`; a connection that was deleted and
+    created again has a new id, so move the steps to the new one.
+    """
+    return api_tool_response("project_connections", locals())
+
+
+@mcp.tool()
 def workflow_list(
     project_name: str,
     enabled_only: bool = True,
@@ -76,6 +88,7 @@ def workflow_trigger(
 
 
 __all__ = [
+    "project_connections",
     "project_jobs",
     "project_list",
     "workflow_contract",
