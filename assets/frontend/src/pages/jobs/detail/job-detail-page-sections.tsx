@@ -620,7 +620,7 @@ function JobExecutionWaterfall({
       testId="job-execution-waterfall"
       title={t("jobs.detail.execution_waterfall", "Execution steps")}
     >
-      {/* No platform-kit wrapper: its shadow shell drew a second frame and an empty header above the list. */}
+      {/* No legacy web-component wrapper: its shadow shell drew a second frame and an empty header above the list. */}
         <div className="space-y-2">
           {hasMoreExecutionSteps ? (
             <button
