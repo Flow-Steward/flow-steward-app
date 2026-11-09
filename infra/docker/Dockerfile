@@ -576,7 +576,9 @@ COPY --chmod=u=rwX,go=rX --from=frontend-build /app/assets/platform-kit assets/p
 COPY --chmod=u=rwX,go=rX --from=frontend-build /app/assets/platform-components.css assets/platform-components.css
 COPY --chmod=u=rwX,go=rX VERSION VERSION
 COPY --chmod=0755 infra/docker/compact/flow-steward /usr/local/bin/flow-steward
-RUN touch assets/frontend/dist/.vite/manifest.json \
+# A provider console (Railway, Render) opens bash here: Tab completes flow-steward.
+RUN printf '%s\n' '[ -r /app/core/entrypoints/cli/completion/flow-steward.bash ] && . /app/core/entrypoints/cli/completion/flow-steward.bash' >> /etc/bash.bashrc \
+    && touch assets/frontend/dist/.vite/manifest.json \
     && pip install --no-cache-dir --no-deps ./core/infrastructure/extension_sdk/public \
     && ln -s /data/state/.flow-steward /app/.flow-steward \
     && ln -s /data/state/.flow-steward/runtime /run/flow-steward-runtime \

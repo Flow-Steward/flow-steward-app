@@ -234,6 +234,11 @@ def build_click_app(registry: Any, runtime: Any) -> click.Group:
     root = PublicGroup(
         name="flow-steward",
         help="Flow Steward public management commands.",
+        epilog=with_invocation_prefix(
+            'Tab completion: add eval "$(flow-steward completion zsh)" (or bash, fish) '
+            "to your shell profile. An interactive shell with Tab and history: "
+            "flow-steward shell."
+        ),
         context_settings=_CONTEXT_SETTINGS,
         params=[_version_option(), *_global_options()],
     )

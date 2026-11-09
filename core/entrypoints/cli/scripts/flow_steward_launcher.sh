@@ -1,6 +1,43 @@
 #!/bin/sh
 set -eu
 
+# `completion` and `shell` need no runtime: they print a static file or open a local
+# bash around it, so pressing Tab never waits for Docker.
+case "${1:-}" in
+  completion|shell)
+    fs_home=$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)
+    fs_completion_dir="$fs_home/core/entrypoints/cli/completion"
+    if [ "$1" = completion ]; then
+      case "${2:-}" in
+        bash|zsh|fish)
+          exec cat "$fs_completion_dir/flow-steward.$2"
+          ;;
+        *)
+          printf '%s\n' "Usage: flow-steward completion bash|zsh|fish" \
+            "Add one line to your shell profile, for example ~/.zshrc:" \
+            "  eval \"\$($fs_home/flow-steward completion zsh)\"" >&2
+          exit 2
+          ;;
+      esac
+    fi
+    if ! command -v bash >/dev/null 2>&1; then
+      printf '%s\n' "flow-steward shell needs bash; run commands as $fs_home/flow-steward <command>." >&2
+      exit 7
+    fi
+    FS_SHELL_PROGRAM="$fs_home/flow-steward"
+    FS_SHELL_COMPLETION_DIR=$fs_completion_dir
+    if [ -d "$fs_home/.flow-steward" ] && [ -w "$fs_home/.flow-steward" ]; then
+      FS_SHELL_HISTORY="$fs_home/.flow-steward/cli-history"
+    else
+      FS_SHELL_HISTORY="${HOME:-/tmp}/.flow_steward_history"
+    fi
+    # macOS bash would otherwise open with a note that zsh is the default shell.
+    BASH_SILENCE_DEPRECATION_WARNING=1
+    export FS_SHELL_PROGRAM FS_SHELL_COMPLETION_DIR FS_SHELL_HISTORY BASH_SILENCE_DEPRECATION_WARNING
+    exec bash --noprofile --rcfile "$fs_completion_dir/flow-steward-shell.bash" -i
+    ;;
+esac
+
 printf '%s\n' "Flow Steward CLI: preparing management runtime..." >&2
 # The line above is feedback for a slow start only. When nothing else was printed after
 # it, an interactive terminal gets it erased right before the command runs, so the

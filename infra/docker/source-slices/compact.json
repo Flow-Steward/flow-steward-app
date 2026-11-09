@@ -1751,7 +1751,7 @@
     },
     {
       "path": "core/entrypoints/cli/lifecycle_click_app.py",
-      "consumer": "core/entrypoints/cli/platform_runtime.py:301 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
+      "consumer": "core/entrypoints/cli/platform_runtime.py:298 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
     },
     {
       "path": "core/entrypoints/cli/platform/service_bindings/config.py",
@@ -1798,6 +1798,22 @@
     {
       "path": "core/application/orchestration/prompts/orchestrator_system.md",
       "consumer": "worker-owned orchestration system prompt loading"
+    },
+    {
+      "path": "core/entrypoints/cli/completion/flow-steward-shell.bash",
+      "consumer": "infra/docker/compact/flow-steward shell"
+    },
+    {
+      "path": "core/entrypoints/cli/completion/flow-steward.bash",
+      "consumer": "infra/docker/compact/flow-steward completion and /etc/bash.bashrc"
+    },
+    {
+      "path": "core/entrypoints/cli/completion/flow-steward.fish",
+      "consumer": "infra/docker/compact/flow-steward completion"
+    },
+    {
+      "path": "core/entrypoints/cli/completion/flow-steward.zsh",
+      "consumer": "infra/docker/compact/flow-steward completion"
     },
     {
       "path": "core/entrypoints/cli/scripts/frontend_shell_freshness.sh",
