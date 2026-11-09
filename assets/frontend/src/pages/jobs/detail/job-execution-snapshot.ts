@@ -29,7 +29,10 @@ function object(value: unknown): Record<string, unknown> {
  */
 export function useJobExecutionSnapshot(
   jobId: string, enabled: boolean, expectedProjectId?: string,
-  /** Follow older history pages by itself; false reads the first page only (its snapshot is then complete only for a short run). */
+  /**
+   * Follow and poll the history by itself. False is a passive reader of the first page the page
+   * already reads and polls (its snapshot is then complete only for a short run).
+   */
   followPages = true,
 ) {
   const active = enabled && Boolean(jobId);
@@ -47,7 +50,10 @@ export function useJobExecutionSnapshot(
     getNextPageParam: (page) => page.page?.has_more && page.page.next_cursor ? page.page.next_cursor : undefined,
     enabled: active,
     retry: false,
-    refetchInterval: (query) => query.state.data?.pages[0]?.run_terminal ? false : 3_000,
+    // A reader that does not follow pages rides on the page's own poll of the same query:
+    // it neither re-reads on mount nor keeps a second timer.
+    refetchOnMount: followPages,
+    refetchInterval: (query) => !followPages || query.state.data?.pages[0]?.run_terminal ? false : 3_000,
   });
   const pages = historyQuery.data?.pages;
   const nextCursor = pages?.at(-1)?.page?.next_cursor || "";
