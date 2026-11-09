@@ -1088,6 +1088,7 @@
     "core/application/workflows/workflow_secret_default_service.py",
     "core/application/workflows/workflow_start_runtime.py",
     "core/application/workflows/workflow_step_config_contracts.py",
+    "core/application/workflows/workflow_step_connection_binding.py",
     "core/application/workflows/workflow_step_kinds.py",
     "core/application/workflows/workflow_step_scope.py",
     "core/application/workflows/workflow_template_catalog.py",
