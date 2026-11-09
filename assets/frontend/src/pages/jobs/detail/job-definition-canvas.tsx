@@ -32,7 +32,8 @@ export function JobDefinitionCanvas({ definition, jobId, projectId, executionPag
   const containerMarks = useMemo(() => graph ? containerRuntimeMarks(jobContainerProgress(jobId || "", projectId, definition, executionPage), graph) : {}, [definition, executionPage, graph, jobId, projectId]);
   // Each step the run reached carries its mark (the failed one red, with "Failed"); the rest stand back.
   const pageOwnsHistory = executionSnapshot !== undefined;
-  const { snapshot: ownSnapshot } = useJobExecutionSnapshot(jobId || "", Boolean(jobId && graph) && !pageOwnsHistory, projectId);
+  // Job Details pages its history only when asked; the canvas marks a run its first page covers whole.
+  const { snapshot: ownSnapshot } = useJobExecutionSnapshot(jobId || "", Boolean(jobId && graph) && !pageOwnsHistory, projectId, false);
   const snapshot = pageOwnsHistory ? executionSnapshot : ownSnapshot;
   const stepMarks = useMemo(() => graph && definition.workflow_id && definition.revision
     ? workflowExecutionMarks(snapshot, graph, definition.workflow_id, Number(definition.revision), jobId)

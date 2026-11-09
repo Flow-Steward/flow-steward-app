@@ -27,7 +27,11 @@ function object(value: unknown): Record<string, unknown> {
  * Opt-in archived canvas evidence. Shares the inspector's queries, reads only
  * this job, and follows bounded history pages without following child links.
  */
-export function useJobExecutionSnapshot(jobId: string, enabled: boolean, expectedProjectId?: string) {
+export function useJobExecutionSnapshot(
+  jobId: string, enabled: boolean, expectedProjectId?: string,
+  /** Follow older history pages by itself; false reads the first page only (its snapshot is then complete only for a short run). */
+  followPages = true,
+) {
   const active = enabled && Boolean(jobId);
   const definitionQuery = useQuery({
     queryKey: ["jobs", "detail", jobId, "definition"],
@@ -52,8 +56,8 @@ export function useJobExecutionSnapshot(jobId: string, enabled: boolean, expecte
   const canLoadMore = more && Boolean(nextCursor) && !repeatedCursor && (pages?.length || 0) < MAX_EXECUTION_PAGES;
   const { fetchNextPage, isFetching, isError } = historyQuery;
   useEffect(() => {
-    if (active && canLoadMore && !isFetching && !isError) void fetchNextPage();
-  }, [active, canLoadMore, fetchNextPage, isError, isFetching, nextCursor]);
+    if (active && followPages && canLoadMore && !isFetching && !isError) void fetchNextPage();
+  }, [active, canLoadMore, fetchNextPage, followPages, isError, isFetching, nextCursor]);
 
   const snapshot = useMemo<JobExecutionSnapshot | null>(() => {
     const definition = definitionQuery.data;

@@ -808,7 +808,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
     );
 
     renderPage();
-    expect(await screen.findByText("Tokens: 12")).toBeInTheDocument();
+    expect(await screen.findByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 12")).toBeInTheDocument();
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -818,7 +818,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
         },
       });
     });
-    expect(await screen.findByText("Tokens: 900")).toBeInTheDocument();
+    expect(await screen.findByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 900")).toBeInTheDocument();
   });
 
   it("shows a warning when invocation snapshot was truncated", async () => {
