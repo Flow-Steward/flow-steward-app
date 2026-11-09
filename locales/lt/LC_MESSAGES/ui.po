@@ -29275,7 +29275,7 @@ msgid "react.agent_access.secret_already_shown_title"
 msgstr "Šis prieigos raktas jau yra; jo slaptoji reikšmė parodyta vieną kartą"
 
 msgid "react.agent_access.secret_already_shown_copy"
-msgstr "Šis bandymas prieigos raktą sukūrė anksčiau, o slaptosios reikšmės nebegalima parodyti dar kartą. Jei jos neišsaugojote, atšaukite prieigos raktą žemiau ir sukurkite naują."
+msgstr "Šis bandymas prieigos raktą sukūrė anksčiau, o slaptosios reikšmės nebegalima parodyti dar kartą. Jei jos neišsaugojote, atšaukite prieigos raktą 3 žingsnyje ir sukurkite naują."
 
 msgid "react.agent_access.title"
 msgstr "DI agentai"
@@ -30829,6 +30829,12 @@ msgstr "Jūsų prieigos raktas jau yra šioje sąrankoje"
 
 msgid "react.agent_access.token_in_setup_copy"
 msgstr "Šis puslapis jį rodo tik dabar. Išėję, jei reikia, sukurkite kitą prieigos raktą."
+
+msgid "react.agent_access.token_missing_title"
+msgstr "Šioje sąrankoje nėra prieigos rakto"
+
+msgid "react.agent_access.token_missing_copy"
+msgstr "Prieigos raktas rodomas tik vieną kartą, todėl šis puslapis negali jo įrašyti dar kartą. Sukurkite kitą prieigos raktą, kad užpildytumėte šią sąranką."
 
 msgid "react.agent_access.step_install_kept_plugin_hint"
 msgstr "Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, pirmiausia paleiskite `claude plugin marketplace remove {package}`."

@@ -28857,7 +28857,7 @@ msgid "react.agent_access.secret_already_shown_title"
 msgstr "This token already exists; its secret was shown once"
 
 msgid "react.agent_access.secret_already_shown_copy"
-msgstr "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token below and create a new one."
+msgstr "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token in step 3 and create a new one."
 
 msgid "react.agent_access.title"
 msgstr "AI agents"
@@ -30411,6 +30411,12 @@ msgstr "Your token is already in this setup"
 
 msgid "react.agent_access.token_in_setup_copy"
 msgstr "This page shows it only now. After you leave, create another token if you need it."
+
+msgid "react.agent_access.token_missing_title"
+msgstr "This setup has no token"
+
+msgid "react.agent_access.token_missing_copy"
+msgstr "A token is shown only once, so this page cannot fill it in again. Create another token to fill in this setup."
 
 msgid "react.agent_access.step_install_kept_plugin_hint"
 msgstr "If the folder has another name, change it in the command. To install a newer download, first run `claude plugin marketplace remove {package}`."

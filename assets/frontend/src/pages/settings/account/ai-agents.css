@@ -119,6 +119,10 @@
 .fs-agent-option { display: flex; flex-direction: column; gap: 2px; }
 .fs-agent-option-name { color: var(--fs-text-primary); font-weight: 500; }
 
+/* The stepper's radio rows are 20px, as in the boards: the description sits
+   right under the name instead of below a 32px row. */
+.fs-agent-setup .fs-radio-label { min-height: var(--fs-space-250); }
+
 .fs-agent-option-description {
   margin-left: 24px;
   color: var(--fs-text-secondary);
@@ -160,6 +164,7 @@
 .fs-agent-sub .fs-field-helper code {
   color: var(--fs-text-secondary);
   font: 400 0.92em/1 var(--ff-code);
+  white-space: nowrap;
 }
 
 .fs-agent-link {

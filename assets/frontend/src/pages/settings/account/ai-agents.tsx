@@ -412,9 +412,18 @@ export function AiAgentsSection() {
             {t("react.agent_access.token_in_setup_copy", "This page shows it only now. After you leave, create another token if you need it.")}
           </DsAlert>
         ) : null}
-        {usesToken && result?.secret_already_shown ? (
-          <DsAlert title={t("react.agent_access.secret_already_shown_title", "This token already exists; its secret was shown once")} tone="warning">
-            <p>{t("react.agent_access.secret_already_shown_copy", "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token below and create a new one.")}</p>
+        {usesToken && !secret ? (
+          // The secret is shown once: a revoked token, or one from an earlier visit, cannot fill this in.
+          <DsAlert
+            title={result?.secret_already_shown
+              ? t("react.agent_access.secret_already_shown_title", "This token already exists; its secret was shown once")
+              : t("react.agent_access.token_missing_title", "This setup has no token")}
+            tone="warning"
+          >
+            <p>{result?.secret_already_shown
+              ? t("react.agent_access.secret_already_shown_copy", "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token in step 3 and create a new one.")
+              : t("react.agent_access.token_missing_copy", "A token is shown only once, so this page cannot fill it in again. Create another token to fill in this setup.")}</p>
+            <div className="fs-footer-actions"><button className="fs-button" onClick={createAnotherToken} type="button">{t("react.agent_access.create_another_token", "Create another token")}</button></div>
           </DsAlert>
         ) : null}
         {/* Blocked: only the package steps; no address to paste and no token to use. */}

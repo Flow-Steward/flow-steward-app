@@ -360,6 +360,9 @@ describe("AiAgentsSection", () => {
     expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
     expect(screen.getByText(/Access used/)).toBeInTheDocument();
     expect(screen.getByLabelText("Add the server")).toHaveTextContent("<your personal token>");
+    expect(screen.getByText("This setup has no token")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Create another token" })[1]);
+    expect(within(currentStep()).getByRole("heading", { name: "Step 3. Access" })).toBeInTheDocument();
   });
 
   it("asks a cloud client for access in Flow Steward, not for a token", async () => {

@@ -29353,6 +29353,12 @@ msgstr ""
 msgid "react.agent_access.token_in_setup_copy"
 msgstr ""
 
+msgid "react.agent_access.token_missing_title"
+msgstr ""
+
+msgid "react.agent_access.token_missing_copy"
+msgstr ""
+
 msgid "react.agent_access.step_install_kept_plugin_hint"
 msgstr ""
 
