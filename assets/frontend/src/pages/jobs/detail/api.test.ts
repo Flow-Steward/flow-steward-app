@@ -1,3 +1,4 @@
+import { forgetLoadedReads, hasPendingRequests } from "@/lib/http/request-activity";
 import {
   fetchJobApproval,
   fetchJobApprovalHistory,
@@ -139,4 +140,22 @@ describe("job detail api", () => {
     );
   });
 
+  it("reads an older history page in the background: its cursor moves with every recorded step", async () => {
+    forgetLoadedReads();
+    let release!: (response: Response) => void;
+    const body = JSON.stringify({ job_id: "42", steps: [], page: { has_more: false } });
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>((resolve) => { release = resolve; }));
+
+    const older = fetchJobExecutionStepsPage("42", "61:message-61");
+    // A never-read URL normally blocks the page until it answers; an older page must not.
+    expect(hasPendingRequests()).toBe(false);
+    release(new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
+    await older;
+
+    const newest = fetchJobExecutionStepsPage("42", "");
+    expect(hasPendingRequests()).toBe(true);
+    release(new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
+    await newest;
+    expect(hasPendingRequests()).toBe(false);
+  });
 });
