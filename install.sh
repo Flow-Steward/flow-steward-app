@@ -559,6 +559,27 @@ forward_installer_runtime_signal() {
     sleep 0.1
   done
 }
+
+# The installer reads this checkout -- `.env.prod`, Compose files, build contexts --
+# through the bind mount above. Docker Desktop's VM keeps what it once saw of a
+# mounted folder, so a file rewritten on the host since (an edited `.env.prod`, a
+# pulled source tree) could reach the installer stale or truncated. The helper drops
+# that cache and, when the installation may write, proves the view is current with a
+# probe file in its own state directory; a view it cannot repair stops here, before
+# anything is applied. A no-op on any other engine.
+docker_desktop_file_cache="${ROOT_DIR}/core/entrypoints/cli/scripts/docker_desktop_file_cache.sh"
+if [[ -f "${docker_desktop_file_cache}" ]]; then
+  docker_desktop_probe=()
+  if [[ ${management_read_only} -eq 0 ]]; then
+    docker_desktop_probe=("${LIFECYCLE_STATE_DIR}")
+  fi
+  # Like an unreachable daemon (exit 7): Docker cannot be used as it is; fix it, rerun.
+  if ! bash "${docker_desktop_file_cache}" refresh "${INSTALLER_IMAGE}" \
+    ${docker_desktop_probe[@]+"${docker_desktop_probe[@]}"}; then
+    exit 7
+  fi
+fi
+
 trap 'forward_installer_runtime_signal INT' INT
 trap 'forward_installer_runtime_signal TERM' TERM
 # A dropped SSH session hangs the terminal up. Without this the Docker client died with
