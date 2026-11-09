@@ -1,4 +1,4 @@
-"""The user's date pattern and clock: read for the session, saved from the profile."""
+"""The signed-in user's display preferences: timezone, language, date pattern and clock."""
 
 from __future__ import annotations
 
@@ -16,6 +16,47 @@ from core.application.settings.date_time_format import (
     stored_date_format,
     stored_time_format,
 )
+from core.application.settings.ui_i18n import normalize_ui_locale
+
+
+def _stored_or_loaded(
+    user: dict[str, Any],
+    field: str,
+    load: Callable[[Any, str], str],
+    get_logger_only: Callable[[], Any],
+) -> str:
+    """The session's value, else the stored one (kept on the session for the rest of the request)."""
+    value = str(user.get(field) or "").strip()
+    if value:
+        return value
+    user_id = str(user.get("id") or "").strip()
+    bl = get_logger_only() if user_id else None
+    if not bl:
+        return value
+    try:
+        value = load(bl, user_id)
+    except Exception:
+        return str(user.get(field) or "").strip()
+    if value:
+        user[field] = value
+    return value
+
+
+def session_preferences(user: dict[str, Any], get_logger_only: Callable[[], Any]) -> dict[str, str]:
+    """What the interface reads every date, time and word in, for /api/auth/me."""
+    timezone = _stored_or_loaded(
+        user, "timezone", user_profile_repository.load_user_timezone, get_logger_only
+    )
+    locale = _stored_or_loaded(
+        user, "locale", user_profile_repository.load_user_locale, get_logger_only
+    )
+    date_format, time_format = session_date_time_format(user, get_logger_only)
+    return {
+        "timezone": timezone,
+        "locale": normalize_ui_locale(locale),
+        "date_format": date_format,
+        "time_format": time_format,
+    }
 
 
 def session_date_time_format(

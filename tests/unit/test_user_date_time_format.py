@@ -17,7 +17,7 @@ from core.application.settings.date_time_format import (
     stored_date_format,
     stored_time_format,
 )
-from core.entrypoints.api.auth_users_date_time_format import (
+from core.entrypoints.api.auth_users_preferences import (
     save_date_time_format,
     session_date_time_format,
 )

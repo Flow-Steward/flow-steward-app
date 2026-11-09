@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 
 from core.application.settings.ui_i18n import build_client_i18n_payload
 from core.entrypoints.api.app_bootstrap import create_api_app_bootstrap_router
-from core.entrypoints.api.auth_users_date_time_format import session_date_time_format
+from core.entrypoints.api.auth_users_preferences import session_date_time_format
 from core.entrypoints.api.contracts_v2 import create_api_contracts_v2_router
 from core.entrypoints.api.dashboard_metrics import create_dashboard_metrics_router
 from core.entrypoints.api.events import create_api_events_router
