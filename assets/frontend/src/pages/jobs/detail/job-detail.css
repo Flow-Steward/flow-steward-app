@@ -65,3 +65,5 @@
 .job-definition-canvas .react-flow__controls-button svg { fill: currentcolor; }
 /* Steps the run never reached stand back; the run's own steps carry their marks. */
 .job-definition-canvas[data-run-marked="true"] [data-workflow-step-frame]:not([data-run]) { opacity: .55; }
+/* An archived card names its kind in words (If and Switch keep their condition, in code type). */
+.job-definition-canvas [data-workflow-step-frame]:not(:has(.workflow-card-outcomes)) .workflow-card-summary { color: var(--fs-text-tertiary); font-family: var(--ff-body); font-size: var(--fs-type-caption-size); }
