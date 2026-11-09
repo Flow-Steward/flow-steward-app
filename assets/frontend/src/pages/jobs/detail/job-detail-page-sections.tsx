@@ -3,7 +3,7 @@ import { StepInspectorPanel } from "./job-step-inspector-panel";
 import { ReadableDataFields, ReadableFileList } from "./readable-data-fields";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
-import { createElement, useEffect, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { Link } from "react-router";
 
 import { ChevronRight } from "lucide-react";
@@ -617,9 +617,7 @@ function JobExecutionWaterfall({
       testId="job-execution-waterfall"
       title={t("jobs.detail.execution_waterfall", "Execution waterfall")}
     >
-      {createElement(
-        "platform-execution-waterfall",
-        {},
+      {/* No platform-kit wrapper: its shadow shell drew a second frame and an empty header above the list. */}
         <div className="space-y-2">
           {hasMoreExecutionSteps ? (
             <button
@@ -689,8 +687,7 @@ function JobExecutionWaterfall({
                 : t("react.jobs.no_execution_steps_are_available_from_the_runtime_feed_yet", "No execution steps are available from the runtime feed yet.")}
             </div>
           ) : null}
-        </div>,
-      )}
+        </div>
     </DsCard>
   );
 }
@@ -791,10 +788,6 @@ function JobUsageBreakdownCard({
   const { t } = useI18n();
   return (
     <DsCard testId="job-usage-breakdown" title={t("jobs.detail.usage.title", "Model usage")}>
-      <div className="space-y-2">
-        {createElement(
-          "platform-usage-breakdown",
-          {},
           <div className="grid gap-2">
             <div className="job-usage">
               {t("react.jobs.tokens", "Tokens:")}
@@ -839,9 +832,7 @@ function JobUsageBreakdownCard({
                   {t("react.jobs.no_model_usage_recorded_for_this_job", "No model usage recorded for this job.")}
                 </div>
               ) : null}
-          </div>,
-        )}
-      </div>
+          </div>
     </DsCard>
   );
 }
