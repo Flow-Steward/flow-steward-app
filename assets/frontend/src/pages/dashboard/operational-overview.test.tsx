@@ -59,8 +59,23 @@ describe("dashboard status cards", () => {
     view.unmount();
 
     renderOverview({ failedOrStuck: 0, awaitingApproval: 0, needsAttention: 0 });
-    expect(screen.getByRole("link", { name: /^Failed \/ Stuck/ })).not.toHaveAttribute("data-state");
-    expect(screen.getByRole("link", { name: /^Waiting for approval/ })).not.toHaveAttribute("data-state");
+    expect(screen.getByRole("link", { name: /^Failed \/ Stuck/ })).toHaveAttribute("data-state", "clear");
+    expect(screen.getByRole("link", { name: /^Waiting for approval/ })).toHaveAttribute("data-state", "clear");
+  });
+
+  it("keeps zeros calm and draws the wave only on a card whose figure is explained", () => {
+    renderOverview({ inProgress: 0, waiting: 0, awaitingApproval: 0, failedOrStuck: 16, oldestFailingMs: 3 * 86_400_000, completed: 5, successRate: "38.5%" });
+    const card = (name: RegExp) => screen.getByRole("link", { name });
+    for (const name of [/^In progress/, /^Waiting for approval/, /^Waiting:/]) {
+      expect(card(name)).toHaveAttribute("data-state", "clear");
+      expect(card(name)).not.toContainHTML("fs-metric-wave");
+    }
+    expect(card(/^Failed \/ Stuck/)).toHaveAttribute("data-state", "danger");
+    expect(card(/^Failed \/ Stuck/)).toContainHTML("fs-metric-wave");
+    expect(card(/^Completed/)).not.toHaveAttribute("data-state");
+    expect(card(/^Completed/)).toContainHTML("fs-metric-wave");
+    // The count is a live snapshot, whatever range is selected.
+    expect(screen.getByText("Right now · oldest failing 3d")).toBeInTheDocument();
   });
 });
 
@@ -87,7 +102,7 @@ describe("dashboard attention queue links", () => {
       },
     });
     const button = await screen.findByRole("link", { name: /Resolve attention/ });
-    const rail = within(screen.getByRole("complementary", { name: "Attention queue" }));
+    const rail = within(screen.getByRole("region", { name: "Attention queue" }));
     const openQueue = rail.getByRole("link", { name: /Open queue/ });
     expect(statusesOf(button)).toEqual([...ATTENTION_QUEUE_GROUPS]);
     expect(queryOf(button).get("hide_acknowledged")).toBe("1");
@@ -99,6 +114,44 @@ describe("dashboard attention queue links", () => {
     expect(screen.getByRole("link", { name: /^Waiting for approval: 1\./ })).toHaveAttribute("data-state", "attention");
     expect(screen.getByRole("link", { name: /^In progress: 4\./ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Waiting: 11. Show waiting jobs" })).toBeInTheDocument();
+    teardown();
+  });
+
+  it("name each row by its workflow and list them oldest first behind one Open queue link", async () => {
+    const generatedAt = "2026-11-09T12:00:00Z";
+    const hoursAgo = (hours: number) => new Date(Date.parse(generatedAt) - hours * 3_600_000).toISOString();
+    const failedRun = (id: string, hours: number, extra: Record<string, unknown> = {}) => ({
+      id, status: "failed", status_label: "Failed", task_source: "workflow_test_run",
+      selected_workflow_display_name: "Shopify wine v2", task_summary: "Run this workflow from the builder test surface.",
+      project_name: "Wine shop", finished_at: hoursAgo(hours), ...extra,
+    });
+    const teardown = await showDashboard({
+      generated_at: generatedAt,
+      groups: {
+        needs_attention: [
+          failedRun("job-new", 3),
+          failedRun("job-live", 4, { task_source: "api", selected_workflow_display_name: "Nightly sync" }),
+          failedRun("job-old", 72),
+          failedRun("job-mid", 5),
+          failedRun("job-a", 3.5),
+          failedRun("job-b", 3.2),
+          failedRun("job-c", 3.1),
+        ],
+      },
+    });
+    // The cards render at zero before the summary lands; the count link waits for it.
+    await screen.findByRole("link", { name: /Open queue · 2 more/ });
+    const queue = within(screen.getByRole("region", { name: "Attention queue" }));
+    const rows = queue.getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/jobs/"));
+    expect(rows.map((row) => row.getAttribute("href"))).toEqual(["/jobs/job-old", "/jobs/job-mid", "/jobs/job-live", "/jobs/job-a", "/jobs/job-b"]);
+    expect(rows[0]).toHaveTextContent("Shopify wine v2");
+    expect(rows[0]).toHaveTextContent("Test run from the builder · 3d ago");
+    expect(rows[0]).not.toHaveTextContent("builder test surface");
+    expect(rows[2]).toHaveTextContent("Nightly sync");
+    expect(rows[2]).toHaveTextContent("Wine shop · 4h ago");
+    expect(queue.getByRole("link", { name: /Open queue · 2 more/ })).toBeInTheDocument();
+    expect(screen.queryByText(/more in the queue/)).not.toBeInTheDocument();
+    expect(screen.getByText("Right now · oldest failing 3d")).toBeInTheDocument();
     teardown();
   });
 

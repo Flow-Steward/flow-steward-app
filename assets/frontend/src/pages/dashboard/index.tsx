@@ -16,7 +16,7 @@ import {
   DashboardLoadError,
   QuickLinks,
 } from "@/pages/dashboard/dashboard-panels";
-import { formatAge } from "@/pages/dashboard/format";
+import { formatAgeAgo } from "@/pages/dashboard/format";
 import {
   ATTENTION_QUEUE_GROUPS,
   FAILED_OR_STUCK_GROUPS,
@@ -41,7 +41,7 @@ type DashboardGroupMap = Record<string, Array<Record<string, unknown>>>;
 
 
 
-/** Five rows fill the rail without turning it into a second job list. */
+/** Five rows fill the panel without turning it into a second job list. */
 const QUEUE_LIMIT = 5;
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -110,22 +110,44 @@ function attentionTone(status: string): AttentionQueueTone {
   return group === "awaiting_approval" || group === "interrupted" ? "attention" : "neutral";
 }
 
+/** When the run stopped (or started, for one still open): the queue's age and order. */
+const QUEUE_STAMP_FIELDS = ["finished_at", "started_at", "queued_at"];
+
+/**
+ * A row is named by its workflow, so five runs of different workflows read
+ * apart; a builder Test Run says so in place of the project it belongs to.
+ * Rows run oldest first, as the panel's caption promises.
+ */
 function attentionQueue(
   rows: Array<Record<string, unknown>>,
   generatedAt: string, t: I18nContextValue["t"] = fallbackContext.t,
 ): AttentionQueueItem[] {
-  return rows.map((row, index) => {
+  const items = rows.map((row, index) => {
     const id = firstStringFromUnknownValue([row.id, row.job_id, index]);
     const status = firstStringFromUnknownValue([row.status, ""]);
-    return {
-      age: formatAge(oldestAgeMs([row], ["finished_at", "started_at", "queued_at"], generatedAt), t),
+    const ageMs = oldestAgeMs([row], QUEUE_STAMP_FIELDS, generatedAt);
+    const origin = row.task_source === "workflow_test_run"
+      ? t("react.dashboard.test_run_from_the_builder", "Test run from the builder")
+      : firstStringFromUnknownValue([row.project_name, ""]);
+    const item: AttentionQueueItem = {
       id,
-      project: firstStringFromUnknownValue([row.project_name, ""]),
+      meta: [origin, formatAgeAgo(ageMs, t)].filter(Boolean).join(" · "),
       status: firstStringFromUnknownValue([row.status_label, row.status, ""]),
-      title: firstStringFromUnknownValue([row.task_summary, row.display_summary, row.title, t("react.dashboard.job_value1", "Job {value1}", { value1: String(id) })]),
+      title: firstStringFromUnknownValue([
+        row.selected_workflow_display_name,
+        row.task_summary,
+        row.display_summary,
+        row.title,
+        t("react.dashboard.job_value1", "Job {value1}", { value1: String(id) }),
+      ]),
       tone: attentionTone(status),
     };
+    return { ageMs, index, item };
   });
+  // Oldest first; a row without a readable time goes last, and equal ages keep
+  // the server's order so a refresh does not reshuffle them.
+  items.sort((left, right) => (right.ageMs ?? -1) - (left.ageMs ?? -1) || left.index - right.index);
+  return items.map(({ item }) => item);
 }
 
 export function DashboardPage() {
@@ -173,7 +195,7 @@ export function DashboardPage() {
   const longestRunningMs = oldestAgeMs(groups.running || [], ["started_at", "queued_at"], generatedAt);
   const oldestFailingMs = oldestAgeMs(
     failedOrStuckRows(groups.needs_attention || []),
-    ["finished_at", "started_at", "queued_at"],
+    QUEUE_STAMP_FIELDS,
     generatedAt,
   );
   const oldestWaitingMs = oldestAgeMs(

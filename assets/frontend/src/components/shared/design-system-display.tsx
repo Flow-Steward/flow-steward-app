@@ -36,7 +36,8 @@ function MetricWave() {
  * "nothing is wrong" must not read like "work succeeded". `danger` follows the
  * same rule for work that broke, on the status danger tone, and wins over
  * `attention`. `unavailable` is the separate published state for a value that
- * cannot be read at all.
+ * cannot be read at all. `clear` is the calm zero: nothing happened, so the
+ * card steps back to the muted surface and the figure turns grey.
  */
 export function DsMetricCard({
   label,
@@ -48,6 +49,7 @@ export function DsMetricCard({
   attention = false,
   danger = false,
   unavailable = false,
+  clear = false,
   density = "standard",
   wave = true,
 }: Readonly<{
@@ -64,14 +66,17 @@ export function DsMetricCard({
   attention?: boolean;
   danger?: boolean;
   unavailable?: boolean;
+  /** Nothing to report: a zero steps back on the muted surface with a grey figure. */
+  clear?: boolean;
   density?: "hero" | "standard" | "compact";
   /** The wave belongs to variants A and E; drop it on a bare figure card. */
   wave?: boolean;
 }>) {
-  let state: "danger" | "attention" | "unavailable" | undefined;
+  let state: "danger" | "attention" | "unavailable" | "clear" | undefined;
   if (danger) state = "danger";
   else if (attention) state = "attention";
   else if (unavailable) state = "unavailable";
+  else if (clear) state = "clear";
   const body = (
     <>
       <span className="fs-metric-top">

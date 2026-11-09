@@ -1,7 +1,6 @@
-/* Remaining dashboard panels — quick links and load error. Same
- * published roles as the two sections above them, so the page survives a theme
- * switch instead of only working in dark.
- *
+/* Dashboard panels — the shared panel shell (also used by the Attention
+ * queue), quick links and load error. Same published Card roles as Operational
+ * overview, so the page survives a theme switch instead of only working in dark.
  */
 
 .fs-dp {
@@ -61,12 +60,14 @@
 .fs-dp__body {
   display: flex;
   flex-direction: column;
-  gap: var(--fs-space-050);
   min-width: 0;
   margin-top: var(--fs-space-150);
 }
 
 /* ---------- quick links ---------- */
+
+/* Icons are neutral: a destination is not a status, and green is reserved for
+   the brand action and success. */
 
 .fs-dp__link {
   display: grid;
@@ -75,18 +76,23 @@
   gap: var(--fs-space-150);
   min-width: 0;
   min-height: var(--fs-dashboard-row-regular);
-  padding: 0 var(--fs-space-100);
+  padding: 0 var(--fs-space-150);
   border-radius: var(--fs-radius-control);
-  color: var(--fs-text-secondary);
-  font-size: var(--fs-type-field-label-size);
+  color: var(--fs-text-primary);
+  font-size: var(--fs-type-body-size);
   line-height: var(--fs-type-field-label-line-height);
   text-decoration: none;
   transition: background var(--fs-motion-background-hover), color var(--fs-motion-background-hover);
 }
 
+/* A hairline between entries, drawn as a shadow so every row box is the same
+   size for the hover background and the focus ring. */
+.fs-dp__link + .fs-dp__link {
+  box-shadow: 0 -1px 0 var(--fs-border-subtle);
+}
+
 .fs-dp__link:hover {
   background: var(--fs-dropdown-item-hover-bg);
-  color: var(--fs-text-primary);
 }
 
 .fs-dp__link:focus-visible {
@@ -98,7 +104,7 @@
   display: grid;
   place-items: center;
   flex: none;
-  color: var(--fs-text-brand);
+  color: var(--fs-text-secondary);
 }
 
 .fs-dp__link-icon svg {
@@ -114,10 +120,10 @@
   white-space: nowrap;
 }
 
-/* Chevrons always use the 12px supporting grid. */
+/* A row chevron sits on the 16px icon grid, matching the Attention queue rows. */
 .fs-dp__chevron {
-  width: var(--fs-icon-size-supporting);
-  height: var(--fs-icon-size-supporting);
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
   flex: none;
   stroke-width: var(--fs-icon-stroke);
   color: var(--fs-text-tertiary);

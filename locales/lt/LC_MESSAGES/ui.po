@@ -30841,3 +30841,18 @@ msgstr "Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėd
 
 msgid "react.agent_access.step_install_copied_plugin_hint"
 msgstr "Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, dar kartą paleiskite tas pačias komandas."
+
+msgid "react.dashboard.age_ago"
+msgstr "prieš {age}"
+
+msgid "react.dashboard.open_queue_count_more"
+msgstr "Atidaryti eilę · dar {count}"
+
+msgid "react.dashboard.right_now"
+msgstr "Šiuo metu"
+
+msgid "react.dashboard.right_now_oldest_failing_age"
+msgstr "Šiuo metu · seniausia nepavykusi: {age}"
+
+msgid "react.dashboard.test_run_from_the_builder"
+msgstr "Bandomasis vykdymas iš kūrimo priemonės"

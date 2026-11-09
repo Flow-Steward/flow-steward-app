@@ -30423,3 +30423,18 @@ msgstr "If the folder has another name, change it in the command. To install a n
 
 msgid "react.agent_access.step_install_copied_plugin_hint"
 msgstr "If the folder has another name, change it in the command. To install a newer download, run the same commands again."
+
+msgid "react.dashboard.age_ago"
+msgstr "{age} ago"
+
+msgid "react.dashboard.open_queue_count_more"
+msgstr "Open queue · {count} more"
+
+msgid "react.dashboard.right_now"
+msgstr "Right now"
+
+msgid "react.dashboard.right_now_oldest_failing_age"
+msgstr "Right now · oldest failing {age}"
+
+msgid "react.dashboard.test_run_from_the_builder"
+msgstr "Test run from the builder"

@@ -1530,6 +1530,11 @@ a.fs-metric[data-state="danger"]:hover { border-color: var(--fs-status-danger); 
    component values - the same approach .fs-link takes below. */
 .fs-metric[data-state="unavailable"] .fs-metric-figure { color: var(--fs-text-tertiary); }
 
+/* Clear is the calm zero: nothing happened, so the card steps back to the
+   muted surface and the figure greys out instead of competing with a signal. */
+.fs-metric[data-state="clear"] { background: var(--fs-bg-surface-muted); }
+.fs-metric[data-state="clear"] .fs-metric-figure { color: var(--fs-text-tertiary); }
+
 /* The hover swap still happens, it just stops being animated. */
 @media (prefers-reduced-motion: reduce) {
   .fs-metric,

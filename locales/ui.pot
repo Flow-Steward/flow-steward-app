@@ -3642,6 +3642,9 @@ msgstr ""
 msgid "react.dashboard.a_quieter_command_surface_for_projects_jobs_approvals_and_ai_assisted_stewardship"
 msgstr ""
 
+msgid "react.dashboard.age_ago"
+msgstr ""
+
 msgid "react.dashboard.attention_queue"
 msgstr ""
 
@@ -3723,6 +3726,9 @@ msgstr ""
 msgid "react.dashboard.open_queue"
 msgstr ""
 
+msgid "react.dashboard.open_queue_count_more"
+msgstr ""
+
 msgid "react.dashboard.operational_overview"
 msgstr ""
 
@@ -3735,6 +3741,12 @@ msgstr ""
 msgid "react.dashboard.review_jobs"
 msgstr ""
 
+msgid "react.dashboard.right_now"
+msgstr ""
+
+msgid "react.dashboard.right_now_oldest_failing_age"
+msgstr ""
+
 msgid "react.dashboard.start_from_the_highest_priority_work"
 msgstr ""
 
@@ -3745,6 +3757,9 @@ msgid "react.dashboard.success_rate"
 msgstr ""
 
 msgid "react.dashboard.system_monitoring"
+msgstr ""
+
+msgid "react.dashboard.test_run_from_the_builder"
 msgstr ""
 
 msgid "react.dashboard.time_range"
