@@ -1752,6 +1752,10 @@
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {
+      "path": "db/migrations/20261109150000_user_date_time_format.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
       "path": "db/released_migrations.json",
       "consumer": "core.application.tooling.db.upgrade_preflight released baselines and migration checksums"
     },
