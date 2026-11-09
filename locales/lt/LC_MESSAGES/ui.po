@@ -29247,18 +29247,6 @@ msgstr "Nepavyko įkelti DI agento nustatymų"
 msgid "react.agent_access.loading"
 msgstr "Įkeliami DI agento nustatymai…"
 
-msgid "react.agent_access.oauth_access_description"
-msgstr "{client} jungiasi iš savo serverių. Prieigą pasirinksite Flow Steward, kai jis prisijungs: prisijunkite, pasirinkite prieigą, projektus ir galiojimą ir patvirtinkite. Čia joks prieigos raktas nekuriamas."
-
-msgid "react.agent_access.step3_title"
-msgstr "3. Prieiga"
-
-msgid "react.agent_access.oauth_ready_title"
-msgstr "Paruošta debesų DI programoms"
-
-msgid "react.agent_access.oauth_ready_copy"
-msgstr "Patvirtinus prieiga atsiras skiltyje Asmeniniai prieigos raktai → Prijungtos DI programos, kur ją galėsite atšaukti."
-
 msgid "react.agent_access.token_access_description"
 msgstr "{client} naudoja jūsų paskyros asmeninį prieigos raktą. Jis niekada negali daugiau nei jūs."
 
@@ -29266,7 +29254,7 @@ msgid "react.agent_access.access_level"
 msgstr "Ką agentas gali daryti"
 
 msgid "react.agent_access.projects_help"
-msgstr "Tuščia reiškia visus jums pasiekiamus projektus. Pasirinkus projektus, paleidimai, užduotys ir darbo eigos apribojami jais; agentai ir įgūdžiai priklauso visai paskyrai ir projektu neribojami."
+msgstr "Palikite tuščią – bus visi jums pasiekiami projektai. Pasirinkus projektus, paleidimai, užduotys ir darbo eigos apribojami jais; agentai ir įgūdžiai priklauso visai paskyrai."
 
 msgid "react.agent_access.uncertain_title"
 msgstr "Nepavyko patvirtinti, ar prieigos raktas sukurtas"
@@ -29295,9 +29283,6 @@ msgstr "DI agentai"
 msgid "react.agent_access.description"
 msgstr "Prijunkite DI klientą prie Flow Steward: pasirinkite klientą ir paketą, gaukite užpildytus nustatymus ir atlikite pirmą užklausą."
 
-msgid "react.agent_access.step1_title"
-msgstr "1. DI klientas"
-
 msgid "react.agent_access.choose_client"
 msgstr "Kokį klientą naudojate?"
 
@@ -29309,9 +29294,6 @@ msgstr "Jūsų kompiuteryje"
 
 msgid "react.agent_access.package_description"
 msgstr "Paketas moko agentą dirbti su Flow Steward. Jame nėra nei adreso, nei prieigos rakto."
-
-msgid "react.agent_access.step2_title"
-msgstr "2. Paketas"
 
 msgid "react.agent_access.choose_package"
 msgstr "Ką darysite su agentu?"
@@ -29325,23 +29307,11 @@ msgstr "Adresas yra šio diegimo viešas MCP adresas."
 msgid "react.agent_access.setup_description_no_mcp"
 msgstr "Šis paketas nesijungia prie šio diegimo, todėl prieigos rakto nereikia."
 
-msgid "react.agent_access.step4_title"
-msgstr "4. Nustatykite {client}"
-
-msgid "react.agent_access.step5_title"
-msgstr "5. Pirma užklausa"
-
-msgid "react.agent_access.usage_after_token"
-msgstr "Kai prieigos raktas bus sukurtas, čia matysite jo galiojimą, leidimus ir paskutinį naudojimą."
-
 msgid "react.agent_access.usage_oauth"
 msgstr "Patvirtinta prieiga su galiojimu, leidimais ir paskutiniu naudojimu rodoma skiltyje Asmeniniai prieigos raktai → Prijungtos DI programos."
 
 msgid "react.agent_access.token_placeholder"
 msgstr "<jūsų asmeninis prieigos raktas>"
-
-msgid "react.agent_access.copied"
-msgstr "Nukopijuota."
 
 msgid "react.agent_access.copy_failed"
 msgstr "Nepavyko nukopijuoti. Pažymėkite tekstą ir nukopijuokite rankiniu būdu."
@@ -29421,17 +29391,8 @@ msgstr "Atlikite diegimo veiksmus"
 msgid "react.agent_access.step_open_readme_description"
 msgstr "Paketo README pateikia šio kliento diegimo, atnaujinimo ir šalinimo veiksmus."
 
-msgid "react.agent_access.create_another_token_help"
-msgstr "Aukščiau esantis raktas veikia, kol baigsis jo galiojimas arba kol jį atšauksite 5 žingsnyje."
-
 msgid "react.agent_access.create_another_token"
 msgstr "Sukurti kitą prieigos raktą"
-
-msgid "react.agent_access.token_ready_copy"
-msgstr "Atsisiųskite arba nukopijuokite tai, ką rodo 4 žingsnis: daugiau nieko pildyti nereikia. Šis puslapis raktą rodo tik dabar; išėję, jei reikės, sukurkite naują."
-
-msgid "react.agent_access.token_ready_title"
-msgstr "Prieigos raktas sukurtas ir jau įrašytas į nustatymus žemiau"
 
 msgid "react.agent_access.package_after_token"
 msgstr "Atsisiųsti bus galima, kai prieigos raktas bus sukurtas."
@@ -29458,7 +29419,7 @@ msgid "react.agent_access.step_download_skills"
 msgstr "Atsisiųskite įgūdžius"
 
 msgid "react.agent_access.step_personal_plugin_description"
-msgstr "Jame yra paketo įgūdžiai, šios diegties adresas ir jūsų prieigos raktas, tad nieko konfigūruoti nereikia. Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
+msgstr "Jame yra jūsų prieigos raktas: saugokite jį kaip slaptažodį, niekam neduokite ir nedėkite į Git."
 
 msgid "react.agent_access.step_download_plugin"
 msgstr "Atsisiųskite įskiepį"
@@ -29470,16 +29431,16 @@ msgid "react.agent_access.step_install_plugin"
 msgstr "Įdiekite jį"
 
 msgid "react.agent_access.step_install_copied_plugin_description"
-msgstr "Išpakuokite archyvą ir perkelkite gautą aplanką į savo namų aplanką. Tada paleiskite tai terminale („Windows“ – „PowerShell“) ir pradėkite naują seansą. Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, dar kartą paleiskite tas pačias komandas. Joms reikia {client} komandinės eilutės įrankio."
+msgstr "Išpakuokite archyvą ir perkelkite gautą aplanką į savo namų aplanką. Tada paleiskite tai terminale („Windows“ – „PowerShell“) ir pradėkite naują seansą. Komandoms reikia {client} komandinės eilutės įrankio."
 
 msgid "react.agent_access.step_install_kept_plugin_description"
-msgstr "Išpakuokite archyvą, perkelkite gautą aplanką į savo namų aplanką ir palikite jį ten: {client} įkelia įskiepį iš jo. Tada paleiskite tai terminale („Windows“ – „PowerShell“) ir pradėkite naują seansą. Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, pirmiausia paleiskite: claude plugin marketplace remove {package}"
+msgstr "Išpakuokite archyvą ir perkelkite jo aplanką į savo namų aplanką: {client} įkelia įskiepį iš ten. Tada paleiskite tai terminale („Windows“ – „PowerShell“) ir pradėkite naują seansą."
 
 msgid "react.agent_access.step_install_plugin_folder_description"
 msgstr "Išpakuokite archyvą ir perkelkite gautą aplanką į plugins/local aplanką, esantį jūsų namų aplanko .cursor aplanke; jei plugins/local nėra, sukurkite jį. „Mac“ kompiuteryje „Finder“ paspauskite Cmd+Shift+., kad pamatytumėte .cursor. Tada {client} paleiskite Developer: Reload Window. Organizacijos administratoriui gali tekti leisti vietinių įskiepių importą. Norėdami įdiegti naujesnį atsisiuntimą, pakeiskite aplanką."
 
 msgid "react.agent_access.step_personal_plugin"
-msgstr "Atsisiųskite savo įskiepį"
+msgstr "Atsisiųskite įskiepį"
 
 msgid "react.agent_access.step_gemini_add"
 msgstr "Pridėkite serverį"
@@ -30781,3 +30742,96 @@ msgstr "1. Sukurkite Microsoft 365 klientą"
 
 msgid "react.agent_access.platform_step_package"
 msgstr "3. Sukurkite agento paketą"
+
+msgid "react.agent_access.copied_button"
+msgstr "Nukopijuota"
+
+msgid "react.agent_access.step_prefix"
+msgstr "{number} žingsnis."
+
+msgid "react.agent_access.in_the_cloud"
+msgstr "Debesyje"
+
+msgid "react.agent_access.all_projects"
+msgstr "Visi projektai"
+
+msgid "react.agent_access.token_expires"
+msgstr "Galioja iki {date}"
+
+msgid "react.agent_access.revoke"
+msgstr "Atšaukti"
+
+msgid "react.agent_access.no_request_yet"
+msgstr "Užklausų dar nebuvo"
+
+msgid "react.agent_access.step_client_title"
+msgstr "DI klientas"
+
+msgid "react.agent_access.step_package_title"
+msgstr "Paketas"
+
+msgid "react.agent_access.step_access_title"
+msgstr "Prieiga"
+
+msgid "react.agent_access.step_setup_title"
+msgstr "{client} sąranka"
+
+msgid "react.agent_access.step_setup_title_no_client"
+msgstr "Kliento sąranka"
+
+msgid "react.agent_access.step_first_request_title"
+msgstr "Pirmoji užklausa"
+
+msgid "react.agent_access.access_not_needed"
+msgstr "Nereikia: paketas „Developer“ nesijungia prie šios diegties."
+
+msgid "react.agent_access.change"
+msgstr "Keisti"
+
+msgid "react.agent_access.change_step"
+msgstr "Keisti: {step}"
+
+msgid "react.agent_access.continue"
+msgstr "Tęsti"
+
+msgid "react.agent_access.choose_client_to_continue"
+msgstr "Norėdami tęsti, pasirinkite klientą."
+
+msgid "react.agent_access.choose_package_to_continue"
+msgstr "Norėdami tęsti, pasirinkite paketą."
+
+msgid "react.agent_access.oauth_access_summary"
+msgstr "{client} jungiasi per OAuth: prieigą pasirenkate „Flow Steward“, kai jungiatės."
+
+msgid "react.agent_access.oauth_access_body"
+msgstr "Kai pridedate „Flow Steward“ kliente {client}, prisijungiate prie „Flow Steward“ ir ten pasirenkate, ką agentas gali daryti, kuriuos projektus jis pasiekia ir kada baigiasi prieiga, tada patvirtinate."
+
+msgid "react.agent_access.oauth_no_token"
+msgstr "Šiame puslapyje prieigos raktas nekuriamas. Ryšys vėliau atsiranda skiltyje {link}."
+
+msgid "react.agent_access.connected_apps_link"
+msgstr "Asmeniniai prieigos raktai › Prijungtos DI programos"
+
+msgid "react.agent_access.oauth_m365_admin"
+msgstr "Jūsų organizacijos administratorius vieną kartą prideda „Flow Steward“ prie „Microsoft 365“. Po to jungdamiesi prisijungiate prie „Flow Steward“ ir ten pasirenkate prieigą."
+
+msgid "react.agent_access.token_expires_on"
+msgstr "Prieigos raktas galioja iki {date}."
+
+msgid "react.agent_access.setup_description_plugin"
+msgstr "Įskiepyje yra šios diegties MCP adresas ir jūsų prieigos raktas, tad nieko konfigūruoti nereikia."
+
+msgid "react.agent_access.setup_description_developer_plugin"
+msgstr "Įskiepis įdiegia paketą „Developer“. Prieigos rakto jam nereikia."
+
+msgid "react.agent_access.token_in_setup_title"
+msgstr "Jūsų prieigos raktas jau yra šioje sąrankoje"
+
+msgid "react.agent_access.token_in_setup_copy"
+msgstr "Šis puslapis jį rodo tik dabar. Išėję, jei reikia, sukurkite kitą prieigos raktą."
+
+msgid "react.agent_access.step_install_kept_plugin_hint"
+msgstr "Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, pirmiausia paleiskite `claude plugin marketplace remove {package}`."
+
+msgid "react.agent_access.step_install_copied_plugin_hint"
+msgstr "Jei aplankas pavadintas kitaip, pakeiskite pavadinimą komandoje. Norėdami įdiegti naujesnį atsisiuntimą, dar kartą paleiskite tas pačias komandas."

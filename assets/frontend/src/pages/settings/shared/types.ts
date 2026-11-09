@@ -220,6 +220,9 @@ export type AgentSetupStep = {
   title: string;
   description_key: string;
   description: string;
+  /** A note under the step's block; a command in it sits between backticks. */
+  hint_key?: string;
+  hint?: string;
   values: Record<string, string>;
   /** Filled by the server except the `{token}` placeholder, which only the browser fills. */
   content: string;

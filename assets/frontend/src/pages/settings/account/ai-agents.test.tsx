@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { HttpError } from "@/lib/http/errors";
@@ -73,7 +73,7 @@ function operator(overrides: Partial<AgentClientPackage> = {}): AgentClientPacka
     message: "",
     steps: [
       step({ id: "download_plugin", kind: "package", archive_layout: "claude_marketplace", file_name: "flow-steward-operator-claude-code.zip", title: "Download your plugin", content: SERVERS, uses_token: true, uses_mcp_url: true }),
-      step({ id: "install_plugin", kind: "command", title: "Install it", content: "claude plugin install flow-steward-operator@flow-steward-operator" }),
+      step({ id: "install_plugin", kind: "command", title: "Install it", content: "claude plugin install flow-steward-operator@flow-steward-operator", hint_key: "react.agent_access.test_hint", hint: "To install a newer download, first run `claude plugin marketplace remove flow-steward-operator`." }),
       step({ id: "mcp_config", kind: "file", file_name: "config.toml", title: "Add the server", content: CONFIG, uses_token: true, uses_mcp_url: true }),
     ],
     ...overrides,
@@ -139,10 +139,33 @@ function renderSection() {
   return render(<QueryClientProvider client={queryClient}><AiAgentsSection /></QueryClientProvider>);
 }
 
+function clickContinue() {
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+}
+
+/** Step 1 → client, step 2 → its preselected package, then the access step. */
+async function chooseClient(name: RegExp) {
+  fireEvent.click(await screen.findByRole("radio", { name }));
+  clickContinue();
+  await screen.findByRole("radio", { name: /Flow Steward Operator/ });
+}
+
 async function chooseLocalOperator() {
   renderSection();
-  fireEvent.click(await screen.findByRole("radio", { name: /Local agent/ }));
-  await screen.findByRole("radio", { name: /Flow Steward Operator/ });
+  await chooseClient(/Local agent/);
+  clickContinue();
+  await screen.findByRole("button", { name: "Create token" });
+}
+
+async function createLocalToken() {
+  mockedIssue.mockResolvedValue(created());
+  await chooseLocalOperator();
+  fireEvent.click(screen.getByRole("button", { name: "Create token" }));
+  return screen.findByLabelText("Add the server");
+}
+
+function currentStep() {
+  return document.querySelector("[aria-current='step']") as HTMLElement;
 }
 
 describe("AiAgentsSection", () => {
@@ -154,17 +177,38 @@ describe("AiAgentsSection", () => {
     mockedTokens.mockResolvedValue({ tokens: [], total: 0, page: 1, per_page: 25, total_pages: 1 } as never);
   });
 
-  it("lists the clients the server describes and shows only the presets the role allows", async () => {
+  it("groups the clients the server describes and opens one step at a time", async () => {
+    renderSection();
+    expect(await screen.findByRole("group", { name: "On your computer" })).toHaveTextContent("Local agent");
+    expect(screen.getByRole("group", { name: "In the cloud" })).toHaveTextContent("ChatGPT");
+    expect(within(currentStep()).getByRole("heading", { name: "Step 1. AI client" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Step 4. Set up the client" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Flow Steward Operator/ })).not.toBeInTheDocument();
+  });
+
+  it("says why Continue does not move on without a client", async () => {
+    renderSection();
+    await screen.findByRole("radio", { name: /Local agent/ });
+    clickContinue();
+    expect(screen.getByRole("alert")).toHaveTextContent("Choose a client to continue.");
+    fireEvent.click(screen.getByRole("radio", { name: /Local agent/ }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    clickContinue();
+    expect(within(currentStep()).getByRole("heading", { name: "Step 2. Package" })).toBeInTheDocument();
+    expect(screen.getByText("Local agent · On your computer")).toBeInTheDocument();
+  });
+
+  it("shows only the presets the role allows, with their scopes, and no setup before the token", async () => {
     await chooseLocalOperator();
-    expect(screen.getByRole("radio", { name: /ChatGPT/ })).toBeInTheDocument();
+    expect(screen.getByText("Flow Steward Operator")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Monitor and run workflows/ })).toBeChecked();
     expect(screen.queryByRole("radio", { name: /Full authoring/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/more than your role allows/)).not.toBeInTheDocument();
+    expect(screen.getByText("jobs.read")).toBeInTheDocument();
     expect(screen.getByText(/agents and skills belong to the whole account/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Add the server")).toHaveTextContent(`url = "${MCP}"`);
-    expect(screen.getByLabelText("Add the server")).toHaveTextContent("Bearer <your personal token>");
-    expect(screen.getByRole("button", { name: "Download flow-steward-operator-claude-code.zip" })).toBeDisabled();
-    expect(screen.getByText("The download is ready once the token is created.")).toBeInTheDocument();
+    expect(screen.getByText(/^The token expires on /)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Add the server")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Download flow-steward-operator-claude-code/ })).not.toBeInTheDocument();
   });
 
   it("describes admin:all once, next to its choice", async () => {
@@ -191,10 +235,18 @@ describe("AiAgentsSection", () => {
     const [key, request] = mockedIssue.mock.calls[0];
     expect(key).toMatch(/^[\w-]{16,}$/);
     expect(request).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator", preset: "operational", expiry_days: 30, project_ids: [] });
-    expect(await screen.findByText("Not used yet")).toBeInTheDocument();
-    expect(screen.getByText("The token is created and already in the setup below")).toBeInTheDocument();
+    expect(within(currentStep()).getByRole("heading", { name: "Step 4. Set up Local agent" })).toBeInTheDocument();
+    expect(screen.getByText("Your token is already in this setup")).toBeInTheDocument();
+    expect(await screen.findByText("No request yet")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText(/^Monitor and run workflows · All projects · Expires /)).toBeInTheDocument();
+    expect(screen.getByText("The plugin carries this installation's MCP address and your token, so there is nothing to configure.")).toBeInTheDocument();
     expect(screen.queryByText("Copy the token now")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Hide the token" })).not.toBeInTheDocument();
+  });
+
+  it("puts the update command of a hint in code under its block", async () => {
+    await createLocalToken();
+    expect(screen.getByText("claude plugin marketplace remove flow-steward-operator").tagName).toBe("CODE");
   });
 
   it("downloads a plugin that already holds the address and the token", async () => {
@@ -223,15 +275,49 @@ describe("AiAgentsSection", () => {
     }
   });
 
-  it("creates another token on request, starting from an empty setup", async () => {
-    mockedIssue.mockResolvedValue(created());
-    await chooseLocalOperator();
-    fireEvent.click(screen.getByRole("button", { name: "Create token" }));
-    expect(await screen.findByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`);
-    expect(screen.getByText("The token above keeps working until it expires or you revoke it in step 5.")).toBeInTheDocument();
+  it("copies in the button itself: Copied for a moment, then Copy again", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      await createLocalToken();
+      const block = screen.getByLabelText("Add the server").parentElement as HTMLElement;
+      fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
+      expect(await within(block).findByRole("button", { name: "Copied" })).toBeInTheDocument();
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`Bearer ${SECRET}`));
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      await waitFor(() => expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument(), { timeout: 3000 });
+    } finally {
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    }
+  });
+
+  it("keeps Copy and says so under the block when the clipboard is not available", async () => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    await createLocalToken();
+    const block = screen.getByLabelText("Add the server").parentElement as HTMLElement;
+    fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
+    expect(await within(block).findByRole("alert")).toHaveTextContent("Couldn't copy. Select the text and copy it manually.");
+    expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument();
+  });
+
+  it("creates another token on request, reopening the access step", async () => {
+    await createLocalToken();
     fireEvent.click(screen.getByRole("button", { name: "Create another token" }));
-    expect(screen.getByLabelText("Add the server")).toHaveTextContent("Bearer <your personal token>");
+    expect(within(currentStep()).getByRole("heading", { name: "Step 3. Access" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create token" })).toBeEnabled();
+    expect(screen.queryByLabelText("Add the server")).not.toBeInTheDocument();
+  });
+
+  it("changing the client keeps the token and the other choices", async () => {
+    await createLocalToken();
+    fireEvent.click(screen.getByRole("button", { name: "Change AI client" }));
+    expect(screen.getByRole("radio", { name: /Local agent/ })).toBeChecked();
+    clickContinue();
+    expect(screen.getByRole("radio", { name: /Flow Steward Operator/ })).toBeChecked();
+    clickContinue();
+    expect(within(currentStep()).getByRole("heading", { name: "Step 4. Set up Local agent" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`);
+    expect(mockedIssue).toHaveBeenCalledTimes(1);
   });
 
   it("after a lost response asks about the same attempt and never shows the secret again", async () => {
@@ -262,30 +348,47 @@ describe("AiAgentsSection", () => {
     expect(mockedIssue.mock.calls[1][0]).not.toBe(mockedIssue.mock.calls[0][0]);
   });
 
-  it("revokes the token from the usage facts", async () => {
-    mockedIssue.mockResolvedValue(created());
+  it("revokes the token in place from the access step", async () => {
     mockedRevoke.mockResolvedValue({});
-    await chooseLocalOperator();
-    fireEvent.click(screen.getByRole("button", { name: "Create token" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Revoke token" }));
+    await createLocalToken();
+    fireEvent.click(await screen.findByRole("button", { name: "Revoke" }));
+    const confirm = screen.getByRole("group", { name: "Revoke “AI agent · Local agent”?" });
     mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Local agent", scopes: [], revoked: true, last_used_at: "2026-10-31T12:05:00Z" } });
-    const dialogButtons = await screen.findAllByRole("button", { name: "Revoke token" });
-    fireEvent.click(dialogButtons[dialogButtons.length - 1]);
+    fireEvent.click(within(confirm).getByRole("button", { name: "Revoke token" }));
     await waitFor(() => expect(mockedRevoke).toHaveBeenCalledWith("tok-1"));
     expect(await screen.findByText("Revoked")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
     expect(screen.getByText(/Access used/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Add the server")).toHaveTextContent("<your personal token>");
+  });
+
+  it("asks a cloud client for access in Flow Steward, not for a token", async () => {
+    mockedSetup.mockResolvedValue(setupPayload({ clients: [setupPayload().clients[0], { ...setupPayload().clients[1], mcp_blockers: [] }] }));
+    renderSection();
+    await chooseClient(/ChatGPT/);
+    clickContinue();
+    expect(screen.getByText("ChatGPT connects through OAuth: you choose access in Flow Steward when you connect.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Personal tokens › Connected AI apps" })).toHaveAttribute("href", "/settings/account?tab=tokens");
+    expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
+    clickContinue();
+    expect(screen.getByLabelText("Add Flow Steward as a custom MCP connector")).toHaveTextContent(MCP);
+    expect(screen.getByLabelText("Make the first request")).toHaveTextContent("List my Flow Steward projects");
+    expect(screen.getByText(/appears under Personal tokens → Connected AI apps/)).toBeInTheDocument();
   });
 
   it("shows a cloud client's blocker instead of an address or a token", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("radio", { name: /ChatGPT/ }));
-    expect(await screen.findByText("A public HTTPS address is required")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Add Flow Steward as a custom MCP connector")).not.toBeInTheDocument();
+    await chooseClient(/ChatGPT/);
     // A package this client cannot use is not offered as a choice at all.
     expect(screen.queryByRole("radio", { name: /Flow Steward Developer/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Not published")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Flow Steward Operator/ })).toBeChecked();
+    clickContinue();
+    expect(await screen.findByText("A public HTTPS address is required")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
+    clickContinue();
+    expect(screen.queryByText("Add Flow Steward as a custom MCP connector")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Make the first request")).not.toBeInTheDocument();
   });
 
   it("names a missing public address as the blocker for a local client", async () => {
@@ -301,11 +404,15 @@ describe("AiAgentsSection", () => {
     expect(screen.queryByRole("button", { name: /Download flow-steward-operator-claude-code/ })).not.toBeInTheDocument();
   });
 
-  it("Developer needs no token", async () => {
-    await chooseLocalOperator();
+  it("Developer needs no token: access and the first request are not needed", async () => {
+    renderSection();
+    await chooseClient(/Local agent/);
     fireEvent.click(screen.getByRole("radio", { name: /Flow Steward Developer/ }));
+    clickContinue();
     expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
-    expect(screen.getByText("This package does not connect to this installation, so no token is needed.")).toBeInTheDocument();
+    expect(screen.getAllByText("Not needed: the Developer package does not connect to this installation.")).toHaveLength(2);
+    expect(within(currentStep()).getByText("This package does not connect to this installation, so no token is needed.")).toBeInTheDocument();
+    expect(within(currentStep()).getByRole("link", { name: "Open the release" })).toBeInTheDocument();
     expect(mockedIssue).not.toHaveBeenCalled();
   });
 });

@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { useQuery } from "@tanstack/react-query";
+import { Check, Download } from "lucide-react";
 
-import { DsAlert, DsBadge, DsDialog, DsToast } from "@/components/shared/design-system";
+import { DsAlert, DsBadge, DsToast } from "@/components/shared/design-system";
+import { InlineConfirm } from "@/components/shared/inline-confirm";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { ArchiveLayout } from "@/pages/settings/account/agent-package-archive";
+import { AgentCodeBlock } from "@/pages/settings/account/ai-agents-copy";
 import { PlatformClientStep } from "@/pages/settings/account/ai-agents-platform";
 import { fetchAgentAccessToken, revokePersonalToken } from "@/pages/settings/shared/api";
 import type { AgentAccessToken, AgentSetupStep } from "@/pages/settings/shared/types";
@@ -19,11 +22,6 @@ const TOKEN_PLACEHOLDER = "{token}";
 /** The step text with the secret, or a visible placeholder when there is none. */
 function fillToken(content: string, secret: string, placeholder: string): string {
   return content.split(TOKEN_PLACEHOLDER).join(secret || placeholder);
-}
-
-function formatDay(value: string | null | undefined): string {
-  if (!value) return "—";
-  return formatDate(value);
 }
 
 function downloadBlob(fileName: string, blob: Blob) {
@@ -44,7 +42,47 @@ function stepDescription(step: AgentSetupStep, t: Translate) {
   return step.description_key ? t(step.description_key, step.description, step.values) : "";
 }
 
-/** Steps 4 and 5 of the wizard: what to do in the client, as the server described it. */
+function stepHint(step: AgentSetupStep, t: Translate) {
+  return step.hint_key ? t(step.hint_key, step.hint || "", step.values) : "";
+}
+
+/** A hint names a command between backticks; it reads as code, the rest as text. */
+function withCode(text: string): ReactNode[] {
+  return text.split("`").map((part, index) => (index % 2 ? <code key={`${index}-${part}`}>{part}</code> : part));
+}
+
+/**
+ * One step of the AI agents setup. A finished step folds into its summary row,
+ * the current one is open, a later one is a numbered row and a skipped one says
+ * why it is not needed.
+ */
+export type AgentStepStatus = "done" | "current" | "open" | "next" | "skipped";
+
+export function AgentStep({
+  actions,
+  children,
+  number,
+  status,
+  summary,
+  title,
+}: Readonly<{ actions?: ReactNode; children?: ReactNode; number: number; status: AgentStepStatus; summary?: ReactNode; title: string }>) {
+  const { t } = useI18n();
+  return (
+    <li aria-current={status === "current" ? "step" : undefined} className={`fs-agent-step ${status}`}>
+      <div className="fs-agent-step-head">
+        <span aria-hidden="true" className="fs-agent-step-mark">{status === "done" ? <Check /> : number}</span>
+        <div className="fs-agent-step-titles">
+          <h3 className="fs-agent-step-title"><span className="fs-sr-only">{t("react.agent_access.step_prefix", "Step {number}.", { number: String(number) })} </span>{title}</h3>
+          {summary ? <p className="fs-agent-step-summary">{summary}</p> : null}
+        </div>
+        {actions ? <div className="fs-agent-step-actions">{actions}</div> : null}
+      </div>
+      {children ? <div className="fs-agent-step-body">{children}</div> : null}
+    </li>
+  );
+}
+
+/** Step 4: what to do in the client, as the server described it. */
 export function AgentSetupSteps({
   packageId = "",
   packageVersion = "",
@@ -54,17 +92,6 @@ export function AgentSetupSteps({
   const { t } = useI18n();
   const [feedback, setFeedback] = useState<{ tone: "success" | "danger"; message: string } | null>(null);
   const placeholder = t("react.agent_access.token_placeholder", "<your personal token>");
-
-  async function copy(text: string) {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
-      await navigator.clipboard.writeText(text);
-      setFeedback({ tone: "success", message: t("react.agent_access.copied", "Copied.") });
-    } catch {
-      setFeedback({ tone: "danger", message: t("react.agent_access.copy_failed", "Could not copy. Select the text and copy it manually.") });
-    }
-    globalThis.setTimeout(() => setFeedback(null), 2400);
-  }
 
   async function downloadArchive(step: AgentSetupStep) {
     try {
@@ -79,25 +106,26 @@ export function AgentSetupSteps({
   }
 
   return (
-    <ol className="fs-panel-stack">
+    <>
       {steps.map((step) => {
         const description = stepDescription(step, t);
+        const hint = stepHint(step, t);
         const text = fillToken(step.content, secret, placeholder);
         const waitsForToken = step.uses_token && !secret;
         if (step.kind === "notice") {
-          return <li key={step.id}><DsAlert title={stepTitle(step, t)}>{description}</DsAlert></li>;
+          return <DsAlert key={step.id} title={stepTitle(step, t)}>{description}</DsAlert>;
         }
         return (
-          <li className="fs-panel-group" key={step.id}>
-            <h3 className="fs-panel-title">{stepTitle(step, t)}</h3>
-            {description ? <p className="fs-field-helper">{description}</p> : null}
+          <div className="fs-agent-sub" key={step.id}>
+            <h4 className="fs-agent-sub-title">{stepTitle(step, t)}</h4>
+            {description ? <p className="fs-agent-text">{description}</p> : null}
             {step.kind === "platform" ? (
               <PlatformClientStep mcpUrl={step.content} packageVersion={packageVersion} step={step} />
             ) : step.kind === "package" ? (
               <>
                 {waitsForToken ? <span className="fs-field-helper">{t("react.agent_access.package_after_token", "The download is ready once the token is created.")}</span> : null}
                 <div className="fs-footer-actions">
-                  <button className="fs-button primary" disabled={waitsForToken} onClick={() => ignoreAsyncResult(downloadArchive(step))} type="button">{t("react.agent_access.download_file", "Download {name}", { name: step.file_name })}</button>
+                  <button className="fs-button primary" disabled={waitsForToken} onClick={() => ignoreAsyncResult(downloadArchive(step))} type="button"><Download aria-hidden="true" />{t("react.agent_access.download_file", "Download {name}", { name: step.file_name })}</button>
                 </div>
               </>
             ) : step.kind === "link" ? (
@@ -108,21 +136,21 @@ export function AgentSetupSteps({
               </div>
             ) : (
               <>
-                <pre aria-label={stepTitle(step, t)} className="fs-log-output">{text}</pre>
+                <AgentCodeBlock disabled={waitsForToken} label={stepTitle(step, t)} text={text} />
                 {waitsForToken ? <span className="fs-field-helper">{t("react.agent_access.token_appears_here", "The token appears here once it is created. It is shown only once.")}</span> : null}
-                <div className="fs-footer-actions">
-                  <button className="fs-button" disabled={waitsForToken} onClick={() => ignoreAsyncResult(copy(text))} type="button">{t("react.agent_access.copy", "Copy")}</button>
-                  {step.kind === "file" && step.file_name ? (
+                {step.kind === "file" && step.file_name ? (
+                  <div className="fs-footer-actions">
                     <button className="fs-button ghost" disabled={waitsForToken} onClick={() => downloadBlob(step.file_name, new Blob([text], { type: "text/plain;charset=utf-8" }))} type="button">{t("react.agent_access.download_file", "Download {name}", { name: step.file_name })}</button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </>
             )}
-          </li>
+            {hint ? <p className="fs-field-helper">{withCode(hint)}</p> : null}
+          </div>
         );
       })}
       {feedback ? <DsToast tone={feedback.tone}>{feedback.message}</DsToast> : null}
-    </ol>
+    </>
   );
 }
 
@@ -134,21 +162,31 @@ function tokenState(token: AgentAccessToken, t: Translate = fallbackContext.t) {
   return { tone: "green" as const, label: t("account_settings.status.active", "Active") };
 }
 
-/**
- * The facts the token record holds: expiry, scopes, projects and last use. Only that
- * the token was used, never which client used it; copying or downloading the
- * settings is not a connection.
- */
-export function AgentTokenUsage({
-  onRevoked,
-  tokenId,
-}: Readonly<{ onRevoked: () => void; tokenId: string }>) {
-  const { t } = useI18n();
-  const tokenQuery = useQuery({
+/** The token record: step 3 shows its properties and step 5 its first use, from one query. */
+function useAgentToken(tokenId: string) {
+  return useQuery({
     queryKey: ["settings", "account", "agent-access", "token", tokenId],
     queryFn: () => fetchAgentAccessToken(tokenId),
     retry: false,
   });
+}
+
+/**
+ * Step 3 once the token exists: its properties in the summary row, Create
+ * another token and a quiet Revoke that confirms in place. A token is never
+ * edited, so there is no Change here.
+ */
+export function AgentTokenStep({
+  disabled = false,
+  number,
+  onCreateAnother,
+  onRevoked,
+  presetLabel,
+  title,
+  tokenId,
+}: Readonly<{ disabled?: boolean; number: number; onCreateAnother: () => void; onRevoked: () => void; presetLabel: string; title: string; tokenId: string }>) {
+  const { t } = useI18n();
+  const tokenQuery = useAgentToken(tokenId);
   const [confirming, setConfirming] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [revokeError, setRevokeError] = useState("");
@@ -169,29 +207,68 @@ export function AgentTokenUsage({
     }
   }
 
+  let summary: ReactNode;
   if (tokenQuery.isError) {
-    return <DsAlert title={t("react.agent_access.token_status_unavailable", "The token's state could not be loaded")} tone="warning">{t("react.settings.check_the_connection_and_try_again", "Check the connection and try again.")}</DsAlert>;
+    summary = t("react.agent_access.token_status_unavailable", "The token's state could not be loaded");
+  } else if (token) {
+    const state = tokenState(token, t);
+    const projects = token.allowed_project_ids || [];
+    const facts = [
+      presetLabel,
+      projects.length ? t("react.oauth.project_count", "{value1} projects", { value1: String(projects.length) }) : t("react.agent_access.all_projects", "All projects"),
+    ];
+    if (token.expires_at) facts.push(t("react.agent_access.token_expires", "Expires {date}", { date: formatDate(token.expires_at) }));
+    summary = <><DsBadge tone={state.tone}>{state.label}</DsBadge><span>{facts.filter(Boolean).join(" · ")}</span></>;
+  } else {
+    summary = t("react.agent_access.loading_token", "Loading the token's state…");
   }
-  if (!token) return <p className="fs-field-helper">{t("react.agent_access.loading_token", "Loading the token's state…")}</p>;
-  const state = tokenState(token, t);
-  const projects = token.allowed_project_ids || [];
+
+  const actions = (
+    <>
+      <button className="fs-button ghost sm" disabled={disabled || revoking} onClick={onCreateAnother} type="button">{t("react.agent_access.create_another_token", "Create another token")}</button>
+      {token && !token.revoked ? <button className="fs-button ghost-danger sm" disabled={disabled || confirming} onClick={() => setConfirming(true)} type="button">{t("react.agent_access.revoke", "Revoke")}</button> : null}
+    </>
+  );
+
   return (
-    <div className="fs-panel-group">
-      <dl className="fs-form-grid">
-        <div className="fs-field"><dt className="fs-field-label">{t("account_settings.card.status", "Status")}</dt><dd><DsBadge tone={state.tone}>{state.label}</DsBadge></dd></div>
-        <div className="fs-field"><dt className="fs-field-label">{t("react.settings.last_used", "Last used")}</dt><dd>{token.last_used_at ? t("react.oauth.access_used_on", "Access used {value1}", { value1: formatDay(token.last_used_at) }) : t("react.oauth.not_used_yet", "Not used yet")}</dd></div>
-        <div className="fs-field"><dt className="fs-field-label">{t("account.tokens.expires", "Expires")}</dt><dd>{formatDay(token.expires_at)}</dd></div>
-        <div className="fs-field"><dt className="fs-field-label">{t("react.oauth.column_projects", "Projects")}</dt><dd>{projects.length ? t("react.oauth.project_count", "{value1} projects", { value1: String(projects.length) }) : t("react.oauth.all_projects", "All projects within your access")}</dd></div>
-        <div className="fs-field full"><dt className="fs-field-label">{t("react.settings.scopes", "Scopes")}</dt><dd><code className="fs-value-chip fs-settings-wrap">{(token.scopes || []).join(", ")}</code></dd></div>
-      </dl>
-      {token.last_used_at ? null : <span className="fs-field-helper">{t("react.agent_access.not_used_help", "Copying or downloading the settings does not count. The time appears after the first request with this token.")}</span>}
-      <div className="fs-footer-actions">
-        <button className="fs-button" disabled={tokenQuery.isFetching} onClick={() => ignoreAsyncResult(tokenQuery.refetch())} type="button">{t("react.agent_access.check_again", "Check again")}</button>
-        {token.revoked ? null : <button className="fs-button danger" onClick={() => setConfirming(true)} type="button">{t("react.settings.revoke_token", "Revoke token")}</button>}
+    <AgentStep actions={actions} number={number} status="done" summary={summary} title={title}>
+      {confirming && token ? (
+        <InlineConfirm
+          cancelLabel={t("common.cancel", "Cancel")}
+          confirmLabel={t("react.settings.revoke_token", "Revoke token")}
+          error={revokeError}
+          onCancel={() => { setConfirming(false); setRevokeError(""); }}
+          onConfirm={() => ignoreAsyncResult(revoke())}
+          pending={revoking}
+          pendingLabel={t("react.settings.revoking", "Revoking…")}
+          question={t("react.settings.revoke_value1", "Revoke “{value1}”?", { value1: token.label || t("react.settings.token_lowercase", "token") })}
+          tone="danger"
+        >
+          {t("react.settings.clients_using_this_token_lose_access_immediately_this_action_cannot_be_undone", "Clients using this token lose access immediately. This action cannot be undone.")}
+        </InlineConfirm>
+      ) : null}
+    </AgentStep>
+  );
+}
+
+/**
+ * Step 5's check: only that the token was used, never which client used it;
+ * copying or downloading the settings is not a connection.
+ */
+export function AgentRequestCheck({ tokenId }: Readonly<{ tokenId: string }>) {
+  const { t } = useI18n();
+  const tokenQuery = useAgentToken(tokenId);
+  const usedAt = tokenQuery.data?.token?.last_used_at || "";
+  return (
+    <div className="fs-agent-check">
+      <div className="fs-agent-check-text">
+        <span className="fs-agent-check-title">
+          <span aria-hidden="true" className="fs-agent-check-dot" data-used={usedAt ? "true" : undefined} />
+          {usedAt ? t("react.oauth.access_used_on", "Access used {value1}", { value1: formatDate(usedAt) }) : t("react.agent_access.no_request_yet", "No request yet")}
+        </span>
+        {usedAt ? null : <span className="fs-field-helper">{t("react.agent_access.not_used_help", "Copying or downloading the settings does not count. The time appears after the first request with this token.")}</span>}
       </div>
-      <DsDialog busy={revoking} closeLabel={t("react.settings.close_revoke_confirmation", "Close revoke confirmation")} description={t("react.settings.clients_using_this_token_lose_access_immediately_this_action_cannot_be_undone", "Clients using this token lose access immediately. This action cannot be undone.")} eyebrow={t("react.agent_access.title", "AI agents")} footer={<><button className="fs-button" disabled={revoking} onClick={() => setConfirming(false)} type="button">{t("common.cancel", "Cancel")}</button><button className="fs-button danger" disabled={revoking} onClick={() => ignoreAsyncResult(revoke())} type="button">{revoking ? t("react.settings.revoking", "Revoking…") : t("react.settings.revoke_token", "Revoke token")}</button></>} onClose={() => setConfirming(false)} open={confirming} title={t("react.settings.revoke_value1", "Revoke “{value1}”?", { value1: token.label || t("react.settings.token_lowercase", "token") })} variant="confirm">
-        <DsAlert tone="danger" title={t("react.settings.immediate_access_loss", "Immediate access loss")}>{revokeError || t("react.settings.confirm_only_after_the_client_has_another_credential", "Confirm only after the client has another credential.")}</DsAlert>
-      </DsDialog>
+      <button className="fs-button secondary" disabled={tokenQuery.isFetching} onClick={() => ignoreAsyncResult(tokenQuery.refetch())} type="button">{t("react.agent_access.check_again", "Check again")}</button>
     </div>
   );
 }

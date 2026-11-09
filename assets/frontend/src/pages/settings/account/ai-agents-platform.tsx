@@ -6,6 +6,7 @@ import { DsAlert, DsBadge, DsDialog, DsToast, DsValueChip, RequiredLabel } from 
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { AgentCopyButton } from "@/pages/settings/account/ai-agents-copy";
 import { createPlatformClient, fetchPlatformClients, revokePlatformClient } from "@/pages/settings/shared/api";
 import type { AgentSetupStep, PlatformClient, PlatformClientsView } from "@/pages/settings/shared/types";
 
@@ -71,16 +72,6 @@ export function PlatformClientStep({
   function show(next: Feedback) {
     setFeedback(next);
     globalThis.setTimeout(() => setFeedback(null), 2400);
-  }
-
-  async function copy(text: string) {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
-      await navigator.clipboard.writeText(text);
-      show({ tone: "success", message: t("react.agent_access.copied", "Copied.") });
-    } catch {
-      show({ tone: "danger", message: t("react.agent_access.copy_failed", "Could not copy. Select the text and copy it manually.") });
-    }
   }
 
   async function run(action: () => Promise<PlatformClientsView>) {
@@ -153,7 +144,7 @@ export function PlatformClientStep({
                   <dt className="fs-field-label">{row.label}</dt>
                   <dd className="fs-footer-actions">
                     <DsValueChip>{row.value}</DsValueChip>
-                    {row.copyable ? <button aria-label={t("react.agent_access.copy_value", "Copy {name}", { name: row.label })} className="fs-button ghost" onClick={() => ignoreAsyncResult(copy(row.value))} type="button">{t("react.agent_access.copy", "Copy")}</button> : null}
+                    {row.copyable ? <AgentCopyButton ariaLabel={t("react.agent_access.copy_value", "Copy {name}", { name: row.label })} text={row.value} /> : null}
                   </dd>
                 </div>
               ))}

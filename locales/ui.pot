@@ -27771,18 +27771,6 @@ msgstr ""
 msgid "react.agent_access.loading"
 msgstr ""
 
-msgid "react.agent_access.oauth_access_description"
-msgstr ""
-
-msgid "react.agent_access.step3_title"
-msgstr ""
-
-msgid "react.agent_access.oauth_ready_title"
-msgstr ""
-
-msgid "react.agent_access.oauth_ready_copy"
-msgstr ""
-
 msgid "react.agent_access.token_access_description"
 msgstr ""
 
@@ -27819,9 +27807,6 @@ msgstr ""
 msgid "react.agent_access.description"
 msgstr ""
 
-msgid "react.agent_access.step1_title"
-msgstr ""
-
 msgid "react.agent_access.choose_client"
 msgstr ""
 
@@ -27832,9 +27817,6 @@ msgid "react.agent_access.local"
 msgstr ""
 
 msgid "react.agent_access.package_description"
-msgstr ""
-
-msgid "react.agent_access.step2_title"
 msgstr ""
 
 msgid "react.agent_access.choose_package"
@@ -27849,22 +27831,10 @@ msgstr ""
 msgid "react.agent_access.setup_description_no_mcp"
 msgstr ""
 
-msgid "react.agent_access.step4_title"
-msgstr ""
-
-msgid "react.agent_access.step5_title"
-msgstr ""
-
-msgid "react.agent_access.usage_after_token"
-msgstr ""
-
 msgid "react.agent_access.usage_oauth"
 msgstr ""
 
 msgid "react.agent_access.token_placeholder"
-msgstr ""
-
-msgid "react.agent_access.copied"
 msgstr ""
 
 msgid "react.agent_access.copy_failed"
@@ -27945,16 +27915,7 @@ msgstr ""
 msgid "react.agent_access.step_open_readme_description"
 msgstr ""
 
-msgid "react.agent_access.create_another_token_help"
-msgstr ""
-
 msgid "react.agent_access.create_another_token"
-msgstr ""
-
-msgid "react.agent_access.token_ready_copy"
-msgstr ""
-
-msgid "react.agent_access.token_ready_title"
 msgstr ""
 
 msgid "react.agent_access.package_after_token"
@@ -29303,4 +29264,97 @@ msgid "react.agent_access.platform_step_create"
 msgstr ""
 
 msgid "react.agent_access.platform_step_package"
+msgstr ""
+
+msgid "react.agent_access.copied_button"
+msgstr ""
+
+msgid "react.agent_access.step_prefix"
+msgstr ""
+
+msgid "react.agent_access.in_the_cloud"
+msgstr ""
+
+msgid "react.agent_access.all_projects"
+msgstr ""
+
+msgid "react.agent_access.token_expires"
+msgstr ""
+
+msgid "react.agent_access.revoke"
+msgstr ""
+
+msgid "react.agent_access.no_request_yet"
+msgstr ""
+
+msgid "react.agent_access.step_client_title"
+msgstr ""
+
+msgid "react.agent_access.step_package_title"
+msgstr ""
+
+msgid "react.agent_access.step_access_title"
+msgstr ""
+
+msgid "react.agent_access.step_setup_title"
+msgstr ""
+
+msgid "react.agent_access.step_setup_title_no_client"
+msgstr ""
+
+msgid "react.agent_access.step_first_request_title"
+msgstr ""
+
+msgid "react.agent_access.access_not_needed"
+msgstr ""
+
+msgid "react.agent_access.change"
+msgstr ""
+
+msgid "react.agent_access.change_step"
+msgstr ""
+
+msgid "react.agent_access.continue"
+msgstr ""
+
+msgid "react.agent_access.choose_client_to_continue"
+msgstr ""
+
+msgid "react.agent_access.choose_package_to_continue"
+msgstr ""
+
+msgid "react.agent_access.oauth_access_summary"
+msgstr ""
+
+msgid "react.agent_access.oauth_access_body"
+msgstr ""
+
+msgid "react.agent_access.oauth_no_token"
+msgstr ""
+
+msgid "react.agent_access.connected_apps_link"
+msgstr ""
+
+msgid "react.agent_access.oauth_m365_admin"
+msgstr ""
+
+msgid "react.agent_access.token_expires_on"
+msgstr ""
+
+msgid "react.agent_access.setup_description_plugin"
+msgstr ""
+
+msgid "react.agent_access.setup_description_developer_plugin"
+msgstr ""
+
+msgid "react.agent_access.token_in_setup_title"
+msgstr ""
+
+msgid "react.agent_access.token_in_setup_copy"
+msgstr ""
+
+msgid "react.agent_access.step_install_kept_plugin_hint"
+msgstr ""
+
+msgid "react.agent_access.step_install_copied_plugin_hint"
 msgstr ""

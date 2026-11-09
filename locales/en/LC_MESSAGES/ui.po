@@ -28829,18 +28829,6 @@ msgstr "The AI agent setup could not be loaded"
 msgid "react.agent_access.loading"
 msgstr "Loading the AI agent setup…"
 
-msgid "react.agent_access.oauth_access_description"
-msgstr "{client} connects from its own servers. You choose the access in Flow Steward when it connects: sign in, pick the access, projects and expiry, and approve. No token is created here."
-
-msgid "react.agent_access.step3_title"
-msgstr "3. Access"
-
-msgid "react.agent_access.oauth_ready_title"
-msgstr "Ready for cloud AI apps"
-
-msgid "react.agent_access.oauth_ready_copy"
-msgstr "After you approve, the access appears under Personal tokens → Connected AI apps, where you can revoke it."
-
 msgid "react.agent_access.token_access_description"
 msgstr "{client} uses a personal access token from your account. It can never do more than you can."
 
@@ -28848,7 +28836,7 @@ msgid "react.agent_access.access_level"
 msgstr "What the agent may do"
 
 msgid "react.agent_access.projects_help"
-msgstr "Empty means every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account and are not limited by project."
+msgstr "Leave empty for every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account."
 
 msgid "react.agent_access.uncertain_title"
 msgstr "We could not confirm whether the token was created"
@@ -28877,9 +28865,6 @@ msgstr "AI agents"
 msgid "react.agent_access.description"
 msgstr "Connect an AI client to Flow Steward: pick the client and the package, get the settings filled in, and make the first request."
 
-msgid "react.agent_access.step1_title"
-msgstr "1. AI client"
-
 msgid "react.agent_access.choose_client"
 msgstr "Which client do you use?"
 
@@ -28891,9 +28876,6 @@ msgstr "On your computer"
 
 msgid "react.agent_access.package_description"
 msgstr "The package teaches the agent how to work with Flow Steward. It holds no address and no token."
-
-msgid "react.agent_access.step2_title"
-msgstr "2. Package"
 
 msgid "react.agent_access.choose_package"
 msgstr "What will you do with the agent?"
@@ -28907,26 +28889,14 @@ msgstr "The address is this installation's public MCP address."
 msgid "react.agent_access.setup_description_no_mcp"
 msgstr "This package does not connect to this installation, so no token is needed."
 
-msgid "react.agent_access.step4_title"
-msgstr "4. Set up {client}"
-
-msgid "react.agent_access.step5_title"
-msgstr "5. First request"
-
-msgid "react.agent_access.usage_after_token"
-msgstr "Once the token exists, its expiry, scopes and last use appear here."
-
 msgid "react.agent_access.usage_oauth"
 msgstr "The approved access, with its expiry, scopes and last use, appears under Personal tokens → Connected AI apps."
 
 msgid "react.agent_access.token_placeholder"
 msgstr "<your personal token>"
 
-msgid "react.agent_access.copied"
-msgstr "Copied."
-
 msgid "react.agent_access.copy_failed"
-msgstr "Could not copy. Select the text and copy it manually."
+msgstr "Couldn't copy. Select the text and copy it manually."
 
 msgid "react.agent_access.open_release"
 msgstr "Open the release"
@@ -29003,17 +28973,8 @@ msgstr "Follow the install steps"
 msgid "react.agent_access.step_open_readme_description"
 msgstr "The package README has the install, update and removal steps for this client."
 
-msgid "react.agent_access.create_another_token_help"
-msgstr "The token above keeps working until it expires or you revoke it in step 5."
-
 msgid "react.agent_access.create_another_token"
 msgstr "Create another token"
-
-msgid "react.agent_access.token_ready_copy"
-msgstr "Download or copy what step 4 shows: nothing else to fill in. This page shows the token only now; after you leave, create another one if you need it."
-
-msgid "react.agent_access.token_ready_title"
-msgstr "The token is created and already in the setup below"
 
 msgid "react.agent_access.package_after_token"
 msgstr "The download is ready once the token is created."
@@ -29040,7 +29001,7 @@ msgid "react.agent_access.step_download_skills"
 msgstr "Download the skills"
 
 msgid "react.agent_access.step_personal_plugin_description"
-msgstr "It holds the package's skills, this installation's address and your token, so there is nothing to configure. It holds your token: keep it like a password, do not share it or put it in Git."
+msgstr "It holds your token: keep it like a password, do not share it or put it in Git."
 
 msgid "react.agent_access.step_download_plugin"
 msgstr "Download the plugin"
@@ -29052,16 +29013,16 @@ msgid "react.agent_access.step_install_plugin"
 msgstr "Install it"
 
 msgid "react.agent_access.step_install_copied_plugin_description"
-msgstr "Unpack the archive and move the folder it makes to your home folder. Then run this in a terminal (PowerShell on Windows) and start a new session. If the folder has another name, change it in the command. To install a newer download, run the same commands again. They need the {client} command-line tool."
+msgstr "Unpack the archive and move the folder it makes to your home folder. Then run this in a terminal (PowerShell on Windows) and start a new session. The commands need the {client} command-line tool."
 
 msgid "react.agent_access.step_install_kept_plugin_description"
-msgstr "Unpack the archive, move the folder it makes to your home folder and keep it there: {client} loads the plugin from it. Then run this in a terminal (PowerShell on Windows) and start a new session. If the folder has another name, change it in the command. To install a newer download, first run: claude plugin marketplace remove {package}"
+msgstr "Unpack the archive and move its folder to your home folder: {client} loads the plugin from there. Then run this in a terminal (PowerShell on Windows) and start a new session."
 
 msgid "react.agent_access.step_install_plugin_folder_description"
 msgstr "Unpack the archive and move the folder it makes into plugins/local inside the .cursor folder of your home folder; create plugins/local if it is missing. On a Mac, press Cmd+Shift+. in Finder to see .cursor. Then run Developer: Reload Window in {client}. An organization admin may have to allow local plugin imports. To install a newer download, replace the folder."
 
 msgid "react.agent_access.step_personal_plugin"
-msgstr "Download your plugin"
+msgstr "Download the plugin"
 
 msgid "react.agent_access.step_gemini_add"
 msgstr "Add the server"
@@ -30363,3 +30324,96 @@ msgstr "1. Create the Microsoft 365 client"
 
 msgid "react.agent_access.platform_step_package"
 msgstr "3. Build the agent package"
+
+msgid "react.agent_access.copied_button"
+msgstr "Copied"
+
+msgid "react.agent_access.step_prefix"
+msgstr "Step {number}."
+
+msgid "react.agent_access.in_the_cloud"
+msgstr "In the cloud"
+
+msgid "react.agent_access.all_projects"
+msgstr "All projects"
+
+msgid "react.agent_access.token_expires"
+msgstr "Expires {date}"
+
+msgid "react.agent_access.revoke"
+msgstr "Revoke"
+
+msgid "react.agent_access.no_request_yet"
+msgstr "No request yet"
+
+msgid "react.agent_access.step_client_title"
+msgstr "AI client"
+
+msgid "react.agent_access.step_package_title"
+msgstr "Package"
+
+msgid "react.agent_access.step_access_title"
+msgstr "Access"
+
+msgid "react.agent_access.step_setup_title"
+msgstr "Set up {client}"
+
+msgid "react.agent_access.step_setup_title_no_client"
+msgstr "Set up the client"
+
+msgid "react.agent_access.step_first_request_title"
+msgstr "First request"
+
+msgid "react.agent_access.access_not_needed"
+msgstr "Not needed: the Developer package does not connect to this installation."
+
+msgid "react.agent_access.change"
+msgstr "Change"
+
+msgid "react.agent_access.change_step"
+msgstr "Change {step}"
+
+msgid "react.agent_access.continue"
+msgstr "Continue"
+
+msgid "react.agent_access.choose_client_to_continue"
+msgstr "Choose a client to continue."
+
+msgid "react.agent_access.choose_package_to_continue"
+msgstr "Choose a package to continue."
+
+msgid "react.agent_access.oauth_access_summary"
+msgstr "{client} connects through OAuth: you choose access in Flow Steward when you connect."
+
+msgid "react.agent_access.oauth_access_body"
+msgstr "When you add Flow Steward in {client}, you sign in to Flow Steward and choose there what the agent may do, which projects it reaches and when access expires, then confirm."
+
+msgid "react.agent_access.oauth_no_token"
+msgstr "No token is created on this page. The connection then appears in {link}."
+
+msgid "react.agent_access.connected_apps_link"
+msgstr "Personal tokens › Connected AI apps"
+
+msgid "react.agent_access.oauth_m365_admin"
+msgstr "Your organisation's administrator adds Flow Steward to Microsoft 365 once. After that, you sign in to Flow Steward when you connect and choose access there."
+
+msgid "react.agent_access.token_expires_on"
+msgstr "The token expires on {date}."
+
+msgid "react.agent_access.setup_description_plugin"
+msgstr "The plugin carries this installation's MCP address and your token, so there is nothing to configure."
+
+msgid "react.agent_access.setup_description_developer_plugin"
+msgstr "The plugin installs the Developer package. It needs no token."
+
+msgid "react.agent_access.token_in_setup_title"
+msgstr "Your token is already in this setup"
+
+msgid "react.agent_access.token_in_setup_copy"
+msgstr "This page shows it only now. After you leave, create another token if you need it."
+
+msgid "react.agent_access.step_install_kept_plugin_hint"
+msgstr "If the folder has another name, change it in the command. To install a newer download, first run `claude plugin marketplace remove {package}`."
+
+msgid "react.agent_access.step_install_copied_plugin_hint"
+msgstr "If the folder has another name, change it in the command. To install a newer download, run the same commands again."
