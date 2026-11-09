@@ -280,11 +280,11 @@ describe("AiAgentsSection", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     try {
       await createLocalToken();
-      const block = screen.getByLabelText("Add the server").parentElement as HTMLElement;
+      const block = screen.getByRole("group", { name: "Add the server" });
       fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
       expect(await within(block).findByRole("button", { name: "Copied" })).toBeInTheDocument();
       expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`Bearer ${SECRET}`));
-      expect(document.querySelector(".fs-toast")).toBeNull();
+      expect(screen.queryByText("Copied.")).not.toBeInTheDocument();
       await waitFor(() => expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument(), { timeout: 3000 });
     } finally {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
@@ -294,7 +294,7 @@ describe("AiAgentsSection", () => {
   it("keeps Copy and says so under the block when the clipboard is not available", async () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
     await createLocalToken();
-    const block = screen.getByLabelText("Add the server").parentElement as HTMLElement;
+    const block = screen.getByRole("group", { name: "Add the server" });
     fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
     expect(await within(block).findByRole("alert")).toHaveTextContent("Couldn't copy. Select the text and copy it manually.");
     expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument();

@@ -62,8 +62,8 @@ export function AgentCodeBlock({
   text,
 }: Readonly<{ disabled?: boolean; label: string; prose?: boolean; text: string }>) {
   return (
-    <div className="fs-agent-code-block">
-      <pre aria-label={label} className={prose ? "fs-agent-code prose" : "fs-agent-code"}>{text}</pre>
+    <div aria-label={label} className="fs-agent-code-block" role="group">
+      <pre className={prose ? "fs-agent-code prose" : "fs-agent-code"}>{text}</pre>
       <AgentCopyButton disabled={disabled} text={text} />
     </div>
   );
