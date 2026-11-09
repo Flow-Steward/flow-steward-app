@@ -5737,6 +5737,15 @@ msgstr "Jobs could not be loaded"
 msgid "react.jobs.jobs_list_and_triage"
 msgstr "Jobs list and triage"
 
+msgid "react.jobs.kind_extension_tool"
+msgstr "Extension tool"
+
+msgid "react.jobs.kind_mcp_tool"
+msgstr "MCP tool"
+
+msgid "react.jobs.kind_system_tool"
+msgstr "System tool"
+
 msgid "react.jobs.lane_value0_step_value1_value2"
 msgstr "Lane {value0}: {value1} ({value2})"
 
@@ -5760,6 +5769,9 @@ msgstr "Loading full text…"
 
 msgid "react.jobs.loading_job_detail"
 msgstr "Loading job detail…"
+
+msgid "react.jobs.no_evidence_recorded"
+msgstr "No evidence recorded"
 
 msgid "react.jobs.no_execution_step_is_selected"
 msgstr "No execution step is selected."

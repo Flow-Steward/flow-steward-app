@@ -5831,6 +5831,15 @@ msgstr "Užduočių įkelti nepavyko"
 msgid "react.jobs.jobs_list_and_triage"
 msgstr "Užduočių sąrašas ir įvertinimas"
 
+msgid "react.jobs.kind_extension_tool"
+msgstr "Plėtinio įrankis"
+
+msgid "react.jobs.kind_mcp_tool"
+msgstr "MCP įrankis"
+
+msgid "react.jobs.kind_system_tool"
+msgstr "Sistemos įrankis"
+
 msgid "react.jobs.lane_value0_step_value1_value2"
 msgstr "Juosta {value0}: {value1} ({value2})"
 
@@ -5854,6 +5863,9 @@ msgstr "Įkeliamas visas tekstas…"
 
 msgid "react.jobs.loading_job_detail"
 msgstr "Įkeliama užduoties informacija…"
+
+msgid "react.jobs.no_evidence_recorded"
+msgstr "Įrodymų neužfiksuota"
 
 msgid "react.jobs.no_execution_step_is_selected"
 msgstr "Vykdymo žingsnis nepasirinktas."

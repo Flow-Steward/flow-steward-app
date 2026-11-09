@@ -11,6 +11,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
  */
 
 import { useState } from "react";
+import { Info } from "lucide-react";
 
 import { FileThumbnail } from "@/components/shared/file-thumbnail";
 import { fetchText } from "@/lib/http/client";
@@ -97,7 +98,9 @@ export function JobFileItem({
     file.download_url || file.job_attachment_url || file.href || file.url,
   );
   const available = file.available !== false && Boolean(href);
-  const kind = available ? filePreviewKind(file) : "";
+  // Over the preview limit, known from the start: no preview offered, the reason shown at once.
+  const tooLarge = available && file.preview_too_large === true;
+  const kind = available && !tooLarge ? filePreviewKind(file) : "";
   const previewUrl = kind ? filePreviewUrl(href) : "";
   const textPreviewUrl = kind === "text" ? previewUrl : "";
   const textPreview = useTextPreview(textPreviewUrl);
@@ -114,18 +117,24 @@ export function JobFileItem({
           {name}
         </p>
         {details.length ? <p className="mt-0.5 text-xs fs-ink-tertiary">{details.join(" · ")}</p> : null}
+        {tooLarge ? (
+          <p className="job-file-note" data-testid="job-file-preview-too-large">
+            <Info aria-hidden="true" />
+            {t("react.jobs.file_preview_too_large", "This file is larger than the preview limit. Download the original to read it.")}
+          </p>
+        ) : null}
       </div>
       {textPreviewUrl ? (
-        <button aria-expanded={textPreview.state.status !== "closed"} className="fs-button secondary shrink-0" onClick={textPreview.toggle} type="button">
+        <button aria-expanded={textPreview.state.status !== "closed"} className="fs-button secondary sm shrink-0" onClick={textPreview.toggle} type="button">
           {textPreview.state.status === "closed" ? t("react.jobs.file_preview_view", "View") : t("react.jobs.file_preview_hide", "Hide")}
         </button>
       ) : null}
       {kind === "pdf" && previewUrl ? (
-        <a className="fs-button secondary shrink-0" href={previewUrl} rel="noopener noreferrer" target="_blank">
+        <a className="fs-button secondary sm shrink-0" href={previewUrl} rel="noopener noreferrer" target="_blank">
           {t("settings.common.open", "Open")} </a>
       ) : null}
       {available ? (
-        <a className="fs-button secondary shrink-0" download href={href}>
+        <a className="fs-button secondary sm shrink-0" download href={href}>
           {t("react.jobs.download", "Download")} </a>
       ) : (
         <span className="shrink-0 text-xs fs-ink-tertiary">{t("react.jobs.download_unavailable", "Download unavailable")}</span>

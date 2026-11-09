@@ -1,9 +1,11 @@
-import { executionStepStatusLabel } from "./job-detail-execution";
+import { executionStepBadgeLabel, executionStepStatusLabel, executionStepTone, formatStepDuration } from "./job-detail-execution";
+import "./job-detail.css";
 import { jobProjectionText } from "./job-detail-view-model";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { X } from "lucide-react";
-import { DsCard } from "@/components/shared/design-system";
+import type { ReactNode } from "react";
+import { DsBadge, DsCard } from "@/components/shared/design-system";
 import { fetchJobStepOutputValue } from "./api";
 import { CopyValueButton, firstReadableText, humanizeDiagnosticLabel, listFromUnknown, normalizeTimestamp, objectOrEmpty, type Entity } from "./job-detail-core";
 import { ReadableDataFields, ReadableFileList } from "./readable-data-fields";
@@ -14,24 +16,6 @@ function providerProcessingTimeLabel(value: string, unit: string, t: I18nContext
   return unit ? `${value} ${unit}` : t("react.jobs.value1_unit_not_declared", "{value1} (unit not declared)", { value1: String(value) });
 }
 
-function formatStepDuration(value: unknown): string {
-  if (value === null || value === undefined || value === "") {
-    return "";
-  }
-  const milliseconds = Number(value);
-  if (!Number.isFinite(milliseconds) || milliseconds < 0) {
-    return firstReadableText(value);
-  }
-  if (milliseconds < 1000) {
-    return `${Math.round(milliseconds)}ms`;
-  }
-  if (milliseconds < 60_000) {
-    return `${Math.round(milliseconds / 100) / 10}s`;
-  }
-  const minutes = Math.floor(milliseconds / 60_000);
-  const seconds = Math.round((milliseconds % 60_000) / 1000);
-  return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
-}
 
 const TECHNICAL_STEP_FIELD_KEYS = new Set([
   "connection_ref",
@@ -50,29 +34,42 @@ function userFacingStepFields(value: unknown): Entity {
   );
 }
 
+/** A value set verbatim in code type inside a sentence that names it ("Saved file to state.x"). */
+function TextWithCode({ text, code }: Readonly<{ text: string; code: string }>) {
+  const at = code ? text.indexOf(code) : -1;
+  if (at < 0) return <>{text}</>;
+  return <>{text.slice(0, at)}<code className="job-code">{code}</code>{text.slice(at + code.length)}</>;
+}
+
 export function InspectorField({
+  children,
   copy = false,
   label,
   testId,
   value,
+  variant,
 }: Readonly<{
+  /** Shown instead of the text value, such as a status badge. */
+  children?: ReactNode;
   copy?: boolean;
   label: string;
   testId?: string;
   value: string;
+  /** Code type for URLs, paths and actions; even figures for dates, counts and durations. */
+  variant?: "code" | "number";
 }>) {
   if (!value) {
     return null;
   }
   return (
-    <div className="min-w-0 fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-primary">
-      <p className="text-xs uppercase tracking-[0.14em] fs-ink-tertiary">{label}</p>
-      <div className="mt-1 flex min-w-0 items-start gap-2">
-        <p className="min-w-0 flex-1 break-words" data-testid={testId}>
-          {value}
-        </p>
+    <div className="job-fact">
+      <dt>{label}</dt>
+      <dd className={variant === "code" ? "is-code" : variant === "number" ? "is-number" : undefined}>
+        <span className="min-w-0 flex-1" data-testid={testId}>
+          {children ?? value}
+        </span>
         {copy ? <CopyValueButton label={label} value={value} /> : null}
-      </div>
+      </dd>
     </div>
   );
 }
@@ -82,12 +79,15 @@ export function StepInspectorPanel({
   onClose,
   selectedStep,
   testId,
+  timezone,
 }: Readonly<{
   /** Enables "Show full text" for outputs the preview cut short. */
   jobId?: string;
   onClose?: () => void;
   selectedStep: Entity | null;
   testId: string;
+  /** The reader's time zone, as the run overview uses it. */
+  timezone?: string;
 }>) {
   const { t } = useI18n();
   if (!selectedStep) {
@@ -167,7 +167,7 @@ export function StepInspectorPanel({
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="fs-card-title break-words">{title}</h2>
-            <p className="fs-card-description break-words">
+            <p className="fs-card-description job-step-meta">
               {firstReadableText(summary, status)}
             </p>
           </div>
@@ -184,24 +184,27 @@ export function StepInspectorPanel({
         </div>
       </header>
       <div className="fs-card-body space-y-3">
-        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-          <InspectorField label={t("account_settings.card.status", "Status")} value={status} />
+        <dl className="job-facts job-facts--two">
+          <InspectorField label={t("account_settings.card.status", "Status")} value={status}>
+            <DsBadge tone={executionStepTone(selectedStep)}>{executionStepBadgeLabel(selectedStep, t)}</DsBadge>
+          </InspectorField>
           <InspectorField label={t("events.columns.group", "Group")} value={group} />
           <InspectorField label={t("react.jobs.step_type", "Step type")} value={stepType} />
           <InspectorField label={t("events.columns.agent", "Agent")} value={agent} />
           <InspectorField label={t("registry.skills.title_single", "Skill")} value={skill} />
           <InspectorField label={t("registry.tools.title_single", "Tool")} value={tool} />
-          <InspectorField label={t("registry.agent_detail.changelog.action", "Action")} value={operation} />
+          <InspectorField label={t("registry.agent_detail.changelog.action", "Action")} value={operation} variant="code" />
           <InspectorField label={t("project_edit.ai_models.model", "Model")} value={model} />
-          <InspectorField label={t("react.jobs.attempt", "Attempt")} value={attempt} />
-          <InspectorField label={t("project_detail.jobs.grid.started", "Started")} value={started ? normalizeTimestamp(started) : ""} />
-          <InspectorField label={t("react.jobs.finished_2", "Finished")} value={finished ? normalizeTimestamp(finished) : ""} />
-          <InspectorField label={t("jobs.columns.duration", "Duration")} value={formatStepDuration(duration) || t("react.jobs.not_recorded", "Not recorded")} />
+          <InspectorField label={t("react.jobs.attempt", "Attempt")} value={attempt} variant="number" />
+          <InspectorField label={t("project_detail.jobs.grid.started", "Started")} value={started ? normalizeTimestamp(started, timezone) : ""} variant="number" />
+          <InspectorField label={t("react.jobs.finished_2", "Finished")} value={finished ? normalizeTimestamp(finished, timezone) : ""} variant="number" />
+          <InspectorField label={t("jobs.columns.duration", "Duration")} value={formatStepDuration(duration) || t("react.jobs.not_recorded", "Not recorded")} variant="number" />
           <InspectorField
             label={t("react.jobs.provider_processing_time", "Provider processing time")}
             value={providerProcessingTimeLabel(providerProcessingTime, providerProcessingTimeUnit, t)}
+            variant="number"
           />
-        </div>
+        </dl>
 
         <section className="space-y-2" aria-labelledby={`${testId}-inputs-heading`}>
           <h3 className="text-sm font-semibold fs-ink-primary" id={`${testId}-inputs-heading`}>
@@ -225,9 +228,12 @@ export function StepInspectorPanel({
                 : t("react.jobs.http_saved_response", "Saved response")}
             </h3>
             <p className="text-sm fs-ink-secondary">
-              {savedValueIsFile
-                ? t("react.jobs.http_saved_file_target", "Saved file to {target}", { target: savedTarget })
-                : t("react.jobs.http_saved_body_target", "Saved to {target}", { target: savedTarget })}
+              <TextWithCode
+                code={savedTarget}
+                text={savedValueIsFile
+                  ? t("react.jobs.http_saved_file_target", "Saved file to {target}", { target: savedTarget })
+                  : t("react.jobs.http_saved_body_target", "Saved to {target}", { target: savedTarget })}
+              />
             </p>
             {savedValueIsFile ? (
               <p className="text-sm fs-ink-secondary">
@@ -267,8 +273,8 @@ export function StepInspectorPanel({
           </section>
         ) : null}
 
+        {/* No Summary block: the line under the step's title already says it, word for word. */}
         {[
-          [t("jobs.columns.summary", "Summary"), summary],
           [t("jobs.detail.inspector.result", "Result"), result],
           [t("registry.workflow_detail.field.message", "Message"), message],
           [t("jobs.detail.next_action.title", "Next action"), nextAction],

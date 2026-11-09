@@ -475,7 +475,7 @@ export function JobsDetailPage({
       </> : null}
 
       {!embedded ? <div>
-        <Link className="fs-link text-sm" to="/jobs">
+        <Link className="fs-link job-link text-sm" to="/jobs">
           {t("react.jobs.back_to_jobs_list", "← Back to jobs list")} </Link>
       </div> : null}
     </section>

@@ -1,4 +1,5 @@
 import { useI18n } from "@/lib/i18n/useI18n";
+import "./job-detail.css";
 import { useState } from "react";
 import { firstReadableText, humanizeDiagnosticLabel, objectOrEmpty, type Entity } from "./job-detail-core";
 import { JobFileItem } from "./job-detail-file-preview";
@@ -108,13 +109,28 @@ function formattedFieldValue(value: unknown): string {
   }
 }
 
+/** An empty mapping or list: nothing to open, so no disclosure arrow. */
+function isEmptyStructure(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0;
+  return Object.keys(objectOrEmpty(value)).filter((key) => key !== PROJECTION_MARKER).length === 0;
+}
+
+/** URLs, MIME types, state paths and codes keep their exact characters in code type. */
+const TECHNICAL_TEXT = /^(?:[a-z][a-z0-9+.-]*:\/\/\S+|[a-z]+\/[\w.+-]+(?:\s*;.*)?|state\.[\w.[\]-]+|[a-z][a-z0-9]*(?:_[a-z0-9]+)+)$/u;
+
+function valueClassName(value: unknown): string | undefined {
+  if (typeof value === "number") return "is-number";
+  if (typeof value === "string" && TECHNICAL_TEXT.test(value.trim())) return "is-code";
+  return undefined;
+}
+
 function StructuredFieldValue({ value }: Readonly<{ value: unknown }>) {
   if (isFlatRecord(value)) {
     return (
       <ul className="space-y-0.5">
         {Object.entries(value).map(([key, item]) => (
           <li key={key}>
-            <span className="fs-ink-tertiary">{key}:</span> {readableFieldValue(item)}
+            <span className="fs-ink-tertiary">{key}:</span> <code className="job-code">{readableFieldValue(item)}</code>
           </li>
         ))}
       </ul>
@@ -206,19 +222,18 @@ export function ReadableDataFields({
     return <p className="fs-empty-copy">{emptyText}</p>;
   }
   return (
-    <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
-      {entries.map(([key, fieldValue]) => (
-        <div
-          className="min-w-0 fs-surface-radius border border-subtle fs-surface-inset px-3 py-2"
-          key={key}
-        >
-          <dt className="text-xs uppercase tracking-[0.14em] fs-ink-tertiary">
+    <dl className="job-facts job-facts--two">
+      {entries.map(([key, fieldValue]) => {
+        const empty = isStructuredFieldValue(fieldValue) && isEmptyStructure(fieldValue);
+        return (
+        <div className="job-fact" key={key}>
+          <dt>
             {firstReadableText(fieldLabelKeys?.[key])
               ? t(firstReadableText(fieldLabelKeys?.[key]), humanizeDiagnosticLabel(key))
               : humanizeDiagnosticLabel(key)}
           </dt>
-          <dd className="mt-1 break-words text-sm fs-ink-primary">
-            {isStructuredFieldValue(fieldValue) ? (
+          <dd className={empty ? "is-empty" : isStructuredFieldValue(fieldValue) ? undefined : valueClassName(fieldValue)}>
+            {empty ? t("react.workflows.none", "None") : isStructuredFieldValue(fieldValue) ? (
               <StructuredFieldValue value={fieldValue} />
             ) : loadFullValue && typeof fieldValue === "string" && CUT_TEXT.test(fieldValue) ? (
               <FullTextValue field={key} loadFullValue={loadFullValue} preview={fieldValue} />
@@ -227,7 +242,8 @@ export function ReadableDataFields({
             )}
           </dd>
         </div>
-      ))}
+        );
+      })}
     </dl>
   );
 }

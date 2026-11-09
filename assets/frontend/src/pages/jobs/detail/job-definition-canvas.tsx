@@ -12,6 +12,9 @@ import { runtimeEdgeMarks } from "@/pages/workflows/builder/runtime-edge-marks";
 import { CanvasEditableEdge } from "@/pages/workflows/builder/canvas-step-nodes";
 import type { JobDefinitionPayload, JobExecutionStepsPage } from "./api";
 import { archivedDefinitionCanvasGraph, archivedDefinitionContract } from "./job-definition-graph";
+import { useJobExecutionSnapshot } from "./job-execution-snapshot";
+import { workflowExecutionMarks } from "@/pages/workflows/detail/detail-hook-execution-marks";
+import "./job-detail.css";
 import { ReadableDataFields } from "./readable-data-fields";
 
 const ignoreAction = () => undefined;
@@ -23,6 +26,12 @@ export function JobDefinitionCanvas({ definition, jobId, projectId, executionPag
   const graph = useMemo(() => archivedDefinitionCanvasGraph(definition, t), [definition, t]);
   const takenEdges = useMemo(() => graph ? runtimeEdgeMarks(jobExecutionTrace(jobId || "", definition, executionPage), graph) : new Set<string>(), [definition, executionPage, graph, jobId]);
   const containerMarks = useMemo(() => graph ? containerRuntimeMarks(jobContainerProgress(jobId || "", projectId, definition, executionPage), graph) : {}, [definition, executionPage, graph, jobId, projectId]);
+  // Each step the run reached carries its mark (the failed one red, with "Failed"); the rest stand back.
+  const { snapshot } = useJobExecutionSnapshot(jobId || "", Boolean(jobId && graph), projectId);
+  const stepMarks = useMemo(() => graph && definition.workflow_id && definition.revision
+    ? workflowExecutionMarks(snapshot, graph, definition.workflow_id, Number(definition.revision), jobId)
+    : {}, [definition.revision, definition.workflow_id, graph, jobId, snapshot]);
+  const runMarked = Object.keys(stepMarks).length > 0;
   const contract = useMemo(() => archivedDefinitionContract(definition), [definition]);
   const openInputs = useCallback(() => setSelection({ kind: "inputs", id: "" }), []);
   const openStep = useCallback((id: string) => setSelection({
@@ -31,9 +40,9 @@ export function JobDefinitionCanvas({ definition, jobId, projectId, executionPag
   const openGroup = useCallback((id: string) => setSelection({ kind: "group", id }), []);
   const openForEach = useCallback((id: string) => setSelection({ kind: "for_each", id }), []);
   const layout = useMemo(() => graph ? buildCanvasLayout({
-    canvasGraph: graph, runtimeEdges: takenEdges, containerRuntimeMarks: containerMarks, readOnly: true, archivedContract: contract, onOpenInputs: openInputs, onOpenStep: openStep, onOpenGroup: openGroup,
+    canvasGraph: graph, runtimeEdges: takenEdges, containerRuntimeMarks: containerMarks, runtimeMarks: stepMarks, readOnly: true, archivedContract: contract, onOpenInputs: openInputs, onOpenStep: openStep, onOpenGroup: openGroup,
     onOpenForEach: openForEach, onOpenStepAutomation: ignoreAction, onOpenGroupAutomation: ignoreAction,
-  }, t) : null, [contract, graph, takenEdges, containerMarks, openForEach, openGroup, openInputs, openStep, t]);
+  }, t) : null, [contract, graph, takenEdges, containerMarks, stepMarks, openForEach, openGroup, openInputs, openStep, t]);
   const unavailable = { status: t("react.jobs.archived_contract_unavailable", "Archived contract unavailable") };
   let selected: unknown;
   switch (selection?.kind) {
@@ -55,7 +64,7 @@ export function JobDefinitionCanvas({ definition, jobId, projectId, executionPag
   }
   if (!layout) return <DsAlert tone="warning" title={t("react.jobs.archived_graph_unavailable", "The archived graph is unavailable or uses an unsupported format.")} />;
   return <>
-    <div className="h-[420px] overflow-hidden fs-surface-radius border border-subtle fs-surface-inset" data-testid="job-definition-canvas">
+    <div className="job-definition-canvas h-[420px] overflow-hidden fs-surface-radius border border-subtle fs-surface-inset" data-run-marked={runMarked ? "true" : undefined} data-testid="job-definition-canvas">
       <ReactFlow
         nodes={layout.nodes}
         edges={layout.edges.map((edge) => ({ ...edge, ...(edge.data ? { data: { ...edge.data, hovered: true } } : {}), animated: false, deletable: false, selectable: false }))}

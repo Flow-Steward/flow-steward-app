@@ -5616,6 +5616,15 @@ msgstr ""
 msgid "react.jobs.jobs_list_and_triage"
 msgstr ""
 
+msgid "react.jobs.kind_extension_tool"
+msgstr ""
+
+msgid "react.jobs.kind_mcp_tool"
+msgstr ""
+
+msgid "react.jobs.kind_system_tool"
+msgstr ""
+
 msgid "react.jobs.lane_value0_step_value1_value2"
 msgstr ""
 
@@ -5644,6 +5653,9 @@ msgid "react.jobs.loading_job_detail"
 msgstr ""
 
 msgid "react.jobs.no_action_required"
+msgstr ""
+
+msgid "react.jobs.no_evidence_recorded"
 msgstr ""
 
 msgid "react.jobs.no_execution_step_is_selected"
