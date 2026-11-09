@@ -24,6 +24,16 @@ if "FS_CLI_HOST_NO_COLOR" in _runtime_env:
     else:
         _runtime_env.pop("NO_COLOR", None)
 
+from core.entrypoints.cli.platform.command_names import (
+    set_invocation_prefix,
+    with_invocation_prefix,
+)
+
+# The host launcher passes the name the operator ran (./flow-steward, or a path to it);
+# without it (the Compact image on a platform) commands are shown as `flow-steward`.
+if "FS_CLI_INVOCATION" in _runtime_env:
+    set_invocation_prefix(_runtime_env.pop("FS_CLI_INVOCATION"))
+
 from core.application.management.command_specs.contracts import (
     CLIErrorDetail,
     CLIFailureEnvelope,
@@ -194,7 +204,9 @@ class PublicCommand(click.Command):
         if examples:
             with formatter.section("Examples"):
                 for example in examples:
-                    formatter.write_text(_style_help(formatter, example, "help.example"))
+                    formatter.write_text(
+                        _style_help(formatter, with_invocation_prefix(example), "help.example")
+                    )
 
 
 class PublicGroup(click.Group):
@@ -275,9 +287,7 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
         renderer = renderer_for(
             spec,
             json_requested=globals_["json"],
-            plain_requested=(
-                not globals_["tui"] or globals_["plain"] or decision.output_mode is OutputMode.PLAIN
-            ),
+            plain_requested=globals_["plain"] or decision.output_mode is OutputMode.PLAIN,
             color_enabled=decision.color_enabled,
             animation_enabled=decision.animation_enabled,
         )
@@ -825,10 +835,10 @@ def _render_fallback_result(
         )
         click.echo(json.dumps(payload.model_dump(mode="json"), ensure_ascii=False, default=str))
         return
-    click.echo(f"Error: {result.error.message}", err=True)
+    click.echo(f"Error: {with_invocation_prefix(result.error.message)}", err=True)
     click.echo(f"Code: {result.error.code}", err=True)
     if result.error.hint:
-        click.echo(result.error.hint, err=True)
+        click.echo(with_invocation_prefix(result.error.hint), err=True)
 
 
 def _version_option() -> click.Option:
@@ -903,9 +913,9 @@ def _fail(
             )
         )
     else:
-        click.echo(f"Error: {message}", err=True)
+        click.echo(f"Error: {with_invocation_prefix(message)}", err=True)
         if hint:
-            click.echo(f"Hint: {hint}", err=True)
+            click.echo(f"Hint: {with_invocation_prefix(hint)}", err=True)
         if operation_id:
             click.echo(f"Operation ID: {operation_id}", err=True)
         if log_path:

@@ -143,9 +143,7 @@ def _callback(**values: Any) -> None:
     non_interactive = non_interactive or not decision.can_prompt
     renderer = _installer_renderer(
         json_requested=json_requested,
-        plain_requested=not tui_requested
-        or plain_requested
-        or decision.output_mode is OutputMode.PLAIN,
+        plain_requested=plain_requested or decision.output_mode is OutputMode.PLAIN,
         color_enabled=decision.color_enabled,
         animation_enabled=decision.animation_enabled,
     )

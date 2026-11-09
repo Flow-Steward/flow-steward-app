@@ -1,4 +1,8 @@
 #!/bin/sh
 set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+FS_CLI_INVOCATION=$0
+# `sh flow-steward` leaves a bare name that only PATH could resolve.
+case "$0" in */*) ;; *) command -v "$0" >/dev/null 2>&1 || FS_CLI_INVOCATION=./$0 ;; esac
+export FS_CLI_INVOCATION
 exec "$ROOT_DIR/core/entrypoints/cli/scripts/flow_steward_launcher.sh" "$@"

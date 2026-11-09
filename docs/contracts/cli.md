@@ -39,13 +39,15 @@ renderers must not create competing domain validation or bespoke command forms.
 
 ## Invocation and parameters
 
-Plain line-oriented interaction is the default. `--plain` overrides `--tui`.
-Explicit `--tui` selects eligible Textual forms only with capable interactive
-stdin/stdout. JSON and non-interactive modes never prompt. `CI` alone does not
-change semantics; actual TTY state and explicit flags do.
+Line-oriented interaction with coloured, human-readable output is the default
+for a terminal. `--plain` prints the same output without colour or animation and
+overrides `--tui`. Explicit `--tui` selects eligible Textual forms only with
+capable interactive stdin/stdout. JSON and non-interactive modes never prompt.
+`CI` alone does not change semantics; actual TTY state and explicit flags do.
 
-`--json` selects JSON output without color or prompts. `--no-color`, `NO_COLOR`
-and `TERM=dumb` disable color; plain output is understandable without animation.
+`--json` selects JSON output without color or prompts; it is the only mode that
+prints JSON. `--no-color`, `NO_COLOR`, `TERM=dumb` and redirected stdout disable
+color; plain output is understandable without animation.
 Doctor remains line-oriented. Full-screen forms support `80x24`; smaller terminals
 offer resize/plain fallback, and below `60x20` full-screen mode is refused with
 the minimum and a `--plain` alternative.
@@ -93,6 +95,13 @@ command and is never repeated in logs.
 Shared execution rendering shows step state, elapsed time, quiet-work heartbeat,
 safe technical output, remediation and log location. Redirected output is stable
 line-oriented output; terminal animation is not an automation protocol.
+
+Human results share one layout: a change starts with `✓`, `!` or `✗` and its
+outcome, then aligned facts; lists of records are borderless tables; nested
+values are indented sections; next steps and warnings come last. A command shown
+to the operator (hints, next steps, help examples) is rewritten to the name the
+launcher was run as, so it runs when pasted: `./flow-steward` or a path to it on
+a host, `flow-steward` in the Compact image on a platform.
 
 JSON mode emits one UTF-8 document on stdout with schema `flow-steward.cli.v1`,
 `ok`, `command`, `operation_id` and `log_path`. Success adds `result` and `warnings`

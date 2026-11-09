@@ -7,6 +7,9 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root_dir=$(CDPATH= cd -- "$script_dir/../../../.." && pwd)
 FS_DOCKER_HOST_PROJECT_ROOT=$root_dir
 export FS_DOCKER_HOST_PROJECT_ROOT
+# Hints show commands the operator can paste: the repository wrapper passes the name it
+# was run as (./flow-steward, or a path to it); the runtime rewrites every hint to it.
+FS_CLI_INVOCATION=${FS_CLI_INVOCATION:-./flow-steward}
 if [ -n "${FS_INSTALLER_STATE_DIR:-}" ]; then
   case "$FS_INSTALLER_STATE_DIR" in
     /*) ;;
@@ -1435,6 +1438,7 @@ run_cli_command() {
         -e "COLORTERM=${COLORTERM:-}" \
         -e "FS_DOCKER_HOST_PROJECT_ROOT=$FS_DOCKER_HOST_PROJECT_ROOT" \
         -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
+        -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
         fs-cli python -m core.entrypoints.cli.lifecycle_click_app "$@"
       return
     fi
@@ -1443,6 +1447,7 @@ run_cli_command() {
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_DOCKER_HOST_PROJECT_ROOT=$FS_DOCKER_HOST_PROJECT_ROOT" \
       -e "FS_CLI_HOST_NO_COLOR=" \
+      -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
       fs-cli python -m core.entrypoints.cli.lifecycle_click_app "$@"
     return
   fi
@@ -1461,6 +1466,7 @@ run_cli_command() {
         -e "COLORTERM=${COLORTERM:-}" \
         -e "FS_DOCKER_HOST_PROJECT_ROOT=$FS_DOCKER_HOST_PROJECT_ROOT" \
         -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
+        -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
         fs-cli python -m core.entrypoints.cli.lifecycle_click_app "$@"
     fi
     exec_compose_command exec "$no_tty_flag" \
@@ -1468,6 +1474,7 @@ run_cli_command() {
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_DOCKER_HOST_PROJECT_ROOT=$FS_DOCKER_HOST_PROJECT_ROOT" \
       -e "FS_CLI_HOST_NO_COLOR=" \
+      -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
       fs-cli python -m core.entrypoints.cli.lifecycle_click_app "$@"
   fi
   if [ -n "${NO_COLOR:-}" ]; then
@@ -1477,6 +1484,7 @@ run_cli_command() {
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_DOCKER_HOST_PROJECT_ROOT=$FS_DOCKER_HOST_PROJECT_ROOT" \
       -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
+      -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
       fs-cli python -m core.entrypoints.cli.lifecycle_click_app "$@"
   fi
   exec_compose_command exec \
@@ -1484,6 +1492,7 @@ run_cli_command() {
     -e "COLORTERM=${COLORTERM:-}" \
     -e "FS_DOCKER_HOST_PROJECT_ROOT=$FS_DOCKER_HOST_PROJECT_ROOT" \
     -e "FS_CLI_HOST_NO_COLOR=" \
+    -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
     fs-cli python -m core.entrypoints.cli.lifecycle_click_app "$@"
 }
 
@@ -1498,6 +1507,7 @@ run_isolated_cli_command() {
     -e "COLORTERM=${COLORTERM:-}" \
     -e "FS_DOCKER_HOST_PROJECT_ROOT=$FS_DOCKER_HOST_PROJECT_ROOT" \
     -e "FS_CLI_HOST_NO_COLOR=${NO_COLOR:-}" \
+    -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
     -e "BUILDX_CONFIG=$isolated_buildx_dir" \
     fs-cli -m core.entrypoints.cli.lifecycle_click_app "$@"
   if [ -n "${DOCKER_CONFIG:-}" ]; then
@@ -1767,6 +1777,7 @@ run_compact_platform_command() {
         -e "COLORTERM=${COLORTERM:-}" \
         -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
         -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
+        -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
         --entrypoint python \
         compact-runtime -m core.entrypoints.cli.compact_container_cli "$@"
     fi
@@ -1775,6 +1786,7 @@ run_compact_platform_command() {
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
       -e "FS_CLI_HOST_NO_COLOR=" \
+      -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
       --entrypoint python \
       compact-runtime -m core.entrypoints.cli.compact_container_cli "$@"
   fi
@@ -2008,6 +2020,7 @@ run_bootstrap_recovery_command() {
     -e "FS_COMPOSE_PROFILES=${FS_COMPOSE_PROFILES:-}" \
     -e "FS_STACK_ENVIRONMENT=$FS_STACK_ENVIRONMENT" \
     -e "FS_CLI_HOST_NO_COLOR=${NO_COLOR:-}" \
+    -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
     fs-cli python -m core.entrypoints.cli.bootstrap_recovery "$@"
 }
 
@@ -2041,6 +2054,7 @@ run_product_command() {
         -e "COLORTERM=${COLORTERM:-}" \
         -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
         -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
+        -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
         --entrypoint python \
         fs-app -m core.entrypoints.cli.click_app "$@"
     fi
@@ -2049,6 +2063,7 @@ run_product_command() {
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
       -e "FS_CLI_HOST_NO_COLOR=" \
+      -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
       --entrypoint python \
       fs-app -m core.entrypoints.cli.click_app "$@"
   fi
@@ -2060,6 +2075,7 @@ run_product_command() {
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
       -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
+      -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
       "$product_target_service" python -m core.entrypoints.cli.click_app "$@"
   fi
   exec_compose_command exec $product_no_tty_flag \
@@ -2067,6 +2083,7 @@ run_product_command() {
     -e "COLORTERM=${COLORTERM:-}" \
     -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
     -e "FS_CLI_HOST_NO_COLOR=" \
+    -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
     "$product_target_service" python -m core.entrypoints.cli.click_app "$@"
 }
 

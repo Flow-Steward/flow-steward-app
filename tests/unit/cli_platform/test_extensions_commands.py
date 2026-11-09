@@ -379,10 +379,10 @@ def test_extensions_test_json_keeps_dependency_output_inside_one_document(
         (
             "--plain",
             (
-                '"compiled_manifest"',
-                '"validation_summary"',
-                '"projects"',
-                '"selected_project_id": "project-1"',
+                "Compiled manifest",
+                "Validation summary",
+                "Projects (1)",
+                "Selected project ID: project-1",
             ),
         ),
     ],
@@ -406,10 +406,10 @@ def test_extensions_show_rich_output_preserves_full_detail_contract() -> None:
 
     assert result.exit_code == 0, result.output
     for fragment in (
-        "compiled_manifest",
-        "validation_summary",
-        "projects",
-        "selected_project_id",
+        "Compiled manifest",
+        "Validation summary",
+        "Projects",
+        "Selected project ID",
         "project-1",
     ):
         assert fragment in result.output

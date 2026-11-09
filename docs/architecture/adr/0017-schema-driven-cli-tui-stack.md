@@ -6,6 +6,9 @@ Accepted
 
 - Status note (2026-10-26): item 6 now says which runtime serves which commands
   on Scalable, matching item 7 and the launcher.
+- Status note (2026-11-09): items 4 and 5 now make coloured, human-readable output
+  the default for a terminal; JSON is printed only for `--json`. The plan is
+  `docs/plans/cli-ux-2026-11-09.md`.
 
 ## Context
 
@@ -31,12 +34,18 @@ become a second home for application business logic.
 3. Textual owns the explicitly requested `--tui` full-screen guided forms,
    selectors, inline validation, review screens, keyboard interaction, and
    terminal UI tests.
-4. Rich owns `--tui` post-confirmation progress, warnings, results, and
-   structured error rendering in normal terminal history.
-5. The first-party plain renderer is the default for both the CLI and installer.
-   `--tui` opts in to the existing rich interface; `--plain` overrides it.
-   The plain and JSON renderers use the same specifications and application
-   command services. Non-TTY operation never opens Textual or prompts implicitly.
+4. Rich owns progress, warnings, results, and structured error rendering in
+   normal terminal history. Results use one shared human layout (a result line,
+   aligned facts, borderless tables, next steps); the coloured and the plain
+   renderer print the same layout, and no human mode prints raw JSON.
+5. Coloured output is the default for both the CLI and installer when stdout is
+   a terminal; `--plain`, `--no-color`, `NO_COLOR` and `TERM=dumb` print the same
+   layout without colour or animation, as does redirected output. `--json` is the
+   only machine-readable mode. `--tui` only opts in to the full-screen Textual
+   forms. Commands shown to the operator use the name the launcher was run as
+   (`./flow-steward` on a host, `flow-steward` in the Compact image). The plain
+   and JSON renderers use the same specifications and application command
+   services. Non-TTY operation never opens Textual or prompts implicitly.
 6. The public `./flow-steward` entrypoint dispatches to the installation's
    Docker-managed runtime and does not require a globally installed Python
    package. Scalable runs lifecycle commands in a versioned CLI image

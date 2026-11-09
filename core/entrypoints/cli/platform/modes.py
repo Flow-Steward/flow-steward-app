@@ -73,15 +73,13 @@ def select_mode(
     explicit flags are the public contract.
     """
     del ci
-    color_enabled = (
-        terminal.stdout_isatty
-        and tui_requested
-        and not (
-            plain_requested
-            or no_color_requested
-            or terminal.no_color_env
-            or terminal.term.lower() == "dumb"
-        )
+    # Colour is the default for a terminal, as in every mainstream CLI; it carries meaning
+    # (success, failure, warning) and the same words are printed without it.
+    color_enabled = terminal.stdout_isatty and not (
+        plain_requested
+        or no_color_requested
+        or terminal.no_color_env
+        or terminal.term.lower() == "dumb"
     )
     if json_requested:
         return ModeDecision(
@@ -115,18 +113,10 @@ def select_mode(
             animation_enabled=color_enabled,
             textual_availability=TextualAvailability.NOT_REQUESTED,
         )
-    if not tui_requested:
-        return ModeDecision(
-            output_mode=OutputMode.PLAIN,
-            can_prompt=True,
-            color_enabled=False,
-            animation_enabled=False,
-            textual_availability=TextualAvailability.NOT_REQUESTED,
-        )
-    if not textual_eligible:
+    if not (tui_requested and textual_eligible):
         return ModeDecision(
             output_mode=OutputMode.RICH,
-            can_prompt=False,
+            can_prompt=True,
             color_enabled=color_enabled,
             animation_enabled=color_enabled,
             textual_availability=TextualAvailability.NOT_REQUESTED,

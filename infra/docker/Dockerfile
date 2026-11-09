@@ -93,6 +93,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/__init__.py \
     core/entrypoints/cli/platform/click_adapter.py \
     core/entrypoints/cli/platform/command_help.py \
+    core/entrypoints/cli/platform/command_names.py \
     core/entrypoints/cli/platform/command_parameters.py \
     core/entrypoints/cli/platform/confirmation.py \
     core/entrypoints/cli/platform/errors.py \
@@ -105,7 +106,9 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/redaction.py \
     core/entrypoints/cli/platform/renderers.py \
     core/entrypoints/cli/platform/result_presentation.py \
+    core/entrypoints/cli/platform/result_view.py \
     core/entrypoints/cli/platform/service_registry.py \
+    core/entrypoints/cli/platform/step_progress.py \
     core/entrypoints/cli/platform/theme.py \
     core/entrypoints/cli/platform/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \

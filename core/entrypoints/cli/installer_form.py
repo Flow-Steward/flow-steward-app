@@ -15,7 +15,7 @@ from core.application.installer.wizard import (
 )
 from core.application.management.command_specs.contracts import FieldType
 from core.entrypoints.cli.platform.input_resolution import field_is_visible
-from core.entrypoints.cli.platform.modes import OutputMode
+from core.entrypoints.cli.platform.modes import TextualAvailability
 
 
 def collect_plain(
@@ -74,7 +74,9 @@ def collect_interactive(
     advanced: bool = False,
     from_source: bool = False,
 ) -> tuple[dict[str, Any], bool]:
-    if decision.output_mode is OutputMode.PLAIN:
+    # The full-screen form is opt-in (--tui on a large enough terminal); every other
+    # terminal, coloured or not, gets the line-by-line questions.
+    if decision.textual_availability is not TextualAvailability.AVAILABLE:
         return collect_plain(
             supplied, renderer=renderer, advanced=advanced, from_source=from_source
         ), False

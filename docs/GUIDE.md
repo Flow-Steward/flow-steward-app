@@ -1563,9 +1563,11 @@ For `tools/list`, set `Mcp-Method: tools/list`, drop `Mcp-Name`, and send
 `"method":"tools/list"` with only the `_meta` params. A local stand uses the
 self-signed certificate in `.ssl/cert.pem`; trust it in the client.
 
-The installer and management CLI default to plain, line-oriented interaction.
-Enter an answer or a numbered choice, then press Enter. To opt in to existing
-full-screen forms and rich output, use `./install.sh --tui` or add `--tui` to a
+The installer and management CLI print coloured, human-readable results in a
+terminal and ask for missing input line by line: enter an answer or a numbered
+choice, then press Enter. `--plain` (or `--no-color`, or `NO_COLOR`) prints the
+same text without colour; add `--json` when a script reads the output. To opt in
+to the full-screen forms, use `./install.sh --tui` or add `--tui` to a
 management command, for example `./flow-steward users create --tui`.
 `--plain` overrides `--tui`; `--json` and `--non-interactive` never open a form.
 Doctor diagnostics remain line-oriented. These flags change presentation only,

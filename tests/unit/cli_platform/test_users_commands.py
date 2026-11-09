@@ -465,9 +465,12 @@ def test_users_list_executes_immediately_and_renders_plain_fields(
     }
     assert "u_1" in result.output
     assert "operator@example.com" in result.output
-    assert "admin,viewer" in result.output
-    assert "active=true" in result.output
-    assert "reset=false" in result.output
+    assert "admin, viewer" in result.output
+    header, row = (
+        line.split() for line in result.output.splitlines() if "Email" in line or "u_1" in line
+    )
+    assert header[:2] == ["ID", "Email"]
+    assert row[-2:] == ["yes", "no"]
 
 
 def test_users_list_json_envelope_and_dependency_exit_code() -> None:

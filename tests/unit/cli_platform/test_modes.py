@@ -58,16 +58,23 @@ def test_plain_uses_line_wizard_only_with_interactive_stdin() -> None:
 
 
 @pytest.mark.parametrize(("columns", "rows"), [(120, 40), (40, 10)])
-def test_default_interactive_mode_uses_plain_wizard_without_screen_controls(
+def test_default_interactive_mode_is_coloured_line_output_without_screen_controls(
     columns: int, rows: int
 ) -> None:
     decision = select_mode(terminal=_terminal(columns=columns, rows=rows), textual_eligible=True)
 
-    assert decision.output_mode is OutputMode.PLAIN
+    assert decision.output_mode is OutputMode.RICH
     assert decision.can_prompt
+    assert decision.color_enabled
+    assert decision.animation_enabled
+    assert decision.textual_availability is TextualAvailability.NOT_REQUESTED
+
+
+def test_redirected_default_output_has_no_colour() -> None:
+    decision = select_mode(terminal=_terminal(stdout_isatty=False))
+
     assert not decision.color_enabled
     assert not decision.animation_enabled
-    assert decision.textual_availability is TextualAvailability.NOT_REQUESTED
 
 
 def test_capable_interactive_terminal_uses_textual_for_eligible_command() -> None:

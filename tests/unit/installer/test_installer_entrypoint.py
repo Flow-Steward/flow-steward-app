@@ -165,7 +165,8 @@ def test_default_installer_uses_plain_questions_and_cancels_without_install(
     assert "Environment" in result.output
     assert f"How to run Flow Steward: {profile.capitalize()}" in result.output
     assert "Apply this change?" in result.output
-    assert "\x1b[" not in result.output
+    # Questions are plain lines; colour marks only the outcome (a terminal default).
+    assert "\x1b[" not in result.output.split("Apply this change?")[0]
     assert service.configs == []
 
 

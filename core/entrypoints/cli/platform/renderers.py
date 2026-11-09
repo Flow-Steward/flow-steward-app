@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import threading
-import time
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from importlib.util import find_spec
@@ -14,6 +12,7 @@ from typing import Any, Literal, Protocol
 import click
 
 from core.application.management.command_specs.contracts import (
+    CLIErrorDetail,
     CLIFailureEnvelope,
     CLISuccessEnvelope,
     CommandSpec,
@@ -22,8 +21,8 @@ from core.application.management.command_specs.contracts import (
     FieldSpec,
     FieldType,
     OperationProgressEvent,
-    OperationStepStatus,
 )
+from core.entrypoints.cli.platform.command_names import with_invocation_prefix
 from core.entrypoints.cli.platform.confirmation import confirmation_token
 from core.entrypoints.cli.platform.input_resolution import field_is_visible
 from core.entrypoints.cli.platform.result_presentation import (
@@ -31,21 +30,31 @@ from core.entrypoints.cli.platform.result_presentation import (
     _progress_line,
     _render_error_findings_plain,
     _render_error_findings_rich,
-    _render_extensions_create_plain,
     _render_readiness_plain,
     _render_readiness_rich,
-    _render_rich_payload,
     _render_status_plain,
     _render_status_rich,
-    _render_users_list_plain,
-    _render_users_list_rich,
 )
+from core.entrypoints.cli.platform.result_view import (
+    FAILURE_MARK,
+    Block,
+    Line,
+    emit_plain,
+    emit_rich,
+    humanize_key,
+    payload_blocks,
+    plan_blocks,
+    result_blocks,
+)
+from core.entrypoints.cli.platform.step_progress import live_steps, redirected_steps
 
 _REPORTS_DIAGNOSTICS = "reports.diagnostics"
 
 _TOKEN_USERS_LIST = "users.list"
 _TOKEN_EXTENSIONS_CREATE = "extensions.create"
 _TOKEN_MATCH = "match:"
+# Commands with a layout of their own; every other command uses the shared result layout.
+_OWN_LAYOUT_COMMANDS = frozenset({"status", "doctor", "stack.logs"})
 _NONE_LINE = "  none"
 
 
@@ -143,35 +152,46 @@ def _has_prompt_value(value: object) -> bool:
     return value not in (None, [], ())
 
 
-def _render_stack_logs_plain(payload: dict[str, Any]) -> None:
-    for line in payload.get("lines") or ():
-        click.echo(str(line))
+def _stack_logs_lines(payload: dict[str, Any]) -> list[str]:
+    return [str(line) for line in payload.get("lines") or ()]
+
+
+def _stack_logs_summary(payload: dict[str, Any]) -> list[Block]:
     summary = {key: value for key, value in payload.items() if key != "lines"}
-    click.echo(json.dumps(summary, ensure_ascii=False, default=str, sort_keys=True))
+    return payload_blocks(summary)
+
+
+def _error_blocks(error: CLIErrorDetail) -> list[Block]:
+    blocks: list[Block] = [
+        Line(f"{FAILURE_MARK} {with_invocation_prefix(error.message)}", "error"),
+    ]
+    for issue in error.field_issues:
+        blocks.append(Line(f"{humanize_key(issue.field)}: {issue.message}", "warning", 2))
+    if error.hint:
+        blocks.append(Line(f"Fix: {with_invocation_prefix(error.hint)}", "label", 2))
+    if error.retryable:
+        blocks.append(Line("This can be retried.", "muted", 2))
+    blocks.append(Line(f"Code: {error.code}", "muted", 2))
+    return blocks
 
 
 class PlainRenderer:
     def render_plan(self, spec: CommandSpec, plan: dict[str, Any]) -> None:
-        click.echo(f"Impact plan for {spec.command_id}:")
-        click.echo(json.dumps(plan, ensure_ascii=False, default=str, indent=2, sort_keys=True))
+        emit_plain(plan_blocks(spec, plan))
 
     def render_result(self, spec: CommandSpec, result: ExecutionResult) -> None:
         if result.error is not None:
-            click.echo(f"Error: {result.error.message}")
-            click.echo(f"Code: {result.error.code}")
+            emit_plain(_error_blocks(result.error))
             _render_error_findings_plain(result.error.details)
-            if result.error.hint:
-                click.echo(result.error.hint)
         elif spec.command_id == "status":
             _render_status_plain(_data(result))
         elif spec.command_id == "doctor":
             _render_readiness_plain(_data(result))
-        elif spec.command_id == _TOKEN_USERS_LIST:
-            _render_users_list_plain(_data(result))
-        elif spec.command_id == _TOKEN_EXTENSIONS_CREATE:
-            _render_extensions_create_plain(_data(result))
         elif spec.command_id == "stack.logs":
-            _render_stack_logs_plain(_data(result))
+            payload = _data(result)
+            for line in _stack_logs_lines(payload):
+                click.echo(line)
+            emit_plain(_stack_logs_summary(payload), err=True)
         elif spec.command_id in _CONFIG_TEXT_RENDERERS:
             for line in _CONFIG_TEXT_RENDERERS[spec.command_id](_data(result)):
                 click.echo(line)
@@ -181,7 +201,7 @@ class PlainRenderer:
             click.echo(json.dumps(report, ensure_ascii=False, default=str, indent=2))
             return
         else:
-            click.echo(json.dumps(_data(result), ensure_ascii=False, default=str, sort_keys=True))
+            emit_plain(result_blocks(spec, _data(result), result.warnings))
         if result.log_path:
             click.echo(f"Log: {result.log_path}")
 
@@ -346,13 +366,8 @@ class PlainRenderer:
     def operation_progress(
         self, *, technical_sink: Callable[[str], None] | None = None
     ) -> Iterator[Callable[[OperationProgressEvent], None]]:
-        def sink(event: OperationProgressEvent) -> None:
-            line = _progress_line(event)
-            click.echo(line)
-            if technical_sink is not None:
-                technical_sink(line)
-
-        yield sink
+        with redirected_steps(technical_sink=technical_sink, log_line=_progress_line) as sink:
+            yield sink
 
 
 class RichRenderer(PlainRenderer):
@@ -371,90 +386,7 @@ class RichRenderer(PlainRenderer):
         )
 
     def render_plan(self, spec: CommandSpec, plan: dict[str, Any]) -> None:
-        from rich.markup import escape
-        from rich.table import Table
-
-        def format_value(value: Any) -> str:
-            if isinstance(value, dict):
-                return (
-                    "; ".join(
-                        f"{str(nested_key).replace('_', ' ').title()}: {format_value(nested_value)}"
-                        for nested_key, nested_value in value.items()
-                    )
-                    or "none"
-                )
-            if isinstance(value, (list, tuple)):
-                return ", ".join(format_value(item) for item in value) or "none"
-            if isinstance(value, bool):
-                return "yes" if value else "no"
-            if value is None:
-                return "none"
-            return str(value)
-
-        console = self._console()
-        console.print(
-            f"[bold red]Impact plan[/bold red] for [bold]{escape(spec.command_id)}[/bold]"
-        )
-        identity = Table(show_header=False, box=None, padding=(0, 1))
-        for key in ("extension_id", "revision", "install_id", "release_id"):
-            value = plan.get(key)
-            if value not in (None, ""):
-                identity.add_row(
-                    f"[cyan]{escape(key.replace('_', ' ').title())}[/cyan]", escape(str(value))
-                )
-        if identity.row_count:
-            console.print(identity)
-        section_styles = {"remove": "red", "affected": "yellow", "retained": "green"}
-        for key, style in section_styles.items():
-            rows = plan.get(key)
-            if not isinstance(rows, list):
-                continue
-            console.print(f"[bold {style}]{key.title()}[/bold {style}] ({len(rows)})")
-            if not rows:
-                console.print("  [dim]none[/dim]")
-                continue
-            for row in rows:
-                if not isinstance(row, dict):
-                    console.print(
-                        f"  [{style}]•[/{style}] {escape(format_value(row))}",
-                        highlight=False,
-                    )
-                    continue
-                details = Table.grid(padding=(0, 1))
-                details.add_column(style=style, no_wrap=True)
-                details.add_column()
-                for index, (field, value) in enumerate(row.items()):
-                    marker = "•" if index == 0 else " "
-                    label = str(field).replace("_", " ").title()
-                    details.add_row(
-                        f"  {marker} {escape(label)}",
-                        escape(format_value(value)),
-                    )
-                console.print(details)
-
-        rendered_keys = {
-            "extension_id",
-            "revision",
-            "install_id",
-            "release_id",
-            *section_styles,
-        }
-        remaining = [
-            (key, value)
-            for key, value in plan.items()
-            if key not in rendered_keys and value not in (None, "")
-        ]
-        if remaining:
-            console.print("[bold cyan]Details[/bold cyan]")
-            details = Table.grid(padding=(0, 1))
-            details.add_column(style="cyan", no_wrap=True)
-            details.add_column()
-            for key, value in remaining:
-                details.add_row(
-                    escape(str(key).replace("_", " ").title()),
-                    escape(format_value(value)),
-                )
-            console.print(details)
+        emit_rich(self._console(), plan_blocks(spec, plan))
 
     def confirm_review(self, spec: CommandSpec, values: dict[str, Any]) -> bool:
         policy = str(spec.confirmation_policy_ref or "")
@@ -480,47 +412,39 @@ class RichRenderer(PlainRenderer):
 
         console = self._console()
         if result.error is not None:
-            console.print(f"[bold red]Error[/bold red]: {escape(result.error.message)}")
-            console.print(f"[red]Code[/red]: {escape(result.error.code)}")
+            emit_rich(console, _error_blocks(result.error))
             _render_error_findings_rich(console, result.error.details)
-            if result.error.field_issues:
-                for issue in result.error.field_issues:
-                    console.print(
-                        f"[yellow]Field[/yellow] {escape(issue.field)}: {escape(issue.message)}"
-                    )
-            if result.error.hint:
-                console.print(f"[cyan]Hint[/cyan]: {escape(result.error.hint)}")
-            if result.error.retryable:
-                console.print("[yellow]Retryable[/yellow]: yes")
         elif spec.command_id == _REPORTS_DIAGNOSTICS:
             # The report is the deliverable: plain JSON that redirects straight to a file.
             report = _data(result).get("report") or {}
             click.echo(json.dumps(report, ensure_ascii=False, default=str, indent=2))
         else:
             payload = _data(result)
-            status = str(payload.get("status") or "").strip()
-            operation = str(payload.get("operation") or spec.command_id).strip()
-            if status:
-                console.print(
-                    f"[bold green]✓[/bold green] {escape(operation)} "
-                    f"[green]{escape(status)}[/green]"
-                )
-            else:
-                console.print(f"[bold green]✓[/bold green] {escape(spec.command_id)}")
-
             if spec.command_id == "status":
                 _render_status_rich(console, payload)
             elif spec.command_id == "doctor":
                 _render_readiness_rich(console, payload)
-            elif spec.command_id == _TOKEN_USERS_LIST:
-                _render_users_list_rich(console, payload)
+            elif spec.command_id == "stack.logs":
+                for line in _stack_logs_lines(payload):
+                    click.echo(line)
+                emit_plain(_stack_logs_summary(payload), err=True)
             elif spec.command_id in _CONFIG_TEXT_RENDERERS:
                 for line in _CONFIG_TEXT_RENDERERS[spec.command_id](payload):
                     console.print(escape(line), highlight=False, soft_wrap=True)
             else:
-                _render_rich_payload(console, payload, escape=escape)
-            for warning in result.warnings:
-                console.print(f"[yellow]Warning[/yellow]: {escape(warning.message)}")
+                # The shared layout prints the result's warnings itself.
+                emit_rich(console, result_blocks(spec, payload, result.warnings))
+            if spec.command_id in _OWN_LAYOUT_COMMANDS or spec.command_id in _CONFIG_TEXT_RENDERERS:
+                for warning in result.warnings:
+                    console.print(
+                        f"[yellow]! {escape(with_invocation_prefix(warning.message))}[/yellow]"
+                    )
+        self._render_log_path(console, result)
+
+    @staticmethod
+    def _render_log_path(console: Any, result: ExecutionResult) -> None:
+        from rich.markup import escape
+
         if result.log_path:
             console.print(
                 f"[dim]Log: {escape(result.log_path)}[/dim]",
@@ -538,126 +462,15 @@ class RichRenderer(PlainRenderer):
         if not self.color_enabled:
             color_system = None
         force_interactive = None if self.animation_enabled else False
-
         console = Console(color_system=color_system, force_interactive=force_interactive)
-        started = time.monotonic()
-        lock = threading.Lock()
-        latest = OperationProgressEvent(
-            step_id="operation",
-            status=OperationStepStatus.RUNNING,
-            label="Working",
-        )
-        stop_heartbeat = threading.Event()
-
-        def record(event: OperationProgressEvent) -> None:
-            line = _progress_line(event)
-            if technical_sink is not None:
-                technical_sink(line)
-
-        if not console.is_terminal or not self.animation_enabled:
-
-            def redirected_sink(event: OperationProgressEvent) -> None:
-                nonlocal latest
-                latest = event
-                line = _progress_line(event)
-                click.echo(line)
-                if technical_sink is not None:
-                    technical_sink(line)
-
-            def heartbeat() -> None:
-                while not stop_heartbeat.wait(5):
-                    elapsed = time.monotonic() - started
-                    redirected_sink(
-                        latest.model_copy(
-                            update={
-                                "detail": f"waiting; {elapsed:.0f}s elapsed",
-                                "elapsed_seconds": elapsed,
-                            }
-                        )
-                    )
-
-            if not console.is_terminal:
-                thread = threading.Thread(target=heartbeat, daemon=True)
-                thread.start()
-                try:
-                    yield redirected_sink
-                finally:
-                    stop_heartbeat.set()
-                    thread.join(timeout=1)
-            else:
-                yield redirected_sink
+        if console.is_terminal and self.animation_enabled:
+            with live_steps(
+                console, technical_sink=technical_sink, log_line=_progress_line
+            ) as sink:
+                yield sink
             return
-
-        from rich.progress import (
-            BarColumn,
-            Progress,
-            SpinnerColumn,
-            TaskID,
-            TextColumn,
-            TimeElapsedColumn,
-        )
-
-        tasks: dict[str, TaskID] = {}
-        progress = Progress(
-            SpinnerColumn(),
-            TextColumn("{task.description}"),
-            BarColumn(),
-            TimeElapsedColumn(),
-            console=console,
-            transient=False,
-        )
-        progress.start()
-        heartbeat_task: TaskID | None = None
-
-        def heartbeat() -> None:
-            nonlocal heartbeat_task
-            while not stop_heartbeat.wait(5):
-                elapsed = time.monotonic() - started
-                with lock:
-                    description = f"waiting; {elapsed:.0f}s elapsed"
-                    if heartbeat_task is None:
-                        heartbeat_task = progress.add_task(description, total=None)
-                    else:
-                        progress.update(heartbeat_task, description=description)
-
-        thread = threading.Thread(target=heartbeat, daemon=True)
-        thread.start()
-        try:
-
-            def rich_sink(event: OperationProgressEvent) -> None:
-                with lock:
-                    task_id = tasks.get(event.step_id)
-                    description = _progress_line(event)
-                    if task_id is None:
-                        task_id = progress.add_task(description, total=event.total)
-                        tasks[event.step_id] = task_id
-                    if event.total is not None and event.completed is not None:
-                        progress.update(
-                            task_id,
-                            description=description,
-                            total=event.total,
-                            completed=event.completed,
-                        )
-                    elif event.total is not None:
-                        progress.update(task_id, description=description, total=event.total)
-                    elif event.completed is not None:
-                        progress.update(task_id, description=description, completed=event.completed)
-                    else:
-                        progress.update(task_id, description=description)
-                    if event.status in {
-                        OperationStepStatus.SUCCEEDED,
-                        OperationStepStatus.FAILED,
-                        OperationStepStatus.CANCELLED,
-                        OperationStepStatus.SKIPPED,
-                    }:
-                        progress.stop_task(task_id)
-                record(event)
-
-            yield rich_sink
-        finally:
-            stop_heartbeat.set()
-            thread.join(timeout=1)
-            progress.stop()
+        with redirected_steps(technical_sink=technical_sink, log_line=_progress_line) as sink:
+            yield sink
 
 
 def _config_value(value: Any) -> str:
