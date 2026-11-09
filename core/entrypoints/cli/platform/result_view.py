@@ -92,7 +92,7 @@ _ACRONYMS = {
 # Labels that read better than the field name.
 _LABELS = {
     "is_active": "Active",
-    "must_change_password": "Password reset",
+    "must_change_password": "Password reset",  # pragma: allowlist secret - a label
     "display_name": "Name",
     "account_id": "Account",
     "size_bytes": "Size",
@@ -107,7 +107,7 @@ _MESSAGES = {
     "config.set": "Setting recorded; apply it with flow-steward config apply",
     "config.apply": "Configuration applied",
     "users.create": "User created",
-    "users.set-password": "Password changed",
+    "users.set-password": "Password changed",  # pragma: allowlist secret - a message
     "users.set-roles": "Roles changed",
     "users.set-active": "User updated",
     "users.unlock": "User unlocked",
