@@ -21,9 +21,12 @@
 .job-fact dd.is-code, .job-code { font-family: var(--ff-code); font-size: var(--fs-type-code-size); overflow-wrap: anywhere; word-break: break-all; }
 .job-fact dd.is-empty { color: var(--fs-text-tertiary); font-weight: 400; }
 .job-fact .fs-badge { font-size: var(--fs-type-caption-size); }
-@media (min-width: 768px) { .job-facts--three { grid-template-columns: repeat(3, minmax(0, 1fr)); } .job-facts--two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 768px) { .job-facts--overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1280px) { .job-facts--overview { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+@media (width >= 768px) { .job-facts--three { grid-template-columns: repeat(3, minmax(0, 1fr)); } .job-facts--two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+@media (width >= 768px) { .job-facts--overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+@media (width >= 1280px) { .job-facts--overview { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
 .job-definition-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--fs-space-050) var(--fs-space-100); margin: 0; color: var(--fs-text-secondary); font-size: var(--fs-type-body-size); }
 .job-definition-line code { color: var(--fs-text-primary); font-family: var(--ff-code); font-size: var(--fs-type-code-size); }
@@ -63,7 +66,9 @@
 .job-definition-canvas .react-flow__controls-button:last-child { border-bottom: 0; }
 .job-definition-canvas .react-flow__controls-button:hover { background: var(--fs-bg-surface-muted); color: var(--fs-text-primary); }
 .job-definition-canvas .react-flow__controls-button svg { fill: currentcolor; }
+
 /* Steps the run never reached stand back; the run's own steps carry their marks. */
 .job-definition-canvas[data-run-marked="true"] [data-workflow-step-frame]:not([data-run]) { opacity: .55; }
+
 /* An archived card names its kind in words (If and Switch keep their condition, in code type). */
 .job-definition-canvas [data-workflow-step-frame]:not(:has(.workflow-card-outcomes)) .workflow-card-summary { color: var(--fs-text-tertiary); font-family: var(--ff-body); font-size: var(--fs-type-caption-size); }

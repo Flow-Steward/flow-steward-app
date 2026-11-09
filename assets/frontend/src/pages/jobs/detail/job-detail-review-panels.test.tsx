@@ -653,7 +653,8 @@ describe("HTTP response saved value", () => {
 
     expect(screen.getByRole("heading", { name: "HTTP response diagnostics" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Saved response" })).toBeInTheDocument();
-    expect(screen.getByText("Saved to state.user")).toBeInTheDocument();
+    // The target is set in code type inside the sentence.
+    expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "Saved to state.user")).toBeInTheDocument();
     expect(screen.getByText(/select state\.user directly/i)).toBeInTheDocument();
     expect(screen.getByText(/do not append \.body/i)).toBeInTheDocument();
     expect(
@@ -678,6 +679,7 @@ describe("HTTP response saved value", () => {
 
     expect(screen.getByRole("heading", { name: "HTTP response diagnostics" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Saved file" })).toBeInTheDocument();
-    expect(screen.getByText("Saved file to state.report_file")).toBeInTheDocument();
+    // The target is set in code type inside the sentence.
+    expect(screen.getByText((_, element) => element?.tagName === "P" && element.textContent === "Saved file to state.report_file")).toBeInTheDocument();
   });
 });
