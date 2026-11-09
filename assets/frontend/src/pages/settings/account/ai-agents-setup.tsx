@@ -72,7 +72,7 @@ export function AgentStep({
       <div className="fs-agent-step-head">
         <span aria-hidden="true" className="fs-agent-step-mark">{status === "done" ? <Check /> : number}</span>
         <div className="fs-agent-step-titles">
-          <h3 className="fs-agent-step-title"><span className="fs-sr-only">{t("react.agent_access.step_prefix", "Step {number}.", { number: String(number) })} </span>{title}</h3>
+          <h3 className="fs-agent-step-title"><span className="fs-sr-only">{t("react.agent_access.step_prefix", "Step {number}.", { number: String(number) })}</span>{" "}{title}</h3>
           {summary ? <p className="fs-agent-step-summary">{summary}</p> : null}
         </div>
         {actions ? <div className="fs-agent-step-actions">{actions}</div> : null}
