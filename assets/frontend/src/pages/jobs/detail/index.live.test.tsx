@@ -681,7 +681,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByText(/Finished: Apr 25, 2026, 12:05 PM/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Finished: 25 Apr 2026, 12:05/i)).toBeInTheDocument();
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -694,7 +694,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
       });
     });
 
-    expect(await screen.findByText(/Finished: Apr 25, 2026, 2:11 PM/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Finished: 25 Apr 2026, 14:11/i)).toBeInTheDocument();
   });
 
   it("falls back to sections.selected_step when the execution step list is absent", async () => {

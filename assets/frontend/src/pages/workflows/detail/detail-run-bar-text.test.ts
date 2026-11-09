@@ -72,7 +72,7 @@ it("carries the approval request, or says to decide in the open panel", () => {
 it("says until when a wait step waits", () => {
   const text = runBarText(input({ statusCode: "awaiting_timer", durationMs: 3000, detail: { runtime: { workflow_wait: { due_at: "2026-10-21T15:08:51Z" } } },
     snapshot: snapshot([{ stepId: "classify", stepExecutionId: "w", status: "awaiting_timer" }]) }), t);
-  expect(text.title).toBe("Waiting until 03:08:51 PM");
+  expect(text.title).toBe("Waiting until 15:08:51");
   expect(text.sub).toBe("Classify request · 0 steps done · 3.0 s");
 });
 
