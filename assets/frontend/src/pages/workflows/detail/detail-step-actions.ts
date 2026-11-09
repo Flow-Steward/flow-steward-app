@@ -4,6 +4,7 @@ import { httpIssueField } from "./detail-http-request-fields";
 import type { HttpFieldFeedback } from "./detail-http-request-intent";
 import { stepNumericFieldErrors } from "./detail-step-numeric-fields";
 import { transformRequiredFieldErrors } from "./detail-transform-fields";
+import { connectionRepairOperations, stepConnectionId } from "./detail-connection-repair";
 import { buildNewStepOperations, stepConfigPatch } from "./detail-local-step-creation";
 export { buildNewStepOperations, buildNewContainerOperations, stepConfigPatch } from "./detail-local-step-creation";
 import { workflowHookPlacementInvalid } from "@/pages/workflows/shared/workflow-hook-placement";
@@ -236,6 +237,17 @@ export function useWorkflowStepActions(ctx: Record<string, any>) {
       setSaveError(t("react.workflows.change_set_revision_unknown", "The workflow revision is unknown. Reload the workflow."));
       return;
     }
+    // Leaving a deleted connection moves every other step that named it too: an enabled
+    // workflow refuses a save that leaves any of them broken (ADR 0035).
+    const repairOperations = ctx.stepKindDraft === "connector" ? connectionRepairOperations({
+      steps: (changeSet.preview as WorkflowDefinitionModel | undefined)?.steps ?? [],
+      savedStepId: stepId,
+      previousId: stepConnectionId(objectOrEmpty(selectedStep?.raw)),
+      nextId: textOrEmpty(objectOrEmpty(patch.connection_binding_jsonb).connection_id),
+      availableIds: new Set<string>(Array.isArray(ctx.connectorConnectionIds) ? ctx.connectorConnectionIds : []),
+      isTouched: (id) => Boolean(changeSet.touchesStep?.(id)),
+    }) : [];
+    const operations = [{ op: "update_step_config" as const, step_id: stepId, patch }, ...repairOperations];
     setSaveNotice("");
     setSavingWorkflowSurface("step");
     setStepFormSaveState("saving");
@@ -245,7 +257,7 @@ export function useWorkflowStepActions(ctx: Record<string, any>) {
     try {
       const result = await applyWorkflowChanges(workflowId, {
         expected_revision: serverRevision,
-        operations: [{ op: "update_step_config", step_id: stepId, patch }],
+        operations,
       });
       if ((httpToken && !ctx.httpIntent.isCurrent(httpToken)) || (agentToken && !ctx.agentDrafts.isCurrent(agentToken))) return;
       const acknowledgedHttp = Boolean(httpToken && result?.applied === true && Number.isSafeInteger(result.revision) && result.revision > 0);
@@ -261,7 +273,7 @@ export function useWorkflowStepActions(ctx: Record<string, any>) {
       if (result?.revision) {
         changeSet.rebase(result.revision, serverRevision);
         // The saved parameters are one action of the history: Undo takes them back locally.
-        changeSet.recordSavedChange?.([{ op: "update_step_config", step_id: stepId, patch }], result.revision);
+        changeSet.recordSavedChange?.(operations, result.revision);
       }
       const readback = objectOrEmpty(await refetchWorkflowSurfaces());
       if (acknowledgedHttp && readback.workflow_id === workflowId && readback.revision === result.revision) {
@@ -285,7 +297,9 @@ export function useWorkflowStepActions(ctx: Record<string, any>) {
       markStepSaved(false);
       setSaveNotice(savedWithIssues
         ? t("react.workflows.step_parameters_saved_with_issues", "Step parameters saved. Workflow validation issues remain.")
-        : t("react.workflows.step_parameters_saved", "Step parameters saved."));
+        : repairOperations.length
+          ? t("react.workflows.step_saved_with_connection_repair", "Step parameters saved. {count} other steps used the deleted connection and now use this one too.", { count: repairOperations.length })
+          : t("react.workflows.step_parameters_saved", "Step parameters saved."));
     } catch (error) {
       if ((httpToken && !ctx.httpIntent.isCurrent(httpToken)) || (agentToken && !ctx.agentDrafts.isUnedited(agentToken))) return;
       const receivedIssues = workflowChangeErrorIssues(error);

@@ -14090,6 +14090,21 @@ msgstr "Returned files mapping"
 msgid "react.workflows.returned_files_note"
 msgstr "To return a file, tick “Return from workflow” on the step result that saves it."
 
+msgid "react.workflows.run_bar_live_failed"
+msgstr "Run failed"
+
+msgid "react.workflows.run_bar_live_finished"
+msgstr "Run finished"
+
+msgid "react.workflows.run_bar_live_finished_in"
+msgstr "Run finished in {duration}"
+
+msgid "react.workflows.run_bar_live_running"
+msgstr "Run in progress"
+
+msgid "react.workflows.run_bar_live_stopped"
+msgstr "Run stopped"
+
 msgid "react.workflows.snapshot_mode"
 msgstr "Comparison purpose"
 
@@ -14098,6 +14113,9 @@ msgstr "From extension {value0}"
 
 msgid "react.workflows.step_not_set_up_summary"
 msgstr "Not set up yet"
+
+msgid "react.workflows.step_saved_with_connection_repair"
+msgstr "Step parameters saved. {count} other steps used the deleted connection and now use this one too."
 
 msgid "react.workflows.step_test_input_help"
 msgstr "Test values are optional. Only this step runs; earlier steps and loop context are not loaded. A saved mapping alone does not preload a value. Leaving a value blank may make the test fail."

@@ -14288,6 +14288,21 @@ msgstr "Grąžinamų failų susiejimas"
 msgid "react.workflows.returned_files_note"
 msgstr "Kad grąžintumėte failą, pažymėkite „Grąžinti iš darbo eigos“ prie žingsnio rezultato, kuris jį išsaugo."
 
+msgid "react.workflows.run_bar_live_failed"
+msgstr "Vykdymas nepavyko"
+
+msgid "react.workflows.run_bar_live_finished"
+msgstr "Vykdymas baigtas"
+
+msgid "react.workflows.run_bar_live_finished_in"
+msgstr "Vykdymas baigtas per {duration}"
+
+msgid "react.workflows.run_bar_live_running"
+msgstr "Vyksta vykdymas"
+
+msgid "react.workflows.run_bar_live_stopped"
+msgstr "Vykdymas sustabdytas"
+
 msgid "react.workflows.snapshot_mode"
 msgstr "Palyginimo paskirtis"
 
@@ -14296,6 +14311,9 @@ msgstr "Iš plėtinio {value0}"
 
 msgid "react.workflows.step_not_set_up_summary"
 msgstr "Dar nenustatyta"
+
+msgid "react.workflows.step_saved_with_connection_repair"
+msgstr "Žingsnio parametrai išsaugoti. Dar {count} žingsniai naudojo ištrintą ryšį ir dabar taip pat naudoja šį."
 
 msgid "react.workflows.step_test_input_help"
 msgstr "Testo reikšmės neprivalomos. Vykdomas tik šis žingsnis; ankstesni žingsniai ir ciklo kontekstas neįkeliami. Vien išsaugotas susiejimas reikšmės neįkelia. Palikus reikšmę tuščią, testas gali nepavykti."

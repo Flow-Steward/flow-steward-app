@@ -16393,6 +16393,24 @@ msgstr ""
 msgid "react.workflows.new_id_for_value0"
 msgstr ""
 
+msgid "react.workflows.run_bar_live_failed"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_finished"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_finished_in"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_running"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_stopped"
+msgstr ""
+
+msgid "react.workflows.step_saved_with_connection_repair"
+msgstr ""
+
 msgid "react.workflows.uses_the_one_already_here_unchanged"
 msgstr ""
 
