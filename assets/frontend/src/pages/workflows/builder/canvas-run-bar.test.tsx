@@ -64,7 +64,9 @@ it("an earlier run names its number, offers Back to latest and no Run again", ()
   render(<CanvasRunBar {...value} />);
   const bar = screen.getByRole("region", { name: "Run #1 · Failed at Create shipment" });
   expect(within(bar).queryByRole("button", { name: "Run again" })).not.toBeInTheDocument();
-  expect(within(bar).getAllByRole("button").map((button) => button.textContent)).toEqual(["Open step", "Back to latest", "Results"]);
+  const barButtons = within(bar).getAllByRole("button");
+  expect(barButtons).toHaveLength(3);
+  ["Open step", "Back to latest", "Results"].forEach((name, index) => expect(barButtons[index]).toHaveAccessibleName(name));
   fireEvent.click(within(bar).getByRole("button", { name: "Back to latest" }));
   expect(value.onBackToLatest).toHaveBeenCalledExactlyOnceWith();
 });
@@ -110,8 +112,9 @@ it("renders Stop, Follow run and Clear marks only from explicitly supplied actio
   const clear = vi.fn();
   const follow = vi.fn();
   const view = render(<CanvasRunBar {...props()} stopAction={{ onInvoke: stop }} clearMarksAction={{ onInvoke: clear }} followRunAction={{ onInvoke: follow }} />);
-  expect(screen.getAllByRole("button").map((button) => button.textContent || button.getAttribute("aria-label")))
-    .toEqual(["Follow run", "Results", "Stop", "Clear marks"]);
+  const buttons = screen.getAllByRole("button");
+  expect(buttons).toHaveLength(4);
+  ["Follow run", "Results", "Stop", "Clear marks"].forEach((name, index) => expect(buttons[index]).toHaveAccessibleName(name));
   fireEvent.click(screen.getByRole("button", { name: "Stop" }));
   fireEvent.click(screen.getByRole("button", { name: "Clear marks" }));
   fireEvent.click(screen.getByRole("button", { name: "Follow run" }));
@@ -119,7 +122,7 @@ it("renders Stop, Follow run and Clear marks only from explicitly supplied actio
   expect(clear).toHaveBeenCalledOnce();
   expect(follow).toHaveBeenCalledOnce();
   view.rerender(<CanvasRunBar {...props()} stopAction={{ onInvoke: stop, busy: true }} clearMarksAction={{ onInvoke: clear, disabled: true }} />);
-  expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Stop" })).toHaveAttribute("aria-busy", "true");
   expect(screen.getByRole("button", { name: "Clear marks" })).toBeDisabled();
   view.rerender(<CanvasRunBar {...props({ selection: { kind: "error" } })} stopAction={{ onInvoke: stop }} clearMarksAction={{ onInvoke: clear }} />);
   expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
@@ -131,15 +134,17 @@ it("shows a supplied action notice", () => {
   expect(screen.getByRole("alert")).toHaveTextContent("Cancel refused by server");
 });
 
-it("runs again only through the supplied action and keeps the action disabled while starting", () => {
+it("runs again only through the supplied action and keeps the action busy while starting", () => {
   const onInvoke = vi.fn();
   const finished = { selection: { kind: "verified" as const, run: { jobId: "job-latest", tone: "success" as const, title: "Test Run finished in 14 s", sub: "20 steps done" } } };
   const view = render(<CanvasRunBar {...props(finished)} runAgainAction={{ onInvoke }} />);
-  expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Results", "Run again"]);
+  const buttons = screen.getAllByRole("button");
+  expect(buttons).toHaveLength(2);
+  ["Results", "Run again"].forEach((name, index) => expect(buttons[index]).toHaveAccessibleName(name));
   fireEvent.click(screen.getByRole("button", { name: "Run again" }));
   expect(onInvoke).toHaveBeenCalledOnce();
   view.rerender(<CanvasRunBar {...props(finished)} runAgainAction={{ onInvoke, busy: true }} />);
-  expect(screen.getByRole("button", { name: "Run again" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Run again" })).toHaveAttribute("aria-busy", "true");
 });
 
 it("uses contextual Review request and Open step callbacks without decision controls", () => {
@@ -153,7 +158,7 @@ it("uses contextual Review request and Open step callbacks without decision cont
   expect(screen.queryByRole("button", { name: /^(Approve|Reject)$/ })).not.toBeInTheDocument();
   view.rerender(<CanvasRunBar {...props()} reviewRequestAction={{ onInvoke: review, disabled: true }} openFailedStepAction={{ onInvoke: open, busy: true }} />);
   expect(screen.getByRole("button", { name: "Review request" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Open step" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Open step" })).toHaveAttribute("aria-busy", "true");
 });
 
 it("localizes its actions", () => {

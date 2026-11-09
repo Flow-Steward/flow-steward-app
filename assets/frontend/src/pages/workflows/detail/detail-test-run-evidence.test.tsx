@@ -272,7 +272,7 @@ it("submits one scoped abort decision and disables repeat cancellation until ack
       approval_id: "gate-first", approved: false, action: "abort", comment: "Stop drafting this report",
     }]));
     expect(test.requests.filter((request) => request.path === "/api/approvals/thread-42" && request.method === "POST")).toHaveLength(1);
-    await waitFor(() => expect(cancel).toBeDisabled());
+    await waitFor(() => expect(cancel).toHaveAttribute("aria-busy", "true"));
     expect(within(decision).getByRole("button", { name: "Approve" })).toBeDisabled();
     fireEvent.click(cancel);
     expect(test.decisions).toHaveLength(1);

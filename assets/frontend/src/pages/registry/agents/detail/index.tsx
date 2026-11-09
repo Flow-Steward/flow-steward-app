@@ -34,6 +34,7 @@ import { AgentOwnIoPanel } from "./agent-own-io";
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
 
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { Button } from "@/components/ui/button";
 
 import { replaceAgentRelationships } from "./api";
 
@@ -187,9 +188,9 @@ export function RegistryAgentsDetailPage() {
                     {t("react.registry.optional_runtime_context_appended_to_this_agent_s_prompt_use_it_for_project_facts_boundaries_or_handoff_notes_", "Optional runtime context appended to this agent's prompt. Use it for project facts, boundaries, or handoff notes the agent should always see; leave it empty when the base skill already supplies the needed context.")}</span>
                 </div>
                 <div className="fs-badge-row">
-                  <button
-                    className="fs-button primary"
-                    disabled={saving}
+                  <Button
+                    busy={saving}
+                    busyLabel={t("react.settings.saving", "Saving…")}
                     onClick={() => {
                       ignoreAsyncResult(saveEntityPatch({
                         prompts: {
@@ -200,8 +201,9 @@ export function RegistryAgentsDetailPage() {
                       }));
                     }}
                     type="button"
+                    variant="primary"
                   >
-                    {t("react.registry.save_prompts", "Save prompts")}</button>
+                    {t("react.registry.save_prompts", "Save prompts")}</Button>
                   <button
                     className="fs-button"
                     onClick={() => {
@@ -376,9 +378,9 @@ export function RegistryAgentsDetailPage() {
                       type="button"
                     >
                       {t("extensions.repeater.cancel", "Cancel")}</button>
-                    <button
-                      className="fs-button primary"
-                      disabled={saving}
+                    <Button
+                      busy={saving}
+                      busyLabel={t("react.settings.saving", "Saving…")}
                       onClick={() => {
                         ignoreAsyncResult(
                           saveRelationshipOperation(() =>
@@ -396,8 +398,9 @@ export function RegistryAgentsDetailPage() {
                         );
                       }}
                       type="button"
+                      variant="primary"
                     >
-                      {t("react.registry.save_skills", "Save skills")}</button>
+                      {t("react.registry.save_skills", "Save skills")}</Button>
                   </div>
                 </div>
               </div>
@@ -514,9 +517,9 @@ export function RegistryAgentsDetailPage() {
                   </div>
                 ))}
                 <div className="fs-badge-row">
-                  <button
-                    className="fs-button primary"
-                    disabled={saving}
+                  <Button
+                    busy={saving}
+                    busyLabel={t("react.settings.saving", "Saving…")}
                     onClick={() => {
                       ignoreAsyncResult(
                         saveRelationshipOperation(() =>
@@ -529,8 +532,9 @@ export function RegistryAgentsDetailPage() {
                       );
                     }}
                     type="button"
+                    variant="primary"
                   >
-                    {t("react.registry.save_tools", "Save tools")}</button>
+                    {t("react.registry.save_tools", "Save tools")}</Button>
                 </div>
               </div>
             ))}
@@ -586,9 +590,9 @@ export function RegistryAgentsDetailPage() {
                   }
                 />
                 <div className="fs-badge-row">
-                  <button
-                    className="fs-button primary"
-                    disabled={saving}
+                  <Button
+                    busy={saving}
+                    busyLabel={t("react.settings.saving", "Saving…")}
                     onClick={() => {
                       ignoreAsyncResult(saveEntityPatch({
                         builder_metadata_jsonb: builderMetadataPayload({
@@ -602,8 +606,9 @@ export function RegistryAgentsDetailPage() {
                       }));
                     }}
                     type="button"
+                    variant="primary"
                   >
-                    {t("react.registry.save_builder_metadata", "Save Builder metadata")}</button>
+                    {t("react.registry.save_builder_metadata", "Save Builder metadata")}</Button>
                   <button
                     className="fs-button"
                     onClick={() => {

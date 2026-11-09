@@ -70,7 +70,8 @@ export function WorkflowTriggersSurface({
   const [forceCustomPreset, setForceCustomPreset] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [webhookConfirm, setWebhookConfirm] = useState<"" | "rotate" | "regenerate">("");
-  const saveLoader = useLoaderDelay(Boolean(ctx.triggerSavePending));
+  const triggersLoaderShown = useLoaderDelay(Boolean(ctx.workflowTriggersQuery.isLoading));
+  const projectLoaderShown = useLoaderDelay(Boolean(ctx.providerProjectResolutionPending));
   if (ctx.drawerMode !== "workflow-settings" || ctx.drawerTab !== "triggers") return null;
   const {
     copiedCredentialReveal,
@@ -264,10 +265,10 @@ export function WorkflowTriggersSurface({
             </div>
             <p className="workflow-triggers-help">
               {t("react.workflows.incoming_webhooks_help", "A URL that another service or your own code calls to start this workflow.")}</p>
-            {renderWhen(Boolean(workflowTriggersQuery.isLoading), (
-              <p className="workflow-triggers-empty">{t("react.workflows.loading_triggers_progress", "Loading triggers…")}</p>
+            {renderWhen(triggersLoaderShown, (
+              <p className="workflow-triggers-empty"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_triggers_progress", "Loading triggers…")} /></p>
             ))}
-            {renderWhen(!workflowTriggersQuery.isLoading && !webhooks.length, (
+            {renderWhen(!workflowTriggersQuery.isLoading && !triggersLoaderShown && !webhooks.length, (
               <p className="workflow-triggers-empty">{t("react.workflows.no_incoming_webhooks_yet", "No incoming webhooks yet.")}</p>
             ))}
             <div className="workflow-triggers-rows">
@@ -301,15 +302,15 @@ export function WorkflowTriggersSurface({
             </div>
             <p className="workflow-triggers-help">
               {t("react.workflows.provider_triggers_help", "Start this workflow when something happens in a connected app.")}</p>
-            {renderWhen(Boolean(providerProjectResolutionPending), (
+            {renderWhen(projectLoaderShown, (
               <p className="workflow-triggers-help" data-tone="attention">
-                {t("react.workflows.resolving_provider_trigger_project", "Resolving project context for provider triggers…")}</p>
+                <DsLoader variant="orbit-inline" label={t("react.workflows.resolving_provider_trigger_project", "Resolving project context for provider triggers…")} /></p>
             ))}
-            {renderWhen(Boolean(!providerProjectResolutionPending && providerProjectUnavailable), (
+            {renderWhen(Boolean(!providerProjectResolutionPending && !projectLoaderShown && providerProjectUnavailable), (
               <p className="workflow-triggers-help" data-tone="attention">
                 {t("react.workflows.link_this_workflow_to_a_project_before_configuring_provider_triggers", "Link this workflow to a project before configuring provider triggers.")}</p>
             ))}
-            {renderWhen(Boolean(!providerProjectResolutionPending && !providerProjectUnavailable && !providerRows.length), (
+            {renderWhen(Boolean(!providerProjectResolutionPending && !projectLoaderShown && !providerProjectUnavailable && !providerRows.length), (
               <p className="workflow-triggers-empty">{t("react.workflows.no_provider_triggers_configured_yet", "No provider triggers configured yet.")}</p>
             ))}
             <div className="workflow-triggers-rows">
@@ -412,11 +413,11 @@ export function WorkflowTriggersSurface({
           </span>
           <p className="workflow-triggers-help">
             {t("react.workflows.provider_triggers_help", "Start this workflow when something happens in a connected app.")}</p>
-          {renderWhen(Boolean(providerProjectResolutionPending), (
+          {renderWhen(projectLoaderShown, (
             <p className="workflow-triggers-help" data-tone="attention">
-              {t("react.workflows.resolving_provider_trigger_project", "Resolving project context for provider triggers…")}</p>
+              <DsLoader variant="orbit-inline" label={t("react.workflows.resolving_provider_trigger_project", "Resolving project context for provider triggers…")} /></p>
           ))}
-          {renderWhen(Boolean(!providerProjectResolutionPending && providerProjectUnavailable), (
+          {renderWhen(Boolean(!providerProjectResolutionPending && !projectLoaderShown && providerProjectUnavailable), (
             <p className="workflow-triggers-help" data-tone="attention">
               {t("react.workflows.link_this_workflow_to_a_project_before_configuring_provider_triggers", "Link this workflow to a project before configuring provider triggers.")}</p>
           ))}
@@ -513,14 +514,14 @@ export function WorkflowTriggersSurface({
           <DrawerFooterSpacer />
           <Button onClick={openList} type="button" variant="secondary">{t("common.cancel", "Cancel")}</Button>
           <Button
-            aria-busy={pending || undefined}
-            disabled={providerDisabled}
+            busy={pending}
+            busyLabel={t("react.workflows.saving_trigger_progress", "Saving trigger…")}
+            disabled={!providerProjectReady}
             onClick={() => ignoreAsyncResult((editingProvider ? handleSaveProviderTrigger : handleCreateProviderTrigger)())}
             type="button"
             variant="primary"
           >
-            {pending && saveLoader ? <DsLoader variant="orbit-inline" /> : null}
-            {providerSaveLabel(pending, editingProvider, t)}
+            {providerSaveLabel(false, editingProvider, t)}
           </Button>
         </DrawerFooter>
       </div>
@@ -920,14 +921,13 @@ export function WorkflowTriggersSurface({
         <Button onClick={openList} type="button" variant="secondary">{t("common.cancel", "Cancel")}</Button>
         <DrawerFooterSpacer />
         <Button
-          aria-busy={pending || undefined}
-          disabled={pending}
+          busy={pending}
+          busyLabel={t("react.workflows.saving_trigger_progress", "Saving trigger…")}
           onClick={() => ignoreAsyncResult((editingWebhook ? handleSaveWebhookTrigger : handleCreateWebhookTrigger)())}
           type="button"
           variant="primary"
         >
-          {pending && saveLoader ? <DsLoader variant="orbit-inline" /> : null}
-          {webhookSaveLabel(pending, webhookEditorMode === "edit", Boolean(selectedWebhook), t)}
+          {webhookSaveLabel(false, webhookEditorMode === "edit", Boolean(selectedWebhook), t)}
         </Button>
       </DrawerFooter>
     </div>

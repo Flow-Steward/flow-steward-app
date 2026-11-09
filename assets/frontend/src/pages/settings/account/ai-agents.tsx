@@ -3,6 +3,9 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DsAlert, DsBadge, DsRadio, DsValueChip, MultiCombobox, OptionalLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { isHttpError } from "@/lib/http/errors";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -94,6 +97,7 @@ export function AiAgentsSection() {
   const setupQuery = useQuery({ queryKey: ["settings", "account", "agent-access"], queryFn: fetchAgentAccessSetup, retry: false });
   const setup = setupQuery.data;
   const [openStep, setOpenStep] = useState<OpenStep>(1);
+  const setupLoaderShown = useLoaderDelay(!setup && !setupQuery.isError);
   const [clientId, setClientId] = useState("");
   const [clientMissing, setClientMissing] = useState(false);
   const [packageId, setPackageId] = useState("");
@@ -201,7 +205,7 @@ export function AiAgentsSection() {
   if (setupQuery.isError) {
     return <DsAlert title={t("react.agent_access.setup_unavailable", "The AI agent setup could not be loaded")} tone="danger">{t("react.settings.check_the_connection_and_try_again", "Check the connection and try again.")}</DsAlert>;
   }
-  if (!setup) return <p className="fs-field-helper">{t("react.agent_access.loading", "Loading the AI agent setup…")}</p>;
+  if (!setup || setupLoaderShown) return setupLoaderShown ? <p className="fs-field-helper"><DsLoader label={t("react.agent_access.loading", "Loading the AI agent setup…")} variant="orbit-inline" /></p> : null;
 
   const blockers = client?.mcp_blockers || [];
   const needsAccess = Boolean(packageMeta?.needs_mcp);
@@ -384,7 +388,7 @@ export function AiAgentsSection() {
       <>
         {issue.kind === "failed" ? <DsAlert title={t("react.settings.token_could_not_be_created", "Token could not be created")} tone="danger">{issue.message}</DsAlert> : null}
         <div className="fs-agent-step-footer">
-          <button className="fs-button primary" disabled={issue.kind === "submitting" || !presetId || mcpBlocked} onClick={createToken} type="button">{issue.kind === "submitting" ? t("react.settings.creating", "Creating…") : t("react.settings.create_token", "Create token")}</button>
+          <Button busy={issue.kind === "submitting"} busyLabel={t("react.settings.creating", "Creating…")} disabled={!presetId || mcpBlocked} onClick={createToken} type="button" variant="primary">{t("react.settings.create_token", "Create token")}</Button>
         </div>
       </>
     );

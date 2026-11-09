@@ -3,6 +3,9 @@ import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DsAlert, DsBadge, DsDialog, DsToast, DsValueChip, RequiredLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -50,6 +53,7 @@ export function PlatformClientStep({
   const [referenceId, setReferenceId] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [actionError, setActionError] = useState("");
+  const loaderShown = useLoaderDelay(isAdmin && !clientsQuery.data && !clientsQuery.isError);
 
   if (!isAdmin) {
     return (
@@ -61,7 +65,7 @@ export function PlatformClientStep({
   if (clientsQuery.isError) {
     return <DsAlert title={t("react.agent_access.platform_unavailable", "The Microsoft 365 registration could not be loaded")} tone="danger">{t("react.settings.check_the_connection_and_try_again", "Check the connection and try again.")}</DsAlert>;
   }
-  if (!clientsQuery.data) return <p className="fs-field-helper">{t("react.agent_access.platform_loading", "Loading the registration…")}</p>;
+  if (!clientsQuery.data || loaderShown) return loaderShown ? <p className="fs-field-helper"><DsLoader label={t("react.agent_access.platform_loading", "Loading the registration…")} variant="orbit-inline" /></p> : null;
 
   const view = clientsQuery.data;
   const client = activeClient(view, preset);
@@ -127,7 +131,7 @@ export function PlatformClientStep({
           <p className="fs-field-helper">{t("react.agent_access.platform_create_help", "Flow Steward gives Microsoft 365 its own client ID. Microsoft returns people only to its documented address, and nobody can type another one.")}</p>
           {presetInfo ? <p className="fs-field-helper">{t("react.agent_access.platform_redirect", "Microsoft returns people to:")} <DsValueChip>{presetInfo.redirect_uris.join(", ")}</DsValueChip></p> : null}
           <div className="fs-footer-actions">
-            <button className="fs-button primary" disabled={busy || !portal} onClick={() => ignoreAsyncResult(run(() => createPlatformClient(preset)))} type="button">{busy ? t("react.settings.creating", "Creating…") : t("react.agent_access.platform_create", "Create the Microsoft 365 client")}</button>
+            <Button busy={busy} busyLabel={t("react.settings.creating", "Creating…")} disabled={!portal} onClick={() => ignoreAsyncResult(run(() => createPlatformClient(preset)))} type="button" variant="primary">{t("react.agent_access.platform_create", "Create the Microsoft 365 client")}</Button>
           </div>
           {revokedCount ? <span className="fs-field-helper">{t("react.agent_access.platform_revoked_count", "Revoked earlier: {value1}", { value1: String(revokedCount) })}</span> : null}
         </div>
@@ -170,7 +174,7 @@ export function PlatformClientStep({
               <button className="fs-button danger" disabled={busy} onClick={() => setConfirmingRevoke(true)} type="button">{t("react.agent_access.platform_revoke", "Revoke the Microsoft 365 client")}</button>
             </div>
           </div>
-          <DsDialog busy={busy} closeLabel={t("react.settings.close_revoke_confirmation", "Close revoke confirmation")} description={t("react.agent_access.platform_revoke_help", "Revoking ends every Microsoft 365 sign-in to this installation at once. Create a new client and a new registration to connect again.")} eyebrow={t("react.agent_access.title", "AI agents")} footer={<><button className="fs-button" disabled={busy} onClick={() => setConfirmingRevoke(false)} type="button">{t("common.cancel", "Cancel")}</button><button className="fs-button danger" disabled={busy} onClick={() => ignoreAsyncResult(revoke(client.client_id))} type="button">{busy ? t("react.settings.revoking", "Revoking…") : t("react.agent_access.platform_revoke", "Revoke the Microsoft 365 client")}</button></>} onClose={() => setConfirmingRevoke(false)} open={confirmingRevoke} title={t("react.agent_access.platform_revoke_confirm", "Revoke the Microsoft 365 client?")} variant="confirm">
+          <DsDialog busy={busy} closeLabel={t("react.settings.close_revoke_confirmation", "Close revoke confirmation")} description={t("react.agent_access.platform_revoke_help", "Revoking ends every Microsoft 365 sign-in to this installation at once. Create a new client and a new registration to connect again.")} eyebrow={t("react.agent_access.title", "AI agents")} footer={<><button className="fs-button" disabled={busy} onClick={() => setConfirmingRevoke(false)} type="button">{t("common.cancel", "Cancel")}</button><Button busy={busy} busyLabel={t("react.settings.revoking", "Revoking…")} onClick={() => ignoreAsyncResult(revoke(client.client_id))} type="button" variant="danger">{t("react.agent_access.platform_revoke", "Revoke the Microsoft 365 client")}</Button></>} onClose={() => setConfirmingRevoke(false)} open={confirmingRevoke} title={t("react.agent_access.platform_revoke_confirm", "Revoke the Microsoft 365 client?")} variant="confirm">
             <DsAlert tone="danger" title={t("react.settings.immediate_access_loss", "Immediate access loss")}>{actionError || t("react.agent_access.platform_revoke_copy", "Everyone using the agent loses access now, and the agent package stops working.")}</DsAlert>
           </DsDialog>
         </>

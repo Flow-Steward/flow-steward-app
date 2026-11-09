@@ -6,6 +6,8 @@ import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
@@ -92,6 +94,8 @@ export function JsonCollectionWorkbench({
     queryKey: listQueryKey,
     queryFn: fetchList,
   });
+
+  const refreshShown = useLoaderDelay(listQuery.isFetching);
 
   const selectedListRow =
     listQuery.data?.find((row) => readId(row, idKey, idAliases) === selectedId) || null;
@@ -225,12 +229,12 @@ export function JsonCollectionWorkbench({
             <CardDescription>{t("react.shared.select_a_row_to_inspect_and_edit_its_json_payload", "Select a row to inspect and edit its JSON payload.")}</CardDescription>
           </div>
           <button
-            className="rounded-xl border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-300/40 disabled:opacity-50"
-            disabled={listQuery.isFetching}
-            onClick={() => ignoreAsyncResult(refreshList())}
+            aria-busy={listQuery.isFetching || undefined}
+            className="gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-300/40 disabled:opacity-50"
+            onClick={() => { if (!listQuery.isFetching) ignoreAsyncResult(refreshList()); }}
             type="button"
           >
-            {listQuery.isFetching ? t("react.shared.refreshing", "Refreshing...") : t("account.tokens.refresh", "Refresh")}
+            <ButtonBusyContent busyLabel={t("react.shared.refreshing", "Refreshing…")} shown={refreshShown}>{t("account.tokens.refresh", "Refresh")}</ButtonBusyContent>
           </button>
         </CardHeader>
         <CardContent>

@@ -2,9 +2,11 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useMemo, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
+import { DsLoader } from "@/components/shared/ds-loader";
 import { DsAlert, DsBadge, DsCheckbox, DsValueChip } from "@/components/shared/design-system-primitives";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -60,13 +62,16 @@ export function ProjectSecretApprovals({ projectId }: ProjectSecretApprovalsProp
     },
   });
 
-  if (approvalsQuery.isLoading) {
-    return (
-      <div className="flex items-center gap-2 text-sm fs-ink-secondary">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("react.projects.secret_approval.loading", "Checking the use of stored secrets...")}
+  const loaderShown = useLoaderDelay(approvalsQuery.isLoading);
+  const approvingIds = approve.isPending ? (approve.variables ?? []).map((row) => row.connection_id) : [];
+  const approvingOnly = (connectionId: string) => approvingIds.length === 1 && approvingIds[0] === connectionId;
+
+  if (approvalsQuery.isLoading || loaderShown) {
+    return loaderShown ? (
+      <div className="text-sm fs-ink-secondary">
+        <DsLoader label={t("react.projects.secret_approval.loading", "Checking the use of stored secrets…")} variant="orbit-inline" />
       </div>
-    );
+    ) : null;
   }
   if (!pending.length && !approve.isError) {
     return null;
@@ -138,7 +143,14 @@ export function ProjectSecretApprovals({ projectId }: ProjectSecretApprovalsProp
               ) : null}
             </dl>
             <div className="mt-2">
-              <Button disabled={approve.isPending} onClick={() => approve.mutate([row])} size="sm" variant="secondary">
+              <Button
+                busy={approvingOnly(row.connection_id)}
+                busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
+                disabled={approve.isPending && !approvingOnly(row.connection_id)}
+                onClick={() => approve.mutate([row])}
+                size="sm"
+                variant="secondary"
+              >
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {t("react.projects.secret_approval.approve_one", "Approve use of secrets")}
               </Button>
@@ -146,7 +158,12 @@ export function ProjectSecretApprovals({ projectId }: ProjectSecretApprovalsProp
           </div>
         ))}
         {chosen.length > 1 ? (
-          <Button disabled={approve.isPending} onClick={() => approve.mutate(chosen)}>
+          <Button
+            busy={approvingIds.length > 1}
+            busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
+            disabled={approve.isPending && approvingIds.length <= 1}
+            onClick={() => approve.mutate(chosen)}
+          >
             <ShieldCheck className="h-4 w-4" />
             {chosenReleases.size === 1
               ? t("react.projects.secret_approval.approve_release", "Approve release for {count} selected connections", { count: chosen.length })

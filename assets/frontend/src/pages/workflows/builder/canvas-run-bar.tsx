@@ -84,16 +84,15 @@ function invokeNavigation(action: () => NavigationOutcome) {
   }
 }
 
-function RunBarAction({ action, label, navigationBusy, variant = "secondary" }: Readonly<{
-  action: CanvasRunBarAction; label: string; navigationBusy: boolean; variant?: "secondary" | "ghost";
+function RunBarAction({ action, label, busyLabel, navigationBusy, variant = "secondary" }: Readonly<{
+  action: CanvasRunBarAction; label: string; busyLabel: string; navigationBusy: boolean; variant?: "secondary" | "ghost";
 }>) {
   const descriptionId = useId();
-  const busyLoader = useLoaderDelay(Boolean(action.busy));
   return <>
-    <Button aria-busy={action.busy || undefined} aria-describedby={action.disabledReason ? descriptionId : undefined}
-      disabled={navigationBusy || action.disabled || action.busy}
+    <Button aria-describedby={action.disabledReason ? descriptionId : undefined} busy={Boolean(action.busy)} busyLabel={busyLabel}
+      disabled={!action.busy && (navigationBusy || action.disabled)}
       onClick={() => invokeNavigation(action.onInvoke)} size="sm" title={action.disabledReason || undefined} type="button" variant={variant}>
-      {busyLoader ? <DsLoader variant="orbit-inline" /> : null}{label}
+      {label}
     </Button>
     {action.disabledReason ? <span className="sr-only" id={descriptionId}>{action.disabledReason}</span> : null}
   </>;
@@ -158,27 +157,27 @@ export function CanvasRunBar({
           {run.sub ? <span className="workflow-runbar-sub" id={`${id}-sub`} title={run.sub}>{run.sub}</span> : null}
         </span>
         <span className="workflow-runbar-actions">
-          {followRunAction ? <RunBarAction action={followRunAction} label={t("react.workflows.run_bar_follow_run", "Follow run")} navigationBusy={navigationBusy} variant="ghost" /> : null}
-          {openFailedStepAction ? <RunBarAction action={openFailedStepAction} label={t("react.workflows.run_bar_open_step", "Open step")} navigationBusy={navigationBusy} /> : null}
+          {followRunAction ? <RunBarAction action={followRunAction} busyLabel={t("react.shared.opening", "Opening…")} label={t("react.workflows.run_bar_follow_run", "Follow run")} navigationBusy={navigationBusy} variant="ghost" /> : null}
+          {openFailedStepAction ? <RunBarAction action={openFailedStepAction} busyLabel={t("react.shared.opening", "Opening…")} label={t("react.workflows.run_bar_open_step", "Open step")} navigationBusy={navigationBusy} /> : null}
           {historical ? <Button aria-disabled={navigationBusy || undefined} disabled={backToLatestDisabled} onClick={() => { if (!navigationBusy) invokeNavigation(onBackToLatest); }} size="sm" type="button" variant="secondary">
             {t("react.workflows.run_bar_back_to_latest", "Back to latest")}</Button> : null}
           {/* While its own guarded navigation runs (a confirmation may be open), an opener stays
               focusable: aria-disabled, not disabled, so the confirmation can return focus to it. */}
           <Button aria-disabled={navigationBusy || undefined} disabled={viewResultsDisabled} onClick={() => { if (!navigationBusy) invokeNavigation(onViewResults); }} size="sm" type="button" variant="secondary">
             {t("react.workflows.run_bar_results", "Results")}</Button>
-          {reviewRequestAction ? <RunBarAction action={reviewRequestAction} label={t("react.workflows.run_bar_review_request", "Review request")} navigationBusy={navigationBusy} /> : null}
-          {stopAction ? <RunBarAction action={stopAction} label={t("react.workflows.run_bar_stop", "Stop")} navigationBusy={navigationBusy} /> : null}
-          {runAgainAction && !historical ? <RunBarAction action={runAgainAction} label={t("react.workflows.run_bar_run_again", "Run again")} navigationBusy={navigationBusy} /> : null}
+          {reviewRequestAction ? <RunBarAction action={reviewRequestAction} busyLabel={t("react.shared.opening", "Opening…")} label={t("react.workflows.run_bar_review_request", "Review request")} navigationBusy={navigationBusy} /> : null}
+          {stopAction ? <RunBarAction action={stopAction} busyLabel={t("react.jobs.cancelling", "Cancelling…")} label={t("react.workflows.run_bar_stop", "Stop")} navigationBusy={navigationBusy} /> : null}
+          {runAgainAction && !historical ? <RunBarAction action={runAgainAction} busyLabel={t("react.extensions.starting", "Starting…")} label={t("react.workflows.run_bar_run_again", "Run again")} navigationBusy={navigationBusy} /> : null}
           {clearMarksAction ? <IconButton icon={X} size="small" label={t("react.workflows.run_bar_clear_marks", "Clear marks")}
             disabled={navigationBusy || clearMarksAction.disabled || clearMarksAction.busy} onClick={() => invokeNavigation(clearMarksAction.onInvoke)} /> : null}
         </span>
-      </> : <span className="workflow-runbar-text" role="status">
+      </> : <>{selection.kind === "loading" ? <span className="workflow-runbar-icon" data-tone="running"><ToneIcon tone="running" /></span> : null}<span className="workflow-runbar-text" role="status">
         <span className="workflow-runbar-title" id={`${id}-title`}>{selection.kind === "loading"
           ? t("react.workflows.run_bar_loading", "Loading Test Run…")
           : selection.kind === "error"
             ? t("react.workflows.run_bar_unavailable", "Test Run could not be verified")
             : t("react.workflows.run_bar_empty", "No Test Run selected")}</span>
-      </span>}
+      </span></>}
       {actionNotice ? <div className="workflow-runbar-notice"><DsAlert title={actionNotice.message} tone={actionNotice.kind === "error" ? "danger" : "neutral"} /></div> : null}
     </section>
   );

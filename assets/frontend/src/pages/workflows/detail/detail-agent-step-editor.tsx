@@ -1,6 +1,8 @@
 import { useId } from "react";
 import { AgentFiles } from "./detail-agent-files";
 import { DsSelect, RequiredLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { agentParticipants, applyAgentBlockIntent, effectiveAgentBlockKey, parseAgentMap } from "./detail-agent-step-fields";
@@ -20,6 +22,7 @@ export type AgentStepEditorContext = {
 };
 export function AgentBindingFields({ ctx }: Readonly<{ ctx: AgentStepEditorContext }>) {
   const { t } = useI18n(); const id = useId(); const draft = ctx.agentDrafts;
+  const catalogLoaderShown = useLoaderDelay(Boolean(ctx.agentCatalogQuery.isLoading));
   const participants = agentParticipants(ctx.agentWorkflowRecord);
   const bound = participants.find((row) => row.key === draft.participantKey);
   const participantOptions: Array<{ value: string; label: string; disabled?: boolean }> = participants.map((row) => ({ value: row.key, label: row.key }));
@@ -38,9 +41,9 @@ export function AgentBindingFields({ ctx }: Readonly<{ ctx: AgentStepEditorConte
       <DsSelect ariaLabel={t("react.workflows.agent", "Agent")} required={draft.mode === "direct"} id="step-agent-select" value={draft.mode === "participant" ? bound?.agentId || ctx.stepAgentId : ctx.stepAgentId} options={ctx.stepAgentOptions}
         disabled={draft.mode === "participant" || ctx.stepAgentLocked || ctx.agentCatalogQuery.isLoading} onChange={(value) => { draft.editDirect(); ctx.setStepAgentId(value); }} />
     </label>
-    {ctx.agentCatalogQuery.isLoading ? <p className="fs-field-helper">{t("react.workflows.loading_agent_catalog", "Loading agent catalog…")}</p> : null}
+    {catalogLoaderShown ? <p className="fs-field-helper"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_agent_catalog", "Loading agent catalog…")} /></p> : null}
     {ctx.agentCatalogQuery.isError ? <p className="fs-field-helper">{t("react.workflows.agent_catalog_could_not_be_loaded_reopen_this_step_to_retry", "Agent catalog could not be loaded. Reopen this step to retry.")}</p> : null}
-    {!ctx.agentCatalogQuery.isLoading && !ctx.agentCatalogQuery.isError && !ctx.stepAgentOptions.length ? <p className="fs-field-helper">{t("react.workflows.no_agents_are_available_create_or_enable_an_agent_in_registry_before_saving_this_step", "No agents are available. Create or enable an agent in Registry before saving this step.")}</p> : null}
+    {!ctx.agentCatalogQuery.isLoading && !catalogLoaderShown && !ctx.agentCatalogQuery.isError && !ctx.stepAgentOptions.length ? <p className="fs-field-helper">{t("react.workflows.no_agents_are_available_create_or_enable_an_agent_in_registry_before_saving_this_step", "No agents are available. Create or enable an agent in Registry before saving this step.")}</p> : null}
     <AgentContractMappingFields ctx={ctx} />
     <AgentFiles {...(ctx.availableWorkflowVariableSuggestions === undefined ? {} : { suggestions: ctx.availableWorkflowVariableSuggestions })} {...(ctx.renderWorkflowVariableInput === undefined ? {} : { renderVariableInput: ctx.renderWorkflowVariableInput })} value={ctx.stepOverrideDraft} onChange={(value) => { draft.touchOverride(); ctx.setStepOverrideDraft(value); }} />
   </div>;
@@ -48,7 +51,8 @@ export function AgentBindingFields({ ctx }: Readonly<{ ctx: AgentStepEditorConte
 
 function AgentContractMappingFields({ ctx }: Readonly<{ ctx: AgentStepEditorContext }>) {
   const { t } = useI18n(); const preview = ctx.stepContractPreviewQuery;
-  if (preview?.isLoading) return <p className="fs-field-helper">{t("react.workflows.agent_contract_loading", "Loading Agent inputs and outputs…")}</p>;
+  const contractLoaderShown = useLoaderDelay(Boolean(preview?.isLoading));
+  if (preview?.isLoading || contractLoaderShown) return contractLoaderShown ? <p className="fs-field-helper"><DsLoader variant="orbit-inline" label={t("react.workflows.agent_contract_loading", "Loading Agent inputs and outputs…")} /></p> : null;
   if (preview?.isError) return <p className="fs-field-helper">{t("react.workflows.agent_contract_unavailable", "Agent inputs and outputs could not be loaded. Existing mappings are retained.")}</p>;
   if (!preview?.data) return null;
   const contract = preview.data;

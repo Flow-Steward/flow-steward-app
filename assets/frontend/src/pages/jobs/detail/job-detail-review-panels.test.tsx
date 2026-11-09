@@ -298,7 +298,7 @@ describe("ReviewWorkspacePanel", () => {
   it.each([
     { thread_id: "thread-7" },
     { approval_id: "gate-current" },
-  ])("waits for both approval identities before exposing a decision: %j", (gate) => {
+  ])("waits for both approval identities before exposing a decision: %j", async (gate) => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <ReviewWorkspacePanel
@@ -311,7 +311,7 @@ describe("ReviewWorkspacePanel", () => {
       />,
     );
 
-    expect(screen.getByText("Loading approval workspace…")).toBeInTheDocument();
+    expect(await screen.findByText("Loading approval workspace…")).toBeInTheDocument();
     expect(screen.queryByText("Unverified generic gate")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-reject-button")).not.toBeInTheDocument();
@@ -337,7 +337,7 @@ describe("ReviewWorkspacePanel", () => {
         workspace={{ kind: "document_review", title: "Generic review" }}
       />,
     );
-    expect(screen.getByText("Loading approval workspace…")).toBeInTheDocument();
+    expect(await screen.findByText("Loading approval workspace…")).toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
 

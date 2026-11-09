@@ -489,7 +489,7 @@ export function GroupEditorSurface({ ctx }: Readonly<{ ctx: Record<string, any> 
               <Button disabled={savingWorkflowSurface === "group"} onClick={() => ctx.cancelNewDrawerItem?.()} type="button" variant="secondary">
                 {t("common.cancel", "Cancel")}
               </Button>
-              <Button disabled={savingWorkflowSurface === "group"} onClick={saveGroup} type="button" variant="primary">
+              <Button busy={savingWorkflowSurface === "group"} busyLabel={t("react.settings.saving", "Saving…")} onClick={saveGroup} type="button" variant="primary">
                 {createLabel}
               </Button>
             </> : <>

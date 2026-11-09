@@ -8,6 +8,9 @@ import { ChevronRight } from "lucide-react";
 import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsValueChip, RowActionMenu } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { findWorkflowLinkedProjectId } from "@/pages/workflows/shared/project-context";
 import {
@@ -433,9 +436,9 @@ function WorkflowHeaderActions({
   return (
     <div className="ml-auto flex flex-wrap items-center gap-2" id="workflow-header-actions">
       {showToggle ? (
-        <button aria-label={enabled ? t("react.workflows.disable_workflow", "Disable workflow") : t("react.workflows.enable_workflow", "Enable workflow")} className="fs-button" data-workflow-status-toggle="true" disabled={togglingEnabled} onClick={onToggleEnabled} type="button">
+        <Button aria-label={enabled ? t("react.workflows.disable_workflow", "Disable workflow") : t("react.workflows.enable_workflow", "Enable workflow")} busy={togglingEnabled} busyLabel={t("react.settings.updating", "Updating…")} data-workflow-status-toggle="true" onClick={onToggleEnabled} type="button" variant={null}>
           {enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-        </button>
+        </Button>
       ) : null}
       {policy.showInternalStructureActions && canAuthor && contextReady ? <Link className="fs-button" data-workflow-header-action="builder" to={builderPath}>{t("react.workflows.open_builder", "Open builder")}</Link> : null}
       {showView ? (
@@ -505,6 +508,7 @@ export function WorkflowSummaryHeader({
   const metadataError = (!portability && exportPolicyQuery.error) || (discoverProject && !projectId && linkedProjectQuery.error);
   const contextReady = Boolean(projectId || discoverProject && linkedProjectQuery.isSuccess);
   const metadataPending = (!portability && exportPolicyQuery.isPending) || (discoverProject && canAuthor && !projectId && linkedProjectQuery.isPending);
+  const metadataLoaderShown = useLoaderDelay(Boolean(metadataPending));
   const effectiveProjectId = projectId || (discoverProject ? linkedProjectQuery.data : "") || "";
   const overviewPath = workflowPathWithProject(workflowId, effectiveProjectId);
   const builderPath = workflowPathWithProject(workflowId, effectiveProjectId, "/builder");
@@ -593,7 +597,7 @@ export function WorkflowSummaryHeader({
           <WorkflowHeaderActions builderPath={builderPath} canAuthor={canAuthor} contextReady={contextReady} enabled={enabled} menuItems={menuItems} menuOpen={menuOpen} onToggleEnabled={onToggleEnabled} policy={policy} setMenuOpen={setMenuOpen} togglingEnabled={togglingEnabled} />
         </div>
         <WorkflowAvailabilityNotice exportPolicy={exportPolicy} policy={policy} />
-        {metadataPending ? <p className="text-sm fs-ink-secondary" role="status">{t("react.workflows.loading_workflow_data", "Loading workflow data...")}</p> : null}
+        {metadataLoaderShown ? <p className="text-sm fs-ink-secondary"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_workflow_data", "Loading workflow data…")} /></p> : null}
         {metadataError ? (
           <DsAlert title={t("react.workflows.workflow_unavailable", "Workflow unavailable")} tone="danger">
             {metadataError instanceof Error

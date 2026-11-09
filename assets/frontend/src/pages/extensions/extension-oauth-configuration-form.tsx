@@ -4,6 +4,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 
 import { isHttpError } from "@/lib/http/errors";
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
+import { Button } from "@/components/ui/button";
 import {
   previewExtensionOAuthConfiguration,
   saveExtensionOAuthConfiguration,
@@ -492,13 +493,15 @@ export function OAuthConfigurationForm({
 
       {errors.form ? <p className="fs-field-helper error" role="alert">{errors.form}</p> : null}
       <div className="fs-manifest-actions">
-        <button
-          className="fs-button primary"
-          disabled={!dirty || busy}
+        <Button
+          busy={busy}
+          busyLabel={t("react.extensions.saving", "Saving…")}
+          disabled={!dirty}
           type="submit"
+          variant="primary"
         >
-          {busy ? t("react.extensions.saving", "Saving…") : t("react.extensions.save_configuration", "Save configuration")}
-        </button>
+          {t("react.extensions.save_configuration", "Save configuration")}
+        </Button>
       </div>
 
       {/* Nothing is removed, but the change reaches accounts outside this form:

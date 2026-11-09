@@ -1,9 +1,11 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/useAuth";
 import { queryKeys } from "@/lib/query/keys";
@@ -69,12 +71,13 @@ function HistoryEntries({
   userTimezone,
 }: Readonly<HistoryEntriesProps>) {
   const { t } = useI18n();
-  if (isLoading) {
-    return (
-      <div className="inline-flex items-center gap-2 text-sm fs-ink-secondary">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("react.projects.loading_history", "Loading history…")} </div>
-    );
+  const loaderShown = useLoaderDelay(isLoading);
+  if (isLoading || loaderShown) {
+    return loaderShown ? (
+      <div className="text-sm fs-ink-secondary">
+        <DsLoader label={t("react.projects.loading_history", "Loading history…")} variant="orbit-inline" />
+      </div>
+    ) : null;
   }
   if (error) {
     return (
@@ -131,12 +134,13 @@ function RevisionDiff({
   isLoading,
 }: Readonly<{ changes: Entity[]; error: unknown; isLoading: boolean }>) {
   const { t } = useI18n();
-  if (isLoading) {
-    return (
-      <div className="inline-flex items-center gap-2 text-sm fs-ink-secondary">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("react.projects.loading_diff", "Loading diff…")} </div>
-    );
+  const loaderShown = useLoaderDelay(isLoading);
+  if (isLoading || loaderShown) {
+    return loaderShown ? (
+      <div className="text-sm fs-ink-secondary">
+        <DsLoader label={t("react.projects.loading_diff", "Loading diff…")} variant="orbit-inline" />
+      </div>
+    ) : null;
   }
   if (error) {
     return (
@@ -299,15 +303,16 @@ export function ProjectHistoryPanel({ projectId }: Readonly<{ projectId: string 
         footer={
           <>
             {canRestoreRevision ? (
-              <button
-                className="fs-button danger"
-                disabled={restoreBusy}
+              <Button
+                busy={restoreBusy}
+                busyLabel={t("react.trash.restoring", "Restoring…")}
                 onClick={() => {
                   ignoreAsyncResult(restoreSelectedRevision());
                 }}
                 type="button"
+                variant="danger"
               >
-                {t("react.projects.restore_this_revision", "Restore this revision")} </button>
+                {t("react.projects.restore_this_revision", "Restore this revision")} </Button>
             ) : (
               <span className="fs-field-helper">{t("react.projects.viewer_mode_is_read_only_on_project_history", "Viewer mode is read-only on project history.")}</span>
             )}

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { type DsFilterField, type DsTableSort } from "@/components/shared/design-system";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 import {
   checkMcpConnectorHealth,
@@ -456,8 +457,10 @@ export function useMcpListState() {
     rowMenu,
   }, t);
 
+  const tableLoaderShown = useLoaderDelay(connectorsQuery.isLoading);
   const tableState = mcpTableState({
     loading: connectorsQuery.isLoading,
+    loaderShown: tableLoaderShown,
     loadError,
     total,
     filtered: Boolean(search.trim() || projectId || healthFilter || credentialsFilter),

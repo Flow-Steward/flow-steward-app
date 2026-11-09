@@ -1,6 +1,9 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
+
 import "@/components/shared/inline-confirm.css";
 
 /**
@@ -15,8 +18,10 @@ import "@/components/shared/inline-confirm.css";
  *   named verb plus object, never "Yes".
  * - Escape cancels, unless the request is in flight, and it stops here, so the
  *   bulk bar underneath does not also clear its selection.
- * - While the request runs both actions disable and the label takes its
- *   progress form; a failure restores them with the reason beside them.
+ * - While the request runs No disables and the confirming action is busy: it
+ *   ignores presses and, after the loader delay, shows the round Loader with
+ *   the progress label at one width; a failure restores them with the reason
+ *   beside them.
  *
  * Outcome announcements and focus after the decision belong to the page: the
  * row or the selection this surface stood for is gone by then.
@@ -48,6 +53,7 @@ export function InlineConfirm({
 }>) {
   const { t } = useI18n();
   const noRef = useRef<HTMLButtonElement>(null);
+  const busyShown = useLoaderDelay(pending);
 
   useEffect(() => {
     noRef.current?.focus();
@@ -69,8 +75,8 @@ export function InlineConfirm({
       <div className="fs-inline-confirm-actions">
         <button className="fs-inline-confirm-button" disabled={pending} onClick={onCancel} ref={noRef} type="button">
           {cancelLabel ?? t("settings.common.no", "No")} </button>
-        <button className={`fs-inline-confirm-button ${tone}`} disabled={pending} onClick={onConfirm} type="button">
-          {pending ? pendingLabel : confirmLabel}
+        <button aria-busy={pending || undefined} className={`fs-inline-confirm-button ${tone}`} onClick={() => { if (!pending) onConfirm(); }} type="button">
+          <ButtonBusyContent busyLabel={pendingLabel} shown={busyShown}>{confirmLabel}</ButtonBusyContent>
         </button>
       </div>
       {error ? (

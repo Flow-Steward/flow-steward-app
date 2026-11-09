@@ -1809,7 +1809,7 @@ body[data-bulk-action-bar="2"] .fs-shell-main {
 
 .fs-progress-indeterminate .fs-progress-indicator {
   width: 40%;
-  animation: fs-progress-slide var(--fs-spinner-loop, 1s) linear infinite alternate;
+  animation: fs-progress-slide var(--fs-progress-loop, 1s) linear infinite alternate;
 }
 
 @keyframes fs-progress-slide { from { transform: translateX(-25%); } to { transform: translateX(175%); } }
@@ -2249,8 +2249,26 @@ body[data-bulk-action-bar="2"] .fs-shell-main {
   transform: translate(-50%, -50%);
 }
 .fs-button[aria-busy="true"], .fs-icon-button[aria-busy="true"] { cursor: default; }
+
+/* Busy Button: the resting and the busy content share one cell, so the button
+   keeps the wider width in both states and centres what shows. */
+.fs-button-busy-stack { display: inline-grid; gap: inherit; }
+
+.fs-button-busy-stack > span {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
+}
+
+.fs-button-busy-stack > span[data-on="false"] { visibility: hidden; }
 .fs-loader-with-label { display: inline-flex; align-items: center; gap: var(--fs-space-100); color: var(--fs-text-secondary); font-family: var(--ff-body); font-size: var(--fs-type-caption-size); }
 .fs-loader-with-label[data-loader-variant^="wide-"] { flex-direction: column; gap: var(--fs-space-150); }
+
+/* Leading one line of text: the round mono Loader takes the line's own colour
+   and type, 8px before the words, so the line keeps its layout. */
+.fs-loader-with-label[data-loader-variant="orbit-inline"] { color: inherit; font: inherit; }
 
 @media (pointer: coarse) {
   .fs-button { margin: max(0px, calc((var(--fs-hit-target) - var(--fs-button-height-md)) / 2)); }

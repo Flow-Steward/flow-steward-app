@@ -28128,6 +28128,9 @@ msgstr ""
 msgid "react.projects.secret_approval.loading"
 msgstr ""
 
+msgid "react.projects.secret_approval.approving"
+msgstr ""
+
 msgid "react.projects.secret_approval.title"
 msgstr ""
 

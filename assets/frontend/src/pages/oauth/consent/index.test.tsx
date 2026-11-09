@@ -190,6 +190,7 @@ describe("OAuthConsentPage", () => {
     fireEvent.click(allow);
     fireEvent.click(screen.getByRole("button", { name: "Deny" }));
     expect(mockedDecide).toHaveBeenCalledTimes(1);
+    expect(allow).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Deny" })).toBeDisabled();
   });
 

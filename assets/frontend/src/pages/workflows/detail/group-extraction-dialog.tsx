@@ -314,8 +314,8 @@ export function GroupExtractionDialog({ workflowId, groupId, groupName, revision
       <div className="mt-5 flex flex-wrap justify-end gap-2">
         <Button disabled={busy} onClick={() => { void dismiss(); }} variant="secondary">{t("common.close", "Close")}</Button>
         {!completed ? <>
-          <Button disabled={unavailable} onClick={() => void requestConversion(false)} variant="secondary">{t("react.workflows.preview_conversion", "Preview conversion")}</Button>
-          <Button aria-describedby={createReason ? "conversion-create-reason" : undefined} disabled={unavailable || !preview?.can_convert} title={createReason || undefined} onClick={() => void requestConversion(true)}>{t("react.workflows.create_child_workflow", "Create child workflow")}</Button>
+          <Button busy={requestPhase === "preview"} busyLabel={t("react.workflows.convert_preview_pending", "Checking conversion…")} disabled={requestPhase !== "preview" && unavailable} onClick={() => void requestConversion(false)} variant="secondary">{t("react.workflows.preview_conversion", "Preview conversion")}</Button>
+          <Button aria-describedby={createReason ? "conversion-create-reason" : undefined} busy={requestPhase === "apply"} busyLabel={t("react.workflows.creating", "Creating…")} disabled={requestPhase !== "apply" && (unavailable || !preview?.can_convert)} title={createReason || undefined} onClick={() => void requestConversion(true)}>{t("react.workflows.create_child_workflow", "Create child workflow")}</Button>
         </> : null}
       </div>
       {!completed ? <p aria-live="polite" className="min-h-5 text-right text-sm text-[var(--fs-text-secondary)]" id="conversion-create-reason">{createReason}</p> : null}

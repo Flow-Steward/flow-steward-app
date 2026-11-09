@@ -72,8 +72,7 @@ export function storedHeadersMessage(mode: McpSettingsDraft["headers_mode"], t: 
   return t("react.registry.saved_headers_stay_masked_and_unchanged", "Saved headers stay masked and unchanged.");
 }
 
-export function oauthStartLabel(pending: boolean, mustRestart: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (pending) return t("react.extensions.starting", "Starting…");
+export function oauthStartLabel(mustRestart: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return mustRestart ? t("react.registry.reconnect_authorization", "Reconnect Authorization") : t("react.registry.start_authorization", "Start Authorization");
 }
 

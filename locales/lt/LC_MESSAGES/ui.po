@@ -6240,7 +6240,7 @@ msgid "react.monitoring.clean_orphan_data"
 msgstr "Išvalyti apleistus duomenis"
 
 msgid "react.monitoring.cleaning"
-msgstr "Valoma"
+msgstr "Valoma…"
 
 msgid "react.monitoring.clear_filters"
 msgstr "Išvalyti filtrus"
@@ -6733,7 +6733,7 @@ msgid "react.monitoring.refine_by_workflow_and_event_hierarchy_above"
 msgstr "Patikslinkite pagal darbo eigą ir aukščiau esančią įvykių hierarchiją."
 
 msgid "react.monitoring.refreshing"
-msgstr "Atnaujinama..."
+msgstr "Atnaujinama…"
 
 msgid "react.monitoring.remove_value1_filter"
 msgstr "Pašalinti filtrą {value1}"
@@ -6745,7 +6745,7 @@ msgid "react.monitoring.replica_completeness"
 msgstr "Egzempliorių aprėptis:"
 
 msgid "react.monitoring.requesting_redrive"
-msgstr "Prašoma pakartotinio siuntimo..."
+msgstr "Prašoma pakartotinio siuntimo…"
 
 msgid "react.monitoring.retrying"
 msgstr "Kartojama"
@@ -7299,10 +7299,10 @@ msgid "react.projects.load_the_project_workflow_inventory_before_creating_a_rout
 msgstr "Prieš kurdami maršrutą įkelkite projekto darbo eigų sąrašą."
 
 msgid "react.projects.loading_channels"
-msgstr "Įkeliami kanalai..."
+msgstr "Įkeliami kanalai…"
 
 msgid "react.projects.loading_connections"
-msgstr "Įkeliami ryšiai..."
+msgstr "Įkeliami ryšiai…"
 
 msgid "react.projects.loading_datasets"
 msgstr "Įkeliami duomenų rinkiniai..."
@@ -7314,7 +7314,7 @@ msgid "react.projects.loading_history"
 msgstr "Įkeliama istorija…"
 
 msgid "react.projects.loading_notification_routes"
-msgstr "Įkeliami pranešimų maršrutai..."
+msgstr "Įkeliami pranešimų maršrutai…"
 
 msgid "react.projects.loading_project_data_connections"
 msgstr "Įkeliami projekto duomenų ryšiai..."
@@ -7323,7 +7323,7 @@ msgid "react.projects.loading_project_settings"
 msgstr "Įkeliami projekto nustatymai…"
 
 msgid "react.projects.loading_project_workflows"
-msgstr "Įkeliamos projekto darbo eigos..."
+msgstr "Įkeliamos projekto darbo eigos…"
 
 msgid "react.projects.loading_projects"
 msgstr "Įkeliami projektai"
@@ -7332,7 +7332,7 @@ msgid "react.projects.loading_workflow_catalog"
 msgstr "Įkeliamas darbo eigų katalogas..."
 
 msgid "react.projects.loading_workspaces"
-msgstr "Įkeliamos darbo sritys..."
+msgstr "Įkeliamos darbo sritys…"
 
 msgid "react.projects.local_timezone"
 msgstr "vietinė laiko juosta"
@@ -11950,7 +11950,7 @@ msgid "react.settings.delete_value1_this_cannot_be_undone"
 msgstr "Ištrinti {value1}? Šio veiksmo atšaukti negalima."
 
 msgid "react.settings.deleting"
-msgstr "Trinama..."
+msgstr "Trinama…"
 
 msgid "react.settings.deployment_name"
 msgstr "Diegimo pavadinimas"
@@ -12195,7 +12195,7 @@ msgid "react.settings.loading_account_settings"
 msgstr "Įkeliami paskyros nustatymai"
 
 msgid "react.settings.loading_general_settings_snapshot"
-msgstr "Įkeliama bendrųjų nustatymų momentinė kopija..."
+msgstr "Įkeliama bendrųjų nustatymų momentinė kopija…"
 
 msgid "react.settings.loading_personal_tokens"
 msgstr "Įkeliami asmeniniai prieigos raktai"
@@ -13772,7 +13772,7 @@ msgid "react.shared.reassign"
 msgstr ". Priskirti iš naujo:"
 
 msgid "react.shared.refreshing"
-msgstr "Atnaujinama..."
+msgstr "Atnaujinama…"
 
 msgid "react.shared.relative_days"
 msgstr "{count} d."
@@ -18494,7 +18494,7 @@ msgid "react.workflows.linked_variant_2272bea6"
 msgstr "susieta"
 
 msgid "react.workflows.linking_project"
-msgstr "Susiejamas projektas..."
+msgstr "Susiejamas projektas…"
 
 msgid "react.workflows.list"
 msgstr "Sąrašas"
@@ -23576,7 +23576,7 @@ msgid "registry.workflow_detail.library.title"
 msgstr "Biblioteka"
 
 msgid "registry.workflow_detail.loading"
-msgstr "Įkeliama..."
+msgstr "Įkeliama…"
 
 msgid "registry.workflow_detail.on_failure.save"
 msgstr "Išsaugoti nesėkmės nustatymus"
@@ -25093,7 +25093,7 @@ msgid "settings.loading.mcp_connectors"
 msgstr "Įkeliamos MCP jungtys..."
 
 msgid "settings.loading.model_providers"
-msgstr "Įkeliami modelių tiekėjai..."
+msgstr "Įkeliami modelių tiekėjai…"
 
 msgid "settings.loading.notifications"
 msgstr "Įkeliami pranešimai..."
@@ -25418,7 +25418,7 @@ msgid "settings.retention.saved"
 msgstr "Saugojimo nustatymai išsaugoti."
 
 msgid "settings.retention.saving"
-msgstr "Išsaugoma..."
+msgstr "Išsaugoma…"
 
 msgid "settings.retention.script_note"
 msgstr ""
@@ -28850,7 +28850,7 @@ msgid "react.jobs.file_preview_hide"
 msgstr "Slėpti"
 
 msgid "react.jobs.file_preview_loading"
-msgstr "Įkeliama peržiūra..."
+msgstr "Įkeliama peržiūra…"
 
 msgid "react.jobs.file_preview_not_utf8"
 msgstr "Šis failas nėra UTF-8 tekstas, todėl jo negalima parodyti čia. Atsisiųskite jį."
@@ -29626,7 +29626,10 @@ msgid "react.registry.typed_json_value"
 msgstr "Naudojama kaip tipizuota JSON reikšmė."
 
 msgid "react.projects.secret_approval.loading"
-msgstr "Tikrinamas saugomų paslapčių naudojimas..."
+msgstr "Tikrinamas saugomų paslapčių naudojimas…"
+
+msgid "react.projects.secret_approval.approving"
+msgstr "Tvirtinama…"
 
 msgid "react.projects.secret_approval.title"
 msgstr "Saugomoms paslaptims reikia patvirtinimo"

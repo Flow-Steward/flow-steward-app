@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useRef, useState } from "react";
 
 import { DsAlert, DsDialog } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { WorkflowCloneDialog } from "@/pages/workflows/shared/clone-dialog";
 import type { WorkflowHeaderMutations } from "@/pages/workflows/shared/header-actions";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -61,14 +62,16 @@ export function WorkflowHeaderMutationDialogs({
               type="button"
             >
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button danger"
-              disabled={controller.deleting || !confirmed}
+            <Button
+              busy={controller.deleting}
+              busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")}
+              disabled={!confirmed}
               onClick={() => ignoreAsyncResult(controller.performDelete())}
               type="button"
+              variant="danger"
             >
-              {controller.deleting ? t("react.workflows.deleting_variant_43b5894c", "Deleting…") : t("react.workflows.delete_workflow_variant_b438c4a8", "Delete workflow")}
-            </button>
+              {t("react.workflows.delete_workflow_variant_b438c4a8", "Delete workflow")}
+            </Button>
           </>
         }
         initialFocusRef={confirmationRef}

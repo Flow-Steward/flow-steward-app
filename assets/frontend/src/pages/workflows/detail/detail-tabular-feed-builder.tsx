@@ -1,4 +1,5 @@
 import { DsFormSelect, OptionalLabel, RequiredLabel } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -541,14 +542,17 @@ export function TabularFeedBuilder({ ctx, inputClass }: Readonly<{ ctx: Workflow
 
       {renderWhen(["inspect", "read"].includes(operation), (
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="fs-button sm secondary"
-            disabled={inspectPending || !textOrEmpty(input.artifact_handle)}
+          <Button
+            busy={inspectPending}
+            busyLabel={t("react.workflows.inspecting", "Inspecting…")}
+            disabled={!textOrEmpty(input.artifact_handle)}
             onClick={() => void inspectArtifact()}
+            size="sm"
             type="button"
+            variant="secondary"
           >
-            {inspectPending ? t("react.workflows.inspecting", "Inspecting…") : t("react.workflows.inspect_artifact", "Inspect artifact")}
-          </button>
+            {t("react.workflows.inspect_artifact", "Inspect artifact")}
+          </Button>
           {inspectError ? <span className="text-xs text-[var(--fs-status-danger)]">{inspectError}</span> : null}
         </div>
       ))}

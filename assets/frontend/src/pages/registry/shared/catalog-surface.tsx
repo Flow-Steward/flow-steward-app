@@ -52,6 +52,9 @@ import type {
   RegistryEntity,
 } from "@/pages/registry/shared/catalog-surface-helpers";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { AuthContext } from "@/lib/auth/context";
 
@@ -160,6 +163,7 @@ export function RegistryCatalogSurface({
     queryKey: listQueryKey,
     queryFn: () => fetchRegistryList(endpoint),
   });
+  const listLoaderShown = useLoaderDelay(listQuery.isLoading);
 
   const modelOptionsQuery = useQuery({
     queryKey: ["model-selection", "options"],
@@ -686,7 +690,7 @@ export function RegistryCatalogSurface({
                 onRowClick={openEntity}
                 rowKey={(row) => normalizeString(row[idKey] || row._entity_id || row.id)}
                 rows={visibleRows}
-                state={renderWhen(!visibleRows.length, (
+                state={listLoaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : renderWhen(!listQuery.isLoading && !visibleRows.length, (
                     <div className="fs-table-state" data-testid={listGridId}>
                       <strong>{normalizeString((gridConfig.empty_state as Record<string, unknown>)?.title) || t("react.registry.nothing_here_yet", "Nothing here yet")}</strong>
                       <span>{normalizeString((gridConfig.empty_state as Record<string, unknown>)?.description)}</span>
@@ -713,9 +717,9 @@ export function RegistryCatalogSurface({
                 type="button"
               >
                 {t("extensions.repeater.cancel", "Cancel")}</button>
-              <button className="fs-button danger" disabled={saving} onClick={() => ignoreAsyncResult(confirmDeleteEntity())} type="button">
-                {renderChoice(saving, t("react.workflows.deleting_variant_43b5894c", "Deleting…"), t("settings.model_providers.delete", "Delete"))}
-              </button>
+              <Button busy={saving} busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")} onClick={() => ignoreAsyncResult(confirmDeleteEntity())} type="button" variant="danger">
+                {t("settings.model_providers.delete", "Delete")}
+              </Button>
             </>
           }
           onClose={() => {
@@ -811,14 +815,15 @@ export function RegistryCatalogSurface({
               <>
                 <button className="fs-button" onClick={cancelClone} type="button">
                   {t("extensions.repeater.cancel", "Cancel")}</button>
-                <button
-                  className="fs-button primary"
-                  disabled={saving}
+                <Button
+                  busy={saving}
+                  busyLabel={t("react.workflows.cloning", "Cloning…")}
                   onClick={() => ignoreAsyncResult(submitClone())}
                   type="button"
+                  variant="primary"
                 >
-                  {renderChoice(saving, t("react.workflows.cloning", "Cloning…"), t("react.registry.clone", "Clone"))}
-                </button>
+                  {t("react.registry.clone", "Clone")}
+                </Button>
               </>
             }
             onClose={cancelClone}

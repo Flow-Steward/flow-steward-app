@@ -2,6 +2,8 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { McpCatalogIcon } from "@/pages/registry/mcp/mcp-catalog-presentation";
 import { type ReactNode } from "react";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+
 import { type KeyValueRow } from "./key-value-rows";
 import { type ScopeRow } from "./mcp-form-rows";
 import { mcpStatusLabel } from "./mcp-status-label";
@@ -316,23 +318,25 @@ export function projectCanManage(
 
 export function mcpTableState({
   loading,
+  loaderShown,
   loadError,
   total,
   filtered,
   onRetry,
 }: Readonly<{
   loading: boolean;
+  /** `useLoaderDelay(loading)` from the owner: the block Loader waits 400ms and stays 500ms. */
+  loaderShown: boolean;
   loadError: string;
   total: number;
   /** Whether a search or a filter narrowed the list. */
   filtered: boolean;
   onRetry: () => void;
 }>, t: I18nContextValue["t"] = fallbackContext.t): ReactNode {
-  if (loading) {
-    return <div className="fs-table-state">
-      <strong>{t("react.registry.loading_mcp_connectors", "Loading MCP connectors")}</strong>
-      <span>{t("react.registry.the_catalog_will_remain_in_this_table_layout", "The catalog will remain in this table layout.")}</span>
-    </div>;
+  if (loading || loaderShown) {
+    return loaderShown ? <div className="fs-table-state">
+      <DsLoader label={t("react.registry.loading_mcp_connectors", "Loading MCP connectors")} variant="wide-block" />
+    </div> : null;
   }
   if (loadError) {
     return <div className="fs-table-state">

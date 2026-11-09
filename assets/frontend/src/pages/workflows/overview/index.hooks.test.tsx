@@ -1,4 +1,5 @@
 import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
+import { LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
 import type * as ProjectContext from "@/pages/workflows/shared/project-context";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -266,6 +267,8 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
     await assertUsable(); expect(requested).toContain("/api/workflows/wf/linked-projects");
     // Finding both linked projects must not select either without a user choice.
     await act(async () => { releaseLinks(); await vi.advanceTimersByTimeAsync(0); });
+    // The linked-projects line loader was painted, so it holds its minimum time before the picker replaces it.
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOADER_MIN_SHOWN_MS); });
     await assertUsable();
     expect(requested.filter((path) => /^\/api\/projects\/[^/]+\/workflows$/.test(path))).toEqual([]);
     expect(requested.filter((path) => path.endsWith("/hooks"))).toEqual([]);

@@ -3,7 +3,9 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 /* eslint-disable react-refresh/only-export-components */
 import { useId, useLayoutEffect, useState } from "react";
 
-import { Loader2 } from "lucide-react";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 
 import type {
   ApprovalDecisionPayload,
@@ -401,13 +403,13 @@ function ReviewLoadingNotice({
   isLoading,
 }: Readonly<{ isLoading: boolean }>) {
   const { t } = useI18n();
-  if (!isLoading) {
+  const loaderShown = useLoaderDelay(isLoading);
+  if (!loaderShown) {
     return null;
   }
   return (
-    <div className="inline-flex items-center gap-2 fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-secondary">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      {t("react.jobs.loading_approval_workspace", "Loading approval workspace…")} </div>
+    <p className="text-sm fs-ink-secondary">
+      <DsLoader variant="orbit-inline" label={t("react.jobs.loading_approval_workspace", "Loading approval workspace…")} /></p>
   );
 }
 
@@ -633,15 +635,16 @@ function ReviewDecisionButtons({
   const { t } = useI18n();
   if (kind === "clarifying_answer") {
     return (
-      <button
-        className="fs-button primary"
+      <Button
+        busy={submitting}
+        busyLabel={t("react.settings.sending", "Sending…")}
         data-testid="approval-answer-submit"
-        disabled={submitting}
         onClick={() => ignoreAsyncResult(submit("answer"))}
         type="button"
+        variant="primary"
       >
         {firstReadableText(workspace.submit_label, t("jobs.detail.review.send_answer", "Send answer"))}
-      </button>
+      </Button>
     );
   }
   return (

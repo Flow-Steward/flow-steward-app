@@ -389,7 +389,8 @@ describe("MonitoringPage", () => {
     const url = new URL(clicked[0]);
     expect(url.pathname).toBe("/api/system/diagnostics/report");
     expect(url.searchParams.get("download_token")).toMatch(/^[A-Za-z0-9]{32}$/);
-    expect(screen.getByRole("button", { name: "Preparing report…" })).toBeDisabled();
+    // Busy at once; "Preparing report…" follows after the loader delay.
+    expect(screen.getByRole("button", { name: "Download diagnostics" })).toHaveAttribute("aria-busy", "true");
     clickSpy.mockRestore();
   });
 

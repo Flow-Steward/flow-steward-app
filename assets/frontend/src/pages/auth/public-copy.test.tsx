@@ -172,9 +172,12 @@ describe("auth public copy", () => {
     fireEvent.click(submit);
 
     await waitFor(() => expect(submit).toHaveAttribute("aria-busy", "true"));
-    expect(submit).toBeDisabled();
-    expect(screen.getByTestId("auth-submit-spinner")).toBeInTheDocument();
-    expect(within(submit).getByText("Send reset link")).toBeInTheDocument();
+    // Not disabled: a busy button keeps focus and ignores repeat presses instead.
+    expect(submit).toBeEnabled();
+    // After the loader delay the busy label leads with the round mono Loader.
+    const busy = await screen.findByRole("button", { name: "Sending reset link…" });
+    expect(busy).toBe(submit);
+    expect(within(submit).getByTestId("loader-mark")).toHaveClass("fs-loader-orbit");
   });
 
   it("shows password reset request API failures", async () => {

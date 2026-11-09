@@ -24,6 +24,9 @@ import {
 } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { DsAlert, DsDialog, DsSelect, DsTable, RequiredLabel, RowActionMenu, Search } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { columnsFromGridConfig, visibleRowActions } from "@/components/shared/data-grid-adapter";
 import { invalidateModelRoutingQueries, providerErrorMessage } from "@/lib/utils/model-provider-state";
 import { normalizeModelOptions, type ModelOption } from "@/lib/utils/model-options";
@@ -109,8 +112,7 @@ type ProviderDialogProps = {
   usesOfficialEndpoint: boolean;
 };
 
-function submitLabel(saving: boolean, editing: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (saving) return t("project_edit.security.saving", "Saving...");
+function submitLabel(editing: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return editing ? t("react.settings.save_provider", "Save provider") : t("react.settings.create_provider", "Create provider");
 }
 
@@ -144,9 +146,9 @@ function ProviderDialog({
         <>
           <button className="fs-button" disabled={saving} onClick={onClose} type="button">
             {t("common.cancel", "Cancel")} </button>
-          <button className="fs-button primary" disabled={saving} form="provider-form" type="submit">
-            {submitLabel(saving, Boolean(editingProviderId), t)}
-          </button>
+          <Button busy={saving} busyLabel={t("react.settings.saving", "Saving…")} form="provider-form" type="submit" variant="primary">
+            {submitLabel(Boolean(editingProviderId), t)}
+          </Button>
         </>
       }
       initialFocusRef={nameRef}
@@ -344,6 +346,7 @@ export function SettingsProvidersPage() {
     queryKey: ["settings", "providers"],
     queryFn: fetchModelProvidersCollection,
   });
+  const providersLoaderShown = useLoaderDelay(providersQuery.isLoading);
   const modelCatalogQuery = useQuery<{ families?: unknown }>({
     queryKey: ["settings", "model-catalog"],
     queryFn: fetchModelCatalogSettings,
@@ -650,6 +653,17 @@ export function SettingsProvidersPage() {
   const pendingDeleteLabel = pendingDelete
     ? firstStringFromUnknownValue([pendingDelete.name, pendingDelete.display_name, pendingDelete.id])
     : "";
+  let providersTableState: React.ReactNode = null;
+  if (providersLoaderShown) {
+    providersTableState = <div className="fs-table-state"><DsLoader variant="wide-block" /></div>;
+  } else if (!providersQuery.isLoading && !filteredProviders.length) {
+    providersTableState = (
+      <div className="fs-table-state">
+        <strong>{t("react.settings.no_providers_found_2", "No providers found.")}</strong>
+        <span>{t("react.settings.add_a_provider_or_adjust_the_filter", "Add a provider or adjust the filter.")}</span>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -698,14 +712,7 @@ export function SettingsProvidersPage() {
             columns={providerColumns}
             rowKey={(row) => firstStringFromUnknownValue([row.id, ""])}
             rows={providerRows}
-            state={
-              !providersQuery.isLoading && !filteredProviders.length ? (
-                <div className="fs-table-state">
-                  <strong>{t("react.settings.no_providers_found_2", "No providers found.")}</strong>
-                  <span>{t("react.settings.add_a_provider_or_adjust_the_filter", "Add a provider or adjust the filter.")}</span>
-                </div>
-              ) : null
-            }
+            state={providersTableState}
           />
         </article>
       </div>
@@ -735,14 +742,15 @@ export function SettingsProvidersPage() {
           <>
             <button className="fs-button" disabled={saving} onClick={() => setPendingDelete(null)} type="button">
               {t("common.cancel", "Cancel")} </button>
-            <button
-              className="fs-button danger"
-              disabled={saving}
+            <Button
+              busy={saving}
+              busyLabel={t("react.settings.deleting", "Deleting…")}
               onClick={() => pendingDelete && ignoreAsyncResult(handleDelete(pendingDelete))}
               type="button"
+              variant="danger"
             >
-              {saving ? t("react.settings.deleting", "Deleting...") : t("react.settings.delete_provider", "Delete provider")}
-            </button>
+              {t("react.settings.delete_provider", "Delete provider")}
+            </Button>
           </>
         }
         onClose={() => setPendingDelete(null)}

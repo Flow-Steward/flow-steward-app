@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { DsSelect } from "@/components/shared/design-system";
 import "@/pages/extensions/extension-manifest.css";
 import {
@@ -105,7 +107,8 @@ function OAuthConfigurationQueryStatus({
   onRetry: () => void;
 }>) {
   const { t } = useI18n();
-  if (loading) return <p className="fs-empty-copy">{t("react.extensions.loading_configurations", "Loading configurations…")}</p>;
+  const loaderShown = useLoaderDelay(loading);
+  if (loading || loaderShown) return loaderShown ? <p className="fs-empty-copy"><DsLoader label={t("react.extensions.loading_configurations", "Loading configurations…")} variant="orbit-inline" /></p> : null;
   if (!error) return null;
   return (
     <div className="fs-manifest-list">
@@ -341,8 +344,10 @@ function OAuthConnectionsPanel({
   show: boolean;
 }>) {
   const { t } = useI18n();
+  const connectionsLoading = Boolean(connectionsQuery?.isLoading);
+  const loaderShown = useLoaderDelay(connectionsLoading);
   if (!ready || !show) return null;
-  if (connectionsQuery?.isLoading) return <p aria-live="polite" className="fs-empty-copy" role="status">{t("react.extensions.loading_connections", "Loading connections…")}</p>;
+  if (connectionsLoading || loaderShown) return loaderShown ? <p className="fs-empty-copy"><DsLoader label={t("react.extensions.loading_connections", "Loading connections…")} variant="orbit-inline" /></p> : null;
   if (connectionsQuery?.isError) {
     return (
       <div className="fs-manifest-list" role="alert">

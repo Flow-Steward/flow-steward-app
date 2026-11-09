@@ -29,6 +29,8 @@ import {
   Search,
   DsPageHeader,
 } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import type { UserFilters, UserRecord } from "@/pages/settings/shared/types";
 import {
   EMPTY_EDITOR,
@@ -217,13 +219,13 @@ function UserTableState({
   userCount: number;
 }>) {
   const { t } = useI18n();
-  if (isLoading) {
-    return (
+  const loaderShown = useLoaderDelay(isLoading);
+  if (isLoading || loaderShown) {
+    return loaderShown ? (
       <div className="fs-table-state">
-        <strong>{t("react.settings.loading_users", "Loading users")}</strong>
-        <span>{t("react.settings.the_inventory_will_remain_in_this_table_layout", "The inventory will remain in this table layout.")}</span>
+        <DsLoader label={t("react.settings.loading_users", "Loading users")} variant="wide-block" />
       </div>
-    );
+    ) : null;
   }
   if (isError) {
     return (

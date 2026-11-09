@@ -13,6 +13,8 @@ import {
   type AwaitingApprovalJob,
 } from "@/components/layout/app-shell-helpers";
 import { AppShellSearchTrigger } from "@/components/layout/app-shell-search-trigger";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { IconButton } from "@/components/ui/icon-button";
 
 export type AppShellHeaderProps = {
@@ -47,6 +49,7 @@ export function AppShellHeader({
   railExpanded,
 }: Readonly<AppShellHeaderProps>) {
   const { t } = useI18n();
+  const approvalLoaderShown = useLoaderDelay(approvalLoading);
   return (
     <header className="fs-app-header">
       <div data-testid="header-order-trigger">
@@ -122,7 +125,7 @@ export function AppShellHeader({
             className="fs-app-header__approval-menu"
             open
           >
-            {approvalLoading ? <p>{t("react.shared.loading_approvals", "Loading approvals…")}</p> : null}
+            {approvalLoaderShown ? <p><DsLoader label={t("react.shared.loading_approvals", "Loading approvals…")} variant="orbit-inline" /></p> : null}
             {approvalError ? (
               <div>
                 <p>{approvalError}</p>
@@ -132,6 +135,7 @@ export function AppShellHeader({
             ) : null}
             {approvalLoaded &&
             !approvalLoading &&
+            !approvalLoaderShown &&
             !approvalError &&
             approvalJobs.length === 0 ? (
               <p>{t("react.shared.no_approvals_are_waiting", "No approvals are waiting.")}</p>

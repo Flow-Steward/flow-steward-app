@@ -3,6 +3,9 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DsAlert, DsDialog, RowActionMenu } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -38,6 +41,7 @@ export function ConnectedAppsSection() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const grantsQuery = useQuery({ queryKey: OAUTH_GRANTS_QUERY_KEY, queryFn: fetchOAuthGrants, retry: false });
+  const grantsLoaderShown = useLoaderDelay(grantsQuery.isLoading);
   const [menuGrant, setMenuGrant] = useState<OAuthGrant | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<OAuthGrant | null>(null);
   const [revoking, setRevoking] = useState(false);
@@ -96,11 +100,11 @@ export function ConnectedAppsSection() {
               ))}
             </tbody>
           </table>
-          {!grantsQuery.isLoading && !grantsQuery.isError && !grants.length ? <div className="fs-table-state"><strong>{t("react.oauth.no_connected_apps", "No connected AI apps")}</strong><span>{t("react.oauth.no_connected_apps_copy", "When you connect ChatGPT or Claude to Flow Steward and approve the access, the app appears here and can be revoked at any time.")}</span></div> : null}
-          {grantsQuery.isLoading ? <div className="fs-table-state"><strong>{t("react.oauth.loading_connected_apps", "Loading connected apps")}</strong></div> : null}
+          {!grantsQuery.isLoading && !grantsLoaderShown && !grantsQuery.isError && !grants.length ? <div className="fs-table-state"><strong>{t("react.oauth.no_connected_apps", "No connected AI apps")}</strong><span>{t("react.oauth.no_connected_apps_copy", "When you connect ChatGPT or Claude to Flow Steward and approve the access, the app appears here and can be revoked at any time.")}</span></div> : null}
+          {grantsLoaderShown ? <div className="fs-table-state"><DsLoader label={t("react.oauth.loading_connected_apps", "Loading connected apps")} variant="wide-block" /></div> : null}
         </div>
       </article>
-      <DsDialog busy={revoking} closeLabel={t("react.settings.close_revoke_confirmation", "Close revoke confirmation")} description={t("react.oauth.revoke_description", "The app loses access immediately, including its refresh token. It has to be connected again to work.")} eyebrow={t("react.oauth.connected_apps", "Connected AI apps")} footer={<><button className="fs-button" disabled={revoking} onClick={() => setRevokeTarget(null)} type="button">{t("common.cancel", "Cancel")}</button><button className="fs-button danger" disabled={revoking} onClick={() => ignoreAsyncResult(confirmRevoke())} type="button">{revoking ? t("react.settings.revoking", "Revoking…") : t("react.oauth.revoke_access", "Revoke access")}</button></>} onClose={() => setRevokeTarget(null)} open={Boolean(revokeTarget)} title={t("react.settings.revoke_value1", "Revoke “{value1}”?", { value1: appName(revokeTarget) })} variant="confirm">
+      <DsDialog busy={revoking} closeLabel={t("react.settings.close_revoke_confirmation", "Close revoke confirmation")} description={t("react.oauth.revoke_description", "The app loses access immediately, including its refresh token. It has to be connected again to work.")} eyebrow={t("react.oauth.connected_apps", "Connected AI apps")} footer={<><button className="fs-button" disabled={revoking} onClick={() => setRevokeTarget(null)} type="button">{t("common.cancel", "Cancel")}</button><Button busy={revoking} busyLabel={t("react.settings.revoking", "Revoking…")} onClick={() => ignoreAsyncResult(confirmRevoke())} type="button" variant="danger">{t("react.oauth.revoke_access", "Revoke access")}</Button></>} onClose={() => setRevokeTarget(null)} open={Boolean(revokeTarget)} title={t("react.settings.revoke_value1", "Revoke “{value1}”?", { value1: appName(revokeTarget) })} variant="confirm">
         <DsAlert tone="danger" title={t("react.settings.immediate_access_loss", "Immediate access loss")}>{revokeError || t("react.oauth.revoke_warning", "Revoked access stays listed until it is cleaned up.")}</DsAlert>
       </DsDialog>
     </>

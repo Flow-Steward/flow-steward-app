@@ -21,6 +21,8 @@ import type {
 import { catalogLabel } from "./hub-support";
 import { manifestActionHostEffect } from "./manifest-action-support";
 import { extensionInstallWarnings } from "@/pages/extensions/extension-install-warnings";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { DsLoader } from "@/components/shared/ds-loader";
 import { renderManifestComponent } from "@/pages/extensions/extension-manifest-renderer";
 import { type PendingConnectionDisconnect } from "@/pages/extensions/extension-manifest-render-model";
 import {
@@ -741,6 +743,7 @@ export function ExtensionDetailPanel(panelProps: Readonly<ExtensionDetailPanelPr
   const canManageProject = useHasCapability("mutate_projects");
   const canAdministerPlatform = useHasCapability("administer_platform");
   const { locale } = useI18n();
+  const manifestLoaderShown = useLoaderDelay(manifestQuery.isLoading);
   const localizedManifest = useMemo(
     () => localizeExtensionManifest(manifestQuery.data, locale),
     [locale, manifestQuery.data],
@@ -806,8 +809,8 @@ export function ExtensionDetailPanel(panelProps: Readonly<ExtensionDetailPanelPr
         {!detailExtension.active ? (
           <DsAlert title={activationBlockedReason || t("react.extensions.enable_this_extension_to_configure_its_project_scoped_ui", "Enable this extension to configure its project-scoped UI.")} tone="warning" />
         ) : null}
-        {detailExtension.active && manifestQuery.isLoading ? (
-          <p className="fs-extension-detail-note">{t("react.extensions.loading_extension_ui", "Loading extension UI…")}</p>
+        {detailExtension.active && manifestLoaderShown ? (
+          <p className="fs-extension-detail-note"><DsLoader label={t("react.extensions.loading_extension_ui", "Loading extension UI…")} variant="orbit-inline" /></p>
         ) : null}
         {detailExtension.active && manifestQuery.isError ? (
           <DsAlert title={t("react.extensions.extension_ui_could_not_be_loaded", "Extension UI could not be loaded.")} tone="danger">

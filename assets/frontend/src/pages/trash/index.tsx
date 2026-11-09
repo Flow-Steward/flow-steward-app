@@ -6,6 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { RefreshCw, Search } from "lucide-react";
 
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { InlineConfirm } from "@/components/shared/inline-confirm";
 import {
   LifecyclePlanModal,
@@ -399,6 +402,7 @@ export function TrashPage() {
   // definitive claim about a destructive surface - and it was wrong: a page
   // that reported zero loaded 151 items on Refresh.
   const initialLoadPending = trashQuery.isPending && !trashQuery.data;
+  const initialLoaderShown = useLoaderDelay(initialLoadPending);
   const categoryOptions = useMemo(() => {
     const seen = new Map<string, string>();
     rows.forEach((row) => {
@@ -625,13 +629,12 @@ export function TrashPage() {
 
   const filtering = Boolean(search.trim() || typeFilter || categoryFilter);
   let tableState = null;
-  if (initialLoadPending) {
-    tableState = (
+  if (initialLoadPending || initialLoaderShown) {
+    tableState = initialLoaderShown ? (
       <div className="fs-table-state">
-        <strong>{t("react.trash.loading_deleted_items", "Loading deleted items")}</strong>
-        <span>{t("react.trash.the_table_keeps_its_shape_while_trash_loads", "The table keeps its shape while Trash loads.")}</span>
+        <DsLoader label={t("react.trash.loading_deleted_items", "Loading deleted items")} variant="wide-block" />
       </div>
-    );
+    ) : null;
   } else if (!filteredRows.length) {
     tableState = (
       <div className="fs-table-state">
@@ -656,16 +659,18 @@ export function TrashPage() {
         // Refresh reloads the whole page's data, so it sits in the header as it
         // does on the registry lists, not among the table's own filters.
         action={
-          <button
-            className="fs-button secondary"
-            disabled={actionBusy || trashQuery.isFetching}
+          <Button
+            busy={trashQuery.isFetching}
+            busyLabel={t("react.shared.refreshing", "Refreshing…")}
+            disabled={actionBusy}
             onClick={() => {
               ignoreAsyncResult(refetchTrash());
             }}
             type="button"
+            variant="secondary"
           >
             <RefreshCw aria-hidden="true" />
-            {t("account.tokens.refresh", "Refresh")} </button>
+            {t("account.tokens.refresh", "Refresh")} </Button>
         }
         description={t("react.trash.restore_deleted_items_or_purge_them_for_good_workspaces_projects_and_mcp_connectors_are_restored_and_purged_th", "Restore deleted items, or purge them for good. Workspaces, projects and MCP connectors are restored and purged through a plan.")}
         eyebrow={t("shell.nav.system", "System")}

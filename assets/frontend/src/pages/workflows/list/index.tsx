@@ -31,6 +31,9 @@ import {
   Search,
   type DsFilterField,
 } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { fetchWorkflowCatalogAvailability } from "@/pages/workflows/catalog/api";
 import { WorkflowCatalogDialog } from "@/pages/workflows/catalog/catalog-dialog";
 import { CreateWorkflowFields } from "@/pages/workflows/list/create-workflow-fields";
@@ -522,11 +525,12 @@ export function WorkflowsListPage() {
   }
   const restricted = workflowCatalogRestricted(canReadRegistry, workflowsQuery.error);
   let workflowTableState: ReactNode = null;
-  if (workflowsQuery.isLoading || projectFilter.pending) {
+  const workflowsLoading = workflowsQuery.isLoading || projectFilter.pending;
+  const workflowsLoaderShown = useLoaderDelay(workflowsLoading);
+  if (workflowsLoading || workflowsLoaderShown) {
     workflowTableState = (
       <div className="fs-table-state">
-        <strong>{t("react.workflows.loading_workflows", "Loading workflows")}</strong>
-        <span>{t("react.workflows.the_catalog_will_remain_in_this_table_layout", "The catalog will remain in this table layout.")}</span>
+        {workflowsLoaderShown ? <DsLoader variant="wide-block" label={t("react.workflows.loading_workflows", "Loading workflows")} /> : null}
       </div>
     );
   } else if (workflowsQuery.isSuccess && !projectFilter.error && !workflowRows.length) {
@@ -685,14 +689,15 @@ export function WorkflowsListPage() {
               type="button"
             >
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button primary"
-              disabled={createForm.creating}
+            <Button
+              busy={createForm.creating}
+              busyLabel={t("react.workflows.creating", "Creating…")}
               onClick={() => ignoreAsyncResult(handleCreateWorkflow())}
               type="button"
+              variant="primary"
             >
-              {createForm.creating ? t("react.workflows.creating_variant_def70944", "Creating...") : t("projects.modal.create", "Create")}
-            </button>
+              {t("projects.modal.create", "Create")}
+            </Button>
           </>
         }
         initialFocusRef={createIdRef}
