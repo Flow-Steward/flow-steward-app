@@ -1572,6 +1572,27 @@ same text without colour; add `--json` when a script reads the output.
 Doctor diagnostics remain line-oriented. These flags change presentation only,
 not validation, required confirmation, or the operation being performed.
 
+Hints and next steps name commands the way you ran them (`./flow-steward …` on a
+server, `flow-steward …` in a provider console), so they can be pasted as shown.
+
+**Tab completion.** Add one line to your shell profile and open a new terminal:
+
+```bash
+eval "$(/path/to/flow-steward completion zsh)"    # ~/.zshrc
+eval "$(/path/to/flow-steward completion bash)"   # ~/.bashrc
+/path/to/flow-steward completion fish | source    # ~/.config/fish/config.fish
+```
+
+Tab then completes commands, subcommands, options and fixed choices
+(`./flow-steward users create --role <Tab>` offers `admin operator viewer`).
+The scripts are static, so Tab never waits for Docker. Bash in the Compact image
+(a Railway or Render console) loads them already.
+
+**Interactive shell.** `./flow-steward shell` opens a `flow-steward>` prompt:
+type commands without the program name (`users list`, `maintenance status`),
+Tab completes them, Up/Down walk the history, `help` lists the commands and
+`exit` leaves. Each command runs exactly as `./flow-steward <command>` would.
+
 A fresh interactive install asks for **Public host (domain or IP)** and
 **Public port**. Enter the public browser domain/IP, or keep `localhost` for
 local use without a domain. Choose `443` for standard HTTPS. These answers

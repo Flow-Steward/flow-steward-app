@@ -94,6 +94,12 @@ The canonical database baseline lives in `db/schema/`, with canonical seed data 
 The installer asks one question at a time; pick a choice with the arrow keys and Enter.
 Choose your profile, public domain/IP, storage, ingress, and TLS during installation.
 
+Manage the installation with `./flow-steward`. Every command prints readable text
+(add `--json` when a script reads the output). For Tab completion add one line to
+your shell profile, for example `eval "$(/path/to/flow-steward completion zsh)"`
+(or `bash`, `fish`); `./flow-steward shell` opens an interactive prompt with Tab
+completion and history.
+
 **Open the one-time setup link printed at completion to create the first
 administrator.** Treat it as a secret and use it within 60 minutes. Core
 installation does not require AI provider credentials; configure them afterward.
