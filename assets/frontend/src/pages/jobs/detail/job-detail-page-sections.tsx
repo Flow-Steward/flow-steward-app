@@ -13,6 +13,7 @@ import "./job-detail.css";
 import {
   type ApprovalDecisionPayload,
   type JobDefinitionPayload,
+  type JobExecutionSnapshot,
   type JobExecutionStepsPage,
   type JobDetail,
   type JobFailureSummary,
@@ -68,6 +69,8 @@ export type JobRunDefinitionView = {
   activeSteps: Entity[];
   definition: JobDefinitionPayload | undefined;
   executionPage?: JobExecutionStepsPage;
+  /** The page's own read of the run's step history, when it keeps one; the canvas then reads none. */
+  executionSnapshot?: JobExecutionSnapshot | null;
   definitionError: boolean;
   workflowWait: Entity;
 };
@@ -161,7 +164,7 @@ function JobRunDefinitionFacts({
           {currentWorkflowLink}
         </p>
       ) : null}
-      {showDefinitionCanvas && definition?.available && !definitionError ? <JobDefinitionCanvas key={definition.snapshot_id || definition.digest} definition={definition} jobId={runDefinition.jobId} projectId={runDefinition.projectId} executionPage={runDefinition.executionPage} /> : null}
+      {showDefinitionCanvas && definition?.available && !definitionError ? <JobDefinitionCanvas key={definition.snapshot_id || definition.digest} definition={definition} jobId={runDefinition.jobId} projectId={runDefinition.projectId} executionPage={runDefinition.executionPage} executionSnapshot={runDefinition.executionSnapshot} /> : null}
       {definition && !definition.available ? (
         <div data-testid="job-run-definition-unavailable">
           <DsAlert tone="warning" title={t("react.jobs.definition_snapshot_unavailable", "Definition snapshot unavailable")}>

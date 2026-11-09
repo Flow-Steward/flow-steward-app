@@ -10,7 +10,7 @@ import { jobContainerProgress } from "./job-container-progress";
 import { containerRuntimeMarks } from "@/pages/workflows/builder/runtime-container-marks";
 import { runtimeEdgeMarks } from "@/pages/workflows/builder/runtime-edge-marks";
 import { CanvasEditableEdge } from "@/pages/workflows/builder/canvas-step-nodes";
-import type { JobDefinitionPayload, JobExecutionStepsPage } from "./api";
+import type { JobDefinitionPayload, JobExecutionSnapshot, JobExecutionStepsPage } from "./api";
 import { archivedDefinitionCanvasGraph, archivedDefinitionContract } from "./job-definition-graph";
 import { useJobExecutionSnapshot } from "./job-execution-snapshot";
 import { workflowExecutionMarks } from "@/pages/workflows/detail/detail-hook-execution-marks";
@@ -20,14 +20,20 @@ import { ReadableDataFields } from "./readable-data-fields";
 const ignoreAction = () => undefined;
 const edgeTypes = { canvasEditable: CanvasEditableEdge };
 
-export function JobDefinitionCanvas({ definition, jobId, projectId, executionPage }: Readonly<{ definition: JobDefinitionPayload; jobId?: string; projectId?: string; executionPage?: JobExecutionStepsPage }>) {
+export function JobDefinitionCanvas({ definition, jobId, projectId, executionPage, executionSnapshot }: Readonly<{
+  definition: JobDefinitionPayload; jobId?: string; projectId?: string; executionPage?: JobExecutionStepsPage;
+  /** The page already reads the run's step history: use it instead of a second reader of the same pages. */
+  executionSnapshot?: JobExecutionSnapshot | null;
+}>) {
   const { t } = useI18n();
   const [selection, setSelection] = useState<{ kind: "step" | "group" | "for_each" | "inputs" | "outputs"; id: string } | null>(null);
   const graph = useMemo(() => archivedDefinitionCanvasGraph(definition, t), [definition, t]);
   const takenEdges = useMemo(() => graph ? runtimeEdgeMarks(jobExecutionTrace(jobId || "", definition, executionPage), graph) : new Set<string>(), [definition, executionPage, graph, jobId]);
   const containerMarks = useMemo(() => graph ? containerRuntimeMarks(jobContainerProgress(jobId || "", projectId, definition, executionPage), graph) : {}, [definition, executionPage, graph, jobId, projectId]);
   // Each step the run reached carries its mark (the failed one red, with "Failed"); the rest stand back.
-  const { snapshot } = useJobExecutionSnapshot(jobId || "", Boolean(jobId && graph), projectId);
+  const pageOwnsHistory = executionSnapshot !== undefined;
+  const { snapshot: ownSnapshot } = useJobExecutionSnapshot(jobId || "", Boolean(jobId && graph) && !pageOwnsHistory, projectId);
+  const snapshot = pageOwnsHistory ? executionSnapshot : ownSnapshot;
   const stepMarks = useMemo(() => graph && definition.workflow_id && definition.revision
     ? workflowExecutionMarks(snapshot, graph, definition.workflow_id, Number(definition.revision), jobId)
     : {}, [definition.revision, definition.workflow_id, graph, jobId, snapshot]);

@@ -457,7 +457,7 @@ export function JobsDetailPage({
         nextActionTitle={nextActionTitle}
         reviewWorkspace={reviewWorkspace}
         reviewWorkspaceRef={reviewWorkspaceRef}
-        runDefinition={runDefinition}
+        runDefinition={onExecutionSnapshotChange ? { ...runDefinition, executionSnapshot } : runDefinition}
         showDefinitionCanvas={!embedded}
         selectedStep={selectedStep}
         selectedStepIndex={selectedStepIndex}
