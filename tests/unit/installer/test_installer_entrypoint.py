@@ -170,34 +170,6 @@ def test_default_installer_uses_plain_questions_and_cancels_without_install(
     assert service.configs == []
 
 
-def test_installer_full_screen_form_requires_explicit_tui_and_cancels_safely(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from core.entrypoints.cli.platform.modes import TerminalFacts
-    from core.entrypoints.cli.tui import form_app
-
-    service = FakeService()
-    forms: list[dict[str, object]] = []
-
-    class CancelledForm:
-        def __init__(self, **kwargs: object) -> None:
-            forms.append(kwargs)
-
-        def run(self) -> form_app.FormOutcome:
-            return form_app.FormOutcome(status="cancelled")
-
-    monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
-    monkeypatch.setattr(
-        installer, "_terminal_facts", lambda: TerminalFacts(True, True, 120, 40, "xterm", False)
-    )
-    monkeypatch.setattr(form_app, "CommandFormApp", CancelledForm)
-    result = CliRunner().invoke(installer.installer_command, ["--tui"])
-    assert result.exit_code == 10, result.output
-    assert len(forms) == 1
-    assert forms[0]["color_enabled"] is True
-    assert service.configs == []
-
-
 @pytest.mark.parametrize("profile", ("compact", "scalable"))
 def test_plain_installer_collects_external_traefik_inputs_before_review(
     monkeypatch: pytest.MonkeyPatch, profile: str

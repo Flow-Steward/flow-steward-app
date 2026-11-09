@@ -1564,12 +1564,11 @@ For `tools/list`, set `Mcp-Method: tools/list`, drop `Mcp-Name`, and send
 self-signed certificate in `.ssl/cert.pem`; trust it in the client.
 
 The installer and management CLI print coloured, human-readable results in a
-terminal and ask for missing input line by line: enter an answer or a numbered
-choice, then press Enter. `--plain` (or `--no-color`, or `NO_COLOR`) prints the
-same text without colour; add `--json` when a script reads the output. To opt in
-to the full-screen forms, use `./install.sh --tui` or add `--tui` to a
-management command, for example `./flow-steward users create --tui`.
-`--plain` overrides `--tui`; `--json` and `--non-interactive` never open a form.
+terminal and ask for missing input one question at a time: type an answer, or
+pick a choice with the arrow keys, then press Enter (without a terminal, type
+the choice's number). `--plain` (or `--no-color`, or `NO_COLOR`) prints the
+same text without colour; add `--json` when a script reads the output.
+`--json` and `--non-interactive` never ask anything.
 Doctor diagnostics remain line-oriented. These flags change presentation only,
 not validation, required confirmation, or the operation being performed.
 
@@ -2366,7 +2365,7 @@ The host launcher checks both **Installation** and **Configuration** for
 Compact and Scalable through Docker management tooling. Plain diagnosis is
 read-only; it reports installation findings such as backup freshness, image
 availability, public routing and permissions in addition to configuration.
-Its options are `--json`, `--fix [ids ...]`, `--confirm`, `--plain`, `--tui`,
+Its options are `--json`, `--fix [ids ...]`, `--confirm`, `--plain`,
 `--no-color`, `--verbose`, `--non-interactive`, and `--help`.
 `--probe-mode` is not an option of this installed command. Use `--fix` only for
 a reviewed repair; it acquires the installation lock and changes state.

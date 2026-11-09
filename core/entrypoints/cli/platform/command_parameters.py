@@ -21,13 +21,7 @@ def _global_options() -> list[click.Option]:
     return [
         click.Option(["--json"], is_flag=True, default=None, help="Emit JSON output."),
         click.Option(
-            ["--plain"], is_flag=True, default=None, help="Use plain text output (default)."
-        ),
-        click.Option(
-            ["--tui"],
-            is_flag=True,
-            default=None,
-            help="Opt in to full-screen forms and rich output.",
+            ["--plain"], is_flag=True, default=None, help="Print without colour or animation."
         ),
         click.Option(["--no-color"], is_flag=True, default=None, help="Disable color output."),
         click.Option(["--verbose"], is_flag=True, default=None, help="Include technical detail."),

@@ -57,8 +57,7 @@ The guided installer asks how to run the application and how to publish its
 website. **Compact** keeps the app and background workers together and uses
 fewer resources. **Scalable** runs separate services so workers can scale
 independently. Both use included **SeaweedFS** by default; external S3 is optional.
-Technical settings stay behind `./install.sh --advanced` or the Textual Advanced
-section (`./install.sh --tui`).
+Technical settings stay behind `./install.sh --advanced`.
 
 If Nginx or Apache already serves the host, choose that option and the actual web
 server. HTTPS settings are derived automatically. At completion, the installer
@@ -92,7 +91,7 @@ or update a source installation. Switching it to official uses the reviewed
 
 The canonical database baseline lives in `db/schema/`, with canonical seed data in
 `db/seeds/`; post-1.0 SQL migrations live separately in `db/migrations/`.
-The plain questionnaire is the default; `--tui` opts into the full-screen interface.
+The installer asks one question at a time; pick a choice with the arrow keys and Enter.
 Choose your profile, public domain/IP, storage, ingress, and TLS during installation.
 
 **Open the one-time setup link printed at completion to create the first

@@ -6,8 +6,10 @@ Accepted
 
 - Status note (2026-10-26): item 6 now says which runtime serves which commands
   on Scalable, matching item 7 and the launcher.
-- Status note (2026-11-09): items 4 and 5 now make coloured, human-readable output
-  the default for a terminal; JSON is printed only for `--json`. The plan is
+- Status note (2026-11-09): items 3, 4, 5 and 9 changed. Coloured, human-readable
+  output is the default for a terminal and JSON is printed only for `--json`; the
+  full-screen Textual forms and `--tui` are removed in favour of one question at a
+  time in the normal terminal flow (prompt-toolkit). The plan is
   `docs/plans/cli-ux-2026-11-09.md`.
 
 ## Context
@@ -31,9 +33,11 @@ become a second home for application business logic.
    non-interactive execution, and JSON output.
 2. Click owns the public command tree, option/argument parsing, shell-friendly
    help, and invocation context.
-3. Textual owns the explicitly requested `--tui` full-screen guided forms,
-   selectors, inline validation, review screens, keyboard interaction, and
-   terminal UI tests.
+3. Missing input is asked one question at a time in the normal terminal flow:
+   prompt-toolkit picks a choice with the arrow keys and Enter when stdin and
+   stdout are a terminal (no mouse, no full-screen screens); anywhere else the
+   same question is a numbered list. The review and confirmation follow the
+   questions. There is no full-screen form.
 4. Rich owns progress, warnings, results, and structured error rendering in
    normal terminal history. Results use one shared human layout (a result line,
    aligned facts, borderless tables, next steps); the coloured and the plain
@@ -41,11 +45,10 @@ become a second home for application business logic.
 5. Coloured output is the default for both the CLI and installer when stdout is
    a terminal; `--plain`, `--no-color`, `NO_COLOR` and `TERM=dumb` print the same
    layout without colour or animation, as does redirected output. `--json` is the
-   only machine-readable mode. `--tui` only opts in to the full-screen Textual
-   forms. Commands shown to the operator use the name the launcher was run as
-   (`./flow-steward` on a host, `flow-steward` in the Compact image). The plain
-   and JSON renderers use the same specifications and application command
-   services. Non-TTY operation never opens Textual or prompts implicitly.
+   only machine-readable mode. Commands shown to the operator use the name the
+   launcher was run as (`./flow-steward` on a host, `flow-steward` in the Compact
+   image). The plain and JSON renderers use the same specifications and
+   application command services. Non-TTY operation never prompts implicitly.
 6. The public `./flow-steward` entrypoint dispatches to the installation's
    Docker-managed runtime and does not require a globally installed Python
    package. Scalable runs lifecycle commands in a versioned CLI image
@@ -64,10 +67,11 @@ become a second home for application business logic.
 8. Presentation adapters remain under `core/entrypoints/cli/`. Command
    specifications and application services remain under `core/application/`.
    Business logic, persistence, and lifecycle orchestration do not move into
-   Click callbacks, Textual widgets, or Rich renderers.
-9. Typer, Questionary, InquirerPy, `rich-click`, command-specific
+   Click callbacks, prompts, or Rich renderers.
+9. Typer, Textual, Questionary, InquirerPy, `rich-click`, command-specific
    `input()`/`prompt()`, hand-written ANSI control, and a second public
-   `argparse` command tree are not parallel first-release frameworks.
+   `argparse` command tree are not parallel first-release frameworks;
+   prompt-toolkit is used only through the shared prompts module.
 10. Exact dependency versions and hashes are locked for the CLI runtime. Pydantic
    uses the repository runtime pin rather than introducing a second version.
 
@@ -80,10 +84,11 @@ contract is defined in [the CLI contract](../../contracts/cli.md).
   drift between command renderings.
 - A developer has explicit library boundaries and cannot select a different
   framework per command.
-- Guided forms can be visually rich without sacrificing scripts, CI, redirected
-  output, or accessibility-oriented plain output.
-- Textual is not kept open during long operations; Rich progress remains in
-  normal terminal history and behaves predictably with signals and logs.
+- Guided questions stay in normal terminal history, work at any terminal size and
+  in provider consoles, and never take over the screen; scripts, CI, redirected
+  output and accessibility-oriented plain output are unaffected.
+- Rich progress remains in normal terminal history and behaves predictably with
+  signals and logs.
 - The CLI image adds a small dedicated dependency surface that must be locked,
   scanned, tested on supported terminals, and upgraded deliberately.
 - Existing commands require incremental adaptation to application services;

@@ -1237,6 +1237,7 @@
     "core/entrypoints/cli/platform/interrupts.py",
     "core/entrypoints/cli/platform/modes.py",
     "core/entrypoints/cli/platform/operation_log.py",
+    "core/entrypoints/cli/platform/prompts.py",
     "core/entrypoints/cli/platform/redaction.py",
     "core/entrypoints/cli/platform/renderers.py",
     "core/entrypoints/cli/platform/result_presentation.py",
@@ -1260,8 +1261,6 @@
     "core/entrypoints/cli/platform/theme.py",
     "core/entrypoints/cli/runtime.py",
     "core/entrypoints/cli/secret_input.py",
-    "core/entrypoints/cli/tui/__init__.py",
-    "core/entrypoints/cli/tui/form_app.py",
     "core/entrypoints/control/__init__.py",
     "core/entrypoints/control/api.py",
     "core/entrypoints/web/frontend_shell.py",
@@ -1715,14 +1714,6 @@
     {
       "path": "core/entrypoints/cli/scripts/start_server.sh",
       "consumer": "app-runtime CMD HTTP server bootstrap"
-    },
-    {
-      "path": "core/entrypoints/cli/tui/theme.tcss",
-      "consumer": "core.entrypoints.cli.tui.form_app Textual stylesheet"
-    },
-    {
-      "path": "core/entrypoints/cli/tui/theme_monochrome.tcss",
-      "consumer": "core.entrypoints.cli.tui.form_app Textual stylesheet"
     },
     {
       "path": "core/infrastructure/config/flow_steward_env_manifest.json",

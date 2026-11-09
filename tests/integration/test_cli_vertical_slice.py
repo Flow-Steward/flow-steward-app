@@ -30,13 +30,11 @@ CLI_CASE_IDS_IN_REGISTRY_ORDER = tuple(spec.command_id for spec in PUBLIC_COMMAN
 class CommandCase:
     command_id: str
     args: list[str]
-    textual_args: list[str]
     expected: dict[str, Any]
     secret_root: Path | None = None
     stdin: str = ""
     invocation_model_class: type[Any] | None = None
     prepared_clone: Any = None
-    form_values: dict[str, Any] | None = None
     confirmation_value: str = ""
 
 
@@ -681,75 +679,56 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "status": CommandCase(
             command_id="status",
             args=["status"],
-            textual_args=["status"],
             expected={},
         ),
         "doctor": CommandCase(
             command_id="doctor",
             args=["doctor"],
-            textual_args=["doctor"],
             expected={},
         ),
         "proxy-fragment": CommandCase(
             command_id="proxy-fragment",
             args=["proxy-fragment"],
-            textual_args=["proxy-fragment"],
             expected={},
         ),
         "stack.status": CommandCase(
             command_id="stack.status",
             args=["stack", "status"],
-            textual_args=["stack", "status"],
             expected={},
         ),
         "stack.start": CommandCase(
             command_id="stack.start",
             args=["stack", "start"],
-            textual_args=["stack", "start"],
             expected={"adopt_image_pins": False},
         ),
         "stack.stop": CommandCase(
             command_id="stack.stop",
             args=["stack", "stop"],
-            textual_args=["stack", "stop"],
             expected={},
         ),
         "stack.restart": CommandCase(
             command_id="stack.restart",
             args=["stack", "restart"],
-            textual_args=["stack", "restart"],
             expected={},
         ),
         "stack.rebuild": CommandCase(
             command_id="stack.rebuild",
             args=["stack", "rebuild"],
-            textual_args=["stack", "rebuild"],
             expected={},
         ),
         "stack.logs": CommandCase(
             command_id="stack.logs",
             args=["stack", "logs", "--service", "fs-app", "--tail", "20", "--follow"],
-            textual_args=[
-                "stack",
-                "logs",
-                "--service",
-                "fs-app",
-                "--tail",
-                "20",
-                "--follow",
-            ],
             expected={"service": "fs-app", "tail": 20, "follow": True},
         ),
         "environment.show": CommandCase(
             command_id="environment.show",
             args=["environment", "show"],
-            textual_args=["environment", "show"],
             expected={},
         ),
         "environment.switch": CommandCase(
             command_id="environment.switch",
             args=["environment", "switch", "production"],
-            textual_args=["environment", "switch"],
             expected={
                 "target": "production",
                 "development_tools": [],
@@ -765,43 +744,36 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "maintenance.status": CommandCase(
             command_id="maintenance.status",
             args=["maintenance", "status"],
-            textual_args=["maintenance", "status"],
             expected={},
         ),
         "maintenance.enable": CommandCase(
             command_id="maintenance.enable",
             args=["maintenance", "enable", "--confirm"],
-            textual_args=["maintenance", "enable"],
             expected={},
         ),
         "maintenance.disable": CommandCase(
             command_id="maintenance.disable",
             args=["maintenance", "disable", "--confirm"],
-            textual_args=["maintenance", "disable"],
             expected={},
         ),
         "release.info": CommandCase(
             command_id="release.info",
             args=["release", "info"],
-            textual_args=["release", "info"],
             expected={},
         ),
         "release.check": CommandCase(
             command_id="release.check",
             args=["release", "check"],
-            textual_args=["release", "check"],
             expected={},
         ),
         "release.upgrade": CommandCase(
             command_id="release.upgrade",
             args=["release", "upgrade"],
-            textual_args=["release", "upgrade"],
             expected={"target_version": "", "dry_run": False, "timeout_seconds": 60},
         ),
         "clone.create": CommandCase(
             command_id="clone.create",
             args=["clone", "create", "--output-directory", "backups", "--passphrase-stdin"],
-            textual_args=["clone", "create", "--passphrase-stdin"],
             expected={"output_directory": "backups", "passphrase_stdin": True},
             prepared_clone=prepared_clone,
         ),
@@ -815,19 +787,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--operation-id",
                 "clone-restore-test",
             ],
-            textual_args=[
-                "clone",
-                "restore",
-                prepared_clone.archive_path,
-                "--passphrase-stdin",
-                "--operation-id",
-                "clone-restore-test",
-            ],
-            form_values={
-                "archive_path": prepared_clone.archive_path,
-                "passphrase_stdin": True,
-                "operation_id": "clone-restore-test",
-            },
             expected={
                 "prepared": prepared_clone.model_dump(mode="json"),
                 "target_installation_id": "target-installation",
@@ -843,37 +802,31 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "backup.create": CommandCase(
             command_id="backup.create",
             args=["backup", "create"],
-            textual_args=["backup", "create"],
             expected={"operation_id": None},
         ),
         "backup.list": CommandCase(
             command_id="backup.list",
             args=["backup", "list"],
-            textual_args=["backup", "list"],
             expected={},
         ),
         "backup.verify": CommandCase(
             command_id="backup.verify",
             args=["backup", "verify", str(backup_path)],
-            textual_args=["backup", "verify", str(backup_path)],
             expected={"backup": str(backup_path)},
         ),
         "config.show": CommandCase(
             command_id="config.show",
             args=["config", "show"],
-            textual_args=["config", "show"],
             expected={},
         ),
         "config.validate": CommandCase(
             command_id="config.validate",
             args=["config", "validate"],
-            textual_args=["config", "validate"],
             expected={},
         ),
         "config.set": CommandCase(
             command_id="config.set",
             args=["config", "set", "--public-host", "flow.example.test"],
-            textual_args=["config", "set", "--public-host", "flow.example.test"],
             expected={
                 "deployment_profile": None,
                 "runtime_http_port": None,
@@ -906,13 +859,11 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "config.apply": CommandCase(
             command_id="config.apply",
             args=["config", "apply"],
-            textual_args=["config", "apply"],
             expected={},
         ),
         "users.list": CommandCase(
             command_id="users.list",
             args=["users", "list", "--search", "operator", "--include-inactive"],
-            textual_args=["users", "list", "--search", "operator", "--include-inactive"],
             expected={
                 "search": "operator",
                 "include_inactive": True,
@@ -933,7 +884,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--password-file",
                 str(password_file),
             ],
-            textual_args=["users", "create", "--email", "operator@example.com"],
             expected={
                 "email": "operator@example.com",
                 "password": "StrongPass_123!",
@@ -959,7 +909,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--must-change-password",
                 "--revoke-sessions",
             ],
-            textual_args=["users", "set-password", "--email", "operator@example.com"],
             expected={
                 "user_id": None,
                 "email": "operator@example.com",
@@ -973,19 +922,16 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "users.force-reset": CommandCase(
             command_id="users.force-reset",
             args=["users", "force-reset", "--email", "operator@example.com"],
-            textual_args=["users", "force-reset", "--email", "operator@example.com"],
             expected={"user_id": None, "email": "operator@example.com", "actor": "cli"},
         ),
         "users.unlock": CommandCase(
             command_id="users.unlock",
             args=["users", "unlock", "--email", "operator@example.com"],
-            textual_args=["users", "unlock", "--email", "operator@example.com"],
             expected={"user_id": None, "email": "operator@example.com", "actor": "cli"},
         ),
         "users.set-active": CommandCase(
             command_id="users.set-active",
             args=["users", "set-active", "--email", "operator@example.com", "--no-is-active"],
-            textual_args=["users", "set-active", "--email", "operator@example.com"],
             expected={
                 "user_id": None,
                 "email": "operator@example.com",
@@ -996,14 +942,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "users.set-roles": CommandCase(
             command_id="users.set-roles",
             args=["users", "set-roles", "--email", "operator@example.com", "--role", "operator"],
-            textual_args=[
-                "users",
-                "set-roles",
-                "--email",
-                "operator@example.com",
-                "--role",
-                "operator",
-            ],
             expected={
                 "user_id": None,
                 "email": "operator@example.com",
@@ -1014,44 +952,37 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "users.issue-bootstrap-token": CommandCase(
             command_id="users.issue-bootstrap-token",
             args=["users", "issue-bootstrap-token"],
-            textual_args=["users", "issue-bootstrap-token"],
             expected={},
         ),
         "extensions.list": CommandCase(
             command_id="extensions.list",
             args=["extensions", "list", "--state", "disabled"],
-            textual_args=["extensions", "list", "--state", "disabled"],
             expected={"state": "disabled"},
         ),
         "extensions.show": CommandCase(
             command_id="extensions.show",
             args=["extensions", "show", "acme.crm-sync"],
-            textual_args=["extensions", "show", "acme.crm-sync"],
             expected={"extension_id": "acme.crm-sync"},
         ),
         "extensions.health": CommandCase(
             command_id="extensions.health",
             args=["extensions", "health", "acme.crm-sync"],
-            textual_args=["extensions", "health", "acme.crm-sync"],
             expected={"extension_id": "acme.crm-sync"},
         ),
         "extensions.install": CommandCase(
             command_id="extensions.install",
             args=["extensions", "install", "--archive", str(archive)],
-            textual_args=["extensions", "install"],
             expected={"archive": str(archive), "approved_browser_authority_impact_hash": ""},
         ),
         "extensions.uninstall": CommandCase(
             command_id="extensions.uninstall",
             args=["extensions", "uninstall", "acme.crm-sync"],
-            textual_args=["extensions", "uninstall", "acme.crm-sync"],
             expected={"extension_id": "acme.crm-sync", "plan_revision": "rev-1"},
             invocation_model_class=ExtensionUninstallCommandInput,
         ),
         "extensions.enable": CommandCase(
             command_id="extensions.enable",
             args=["extensions", "enable", "acme.crm-sync"],
-            textual_args=["extensions", "enable", "acme.crm-sync"],
             expected={
                 "extension_id": "acme.crm-sync",
                 "version": "",
@@ -1062,7 +993,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "extensions.disable": CommandCase(
             command_id="extensions.disable",
             args=["extensions", "disable", "acme.crm-sync"],
-            textual_args=["extensions", "disable", "acme.crm-sync"],
             expected={
                 "extension_id": "acme.crm-sync",
                 "version": "",
@@ -1085,12 +1015,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--category",
                 "sales",
             ],
-            textual_args=[
-                "extensions",
-                "create",
-                "--output-root",
-                str(output_root),
-            ],
             expected={
                 "extension_id": "acme.crm-sync",
                 "output_root": str(output_root),
@@ -1103,7 +1027,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "extensions.validate": CommandCase(
             command_id="extensions.validate",
             args=["extensions", "validate", "acme.crm-sync", "--health"],
-            textual_args=["extensions", "validate", "acme.crm-sync", "--health"],
             expected={
                 "extension_id": "acme.crm-sync",
                 "root": "",
@@ -1114,7 +1037,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "extensions.test": CommandCase(
             command_id="extensions.test",
             args=["extensions", "test", "acme.crm-sync", "--allow-no-pytest"],
-            textual_args=["extensions", "test", "acme.crm-sync", "--allow-no-pytest"],
             expected={
                 "extension_id": "acme.crm-sync",
                 "root": "",
@@ -1128,13 +1050,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "extensions.bundle": CommandCase(
             command_id="extensions.bundle",
             args=["extensions", "bundle", "acme.crm-sync", "--output-dir", str(tmp_path / "dist")],
-            textual_args=[
-                "extensions",
-                "bundle",
-                "acme.crm-sync",
-                "--output-dir",
-                str(tmp_path / "dist"),
-            ],
             expected={
                 "extension_id": "acme.crm-sync",
                 "root": "",
@@ -1148,13 +1063,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "extensions.lock-deps": CommandCase(
             command_id="extensions.lock-deps",
             args=["extensions", "lock-deps", "acme.crm-sync", "--input", str(tmp_path / "req.in")],
-            textual_args=[
-                "extensions",
-                "lock-deps",
-                "acme.crm-sync",
-                "--input",
-                str(tmp_path / "req.in"),
-            ],
             expected={
                 "extension_id": "acme.crm-sync",
                 "root": "",
@@ -1174,22 +1082,11 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--search",
                 "one",
             ],
-            textual_args=[
-                "projects",
-                "list",
-                "--page",
-                "2",
-                "--per-page",
-                "5",
-                "--search",
-                "one",
-            ],
             expected={"page": 2, "per_page": 5, "search": "one"},
         ),
         "projects.show": CommandCase(
             command_id="projects.show",
             args=["projects", "show", "--project-id", "proj_1"],
-            textual_args=["projects", "show", "--project-id", "proj_1"],
             expected={
                 "project_id": "proj_1",
                 "include_schema": False,
@@ -1206,28 +1103,11 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "proj_1",
                 "--enabled-only",
             ],
-            textual_args=[
-                "projects",
-                "notification-routes",
-                "--project-id",
-                "proj_1",
-                "--enabled-only",
-            ],
             expected={"project_id": "proj_1", "enabled_only": True},
         ),
         "projects.notification-deliveries": CommandCase(
             command_id="projects.notification-deliveries",
             args=[
-                "projects",
-                "notification-deliveries",
-                "--project-id",
-                "proj_1",
-                "--job-id",
-                "job_1",
-                "--limit",
-                "5",
-            ],
-            textual_args=[
                 "projects",
                 "notification-deliveries",
                 "--project-id",
@@ -1253,7 +1133,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--payload",
                 '{"ok": true}',
             ],
-            textual_args=["projects", "dispatch-notification"],
             expected={
                 "project_id": "proj_1",
                 "event_type": "workflow.completed",
@@ -1266,7 +1145,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "workflows.list": CommandCase(
             command_id="workflows.list",
             args=["workflows", "list", "--project-id", "proj_1", "--include-disabled"],
-            textual_args=["workflows", "list", "--project-id", "proj_1", "--include-disabled"],
             expected={
                 "project_id": "proj_1",
                 "include_disabled": True,
@@ -1276,25 +1154,21 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "workflows.entrypoints": CommandCase(
             command_id="workflows.entrypoints",
             args=["workflows", "entrypoints", "--project-id", "proj_1"],
-            textual_args=["workflows", "entrypoints", "--project-id", "proj_1"],
             expected={"project_id": "proj_1", "include_disabled": False},
         ),
         "workflows.validate": CommandCase(
             command_id="workflows.validate",
             args=["workflows", "validate", "--project-id", "proj_1", "wf.release"],
-            textual_args=["workflows", "validate", "--project-id", "proj_1", "wf.release"],
             expected={"project_id": "proj_1", "workflow_id": "wf.release"},
         ),
         "workflows.contract": CommandCase(
             command_id="workflows.contract",
             args=["workflows", "contract", "--project-id", "proj_1", "wf.release"],
-            textual_args=["workflows", "contract", "--project-id", "proj_1", "wf.release"],
             expected={"project_id": "proj_1", "workflow_id": "wf.release"},
         ),
         "workflows.suggestions": CommandCase(
             command_id="workflows.suggestions",
             args=["workflows", "suggestions", "--project-id", "proj_1", "wf.release"],
-            textual_args=["workflows", "suggestions", "--project-id", "proj_1", "wf.release"],
             expected={"project_id": "proj_1", "workflow_id": "wf.release"},
         ),
         "jobs.list": CommandCase(
@@ -1309,34 +1183,21 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--limit",
                 "5",
             ],
-            textual_args=[
-                "jobs",
-                "list",
-                "--project-id",
-                "proj_1",
-                "--status",
-                "in_progress",
-                "--limit",
-                "5",
-            ],
             expected={"project_id": "proj_1", "status": "in_progress", "limit": 5, "offset": 0},
         ),
         "jobs.show": CommandCase(
             command_id="jobs.show",
             args=["jobs", "show", "job_1"],
-            textual_args=["jobs", "show", "job_1"],
             expected={"job_id": "job_1", "include_details": False},
         ),
         "jobs.status": CommandCase(
             command_id="jobs.status",
             args=["jobs", "status", "job_1"],
-            textual_args=["jobs", "status", "job_1"],
             expected={"job_id": "job_1"},
         ),
         "jobs.logs": CommandCase(
             command_id="jobs.logs",
             args=["jobs", "logs", "job_1", "--since-id", "10", "--limit", "5"],
-            textual_args=["jobs", "logs", "job_1", "--since-id", "10", "--limit", "5"],
             expected={
                 "job_id": "job_1",
                 "since_id": "10",
@@ -1348,15 +1209,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "jobs.messages": CommandCase(
             command_id="jobs.messages",
             args=[
-                "jobs",
-                "messages",
-                "job_1",
-                "--step-id",
-                "step_1",
-                "--producer",
-                "planner",
-            ],
-            textual_args=[
                 "jobs",
                 "messages",
                 "job_1",
@@ -1380,7 +1232,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "jobs.errors": CommandCase(
             command_id="jobs.errors",
             args=["jobs", "errors", "job_1", "--limit", "3"],
-            textual_args=["jobs", "errors", "job_1", "--limit", "3"],
             expected={"job_id": "job_1", "limit": 3},
         ),
         "jobs.approve": CommandCase(
@@ -1396,7 +1247,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--action",
                 "approve",
             ],
-            textual_args=["jobs", "approve"],
             expected={
                 "thread_id": "thread_1",
                 "approval_id": "approval_1",
@@ -1415,7 +1265,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--comment",
                 "needs changes",
             ],
-            textual_args=["jobs", "reject"],
             expected={
                 "thread_id": "thread_1",
                 "approval_id": "approval_1",
@@ -1426,43 +1275,26 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "jobs.ack": CommandCase(
             command_id="jobs.ack",
             args=["jobs", "ack", "job_1", "--actor", "cli"],
-            textual_args=["jobs", "ack", "job_1", "--actor", "cli"],
             expected={"job_id": "job_1", "actor": "cli"},
         ),
         "jobs.unack": CommandCase(
             command_id="jobs.unack",
             args=["jobs", "unack", "job_1"],
-            textual_args=["jobs", "unack", "job_1"],
             expected={"job_id": "job_1"},
         ),
         "jobs.cancel": CommandCase(
             command_id="jobs.cancel",
             args=["jobs", "cancel", "job_1", "--actor", "operator", "--comment", "stop"],
-            textual_args=["jobs", "cancel"],
             expected={"job_id": "job_1", "actor": "operator", "comment": "stop"},
         ),
         "jobs.restart": CommandCase(
             command_id="jobs.restart",
             args=["jobs", "restart", "job_1"],
-            textual_args=["jobs", "restart"],
             expected={"job_id": "job_1"},
         ),
         "jobs.health-snapshot": CommandCase(
             command_id="jobs.health-snapshot",
             args=[
-                "jobs",
-                "health-snapshot",
-                "--base-url",
-                "https://flow.example",
-                "--verify-ssl",
-                "--timeout-seconds",
-                "5",
-                "--dsn-file",
-                str(dsn_file),
-                "--stale-heartbeat-seconds",
-                "60",
-            ],
-            textual_args=[
                 "jobs",
                 "health-snapshot",
                 "--base-url",
@@ -1494,7 +1326,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 '{"project_id": "proj_1"}',
                 "--no-persist",
             ],
-            textual_args=["reports", "generate"],
             expected={
                 "report_type": "activity_daily",
                 "params": {"project_id": "proj_1"},
@@ -1504,55 +1335,37 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "reports.get": CommandCase(
             command_id="reports.get",
             args=["reports", "get", "report_1"],
-            textual_args=["reports", "get", "report_1"],
             expected={"report_id": "report_1"},
         ),
         "reports.diagnostics": CommandCase(
             command_id="reports.diagnostics",
             # Host and doctor facts arrive from the launcher through --input-json.
             args=["reports", "diagnostics"],
-            textual_args=["reports", "diagnostics"],
             expected={"host": None, "doctor": None},
         ),
         "database.status": CommandCase(
             command_id="database.status",
             args=["database", "status"],
-            textual_args=["database", "status"],
             expected={"dsn": ""},
         ),
         "database.upgrade": CommandCase(
             command_id="database.upgrade",
             args=["database", "upgrade", "--author", "operator", "--maintenance-confirmed"],
-            textual_args=["database", "upgrade", "--author", "operator", "--maintenance-confirmed"],
             expected={"dsn": "", "author": "operator", "maintenance_confirmed": True},
         ),
         "database.bootstrap-seed": CommandCase(
             command_id="database.bootstrap-seed",
             args=["database", "bootstrap-seed", "--author", "operator"],
-            textual_args=["database", "bootstrap-seed", "--author", "operator"],
             expected={"dsn": "", "author": "operator"},
         ),
         "database.generate-migration": CommandCase(
             command_id="database.generate-migration",
             args=["database", "generate-migration", "add audit", "--root", str(tmp_path)],
-            textual_args=["database", "generate-migration"],
             expected={"name": "add audit", "root": str(tmp_path)},
         ),
         "database.query-diagnostics": CommandCase(
             command_id="database.query-diagnostics",
             args=[
-                "database",
-                "query-diagnostics",
-                "--limit",
-                "7",
-                "--sort-by",
-                "total",
-                "--min-rows",
-                "42",
-                "--max-query-len",
-                "80",
-            ],
-            textual_args=[
                 "database",
                 "query-diagnostics",
                 "--limit",
@@ -1584,16 +1397,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--storage",
                 "hdd",
             ],
-            textual_args=[
-                "database",
-                "tune-env",
-                "--memory-gb",
-                "8",
-                "--max-connections",
-                "50",
-                "--storage",
-                "hdd",
-            ],
             expected={"memory_gb": 8.0, "max_connections": 50, "storage": "hdd"},
         ),
         "database.restore-parity-capture": CommandCase(
@@ -1606,7 +1409,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--label",
                 "base",
             ],
-            textual_args=["database", "restore-parity-capture"],
             expected={"dsn": "", "label": "base", "output": str(tmp_path / "baseline.json")},
         ),
         "database.restore-parity-verify": CommandCase(
@@ -1621,7 +1423,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--label",
                 "restored",
             ],
-            textual_args=["database", "restore-parity-verify"],
             expected={
                 "dsn": "",
                 "label": "restored",
@@ -1640,7 +1441,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "ui",
                 "--verify-ssl",
             ],
-            textual_args=["testing", "smoke-test"],
             expected={
                 "base_url": "",
                 "project_id": "proj_1",
@@ -1664,7 +1464,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--with-cutover-smoke",
                 "--fail-fast",
             ],
-            textual_args=["testing", "nightfire-regression"],
             expected={
                 "lane": "backend",
                 "project_id": "proj_1",
@@ -1700,7 +1499,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--skip-auth",
                 "--strict",
             ],
-            textual_args=["testing", "fuzz-api"],
             expected={
                 "base_url": "http://localhost:8099",
                 "seed": 42,
@@ -1727,7 +1525,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "3",
                 "--skip-auth",
             ],
-            textual_args=["testing", "fuzz-mcp"],
             expected={
                 "app_base_url": "http://localhost:8099",
                 "mcp_base_url": "http://localhost:8100/mcp",
@@ -1756,7 +1553,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--run-chrome-mcp",
                 "--strict",
             ],
-            textual_args=["testing", "fuzz-ui"],
             expected={
                 "base_url": "http://localhost:8099",
                 "seed": 8123,
@@ -1788,7 +1584,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "http://localhost:8099",
                 "--verify-ssl",
             ],
-            textual_args=["testing", "cutover-preflight"],
             expected={
                 "project_id": "proj_1",
                 "base_url": "http://localhost:8099",
@@ -1810,7 +1605,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--bearer-token-file",
                 str(bearer_file),
             ],
-            textual_args=["testing", "cutover-smoke"],
             expected={
                 "project_id": "proj_1",
                 "base_url": "http://localhost:8099",
@@ -1834,7 +1628,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--evidence-mode",
                 "report",
             ],
-            textual_args=["quality", "verify", "--tier", "3"],
             expected={
                 "tier": 3,
                 "evidence_mode": "report",
@@ -1849,18 +1642,11 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "quality.lint": CommandCase(
             command_id="quality.lint",
             args=["quality", "lint", "--mode", "fast", "--checks", "ruff"],
-            textual_args=["quality", "lint"],
             expected={"mode": "fast", "checks": "ruff", "timeout_seconds": 3600},
         ),
         "quality.check-ci-excludes": CommandCase(
             command_id="quality.check-ci-excludes",
             args=[
-                "quality",
-                "check-ci-excludes",
-                "--exclude-file",
-                "tests/CI_EXCLUDES.txt",
-            ],
-            textual_args=[
                 "quality",
                 "check-ci-excludes",
                 "--exclude-file",
@@ -1878,20 +1664,11 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--files",
                 "a.py,b.py",
             ],
-            textual_args=[
-                "quality",
-                "check-naming",
-                "--base",
-                "origin/main",
-                "--files",
-                "a.py,b.py",
-            ],
             expected={"base": "origin/main", "files": "a.py,b.py", "timeout_seconds": 300},
         ),
         "quality.release-gate": CommandCase(
             command_id="quality.release-gate",
             args=["quality", "release-gate"],
-            textual_args=["quality", "release-gate"],
             expected={"timeout_seconds": 3600},
         ),
         "quality.sonar-export-issues": CommandCase(
@@ -1912,7 +1689,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--output-dir",
                 str(tmp_path / "sonar"),
             ],
-            textual_args=["quality", "sonar-export-issues"],
             expected={
                 "host_url": "http://sonar.example",
                 "project_key": "flow-steward",
@@ -1928,7 +1704,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "quality.sonar-ensure-rules": CommandCase(
             command_id="quality.sonar-ensure-rules",
             args=["quality", "sonar-ensure-rules", "--rules", "python:S1"],
-            textual_args=["quality", "sonar-ensure-rules"],
             expected={
                 "host_url": "http://localhost:9000",
                 "rules": "python:S1",
@@ -1952,7 +1727,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--max-p1",
                 "6",
             ],
-            textual_args=["quality", "sonar-generate-backlog"],
             expected={
                 "input_csv": "",
                 "input_dir": str(tmp_path / "sonar"),
@@ -1972,13 +1746,11 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--source",
                 "core/application/settings/ui_i18n.py",
             ],
-            textual_args=["localization", "bootstrap-catalog"],
             expected={"source": "core/application/settings/ui_i18n.py", "timeout_seconds": 300},
         ),
         "localization.rebuild-pot": CommandCase(
             command_id="localization.rebuild-pot",
             args=["localization", "rebuild-pot"],
-            textual_args=["localization", "rebuild-pot"],
             expected={"timeout_seconds": 300},
         ),
         "localization.init-locale": CommandCase(
@@ -1992,7 +1764,6 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
                 "--native-label",
                 "Español",
             ],
-            textual_args=["localization", "init-locale"],
             expected={
                 "code": "es",
                 "label": "Spanish",
@@ -2003,19 +1774,16 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
         "localization.update": CommandCase(
             command_id="localization.update",
             args=["localization", "update"],
-            textual_args=["localization", "update"],
             expected={"timeout_seconds": 300},
         ),
         "localization.compile": CommandCase(
             command_id="localization.compile",
             args=["localization", "compile", "--force"],
-            textual_args=["localization", "compile"],
             expected={"force": True, "timeout_seconds": 300},
         ),
         "localization.validate-keys": CommandCase(
             command_id="localization.validate-keys",
             args=["localization", "validate-keys"],
-            textual_args=["localization", "validate-keys"],
             expected={"timeout_seconds": 300},
         ),
     }
@@ -2057,11 +1825,24 @@ def test_help_for_each_public_command_is_side_effect_free(
     )
 
 
-@pytest.mark.parametrize("prefix, expected_color", [([], False), (["--tui"], True)])
-def test_help_is_side_effect_free_and_color_is_explicit(
+@pytest.mark.parametrize(
+    ("prefix", "terminal", "expected_color"),
+    [
+        ([], True, True),
+        (["--no-color"], True, False),
+        (["--plain"], True, False),
+        ([], False, False),
+    ],
+)
+def test_help_is_side_effect_free_and_coloured_only_in_a_terminal(
     prefix: list[str],
+    terminal: bool,
     expected_color: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from core.entrypoints.cli.platform import command_help
+
+    monkeypatch.setattr(command_help, "_stdout_is_terminal", lambda: terminal)
     app, registry = _app()
     runner = CliRunner()
     env = {"NO_COLOR": None, "TERM": "xterm-256color"}
@@ -2084,7 +1865,7 @@ def test_help_is_side_effect_free_and_color_is_explicit(
 @pytest.mark.parametrize(
     ("mode_name", "prefix", "suffix", "terminal", "stdin"),
     [
-        ("textual_or_immediate", ["--tui"], [], _terminal(stdin=True, stdout=True), "y\n"),
+        ("default", [], [], _terminal(stdin=True, stdout=True), "y\n"),
         ("plain", ["--plain"], [], _terminal(stdin=True, stdout=True), "y\n"),
         ("non_interactive", ["--non-interactive"], [], _terminal(stdin=True, stdout=True), ""),
         ("json", ["--json"], [], _terminal(stdin=False, stdout=False), ""),
@@ -2106,26 +1887,11 @@ def test_every_mode_uses_same_spec_service_and_normalized_values(
     specs = _specs()
     case = command_cases[command_id]
     app, registry = _app(RecordingRegistry(prepared_clone=case.prepared_clone))
-    form_calls: list[dict[str, Any]] = []
-
-    def fake_form(**kwargs: Any) -> SimpleNamespace:
-        form_calls.append(kwargs)
-        return SimpleNamespace(status="confirmed", values=case.form_values or case.expected)
-
     monkeypatch.setattr(click_adapter, "_terminal_facts", lambda: terminal)
-    monkeypatch.setattr(click_adapter, "_run_textual_form", fake_form, raising=False)
     if case.secret_root is not None:
         monkeypatch.setattr(click_adapter, "DEFAULT_SECRET_FILE_ROOT", case.secret_root)
 
-    command_args = (
-        case.textual_args
-        if (
-            mode_name == "textual_or_immediate"
-            and command_id != "users.list"
-            and not command_id.startswith(("testing.", "quality.", "localization."))
-        )
-        else case.args
-    )
+    command_args = case.args
     if specs[command_id].interactive_policy is InteractivePolicy.ALWAYS_REVIEW and mode_name in {
         "non_interactive",
         "json",
@@ -2141,7 +1907,7 @@ def test_every_mode_uses_same_spec_service_and_normalized_values(
         command_args = [*command_args, "--confirm", *confirmation]
     effective_stdin = stdin
     if specs[command_id].confirmation_policy_ref and mode_name in {
-        "textual_or_immediate",
+        "default",
         "plain",
     }:
         keys = specs[command_id].confirmation_policy_ref.removeprefix("match:").split(",")
@@ -2166,11 +1932,6 @@ def test_every_mode_uses_same_spec_service_and_normalized_values(
         assert _json_payload(result.output)["command"] == command_id
     if command_id == "users.create":
         assert "StrongPass_123!" not in result.output
-    if form_calls:
-        assert mode_name == "textual_or_immediate"
-        assert form_calls[0]["spec"] is specs[command_id]
-    else:
-        assert form_calls == []
 
 
 @pytest.mark.parametrize(

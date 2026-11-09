@@ -33,7 +33,7 @@ RUN apk add --no-cache bash openssl python3 py3-pip \
     PyYAML==6.0.3 \
     'psycopg[binary]==3.3.3' \
     rich==15.0.0 \
-    textual==8.2.8 \
+    prompt-toolkit==3.0.52 \
   && docker --version \
   && docker compose version \
   && python3 --version

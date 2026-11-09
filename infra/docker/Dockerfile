@@ -103,6 +103,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/interrupts.py \
     core/entrypoints/cli/platform/modes.py \
     core/entrypoints/cli/platform/operation_log.py \
+    core/entrypoints/cli/platform/prompts.py \
     core/entrypoints/cli/platform/redaction.py \
     core/entrypoints/cli/platform/renderers.py \
     core/entrypoints/cli/platform/result_presentation.py \
@@ -124,12 +125,6 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/service_bindings/release.py \
     core/entrypoints/cli/platform/service_bindings/stack.py \
     core/entrypoints/cli/platform/service_bindings/
-COPY --chmod=u=rwX,go=rX --chown=fs:fs \
-    core/entrypoints/cli/tui/__init__.py \
-    core/entrypoints/cli/tui/form_app.py \
-    core/entrypoints/cli/tui/theme.tcss \
-    core/entrypoints/cli/tui/theme_monochrome.tcss \
-    core/entrypoints/cli/tui/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/__init__.py core/application/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/config.py core/application/auth/email.py core/application/auth/secrets.py core/application/auth/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/bootstrap_tokens.py core/application/auth/bootstrap_recovery.py core/application/auth/bootstrap_recovery_gateway.py core/application/auth/

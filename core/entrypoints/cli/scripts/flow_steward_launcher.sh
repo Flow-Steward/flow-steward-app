@@ -2,6 +2,19 @@
 set -eu
 
 printf '%s\n' "Flow Steward CLI: preparing management runtime..." >&2
+# The line above is feedback for a slow start only. When nothing else was printed after
+# it, an interactive terminal gets it erased right before the command runs, so the
+# command's own output is all that stays on screen. Pipes and logs keep it.
+launcher_status_shown=0
+if [ -t 2 ]; then
+  launcher_status_shown=1
+fi
+clear_launcher_status() {
+  if [ "$launcher_status_shown" = 1 ]; then
+    printf '\033[1A\033[2K' >&2
+    launcher_status_shown=0
+  fi
+}
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root_dir=$(CDPATH= cd -- "$script_dir/../../../.." && pwd)
@@ -579,7 +592,7 @@ print_new_build_output() {
   current_lines=$(wc -l < "$bootstrap_log" | tr -d ' ')
   if [ "$current_lines" -gt "${printed_lines:-0}" ]; then
     start_line=$((printed_lines + 1))
-    sed -n "${start_line},${current_lines}p" "$bootstrap_log" >&2
+    sed -n "${start_line},${current_lines}p" "$bootstrap_log" >&2; launcher_status_shown=0
     printed_lines=$current_lines
   fi
 }
@@ -610,7 +623,7 @@ build_cli_image() {
       continue
     fi
     if [ $((now - last_status)) -ge 5 ]; then
-      printf 'Still building Flow Steward CLI image; full output is retained at %s\n' "$bootstrap_log" >&2
+      printf 'Still building Flow Steward CLI image; full output is retained at %s\n' "$bootstrap_log" >&2; launcher_status_shown=0
       last_status=$now
     fi
   done
@@ -1082,7 +1095,7 @@ acquire_repair_lock() {
       fail "Flow Steward CLI runtime repair lock timed out after 10 seconds. Retry the command after the other launcher finishes." 6
     fi
     if [ "$lock_heartbeat" -eq 0 ]; then
-      printf '%s\n' "Waiting for another Flow Steward CLI launcher to repair the runtime..." >&2
+      printf '%s\n' "Waiting for another Flow Steward CLI launcher to repair the runtime..." >&2; launcher_status_shown=0
       lock_heartbeat=1
     fi
     sleep 1
@@ -1371,7 +1384,7 @@ ensure_cli_runtime() {
     printf '[lifecycle-operation-active]\n%s\n' "$active_lifecycle_operation" >> "$runtime_log"
     release_repair_lock
     printf 'Lifecycle operation %s is running in the current CLI runtime; this command runs there, and the runtime is refreshed by a later command.\n' \
-      "$active_lifecycle_operation" >&2
+      "$active_lifecycle_operation" >&2; launcher_status_shown=0
     return 0
   fi
   prepare_cli_transfer_root
@@ -1417,6 +1430,7 @@ ensure_cli_runtime() {
 }
 
 exec_compose_command() {
+  clear_launcher_status
   release_repair_lock
   cleanup_runtime_capture
   trap - EXIT HUP INT TERM
@@ -1558,7 +1572,6 @@ run_compact_platform_command() {
   compact_word_3=""
   compact_json=0
   compact_plain=0
-  compact_tui=0
   compact_no_color=0
   compact_non_interactive=0
   compact_verbose=0
@@ -1579,7 +1592,6 @@ run_compact_platform_command() {
     case "$1" in
       --json) compact_json=1 ;;
       --plain) compact_plain=1 ;;
-      --tui) compact_tui=1 ;;
       --no-color) compact_no_color=1 ;;
       --non-interactive) compact_non_interactive=1 ;;
       --verbose) compact_verbose=1 ;;
@@ -1749,9 +1761,6 @@ run_compact_platform_command() {
   if [ "$compact_plain" -eq 1 ]; then
     set -- "$@" --plain
   fi
-  if [ "$compact_tui" -eq 1 ]; then
-    set -- "$@" --tui
-  fi
   if [ "$compact_no_color" -eq 1 ]; then
     set -- "$@" --no-color
   fi
@@ -1812,7 +1821,6 @@ Options:
   --confirm          Confirm repairs without an interactive prompt.
   --json             Emit the diagnosis or repair result as JSON.
   --plain            Accept the global plain-output option.
-  --tui              Accept the global display option; Doctor uses plain output.
   --no-color         Accept the global no-color option.
   --verbose          Accept the global verbose option.
   --non-interactive  Accept the global non-interactive option.
@@ -1828,8 +1836,7 @@ Manage an installed Flow Steward Compact deployment.
 
 Options:
   --json             Emit structured JSON when supported.
-  --plain            Use line-oriented output (default).
-  --tui              Opt in to full-screen forms and rich output where supported.
+  --plain            Print without colour or animation.
   --no-color         Disable color output.
   --non-interactive  Never prompt for input.
   --verbose          Show verbose launcher output.
@@ -1889,8 +1896,7 @@ Options:
   --dry-run               Resolve and review without activation.
   --confirm               Confirm the reviewed release activation.
   --json                   Emit one JSON document.
-  --plain                  Use line-oriented output (default).
-  --tui                    Opt in to rich output and supported full-screen forms.
+  --plain                  Print without colour or animation.
   --non-interactive        Never prompt for input.
   -h, --help               Show this message and exit.
 EOF
@@ -1903,8 +1909,7 @@ Read the durable installed release state${1:+ and official release availability}
 
 Options:
   --json             Emit one JSON document.
-  --plain            Use line-oriented output (default).
-  --tui              Opt in to rich output.
+  --plain            Print without colour or animation.
   -h, --help         Show this message and exit.
 EOF
       ;;
@@ -1985,13 +1990,13 @@ run_delegated_target_command() {
     case "$delegated_candidate" in
       [ABCDEFGHIJKLMNOPQRSTUVWXYZ]*) ;;
       *)
-        printf '[warn] --test-env: ignoring malformed name %s\n' "$delegated_candidate" >&2
+        printf '[warn] --test-env: ignoring malformed name %s\n' "$delegated_candidate" >&2; launcher_status_shown=0
         continue
         ;;
     esac
     case "$delegated_candidate" in
       *[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*)
-        printf '[warn] --test-env: ignoring malformed name %s\n' "$delegated_candidate" >&2
+        printf '[warn] --test-env: ignoring malformed name %s\n' "$delegated_candidate" >&2; launcher_status_shown=0
         continue
         ;;
     esac
@@ -2098,10 +2103,10 @@ run_diagnostics_report() {
   diagnostics_scratch=$(mktemp -d "${TMPDIR:-/tmp}/flow-steward-diagnostics.XXXXXX") ||
     fail "Could not create a temporary directory for the diagnostic report." 2
 
-  printf '%s\n' "Collecting host facts..." >&2
+  printf '%s\n' "Collecting host facts..." >&2; launcher_status_shown=0
   collect_host_diagnostics_payload > "$diagnostics_scratch/host.json" 2>/dev/null || :
   compose_command ps --all --format json > "$diagnostics_scratch/containers.json" 2>/dev/null || :
-  printf '%s\n' "Running doctor..." >&2
+  printf '%s\n' "Running doctor..." >&2; launcher_status_shown=0
   "$script_dir/flow_steward_launcher.sh" doctor --json < /dev/null \
     > "$diagnostics_scratch/doctor.json" 2>/dev/null || :
   python3 - "$diagnostics_scratch" > "$diagnostics_scratch/input.json" <<'PY' ||
@@ -2144,7 +2149,7 @@ print(json.dumps(payload, separators=(",", ":")))
 PY
     printf '%s' '{}' > "$diagnostics_scratch/input.json"
 
-  printf '%s\n' "Building the report in the runtime..." >&2
+  printf '%s\n' "Building the report in the runtime..." >&2; launcher_status_shown=0
   diagnostics_status=0
   (run_product_command reports diagnostics --json --input-json - < "$diagnostics_scratch/input.json") \
     > "$diagnostics_scratch/envelope.json" || diagnostics_status=$?
@@ -2211,7 +2216,7 @@ for arg in "$@"; do
     doctor) doctor_command_count=$((doctor_command_count + 1)) ;;
     --json) doctor_json_requested=1 ;;
     --plain) doctor_plain_requested=1 ;;
-    --tui|--no-color|--verbose|--non-interactive) ;;
+    --no-color|--verbose|--non-interactive) ;;
     *) doctor_arguments_valid=0 ;;
   esac
   case "$previous_arg:$arg" in
@@ -2379,7 +2384,7 @@ compact_metadata_help=$compact_help_requested
 compact_metadata_words=0
 for arg in "$@"; do
   case "$arg" in
-    -h|--help|--tui|--plain|--json|--no-color|--verbose|--non-interactive) ;;
+    -h|--help|--plain|--json|--no-color|--verbose|--non-interactive) ;;
     *)
       compact_metadata_words=$((compact_metadata_words + 1))
       if [ "$compact_metadata_words" -eq 1 ] && [ "$arg" = "$top_level_command" ]; then

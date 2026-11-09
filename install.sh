@@ -231,6 +231,49 @@ host_docker() {
     docker --host "${resolved_endpoint}" "$@"
 }
 
+# One line for the operator, the whole Docker output in the bootstrap log: "→ label"
+# when it starts, "✓ label  12s" when it ends, a short note during long quiet work.
+# On failure the last lines of the log and its path are shown, unless the caller has
+# another way to go on (show_failure=0) and reports the outcome itself.
+quiet_step() {
+  local label="$1" show_failure="$2"
+  shift 2
+  local started step_pid heartbeat_pid step_code elapsed
+  local heartbeat_interval="${FS_INSTALLER_HEARTBEAT_SECONDS:-30}"
+  started="$(date +%s)"
+  echo "→ ${label}" >&2
+  "$@" >> "${BOOTSTRAP_LOG}" 2>&1 &
+  step_pid=$!
+  (
+    while kill -0 "${step_pid}" >/dev/null 2>&1; do
+      sleep "${heartbeat_interval}"
+      if kill -0 "${step_pid}" >/dev/null 2>&1; then
+        echo "  still preparing: ${label} ($(( $(date +%s) - started ))s)" >&2
+      fi
+    done
+  ) &
+  heartbeat_pid=$!
+  set +e
+  wait "${step_pid}"
+  step_code=$?
+  set -e
+  kill "${heartbeat_pid}" >/dev/null 2>&1 || true
+  wait "${heartbeat_pid}" >/dev/null 2>&1 || true
+  elapsed=$(( $(date +%s) - started ))
+  if [[ ${step_code} -eq 0 ]]; then
+    echo "✓ ${label}  ${elapsed}s" >&2
+  elif [[ "${show_failure}" == "1" ]]; then
+    echo "✗ ${label}" >&2
+    tail -n 20 "${BOOTSTRAP_LOG}" | sed 's/^/    /' >&2
+  fi
+  return "${step_code}"
+}
+
+build_installer_image() {
+  BUILDX_NO_DEFAULT_ATTESTATIONS=1 \
+    host_docker build -t "${INSTALLER_IMAGE}" - < "${INSTALLER_DOCKERFILE}"
+}
+
 STATE_DIR="${FS_INSTALLER_STATE_DIR:-${ROOT_DIR}/.flow-steward}"
 LOG_DIR="${STATE_DIR}/logs"
 LIFECYCLE_STATE_DIR="${ROOT_DIR}/.flow-steward"
@@ -328,26 +371,7 @@ elif [[ ${installer_from_source} -eq 1 ]]; then
     echo "Installer image definition is missing: ${INSTALLER_DOCKERFILE}" >&2
     exit 4
   fi
-  BUILDX_NO_DEFAULT_ATTESTATIONS=1 \
-    host_docker build -t "${INSTALLER_IMAGE}" - < "${INSTALLER_DOCKERFILE}" > >(tee -a "${BOOTSTRAP_LOG}" >&2) 2>&1 &
-  build_pid=$!
-  heartbeat_interval="${FS_INSTALLER_HEARTBEAT_SECONDS:-5}"
-  (
-    while kill -0 "${build_pid}" >/dev/null 2>&1; do
-      sleep "${heartbeat_interval}"
-      if kill -0 "${build_pid}" >/dev/null 2>&1; then
-        echo "Flow Steward installer: still preparing (${heartbeat_interval}s heartbeat)..." >&2
-      fi
-    done
-  ) &
-  heartbeat_pid=$!
-  set +e
-  wait "${build_pid}"
-  build_code=$?
-  set -e
-  kill "${heartbeat_pid}" >/dev/null 2>&1 || true
-  wait "${heartbeat_pid}" >/dev/null 2>&1 || true
-  if [[ ${build_code} -ne 0 ]]; then
+  if ! quiet_step "Preparing the installer" 1 build_installer_image; then
     echo "Installer image preparation failed. Full output: ${BOOTSTRAP_LOG}" >&2
     exit 7
   fi
@@ -366,11 +390,12 @@ else
   fi
   INSTALLER_IMAGE=""
   for installer_candidate in "${installer_candidates[@]}"; do
-    echo "Flow Steward installer: pulling management runtime ${installer_candidate}..." >&2
-    if host_docker pull "${installer_candidate}" > >(tee -a "${BOOTSTRAP_LOG}" >&2) 2>&1; then
+    if quiet_step "Downloading the installer from ${installer_candidate%%/*}" 0 \
+      host_docker pull "${installer_candidate}"; then
       INSTALLER_IMAGE="${installer_candidate}"
       break
     fi
+    echo "  ${installer_candidate%%/*} did not serve it; details in ${BOOTSTRAP_LOG}" >&2
   done
   if [[ -z "${INSTALLER_IMAGE}" ]]; then
     echo "Published installer image is unavailable for version ${INSTALLER_VERSION}; no source build was attempted." >&2

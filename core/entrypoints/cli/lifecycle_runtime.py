@@ -355,7 +355,6 @@ def _launcher_host_diagnostics() -> tuple[dict[str, object], ...] | None:
             "doctor",
             "--json",
             "--plain",
-            "--tui",
             "--no-color",
             "--verbose",
             "--non-interactive",

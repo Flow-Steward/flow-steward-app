@@ -943,7 +943,7 @@ def test_doctor_literal_help_identifier_does_not_bypass_the_live_installer_lock(
         ("doctor", "--help"),
         ("doctor", "-h"),
         ("--json", "doctor", "--help"),
-        ("--tui", "doctor", "--help"),
+        ("--plain", "doctor", "--help"),
         ("doctor", "--fix", "stack_stopped", "--confirm", "--help"),
     ],
 )
@@ -985,7 +985,6 @@ def test_doctor_help_is_metadata_only_without_installation_or_docker_actions(
         "--confirm",
         "--json",
         "--plain",
-        "--tui",
         "--no-color",
         "--verbose",
         "--non-interactive",
@@ -1493,7 +1492,7 @@ def test_compact_command_fails_closed_when_the_pinned_image_does_not_resolve(
         (("status", "--json"), ("status", "--json")),
         (("release", "info", "--json"), ("release-info", "--json")),
         (("release", "check", "--json"), ("release-check", "--json")),
-        (("release", "check", "--tui"), ("release-check", "--tui")),
+        (("release", "check", "--plain"), ("release-check", "--plain")),
         (
             (
                 "release",
@@ -4949,7 +4948,7 @@ def test_compact_release_help_exposes_upgrade_options_without_starting_docker(
     for command in ("release info", "release check", "release upgrade"):
         assert command in group.stdout
     assert upgrade.returncode == 0, upgrade.stderr
-    for option in ("--target-version", "--dry-run", "--timeout-seconds", "--confirm", "--tui"):
+    for option in ("--target-version", "--dry-run", "--timeout-seconds", "--confirm", "--plain"):
         assert option in upgrade.stdout
     assert "default: 1800" in upgrade.stdout
     assert "Product commands" not in upgrade.stdout

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable
 
 import click
@@ -149,8 +150,6 @@ def _make_help_formatter(ctx: click.Context) -> SemanticHelpFormatter:
 
 
 def _record_help_color_flags(ctx: click.Context, args: list[str]) -> None:
-    if "--tui" in args:
-        ctx.meta["help_tui_requested"] = True
     if any(flag in args for flag in _HELP_COLOR_OFF_FLAGS):
         ctx.meta["help_color_off"] = True
     if "--no-color" in args:
@@ -160,10 +159,8 @@ def _record_help_color_flags(ctx: click.Context, args: list[str]) -> None:
 def _help_color_enabled(ctx: click.Context) -> bool:
     if ctx.meta.get("help_color_off"):
         return False
-    tui_requested = bool(ctx.meta.get("help_tui_requested"))
     current: click.Context | None = ctx
     while current is not None:
-        tui_requested = tui_requested or bool(current.params.get("tui"))
         if (
             current.params.get("no_color")
             or current.params.get("plain")
@@ -173,9 +170,10 @@ def _help_color_enabled(ctx: click.Context) -> bool:
         current = current.parent
     if _runtime_env.get("NO_COLOR") or _runtime_env.get("TERM", "").lower() == "dumb":
         return False
-    if ctx.color is False:
-        return False
-    return tui_requested
+    if ctx.color is not None:
+        return bool(ctx.color)
+    # Help is coloured in a terminal, like every other output.
+    return _stdout_is_terminal()
 
 
 def _style_help(
@@ -186,3 +184,10 @@ def _style_help(
     if isinstance(formatter, SemanticHelpFormatter):
         return formatter.style(text, semantic)
     return str(text)
+
+
+def _stdout_is_terminal() -> bool:
+    try:
+        return sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return False

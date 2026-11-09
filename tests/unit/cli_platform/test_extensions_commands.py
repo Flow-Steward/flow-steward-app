@@ -498,66 +498,6 @@ def test_extensions_create_rejects_noncanonical_ids_before_filesystem_change(
     assert not output_root.exists()
 
 
-def test_extensions_create_incomplete_interactive_form_preserves_click_values(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from core.entrypoints.cli.platform import click_adapter
-
-    captured: dict[str, Any] = {}
-    output_root = tmp_path / "extensions"
-
-    def fake_form(**kwargs: Any) -> SimpleNamespace:
-        captured.update(kwargs)
-        return SimpleNamespace(
-            status="confirmed",
-            values={
-                "extension_id": "acme.crm-sync",
-                "output_root": output_root,
-                "display_name": "CRM Sync",
-                "description": "Synchronize CRM records",
-                "vendor_name": "Acme",
-                "category": "sales",
-            },
-        )
-
-    monkeypatch.setattr(click_adapter, "_run_textual_form", fake_form, raising=False)
-    monkeypatch.setattr(
-        click_adapter,
-        "_terminal_facts",
-        lambda: TerminalFacts(
-            stdin_isatty=True,
-            stdout_isatty=True,
-            columns=80,
-            rows=24,
-            term="xterm-256color",
-            no_color_env=False,
-        ),
-    )
-
-    result = CliRunner().invoke(
-        _app(),
-        [
-            "--tui",
-            "extensions",
-            "create",
-            "--output-root",
-            str(output_root),
-            "--display-name",
-            "CRM Sync",
-            "--vendor-name",
-            "Acme",
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-    initial = captured["initial_values"]
-    assert isinstance(initial, dict)
-    assert initial["output_root"] == str(output_root)
-    assert initial["display_name"] == "CRM Sync"
-    assert initial["vendor_name"] == "Acme"
-    assert (output_root / "acme_crm_sync").is_dir()
-
-
 def test_extensions_create_cancel_creates_no_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -566,12 +506,6 @@ def test_extensions_create_cancel_creates_no_directory(
     output_root = tmp_path / "extensions"
     monkeypatch.setattr(
         click_adapter,
-        "_run_textual_form",
-        lambda **_kwargs: SimpleNamespace(status="cancelled", values={}),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        click_adapter,
         "_terminal_facts",
         lambda: TerminalFacts(
             stdin_isatty=True,
@@ -583,11 +517,12 @@ def test_extensions_create_cancel_creates_no_directory(
         ),
     )
 
+    # The operator stops answering (Ctrl+D): nothing is written.
     result = CliRunner().invoke(
-        _app(), ["--tui", "extensions", "create", "--output-root", str(output_root)]
+        _app(), ["extensions", "create", "--output-root", str(output_root)], input=""
     )
 
-    assert result.exit_code == 10
+    assert result.exit_code != 0
     assert not output_root.exists()
 
 

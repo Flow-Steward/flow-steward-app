@@ -302,31 +302,65 @@ def _next_lines(payload: Mapping[str, Any]) -> list[Block]:
     ]
 
 
-_PAGING_KEYS = ("total", "limit", "offset", "has_more")
+_PAGING_KEYS = (
+    "total",
+    "limit",
+    "offset",
+    "has_more",
+    "page",
+    "per_page",
+    "total_pages",
+    "count",
+)
+
+
+def _only_list(payload: Mapping[str, Any]) -> tuple[str, list[Any]] | None:
+    """The one list a listing command returns, if it returns exactly one."""
+    lists = [(key, value) for key, value in payload.items() if isinstance(value, list)]
+    return lists[0] if len(lists) == 1 else None
+
+
+def _option(spec: CommandSpec, key: str) -> str | None:
+    field = next((field for field in spec.fields if field.key == key), None)
+    if field is None or field.positional:
+        return None
+    return field.option_name or "--" + key.replace("_", "-")
 
 
 def _paging_lines(spec: CommandSpec, payload: Mapping[str, Any]) -> list[Block]:
     """``Showing 20 of 135`` and the command for the next page, instead of raw paging fields."""
-    if "has_more" not in payload and not {"total", "limit"} <= payload.keys():
+    keys = payload.keys()
+    if not ({"has_more", "total_pages"} & keys or {"total", "limit"} <= keys):
         return []
-    shown = next(
-        (len(value) for value in payload.values() if isinstance(value, list)),
-        0,
-    )
+    listed = _only_list(payload)
+    shown = len(listed[1]) if listed else 0
     total = payload.get("total")
-    lines: list[Block] = [
-        Line(
-            f"Showing {shown} of {total}." if isinstance(total, int) else f"Showing {shown}.",
-            "muted",
-        )
-    ]
-    if payload.get("has_more"):
-        offset = int(payload.get("offset") or 0) + shown
-        words = [*spec.path, "--offset", str(offset)]
-        if isinstance(payload.get("limit"), int):
-            words += ["--limit", str(payload["limit"])]
+    page, pages = payload.get("page"), payload.get("total_pages")
+    summary = f"Showing {shown} of {total}" if isinstance(total, int) else f"Showing {shown}"
+    if isinstance(page, int) and isinstance(pages, int):
+        summary += f" (page {page} of {pages})"
+    lines: list[Block] = [Line(summary + ".", "muted")]
+    more = bool(payload.get("has_more")) or (
+        isinstance(page, int) and isinstance(pages, int) and page < pages
+    )
+    offset_option, limit_option = _option(spec, "offset"), _option(spec, "limit")
+    if more and offset_option:
+        words = [*spec.path, offset_option, str(int(payload.get("offset") or 0) + shown)]
+        limit = payload.get("limit", payload.get("per_page"))
+        if limit_option and isinstance(limit, int):
+            words += [limit_option, str(limit)]
         lines.append(Line(f"Next page: {command_line(*words)}", "muted"))
     return lines
+
+
+def _empty_listing(spec: CommandSpec, payload: Mapping[str, Any]) -> list[Block]:
+    """``No jobs found.`` for a read command whose only list is empty."""
+    if spec.operation_type is not OperationType.READ:
+        return []
+    listed = _only_list(payload)
+    if listed is None or listed[1]:
+        return []
+    return [Line(f"No {humanize_key(listed[0]).lower()} found.", "muted", 2)]
 
 
 def _payload_warnings(payload: Mapping[str, Any]) -> list[str]:
@@ -357,8 +391,9 @@ def result_blocks(
         )
         blocks.append(Line(f"{_mark(tone)} {headline}", tone))
         skip |= _HEADLINE_KEYS
-    paging = _paging_lines(spec, payload)
-    if paging:
+    empty = _empty_listing(spec, payload)
+    paging = [] if empty else _paging_lines(spec, payload)
+    if paging or empty:
         skip.update(_PAGING_KEYS)
     payload_warnings = _payload_warnings(payload)
     if payload_warnings:
@@ -366,7 +401,7 @@ def result_blocks(
     blocks.extend(
         payload_blocks(payload, indent=2, skip=skip, columns=_TABLE_COLUMNS.get(spec.command_id))
     )
-    blocks.extend(paging)
+    blocks.extend(empty or paging)
     for message in (*payload_warnings, *(warning.message for warning in warnings)):
         blocks.append(Line(f"{WARNING_MARK} {with_invocation_prefix(message)}", "warning"))
     blocks.extend(_next_lines(payload))
@@ -453,7 +488,9 @@ def emit_rich(console: Any, blocks: Iterable[Block]) -> None:
             )
         elif isinstance(block, Pairs):
             for label, value in _pair_lines(block):
-                text = Text(label, style=_STYLES["label"])
+                # A base style would colour the value too; only the label is styled.
+                text = Text()
+                text.append(label, style=_STYLES["label"])
                 text.append(value)
                 console.print(text, soft_wrap=True)
         else:

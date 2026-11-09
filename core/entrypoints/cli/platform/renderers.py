@@ -25,6 +25,7 @@ from core.application.management.command_specs.contracts import (
 from core.entrypoints.cli.platform.command_names import with_invocation_prefix
 from core.entrypoints.cli.platform.confirmation import confirmation_token
 from core.entrypoints.cli.platform.input_resolution import field_is_visible
+from core.entrypoints.cli.platform.prompts import ask_choice, show_field_help
 from core.entrypoints.cli.platform.result_presentation import (
     _data,
     _progress_line,
@@ -194,7 +195,7 @@ class PlainRenderer:
             emit_plain(_stack_logs_summary(payload), err=True)
         elif spec.command_id in _CONFIG_TEXT_RENDERERS:
             for line in _CONFIG_TEXT_RENDERERS[spec.command_id](_data(result)):
-                click.echo(line)
+                click.echo(with_invocation_prefix(line))
         elif spec.command_id == _REPORTS_DIAGNOSTICS:
             # The report is the deliverable: one JSON document an operator saves and sends.
             report = _data(result).get("report") or {}
@@ -253,25 +254,10 @@ class PlainRenderer:
             if field.type is FieldType.BOOLEAN:
                 values[field.key] = click.confirm(field.label, default=bool(field.default))
             elif field.type is FieldType.SINGLE_SELECT and field.choices:
-                _render_numbered_choices(field)
-                choices = tuple(field.choices)
-                default_index = next(
-                    (
-                        index
-                        for index, choice in enumerate(choices, start=1)
-                        if choice.value == str(field.default or "")
-                    ),
-                    1,
+                show_field_help(field)
+                values[field.key] = ask_choice(
+                    field.label, tuple(field.choices), str(field.default or "") or None
                 )
-                selected = click.prompt(
-                    field.label,
-                    type=click.Choice(
-                        [str(index) for index in range(1, len(choices) + 1)],
-                        case_sensitive=True,
-                    ),
-                    default=str(default_index),
-                )
-                values[field.key] = choices[int(selected) - 1].value
             elif field.type is FieldType.MULTI_SELECT and field.choices:
                 _render_numbered_choices(field)
                 default_items = (
@@ -430,7 +416,9 @@ class RichRenderer(PlainRenderer):
                 emit_plain(_stack_logs_summary(payload), err=True)
             elif spec.command_id in _CONFIG_TEXT_RENDERERS:
                 for line in _CONFIG_TEXT_RENDERERS[spec.command_id](payload):
-                    console.print(escape(line), highlight=False, soft_wrap=True)
+                    console.print(
+                        escape(with_invocation_prefix(line)), highlight=False, soft_wrap=True
+                    )
             else:
                 # The shared layout prints the result's warnings itself.
                 emit_rich(console, result_blocks(spec, payload, result.warnings))

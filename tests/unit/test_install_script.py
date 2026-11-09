@@ -1070,7 +1070,7 @@ def test_installer_image_contains_private_controller_runtime_dependencies() -> N
         "click==8.4.2",
         "cryptography==50.0.0",
         "psycopg[binary]==3.3.3",
-        "textual==8.2.8",
+        "prompt-toolkit==3.0.52",
         "rich==15.0.0",
         "pydantic==2.12.5",
     ):

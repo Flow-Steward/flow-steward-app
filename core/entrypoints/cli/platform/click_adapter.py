@@ -16,7 +16,7 @@ import click
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
 # Compose ``env_file`` may contain a stale NO_COLOR value. The launcher marker
-# carries the host's actual intent; normalize it before Textual is imported.
+# carries the host's actual intent; normalize it before Rich is imported.
 if "FS_CLI_HOST_NO_COLOR" in _runtime_env:
     _host_no_color = _runtime_env.pop("FS_CLI_HOST_NO_COLOR")
     if _host_no_color:
@@ -78,7 +78,6 @@ from core.entrypoints.cli.platform.input_resolution import (
 from core.entrypoints.cli.platform.modes import (
     OutputMode,
     TerminalFacts,
-    TextualAvailability,
     select_mode,
 )
 from core.entrypoints.cli.platform.operation_log import (
@@ -89,7 +88,7 @@ from core.entrypoints.cli.platform.operation_log import (
 from core.entrypoints.cli.platform.redaction import RedactionContext, redact_text
 from core.entrypoints.cli.platform.renderers import renderer_for
 
-_GLOBAL_PARAM_NAMES = ("json", "plain", "tui", "no_color", "verbose", "non_interactive")
+_GLOBAL_PARAM_NAMES = ("json", "plain", "no_color", "verbose", "non_interactive")
 _CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
 
@@ -274,15 +273,8 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
             terminal=terminal,
             json_requested=globals_["json"],
             plain_requested=globals_["plain"],
-            tui_requested=globals_["tui"],
             no_color_requested=globals_["no_color"],
             non_interactive=globals_["non_interactive"],
-            textual_eligible=(
-                spec.interactive_policy is InteractivePolicy.ALWAYS_REVIEW
-                and not globals_["json"]
-                and not globals_["plain"]
-                and not globals_["non_interactive"]
-            ),
         )
         renderer = renderer_for(
             spec,
@@ -291,15 +283,6 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
             color_enabled=decision.color_enabled,
             animation_enabled=decision.animation_enabled,
         )
-        if decision.textual_availability is TextualAvailability.REFUSED:
-            _fail(
-                spec,
-                globals_["json"],
-                "validation_failed",
-                (),
-                decision.minimum_size_message or "Terminal is too small; use --plain.",
-                exit_code=ExitCode.VALIDATION,
-            )
         explicit = {
             field.key: _normalize_click_value(field, values[field.key])
             for field in spec.fields
@@ -345,26 +328,12 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
         )
         if fatal_preliminary_issues:
             _fail(spec, globals_["json"], "validation_failed", validation.issues)
-        should_collect_missing = validation.value is None and (
-            decision.can_prompt
-            or decision.textual_availability
-            in {TextualAvailability.REFUSED, TextualAvailability.RESIZE_OR_PLAIN}
-        )
-        should_collect_textual_review = (
-            validation.value is not None
-            and spec.interactive_policy is InteractivePolicy.ALWAYS_REVIEW
-            and not review_confirmed
-            and spec.confirmation_policy_ref is None
-            and decision.textual_availability is TextualAvailability.AVAILABLE
-        )
-        if should_collect_missing or should_collect_textual_review:
+        if validation.value is None and decision.can_prompt:
             prompted, review_confirmed = _collect_interactive_values(
                 spec=spec,
                 registry=registry,
                 renderer=renderer,
-                decision=decision,
                 initial_values=_normalize_values_for_fields(spec.fields, validation.values),
-                terminal_size=(terminal.columns, terminal.rows),
                 json_requested=globals_["json"],
             )
             if spec.confirmation_policy_ref:
@@ -630,43 +599,9 @@ def _collect_interactive_values(
     spec: CommandSpec,
     registry: Any,
     renderer: Any,
-    decision: Any,
     initial_values: dict[str, Any],
-    terminal_size: tuple[int, int],
     json_requested: bool,
 ) -> tuple[dict[str, Any], bool]:
-    if decision.minimum_size_message:
-        _fail(
-            spec,
-            json_requested,
-            "validation_failed",
-            (),
-            decision.minimum_size_message,
-            exit_code=ExitCode.VALIDATION,
-        )
-    if decision.fallback_message:
-        click.echo(decision.fallback_message)
-    if decision.textual_availability is TextualAvailability.AVAILABLE:
-        outcome = _run_textual_form(
-            spec=spec,
-            initial_values=initial_values,
-            registry=registry,
-            terminal_size=terminal_size,
-            color_enabled=decision.color_enabled,
-            animation_enabled=decision.animation_enabled,
-        )
-        status = str(getattr(outcome, "status", "cancelled"))
-        if status == "cancelled":
-            _fail(
-                spec,
-                json_requested,
-                "cancelled",
-                (),
-                "Change cancelled.",
-                exit_code=ExitCode.INTERRUPTED,
-            )
-        if status == "confirmed":
-            return {**initial_values, **dict(getattr(outcome, "values", {}) or {})}, True
     try:
         plain_fields = _plain_fields_with_dynamic_choices(spec.fields, registry)
     except Exception as exc:
@@ -713,31 +648,6 @@ def _plain_fields_with_dynamic_choices(
         return tuple(resolved)
 
     return asyncio.run(load())
-
-
-def _run_textual_form(
-    *,
-    spec: CommandSpec,
-    initial_values: dict[str, Any],
-    registry: Any,
-    terminal_size: tuple[int, int],
-    color_enabled: bool,
-    animation_enabled: bool,
-) -> Any:
-    from core.entrypoints.cli.tui.form_app import CommandFormApp, FormOutcome
-
-    async def choice_loader(provider: str) -> tuple[Any, ...]:
-        return tuple(await registry.choices(provider))
-
-    outcome = CommandFormApp(
-        spec=spec,
-        initial_values=initial_values,
-        choice_loader=choice_loader,
-        terminal_size=terminal_size,
-        color_enabled=color_enabled,
-        animation_enabled=animation_enabled,
-    ).run()
-    return outcome or FormOutcome(status="cancelled")
 
 
 def _should_create_operation_log(spec: CommandSpec, command_input: Any | None = None) -> bool:

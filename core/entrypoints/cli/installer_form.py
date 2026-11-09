@@ -6,7 +6,6 @@ from typing import Any
 
 import click
 
-from core.application.installer.errors import InstallerFailure
 from core.application.installer.spec import INSTALLER_SPEC
 from core.application.installer.wizard import (
     InstallerWizardPolicy,
@@ -15,7 +14,7 @@ from core.application.installer.wizard import (
 )
 from core.application.management.command_specs.contracts import FieldType
 from core.entrypoints.cli.platform.input_resolution import field_is_visible
-from core.entrypoints.cli.platform.modes import TextualAvailability
+from core.entrypoints.cli.platform.prompts import arrow_keys_available, ask_choice
 
 
 def collect_plain(
@@ -36,7 +35,12 @@ def collect_plain(
             continue
         if field.description:
             click.echo(field.description)
-        if field.type is FieldType.SINGLE_SELECT and field.choices:
+        if field.type is FieldType.SINGLE_SELECT and field.choices and arrow_keys_available():
+            current = values.get(field.key)
+            values[field.key] = ask_choice(
+                field.label, tuple(field.choices), str(current) if current else None
+            )
+        elif field.type is FieldType.SINGLE_SELECT and field.choices:
             for index, choice in enumerate(field.choices, 1):
                 click.echo(f"  {index}. {choice.label}")
             default = next(
@@ -69,45 +73,13 @@ def collect_interactive(
     supplied: dict[str, Any],
     *,
     renderer: Any,
-    decision: Any,
-    terminal: Any,
     advanced: bool = False,
     from_source: bool = False,
 ) -> tuple[dict[str, Any], bool]:
-    # The full-screen form is opt-in (--tui on a large enough terminal); every other
-    # terminal, coloured or not, gets the line-by-line questions.
-    if decision.textual_availability is not TextualAvailability.AVAILABLE:
-        return collect_plain(
-            supplied, renderer=renderer, advanced=advanced, from_source=from_source
-        ), False
-    from core.entrypoints.cli.tui.form_app import CommandFormApp, FormOutcome
-
-    policy = InstallerWizardPolicy(locked_keys=frozenset(supplied), advanced=advanced)
-    spec = INSTALLER_SPEC.model_copy(update={"fields": ordered_fields()})
-    outcome = CommandFormApp(
-        spec=spec,
-        initial_values=supplied,
-        choice_loader=lambda _provider: (),
-        terminal_size=(terminal.columns, terminal.rows),
-        color_enabled=decision.color_enabled,
-        animation_enabled=decision.animation_enabled,
-        field_resolver=policy.resolve_field,
-        values_normalizer=policy.normalize,
-    ).run() or FormOutcome(status="cancelled")
-    if outcome.status == "plain_fallback":
-        return collect_plain(
-            supplied, renderer=renderer, advanced=advanced, from_source=from_source
-        ), False
-    if outcome.status != "confirmed":
-        raise InstallerFailure(
-            code="cancelled",
-            cause="Installation cancelled.",
-            remediation="Rerun ./install.sh when ready.",
-            exit_code=10,
-            retryable=False,
-            step="configuration",
-        )
-    return policy.normalize(outcome.values, frozenset(supplied) | frozenset(outcome.values)), True
+    """Ask the installation questions one at a time; the review comes afterwards."""
+    return collect_plain(
+        supplied, renderer=renderer, advanced=advanced, from_source=from_source
+    ), False
 
 
 def confirm_installation(renderer: Any, values: dict[str, Any], *, advanced: bool) -> bool:

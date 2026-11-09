@@ -1,8 +1,7 @@
 """Semantic CLI presentation styles.
 
-The palette is intentionally centralized so Click help, Rich output, and
-Textual themes can converge on the same meaning without scattering color
-literals through adapters.
+The palette is intentionally centralized so Click help and Rich output
+converge on the same meaning without scattering color literals through adapters.
 """
 
 from __future__ import annotations

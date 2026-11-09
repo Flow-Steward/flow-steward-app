@@ -104,8 +104,7 @@ def _field_option(field: FieldSpec) -> click.Option:
 def _params() -> list[click.Parameter]:
     return [
         click.Option(["--json"], is_flag=True, help="Emit one JSON document."),
-        click.Option(["--plain"], is_flag=True, help="Use line-oriented output (default)."),
-        click.Option(["--tui"], is_flag=True, help="Opt in to full-screen forms and rich output."),
+        click.Option(["--plain"], is_flag=True, help="Print without colour or animation."),
         click.Option(["--no-color"], is_flag=True, help="Disable color."),
         click.Option(["--verbose"], is_flag=True, help="Stream redacted technical output."),
         click.Option(["--non-interactive"], is_flag=True, help="Never prompt."),
@@ -123,7 +122,6 @@ def _params() -> list[click.Parameter]:
 def _callback(**values: Any) -> None:
     json_requested = bool(values.pop("json"))
     plain_requested = bool(values.pop("plain"))
-    tui_requested = bool(values.pop("tui"))
     no_color = bool(values.pop("no_color"))
     verbose = bool(values.pop("verbose"))
     non_interactive = bool(values.pop("non_interactive")) or json_requested
@@ -135,10 +133,8 @@ def _callback(**values: Any) -> None:
         terminal=terminal,
         json_requested=json_requested,
         plain_requested=plain_requested,
-        tui_requested=tui_requested,
         non_interactive=non_interactive,
         no_color_requested=no_color,
-        textual_eligible=True,
     )
     non_interactive = non_interactive or not decision.can_prompt
     renderer = _installer_renderer(
@@ -180,8 +176,6 @@ def _callback(**values: Any) -> None:
             normalized, form_confirmed = _collect_interactive(
                 supplied,
                 renderer=renderer,
-                decision=decision,
-                terminal=terminal,
                 advanced=advanced,
                 from_source=from_source,
             )

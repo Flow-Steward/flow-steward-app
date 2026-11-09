@@ -27,7 +27,7 @@ python-multipart==0.0.31
 
 # Canonical interactive CLI adapter delegated to the app runtime
 babel==2.17.0
-textual==8.2.8
+prompt-toolkit==3.0.52
 rich==15.0.0
 
 # Integrations

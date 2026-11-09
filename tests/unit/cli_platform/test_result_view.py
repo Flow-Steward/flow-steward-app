@@ -251,3 +251,33 @@ def test_no_command_prints_json_without_the_json_flag(
     assert "{" not in output and "}" not in output
     assert '"' not in output
     assert "line two" in output
+
+
+def test_an_empty_listing_says_so_instead_of_paging_fields(capsys) -> None:
+    output = _plain(_spec("jobs.list"), {"jobs": [], "total": 0, "page": 1, "per_page": 25}, capsys)
+
+    assert "No jobs found." in output
+    assert "Per page" not in output and "Total" not in output
+
+
+def test_page_based_results_offer_the_next_page_through_the_commands_own_options(
+    capsys,
+) -> None:
+    command_names.set_invocation_prefix("./flow-steward")
+
+    output = _plain(
+        _spec("jobs.list"),
+        {
+            "jobs": [{"id": "j1", "status": "done"}, {"id": "j2", "status": "failed"}],
+            "total": 5,
+            "page": 1,
+            "per_page": 2,
+            "offset": 0,
+            "total_pages": 3,
+        },
+        capsys,
+    )
+
+    assert "Showing 2 of 5 (page 1 of 3)." in output
+    assert "Next page: ./flow-steward jobs list --offset 2 --limit 2" in output
+    assert "Total pages" not in output
