@@ -64,7 +64,9 @@ describe("JobsDetailPage canonical rendering", () => {
     const modelUsage = await screen.findByText(/unknown\/model/);
     const usage = screen.getByTestId("job-usage-breakdown");
     expect(modelUsage).toHaveTextContent(new RegExp(`\\b${expectedTotal} tokens · 1 calls\\b`));
-    expect(within(usage).getByText(`Tokens: ${expectedTotal}`)).toBeInTheDocument();
+    // The total is its own figure (tabular numerals) inside the "Tokens:" line.
+    expect(within(usage).getByText((_, element) => Boolean(element?.classList.contains("job-usage"))
+      && element?.textContent === `Tokens: ${expectedTotal}`)).toBeInTheDocument();
   });
 
   it("lets each repeated loop execution open its own recorded inputs", async () => {

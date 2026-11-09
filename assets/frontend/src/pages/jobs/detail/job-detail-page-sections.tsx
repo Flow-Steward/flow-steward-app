@@ -790,7 +790,7 @@ function JobUsageBreakdownCard({
     <DsCard testId="job-usage-breakdown" title={t("jobs.detail.usage.title", "Model usage")}>
           <div className="grid gap-2">
             <div className="job-usage">
-              {t("react.jobs.tokens", "Tokens:")}
+              {t("react.jobs.tokens", "Tokens:")}{" "}
               <span className="job-number">{firstStringFromUnknownValue([totalTokensValue, 0])}</span>
             </div>
             {usageRows.map((row, index) => (
