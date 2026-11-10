@@ -8,6 +8,9 @@ import { Link } from "react-router";
 
 import { ChevronRight } from "lucide-react";
 import { DsAlert, DsBadge, DsCard, DsDrawer, DsValueChip } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { jobStatusGroup, jobStatusGroupTone } from "@/pages/jobs/status-groups";
 import "./job-detail.css";
 import {
@@ -595,6 +598,13 @@ function JobReviewCard({
   );
 }
 
+/** A running step reads Running where a finished one shows its outcome; the round Loader joins after the delay. */
+function JobStepRunningStatus() {
+  const { t } = useI18n();
+  const loaderShown = useLoaderDelay();
+  return <span className="job-step-running">{loaderShown ? <DsLoader variant="orbit-inline" /> : null}{t("react.workflows.run_bar_running", "Running")}</span>;
+}
+
 function JobExecutionWaterfall({
   executionSteps,
   hasMoreExecutionSteps,
@@ -605,6 +615,7 @@ function JobExecutionWaterfall({
 }: Readonly<JobDetailPrimaryContentProps>) {
   const { t } = useI18n();
   const hasRunningStep = executionSteps.some(isRunningStep);
+  const historyLoaderShown = useLoaderDelay(isLoadingMoreExecutionSteps && !executionSteps.length);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!hasRunningStep) {
@@ -623,14 +634,16 @@ function JobExecutionWaterfall({
       {/* No legacy web-component wrapper: its shadow shell drew a second frame and an empty header above the list. */}
         <div className="space-y-2">
           {hasMoreExecutionSteps ? (
-            <button
-              className="fs-button secondary w-full"
-              disabled={isLoadingMoreExecutionSteps}
+            <Button
+              busy={isLoadingMoreExecutionSteps}
+              busyLabel={t("react.jobs.loading_earlier_steps", "Loading earlier steps…")}
+              className="w-full"
               onClick={() => void loadMoreExecutionSteps()}
               type="button"
+              variant="secondary"
             >
-              {isLoadingMoreExecutionSteps ? t("react.jobs.loading_earlier_steps", "Loading earlier steps…") : t("react.jobs.load_earlier_steps", "Load earlier steps")}
-            </button>
+              {t("react.jobs.load_earlier_steps", "Load earlier steps")}
+            </Button>
           ) : null}
           <ol className="job-steps">
           {executionSteps.map((step, index) => {
@@ -672,7 +685,7 @@ function JobExecutionWaterfall({
                     <span className="job-step-meta">{summary}</span>
                   ) : null}
                 </span>
-                <DsBadge tone={executionStepTone(step)}>{executionStepBadgeLabel(step, t)}</DsBadge>
+                {isRunningStep(step) ? <JobStepRunningStatus /> : <DsBadge tone={executionStepTone(step)}>{executionStepBadgeLabel(step, t)}</DsBadge>}
                 {duration ? (
                   <span className="job-step-time" title={t("jobs.columns.duration", "Duration")}>{duration}</span>
                 ) : null}
@@ -683,11 +696,12 @@ function JobExecutionWaterfall({
             );
           })}
           </ol>
-          {!executionSteps.length ? (
+          {!executionSteps.length && historyLoaderShown ? (
+            <DsLoader variant="wide-block" label={t("react.jobs.loading_execution_history", "Loading execution history…")} />
+          ) : null}
+          {!executionSteps.length && !isLoadingMoreExecutionSteps && !historyLoaderShown ? (
             <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-secondary">
-              {isLoadingMoreExecutionSteps
-                ? t("react.jobs.loading_execution_history", "Loading execution history…")
-                : t("react.jobs.no_execution_steps_are_available_from_the_runtime_feed_yet", "No execution steps are available from the runtime feed yet.")}
+              {t("react.jobs.no_execution_steps_are_available_from_the_runtime_feed_yet", "No execution steps are available from the runtime feed yet.")}
             </div>
           ) : null}
         </div>

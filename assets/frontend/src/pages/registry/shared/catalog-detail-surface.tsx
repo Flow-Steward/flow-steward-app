@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
 
+import { ButtonBusyContent } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { fetchChangelogHistory } from "@/pages/registry/changelog/api";
 import {
@@ -281,6 +283,8 @@ export function RegistryDetailSurface({
   const [mcpDeletePlan, setMcpDeletePlan] = useState<McpProjectedToolDeletePlan | null>(null);
   const [mcpDeleteError, setMcpDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const savingShown = useLoaderDelay(saving);
+  const deletingShown = useLoaderDelay(deleting);
   const [promptDraft, setPromptDraft] = useState("");
   const [instructionsDraft, setInstructionsDraft] = useState("");
   const [scopeDraft, setScopeDraft] = useState("");
@@ -602,15 +606,16 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
+                aria-busy={saving || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
-                disabled={saving}
                 onClick={() => {
+                  if (saving) return;
                   const prompts = { ...agentPrompts, system: promptDraft.trim() };
                   ignoreAsyncResult(saveEntityPatch({ prompts }));
                 }}
                 type="button"
               >
-                {t("react.registry.save_prompts", "Save prompts")}</button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_prompts", "Save prompts")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() =>
@@ -699,14 +704,15 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
+                aria-busy={saving || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
-                disabled={saving}
                 onClick={() => {
+                  if (saving) return;
                   ignoreAsyncResult(saveEntityPatch({ prompt: promptDraft.trim() }));
                 }}
                 type="button"
               >
-                {t("react.registry.save_prompt", "Save prompt")}</button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_prompt", "Save prompt")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() => setPromptDraft(toolPrompt)}
@@ -755,9 +761,10 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
+                aria-busy={saving || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
-                disabled={saving}
                 onClick={() => {
+                  if (saving) return;
                   ignoreAsyncResult(saveEntityPatch({
                     instructions: instructionsDraft
                       .split("\n")
@@ -767,7 +774,7 @@ export function RegistryDetailSurface({
                 }}
                 type="button"
               >
-                {t("react.registry.save_instructions", "Save instructions")}</button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_instructions", "Save instructions")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() => setInstructionsDraft(skillInstructions.join("\n"))}
@@ -795,14 +802,15 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
+                aria-busy={saving || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
-                disabled={saving}
                 onClick={() => {
+                  if (saving) return;
                   ignoreAsyncResult(saveEntityPatch({ _agents: parseCommaSeparated(scopeDraft) }));
                 }}
                 type="button"
               >
-                {t("react.registry.save_scope", "Save scope")}</button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_scope", "Save scope")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() => setScopeDraft(guardrailScope.join(", "))}
@@ -885,14 +893,14 @@ export function RegistryDetailSurface({
               >
                 {t("extensions.repeater.cancel", "Cancel")}</button>
               <button
+                aria-busy={deleting || undefined}
                 className="rounded-xl border border-rose-300/35 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-100 hover:border-rose-300/55 disabled:opacity-60"
-                disabled={deleting}
                 onClick={() => {
-                  ignoreAsyncResult(deleteEntity());
+                  if (!deleting) ignoreAsyncResult(deleteEntity());
                 }}
                 type="button"
               >
-                {deleting ? t("react.registry.deleting", "Deleting...") : t("settings.model_providers.delete", "Delete")}
+                <ButtonBusyContent busyLabel={t("react.registry.deleting", "Deleting…")} shown={deletingShown}>{t("settings.model_providers.delete", "Delete")}</ButtonBusyContent>
               </button>
             </div>
           </div>

@@ -124,31 +124,6 @@
   font-size: 13px;
 }
 
-.fs-public-auth__wave-loader {
-  display: inline-flex;
-  height: var(--fs-icon-size-default);
-  align-items: center;
-  gap: var(--fs-space-025);
-  color: var(--fs-text-brand);
-}
-
-.fs-public-auth__wave-loader > span {
-  width: var(--fs-space-025);
-  height: var(--fs-space-100);
-  border-radius: var(--fs-radius-pill);
-  background: currentcolor;
-  animation: fsPublicAuthWave var(--fs-wave-loop) ease-in-out infinite;
-}
-
-.fs-public-auth__wave-loader > span:nth-child(2) { animation-delay: calc(var(--fs-duration-fast) * -1); }
-.fs-public-auth__wave-loader > span:nth-child(3) { animation-delay: calc(var(--fs-duration-fast) * -2); }
-.fs-public-auth__wave-loader > span:nth-child(4) { animation-delay: calc(var(--fs-duration-fast) * -3); }
-
-@keyframes fsPublicAuthWave {
-  0%, 100% { transform: scaleY(0.6); opacity: 0.56; }
-  50% { transform: scaleY(1.55); opacity: 1; }
-}
-
 .fs-public-auth__divider {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -560,7 +535,18 @@
   box-shadow: var(--fs-button-focus-ring);
 }
 
-.fs-public-auth__button[data-loading="true"] {
+/* Sign-in submit exception: a pending submit is disabled but keeps the Primary
+   treatment (the disabled fill would leave the white Loader on grey). */
+.fs-button.fs-public-auth__sign-in-button[aria-busy="true"]:disabled {
+  border-color: var(--fs-button-primary-border);
+  background: var(--fs-button-primary-bg);
+  color: var(--fs-button-primary-text);
+  cursor: default;
+  opacity: 1;
+}
+
+.fs-button.fs-public-auth__button[data-loading="true"],
+.fs-button.fs-public-auth__button[data-loading="true"]:disabled {
   position: relative;
   cursor: default;
   opacity: var(--fs-public-auth-submit-loading-opacity);
@@ -570,25 +556,12 @@
   visibility: hidden;
 }
 
-.fs-public-auth__reduced-loading-label {
-  display: none;
-}
-
-.fs-public-auth__button-spinner {
+/* Sign-in submit exception: the round mono Loader stands centred over the hidden label. */
+.fs-public-auth__button-loader {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--fs-public-auth-submit-spinner-track);
-  border-top-color: var(--fs-public-auth-submit-spinner-head);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  animation: fsPublicAuthSpin var(--fs-public-auth-submit-spinner-duration) linear infinite;
-}
-
-@keyframes fsPublicAuthSpin {
-  to { transform: translate(-50%, -50%) rotate(360deg); }
+  inset: 0;
+  display: grid;
+  place-items: center;
 }
 
 .fs-public-auth__recovery-actions {
@@ -633,21 +606,5 @@
 
   .fs-public-auth__recovery-actions {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fs-public-auth__button-spinner,
-  .fs-public-auth__wave-loader > span {
-    animation: none;
-  }
-
-  .fs-public-auth__button[data-loading="true"] .fs-public-auth__button-spinner,
-  .fs-public-auth__button[data-loading="true"] .fs-public-auth__button-label {
-    display: none;
-  }
-
-  .fs-public-auth__button[data-loading="true"] .fs-public-auth__reduced-loading-label {
-    display: inline;
   }
 }

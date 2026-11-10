@@ -300,7 +300,7 @@ it("does not label a new owner's launcher as failed after the old admitted reque
   await act(async () => { await view.router.navigate(entry.replace("project_alpha", "project_beta")); });
   await act(async () => { pending.reject(new Error("OLD_OWNER_START_FAILURE")); await pending.promise.catch(() => undefined); });
   const dialog = screen.queryByRole("dialog", { name: /^Start a test run$/ }) || await launcher();
-  await waitFor(() => expect(within(dialog).getByRole("button", { name: "Run workflow test run" })).not.toHaveTextContent("Starting"));
+  await waitFor(() => expect(within(dialog).getByRole("button", { name: "Run workflow test run" })).not.toHaveAttribute("aria-busy", "true"));
   expect(within(dialog).queryByText("OLD_OWNER_START_FAILURE")).not.toBeInTheDocument();
   expect(within(dialog).queryByText("View previous test run")).not.toBeInTheDocument();
   expect(screen.queryByText("Previous test run — the latest start request failed.")).not.toBeInTheDocument();
@@ -324,7 +324,7 @@ it("retires a late ACK through project A→B→A without storing or opening its 
   await act(async () => { await view.router.navigate(entry.replace("project_alpha", "project_beta")); });
   await act(async () => { await view.router.navigate(entry); });
   await act(async () => { fixture.add("run-stale"); pending.resolve(acknowledgement("run-stale")); await pending.promise; });
-  await waitFor(() => expect(screen.getByRole("button", { name: "Run workflow test run" })).not.toHaveTextContent("Starting"));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run workflow test run" })).not.toHaveAttribute("aria-busy", "true"));
   expect(localStorage.getItem(ackKey)).toBeNull();
   expect(fixture.detailReads).not.toContain("run-stale");
   expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();

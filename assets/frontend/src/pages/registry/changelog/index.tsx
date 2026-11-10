@@ -3,11 +3,13 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useState, type ReactNode } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { Link } from "react-router";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 import { PageContainer } from "@/components/shared/design-system";
 import { useConfirmDialog } from "@/components/shared/use-confirm-dialog";
 import { useAuth } from "@/lib/auth/useAuth";
@@ -295,6 +297,13 @@ export function RegistryChangelogPage() {
       revisionPresentation.canCompareContent,
     ]),
   });
+  const searchLoaderShown = useLoaderDelay(searchQueryResult.isLoading);
+  const listLoaderShown = useLoaderDelay(listQuery.isLoading);
+  const historyLoaderShown = useLoaderDelay(allTrue([historyQuery.isLoading, Boolean(selectedEntityType), Boolean(selectedEntityId)]));
+  const diffLoaderShown = useLoaderDelay(revisionPresentation.canCompareContent && diffQuery.isLoading);
+  const restoreBaselineLoaderShown = useLoaderDelay(restoreContext.context.status === "loading");
+  const refreshBusyShown = useLoaderDelay(listQuery.isFetching);
+  const restoreBusyShown = useLoaderDelay(restoring);
   const historyRows = arrayOrEmpty(historyQuery.data);
   const diffPayload = revisionPresentation.canCompareContent ? objectOrEmpty(diffQuery.data) : {};
   const diffSummary = diffPayload.summary;
@@ -381,13 +390,12 @@ export function RegistryChangelogPage() {
     if (!restoresWorkflow || !revisionPresentation.canRestore || status === "idle") {
       return null;
     }
-    if (status === "loading") {
-      return (
-        <span className="inline-flex items-center gap-2 text-xs text-slate-300">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          {t("react.registry.workflow_restore_loading_revision", "Loading the workflow's current revision…")}
+    if (status === "loading" || restoreBaselineLoaderShown) {
+      return restoreBaselineLoaderShown ? (
+        <span className="text-xs text-slate-300">
+          <DsLoader label={t("react.registry.workflow_restore_loading_revision", "Loading the workflow's current revision…")} variant="orbit-inline" />
         </span>
-      );
+      ) : null;
     }
     if (status === "ready") {
       return (
@@ -450,14 +458,14 @@ export function RegistryChangelogPage() {
           </select>
 
           <button
+            aria-busy={listQuery.isFetching || undefined}
             className="rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-300/40 disabled:opacity-50"
-            disabled={listQuery.isFetching}
             onClick={() => {
-              ignoreAsyncResult(refreshAll());
+              if (!listQuery.isFetching) ignoreAsyncResult(refreshAll());
             }}
             type="button"
           >
-            {choose(listQuery.isFetching, "Refreshing...", t("trash.refresh", "Refresh"))}
+            <ButtonBusyContent busyLabel={t("react.shared.refreshing", "Refreshing…")} shown={refreshBusyShown}>{t("trash.refresh", "Refresh")}</ButtonBusyContent>
           </button>
 
           <button
@@ -501,10 +509,9 @@ export function RegistryChangelogPage() {
             ),
           )}
 
-          {renderWhen(searchQueryResult.isLoading, (
-            <div className="inline-flex items-center gap-2 text-sm text-slate-300">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t("shell.search.loading", "Searching…")}</div>
+          {renderWhen(searchLoaderShown, (
+            <div className="text-sm text-slate-300">
+              <DsLoader label={t("shell.search.loading", "Searching…")} variant="orbit-inline" /></div>
           ))}
 
           {renderWhen(searchQueryResult.isError, (
@@ -516,6 +523,7 @@ export function RegistryChangelogPage() {
           {renderWhen(allTrue([
             normalizedSearchQuery.length >= 2,
             !searchQueryResult.isLoading,
+            !searchLoaderShown,
             !searchQueryResult.isError,
             !arrayOrEmpty(searchQueryResult.data).length,
           ]), (
@@ -564,10 +572,9 @@ export function RegistryChangelogPage() {
           <CardDescription>{t("react.registry.select_an_entry_to_inspect_history_and_diff_with_the_previous_revision", "Select an entry to inspect history and diff with the previous revision.")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {renderWhen(listQuery.isLoading, (
-            <div className="inline-flex items-center gap-2 text-sm text-slate-300">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t("react.registry.loading_changelog", "Loading changelog…")}</div>
+          {renderWhen(listLoaderShown, (
+            <div className="text-sm text-slate-300">
+              <DsLoader label={t("react.registry.loading_changelog", "Loading changelog…")} variant="orbit-inline" /></div>
           ))}
 
           {renderWhen(listQuery.isError, (
@@ -579,6 +586,7 @@ export function RegistryChangelogPage() {
           {renderWhen(allTrue([
             !listQuery.isError,
             !listQuery.isLoading,
+            !listLoaderShown,
             !arrayOrEmpty(listQuery.data).length,
           ]), (
             <div className="rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-300">
@@ -725,18 +733,14 @@ export function RegistryChangelogPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {renderWhen(allTrue([
-                    historyQuery.isLoading,
-                    Boolean(selectedEntityType),
-                    Boolean(selectedEntityId),
-                  ]), (
-                    <div className="inline-flex items-center gap-2 text-sm text-slate-300">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {t("react.registry.loading_history", "Loading history…")}</div>
+                  {renderWhen(historyLoaderShown, (
+                    <div className="text-sm text-slate-300">
+                      <DsLoader label={t("react.registry.loading_history", "Loading history…")} variant="orbit-inline" /></div>
                   ))}
 
                   {renderWhen(allTrue([
                     !historyQuery.isLoading,
+                    !historyLoaderShown,
                     !historyRows.length,
                     Boolean(selectedEntityType),
                     Boolean(selectedEntityId),
@@ -783,10 +787,9 @@ export function RegistryChangelogPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {renderWhen(revisionPresentation.canCompareContent && diffQuery.isLoading, (
-                    <div className="inline-flex items-center gap-2 text-sm text-slate-300">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {t("react.registry.loading_diff", "Loading diff…")}</div>
+                  {renderWhen(diffLoaderShown, (
+                    <div className="text-sm text-slate-300">
+                      <DsLoader label={t("react.registry.loading_diff", "Loading diff…")} variant="orbit-inline" /></div>
                   ))}
 
                   {renderWhen(revisionPresentation.canCompareContent && diffQuery.isError, (
@@ -797,6 +800,7 @@ export function RegistryChangelogPage() {
 
                   {renderWhen(allTrue([
                     !diffQuery.isLoading,
+                    !diffLoaderShown,
                     revisionPresentation.canCompareContent,
                     Boolean(previousEntryId),
                     !diffChanges.length,
@@ -839,20 +843,20 @@ export function RegistryChangelogPage() {
 
                   <div className="flex flex-wrap items-center gap-2">
                     {renderWhen(revisionPresentation.canRestore, (<button
+                      aria-busy={restoring || undefined}
                       className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 transition hover:border-cyan-300/60 disabled:opacity-50"
                       disabled={anyTrue([
                         !selectedEntityType,
                         !selectedEntityId,
                         !selectedEntryRef,
-                        restoring,
                         restoresWorkflow && !workflowRestoreReady,
                       ])}
                       onClick={() => {
-                        ignoreAsyncResult(restoreSelectedEntry( ));
+                        if (!restoring) ignoreAsyncResult(restoreSelectedEntry( ));
                       }}
                       type="button"
                     >
-                      {choose(restoring, t("react.registry.restoring", "Restoring..."), t("react.registry.display_restore_selected_revision", "Restore selected revision"))}
+                      <ButtonBusyContent busyLabel={t("react.registry.restoring", "Restoring…")} shown={restoreBusyShown}>{t("react.registry.display_restore_selected_revision", "Restore selected revision")}</ButtonBusyContent>
                     </button>))}
                     {workflowRestoreBaseline()}
                     {renderWhen(Boolean(selectedEntityRoute), (

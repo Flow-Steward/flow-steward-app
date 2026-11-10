@@ -1,6 +1,7 @@
 import { type ReactNode, type SubmitEvent, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { DsAlert, DsCheckbox, DsDialog, DsSelect, SensitiveInput } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { isHttpError } from "@/lib/http/errors";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -226,11 +227,9 @@ export function McpCatalogInstallDialog({
           <button className="fs-button" disabled={install.isPending} onClick={onClose} type="button">
             {t("extensions.repeater.cancel", "Cancel")}
           </button>
-          <button className="fs-button primary" disabled={install.isPending || !remote} form="mcp-catalog-install-form" type="submit">
-            {install.isPending
-              ? t("settings.retention.saving", "Saving...")
-              : t("react.registry.mcp_catalog.install_submit", "Install")}
-          </button>
+          <Button busy={install.isPending} busyLabel={t("react.extensions.installing", "Installing…")} disabled={!remote} form="mcp-catalog-install-form" type="submit" variant="primary">
+            {t("react.registry.mcp_catalog.install_submit", "Install")}
+          </Button>
         </>
       }
       initialFocusRef={firstFieldRef}

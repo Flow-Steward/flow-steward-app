@@ -72,7 +72,7 @@ describe("Settings readable labels with internal IDs unchanged", () => {
   it("distinguishes loading provider inventory from an empty inventory", async () => {
     installHttp(undefined, undefined, "loading");
     renderPage("general");
-    expect(await screen.findByText("Loading model providers...")).toBeInTheDocument();
+    expect(await screen.findByText("Loading model providers…")).toBeInTheDocument();
     expect(screen.queryByText("No model providers configured yet.")).not.toBeInTheDocument();
   });
 

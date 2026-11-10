@@ -48,6 +48,7 @@
 .job-step-title { overflow-wrap: anywhere; color: var(--fs-text-primary); font-size: var(--fs-type-body-size); font-weight: var(--fs-type-weight-medium); line-height: 20px; }
 .job-step-meta { overflow-wrap: anywhere; color: var(--fs-text-secondary); font-family: var(--ff-code); font-size: var(--fs-type-caption-size); line-height: 18px; }
 .job-step .fs-badge { flex: none; }
+.job-step-running { flex: none; display: inline-flex; align-items: center; gap: var(--fs-space-100); color: var(--fs-text-secondary); font-size: 13px; line-height: 20px; }
 .job-step-time { flex: none; min-width: 48px; color: var(--fs-text-secondary); font-family: var(--ff-data); font-size: 13px; font-weight: var(--fs-type-weight-medium); font-variant-numeric: tabular-nums; line-height: 20px; text-align: right; }
 .job-step-chevron { flex: none; width: 16px; height: 16px; color: var(--fs-text-tertiary); }
 

@@ -49,6 +49,9 @@
   font-weight: var(--fs-button-font-weight);
   white-space: nowrap;
   cursor: pointer;
+
+  /* The busy content inherits the icon gap: Loader, then the progress label. */
+  gap: var(--fs-button-gap-sm);
 }
 
 .fs-inline-confirm-button:hover { background: var(--fs-inline-confirm-secondary-hover-bg); }
@@ -77,6 +80,7 @@
 }
 
 .fs-inline-confirm-button:disabled { cursor: not-allowed; }
+.fs-inline-confirm-button[aria-busy="true"] { cursor: default; }
 
 /* The recovery message sits beside the actions it restored, on its own line. */
 .fs-inline-confirm-error {

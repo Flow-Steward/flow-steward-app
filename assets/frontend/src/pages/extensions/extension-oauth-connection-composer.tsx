@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 
 
 import { DsSelect, SensitiveInput } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { isHttpError } from "@/lib/http/errors";
 import { isBasicEmailAddress } from "@/lib/utils/string-normalization";
@@ -330,11 +331,10 @@ export function ConnectionComposer({
     ? t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: displayName || text(replaceConnection.connection_id) })
     : t("react.extensions.connect_an_account", "Connect an account");
   let submitLabel = t("react.extensions.connect", "Connect");
-  if (busy) {
-    submitLabel = imported
-      ? t("react.extensions.oauth_import_connecting", "Connecting…")
-      : t("react.extensions.starting", "Starting…");
-  } else if (replaceConnection) {
+  const busyLabel = imported
+    ? t("react.extensions.oauth_import_connecting", "Connecting…")
+    : t("react.extensions.starting", "Starting…");
+  if (replaceConnection) {
     submitLabel = t("react.extensions.oauth_import_replace", "Replace refresh token");
   }
 
@@ -464,9 +464,9 @@ export function ConnectionComposer({
       {!ready ? <p className="fs-manifest-notice">{configuration ? configurationGuidance(configuration.status, t, configuration.attention_code) : t("react.extensions.create_and_save_a_configuration_before_connecting", "Create and save a configuration before connecting.")}</p> : null}
       {error ? <p className="fs-field-helper error" role="alert">{error}</p> : null}
       <div className="fs-manifest-actions">
-        <button className="fs-button primary" disabled={!ready || busy || !replacementRevisionValid} type="submit">
+        <Button busy={busy} busyLabel={busyLabel} disabled={!ready || !replacementRevisionValid} type="submit" variant="primary">
           {submitLabel}
-        </button>
+        </Button>
         {onCancel ? (
           <button className="fs-button" disabled={busy} onClick={onCancel} type="button">
             {t("common.cancel", "Cancel")}

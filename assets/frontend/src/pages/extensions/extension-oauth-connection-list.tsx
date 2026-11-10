@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 
 import { InlineConfirm } from "@/components/shared/inline-confirm";
+import { Button } from "@/components/ui/button";
 import { focusAfterRequestLoading } from "@/components/shared/request-loading-focus";
 import { isHttpError } from "@/lib/http/errors";
 import "@/pages/extensions/extension-manifest.css";
@@ -186,16 +187,17 @@ function OAuthConnectionActions({
   if (!canManage) return null;
   if (view.disconnectRecoveryAvailable) {
     return (
-      <button
-        aria-busy={busy}
+      <Button
         aria-label={t("react.extensions.resume_disconnect_value0", "Resume disconnect {value0}", { value0: view.displayName })}
-        className="fs-button sm"
-        disabled={busy}
+        busy={busy}
+        busyLabel={t("react.extensions.resuming", "Resuming…")}
         onClick={() => onDisconnect(row, true)}
+        size="sm"
         type="button"
+        variant="secondary"
       >
-        {busy ? t("react.extensions.resuming", "Resuming…") : t("react.extensions.resume_disconnect", "Resume disconnect")}
-      </button>
+        {t("react.extensions.resume_disconnect", "Resume disconnect")}
+      </Button>
     );
   }
   if (view.lifecycle === "disconnecting") return null;
@@ -212,15 +214,16 @@ function OAuthConnectionActions({
           {t("react.extensions.test", "Test")}</button>
       ) : null}
       {view.retryablePostConnect ? (
-        <button
-          aria-busy={busy}
-          className="fs-button sm primary"
-          disabled={busy}
+        <Button
+          busy={busy}
+          busyLabel={t("react.extensions.retrying", "Retrying…")}
           onClick={() => onRetry(row)}
+          size="sm"
           type="button"
+          variant="primary"
         >
-          {busy ? t("react.extensions.retrying", "Retrying…") : t("settings.watchdog.retry", "Retry")}
-        </button>
+          {t("settings.watchdog.retry", "Retry")}
+        </Button>
       ) : null}
       {view.reconnectable ? (
         <button

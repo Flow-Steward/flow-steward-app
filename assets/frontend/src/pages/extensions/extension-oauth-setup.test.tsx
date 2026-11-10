@@ -1628,7 +1628,7 @@ describe("ExtensionOAuthSetup", () => {
     expect(await screen.findByText("Disconnect is still in progress. Try again after the recovery lease expires.")).toHaveAttribute("role", "alert");
     expect(onConnectionsChanged).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Resume disconnect Conflicted mailbox" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Resume disconnect Conflicted mailbox" })).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByRole("button", { name: "Resume disconnect Conflicted mailbox" })).not.toHaveAttribute("aria-busy");
     expect(screen.queryByText(/private-operation-id/)).not.toBeInTheDocument();
     expect(screen.queryByText(/private refresh failure payload/)).not.toBeInTheDocument();
   });
@@ -2398,8 +2398,9 @@ describe("ExtensionOAuthSetup", () => {
     });
 
     await user.click(await screen.findByRole("button", { name: "Retry" }));
-    const pending = screen.getByRole("button", { name: "Retrying…" });
-    expect(pending).toBeDisabled();
+    // Busy at once (presses ignored, focus kept); the progress label follows after the loader delay.
+    const pending = await screen.findByRole("button", { name: "Retrying…" });
+    expect(pending).toBeEnabled();
     expect(pending).toHaveAttribute("aria-busy", "true");
 
     const retryResponse: OAuthPostConnectRetryResult & { detail: string } = {

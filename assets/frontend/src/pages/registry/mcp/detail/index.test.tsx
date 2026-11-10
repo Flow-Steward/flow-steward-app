@@ -286,7 +286,8 @@ describe("RegistryMcpDetailPage", () => {
     await screen.findByRole("heading", { name: "Flow Steward MCP" });
     await user.click(screen.getByRole("button", { name: "Sync" }));
 
-    expect(screen.getByRole("button", { name: "Syncing…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sync" })).toHaveAttribute("aria-busy", "true");
+    expect(await screen.findByRole("button", { name: "Syncing…" })).toHaveAttribute("aria-busy", "true");
     resolveSync(connectorFixture({
       discovered_tools_jsonb: [
         {

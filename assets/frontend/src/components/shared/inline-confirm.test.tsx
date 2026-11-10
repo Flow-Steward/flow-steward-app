@@ -37,7 +37,8 @@ describe("InlineConfirm", () => {
     rerender(
       <InlineConfirm confirmLabel="Purge tool" onCancel={onCancel} onConfirm={vi.fn()} pending pendingLabel="Purging…" question="Purge tool?" tone="danger" />,
     );
-    expect(screen.getByRole("button", { name: "Purging…" })).toBeDisabled();
+    // Busy at once (presses ignored, focus kept); the progress label follows after the loader delay.
+    expect(screen.getByRole("button", { name: "Purge tool" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "No" })).toBeDisabled();
     screen.getByRole("group").focus();
     await user.keyboard("{Escape}");

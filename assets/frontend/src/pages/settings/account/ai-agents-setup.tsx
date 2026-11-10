@@ -4,6 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, Download } from "lucide-react";
 
 import { DsAlert, DsBadge, DsToast } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { InlineConfirm } from "@/components/shared/inline-confirm";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -191,6 +194,7 @@ export function AgentTokenStep({
   const [revoking, setRevoking] = useState(false);
   const [revokeError, setRevokeError] = useState("");
   const token = tokenQuery.data?.token;
+  const tokenLoaderShown = useLoaderDelay(!token && !tokenQuery.isError);
 
   async function revoke() {
     setRevoking(true);
@@ -210,7 +214,7 @@ export function AgentTokenStep({
   let summary: ReactNode;
   if (tokenQuery.isError) {
     summary = t("react.agent_access.token_status_unavailable", "The token's state could not be loaded");
-  } else if (token) {
+  } else if (token && !tokenLoaderShown) {
     const state = tokenState(token, t);
     const projects = token.allowed_project_ids || [];
     const facts = [
@@ -220,7 +224,7 @@ export function AgentTokenStep({
     if (token.expires_at) facts.push(t("react.agent_access.token_expires", "Expires {date}", { date: formatDate(token.expires_at) }));
     summary = <><DsBadge tone={state.tone}>{state.label}</DsBadge><span>{facts.filter(Boolean).join(" · ")}</span></>;
   } else {
-    summary = t("react.agent_access.loading_token", "Loading the token's state…");
+    summary = tokenLoaderShown ? <DsLoader label={t("react.agent_access.loading_token", "Loading the token's state…")} variant="orbit-inline" /> : null;
   }
 
   const actions = (
@@ -268,7 +272,7 @@ export function AgentRequestCheck({ tokenId }: Readonly<{ tokenId: string }>) {
         </span>
         {usedAt ? null : <span className="fs-field-helper">{t("react.agent_access.not_used_help", "Copying or downloading the settings does not count. The time appears after the first request with this token.")}</span>}
       </div>
-      <button className="fs-button secondary" disabled={tokenQuery.isFetching} onClick={() => ignoreAsyncResult(tokenQuery.refetch())} type="button">{t("react.agent_access.check_again", "Check again")}</button>
+      <Button busy={tokenQuery.isFetching} busyLabel={t("react.extensions.checking", "Checking…")} onClick={() => ignoreAsyncResult(tokenQuery.refetch())} type="button" variant="secondary">{t("react.agent_access.check_again", "Check again")}</Button>
     </div>
   );
 }

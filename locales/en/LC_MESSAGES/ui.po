@@ -6139,7 +6139,7 @@ msgid "react.monitoring.clean_orphan_data"
 msgstr "Clean orphan data"
 
 msgid "react.monitoring.cleaning"
-msgstr "Cleaning"
+msgstr "Cleaning…"
 
 msgid "react.monitoring.clear_filters"
 msgstr "Clear filters"
@@ -6624,7 +6624,7 @@ msgid "react.monitoring.refine_by_workflow_and_event_hierarchy_above"
 msgstr "Refine by workflow and event hierarchy above."
 
 msgid "react.monitoring.refreshing"
-msgstr "Refreshing..."
+msgstr "Refreshing…"
 
 msgid "react.monitoring.remove_value1_filter"
 msgstr "Remove {value1} filter"
@@ -6636,7 +6636,7 @@ msgid "react.monitoring.replica_completeness"
 msgstr "Replica completeness:"
 
 msgid "react.monitoring.requesting_redrive"
-msgstr "Requesting redrive..."
+msgstr "Requesting redrive…"
 
 msgid "react.monitoring.retrying"
 msgstr "Retrying"
@@ -7191,10 +7191,10 @@ msgid "react.projects.load_the_project_workflow_inventory_before_creating_a_rout
 msgstr "Load the project workflow inventory before creating a route."
 
 msgid "react.projects.loading_channels"
-msgstr "Loading channels..."
+msgstr "Loading channels…"
 
 msgid "react.projects.loading_connections"
-msgstr "Loading connections..."
+msgstr "Loading connections…"
 
 msgid "react.projects.loading_datasets"
 msgstr "Loading datasets..."
@@ -7206,7 +7206,7 @@ msgid "react.projects.loading_history"
 msgstr "Loading history…"
 
 msgid "react.projects.loading_notification_routes"
-msgstr "Loading notification routes..."
+msgstr "Loading notification routes…"
 
 msgid "react.projects.loading_project_data_connections"
 msgstr "Loading project data connections..."
@@ -7215,7 +7215,7 @@ msgid "react.projects.loading_project_settings"
 msgstr "Loading project settings…"
 
 msgid "react.projects.loading_project_workflows"
-msgstr "Loading project workflows..."
+msgstr "Loading project workflows…"
 
 msgid "react.projects.loading_projects"
 msgstr "Loading projects"
@@ -7224,7 +7224,7 @@ msgid "react.projects.loading_workflow_catalog"
 msgstr "Loading workflow catalog..."
 
 msgid "react.projects.loading_workspaces"
-msgstr "Loading workspaces..."
+msgstr "Loading workspaces…"
 
 msgid "react.projects.local_timezone"
 msgstr "local timezone"
@@ -8356,7 +8356,7 @@ msgid "react.registry.create_your_first_guardrail_rule_to_start_validating_agent
 msgstr "Create your first guardrail rule to start validating agent outputs."
 
 msgid "react.registry.creating"
-msgstr "Creating..."
+msgstr "Creating…"
 
 msgid "react.registry.credentials"
 msgstr "Credentials"
@@ -8495,7 +8495,7 @@ msgid "react.registry.delete_value0"
 msgstr "Delete {value0}"
 
 msgid "react.registry.deleting"
-msgstr "Deleting..."
+msgstr "Deleting…"
 
 msgid "react.registry.delivery"
 msgstr "delivery"
@@ -9348,7 +9348,7 @@ msgid "react.registry.loading_remote_tools"
 msgstr "Loading remote tools..."
 
 msgid "react.registry.loading_schema"
-msgstr "Loading schema..."
+msgstr "Loading schema…"
 
 msgid "react.registry.loading_tool_detail"
 msgstr "Loading tool detail"
@@ -10387,7 +10387,7 @@ msgid "react.registry.refresh_token_required"
 msgstr "Refresh token required"
 
 msgid "react.registry.refreshing_schema"
-msgstr "Refreshing schema..."
+msgstr "Refreshing schema…"
 
 msgid "react.registry.register_a_connector_to_get_started"
 msgstr "Register a connector to get started."
@@ -10487,7 +10487,7 @@ msgid "react.registry.restored_workflow_revision_as_new"
 msgstr "Restored {value0} as a new revision."
 
 msgid "react.registry.restoring"
-msgstr "Restoring..."
+msgstr "Restoring…"
 
 msgid "react.registry.retrieving_the_current_tool_configuration"
 msgstr "Retrieving the current tool configuration."
@@ -11774,7 +11774,7 @@ msgid "react.settings.delete_value1_this_cannot_be_undone"
 msgstr "Delete {value1}? This cannot be undone."
 
 msgid "react.settings.deleting"
-msgstr "Deleting..."
+msgstr "Deleting…"
 
 msgid "react.settings.deployment_name"
 msgstr "Deployment name"
@@ -12011,7 +12011,7 @@ msgid "react.settings.loading_account_settings"
 msgstr "Loading account settings"
 
 msgid "react.settings.loading_general_settings_snapshot"
-msgstr "Loading general settings snapshot..."
+msgstr "Loading general settings snapshot…"
 
 msgid "react.settings.loading_personal_tokens"
 msgstr "Loading personal tokens"
@@ -13573,7 +13573,7 @@ msgid "react.shared.reassign"
 msgstr ". Reassign:"
 
 msgid "react.shared.refreshing"
-msgstr "Refreshing..."
+msgstr "Refreshing…"
 
 msgid "react.shared.relative_days"
 msgstr "{count}d"
@@ -16149,7 +16149,7 @@ msgid "react.workflows.continue_summary"
 msgstr "Next item"
 
 msgid "react.workflows.continuing"
-msgstr "Continuing..."
+msgstr "Continuing…"
 
 msgid "react.workflows.contract"
 msgstr "Contract"
@@ -18228,7 +18228,7 @@ msgid "react.workflows.linked_variant_2272bea6"
 msgstr "linked"
 
 msgid "react.workflows.linking_project"
-msgstr "Linking project..."
+msgstr "Linking project…"
 
 msgid "react.workflows.list"
 msgstr "List"
@@ -19443,7 +19443,7 @@ msgid "react.workflows.run_workflow_test_run"
 msgstr "Run workflow test run"
 
 msgid "react.workflows.running"
-msgstr "Running..."
+msgstr "Running…"
 
 msgid "react.workflows.running_preflight"
 msgstr "Running preflight…"
@@ -19875,7 +19875,7 @@ msgid "react.workflows.start_from_scratch"
 msgstr "Start from scratch"
 
 msgid "react.workflows.starting_test_run"
-msgstr "Starting Test Run..."
+msgstr "Starting Test Run…"
 
 msgid "react.workflows.state_aliases"
 msgstr "State aliases"
@@ -23252,7 +23252,7 @@ msgid "registry.workflow_detail.library.title"
 msgstr "Library"
 
 msgid "registry.workflow_detail.loading"
-msgstr "Loading..."
+msgstr "Loading…"
 
 msgid "registry.workflow_detail.on_failure.save"
 msgstr "Save Failure"
@@ -24731,7 +24731,7 @@ msgid "settings.loading.mcp_connectors"
 msgstr "Loading MCP connectors..."
 
 msgid "settings.loading.model_providers"
-msgstr "Loading model providers..."
+msgstr "Loading model providers…"
 
 msgid "settings.loading.notifications"
 msgstr "Loading notifications..."
@@ -25052,7 +25052,7 @@ msgid "settings.retention.saved"
 msgstr "Retention settings saved."
 
 msgid "settings.retention.saving"
-msgstr "Saving..."
+msgstr "Saving…"
 
 msgid "settings.retention.script_note"
 msgstr ""
@@ -28432,7 +28432,7 @@ msgid "react.jobs.file_preview_hide"
 msgstr "Hide"
 
 msgid "react.jobs.file_preview_loading"
-msgstr "Loading preview..."
+msgstr "Loading preview…"
 
 msgid "react.jobs.file_preview_not_utf8"
 msgstr "This file is not UTF-8 text, so it cannot be shown here. Download it instead."
@@ -29208,7 +29208,10 @@ msgid "react.registry.typed_json_value"
 msgstr "Used as a typed JSON value."
 
 msgid "react.projects.secret_approval.loading"
-msgstr "Checking the use of stored secrets..."
+msgstr "Checking the use of stored secrets…"
+
+msgid "react.projects.secret_approval.approving"
+msgstr "Approving…"
 
 msgid "react.projects.secret_approval.title"
 msgstr "Stored secrets need approval"

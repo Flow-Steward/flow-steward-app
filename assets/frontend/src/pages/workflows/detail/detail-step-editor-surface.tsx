@@ -284,7 +284,9 @@ export function StepEditorSurface({
             {t("common.cancel", "Cancel")}
           </Button>
           <Button
-            disabled={saving || blocked}
+            busy={saving}
+            busyLabel={t("react.settings.saving", "Saving…")}
+            disabled={!saving && blocked}
             id="step-submit-btn"
             onClick={() => ignoreAsyncResult(saveStepWithNumericFocus())}
             type="button"

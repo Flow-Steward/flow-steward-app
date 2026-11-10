@@ -138,7 +138,9 @@ it("an approval waiting in the run is decided with its request in view, focus on
   expect(within(decision).getByText("state.review")).toBeVisible();
   expect(within(decision).getByText(/Fulfilment/)).toBeVisible();
   expect(within(decision).getByText(/the run ends/)).toBeVisible();
-  expect(within(decision).getAllByRole("button").map((button) => button.textContent)).toEqual(["Reject", "Approve"]);
+  const decisionButtons = within(decision).getAllByRole("button");
+  expect(decisionButtons).toHaveLength(2);
+  ["Reject", "Approve"].forEach((name, index) => expect(decisionButtons[index]).toHaveAccessibleName(name));
   fireEvent.change(within(decision).getByRole("textbox", { name: "Comment for rejection" }), { target: { value: "Checked" } });
   fireEvent.click(within(decision).getByRole("button", { name: "Approve" }));
   expect(decide).toHaveBeenCalledWith(true, "Checked");

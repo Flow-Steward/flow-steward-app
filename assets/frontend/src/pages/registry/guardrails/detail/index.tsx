@@ -24,6 +24,7 @@ import {
 import { SaveErrorAlert, SaveStatusBadge } from "@/pages/registry/shared/save-feedback";
 import { firstStringFromUnknownValue, isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { Button } from "@/components/ui/button";
 import { AssignmentSelector, type AssignmentSelectorRow } from "@/components/shared/assignment-selector";
 import {
   GuardrailRuleEditor,
@@ -593,9 +594,9 @@ export function RegistryGuardrailsDetailPage() {
             </div>
           </details>
           <div className="flex flex-wrap gap-2">
-            <button
-              className="fs-button primary"
-              disabled={saving}
+            <Button
+              busy={saving}
+              busyLabel={t("react.settings.saving", "Saving…")}
               onClick={() => {
                 const parsedConfig = parseConfigDraft();
                 if (!parsedConfig) {
@@ -615,8 +616,9 @@ export function RegistryGuardrailsDetailPage() {
                 }));
               }}
               type="button"
+              variant="primary"
             >
-              {t("react.registry.save_config", "Save config")}</button>
+              {t("react.registry.save_config", "Save config")}</Button>
             <button
               className="fs-button"
               onClick={() => {

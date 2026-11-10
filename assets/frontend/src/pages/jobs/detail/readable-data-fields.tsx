@@ -5,6 +5,8 @@ import { firstReadableText, humanizeDiagnosticLabel, objectOrEmpty, type Entity 
 import { JobFileItem } from "./job-detail-file-preview";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 
 const PROJECTION_MARKER = "_flow_steward_projection";
 
@@ -163,6 +165,7 @@ function FullTextValue({
   const { t } = useI18n();
   const [full, setFull] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "failed">("idle");
+  const loaderShown = useLoaderDelay(state === "loading");
   async function load() {
     setState("loading");
     try {
@@ -185,12 +188,12 @@ function FullTextValue({
       {preview}
       <span className="mt-1 flex flex-wrap items-center gap-2">
         <button
+          aria-busy={state === "loading" || undefined}
           className="fs-link text-xs"
-          disabled={state === "loading"}
-          onClick={() => ignoreAsyncResult(load())}
+          onClick={() => { if (state !== "loading") ignoreAsyncResult(load()); }}
           type="button"
         >
-          {state === "loading" ? t("react.jobs.loading_full_text", "Loading full text…") : t("react.jobs.show_full_text", "Show full text")}
+          <ButtonBusyContent busyLabel={t("react.jobs.loading_full_text", "Loading full text…")} shown={loaderShown}>{t("react.jobs.show_full_text", "Show full text")}</ButtonBusyContent>
         </button>
         {state === "failed" ? (
           <span className="text-xs fs-ink-tertiary" role="alert">{t("react.jobs.the_full_text_could_not_be_loaded", "The full text could not be loaded.")}</span>

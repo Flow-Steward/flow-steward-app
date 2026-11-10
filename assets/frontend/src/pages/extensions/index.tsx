@@ -16,6 +16,9 @@ import {
   type DsTableColumn,
 } from "@/components/shared/design-system";
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { CatalogIcon } from "@/components/shared/catalog-browse";
 import type { ExtensionRecord } from "@/pages/extensions/api";
 import {
@@ -107,16 +110,18 @@ function updateActionFor(entry: ExtensionCatalogEntry, updates: ExtensionUpdates
 function updateButton(entry: ExtensionCatalogEntry, updates: ExtensionUpdates, t: I18nContextValue["t"], primary: boolean): ReactNode {
   const phase = updates.installStateById[entry.extension_id]?.phase ?? "idle";
   return (
-    <button
-      aria-busy={phase === "installing" || undefined}
-      className={primary ? "fs-button primary sm" : "fs-button sm"}
+    <Button
+      busy={phase === "installing"}
+      busyLabel={updateLabel("installing", entry.version, t)}
       data-extension-update-action={entry.extension_id}
-      disabled={phase !== "idle"}
+      disabled={phase === "awaiting_approval"}
       onClick={() => updates.onUpdate(entry)}
+      size="sm"
       type="button"
+      variant={primary ? "primary" : "secondary"}
     >
-      {updateLabel(phase, entry.version, t)}
-    </button>
+      {updateLabel(phase === "installing" ? "idle" : phase, entry.version, t)}
+    </Button>
   );
 }
 
@@ -480,6 +485,7 @@ export function ExtensionsHubPage() {
 
   // WordPress's update check: the server reuses the catalog's answer for an
   // hour, and a page that cannot reach it says so without blocking anything.
+  const extensionsLoaderShown = useLoaderDelay(extensionsQuery.isLoading);
   const updatesQuery = useQuery({
     queryKey: EXTENSION_UPDATES_QUERY_KEY,
     queryFn: () => fetchExtensionUpdates(),
@@ -506,13 +512,12 @@ export function ExtensionsHubPage() {
 
   const extensionColumns = createExtensionColumns(hubState, lifecycleActions, extensionUpdates, t);
   let tableState: ReactNode = null;
-  if (extensionsQuery.isLoading) {
-    tableState = (
+  if (extensionsQuery.isLoading || extensionsLoaderShown) {
+    tableState = extensionsLoaderShown ? (
       <div className="fs-table-state">
-        <strong>{t("react.extensions.loading_extensions", "Loading extensions")}</strong>
-        <span>{t("react.extensions.the_table_keeps_its_shape_while_the_list_loads", "The table keeps its shape while the list loads.")}</span>
+        <DsLoader label={t("react.extensions.loading_extensions", "Loading extensions")} variant="wide-block" />
       </div>
-    );
+    ) : null;
   } else if (!visibleExtensions.length) {
     tableState = (
       <div className="fs-table-state">

@@ -229,7 +229,7 @@ describe("AiAgentsSection", () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(mockedIssue).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Creating…" })).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
     resolve(created());
     expect(await screen.findByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`);
     const [key, request] = mockedIssue.mock.calls[0];

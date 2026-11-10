@@ -15,7 +15,13 @@ import {
   Pagination,
 } from "@/components/shared/design-system";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+
 import { PeriodFilter } from "@/components/shared/period-filter";
+
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+
+import { Button } from "@/components/ui/button";
 
 import { queryKeys } from "@/lib/query/keys";
 
@@ -186,9 +192,9 @@ function EventsFiltersCard({
         />
         <PeriodFilter ariaLabel={t("react.monitoring.event_period", "Event period")} onChange={onPeriodChange} value={period} />
         <div className="fs-monitoring-status">
-          <button className="fs-button" disabled={refreshing} onClick={onRefresh} type="button">
-            {refreshing ? t("react.monitoring.refreshing", "Refreshing...") : t("account.tokens.refresh", "Refresh")}
-          </button>
+          <Button busy={refreshing} busyLabel={t("react.monitoring.refreshing", "Refreshing…")} onClick={onRefresh} type="button" variant="secondary">
+            {t("account.tokens.refresh", "Refresh")}
+          </Button>
           <button className="fs-button ghost" onClick={onClear} type="button">
             {t("react.monitoring.clear_filters", "Clear filters")} </button>
         </div>
@@ -269,8 +275,9 @@ function EventsListStatus({
   empty,
 }: Readonly<{ loading: boolean; error: unknown; empty: boolean }>) {
   const { t } = useI18n();
-  if (loading) {
-    return <p className="fs-empty-copy">{t("react.monitoring.loading_events", "Loading events…")}</p>;
+  const loaderShown = useLoaderDelay(loading);
+  if (loading || loaderShown) {
+    return loaderShown ? <p className="fs-empty-copy"><DsLoader label={t("react.monitoring.loading_events", "Loading events…")} variant="orbit-inline" /></p> : null;
   }
   if (error) {
     return (
@@ -470,9 +477,9 @@ function EventDetailContent({
     <>
       {canRedrive(normalizeStatus(detail)) ? (
         <div>
-          <button className="fs-button" disabled={redrivePending} onClick={onRedrive} type="button">
-            {redrivePending ? t("react.monitoring.requesting_redrive", "Requesting redrive...") : t("react.monitoring.redrive_failed_dispatches", "Redrive failed dispatches")}
-          </button>
+          <Button busy={redrivePending} busyLabel={t("react.monitoring.requesting_redrive", "Requesting redrive…")} onClick={onRedrive} type="button" variant="secondary">
+            {t("react.monitoring.redrive_failed_dispatches", "Redrive failed dispatches")}
+          </Button>
         </div>
       ) : null}
       <div className="fs-panel-group">
@@ -559,6 +566,7 @@ function EventDetailDrawer({
 }>) {
   const { t } = useI18n();
   const waitingForSelection = fetching && !detailMatchesSelection;
+  const detailLoaderShown = useLoaderDelay(loading || waitingForSelection);
   return (
     <DsDrawer
       closeLabel={t("react.monitoring.close_event_detail", "Close event detail")}
@@ -572,7 +580,7 @@ function EventDetailDrawer({
           {waitingForSelection ? t("react.monitoring.loading_event_value1", "Loading event {value1}...", { value1: String(selectedRef) }) : t("react.monitoring.selected_event_value1", "Selected event {value1}", { value1: String(selectedRef) })}
         </p>
         {feedback ? <DsAlert title={feedback.message} tone={feedback.tone} /> : null}
-        {loading || waitingForSelection ? <p className="fs-empty-copy">{t("react.monitoring.loading_detail", "Loading detail…")}</p> : null}
+        {detailLoaderShown ? <p className="fs-empty-copy"><DsLoader label={t("react.monitoring.loading_detail", "Loading detail…")} variant="orbit-inline" /></p> : null}
         {error ? (
           <DsAlert title={t("react.monitoring.event_detail_could_not_be_loaded", "Event detail could not be loaded")} tone="danger">
             {error instanceof Error ? error.message : t("react.monitoring.failed_to_load_event_detail", "Failed to load event detail.")}

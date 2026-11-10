@@ -3,6 +3,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import { App } from "@/app/App";
 import { DsDialog } from "@/components/shared/design-system-overlays";
 import { focusAfterRequestLoading } from "@/components/shared/request-loading-focus";
+import { LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
 import { fetchJson } from "@/lib/http/client";
 import { hasPendingRequests } from "@/lib/http/request-activity";
 
@@ -76,6 +77,7 @@ describe("application request loading", () => {
     await act(async () => { foreground.finish(); await foregroundOutcome; });
     expect(backgroundSettled).toBe(false);
     expect(hasPendingRequests()).toBe(false);
+    act(() => { vi.advanceTimersByTime(LOADER_MIN_SHOWN_MS); }); // a painted loader stays its minimum time
     expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Draft" })).toBe(field);
@@ -116,6 +118,7 @@ describe("application request loading", () => {
     act(() => { vi.advanceTimersByTime(400); });
     expect(screen.getByRole("status")).toBeInTheDocument();
     await act(async () => { foreground.finish(); await foregroundOutcome; });
+    act(() => { vi.advanceTimersByTime(LOADER_MIN_SHOWN_MS); }); // a painted loader stays its minimum time
     expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
     expect(hasPendingRequests()).toBe(false);
     expect(field).toHaveFocus();
@@ -164,6 +167,8 @@ describe("application request loading", () => {
     act(() => { vi.advanceTimersByTime(400); });
     expect(screen.getByRole("status")).toBeInTheDocument();
     await act(async () => { pending.resolve(new Response("{}")); await outcome; });
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(LOADER_MIN_SHOWN_MS); }); // a painted loader stays its minimum time
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.body).toHaveStyle({overflow:"scroll"});
     expect(opener).toHaveFocus();
@@ -228,6 +233,7 @@ describe("application request loading", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
 
     await act(async () => { second.finish(); await requests[1]; });
+    act(() => { vi.advanceTimersByTime(LOADER_MIN_SHOWN_MS); }); // a painted loader stays its minimum time
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -268,6 +274,7 @@ describe("application request loading", () => {
         await outcome;
       });
       expect(await outcome).toEqual(expect.objectContaining({ ok: false }));
+      act(() => { vi.advanceTimersByTime(LOADER_MIN_SHOWN_MS); }); // a painted loader stays its minimum time
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(document.body).toHaveStyle({overflow:""});
@@ -298,6 +305,7 @@ describe("application request loading", () => {
     act(() => { vi.advanceTimersByTime(400); });
     expect(screen.getByRole("status")).toBeInTheDocument();
     await act(async () => { first.finish(); await requests[0]; });
+    act(() => { vi.advanceTimersByTime(LOADER_MIN_SHOWN_MS); }); // a painted loader stays its minimum time
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
 
     await act(async () => { void observe(fetchJson("/api/later")); });
@@ -306,6 +314,7 @@ describe("application request loading", () => {
     act(() => { vi.advanceTimersByTime(1); });
     expect(screen.getByRole("status")).toBeInTheDocument();
     await act(async () => { second.finish(); await requests[1]; });
+    act(() => { vi.advanceTimersByTime(LOADER_MIN_SHOWN_MS); }); // a painted loader stays its minimum time
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 

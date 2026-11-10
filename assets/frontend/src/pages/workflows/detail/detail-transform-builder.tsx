@@ -1,5 +1,6 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { RequiredLabel } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { transformRequiredFieldErrors } from "./detail-transform-fields";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useId, useMemo, useState } from "react";
@@ -814,16 +815,19 @@ export function WorkflowTransformBuilder({ ctx }: Readonly<{ ctx: TransformBuild
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">
               {t("registry.workflow_detail.run_lab.tab.preview", "Preview")}</p>
-            <button
-              className={SMALL_BUTTON_CLASS}
-              disabled={previewPending || !workflowId}
+            <Button
+              busy={previewPending}
+              busyLabel={t("react.workflows.running", "Running…")}
+              disabled={!previewPending && !workflowId}
               onClick={() => {
                 void runPreview( );
               }}
+              size="sm"
               type="button"
+              variant="secondary"
             >
-              {previewPending ? t("react.workflows.running", "Running...") : t("react.workflows.run_preview", "Run preview")}
-            </button>
+              {t("react.workflows.run_preview", "Run preview")}
+            </Button>
           </div>
           {transformActionsQuery?.isError ? (
             <p className="rounded border border-attention fs-surface-attention px-3 py-2 text-xs fs-ink-attention">

@@ -84,6 +84,7 @@
 .workflow-run-pass-time { font: 400 12px/20px var(--ff-data); color: var(--fs-text-tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .workflow-run-pass-time[data-run="failed"] { color: var(--fs-status-danger); }
 .workflow-run-pass-time[data-run="waiting"] { color: var(--fs-status-attention-ink); }
+.workflow-run-pass-time[data-run="running"] { display: inline-flex; align-items: center; gap: var(--fs-space-100); }
 .workflow-run-pass-data { display: flex; flex-direction: column; gap: 12px; padding: 0 8px 12px 36px; }
 .workflow-run-pass-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .workflow-run-results-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--fs-border-subtle); }

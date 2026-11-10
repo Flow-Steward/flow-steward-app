@@ -23,6 +23,8 @@ import {
 } from "@/components/shared/design-system";
 import { columnsFromGridConfig, visibleRowActions } from "@/components/shared/data-grid-adapter";
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 import "../../monitoring.css";
 
@@ -199,6 +201,9 @@ export function ProcessesControlPanel() {
     queryFn: fetchProcessesPayload,
     refetchInterval: 10_000,
   });
+  const initialLoaderShown = useLoaderDelay(processesQuery.isPending);
+  const initialLoading = processesQuery.isPending || initialLoaderShown;
+  const tableLoader = initialLoaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : null;
 
   const { jobs, workers, workerProcesses } = useMemo(
     () => processPayloadToGridRows(processesQuery.data, t),
@@ -517,13 +522,14 @@ export function ProcessesControlPanel() {
             rows={jobs}
             selectable
             selectedKeys={selectedJobs}
+            busy={processesQuery.isPending}
             state={
-              jobs.length ? null : (
+              initialLoading ? tableLoader : (jobs.length ? null : (
                 <div className="fs-table-state" data-testid="proc-jobs-grid">
                   <strong>{normalizeState(jobsConfig, "title")}</strong>
                   <span>{normalizeState(jobsConfig, "description")}</span>
                 </div>
-              )
+              ))
             }
           />
           <BulkActionBar
@@ -552,8 +558,9 @@ export function ProcessesControlPanel() {
             rows={workers}
             selectable
             selectedKeys={selectedWorkers}
+            busy={processesQuery.isPending}
             state={
-              workers.length ? null : (
+              initialLoading ? tableLoader : (workers.length ? null : (
                 <div className="fs-table-state" data-testid="proc-workers-grid">
                   <strong>{normalizeState(workersConfig, "title")}</strong>
                   <span>
@@ -564,7 +571,7 @@ export function ProcessesControlPanel() {
                       : normalizeState(workersConfig, "description")}
                   </span>
                 </div>
-              )
+              ))
             }
           />
           <BulkActionBar

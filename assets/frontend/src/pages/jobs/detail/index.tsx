@@ -1,10 +1,11 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import type { DrawerGeometry } from "@/components/shared/design-system-overlays";
-import { Loader2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { DsAlert, DsPageHeader, PageContainer } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import {
   humanizeDiagnosticLabel,
   firstReadableText,
@@ -111,11 +112,12 @@ function JobQueryNotices({
   jobActionMessage: string;
 }>) {
   const { t } = useI18n();
+  const detailLoaderShown = useLoaderDelay(detailIsLoading);
   return (
     <>
       {jobActionMessage ? <DsAlert title={jobActionMessage} tone="success" /> : null}
       {jobActionError ? <DsAlert title={jobActionError} tone="danger" /> : null}
-      {detailIsLoading ? <p className="fs-empty-copy inline-flex items-center gap-2"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />{t("react.jobs.loading_job_detail", "Loading job detail…")}</p> : null}
+      {detailLoaderShown ? <p className="fs-empty-copy"><DsLoader variant="orbit-inline" label={t("react.jobs.loading_job_detail", "Loading job detail…")} /></p> : null}
       {detailIsError ? <DsAlert title={detailError instanceof Error ? detailError.message : t("react.jobs.failed_to_load_job_detail", "Failed to load job detail.")} tone="danger" /> : null}
       {approvalIsError ? <div data-testid="job-approval-error"><DsAlert title={approvalError instanceof Error ? approvalError.message : t("react.jobs.failed_to_load_the_current_approval_state", "Failed to load the current approval state.")} tone="danger" /></div> : null}
     </>
@@ -319,6 +321,7 @@ export function JobsDetailPage({
       if (committedPublication.current === publication) committedPublication.current = null;
     };
   }, [publication]);
+  const detailLoaderShown = useLoaderDelay(detailQuery.isLoading);
   const { snapshot: executionSnapshot } = useJobExecutionSnapshot(
     jobId, Boolean(onExecutionSnapshotChange) && (!embedded || embeddedOwnerVerified), runDefinition.projectId,
   );
@@ -389,10 +392,11 @@ export function JobsDetailPage({
       data-job-id={jobId}
       data-testid={embedded ? "workflow-builder-job-details" : "job-detail-page"}
     >
-      {!embeddedContentAllowed ? (
-        <p className="fs-empty-copy">{detailQuery.isLoading
-          ? t("react.jobs.loading_job_detail", "Loading job detail…")
-          : t("react.jobs.failed_to_load_job_detail", "Failed to load job detail.")}</p>
+      {!embeddedContentAllowed && detailLoaderShown ? (
+        <p className="fs-empty-copy"><DsLoader variant="orbit-inline" label={t("react.jobs.loading_job_detail", "Loading job detail…")} /></p>
+      ) : null}
+      {!embeddedContentAllowed && !detailQuery.isLoading && !detailLoaderShown ? (
+        <p className="fs-empty-copy">{t("react.jobs.failed_to_load_job_detail", "Failed to load job detail.")}</p>
       ) : null}
 
       {embeddedContentAllowed ? <>

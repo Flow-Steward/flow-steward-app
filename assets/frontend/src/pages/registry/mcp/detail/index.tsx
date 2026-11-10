@@ -7,6 +7,9 @@ import { Copy, ExternalLink, RefreshCw, Unplug } from "lucide-react";
 import { Link } from "react-router";
 
 import { AssignmentSelector } from "@/components/shared/assignment-selector";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 
 import {
   DsAlert,
@@ -110,6 +113,7 @@ export function RegistryMcpDetailPage() {
     selectorRows,
     searchValue,
   } = useMcpDetailState();
+  const connectorLoaderShown = useLoaderDelay(connectorQuery.isLoading);
 
   let pageBody: ReactNode;
   if (!projectId) {
@@ -174,21 +178,23 @@ export function RegistryMcpDetailPage() {
               {t("trash.refresh", "Refresh")}</button>
             {renderWhen(canManageProject, (
               <>
-                <button
-                  className="fs-button secondary"
-                  disabled={syncMutation.isPending}
+                <Button
+                  busy={syncMutation.isPending}
+                  busyLabel={t("react.registry.mcp_final_syncing", "Syncing…")}
                   onClick={() => syncMutation.mutate()}
                   type="button"
+                  variant="secondary"
                 >
-                  {choose(syncMutation.isPending, t("react.registry.mcp_final_syncing", "Syncing…"), t("react.registry.sync", "Sync"))}
-                </button>
-                <button
-                  className="fs-button secondary"
-                  disabled={healthMutation.isPending}
+                  {t("react.registry.sync", "Sync")}
+                </Button>
+                <Button
+                  busy={healthMutation.isPending}
+                  busyLabel={t("react.extensions.checking", "Checking…")}
                   onClick={() => healthMutation.mutate()}
                   type="button"
+                  variant="secondary"
                 >
-                  {t("settings.mcp.health", "Health")}</button>
+                  {t("settings.mcp.health", "Health")}</Button>
                 <button
                   className="fs-button primary"
                   disabled={!connector || connectorQuery.isLoading}
@@ -215,8 +221,8 @@ export function RegistryMcpDetailPage() {
             is already the surface. Canon's key-value rule — "never place the list
             on `--fs-bg-surface-muted` inside a muted panel … drop the container"
             — is why the grid sits bare on the card body. */}
-        {renderChoice(connectorQuery.isLoading, (
-          <p className="fs-empty-copy">{t("react.registry.loading_connector_details", "Loading connector details…")}</p>
+        {renderChoice(connectorQuery.isLoading || connectorLoaderShown, (
+          connectorLoaderShown ? <p className="fs-empty-copy"><DsLoader label={t("react.registry.loading_connector_details", "Loading connector details…")} variant="orbit-inline" /></p> : null
         ), (
           <div className="fs-form-grid">
             <Fact label={t("settings.mcp.fields.name", "Name")} value={connector?.display_name || "—"} />
@@ -247,14 +253,15 @@ export function RegistryMcpDetailPage() {
             <>
               <button className="fs-button" onClick={() => setSettingsOpen(false)} type="button">
                 {t("extensions.repeater.cancel", "Cancel")}</button>
-              <button
-                className="fs-button primary"
-                disabled={saveSettingsMutation.isPending}
+              <Button
+                busy={saveSettingsMutation.isPending}
+                busyLabel={t("react.extensions.saving", "Saving…")}
                 form="mcp-settings-form"
                 type="submit"
+                variant="primary"
               >
-                {choose(saveSettingsMutation.isPending, t("react.extensions.saving", "Saving…"), t("react.registry.mcp_final_save_settings", "Save settings"))}
-              </button>
+                {t("react.registry.mcp_final_save_settings", "Save settings")}
+              </Button>
             </>
           }
           initialFocusRef={settingsNameRef}
@@ -590,14 +597,17 @@ export function RegistryMcpDetailPage() {
                   <DsAlert title={credentialsError} tone="danger" />
                 </div>
               ))}
-              <button
-                className="fs-button primary cursor-pointer"
-                disabled={anyTrue([saveCredentialsMutation.isPending, manualClientId.length === 0, manualClientSecret.length === 0])}
+              <Button
+                busy={saveCredentialsMutation.isPending}
+                busyLabel={t("react.extensions.saving", "Saving…")}
+                className="cursor-pointer"
+                disabled={anyTrue([manualClientId.length === 0, manualClientSecret.length === 0])}
                 onClick={submitCredentials}
                 type="button"
+                variant="primary"
               >
-                {choose(saveCredentialsMutation.isPending, t("react.extensions.saving", "Saving…"), t("react.registry.mcp_final_save_credentials", "Save credentials"))}
-              </button>
+                {t("react.registry.mcp_final_save_credentials", "Save credentials")}
+              </Button>
             </div>
           ))}
 
@@ -606,25 +616,28 @@ export function RegistryMcpDetailPage() {
               anyTrue([!hasAuthorizedAccount, authorizationMustRestart]),
               !allTrue([credentialsOpen, resumeAuthorizationAfterCredentials]),
             ]), (
-              <button
-                className="fs-button primary"
-                disabled={anyTrue([startOAuthMutation.isPending, oauthStatusQuery.isLoading])}
+              <Button
+                busy={startOAuthMutation.isPending}
+                busyLabel={t("react.extensions.starting", "Starting…")}
+                disabled={oauthStatusQuery.isLoading}
                 onClick={() => startOAuthMutation.mutate()}
                 type="button"
+                variant="primary"
               >
                 <ExternalLink aria-hidden="true" />
-                {oauthStartLabel(startOAuthMutation.isPending, authorizationMustRestart, t)}
-              </button>
+                {oauthStartLabel(authorizationMustRestart, t)}
+              </Button>
             ))}
             {renderWhen(hasAuthorizedAccount, (
-                <button
-                  className="fs-button secondary"
-                  disabled={disconnectOAuthMutation.isPending}
+                <Button
+                  busy={disconnectOAuthMutation.isPending}
+                  busyLabel={t("react.extensions.disconnecting", "Disconnecting…")}
                   onClick={() => disconnectOAuthMutation.mutate()}
                   type="button"
+                  variant="secondary"
                 >
                   <Unplug aria-hidden="true" />
-                  {t("react.registry.disconnect", "Disconnect")}</button>
+                  {t("react.registry.disconnect", "Disconnect")}</Button>
             ))}
             {renderWhen(anyTrue([hasStoredClientCredentials, hasAuthorizedAccount]), (
               <button

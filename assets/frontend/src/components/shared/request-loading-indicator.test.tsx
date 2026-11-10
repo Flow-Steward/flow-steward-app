@@ -48,4 +48,46 @@ describe("RequestLoadingIndicator", () => {
     // Interaction stays blocked while the request runs.
     expect(screen.getByRole("dialog", { name: "Loading requests" })).toHaveAttribute("aria-busy", "true");
   });
+
+  it("never paints for a request that ends before the delay", () => {
+    render(<RequestLoadingIndicator />);
+    act(() => {
+      finish = beginRequest();
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    act(() => {
+      finish?.();
+      finish = undefined;
+    });
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+
+    expect(screen.queryByRole("status", { name: "Loading requests" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a painted loader for the minimum display time after the request ends", () => {
+    render(<RequestLoadingIndicator />);
+    act(() => {
+      finish = beginRequest();
+    });
+    act(() => {
+      vi.advanceTimersByTime(410);
+    });
+    act(() => {
+      finish?.();
+      finish = undefined;
+    });
+    act(() => {
+      vi.advanceTimersByTime(480);
+    });
+    expect(screen.getByRole("status", { name: "Loading requests" })).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(30);
+    });
+    expect(screen.queryByRole("status", { name: "Loading requests" })).not.toBeInTheDocument();
+  });
 });

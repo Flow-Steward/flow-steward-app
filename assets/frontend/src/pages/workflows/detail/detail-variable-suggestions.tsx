@@ -8,6 +8,7 @@ import {
 } from "@/pages/workflows/detail/detail-helpers";
 import { isTruthy } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { Button } from "@/components/ui/button";
 import {
   insertTemplateVariable,
   openTemplateQuery,
@@ -594,14 +595,16 @@ export function createWorkflowVariableSuggestionRenderers(
             })}
           </select>
         </label>
-        <button
-          className="fs-button secondary"
-          disabled={projectLinkPending || !textOrEmpty(projectLinkDraft)}
+        <Button
+          busy={projectLinkPending}
+          busyLabel={t("react.workflows.linking_project", "Linking project…")}
+          disabled={!projectLinkPending && !textOrEmpty(projectLinkDraft)}
           onClick={() => ignoreAsyncResult(handleLinkProjectForBuilder())}
           type="button"
+          variant="secondary"
         >
-          {projectLinkPending ? t("react.workflows.linking_project", "Linking project...") : t("react.workflows.link_project_for_test_run", "Link project for Test Run")}
-        </button>
+          {t("react.workflows.link_project_for_test_run", "Link project for Test Run")}
+        </Button>
         {projectLinkMessage ? (
           <p className="fs-field-helper">{projectLinkMessage}</p>
         ) : null}

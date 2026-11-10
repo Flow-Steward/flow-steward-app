@@ -159,7 +159,7 @@ describe("whole-workflow Test Run launch dialog", () => {
 
     await waitFor(() => expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1));
     expect(mockedTestRunWorkflow).toHaveBeenCalledWith({ workflowId: "weekly_report", projectId: "project_alpha", taskSummary: "Run the applied snapshot", dryRun: false, expectedRevision: 7, inputs: { count: 0, enabled: false } });
-    expect(start).toBeDisabled();
+    expect(start).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();
     await act(async () => {
       acknowledge?.({ workflow_id: "weekly_report", project_id: "project_alpha", job_id: "job-launch-ack", status: "completed", final_status: "success", needs_user_approval: false, trace: [] });

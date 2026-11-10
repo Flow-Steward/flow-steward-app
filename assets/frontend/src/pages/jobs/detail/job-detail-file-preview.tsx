@@ -13,7 +13,9 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useState } from "react";
 import { Info } from "lucide-react";
 
+import { DsLoader } from "@/components/shared/ds-loader";
 import { FileThumbnail } from "@/components/shared/file-thumbnail";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { fetchText } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
 import { sizeLabel } from "@/pages/extensions/marketplace-model";
@@ -67,12 +69,13 @@ function useTextPreview(previewUrl: string) {
 /** The text shown as characters: a Markdown or HTML file is never rendered. */
 function TextPreviewPanel({ name, state }: Readonly<{ name: string; state: TextPreviewState }>) {
   const { t } = useI18n();
+  const loaderShown = useLoaderDelay(state.status === "loading");
   if (state.status === "closed") return null;
   return (
     <div className="basis-full" data-testid="job-file-text-preview">
-      {state.status === "loading" ? <p className="text-xs fs-ink-tertiary">{t("react.jobs.file_preview_loading", "Loading preview...")}</p> : null}
+      {loaderShown ? <p className="text-xs fs-ink-tertiary"><DsLoader variant="orbit-inline" label={t("react.jobs.file_preview_loading", "Loading preview…")} /></p> : null}
       {state.status === "failed" ? <p className="text-xs fs-ink-danger" role="alert">{state.message}</p> : null}
-      {state.status === "ready" ? (
+      {state.status === "ready" && !loaderShown ? (
         <pre aria-label={name} className="mt-1 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded border border-subtle p-3 text-xs fs-surface-raised">
           {state.text}
         </pre>

@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchAgentFileFormats } from "@/pages/workflows/shared/api";
 import { isAgentFileStatePath } from "./detail-agent-file-path";
 import { RequiredLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useI18n } from "@/lib/i18n/useI18n";
 
 type FileBinding = { name: string; source: string };
@@ -11,7 +13,8 @@ type VariableInput = (args: { ariaLabel: string; ariaRequired: boolean; ariaInva
 function AgentFileFormats() {
   const { t } = useI18n();
   const formats = useQuery({ queryKey: ["workflows", "meta", "agent-file-formats"], queryFn: fetchAgentFileFormats, retry: false });
-  if (formats.isPending) return <p className="fs-field-helper" role="status">{t("react.workflows.agent_file_formats_loading", "Loading text file formats…")}</p>;
+  const formatsLoaderShown = useLoaderDelay(formats.isPending);
+  if (formats.isPending || formatsLoaderShown) return formatsLoaderShown ? <p className="fs-field-helper"><DsLoader variant="orbit-inline" label={t("react.workflows.agent_file_formats_loading", "Loading text file formats…")} /></p> : null;
   if (formats.isError || !formats.data) return <p className="fs-field-helper" role="status">{t("react.workflows.agent_file_formats_unavailable", "Text file formats are unavailable.")}</p>;
   if (!formats.data.text_extensions.length) return <p className="fs-field-helper" role="status">{t("react.workflows.agent_file_formats_disabled", "Text file reading is disabled.")}</p>;
   return <div className="fs-field-helper"><p>{t("react.workflows.agent_file_formats_list", "Text file formats: {formats}", { formats: formats.data.text_extensions.join(", ") })}</p><p>{t("react.workflows.agent_file_formats_encoding", "Text must be UTF-8. RTF is read as source, not converted.")}</p></div>;

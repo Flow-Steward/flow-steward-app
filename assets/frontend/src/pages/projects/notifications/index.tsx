@@ -10,9 +10,12 @@ import {
 } from "@/pages/projects/notifications/validation";
 
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   fetchProjectNotificationProviders,
@@ -211,6 +214,7 @@ function NotificationRouteRow({
   channels,
   providers,
   saving,
+  deleting,
   onEdit,
   onDelete,
 }: Readonly<{
@@ -219,6 +223,7 @@ function NotificationRouteRow({
   channels: ProviderChannel[] | undefined;
   providers: Map<string, ProjectNotificationProvider>;
   saving: boolean;
+  deleting: boolean;
   onEdit: (index: number) => void;
   onDelete: (index: number) => void;
 }>) {
@@ -286,15 +291,18 @@ function NotificationRouteRow({
         >
           <Pencil className="h-3.5 w-3.5" />
           {t("projects.grid.action.edit", "Edit")} </button>
-        <button
+        <Button
           aria-label={t("react.projects.remove_notification_route_value1", "Remove notification route {value1}", { value1: String(draft.route_key || index + 1) })}
-          className="fs-button danger sm"
-          disabled={saving}
+          busy={deleting}
+          busyLabel={t("react.projects.deleting", "Deleting…")}
+          disabled={saving && !deleting}
           onClick={() => onDelete(index)}
+          size="sm"
           type="button"
+          variant="danger"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          {t("registry.agent_detail.common.remove", "Remove")} </button>
+          {t("registry.agent_detail.common.remove", "Remove")} </Button>
       </div>
     </div>
   );
@@ -309,6 +317,7 @@ function NotificationRoutesCard({
   routeError,
   message,
   saving,
+  deletingIndex,
   projectId,
   onCreate,
   onEdit,
@@ -323,6 +332,7 @@ function NotificationRoutesCard({
   routeError: boolean;
   message: string;
   saving: boolean;
+  deletingIndex: number | null;
   projectId: string;
   onCreate: () => void;
   onEdit: (index: number) => void;
@@ -330,6 +340,7 @@ function NotificationRoutesCard({
   onRetry: () => void;
 }>) {
   const { t } = useI18n();
+  const loaderShown = useLoaderDelay(loading);
   return (
     <Card className="fs-card">
       <CardHeader>
@@ -358,10 +369,10 @@ function NotificationRoutesCard({
               {t("react.projects.enable_a_notification_capable_extension_in", "Enable a notification-capable extension in")} <Link className="underline" to="/extensions">{t("settings.extensions.title", "Extensions")}</Link>{t("react.projects.connect_it_to_this_project_there_and_it_appears_in", " and connect it to this project there; it then appears in")} <Link className="underline" to={`/projects/${encodeURIComponent(projectId)}?tab=connections`}>{t("react.projects.runtime_connections", "Runtime Connections")}</Link>{t("react.projects.provider_bindings_do_not_by_themselves_confirm_delivery_readiness", ". Provider bindings do not by themselves confirm delivery readiness.")} </p>
           </div>
         ) : null}
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm fs-ink-secondary">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("react.projects.loading_notification_routes", "Loading notification routes...")} </div>
+        {loaderShown ? (
+          <div className="text-sm fs-ink-secondary">
+            <DsLoader label={t("react.projects.loading_notification_routes", "Loading notification routes…")} variant="orbit-inline" />
+          </div>
         ) : null}
         {providerError || routeError ? (
           <div className="flex items-start gap-2 fs-surface-radius border border-selected fs-surface-attention px-3 py-2 text-sm fs-ink-attention">
@@ -386,6 +397,7 @@ function NotificationRoutesCard({
             {drafts.map((draft, index) => (
               <NotificationRouteRow
                 channels={channelsByProvider.get(draft.provider_key)}
+                deleting={deletingIndex === index}
                 draft={draft}
                 index={index}
                 key={draft.clientId}
@@ -417,6 +429,7 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
   // covered by the overlay, so a message written there is invisible.
   const [modalError, setModalError] = useState<{ field: RouteFieldId | null; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     setModalDraft(null);
@@ -623,6 +636,7 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
     }
     setMessage("");
     setSaving(true);
+    setDeletingIndex(index);
     try {
       const routes = serverDrafts.filter((_, currentIndex) => currentIndex !== index).map((draft) => draftToRoute(draft, providersByKey, t));
       await saveProjectNotificationRoutes(projectId, routes);
@@ -632,6 +646,7 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
       setMessage(error instanceof Error ? error.message : t("react.projects.failed_to_delete_notification_route", "Failed to delete notification route."));
     } finally {
       setSaving(false);
+      setDeletingIndex(null);
     }
   }
 
@@ -647,6 +662,7 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
     <div className="space-y-4">
       <NotificationRoutesCard
         channelsByProvider={channelsByProvider}
+        deletingIndex={deletingIndex}
         drafts={serverDrafts}
         loading={routesQuery.isFetching || providersQuery.isFetching}
         message={message}

@@ -9,11 +9,10 @@ import { useI18n } from "@/lib/i18n/useI18n";
 
 import "@/components/shared/request-loading-indicator.css";
 
-function DelayedRequestLoadingIndicator() {
-  const delayed = useLoaderDelay();
+function RequestLoadingDialog({ painted }: Readonly<{ painted: boolean }>) {
   // A page loader already shows this wait; interaction stays blocked either way.
   const pageOwnsWait = useSyncExternalStore(subscribeToRequestActivity, hasPageWait, () => false);
-  const visible = delayed && !pageOwnsWait;
+  const visible = painted && !pageOwnsWait;
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const label = t("react.shared.request_loading", "Loading requests");
@@ -72,9 +71,14 @@ function DelayedRequestLoadingIndicator() {
   );
 }
 
-/** Block interaction immediately; paint the centered loader only for slower requests. */
+/**
+ * Block interaction immediately; paint the centred loader only after the
+ * loader delay, and once painted keep it for the minimum display time, so a
+ * request that ends just after the delay does not blink. A request episode
+ * that ends unpainted unmounts the dialog, so the next one gets a fresh delay.
+ */
 export function RequestLoadingIndicator() {
   const pending = useSyncExternalStore(subscribeToRequestActivity, hasPendingRequests, () => false);
-  // Unmounting the delayed child gives each new request episode a fresh delay.
-  return pending ? <DelayedRequestLoadingIndicator /> : null;
+  const painted = useLoaderDelay(pending);
+  return pending || painted ? <RequestLoadingDialog painted={painted} /> : null;
 }

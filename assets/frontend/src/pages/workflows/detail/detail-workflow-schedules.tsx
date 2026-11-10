@@ -206,7 +206,6 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
   const monthDayInvalid = mode === "monthly" && !(Number.isInteger(monthDayNumber) && monthDayNumber >= 1 && monthDayNumber <= 31);
   const timingInvalid = cronInvalid || monthDayInvalid;
   const save = useMutation({ mutationFn: (input: ScheduledJobCreateInput) => job?.id ? updateProjectScheduledJob(projectId, String(job.id), input) : createProjectScheduledJob(projectId, input), onSuccess: onSaved, onError: (error) => setNotice(error.message) });
-  const savingLoader = useLoaderDelay(save.isPending);
   // Next runs follow every change, read on the schedule's own timezone.
   const nextRuns = timingInvalid ? null : nextCronRuns(expression, timezone, NEXT_RUN_COUNT);
   let nextText = t("react.workflows.schedule_next_after_save", "Flow Steward shows the next runs for this expression after you save.");
@@ -351,8 +350,7 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
     <DrawerFooter testId="workflow-schedule-editor-footer">
       <Button disabled={save.isPending} onClick={onCancel} type="button" variant="secondary">{t("extensions.repeater.cancel", "Cancel")}</Button>
       <DrawerFooterSpacer />
-      <Button aria-busy={save.isPending || undefined} disabled={save.isPending || Boolean(draftError)} form={formId} type="submit" variant="primary">
-        {savingLoader ? <DsLoader variant="orbit-inline" /> : null}
+      <Button busy={save.isPending} busyLabel={job ? t("react.settings.saving", "Saving…") : t("react.workflows.creating", "Creating…")} disabled={!save.isPending && Boolean(draftError)} form={formId} type="submit" variant="primary">
         {job ? t("react.workflows.save_schedule", "Save schedule") : t("react.workflows.create_schedule", "Create schedule")}
       </Button>
     </DrawerFooter>

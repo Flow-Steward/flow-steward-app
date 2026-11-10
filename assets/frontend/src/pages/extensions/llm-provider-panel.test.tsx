@@ -354,7 +354,7 @@ describe("LlmProviderPanel", () => {
     const user = userEvent.setup();
     renderPanel();
 
-    expect(screen.getByText("Loading provider models…")).toBeInTheDocument();
+    expect(await screen.findByText("Loading provider models…")).toBeInTheDocument();
     rejectLoad?.(new Error("source service unavailable"));
     expect(await screen.findByText("Could not load provider models.")).toBeInTheDocument();
     expect(screen.queryByText("No models discovered yet.")).not.toBeInTheDocument();
@@ -843,7 +843,8 @@ describe("LlmProviderPanel", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveTextContent("Saving connection…");
-    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
+    // The pressed button is busy (focus kept, presses ignored); the other mutation waits disabled.
+    expect(screen.getByRole("button", { name: "Save connection" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Discover models" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add owner/model" })).toHaveAttribute("aria-disabled", "true");
 

@@ -17,7 +17,10 @@ import {
   Search,
   type DsTableColumn,
 } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
 import { LifecyclePlanModal, type LifecyclePlan } from "@/components/shared/lifecycle-plan-modal";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { WorkspaceDeletePlanModal } from "@/components/shared/workspace-delete-plan-modal";
 import { executeLifecyclePlan, fetchLifecyclePlan } from "@/pages/trash/api";
 import {
@@ -168,13 +171,13 @@ function WorkspaceTableState({ loading, count, search }: Readonly<{
   search: string;
 }>) {
   const { t } = useI18n();
-  if (loading) {
-    return (
+  const loaderShown = useLoaderDelay(loading);
+  if (loading || loaderShown) {
+    return loaderShown ? (
       <div className="fs-table-state">
-        <strong>{t("react.registry.loading_workspaces", "Loading workspaces")}</strong>
-        <span>{t("react.registry.the_registry_will_remain_in_this_table_layout", "The registry will remain in this table layout.")}</span>
+        <DsLoader label={t("react.registry.loading_workspaces", "Loading workspaces")} variant="wide-block" />
       </div>
-    );
+    ) : null;
   }
   if (count) return null;
   const searching = Boolean(search.trim());
@@ -352,13 +355,14 @@ export function RegistryWorkspacesPage() {
           <>
             <button className="fs-button" onClick={() => setCreateOpen(false)} type="button">
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button primary"
-              disabled={createMutation.isPending}
+            <Button
+              busy={createMutation.isPending}
+              busyLabel={t("react.settings.creating", "Creating…")}
               form={CREATE_FORM_ID}
               type="submit"
+              variant="primary"
             >
-              {t("projects.modal.create", "Create")}</button>
+              {t("projects.modal.create", "Create")}</Button>
           </>
         }
         initialFocusRef={createNameRef}

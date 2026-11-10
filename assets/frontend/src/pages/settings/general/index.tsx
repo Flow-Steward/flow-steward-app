@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsCard } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { fetchGeneralSettingsOverview } from "@/pages/settings/shared/api";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
@@ -24,6 +26,7 @@ export function SettingsGeneralPage() {
     queryKey: ["settings", "general", "overview"],
     queryFn: fetchGeneralSettingsOverview,
   });
+  const loaderShown = useLoaderDelay(overviewQuery.isLoading);
 
   const overview = objectOrEmpty(overviewQuery.data);
   const appBootstrap = objectOrEmpty(overview.app_bootstrap);
@@ -51,7 +54,7 @@ export function SettingsGeneralPage() {
         </DsAlert>
       ) : null}
 
-      {overviewQuery.isLoading ? <p className="fs-empty-copy">{t("react.settings.loading_general_settings_snapshot", "Loading general settings snapshot...")}</p> : null}
+      {loaderShown ? <p className="fs-empty-copy"><DsLoader label={t("react.settings.loading_general_settings_snapshot", "Loading general settings snapshot…")} variant="orbit-inline" /></p> : null}
 
       <DsCard description={t("react.settings.current_login_capabilities_for_this_deployment", "Current login capabilities for this deployment.")} title={t("monitoring.flags.auth_mode", "Auth mode")}>
         <div className="fs-detail-rows" data-columns="2">
@@ -75,8 +78,8 @@ export function SettingsGeneralPage() {
         description={t("react.settings.value1_configured_providers_discovered_via_api_model_providers", "{value1} configured providers discovered via /api/model-providers.", { value1: String(providerCount) })}
         title={t("react.settings.model_providers", "Model providers")}
       >
-        {overviewQuery.isLoading ? (
-          <p className="fs-empty-copy">{t("settings.loading.model_providers", "Loading model providers...")}</p>
+        {overviewQuery.isLoading || loaderShown ? (
+          loaderShown ? <p className="fs-empty-copy"><DsLoader label={t("settings.loading.model_providers", "Loading model providers…")} variant="orbit-inline" /></p> : null
         ) : overviewQuery.isError ? (
           <p className="fs-empty-copy">{t("react.settings.model_providers_unavailable", "Model providers unavailable.")}</p>
         ) : providerLabels.length ? (

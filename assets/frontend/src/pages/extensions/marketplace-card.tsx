@@ -22,6 +22,7 @@ import {
   CatalogTableItem,
 } from "@/components/shared/catalog-browse";
 import { DsTable, type DsTableColumn } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import type { ExtensionCatalogEntry, ExtensionCatalogInstallState } from "@/pages/extensions/catalog-api";
 import {
   type BrowseContext,
@@ -78,21 +79,24 @@ function QuickInstall({ entry, context }: Readonly<{ entry: ExtensionCatalogEntr
   if (!kind || !install) return null;
   const phase = install.stateById[entry.extension_id]?.phase ?? "idle";
   const label = kind === "update" ? updateLabel(phase, entry.version, t) : installLabel(phase, t);
+  const restingPhase = phase === "installing" ? "idle" : phase;
   return (
-    <button
-      aria-busy={phase === "installing" || undefined}
+    <Button
       aria-label={`${label}: ${entry.name}`}
-      className="fs-button sm secondary"
+      busy={phase === "installing"}
+      busyLabel={kind === "update" ? updateLabel("installing", entry.version, t) : installLabel("installing", t)}
       data-marketplace-quick-install={entry.extension_id}
-      disabled={phase !== "idle"}
+      disabled={phase === "awaiting_approval"}
       onClick={(event) => {
         event.stopPropagation();
         install.onInstall(entry);
       }}
+      size="sm"
       type="button"
+      variant="secondary"
     >
-      {label}
-    </button>
+      {kind === "update" ? updateLabel(restingPhase, entry.version, t) : installLabel(restingPhase, t)}
+    </Button>
   );
 }
 

@@ -130,9 +130,6 @@ export function connectionFieldInputType(field: ConnectionFormField): string {
   return "text";
 }
 
-export function saveButtonLabel(saving: boolean, editing: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (saving) {
-    return editing ? t("settings.retention.saving", "Saving...") : t("react.registry.creating", "Creating...");
-  }
+export function saveButtonLabel(editing: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return editing ? t("react.extensions.save_connection", "Save connection") : t("react.registry.create_connection", "Create connection");
 }

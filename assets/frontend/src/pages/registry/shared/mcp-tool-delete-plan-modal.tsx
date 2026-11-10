@@ -53,7 +53,7 @@ export function McpToolDeletePlanModal({ busy, error, onClose, onConfirm, plan }
       {error ? <p className="mt-3 text-sm text-rose-200" role="alert">{error}</p> : null}
       <div className="mt-5 flex justify-end gap-2">
         <Button disabled={busy} onClick={onClose} type="button" variant="secondary">{t("extensions.repeater.cancel", "Cancel")}</Button>
-        <Button disabled={busy || !acknowledged} onClick={onConfirm} type="button" variant="secondary">
+        <Button busy={busy} busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")} disabled={!acknowledged} onClick={onConfirm} type="button" variant="secondary">
           {t("react.registry.move_to_trash_variant_9adcdf33", "Move to Trash")}</Button>
       </div>
     </AccessibleDialog>

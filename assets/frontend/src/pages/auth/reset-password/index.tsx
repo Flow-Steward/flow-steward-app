@@ -15,6 +15,8 @@ import {
 } from "react-hook-form";
 import { NavLink, useSearchParams } from "react-router";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
@@ -248,10 +250,8 @@ function ConfirmResetFeedback({
         {confirmError ? <PasswordResetNotice key="confirm-error" notice={confirmError} /> : null}
         {confirmNotice ? <PasswordResetNotice key="confirm-success" notice={{ copy: confirmNotice, title: t("react.auth.password_updated_2", "Password updated"), tone: "info" }} role="status" /> : null}
       </AnimatePresence>
-      <MotionButton {...AUTH_BUTTON_MOTION} aria-label={submitting ? t("react.auth.updating_password", "Updating password…") : undefined} aria-busy={submitting} className="fs-public-auth__button fs-public-auth__button--primary" data-loading={submitting ? "true" : undefined} disabled={submitting} type="submit">
-        <AnimatePresence initial={false}>{submitting ? <motion.span animate={{ opacity: 1 }} aria-hidden="true" className="fs-public-auth__button-spinner" data-testid="auth-submit-spinner" exit={{ opacity: 0 }} initial={{ opacity: 0 }} transition={AUTH_FEEDBACK_TRANSITION} /> : null}</AnimatePresence>
-        <span className="fs-public-auth__button-label">{t("react.auth.update_password", "Update password")}</span>
-        <span className="fs-public-auth__reduced-loading-label">{t("react.auth.updating_password", "Updating password…")}</span>
+      <MotionButton {...AUTH_BUTTON_MOTION} busy={submitting} busyLabel={t("react.auth.updating_password", "Updating password…")} className="fs-public-auth__button fs-public-auth__button--primary" type="submit">
+        {t("react.auth.update_password", "Update password")}
       </MotionButton>
     </>
   );
@@ -318,12 +318,13 @@ function TokenResetView({
   verificationEmail?: string;
 }>) {
   const { t } = useI18n();
+  const verifyingShown = useLoaderDelay(loading);
   return (
     <ResetPasswordShell>
       <AnimatePresence initial={false} mode="wait">
-        {loading ? <motion.div {...AUTH_FEEDBACK_MOTION} aria-live="polite" className="fs-public-auth__reset-loading" key="verifying" role="status">{t("react.auth.verifying_reset_link", "Verifying reset link…")}</motion.div> : null}
-        {invalidToken ? <motion.div {...AUTH_FEEDBACK_MOTION} className="fs-public-auth__reset-content" key="invalid-token" layout><RecoveryIcon /><header className="fs-public-auth__reset-header"><h1 id="public-auth-reset-title">{t("react.auth.reset_link_unavailable", "Reset link unavailable")}</h1><p>{t("react.auth.this_password_reset_link_is_invalid_or_expired", "This password reset link is invalid or expired.")}</p></header><MotionButton {...AUTH_BUTTON_MOTION} asChild className="fs-public-auth__button fs-public-auth__button--primary" variant="primary"><NavLink to="/forgot-password">{t("react.auth.request_a_new_reset_link", "Request a new reset link")}</NavLink></MotionButton></motion.div> : null}
-        {!loading && !invalidToken ? (
+        {verifyingShown ? <div className="fs-public-auth__reset-loading" key="verifying"><DsLoader label={t("react.auth.verifying_reset_link", "Verifying reset link…")} variant="wide-block" /></div> : null}
+        {invalidToken && !verifyingShown ? <motion.div {...AUTH_FEEDBACK_MOTION} className="fs-public-auth__reset-content" key="invalid-token" layout><RecoveryIcon /><header className="fs-public-auth__reset-header"><h1 id="public-auth-reset-title">{t("react.auth.reset_link_unavailable", "Reset link unavailable")}</h1><p>{t("react.auth.this_password_reset_link_is_invalid_or_expired", "This password reset link is invalid or expired.")}</p></header><MotionButton {...AUTH_BUTTON_MOTION} asChild className="fs-public-auth__button fs-public-auth__button--primary" variant="primary"><NavLink to="/forgot-password">{t("react.auth.request_a_new_reset_link", "Request a new reset link")}</NavLink></MotionButton></motion.div> : null}
+        {!loading && !verifyingShown && !invalidToken ? (
           <motion.div {...AUTH_FEEDBACK_MOTION} className="fs-public-auth__reset-content" key="reset-form" layout>
             <RecoveryIcon />
             <header className="fs-public-auth__reset-header"><h1 id="public-auth-reset-title">{t("react.auth.choose_a_new_password", "Choose a new password")}</h1><p>{verificationEmail ? t("react.auth.resetting_password_for_value1", "Resetting password for {value1}.", { value1: String(verificationEmail) }) : t("react.auth.enter_and_confirm_your_new_password_to_complete_account_recovery", "Enter and confirm your new password to complete account recovery.")}</p></header>
@@ -373,9 +374,8 @@ function RequestResetView({
           <RequestResetFeedback requestNotice={requestNotice} submittedEmail={submittedEmail} />
           <div className="fs-public-auth__recovery-actions">
             <MotionButton {...AUTH_BUTTON_MOTION} asChild className="fs-public-auth__button fs-public-auth__button--secondary" variant="secondary"><NavLink to="/login">{t("common.cancel", "Cancel")}</NavLink></MotionButton>
-            <MotionButton {...AUTH_BUTTON_MOTION} aria-label={submitting ? t("react.auth.sending_reset_link", "Sending reset link…") : undefined} aria-busy={submitting} className="fs-public-auth__button fs-public-auth__button--primary" data-loading={submitting ? "true" : undefined} disabled={submitting} type="submit">
-              <AnimatePresence initial={false}>{submitting ? <motion.span animate={{ opacity: 1 }} aria-hidden="true" className="fs-public-auth__button-spinner" data-testid="auth-submit-spinner" exit={{ opacity: 0 }} initial={{ opacity: 0 }} transition={AUTH_FEEDBACK_TRANSITION} /> : null}</AnimatePresence>
-              <span className="fs-public-auth__button-label">{t("react.auth.send_reset_link", "Send reset link")}</span><span className="fs-public-auth__reduced-loading-label">{t("react.auth.sending_reset_link", "Sending reset link…")}</span>
+            <MotionButton {...AUTH_BUTTON_MOTION} busy={submitting} busyLabel={t("react.auth.sending_reset_link", "Sending reset link…")} className="fs-public-auth__button fs-public-auth__button--primary" type="submit">
+              {t("react.auth.send_reset_link", "Send reset link")}
             </MotionButton>
           </div>
         </form>
