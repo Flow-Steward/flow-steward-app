@@ -6,6 +6,10 @@ from __future__ import annotations
 from typing import Any
 
 from core.application.extensions.secret_reflection import collect_secret_values
+from core.application.orchestration.composite_action_runtime import (
+    job_action_context,
+    resolve_connector_action_binding,
+)
 from core.application.orchestration.connector_events import (
     _runtime_ids_from_state,
     _shared_job_store,
@@ -192,6 +196,18 @@ def execute_connector_step(
     extension_id = str(connector_override.get("extension_id") or "").strip()
     connector_install_id = str(step_payload.get("connector_install_id") or "").strip()
     action_id = str(connector_override.get("action_id") or "").strip()
+    # Inside an extension action the install and the slot's connection come from
+    # the job's host-written action context, never from the step (ADR 0065).
+    action_binding = resolve_connector_action_binding(
+        step=step_payload,
+        connection_binding=raw_connection_binding,
+        connector_install_id=connector_install_id,
+        load_context=lambda: job_action_context(runtime_state),
+    )
+    if action_binding.error is not None:
+        return action_binding.error
+    raw_connection_binding = action_binding.connection_binding
+    connector_install_id = action_binding.connector_install_id
 
     test_mode = _runtime_ids_from_state(runtime_state).get("test_mode") is True
     suppressed_dependencies = (

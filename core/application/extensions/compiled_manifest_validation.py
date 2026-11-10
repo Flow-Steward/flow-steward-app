@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 
+from core.application.extensions.composite_actions import workflow_handler_issues
 from core.application.extensions.identity import normalize_extension_id
 from core.application.extensions.oauth_contract import (
     declared_ui_page_ids,
@@ -18,8 +19,10 @@ from core.infrastructure.extension_runtime.extension_browser_picker_contract imp
 )
 from core.infrastructure.extension_runtime.extension_runtime_common import (
     ACTION_ID_REQUIRED_MESSAGE,
+    ALLOWED_ACTION_HANDLER_MODES,
     ALLOWED_OPERATION_HANDLER_MODES,
     COMPILED_MANIFEST_ALLOWED_FIELDS,
+    OPERATION_HANDLER_MODE_WORKFLOW,
     QUERY_ID_REQUIRED_MESSAGE,
     UUID,
 )
@@ -376,7 +379,7 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
         )
         if action_handler_mode == "core":
             action_handler_mode = "platform"
-        if action_handler_mode not in ALLOWED_OPERATION_HANDLER_MODES:
+        if action_handler_mode not in ALLOWED_ACTION_HANDLER_MODES:
             issues.append(
                 _issue(
                     severity="error",
@@ -384,8 +387,12 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
                     message=f"Unsupported action handler.mode '{action_handler_mode}'",
                     file_path=manifest_path,
                     field_path=f"action_definitions[{idx}].handler.mode",
-                    hint="Use handler.mode = extension or platform.",
+                    hint="Use handler.mode = extension, platform or workflow.",
                 )
+            )
+        if action_handler_mode == OPERATION_HANDLER_MODE_WORKFLOW:
+            issues.extend(
+                workflow_handler_issues(action_payload, manifest_path=manifest_path, index=idx)
             )
 
         action_handler_config = _as_dict(action_handler.get("config"))

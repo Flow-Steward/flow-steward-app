@@ -106,6 +106,25 @@ def validate_invoke_workflow_step(
         )
         return {"valid": False, "errors": errors, "warnings": warnings}
 
+    from core.application.workflows.workflow_action_validation import action_invoke_issues
+
+    # An extension action implemented by a workflow, or its refusal (ADR 0065).
+    parent_workflow = (
+        load_workflow(workflow_id) if load_workflow else get_workflow_row(db, workflow_id)
+    )
+    parent_row = parent_workflow if isinstance(parent_workflow, dict) else {}
+    action_issues = action_invoke_issues(
+        db,
+        spec=spec,
+        child_workflow=child_workflow,
+        parent_workflow=parent_row,
+        account_id=str(parent_row.get("account_id") or child_workflow.get("account_id") or ""),
+    )
+    errors.extend(
+        _issue(code=row["code"], message=row["message"], path=f"{path_prefix}.{row['path']}")
+        for row in action_issues
+    )
+
     if _workflow_reaches_target_via_invoke(
         db,
         current_workflow_id=child_workflow_id,

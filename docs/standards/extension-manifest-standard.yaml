@@ -166,6 +166,41 @@ health:
 ui_manifest: ui/ui_manifest.yaml
 query_manifest: ui/queries/queries.yaml
 action_manifest: ui/actions/actions.yaml
+# A composite action (ADR 0065): an action implemented by a workflow of this
+# bundle instead of extension code. In ui/actions/actions.yaml:
+#
+#   - action_id: orders.create_full
+#     workflow_visible: true          # required; it runs only as a workflow step
+#     handler:
+#       mode: workflow
+#       workflow_id: create_full      # local id of a published descriptor workflow
+#
+# The workflow carries the marker back, with the connections it needs as slots:
+#
+#   settings:
+#     callable:
+#       enabled: true
+#       trigger_channels: [parent_workflow]   # exactly this
+#     action_implementation:
+#       action_id: orders.create_full
+#       connections:
+#         - slot: amazon
+#           extension_id: acme.amazon          # this extension or a required dependency
+#           connection_type_ids: [seller_account]
+#
+# Rules, checked when the release is built (the bundle does not install otherwise):
+#   - the action keeps its same-ID Contract V2 operation; the operation's inputs
+#     and outputs equal the workflow's expected_inputs / expected_outputs, and
+#     it declares no connection_type_ids (the slots are the connections);
+#   - the workflow declares no hook and calls other workflows only as actions of
+#     this extension or of a required dependency;
+#   - a connector step names an extension by package id (connector_id
+#     extension.<extension_id>), never an install id, and reads its connection
+#     as connection_binding: {slot: <slot>}, never a fixed connection id;
+#   - handler.config is not allowed, and a query cannot use this mode.
+# The installed workflow is hidden and cannot be launched, linked, edited or
+# exported; the action cannot be called outside a workflow. Marking a workflow
+# as an implementation needs a Development environment.
 
 machine_auth:
   service_account_key: svc_ext_example

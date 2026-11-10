@@ -1,6 +1,9 @@
 # ruff: noqa: F403, F405
 from __future__ import annotations
 
+from core.application.workflows.workflow_action_contract import (
+    is_installed_action_implementation,
+)
 from core.application.workflows.workflow_hook_contract import is_hook_storage
 
 from .query_services_common import *  # NOSONAR
@@ -225,7 +228,7 @@ class ProjectQueryServiceCoreMixin:
         if not isinstance(row, dict):
             return False
         # A hook's storage workflow is a place inside another workflow (R2-11).
-        if is_hook_storage(row):
+        if is_hook_storage(row) or is_installed_action_implementation(row):
             return False
         if "visible_in_catalog" in row:
             return bool(row.get("visible_in_catalog"))

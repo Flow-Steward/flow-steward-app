@@ -158,7 +158,10 @@ def _descriptor_with_bundle_runtime(
         if field in compiled_manifest:
             runtime_descriptor[field] = compiled_manifest[field]
     runtime_descriptor["runtime"] = merged_runtime
-    return runtime_descriptor, []
+    from core.application.extensions.composite_actions import composite_action_descriptor_issues
+
+    # An action implemented by a workflow needs both halves of the bundle (ADR 0065).
+    return runtime_descriptor, composite_action_descriptor_issues(runtime_descriptor)
 
 
 class InstallReleaseCallback(Protocol):

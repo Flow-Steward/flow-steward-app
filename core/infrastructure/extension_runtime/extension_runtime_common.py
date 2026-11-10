@@ -417,6 +417,10 @@ ACTION_REFERENCE_KEYS = {
 }
 GRID_ACTION_SCOPES = {"row", "bulk", "page"}
 ALLOWED_OPERATION_HANDLER_MODES = {"extension", "platform"}
+# A composite action: the action is implemented by a workflow of the same bundle
+# and runs only as the child of an action Invoke (ADR 0065). Actions only.
+OPERATION_HANDLER_MODE_WORKFLOW = "workflow"
+ALLOWED_ACTION_HANDLER_MODES = ALLOWED_OPERATION_HANDLER_MODES | {OPERATION_HANDLER_MODE_WORKFLOW}
 ALLOWED_SUBSCRIPTION_SEVERITIES = {"any", "debug", "info", "warning", "error", "critical"}
 ALLOWED_CALLBACK_METHODS = {"GET", "POST"}
 ALLOWED_CALLBACK_AUTH_TYPES = {"none", "shared_secret_header", "hmac_sha256", "hub_signature"}
@@ -540,7 +544,9 @@ __all__ = [
     "ALLOWED_COMPONENT_TYPES",
     "ALLOWED_FORM_WIDGET_TYPES",
     "ALLOWED_GRID_COLUMN_TYPES",
+    "ALLOWED_ACTION_HANDLER_MODES",
     "ALLOWED_OPERATION_HANDLER_MODES",
+    "OPERATION_HANDLER_MODE_WORKFLOW",
     "ALLOWED_SUBSCRIPTION_SEVERITIES",
     "Any",
     "AUTHORING_MANIFEST_ALLOWED_FIELDS",

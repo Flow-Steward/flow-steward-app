@@ -11,10 +11,19 @@ from collections import Counter
 from collections.abc import Iterator, Mapping
 from typing import Any
 
+from core.application.workflows.workflow_action_contract import (
+    ACTION_IMPLEMENTATION_SETTING,
+    raw_action_implementation,
+)
 from core.infrastructure.config.installation_mode import installation_mode
 
 HOOK_DECLARATION_MODE_CODE = "workflow.hook.declaration_requires_development"
 HOOK_DECLARATION_MODE_MESSAGE = "Creating a hook zone requires a Development environment."
+ACTION_MARKER_MODE_CODE = "workflow.action.marker_requires_development"
+ACTION_MARKER_MODE_MESSAGE = (
+    "Marking a workflow as the implementation of an extension action requires a "
+    "Development environment."
+)
 _Carrier = tuple[str, str, str, str]
 
 
@@ -42,6 +51,30 @@ def _hook_carriers(workflow: Mapping[str, Any]) -> Iterator[tuple[_Carrier, str]
         yield (owner, step_id, kind, hook_id), f"{path}.override.invoke_workflow.hook"
 
 
+def action_marker_authoring_issues(
+    candidate: Mapping[str, Any], *, existing: Mapping[str, Any] | None = None
+) -> list[dict[str, str]]:
+    """Refuse a new or changed action implementation marker outside Development.
+
+    Marking a workflow as the implementation of an extension action is how an
+    extension author builds a composite action (ADR 0065). A marker the stored
+    workflow already carries, unchanged, is not a new declaration.
+    """
+    if installation_mode() == "development":
+        return []
+    marker = raw_action_implementation(candidate)
+    if marker is None or marker == raw_action_implementation(existing):
+        return []
+    return [
+        {
+            "code": ACTION_MARKER_MODE_CODE,
+            "message": ACTION_MARKER_MODE_MESSAGE,
+            "path": f"settings.{ACTION_IMPLEMENTATION_SETTING}",
+            "severity": "error",
+        }
+    ]
+
+
 def hook_declaration_authoring_issues(
     candidate: Mapping[str, Any], *, existing: Mapping[str, Any] | None = None
 ) -> list[dict[str, str]]:
@@ -55,7 +88,7 @@ def hook_declaration_authoring_issues(
     if installation_mode() == "development":
         return []
     retained = Counter(identity for identity, _ in _hook_carriers(existing or {}))
-    issues = []
+    issues = action_marker_authoring_issues(candidate, existing=existing)
     for identity, path in _hook_carriers(candidate):
         if retained[identity]:
             retained[identity] -= 1

@@ -109,10 +109,15 @@ STEP_CONFIG_ALLOWED_KEYS: dict[str, frozenset[str]] = {
     ),
     STEP_KIND_INVOKE_WORKFLOW: frozenset(
         {
+            # An extension action implemented by a workflow (ADR 0065): the
+            # origin, the dependency installs and the slot connections.
+            "action",
             "artifact_mapping",
+            "connections",
             # A hook: the author's declaration; the target is a project binding.
             "hook",
             "input_mapping",
+            "installs",
             "output_mapping",
             "workflow_id",
         }

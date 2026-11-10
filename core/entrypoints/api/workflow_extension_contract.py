@@ -124,6 +124,31 @@ def _enforce_project_scope(db: Any, scope: Any, project_id: str) -> str:
     return normalized_project_id
 
 
+def _composite_implementations(
+    db: Any, *, install_id: str, account_id: str, project_id: str
+) -> dict[str, dict[str, Any]]:
+    """What the builder needs to save a composite action as its Invoke (ADR 0065)."""
+    dsn = str(getattr(db, "dsn", "") or "").strip()
+    if not dsn:
+        return {}
+    try:
+        from core.application.extensions.composite_action_catalog import (
+            composite_operation_payloads,
+        )
+        from core.infrastructure.runtime.entrypoint_db_adapters import create_connection_store
+
+        return composite_operation_payloads(
+            create_connection_store(dsn).conn,
+            install_id=install_id,
+            account_id=account_id,
+            project_id=project_id,
+            connection_store=_get_connection_store(db) if project_id else None,
+        )
+    except Exception as exc:
+        logger.warning("composite action lookup failed for install_id=%s: %s", install_id, exc)
+        return {}
+
+
 @router.get(
     "/meta/extension-install-contract",
     response_model=WorkflowExtensionInstallContractResponse,
@@ -167,26 +192,36 @@ def get_extension_install_contract(
         raise HTTPException(status_code=404, detail="Extension install identity is unavailable.")
 
     connections: list[dict[str, Any]] = []
-    if project_id:
-        db = _get_db()
+    db = _get_db()
+    scoped_project_id = _enforce_project_scope(db, scope, project_id) if project_id else ""
+    if scoped_project_id:
         connections = workflow_install_connections(
-            _get_connection_store(db),
-            project_id=_enforce_project_scope(db, scope, project_id),
-            install_id=install_id,
+            _get_connection_store(db), project_id=scoped_project_id, install_id=install_id
         )
+    operations = extension_action_operations(
+        extension_id,
+        contract.get("action_definitions"),
+        contract.get("operation_manifest"),
+        locale=ui_locale,
+        locale_bundles=contract.get("locale_bundles"),
+    )
+    implementations = _composite_implementations(
+        db,
+        install_id=install_id,
+        account_id=str(contract.get("account_id") or ""),
+        project_id=scoped_project_id,
+    )
+    for operation in operations:
+        implementation = implementations.get(str(operation.get("action_id") or ""))
+        if implementation is not None:
+            operation["implementation"] = implementation
     return {
         "install_id": install_id,
         "extension_id": extension_id,
         "install_state": str(contract.get("install_state") or "active").strip().lower(),
         "release_id": str(contract.get("release_id") or "").strip(),
         "descriptor_sha256": str(contract.get("descriptor_sha256") or "").strip().lower(),
-        "operations": extension_action_operations(
-            extension_id,
-            contract.get("action_definitions"),
-            contract.get("operation_manifest"),
-            locale=ui_locale,
-            locale_bundles=contract.get("locale_bundles"),
-        ),
+        "operations": operations,
         "connections": connections,
     }
 

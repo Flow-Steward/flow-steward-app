@@ -22,6 +22,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.application.registry.workflow_lookup import get_workflow_row
+from core.application.workflows.workflow_action_contract import (
+    is_installed_action_implementation,
+)
 from core.application.workflows.workflow_definition_validation import (
     ChildDefinition,
     scan_child_chain,
@@ -175,6 +178,14 @@ def _target_issues(
         return [_issue("workflow.hook.target_forbidden", f"Workflow '{target}' is not available")]
     if not child.get("enabled") and not draft:
         return [_issue("workflow.hook.target_disabled", f"Workflow '{target}' is disabled")]
+    if is_installed_action_implementation(child):
+        # It runs only as the action of its extension, never as a hook's target (ADR 0065).
+        return [
+            _issue(
+                "workflow.hook.target_not_callable",
+                f"Workflow '{target}' implements an extension action and cannot be connected",
+            )
+        ]
     interface = WorkflowInterface.from_settings(child.get("settings"))
     if not interface.enabled or (
         interface.trigger_channels and "parent_workflow" not in interface.trigger_channels
