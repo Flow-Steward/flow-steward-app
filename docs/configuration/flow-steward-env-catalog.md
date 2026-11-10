@@ -31,7 +31,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `174` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `175` |
 | `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `36` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
@@ -45,28 +45,28 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `provider_openai` | OpenAI provider credentials. | `0` |
 | `quality_tools` | Quality and SonarQube helpers. | `16` |
 | `release_discovery` | Official GitHub repository used for stable release discovery. | `2` |
-| `release_publication` | CI and manual tooling for publishing official release images. | `2` |
+| `release_publication` | CI and manual tooling for publishing official release images. | `4` |
 | `static_catalogs` | Read-only Git-hosted static catalogs for workflow templates and extensions. | `3` |
 | `test_tools` | Test runner and E2E helpers. | `34` |
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
 - Raw env-like names discovered by audit: `824`
-- Cataloged variables from `.env.example*` or manifest: `600`
-- Raw audit-only names outside examples/manifest: `224`
+- Cataloged variables from `.env.example*` or manifest: `603`
+- Raw audit-only names outside examples/manifest: `221`
 - Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `510`
+- Variables in canonical manifest: `513`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `136`
+- Internal Runtime: `139`
 - Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
 - Tooling Internal: `78`
 
 Raw audit-only names by scope:
-- Internal Runtime: `6`
+- Internal Runtime: `3`
 - Script Internal: `126`
 - Test Only: `44`
 - Tooling Internal: `8`
@@ -660,6 +660,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### api
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
+| `FS_CLI_INVOCATION` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Launcher-injected name the operator ran (./flow-steward or a path to it); commands shown in hints are rewritten to it. Unset in the Compact image, where the command is flow-steward. | `core/entrypoints/cli/scripts/flow_steward_launcher.sh` |
 | `FS_CLI_OPERATION_LOG_ROOT` | core_runtime | production, local_development | no | no | - | - | CLI (1) | Directory the CLI writes command operation logs to; set by the launcher for containerised runs. | `core/entrypoints/cli/platform/operation_log.py` |
 #### artifacts
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
@@ -677,6 +678,11 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_TRANSFORM_MAX_INPUT_BYTES` | core_runtime | production, local_development | no | no | `5242880` | - | Application (1) | Maximum serialized transform input bytes (5 MiB). | `core/application/orchestration/transform_step_runtime.py` |
 | `FS_TRANSFORM_MAX_LIST_LENGTH` | core_runtime | production, local_development | no | no | `10000` | - | Application (1) | Maximum transformed list length. | `core/application/orchestration/transform_step_runtime.py` |
 | `FS_TRANSFORM_MAX_OUTPUT_BYTES` | core_runtime | production, local_development | no | no | `5242880` | - | Application (1) | Maximum serialized transform output bytes (5 MiB). | `core/application/orchestration/transform_step_runtime.py` |
+#### core/application/tooling/anonymous_installer_acceptance.py
+| Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
+|---|---|---|---|---|---|---|---|---|---|
+| `FS_TASK_RESOURCE_OWNER` | release_publication | local_development | no | no | - | - | Tooling (1) | Owner label the resource-cleanup ledger puts on disposable Docker resources of a release check; set by resource_cleanup/lifecycle.py. Not a product setting. | `core/application/tooling/anonymous_installer_acceptance.py` |
+| `FS_TASK_RESOURCE_TOKEN` | release_publication | local_development | no | no | - | - | Tooling (1) | Resource token the resource-cleanup ledger puts on disposable Docker resources of a release check; set by resource_cleanup/lifecycle.py. Not a product setting. | `core/application/tooling/anonymous_installer_acceptance.py` |
 #### core/entrypoints/cli/platform/operation_log.py
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
@@ -969,7 +975,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 
 | Scope | Count | Common Usage Areas |
 |---|---|---|
-| Internal Runtime | `6` | CLI scripts (4), Tooling (2), Tests (1) |
+| Internal Runtime | `3` | CLI scripts (3), Tests (1) |
 | Script Internal | `126` | CLI scripts (192), CLI (12), Tests (8), Tooling (6), Docker Compose (4) |
 | Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |

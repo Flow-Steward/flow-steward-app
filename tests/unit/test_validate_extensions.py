@@ -223,7 +223,7 @@ def test_validate_requires_explicit_extension_id():
         check=False,
     )
     assert proc.returncode == 3
-    assert "extension_id" in proc.stderr
+    assert "Extension ID" in proc.stderr
     assert "scanned_count" not in proc.stdout
 
 

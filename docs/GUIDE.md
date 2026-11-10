@@ -1572,8 +1572,9 @@ same text without colour; add `--json` when a script reads the output.
 Doctor diagnostics remain line-oriented. These flags change presentation only,
 not validation, required confirmation, or the operation being performed.
 
-Hints and next steps name commands the way you ran them (`./flow-steward …` on a
-server, `flow-steward …` in a provider console), so they can be pasted as shown.
+Hints and next steps name commands the way you ran them: with `./flow-steward`
+(or its path) on a server, and with `flow-steward` in a provider console, so
+they can be pasted as shown.
 
 **Tab completion.** Add one line to your shell profile and open a new terminal:
 
@@ -1591,7 +1592,7 @@ The scripts are static, so Tab never waits for Docker. Bash in the Compact image
 **Interactive shell.** `./flow-steward shell` opens a `flow-steward>` prompt:
 type commands without the program name (`users list`, `maintenance status`),
 Tab completes them, Up/Down walk the history, `help` lists the commands and
-`exit` leaves. Each command runs exactly as `./flow-steward <command>` would.
+`exit` leaves. Each command runs through `./flow-steward`, exactly as if typed after it.
 
 A fresh interactive install asks for **Public host (domain or IP)** and
 **Public port**. Enter the public browser domain/IP, or keep `localhost` for

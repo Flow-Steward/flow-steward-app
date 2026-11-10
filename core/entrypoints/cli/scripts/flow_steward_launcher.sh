@@ -15,7 +15,7 @@ case "${1:-}" in
         *)
           printf '%s\n' "Usage: flow-steward completion bash|zsh|fish" \
             "Add one line to your shell profile, for example ~/.zshrc:" \
-            "  eval \"\$($fs_home/flow-steward completion zsh)\"" >&2
+            "  source <($fs_home/flow-steward completion zsh)" >&2
           exit 2
           ;;
       esac
@@ -1912,7 +1912,7 @@ installed one-shot management image; provider consoles cannot run them. To
 update a Compact installation, rerun ./install.sh from updated sources; to
 switch it to Scalable, run ./install.sh --deployment-profile scalable.
 
-Tab completion: eval "$(flow-steward completion zsh)" (or bash, fish) in your
+Tab completion: add source <(flow-steward completion bash) (or zsh) to your
 shell profile. Interactive prompt with completion and history: flow-steward shell.
 EOF
 }

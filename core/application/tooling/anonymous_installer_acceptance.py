@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import time
@@ -11,6 +10,7 @@ import uuid
 from pathlib import Path
 
 from core.application.tooling.release_automation import require_complete_release
+from core.infrastructure.config.runtime_env import runtime_env
 
 _PLATFORMS = ("linux/amd64", "linux/arm64")
 
@@ -31,9 +31,9 @@ def check_registry(reference: str, expected: dict, revision: str, directory: Pat
     volume = name + "-images"
     labels = [
         "--label",
-        "org.flowsteward.task=" + os.environ.get("FS_TASK_RESOURCE_OWNER", name),
+        "org.flowsteward.task=" + runtime_env.get("FS_TASK_RESOURCE_OWNER", name),
         "--label",
-        "org.flowsteward.resource-token=" + os.environ.get("FS_TASK_RESOURCE_TOKEN", identity),
+        "org.flowsteward.resource-token=" + runtime_env.get("FS_TASK_RESOURCE_TOKEN", identity),
         "--label",
         "org.flowsteward.disposable=true",
     ]

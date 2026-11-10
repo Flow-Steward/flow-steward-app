@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     top, subcommand = _command_path(arguments)
     if top in _HOST_ONLY_DOMAINS:
         code = _refuse(
-            f"{top} is not available in Compact containers: it needs host Docker or "
+            f"{top} is not available in Compact containers: it requires host Docker or "
             "installer tooling.",
             "run it with ./flow-steward on a server installed with ./install.sh.",
         )

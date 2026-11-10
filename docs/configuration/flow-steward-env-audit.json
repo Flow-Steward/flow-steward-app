@@ -3899,15 +3899,17 @@
     "code_read_locations": [
       "core/entrypoints/cli/scripts/flow_steward_launcher.sh"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "core_runtime"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Launcher-injected name the operator ran (./flow-steward or a path to it); commands shown in hints are rewritten to it. Unset in the Compact image, where the command is flow-steward.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "api",
     "required": false,
     "retired_alias_names": [],
     "secret": false,
@@ -10838,15 +10840,16 @@
     "code_read_locations": [
       "core/application/tooling/anonymous_installer_acceptance.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "release_publication"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
-      "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Owner label the resource-cleanup ledger puts on disposable Docker resources of a release check; set by resource_cleanup/lifecycle.py. Not a product setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "core/application/tooling/anonymous_installer_acceptance.py",
     "required": false,
     "retired_alias_names": [],
     "secret": false,
@@ -10857,18 +10860,19 @@
     "code_read_locations": [
       "core/application/tooling/anonymous_installer_acceptance.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "release_publication"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
-      "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Resource token the resource-cleanup ledger puts on disposable Docker resources of a release check; set by resource_cleanup/lifecycle.py. Not a product setting.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "core/application/tooling/anonymous_installer_acceptance.py",
     "required": false,
     "retired_alias_names": [],
-    "secret": true,
+    "secret": false,
     "variable_name": "FS_TASK_RESOURCE_TOKEN"
   },
   {

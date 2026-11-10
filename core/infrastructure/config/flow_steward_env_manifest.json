@@ -1711,6 +1711,23 @@
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },
     {
+      "name": "FS_CLI_INVOCATION",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "api",
+      "notes": "Launcher-injected name the operator ran (./flow-steward or a path to it); commands shown in hints are rewritten to it. Unset in the Compact image, where the command is flow-steward."
+    },
+    {
       "name": "FS_CLI_OPERATION_LOG_ROOT",
       "groups": [
         "core_runtime"
@@ -6032,6 +6049,40 @@
       "default": "100000",
       "owner": "storage",
       "notes": "Maximum dataset rows scanned by filtered read_rows requests; unfiltered page reads remain lazy and bounded by page size."
+    },
+    {
+      "name": "FS_TASK_RESOURCE_OWNER",
+      "groups": [
+        "release_publication"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "core/application/tooling/anonymous_installer_acceptance.py",
+      "notes": "Owner label the resource-cleanup ledger puts on disposable Docker resources of a release check; set by resource_cleanup/lifecycle.py. Not a product setting."
+    },
+    {
+      "name": "FS_TASK_RESOURCE_TOKEN",
+      "groups": [
+        "release_publication"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "core/application/tooling/anonymous_installer_acceptance.py",
+      "notes": "Resource token the resource-cleanup ledger puts on disposable Docker resources of a release check; set by resource_cleanup/lifecycle.py. Not a product setting."
     },
     {
       "name": "FS_TASK_UPLOAD_BODY_READ_TIMEOUT_SECONDS",

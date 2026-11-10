@@ -51,6 +51,9 @@ NON_BUNDLE_IDENTITIES = frozenset(
         "core/entrypoints/cli/scripts/lint.sh: flowsteward.audit-toolchain",
         "tests/unit/test_lint_script.py: flowsteward.audit-toolchain",
         # Task ownership and audit-image OCI labels are platform infrastructure.
+        "core/application/tooling/anonymous_installer_acceptance.py: flowsteward.disposable",
+        "core/application/tooling/anonymous_installer_acceptance.py: flowsteward.resource-token",
+        "core/application/tooling/anonymous_installer_acceptance.py: flowsteward.task",
         "core/application/tooling/resource_cleanup/models.py: flowsteward.disposable",
         "core/application/tooling/resource_cleanup/models.py: flowsteward.resource-token",
         "core/application/tooling/resource_cleanup/models.py: flowsteward.task",
