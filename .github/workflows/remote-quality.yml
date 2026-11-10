@@ -306,7 +306,12 @@ jobs:
               -e "FS_COMPOSE_PROJECT_NAME=fs-oauth-generic-single-${GITHUB_RUN_ID}" \
               -v /var/run/docker.sock:/var/run/docker.sock \
               fs-audit bash core/entrypoints/cli/scripts/lint.sh --checks "$CHECK_ID" \
-              2>&1 | tee logs/quality/hosted/single-check.log
+              2>&1 | tee logs/quality/hosted/single-check.log || check_status=$?
+            if [[ "${check_status:-0}" -ne 0 ]]; then
+              # A browser failure is only readable from its page snapshot.
+              find logs -name error-context.md -print -exec cat {} \; 2>/dev/null | head -400 || true
+              exit "$check_status"
+            fi
           else
             ./core/entrypoints/cli/scripts/lint.sh --checks "$CHECK_ID" \
               2>&1 | tee logs/quality/hosted/single-check.log
