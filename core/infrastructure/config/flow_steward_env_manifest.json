@@ -7101,7 +7101,22 @@
       "preserve_existing": false,
       "default": "tls",
       "owner": "core/infrastructure/config/rabbitmq_transport.py",
-      "notes": "tls (default), compose-local, audit-local, or loopback-local. Local modes require exact owned endpoints; remote brokers always require verified TLS."
+      "notes": "tls (default), compose-local, audit-local, loopback-local, or platform-private. Local and platform-private modes require exact declared endpoints; any other broker requires verified TLS."
+    },
+    {
+      "name": "FS_RABBITMQ_PRIVATE_HOST",
+      "groups": [
+        "compact_runtime"
+      ],
+      "environments": [
+        "production"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "owner": "core/infrastructure/config/rabbitmq_transport.py",
+      "notes": "Exact provider private-network broker host name (no IP literals) allowed for plaintext amqp on port 5672 when FS_RABBITMQ_TRANSPORT_MODE=platform-private. Ignored in every other mode."
     },
     {
       "name": "RABBITMQ_URL",

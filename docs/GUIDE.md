@@ -2529,7 +2529,7 @@ through the explicit configuration-store boundary.
 | `FS_DB_DSN` | Yes | Primary PostgreSQL DSN for the app |
 | `LANGGRAPH_POSTGRES_URI` | Yes | LangGraph checkpoint store DSN |
 | `RABBITMQ_URL` | Yes | RabbitMQ connection URL; remote brokers require verified `amqps` |
-| `FS_RABBITMQ_TRANSPORT_MODE` | No | Default `tls`; canonical Compose declares `compose-local`, disposable audit declares `audit-local`; `loopback-local` requires an explicit numeric loopback address and port |
+| `FS_RABBITMQ_TRANSPORT_MODE` | No | Default `tls`; canonical Compose declares `compose-local`, disposable audit declares `audit-local`; `loopback-local` requires an explicit numeric loopback address and port; `platform-private` allows plaintext only to `FS_RABBITMQ_PRIVATE_HOST:5672` on a provider private network (ADR 0064) |
 | `MCP_URL` | Yes | Internal MCP endpoint URL |
 | `FS_SECRET_KEY` | Yes | App signing/encryption key |
 | `ENCRYPTION_KEY` | Yes | Stable AES-GCM key for encrypted stored secrets |
