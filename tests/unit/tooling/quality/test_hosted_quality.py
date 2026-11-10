@@ -552,3 +552,38 @@ def test_source_coverage_is_restored_only_for_exact_current_sha(
         assert restored.read_text() == "source coverage"
     else:
         assert not restored.exists()
+
+
+@pytest.mark.parametrize("build_status", [0, 17])
+def test_hosted_postgres_preparation_builds_without_starting_services(
+    candidate: tuple[Path, dict[str, str]], build_status: int
+) -> None:
+    _, env = candidate
+    root = Path(env["GITHUB_WORKSPACE"])
+    fake_bin = root / "bin"
+    fake_bin.mkdir()
+    calls = root / "docker-calls.jsonl"
+    docker = fake_bin / "docker"
+    docker.write_text(
+        "#!/usr/bin/env python3\nimport json, pathlib, sys\n"
+        f"with pathlib.Path({str(calls)!r}).open('a') as out:\n"
+        "    out.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"sys.exit({build_status})\n"
+    )
+    docker.chmod(0o755)
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    result = _run(env, "prepare-postgres")
+    assert result.returncode == build_status, result.stderr
+    assert [json.loads(line) for line in calls.read_text().splitlines()] == [
+        [
+            "compose",
+            "-p",
+            "fs-quality-123-1-quality",
+            "-f",
+            "infra/docker/docker-compose.yaml",
+            "-f",
+            "infra/docker/docker-compose.quality-hosted.yaml",
+            "build",
+            "pg-fs",
+        ]
+    ]

@@ -34,3 +34,6 @@ runs:
         # Keep frontend intermediate stages too: mode=min rebuilt npm/TypeScript
         # even when only backend/tooling source changed in the measured pilot.
         cache-to: type=gha,scope=quality-audit-amd64,mode=max
+    - name: Build canonical PostgreSQL image for disposable test infrastructure
+      shell: bash
+      run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-postgres
