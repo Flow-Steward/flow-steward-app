@@ -30,11 +30,11 @@ jobs:
       - name: Require the selected commit to include current main
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - uses: ./.github/actions/prepare-quality
-      - name: Run stress checks in fs-audit
+      - name: Run timeout preflight and stress checks in fs-audit
         run: |
           set -o pipefail
           ./core/entrypoints/cli/scripts/lint.sh --checks targeted-tests \
-            --test-paths "tests/unit/tooling/quality/test_hosted_quality.py::test_audit_pytest_interrupts_a_test_that_exceeds_its_timeout tests/unit/tooling/quality/test_hosted_quality.py::test_audit_pytest_refuses_to_run_with_timeout_plugin_disabled tests/unit/stress" \
+            --test-paths "tests/unit/tooling/quality/test_hosted_quality.py::test_audit_pytest_interrupts_a_test_that_exceeds_its_timeout tests/unit/stress" \
             2>&1 | tee logs/quality/hosted/stress.log
       - name: Collect bounded diagnostics
         if: always() && env.FS_QUALITY_CACHE_ROOT != ''

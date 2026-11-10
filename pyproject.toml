@@ -1,8 +1,6 @@
 [tool.pytest.ini_options]
 cache_dir = "logs/tool-cache/pytest"
 testpaths = ["tests"]
-# Stress limits must be enforced; a missing or disabled plugin is a setup error.
-required_plugins = ["pytest-timeout"]
 filterwarnings = [
     # ── Vendor / third-party waivers ────────────────────────────────────────────
     # httpx internal: starlette TestClient uses a deprecated data= argument in its

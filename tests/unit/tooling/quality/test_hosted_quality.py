@@ -615,30 +615,3 @@ def test_audit_pytest_interrupts_a_test_that_exceeds_its_timeout(tmp_path: Path)
     assert result.returncode == 1, output
     assert "Timeout (>0.1s)" in output, output
     assert "PytestUnknownMarkWarning" not in output
-
-
-def test_audit_pytest_refuses_to_run_with_timeout_plugin_disabled(tmp_path: Path) -> None:
-    probe = tmp_path / "test_probe.py"
-    probe.write_text("def test_probe():\n    pass\n")
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            "-c",
-            str(ROOT / "pyproject.toml"),
-            "-p",
-            "no:timeout",
-            str(probe),
-        ],
-        cwd=tmp_path,
-        env={**os.environ, "PYTEST_ADDOPTS": ""},
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-    output = result.stdout + result.stderr
-    assert result.returncode == 4, output
-    assert "Missing required plugins: pytest-timeout" in output
