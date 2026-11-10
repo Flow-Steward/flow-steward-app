@@ -86,7 +86,9 @@ describe("dashboard attention queue links", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(<QueryClientProvider client={client}><MemoryRouter><DashboardPage /></MemoryRouter></QueryClientProvider>);
     // While loading the card is named by its label alone; the count arrives with the answer.
-    await screen.findByRole("link", { name: /^Failed \/ Stuck: / });
+    // The loader rules hold a shown Loading state for 500 ms after a 400 ms delay, so
+    // the answer can land after the default 1 s wait when the suite is busy.
+    await screen.findByRole("link", { name: /^Failed \/ Stuck: / }, { timeout: 5000 });
     return () => { view.unmount(); client.clear(); };
   }
 

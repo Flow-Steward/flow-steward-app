@@ -124,7 +124,8 @@ describe("JobsListPage", () => {
     });
     renderJobsListPage();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select old-scope" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete Selected" }));
+    // The bulk bar renders after the selection commits; under a loaded suite that is not synchronous.
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Selected" }));
     await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/api/jobs/old-scope", { method: "DELETE" }));
     expect(screen.getByRole("button", { name: "Delete Selected" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /^Job period:/ }));
