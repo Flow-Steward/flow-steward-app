@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
 
 export type DatasetMetadata = Record<string, unknown> & { connection_resolution?: "project_scope" };
@@ -485,7 +485,7 @@ export async function updateDatasetProjects(datasetId: string, projectIds: strin
 export async function fetchDatasetQueryTemplates(params?: {
   datasetId?: string;
   projectId?: string;
-}, options?: FetchJsonOptions) {
+}) {
   const search = new URLSearchParams();
   if (params?.datasetId) {
     search.set("dataset_id", params.datasetId);
@@ -494,7 +494,7 @@ export async function fetchDatasetQueryTemplates(params?: {
     search.set("project_id", params.projectId);
   }
   const suffix = search.toString() ? `?${search.toString()}` : "";
-  const payload = await fetchJson<unknown>(`/api/datasets/query-templates${suffix}`, {}, options);
+  const payload = await fetchJson<unknown>(`/api/datasets/query-templates${suffix}`);
   return queryTemplatesFromPayload(payload);
 }
 

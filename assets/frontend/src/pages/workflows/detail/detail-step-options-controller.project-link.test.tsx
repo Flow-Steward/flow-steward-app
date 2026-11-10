@@ -64,7 +64,8 @@ describe("workflow builder project linking", () => {
     }
     render(<Harness />, { wrapper });
 
-    await user.selectOptions(screen.getByLabelText("Choose a project"), "7");
+    await user.click(screen.getByRole("combobox", { name: "Choose a project" }));
+    await user.click(await screen.findByRole("option", { name: "Project Seven" }));
     await user.click(screen.getByRole("button", { name: "Link project for Test Run" }));
 
     await waitFor(() =>

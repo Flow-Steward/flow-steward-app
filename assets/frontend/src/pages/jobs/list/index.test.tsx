@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { interpolate } from "@/lib/i18n/interpolate";
@@ -7,6 +7,7 @@ import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { JobsListPage } from "@/pages/jobs/list";
+import { LOADER_DELAY_MS, LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -675,4 +676,89 @@ describe("JobsListPage", () => {
     expect(workflowOptions().map((item) => item.getAttribute("title"))).toContain("Inventory Import");
   });
 });
+});
+
+describe("JobsListPage first load", () => {
+  let resolveJobs: (payload: unknown) => void = () => undefined;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockedUseAuth.mockReset();
+    mockedFetchJson.mockReset();
+    mockedUseAuth.mockReturnValue({ session: { user: { roles: ["admin"] } } } as never);
+    const jobsAnswer = new Promise((resolve) => {
+      resolveJobs = resolve;
+    });
+    mockedFetchJson.mockImplementation(async (input) => {
+      if (String(input).startsWith("/api/v2/jobs")) return jobsAnswer as never;
+      return [] as never;
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function skeletonRows(): Element[] {
+    // eslint-disable-next-line testing-library/no-node-access
+    return Array.from(screen.getByRole("table", { name: "Jobs" }).querySelectorAll("tbody tr.fs-table-skeleton-row"));
+  }
+
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  it("renders the table chrome at once and keeps the body empty, not 'No jobs', for the loader delay", async () => {
+    renderJobsListPage();
+    await advance(LOADER_DELAY_MS - 1);
+
+    expect(screen.getByRole("columnheader", { name: "Workflow" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search jobs" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Jobs" })).toHaveAttribute("aria-busy", "true");
+    expect(skeletonRows()).toHaveLength(0);
+    expect(screen.queryByText("No jobs found")).not.toBeInTheDocument();
+  });
+
+  it("holds a fixed run of skeleton rows sized per column, then swaps in the real rows", async () => {
+    renderJobsListPage();
+    await advance(LOADER_DELAY_MS);
+
+    const rows = skeletonRows();
+    expect(rows).toHaveLength(5);
+    // eslint-disable-next-line testing-library/no-node-access
+    const lines = Array.from(rows[0].querySelectorAll<HTMLElement>(".fs-skeleton.fs-skeleton-line"));
+    expect(lines.length).toBeGreaterThan(1);
+    expect(new Set(lines.map((line) => line.style.width)).size).toBeGreaterThan(1);
+    expect(screen.queryByText("No jobs found")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveJobs({ jobs: [FAILED_ROW], page: 1, per_page: 25, total: 1, total_pages: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // Once shown, the skeleton stays for its minimum time.
+    expect(skeletonRows()).toHaveLength(5);
+    expect(screen.queryByText("Inventory Import")).not.toBeInTheDocument();
+
+    await advance(LOADER_MIN_SHOWN_MS);
+    expect(skeletonRows()).toHaveLength(0);
+    expect(screen.getByText("Inventory Import")).toBeInTheDocument();
+    expect(screen.queryByText("No jobs found")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state only when the answer is empty, without a skeleton first", async () => {
+    renderJobsListPage();
+    await advance(LOADER_DELAY_MS - 100);
+    await act(async () => {
+      resolveJobs({ jobs: [], page: 1, per_page: 25, total: 0, total_pages: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText("No jobs found")).toBeInTheDocument();
+    await advance(LOADER_DELAY_MS + LOADER_MIN_SHOWN_MS);
+    expect(skeletonRows()).toHaveLength(0);
+    expect(screen.getByText("No jobs found")).toBeInTheDocument();
+  });
 });

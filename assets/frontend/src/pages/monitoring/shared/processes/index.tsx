@@ -346,13 +346,17 @@ export function ProcessesControlPanel() {
     }
   }
 
+  /* While a confirmed action runs, the other controls keep their look and ignore presses:
+     only the dialog's confirm button shows the work. */
   function runBulkJobAction(actionId: string) {
+    if (busy) return;
     const handler =
       (globalThis as unknown as ProcessesWindow).bulkProcessJobAction ?? fallbackBulkProcessJobAction;
     ignoreAsyncResult(Promise.resolve(handler(actionId, [...selectedJobs])));
   }
 
   function runBulkWorkerAction(actionId: string) {
+    if (busy) return;
     const handler =
       (globalThis as unknown as ProcessesWindow).bulkWorkerAction ?? fallbackBulkWorkerAction;
     ignoreAsyncResult(Promise.resolve(handler(actionId, [...selectedWorkers])));
@@ -489,8 +493,8 @@ export function ProcessesControlPanel() {
           </div>
           <button
             className="fs-button"
-            disabled={busy}
             onClick={() => {
+              if (busy) return;
               ignoreAsyncResult(processesQuery.refetch());
             }}
             type="button"
@@ -534,7 +538,6 @@ export function ProcessesControlPanel() {
           />
           <BulkActionBar
             actions={bulkActionsFromConfig(jobsConfig)}
-            busy={busy}
             count={selectedJobs.size}
             onAction={runBulkJobAction}
             onClear={() => setSelectedJobs(new Set())}
@@ -576,7 +579,6 @@ export function ProcessesControlPanel() {
           />
           <BulkActionBar
             actions={bulkActionsFromConfig(workersConfig)}
-            busy={busy}
             count={selectedWorkers.size}
             onAction={runBulkWorkerAction}
             onClear={() => setSelectedWorkers(new Set())}

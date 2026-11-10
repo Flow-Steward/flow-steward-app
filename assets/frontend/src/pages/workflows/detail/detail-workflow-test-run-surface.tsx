@@ -138,10 +138,9 @@ export function WorkflowTestRunSurface({
                           variant="primary"
                           busy={approvalPending && approvalChoice === true}
                           busyLabel={t("react.workflows.continuing", "Continuing…")}
-                          disabled={approvalPending && approvalChoice !== true}
-                          onClick={() =>
-                            workflowTestRunApprovalMutation.mutate({ approved: true })
-                          }
+                          onClick={() => {
+                            if (!approvalPending) workflowTestRunApprovalMutation.mutate({ approved: true });
+                          }}
                           type="button"
                         >
                           {t("jobs.detail.review.approve_continue", "Approve and continue")}
@@ -150,10 +149,9 @@ export function WorkflowTestRunSurface({
                           variant="secondary"
                           busy={approvalPending && approvalChoice === false}
                           busyLabel={t("react.workflows.continuing", "Continuing…")}
-                          disabled={approvalPending && approvalChoice !== false}
-                          onClick={() =>
-                            workflowTestRunApprovalMutation.mutate({ approved: false })
-                          }
+                          onClick={() => {
+                            if (!approvalPending) workflowTestRunApprovalMutation.mutate({ approved: false });
+                          }}
                           type="button"
                         >
                           {t("react.workflows.reject_and_continue", "Reject and continue")}</Button>

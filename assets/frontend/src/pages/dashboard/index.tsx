@@ -25,7 +25,8 @@ import {
 } from "@/pages/dashboard/job-links";
 import { jobStatusGroup } from "@/pages/jobs/status-groups";
 import { OperationalOverview } from "@/pages/dashboard/operational-overview";
-import { PageContainer } from "@/components/shared/design-system";
+import { PageContainer, type DsMetricCardLoading } from "@/components/shared/design-system";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { fetchDashboardSummary } from "@/pages/dashboard/api";
 import { queryKeys } from "@/lib/query/keys";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
@@ -159,11 +160,25 @@ export function DashboardPage() {
     queryKey: queryKeys.dashboardSummary(range),
     queryFn: () => fetchDashboardSummary(range),
     refetchInterval: 15_000,
-    // Changing the range changes the query key, so without this the cache miss
-    // renders `undefined` for a beat: every counter drops to zero and the
-    // attention card loses its colour until the new payload lands.
+    // Changing the range changes the query key. The previous payload stays as a
+    // placeholder so the attention queue (a live snapshot, not range-scoped)
+    // and the header do not blink; the range-scoped cards below never read it.
     placeholderData: (previous) => previous,
   });
+  // The cards wait for numbers of the range they are labelled with: on the
+  // first load and on every range switch they show their Loading state until
+  // the new answer lands, never a zero and never the previous range's numbers.
+  const cardsPending = summaryQuery.isPending || summaryQuery.isPlaceholderData;
+  const cardsSkeleton = useLoaderDelay(cardsPending);
+  let cardsLoading: DsMetricCardLoading | undefined;
+  if (cardsSkeleton) cardsLoading = "skeleton";
+  else if (cardsPending) cardsLoading = "reserved";
+  // The queue waits only for its first answer; a range switch keeps it.
+  const queuePending = summaryQuery.isPending;
+  const queueSkeleton = useLoaderDelay(queuePending);
+  let queueLoading: DsMetricCardLoading | undefined;
+  if (queueSkeleton) queueLoading = "skeleton";
+  else if (queuePending) queueLoading = "reserved";
 
   const summary = summaryQuery.data || {};
   const hero = asHeroKpis(summary.hero_kpis);
@@ -247,6 +262,7 @@ export function DashboardPage() {
         failedOrStuck={failedOrStuck}
         generatedAt={generatedAt}
         inProgress={inProgress}
+        loading={cardsLoading}
         longestRunningMs={longestRunningMs}
         needsAttention={needsAttention}
         oldestFailingMs={oldestFailingMs}
@@ -264,7 +280,7 @@ export function DashboardPage() {
         />
       ) : null}
 
-      <CommandCenter queue={visibleQueue} queueHref={attentionHref} queueTotal={queue.length} />
+      <CommandCenter loading={queueLoading} queue={visibleQueue} queueHref={attentionHref} queueTotal={queue.length} />
 
       <div className="fs-dash__row">
         <QuickLinks

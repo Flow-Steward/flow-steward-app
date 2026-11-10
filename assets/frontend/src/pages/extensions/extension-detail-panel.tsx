@@ -1,4 +1,4 @@
-import { useMemo, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
+import { useMemo, useState, type Dispatch, type KeyboardEvent, type SetStateAction } from "react";
 
 import { ChevronRight } from "lucide-react";
 
@@ -19,10 +19,12 @@ import type {
   ExtensionRecord,
 } from "@/pages/extensions/api";
 import { catalogLabel } from "./hub-support";
+import type { ExtensionBusyAction } from "./use-extensions-hub-state";
 import { manifestActionHostEffect } from "./manifest-action-support";
 import { extensionInstallWarnings } from "@/pages/extensions/extension-install-warnings";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { DsLoader } from "@/components/shared/ds-loader";
+import { Button } from "@/components/ui/button";
 import { renderManifestComponent } from "@/pages/extensions/extension-manifest-renderer";
 import { type PendingConnectionDisconnect } from "@/pages/extensions/extension-manifest-render-model";
 import {
@@ -76,7 +78,7 @@ type ExtensionDetailPanelProps = {
   activationBlockedReason: string;
   connectionCreationBlockedReason: string;
   activeManifestPage: Record<string, unknown> | undefined;
-  busyById: Record<string, boolean>;
+  busyById: Record<string, ExtensionBusyAction | false>;
   callbackStatuses: RecordMap;
   callbacksQuery: {
     data?: ExtensionCallbackRegistration[];
@@ -379,15 +381,15 @@ function ExtensionInstallWarnings({ detailExtension }: Readonly<{ detailExtensio
 
 function ExtensionAdminActions({ detailExtension, panel }: Readonly<{ detailExtension: ExtensionRecord; panel: ExtensionDetailPanelProps }>) {
   const { t } = useI18n();
-  const busy = Boolean(panel.busyById[detailExtension.extension_id]);
+  const pending = panel.busyById[detailExtension.extension_id];
   return (
     <div className="fs-extension-detail-actions">
       <div className="fs-extension-detail-action-row">
-        <button className="fs-button" disabled={busy || Boolean(detailExtension.broken && !detailExtension.active) || Boolean(panel.activationBlockedReason && !detailExtension.active)} onClick={() => ignoreAsyncResult(panel.handleToggle(detailExtension))} type="button">{detailExtension.active ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}</button>
-        <button className="fs-button" disabled={busy} onClick={() => ignoreAsyncResult(panel.handleHealthCheck(detailExtension))} type="button">{t("extensions.detail.health", "Extension runtime health")}</button>
+        <Button busy={pending === "toggle"} busyLabel={t("react.extensions.updating", "Updating…")} disabled={Boolean(detailExtension.broken && !detailExtension.active) || Boolean(panel.activationBlockedReason && !detailExtension.active)} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleToggle(detailExtension)); }} type="button" variant="secondary">{detailExtension.active ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}</Button>
+        <Button busy={pending === "health"} busyLabel={t("react.extensions.checking", "Checking…")} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleHealthCheck(detailExtension)); }} type="button" variant="secondary">{t("extensions.detail.health", "Extension runtime health")}</Button>
         {/* Among peer actions a destructive one takes the quiet ghost-danger
             lane; the uninstall plan dialog owns the filled Danger Button. */}
-        <button className="fs-button ghost-danger" disabled={busy || !panel.archiveLifecycleAvailable} onClick={() => ignoreAsyncResult(panel.handleUninstall(detailExtension))} type="button">{t("extensions.detail.uninstall", "Uninstall")}</button>
+        <Button busy={pending === "uninstall"} busyLabel={t("react.shared.uninstalling", "Uninstalling…")} disabled={!panel.archiveLifecycleAvailable} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleUninstall(detailExtension)); }} type="button" variant="ghost-danger">{t("extensions.detail.uninstall", "Uninstall")}</Button>
       </div>
       <p className="fs-extension-detail-note">{t("extensions.detail.uninstall_note", "Uninstall removes the extension and the lifecycle data it owns.")}</p>
     </div>
@@ -605,6 +607,10 @@ function ManifestComponentSections({
   panel: ExtensionDetailPanelProps;
 }>) {
   const { t } = useI18n();
+  // Connection and manifest actions run under the "other" busy kind; the
+  // pressed control's key tells which of them shows busy.
+  const [pressedAction, setPressedAction] = useState("");
+  const running = panel.busyById[panel.detailExtension.extension_id];
   return listFromUnknown(panel.activeManifestPage?.components).map((component) => {
     const anchorId = stringFrom(component.anchor_id);
     const anchorDomId = manifestAnchorDomId(activePageId, anchorId);
@@ -619,7 +625,9 @@ function ManifestComponentSections({
       >
         {renderManifestComponent(component, {
           t,
-          busy: Boolean(panel.busyById[panel.detailExtension.extension_id]),
+          busy: Boolean(running),
+          busyAction: running === "other" ? pressedAction : "",
+          onActionPress: setPressedAction,
           canManageProject,
           connectionCreationBlockedReason: panel.connectionCreationBlockedReason,
           callbacks: panel.callbacksQuery.data || [],

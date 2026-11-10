@@ -13593,9 +13593,6 @@ msgstr "Remove {value1}"
 msgid "react.shared.remove_value1_filter"
 msgstr "Remove {value1} filter"
 
-msgid "react.shared.request_loading"
-msgstr "Loading requests"
-
 msgid "react.shared.restore_plan"
 msgstr "Restore plan"
 
@@ -30441,3 +30438,12 @@ msgstr "Right now · oldest failing {age}"
 
 msgid "react.dashboard.test_run_from_the_builder"
 msgstr "Test run from the builder"
+
+msgid "react.jobs.rejecting"
+msgstr "Rejecting…"
+
+msgid "react.workflows.regenerating_url"
+msgstr "Regenerating…"
+
+msgid "react.workflows.rotating_credential"
+msgstr "Rotating…"

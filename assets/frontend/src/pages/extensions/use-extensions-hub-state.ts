@@ -71,6 +71,9 @@ import {
 } from "./hub-support";
 import { oauthConnectionTypesFromManifest } from "./connection-form-support";
 
+/** The running action per extension, so only its own control shows busy ("other": a connection or manifest action). */
+export type ExtensionBusyAction = "toggle" | "health" | "uninstall" | "install" | "other";
+
 export function useExtensionsHubState() {
   const queryClient = useQueryClient();
   const { extensionId } = useParams();
@@ -107,7 +110,7 @@ export function useExtensionsHubState() {
   const [viewFilter, setViewFilter] = useState<ExtensionsViewFilter>("active");
   const [extensionSearch, setExtensionSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [busyById, setBusyById] = useState<Record<string, boolean>>({});
+  const [busyById, setBusyById] = useState<Record<string, ExtensionBusyAction | false>>({});
   const [statusById, setStatusById] = useState<ExtensionHealthStatus>({});
   const [toggleErrorById, setToggleErrorById] = useState<ExtensionHealthStatus>({});
   const [installDropActive, setInstallDropActive] = useState(false);
@@ -441,7 +444,6 @@ export function useExtensionsHubState() {
     queryKey: ["extensions", "projects", detailExtension?.extension_id || "", workspaceId],
     queryFn: () => fetchProjectsList(
       { page: 1, perPage: 200, search: "", workspaceId },
-      { presentation: "background" },
     ),
     enabled: Boolean(detailMode && detailExtension?.extension_id && activePageRequiresProject),
   });

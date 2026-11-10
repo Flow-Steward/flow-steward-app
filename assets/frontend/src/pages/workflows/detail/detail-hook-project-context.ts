@@ -11,7 +11,7 @@ export function useWorkflowHookProjectContext({ workflowId, projectHint, enabled
   const actorKey = JSON.stringify([session?.user?.id || "", session?.user?.account_id || ""]);
   const projectsQuery = useQuery({
     queryKey: ["workflows", workflowId, "hook-projects", actorKey],
-    queryFn: () => fetchWorkflowLinkedProjects(workflowId, { presentation: "background" }),
+    queryFn: () => fetchWorkflowLinkedProjects(workflowId),
     enabled: enabled && Boolean(workflowId),
     retry: false,
   });

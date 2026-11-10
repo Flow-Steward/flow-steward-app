@@ -28,6 +28,7 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { DsAlert, DsBadge } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import "@/pages/extensions/extension-manifest.css";
 
 import { renderConnectionRow } from "./extension-manifest-connections";
@@ -43,9 +44,12 @@ import {
   extensionBrowserAssetUrl,
   fieldVisibleForValues,
   firstPopulatedItems,
+  manifestActionBusy,
+  manifestActionKey,
   manifestFormActions,
   manifestSummaryEntries,
   platformText,
+  pressManifestAction,
   webhookConfigurationLabel,
   type ManifestRenderContext,
 } from "./extension-manifest-render-model";
@@ -195,19 +199,25 @@ export function renderManifestComponent(
           </div>
         )}
         <div className="fs-manifest-actions">
-          {manifestFormActions(component, t).map((action, index) => (
-            <button
-              className={index === 0 ? "fs-button sm primary" : "fs-button sm"}
-              disabled={context.busy}
-              key={`${action.kind}:${action.actionId || action.queryId}`}
-              onClick={(event) => {
-                context.onManifestAction(action, event.currentTarget.form, component);
-              }}
-              type="button"
-            >
-              {action.label}
-            </button>
-          ))}
+          {manifestFormActions(component, t).map((action, index) => {
+            const actionKey = manifestActionKey("action", componentId, action.kind, action.actionId || action.queryId);
+            return (
+              <Button
+                busy={manifestActionBusy(context, actionKey)}
+                busyLabel={t("react.workflows.running", "Running…")}
+                key={`${action.kind}:${action.actionId || action.queryId}`}
+                onClick={(event) => {
+                  const form = event.currentTarget.form;
+                  pressManifestAction(context, actionKey, () => context.onManifestAction(action, form, component));
+                }}
+                size="sm"
+                type="button"
+                variant={index === 0 ? "primary" : "secondary"}
+              >
+                {action.label}
+              </Button>
+            );
+          })}
         </div>
       </form>
     );
@@ -326,25 +336,31 @@ export function renderManifestComponent(
             })}
           </div>
           <div className="fs-manifest-actions">
-            <button className="fs-button sm primary" disabled={context.busy || (oauthConnection && !selectedRow && Boolean(context.connectionCreationBlockedReason))} onClick={() => context.onConnectionSave(component, effectiveValues)} title={oauthConnection && !selectedRow ? context.connectionCreationBlockedReason : undefined} type="button">
+            <Button busy={manifestActionBusy(context, manifestActionKey("connection-save", componentId))} busyLabel={t("react.extensions.saving", "Saving…")} disabled={oauthConnection && !selectedRow && Boolean(context.connectionCreationBlockedReason)} onClick={() => pressManifestAction(context, manifestActionKey("connection-save", componentId), () => context.onConnectionSave(component, effectiveValues))} size="sm" title={oauthConnection && !selectedRow ? context.connectionCreationBlockedReason : undefined} type="button" variant="primary">
               {connectionSaveLabel(selectedRow, oauthConnection, accountLabelText, t)}
-            </button>
-            {manifestFormActions(component, t).map((action) => (
-              <button
-                className="fs-button sm"
-                disabled={context.busy}
-                key={`${action.kind}:${action.actionId || action.queryId}`}
-                onClick={(event) => {
-                  context.onManifestAction(action, event.currentTarget.form, component, {
-                    values: effectiveValues,
-                    data: effectiveData,
-                  });
-                }}
-                type="button"
-              >
-                {action.label}
-              </button>
-            ))}
+            </Button>
+            {manifestFormActions(component, t).map((action) => {
+              const actionKey = manifestActionKey("action", componentId, action.kind, action.actionId || action.queryId);
+              return (
+                <Button
+                  busy={manifestActionBusy(context, actionKey)}
+                  busyLabel={t("react.workflows.running", "Running…")}
+                  key={`${action.kind}:${action.actionId || action.queryId}`}
+                  onClick={(event) => {
+                    const form = event.currentTarget.form;
+                    pressManifestAction(context, actionKey, () => context.onManifestAction(action, form, component, {
+                      values: effectiveValues,
+                      data: effectiveData,
+                    }));
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  {action.label}
+                </Button>
+              );
+            })}
             {selectedRow ? (
               <button className="fs-button sm ghost" onClick={() => context.onConnectionSelect(component, null)} type="button">{t("react.extensions.new_connection", "New connection")}</button>
             ) : null}
@@ -410,7 +426,7 @@ export function renderManifestComponent(
             )}
           </div>
           <div className="fs-manifest-actions">
-            <button className="fs-button sm primary" disabled={context.busy} onClick={() => context.onProjectStateSave(component, effectiveValues)} type="button">{hasSelectedRow ? t("users.modal.save", "Save") : t("projects.modal.create", "Create")}</button>
+            <Button busy={manifestActionBusy(context, manifestActionKey("state-save", componentId))} busyLabel={hasSelectedRow ? t("react.extensions.saving", "Saving…") : t("react.settings.creating", "Creating…")} onClick={() => pressManifestAction(context, manifestActionKey("state-save", componentId), () => context.onProjectStateSave(component, effectiveValues))} size="sm" type="button" variant="primary">{hasSelectedRow ? t("users.modal.save", "Save") : t("projects.modal.create", "Create")}</Button>
             {hasSelectedRow ? <button className="fs-button sm ghost" onClick={() => context.onProjectStateSelect(component, null)} type="button">{t("react.extensions.new", "New")}</button> : null}
           </div>
         </form>
@@ -541,22 +557,27 @@ export function renderManifestComponent(
         {lastError ? <DsAlert title={lastError} tone="danger" /> : null}
         {webhookError ? <DsAlert title={webhookError} tone="warning" /> : null}
         <div className="fs-manifest-actions">
-          <button
-            className="fs-button sm primary"
-            disabled={context.busy || !callbackId || !context.projectId}
-            onClick={() => context.onCallbackSetup(component, "configure")}
+          <Button
+            busy={manifestActionBusy(context, manifestActionKey("callback", componentId, "configure"))}
+            busyLabel={t("react.settings.creating", "Creating…")}
+            disabled={!callbackId || !context.projectId}
+            onClick={() => pressManifestAction(context, manifestActionKey("callback", componentId, "configure"), () => context.onCallbackSetup(component, "configure"))}
+            size="sm"
             type="button"
+            variant="primary"
           >
             {platformText(context, "extensions.callback.configure", "Create and Configure")}
-          </button>
-          <button
-            className="fs-button sm"
-            disabled={context.busy}
-            onClick={() => context.onCallbackSetup(component, "status")}
+          </Button>
+          <Button
+            busy={manifestActionBusy(context, manifestActionKey("callback", componentId, "status"))}
+            busyLabel={t("react.shared.refreshing", "Refreshing…")}
+            onClick={() => pressManifestAction(context, manifestActionKey("callback", componentId, "status"), () => context.onCallbackSetup(component, "status"))}
+            size="sm"
             type="button"
+            variant="secondary"
           >
             {platformText(context, "extensions.callback.refresh", "Refresh Status")}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -713,25 +734,28 @@ export function renderManifestComponent(
                                     rowEntity.item_id ||
                                     rowEntity.route_id,
                                 );
+                                const actionKey = manifestActionKey("row-action", componentId, index, action.kind, action.actionId || action.queryId);
                                 return (
-                                  <button
-                                    className="fs-button sm"
-                                    disabled={context.busy}
+                                  <Button
+                                    busy={manifestActionBusy(context, actionKey)}
+                                    busyLabel={t("react.workflows.running", "Running…")}
                                     key={`${componentId}:${index}:${action.kind}:${action.actionId || action.queryId}`}
                                     onClick={() =>
-                                      context.onManifestAction(action, null, component, {
+                                      pressManifestAction(context, actionKey, () => context.onManifestAction(action, null, component, {
                                         target: {
                                           ...rowEntity,
                                           scope: action.scope || "row",
                                           item_ids: rowItemId ? [rowItemId] : [],
                                         },
                                         data: rowEntity,
-                                      })
+                                      }))
                                     }
+                                    size="sm"
                                     type="button"
+                                    variant="secondary"
                                   >
                                     {action.label}
-                                  </button>
+                                  </Button>
                                 );
                               })}
                           </div>

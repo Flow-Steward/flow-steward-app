@@ -300,7 +300,7 @@ export function StepEditorSurface({
     const labels = stepSaveLabels(t, selectedStep, kindChangeMode);
     return (
       <DrawerFooter>
-        <Button disabled={saving} onClick={() => ignoreAsyncResult(handleDeleteSelectedStep())} type="button" variant="ghost-danger">
+        <Button onClick={() => { if (!saving) ignoreAsyncResult(handleDeleteSelectedStep()); }} type="button" variant="ghost-danger">
           {t("react.workflows.delete_step", "Delete step")}
         </Button>
         <DrawerFooterSpacer />

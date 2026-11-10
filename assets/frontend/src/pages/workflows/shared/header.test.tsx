@@ -1,4 +1,3 @@
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
 import type * as ProjectContext from "@/pages/workflows/shared/project-context";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
 import type { WorkflowExportPolicy } from "@/pages/workflows/shared/api";
@@ -94,7 +93,7 @@ describe("WorkflowSummaryHeader authoring RBAC", () => {
     const onCloneWorkflow = vi.fn();
     renderHeader(true, onCloneWorkflow);
 
-    await waitFor(() => expect(mockedLinkedProject).toHaveBeenCalledWith("wf-1", { presentation: "background" }));
+    await waitFor(() => expect(mockedLinkedProject).toHaveBeenCalledWith("wf-1"));
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
     fireEvent.click(
       within(await screen.findByRole("menu", { name: "Workflow actions" })).getByRole(
@@ -309,7 +308,6 @@ describe("summary graph counts and metadata isolation", () => {
     vi.useFakeTimers();
     const remove = vi.fn(); const testRun = vi.fn();
     const view = renderHeader(true, undefined, { projectId: "p-explicit", onDeleteWorkflow: remove, onWorkflowTestRun: testRun });
-    const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
     try {
       function assertCommandsBlocked() {
         if (!screen.queryByRole("menu", { name: "Workflow actions" })) fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
@@ -322,7 +320,6 @@ describe("summary graph counts and metadata isolation", () => {
       }
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
       expect(fetchMock.mock.calls[0][0]).toBe("/api/workflows/wf-1/export-policy");
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Disable workflow" })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
       assertCommandsBlocked();
@@ -334,14 +331,13 @@ describe("summary graph counts and metadata isolation", () => {
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
       expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Disable workflow" })).not.toBeInTheDocument();
       await act(async () => { resolveRetry(new Response(JSON.stringify({ clone_allowed: true, full_export_allowed: true, structure_change_allowed: true }), { headers: { "content-type": "application/json" } })); await vi.advanceTimersByTimeAsync(0); });
       expect(screen.getByRole("button", { name: "Disable workflow" })).toBeEnabled();
       expect(screen.getByRole("link", { name: /open builder/i })).toHaveAttribute("href", expect.stringContaining("project_id=p-explicit"));
       expect(mockedLinkedProject).not.toHaveBeenCalled();
     } finally {
-      view.unmount(); unmountIndicator(); resolve(new Response("{}")); resolveRetry(new Response("{}"));
+      view.unmount(); resolve(new Response("{}")); resolveRetry(new Response("{}"));
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers(); vi.useRealTimers(); fetchMock.mockRestore();
     }
@@ -423,7 +419,6 @@ describe("summary graph counts and metadata isolation", () => {
     });
     vi.useFakeTimers();
     const view = renderHeader(true, undefined, { portability: { clone_allowed: true, structure_change_allowed: true } as WorkflowExportPolicy, onWorkflowSettings: undefined });
-    const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
     try {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       expect(screen.getByText("Project discovery unavailable")).toBeInTheDocument();
@@ -431,14 +426,13 @@ describe("summary graph counts and metadata isolation", () => {
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
       expect(projectReads).toBe(2);
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
       await act(async () => { resolveRetry(new Response(JSON.stringify({ workflow_id: "wf-1", projects: [{ id: "p-first", name: "First" }] }), { headers: { "content-type": "application/json" } })); await vi.advanceTimersByTimeAsync(0); });
       expect(screen.getByRole("link", { name: /open builder/i })).toHaveAttribute("href", "/registry/workflows/wf-1/builder?project_id=p-first");
       expect(mockedExportPolicy).not.toHaveBeenCalled();
-      expect(mockedLinkedProject).toHaveBeenLastCalledWith("wf-1", { presentation: "background" });
+      expect(mockedLinkedProject).toHaveBeenLastCalledWith("wf-1");
     } finally {
-      view.unmount(); unmountIndicator(); resolveRetry?.(new Response("{}"));
+      view.unmount(); resolveRetry?.(new Response("{}"));
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers(); vi.useRealTimers(); fetchMock.mockRestore();
     }

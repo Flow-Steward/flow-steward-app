@@ -277,7 +277,7 @@ function WorkflowHooksPanel({
   workflowId,
 }: Readonly<{ canAuthor: boolean; projectId: string; projects: ProjectListItem[]; projectsPending: boolean; projectsError: Error | null; onProjectChange: (id: string) => void; steps: unknown; workflowId: string }>) {
   const { t } = useI18n();
-  const { hooks, error } = useWorkflowHookStates({ enabled: canAuthor, options: { presentation: "background" }, projectId, steps, workflowId });
+  const { hooks, error } = useWorkflowHookStates({ enabled: canAuthor, projectId, steps, workflowId });
   const projectsLoaderShown = useLoaderDelay(Boolean(canAuthor && !projectsError && projectsPending));
   if (!hooks.length) return null;
   const projectName = firstStringFromUnknownValue([
@@ -368,7 +368,7 @@ export function WorkflowsOverviewPage() {
   });
   const statsQuery = useQuery({
     queryKey: queryKeys.workflowStats(workflowId),
-    queryFn: () => fetchWorkflowStats(workflowId, { presentation: "background" }),
+    queryFn: () => fetchWorkflowStats(workflowId),
     enabled: canReadRegistry && Boolean(workflowId),
   });
 
@@ -379,7 +379,7 @@ export function WorkflowsOverviewPage() {
   else if (canAuthor && isWorkflowSettingsTab(requestedTab)) activeTab = requestedTab;
   const hookProjectsQuery = useQuery({
     queryKey: ["workflows", workflowId, "hook-projects"],
-    queryFn: () => fetchWorkflowLinkedProjects(workflowId, { presentation: "background" }),
+    queryFn: () => fetchWorkflowLinkedProjects(workflowId),
     enabled: canReadRegistry && canAuthor && activeTab === "hooks" && Boolean(workflowId),
     retry: false,
   });

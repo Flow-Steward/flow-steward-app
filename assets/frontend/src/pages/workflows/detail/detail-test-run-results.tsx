@@ -35,6 +35,8 @@ function PassTime({ pass }: Readonly<{ pass: RunPass }>) {
 function PassRow({ pass, open, evidence, onToggle }: Readonly<{ pass: RunPass; open: boolean; evidence: WorkflowTestRunEvidence; onToggle: () => void }>) {
   const { t } = useI18n();
   const [keepNotice, setKeepNotice] = useState<{ tone: "danger" | "neutral"; text: string } | null>(null);
+  // This pass's own Keep is running; a keep from another pass only makes this one ignore presses.
+  const [keeping, setKeeping] = useState(false);
   const finished = pass.state === "done" || pass.state === "kept";
   const keepReason = !stepKindKeepsOutput(pass.stepKind) ? t("react.workflows.kept_output_always_runs", "This kind of step always runs in tests.")
     : !finished ? t("react.workflows.kept_output_needs_finished_pass", "Only a pass that finished can be kept.")
@@ -59,10 +61,16 @@ function PassRow({ pass, open, evidence, onToggle }: Readonly<{ pass: RunPass; o
         : <RunPassValues error={pass.state === "failed" ? pass.error : ""} inputs={pass.inputs} outputs={pass.outputs} />}
       <div className="workflow-run-pass-actions">
         <Button onClick={() => evidence.openStep(pass.stepId)} size="sm" type="button" variant="secondary">{t("react.workflows.run_bar_open_step", "Open step")}</Button>
-        <Button disabled={Boolean(keepReason) || evidence.keptPending} onClick={() => ignoreAsyncResult((async () => {
+        <Button busy={keeping} busyLabel={t("react.settings.saving", "Saving…")} disabled={Boolean(keepReason)} onClick={() => ignoreAsyncResult((async () => {
+          if (evidence.keptPending) return;
           setKeepNotice(null);
-          const error = await evidence.keepOutput(pass.stepId, keptOutputsFromPass(pass, []), { kind: "run", jobId: evidence.jobId });
-          setKeepNotice(error ? { tone: "danger", text: error } : { tone: "neutral", text: t("react.workflows.kept_output_kept", "Kept as test output. Test runs return it instead of running {step}.", { step: pass.label }) });
+          setKeeping(true);
+          try {
+            const error = await evidence.keepOutput(pass.stepId, keptOutputsFromPass(pass, []), { kind: "run", jobId: evidence.jobId });
+            setKeepNotice(error ? { tone: "danger", text: error } : { tone: "neutral", text: t("react.workflows.kept_output_kept", "Kept as test output. Test runs return it instead of running {step}.", { step: pass.label }) });
+          } finally {
+            setKeeping(false);
+          }
         })())} size="sm" title={keepReason || undefined} type="button" variant="secondary">{t("react.workflows.kept_output_keep", "Keep as test output")}</Button>
       </div>
       {keepReason && finished ? <p className="workflow-run-pass-meta">{keepReason}</p> : null}

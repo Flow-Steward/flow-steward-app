@@ -273,8 +273,12 @@ it("submits one scoped abort decision and disables repeat cancellation until ack
     }]));
     expect(test.requests.filter((request) => request.path === "/api/approvals/thread-42" && request.method === "POST")).toHaveLength(1);
     await waitFor(() => expect(cancel).toHaveAttribute("aria-busy", "true"));
-    expect(within(decision).getByRole("button", { name: "Approve" })).toBeDisabled();
+    // The other decision keeps its normal look; its press is ignored while the abort runs.
+    const approve = within(decision).getByRole("button", { name: "Approve" });
+    expect(approve).toBeEnabled();
+    expect(approve).not.toHaveAttribute("aria-busy");
     fireEvent.click(cancel);
+    fireEvent.click(approve);
     expect(test.decisions).toHaveLength(1);
     expect(test.requests.some((request) => request.path.endsWith("/cancel"))).toBe(false);
     await act(async () => { release?.(); });

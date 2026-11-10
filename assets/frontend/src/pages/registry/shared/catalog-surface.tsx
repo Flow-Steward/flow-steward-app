@@ -58,6 +58,8 @@ import { Button } from "@/components/ui/button";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { AuthContext } from "@/lib/auth/context";
 
+type CatalogPendingAction = "clone" | "create" | "delete" | "delete-plan" | "mcp-delete";
+
 type RegistryCatalogSurfaceProps = {
   createLabel?: string;
   description: string;
@@ -124,7 +126,8 @@ export function RegistryCatalogSurface({
   const queryClient = useQueryClient();
   const [createForm, setCreateForm] = useState<EntityForm>(EMPTY_FORM);
   const [createFormOpen, setCreateFormOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  /* The running action by name, so only the pressed button shows it; one runs at a time. */
+  const [pending, setPending] = useState<CatalogPendingAction | null>(null);
   const [displayRows, setDisplayRows] = useState<GridEntityRow[]>([]);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -308,21 +311,21 @@ export function RegistryCatalogSurface({
 
   async function submitClone() {
     const sourceId = normalizeString(cloneSourceId);
-    if (!sourceId) {
+    if (!sourceId || pending) {
       return;
     }
     try {
       const nextId = cloneIdentifier(endpoint, cloneId, t);
       setCloneError("");
       setMessage("");
-      setSaving(true);
+      setPending("clone");
       await cloneEntity(sourceId, nextId);
       setCloneSourceId("");
       setCloneId("");
     } catch (error) {
       setCloneError(error instanceof Error ? error.message : t("react.registry.failed_to_clone_entity", "Failed to clone entity."));
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
@@ -412,15 +415,12 @@ export function RegistryCatalogSurface({
     if (actionId === "toggle" || actionId === "toggle-on" || actionId === "toggle-off") {
       ignoreAsyncResult((async () => {
         setMessage("");
-        setSaving(true);
         try {
           await toggleRegistryEntity(endpoint, entityId);
           setMessage(t("react.registry.entity_value0_toggled", "Entity {value0} toggled.", { value0: entityId }));
           await refreshList();
         } catch (error) {
           setMessage(error instanceof Error ? error.message : t("react.registry.failed_to_toggle_entity", "Failed to toggle entity."));
-        } finally {
-          setSaving(false);
         }
       })());
       return;
@@ -432,15 +432,18 @@ export function RegistryCatalogSurface({
       const implementationType = normalizeString(implementation.type || implementation.kind);
       if (endpoint === "/api/tools" && implementationType === "mcp") {
         rowTriggerLabelRef.current = `Actions for ${entityId}`;
+        if (pending) {
+          return;
+        }
         ignoreAsyncResult((async () => {
-          setSaving(true);
+          setPending("delete-plan");
           setMcpDeleteError("");
           try {
             setMcpDeletePlan(await fetchMcpProjectedToolDeletePlan(entityId));
           } catch (error) {
             setMessage(error instanceof Error ? error.message : t("react.registry.failed_to_load_mcp_tool_impact", "Failed to load MCP tool impact."));
           } finally {
-            setSaving(false);
+            setPending(null);
           }
         })());
         return;
@@ -450,11 +453,11 @@ export function RegistryCatalogSurface({
   }
 
   async function confirmDeleteEntity() {
-    if (!deleteTarget) {
+    if (!deleteTarget || pending) {
       return;
     }
     setMessage("");
-    setSaving(true);
+    setPending("delete");
     try {
       await deleteRegistryEntity(endpoint, deleteTarget);
       setMessage(t("react.registry.entity_value0_deleted", "Entity {value0} deleted.", { value0: deleteTarget }));
@@ -463,7 +466,7 @@ export function RegistryCatalogSurface({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("react.registry.failed_to_delete_entity", "Failed to delete entity."));
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
@@ -561,10 +564,13 @@ export function RegistryCatalogSurface({
 
   async function handleCreate(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) {
+      return;
+    }
     setCreateError("");
     setCreateConflict(null);
     setMessage("");
-    setSaving(true);
+    setPending("create");
     try {
       const basePayload = buildPayload(createForm, idKey, undefined, endpoint);
       const payload = buildCreatePayload(basePayload, {
@@ -615,7 +621,7 @@ export function RegistryCatalogSurface({
       setCreateError(text);
       setMessage(text);
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
@@ -701,7 +707,7 @@ export function RegistryCatalogSurface({
         </article>
 
         <DsDialog
-          busy={saving}
+          busy={pending === "delete"}
           closeLabel={t("react.registry.close_delete_confirmation", "Close delete confirmation")}
           description={t("react.registry.the_entry_is_removed_from_this_registry_anything_already_referencing_it_keeps_its_recorded_copy", "The entry is removed from this registry. Anything already referencing it keeps its recorded copy.")}
           eyebrow={t("trash.category.registry", "Registry")}
@@ -709,7 +715,7 @@ export function RegistryCatalogSurface({
             <>
               <button
                 className="fs-button"
-                disabled={saving}
+                disabled={pending === "delete"}
                 onClick={() => {
                   setDeleteTarget(null);
                   focusRowTrigger();
@@ -717,7 +723,7 @@ export function RegistryCatalogSurface({
                 type="button"
               >
                 {t("extensions.repeater.cancel", "Cancel")}</button>
-              <Button busy={saving} busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")} onClick={() => ignoreAsyncResult(confirmDeleteEntity())} type="button" variant="danger">
+              <Button busy={pending === "delete"} busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")} onClick={() => ignoreAsyncResult(confirmDeleteEntity())} type="button" variant="danger">
                 {t("settings.model_providers.delete", "Delete")}
               </Button>
             </>
@@ -741,7 +747,7 @@ export function RegistryCatalogSurface({
 
         <RegistryCreateDialog
           {...{
-            saving,
+            saving: pending === "create",
             createLabel,
             endpoint,
             guardrailAgentIds,
@@ -807,7 +813,7 @@ export function RegistryCatalogSurface({
         {renderWhen(Boolean(message), <DsAlert title={message} />)}
         {renderWhen(Boolean(cloneSourceId), (
           <DsDialog
-            busy={saving}
+            busy={pending === "clone"}
             closeLabel={t("react.registry.close_clone_dialog", "Close clone dialog")}
             description={t("react.registry.choose_a_new_identifier_for_the_cloned_registry_entry", "Choose a new identifier for the cloned registry entry.")}
             eyebrow={t("trash.category.registry", "Registry")}
@@ -816,7 +822,7 @@ export function RegistryCatalogSurface({
                 <button className="fs-button" onClick={cancelClone} type="button">
                   {t("extensions.repeater.cancel", "Cancel")}</button>
                 <Button
-                  busy={saving}
+                  busy={pending === "clone"}
                   busyLabel={t("react.workflows.cloning", "Cloning…")}
                   onClick={() => ignoreAsyncResult(submitClone())}
                   type="button"
@@ -845,7 +851,7 @@ export function RegistryCatalogSurface({
 
         {renderWhen(Boolean(mcpDeletePlan), (
           <McpToolDeletePlanModal
-            busy={saving}
+            busy={pending === "mcp-delete"}
             error={mcpDeleteError}
             onClose={() => {
               setMcpDeletePlan(null);
@@ -853,7 +859,10 @@ export function RegistryCatalogSurface({
               focusRowTrigger();
             }}
             onConfirm={() => ignoreAsyncResult((async () => {
-              setSaving(true);
+              if (pending) {
+                return;
+              }
+              setPending("mcp-delete");
               setMcpDeleteError("");
               try {
                 await deleteMcpProjectedToolConfirmed(mcpDeletePlan!.tool_id, mcpDeletePlan!.revision);
@@ -863,7 +872,7 @@ export function RegistryCatalogSurface({
               } catch (error) {
                 setMcpDeleteError(error instanceof Error ? error.message : t("react.registry.failed_to_move_mcp_tool_to_trash", "Failed to move MCP tool to Trash."));
               } finally {
-                setSaving(false);
+                setPending(null);
               }
             })())}
             plan={mcpDeletePlan!}

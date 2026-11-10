@@ -6,6 +6,7 @@ import { DsLoader } from "@/components/shared/ds-loader";
 
 import { type KeyValueRow } from "./key-value-rows";
 import { type ScopeRow } from "./mcp-form-rows";
+import { ConnectorRowActions } from "./mcp-connector-row-actions";
 import { mcpStatusLabel } from "./mcp-status-label";
 export { rowsFromRecord, scopeRows } from "./mcp-form-rows";
 export type { ScopeRow } from "./mcp-form-rows";
@@ -14,7 +15,6 @@ import {
   BlankCell,
   DsBadge,
   DsValueChip,
-  RowActionMenu,
   type DsBadgeTone,
   type DsTableColumn,
 } from "@/components/shared/design-system";
@@ -122,8 +122,11 @@ export function connectorCredential(row: McpConnectorRecord): string {
   return row.auth_mode === "oauth2" ? row.oauth_status.status || row.auth_status : "";
 }
 
+/** The row action that is running, so only the pressed item shows it. */
+export type McpRowBusy = { action: "sync" | "health" | "delete-plan" | "delete"; connectorId: string };
+
 export type ConnectorColumnsOptions = {
-  busyConnectorId: string;
+  busyConnector: McpRowBusy | null;
   canManageProject: boolean;
   /** The project's name for a connector's project_id. */
   projectName: (projectId: string) => string;
@@ -136,7 +139,7 @@ export type ConnectorColumnsOptions = {
 };
 
 export function buildConnectorColumns({
-  busyConnectorId,
+  busyConnector,
   canManageProject,
   projectName,
   onDelete,
@@ -222,64 +225,24 @@ export function buildConnectorColumns({
       key: "actions",
       header: "",
       ariaLabel: t("extensions.table.actions", "Actions"),
-      cell: (row) => {
-        const connectorId = row.connector_id;
-        const busy = busyConnectorId === connectorId;
-        return (
-          <RowActionMenu
-            label={t("react.registry.actions_for_value0", "Actions for {value0}", { value0: row.display_name })}
-            onOpenChange={(open) => onRowMenuChange(open ? connectorId : null)}
-            open={rowMenu === connectorId}
-          >
-            <div className="fs-row-menu-group">
-              <button onClick={() => onView(connectorId)} role="menuitem" type="button">{t("react.registry.view", "View")}</button>
-              {canManageProject ? null : <span className="fs-row-menu-label">{t("settings.access.service_accounts.form.level.read", "Read only")}</span>}
-              {canManageProject ? (
-                <>
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      onSync(connectorId);
-                      onRowMenuChange(null);
-                    }}
-                    role="menuitem"
-                    type="button"
-                  >{t("react.registry.sync", "Sync")}</button>
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      onHealth(connectorId);
-                      onRowMenuChange(null);
-                    }}
-                    role="menuitem"
-                    type="button"
-                  >{t("settings.mcp.health", "Health")}</button>
-                </>
-              ) : null}
-            </div>
-            {canManageProject ? (
-              <>
-                <div className="fs-row-menu-separator" />
-                <div className="fs-row-menu-group">
-                  <button
-                    className="danger"
-                    disabled={busy}
-                    onClick={() => {
-                      onDelete(connectorId, row.display_name);
-                      onRowMenuChange(null);
-                    }}
-                    role="menuitem"
-                    type="button"
-                  >{t("settings.model_providers.delete", "Delete")}</button>
-                </div>
-              </>
-            ) : null}
-          </RowActionMenu>
-        );
-      },
+      cell: (row) => (
+        <ConnectorRowActions
+          busyAction={busyConnector?.connectorId === row.connector_id ? busyConnector.action : null}
+          canManageProject={canManageProject}
+          onDelete={onDelete}
+          onHealth={onHealth}
+          onRowMenuChange={onRowMenuChange}
+          onSync={onSync}
+          onView={onView}
+          row={row}
+          rowMenu={rowMenu}
+          t={t}
+        />
+      ),
     },
   ];
 }
+
 
 export function isValidHttpEndpoint(value: string): boolean {
   try {

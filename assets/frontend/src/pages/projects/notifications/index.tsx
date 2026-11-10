@@ -286,7 +286,7 @@ function NotificationRouteRow({
         </div>
         <button
           className="fs-button secondary sm"
-          onClick={() => onEdit(index)}
+          onClick={() => { if (!saving) onEdit(index); }}
           type="button"
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -295,8 +295,7 @@ function NotificationRouteRow({
           aria-label={t("react.projects.remove_notification_route_value1", "Remove notification route {value1}", { value1: String(draft.route_key || index + 1) })}
           busy={deleting}
           busyLabel={t("react.projects.deleting", "Deleting…")}
-          disabled={saving && !deleting}
-          onClick={() => onDelete(index)}
+          onClick={() => { if (!saving) onDelete(index); }}
           size="sm"
           type="button"
           variant="danger"
@@ -352,9 +351,9 @@ function NotificationRoutesCard({
           </div>
           <button
             className="fs-button primary"
-            disabled={saving || loading || providerError || routeError || !providers.size}
+            disabled={loading || providerError || routeError || !providers.size}
             id="notification-routes-add"
-            onClick={onCreate}
+            onClick={() => { if (!saving) onCreate(); }}
             type="button"
           >
             <Plus className="h-4 w-4" />
@@ -630,6 +629,7 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
   }
 
   async function deleteChannel(index: number) {
+    if (saving) return;
     const routeKey = serverDrafts[index]?.route_key || `route ${index + 1}`;
     if (!globalThis.confirm(t("react.projects.confirm_delete_notification_route", "Delete notification route {route}?", { route: routeKey }))) {
       return;

@@ -140,6 +140,8 @@ export function RegistryWorkspacesDetailPage() {
   }
   const [message, setMessage] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
+  /* Its own flag: the lifecycle confirm is a different action from the delete plan's. */
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletePlan, setDeletePlan] = useState<WorkspaceDeletePlan | null>(null);
@@ -460,7 +462,7 @@ export function RegistryWorkspacesDetailPage() {
       />
 
       <LifecyclePlanModal
-        busy={deleteBusy}
+        busy={lifecycleBusy}
         error={modalError}
         onClose={() => {
           setModalOpen(false);
@@ -468,9 +470,10 @@ export function RegistryWorkspacesDetailPage() {
           setModalError("");
         }}
         onConfirm={(selectedNodeIds) => {
-          if (!modalPlan) {
+          if (!modalPlan || lifecycleBusy) {
             return;
           }
+          setLifecycleBusy(true);
           ignoreAsyncResult(executeLifecyclePlan("workspace", workspaceId, modalPlan.action_type as "restore" | "hard_delete", selectedNodeIds, modalPlan.plan_version)
             .then(async () => {
               setMessage(modalPlan.action_type === "restore" ? t("react.registry.workspace_restored", "Workspace restored.") : t("react.registry.workspace_deleted", "Workspace deleted."));
@@ -480,6 +483,9 @@ export function RegistryWorkspacesDetailPage() {
             })
             .catch((error) => {
               setModalError(error instanceof Error ? error.message : t("react.registry.lifecycle_action_failed", "Lifecycle action failed."));
+            })
+            .finally(() => {
+              setLifecycleBusy(false);
             }));
         }}
         open={modalOpen}

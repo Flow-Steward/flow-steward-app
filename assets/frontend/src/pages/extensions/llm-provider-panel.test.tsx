@@ -843,10 +843,18 @@ describe("LlmProviderPanel", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveTextContent("Saving connection…");
-    // The pressed button is busy (focus kept, presses ignored); the other mutation waits disabled.
+    // Only the pressed button is busy (focus kept, presses ignored); its siblings keep
+    // their resting look and ignore presses until the running action ends.
     expect(screen.getByRole("button", { name: "Save connection" })).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("button", { name: "Discover models" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Add owner/model" })).toHaveAttribute("aria-disabled", "true");
+    for (const name of ["Discover models", "Add owner/model"]) {
+      const sibling = screen.getByRole("button", { name });
+      expect(sibling).toBeEnabled();
+      expect(sibling).not.toHaveAttribute("aria-busy");
+      expect(sibling).not.toHaveAttribute("aria-disabled");
+      await user.click(sibling);
+    }
+    expect(mockedRefreshModels).not.toHaveBeenCalled();
+    expect(mockedSetModelEnabled).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Save connection" }));
     expect(mockedSaveCredentials).toHaveBeenCalledTimes(1);

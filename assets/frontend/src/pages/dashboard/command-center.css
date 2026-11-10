@@ -219,3 +219,25 @@
     transition-duration: var(--fs-duration-reduced);
   }
 }
+
+/* Loading rows (skeleton.md): a title line over a shorter context line, each in
+   its own text line box so a stand-in row is as tall as a real one. The icon
+   slot keeps its width so the lines start where the titles will; no badge and
+   no chevron, because neither is known yet. Not a link, so no hover. */
+.fs-cc__queue-row--skeleton:hover {
+  background: none;
+}
+
+.fs-cc__queue-row--skeleton .fs-cc__queue-icon {
+  width: var(--fs-icon-size-default);
+}
+
+.fs-cc__queue-row--skeleton .fs-skeleton-line {
+  display: inline-block;
+  width: 60%;
+  vertical-align: middle;
+}
+
+.fs-cc__queue-row--skeleton .fs-cc__queue-context .fs-skeleton-line {
+  width: 35%;
+}

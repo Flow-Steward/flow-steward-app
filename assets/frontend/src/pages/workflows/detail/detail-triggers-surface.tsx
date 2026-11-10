@@ -133,6 +133,7 @@ export function WorkflowTriggersSurface({
     setWebhookSignatureBuilderDraft,
     setWebhookSourceCidrsDraft,
     setWebhookSourceExactIpsDraft,
+    triggerAction,
     triggerNotice,
     triggerSavePending,
     webhookAllowedContentTypesDraft,
@@ -175,6 +176,8 @@ export function WorkflowTriggersSurface({
   const editingWebhook = Boolean(webhookEditorMode === "edit" && selectedWebhook);
   const editingProvider = Boolean(providerTriggerEditorMode === "edit" && selectedProviderTrigger);
   const pending = Boolean(triggerSavePending);
+  // Which trigger action runs: only its own button is busy.
+  const runningAction = typeof triggerAction === "string" ? triggerAction : "";
 
   const preset: WebhookPresetId = webhookPresetOf({
     authMode: webhookAuthModeDraft,
@@ -503,8 +506,13 @@ export function WorkflowTriggersSurface({
         <DrawerFooter>
           {editingProvider ? (
             <Button
-              disabled={providerDisabled}
-              onClick={() => ignoreAsyncResult(Promise.resolve(handleDeleteProviderTrigger(selectedProviderTriggerView.trigger_id)).then(() => setView("list")))}
+              busy={runningAction === "delete-provider"}
+              busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")}
+              disabled={!providerProjectReady}
+              onClick={() => {
+                if (pending) return;
+                ignoreAsyncResult(Promise.resolve(handleDeleteProviderTrigger(selectedProviderTriggerView.trigger_id)).then(() => setView("list")));
+              }}
               type="button"
               variant="danger"
             >
@@ -514,7 +522,7 @@ export function WorkflowTriggersSurface({
           <DrawerFooterSpacer />
           <Button onClick={openList} type="button" variant="secondary">{t("common.cancel", "Cancel")}</Button>
           <Button
-            busy={pending}
+            busy={runningAction === "create-provider" || runningAction === "save-provider"}
             busyLabel={t("react.workflows.saving_trigger_progress", "Saving trigger…")}
             disabled={!providerProjectReady}
             onClick={() => ignoreAsyncResult((editingProvider ? handleSaveProviderTrigger : handleCreateProviderTrigger)())}
@@ -593,7 +601,7 @@ export function WorkflowTriggersSurface({
                 setWebhookConfirm("");
                 ignoreAsyncResult((action === "regenerate" ? handleRegenerateWebhookUrl : handleRotateWebhookCredential)(selectedWebhook.entry_key));
               }}
-              pending={pending}
+              pending={runningAction === "rotate" || runningAction === "regenerate"}
               pendingLabel={t("react.workflows.saving_trigger_progress", "Saving trigger…")}
               question={webhookConfirm === "regenerate"
                 ? t("react.workflows.regenerate_url_question", "Regenerate the public URL?")
@@ -606,14 +614,18 @@ export function WorkflowTriggersSurface({
             </InlineConfirm>
           ) : (
             <div className="workflow-triggers-actions">
-              <Button disabled={pending} onClick={() => setWebhookConfirm("rotate")} size="sm" type="button" variant="secondary">
+              <Button busy={runningAction === "rotate"} busyLabel={t("react.workflows.rotating_credential", "Rotating…")} onClick={() => { if (!pending) setWebhookConfirm("rotate"); }} size="sm" type="button" variant="secondary">
                 {t("react.workflows.rotate_credential", "Rotate credential")}</Button>
-              <Button disabled={pending} onClick={() => setWebhookConfirm("regenerate")} size="sm" type="button" variant="secondary">
+              <Button busy={runningAction === "regenerate"} busyLabel={t("react.workflows.regenerating_url", "Regenerating…")} onClick={() => { if (!pending) setWebhookConfirm("regenerate"); }} size="sm" type="button" variant="secondary">
                 {t("react.workflows.regenerate_url", "Regenerate URL")}</Button>
               <span aria-hidden="true" className="workflow-triggers-actions-space" />
               <Button
-                disabled={pending}
-                onClick={() => ignoreAsyncResult(Promise.resolve(handleDeleteWebhook(selectedWebhook.entry_key)).then(() => setView("list")))}
+                busy={runningAction === "delete-webhook"}
+                busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")}
+                onClick={() => {
+                  if (pending) return;
+                  ignoreAsyncResult(Promise.resolve(handleDeleteWebhook(selectedWebhook.entry_key)).then(() => setView("list")));
+                }}
                 size="sm"
                 type="button"
                 variant="danger"
@@ -670,7 +682,7 @@ export function WorkflowTriggersSurface({
               </label>
             </div>
             <div className="workflow-triggers-actions">
-              <Button disabled={pending} onClick={() => ignoreAsyncResult(handleDryRunWebhook(selectedWebhook.entry_key))} size="sm" type="button" variant="secondary">
+              <Button busy={runningAction === "dry-run"} busyLabel={t("react.workflows.running", "Running…")} onClick={() => ignoreAsyncResult(handleDryRunWebhook(selectedWebhook.entry_key))} size="sm" type="button" variant="secondary">
                 {t("react.workflows.dry_run_payload", "Dry-run payload")}</Button>
               <span className="workflow-triggers-help">{t("react.workflows.dry_run_uses_saved_mapping", "Uses the saved mapping. Save changes first.")}</span>
             </div>
@@ -921,7 +933,7 @@ export function WorkflowTriggersSurface({
         <Button onClick={openList} type="button" variant="secondary">{t("common.cancel", "Cancel")}</Button>
         <DrawerFooterSpacer />
         <Button
-          busy={pending}
+          busy={runningAction === "create-webhook" || runningAction === "save-webhook"}
           busyLabel={t("react.workflows.saving_trigger_progress", "Saving trigger…")}
           onClick={() => ignoreAsyncResult((editingWebhook ? handleSaveWebhookTrigger : handleCreateWebhookTrigger)())}
           type="button"

@@ -9,6 +9,7 @@ import {
 import { isTruthy } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { Button } from "@/components/ui/button";
+import { SingleCombobox } from "@/components/shared/design-system-selects";
 import {
   insertTemplateVariable,
   openTemplateQuery,
@@ -573,28 +574,24 @@ export function createWorkflowVariableSuggestionRenderers(
     return (
       <div className="fs-form-section">
         <p className="fs-field-label">{t("react.workflows.project_context", "Project context")}</p>
-        <label className="fs-field">
-          <span>{t("react.workflows.choose_a_project", "Choose a project")}</span>
-          <select
-            className="fs-input w-full"
-            onChange={(event) => setProjectLinkDraft(event.target.value)}
+        {/* The projects arrive asynchronously, so this is a Combobox with its
+            loading row; a plain select must not load its options. */}
+        <div className="fs-field">
+          <label htmlFor="workflow-project-link-select">{t("react.workflows.choose_a_project", "Choose a project")}</label>
+          <SingleCombobox
+            ariaLabel={t("react.workflows.choose_a_project", "Choose a project")}
+            id="workflow-project-link-select"
+            loading={Boolean(availableProjectsQuery.isLoading)}
+            loadingLabel={t("react.settings.loading_projects", "Loading projects…")}
+            onChange={setProjectLinkDraft}
+            options={projectOptions.map((project: Record<string, unknown>) => ({
+              value: textOrEmpty(project.id),
+              label: textOrEmpty(project.name) || t("react.workflows.unnamed_project", "Unnamed project"),
+            }))}
+            placeholder={t("extensions.detail.select_project", "Select a project")}
             value={projectLinkDraft}
-          >
-            <option value="">
-              {availableProjectsQuery.isLoading
-                ? t("react.workflows.loading_projects", "Loading projects...")
-                : t("extensions.detail.select_project", "Select a project")}
-            </option>
-            {projectOptions.map((project: Record<string, unknown>) => {
-              const projectId = textOrEmpty(project.id);
-              return (
-                <option key={projectId} value={projectId}>
-                  {textOrEmpty(project.name) || t("react.workflows.unnamed_project", "Unnamed project")}
-                </option>
-              );
-            })}
-          </select>
-        </label>
+          />
+        </div>
         <Button
           busy={projectLinkPending}
           busyLabel={t("react.workflows.linking_project", "Linking project…")}

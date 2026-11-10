@@ -489,13 +489,13 @@ export function WorkflowSummaryHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const exportPolicyQuery = useQuery({
     queryKey: ["workflows", "export-policy", workflowId],
-    queryFn: () => fetchWorkflowExportPolicy(workflowId, { presentation: "background" }),
+    queryFn: () => fetchWorkflowExportPolicy(workflowId),
     enabled: Boolean(workflowId) && !portability,
     retry: false,
   });
   const linkedProjectQuery = useQuery({
     queryKey: ["workflows", workflowId, "linked-project-id"],
-    queryFn: () => findWorkflowLinkedProjectId(workflowId, { presentation: "background" }),
+    queryFn: () => findWorkflowLinkedProjectId(workflowId),
     // Only admins can read project workflow bindings; running this for non-admins
     // fans out one GET /api/projects/{id}/workflows -> 403 per project (audit noise),
     // and the resolved id only builds authoring links a non-admin can't use anyway.

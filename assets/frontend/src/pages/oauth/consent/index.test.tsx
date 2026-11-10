@@ -191,7 +191,9 @@ describe("OAuthConsentPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Deny" }));
     expect(mockedDecide).toHaveBeenCalledTimes(1);
     expect(allow).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("button", { name: "Deny" })).toBeDisabled();
+    // The other decision keeps its normal look; its press is ignored, not disabled.
+    expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Deny" })).not.toHaveAttribute("aria-busy");
   });
 
   it("shows the server's refusal of a decision", async () => {

@@ -643,8 +643,8 @@ export function LlmProviderPanel({
         </>
       ) : null}
       <div className="fs-manifest-actions">
-        <Button busy={mutationPending && mutationAction === "save"} busyLabel={t("react.extensions.saving", "Saving…")} disabled={(mutationPending && mutationAction !== "save") || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(save())} size="sm" type="button" variant="primary">{t("react.extensions.save_connection", "Save connection")}</Button>
-        <Button aria-describedby={!installEnabled ? enableGuidanceId : undefined} busy={mutationPending && mutationAction === "discover"} busyLabel={t("react.extensions.manual_discovering_models", "Discovering models…")} disabled={!installEnabled || (mutationPending && mutationAction !== "discover") || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(refresh())} size="sm" type="button" variant="secondary">{t("react.extensions.discover_models", "Discover models")}</Button>
+        <Button busy={mutationPending && mutationAction === "save"} busyLabel={t("react.extensions.saving", "Saving…")} disabled={requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(save())} size="sm" type="button" variant="primary">{t("react.extensions.save_connection", "Save connection")}</Button>
+        <Button aria-describedby={!installEnabled ? enableGuidanceId : undefined} busy={mutationPending && mutationAction === "discover"} busyLabel={t("react.extensions.manual_discovering_models", "Discovering models…")} disabled={!installEnabled || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(refresh())} size="sm" type="button" variant="secondary">{t("react.extensions.discover_models", "Discover models")}</Button>
       </div>
       {status ? <p aria-live="polite" className="fs-manifest-description" role="status">{status}</p> : null}
       <label className="fs-search fs-llm-search">
@@ -706,7 +706,7 @@ export function LlmProviderPanel({
                       it: aria-disabled rather than disabled, which would drop focus. */}
                   <Button
                     aria-describedby={[checking ? hintId : "", verificationUnavailable ? enableGuidanceId : ""].filter(Boolean).join(" ") || undefined}
-                    aria-disabled={checking || mutationPending || verificationUnavailable || (action.enable && secretInputBlocked) || undefined}
+                    aria-disabled={checking || verificationUnavailable || (action.enable && secretInputBlocked) || undefined}
                     aria-label={checking ? t("react.extensions.checking_value0", "Checking {value0}", { value0: model.model_id }) : action.ariaLabel}
                     busy={checking}
                     busyLabel={t("react.extensions.checking", "Checking…")}

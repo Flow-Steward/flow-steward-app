@@ -3,9 +3,6 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 
-import { DsDialog } from "@/components/shared/design-system-overlays";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
-import { beginRequest } from "@/lib/http/request-activity";
 import { HttpError } from "@/lib/http/errors";
 import {
   deleteExtensionOAuthConfiguration,
@@ -122,15 +119,6 @@ const primary = {
   revision: 3,
   authorization_revision: 2,
 };
-
-function nativeLoaderFocusBoundary() {
-  const focus = HTMLElement.prototype.focus;
-  // jsdom's showModal stub does not make the page inert; browsers ignore these focus attempts.
-  return vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (this: HTMLElement, options?: FocusOptions) {
-    const loader = screen.queryByRole("dialog", { name: "Loading requests" });
-    if (!loader || loader.contains(this)) focus.call(this, options);
-  });
-}
 
 function renderSetup({
   canManage = true,
@@ -2074,105 +2062,6 @@ describe("ExtensionOAuthSetup", () => {
     expect(screen.getByLabelText("Connection Collision candidate")).not.toHaveClass("is-focused");
   });
 
-  it.each([false, true])("focuses the callback connection after overlapping page requests release the loader (StrictMode: %s)", async (strictMode) => {
-    render(<button type="button">Page action</button>);
-    screen.getByRole("button", { name: "Page action" }).focus();
-    const focusBoundary = nativeLoaderFocusBoundary();
-    const finishRequest = beginRequest();
-    try {
-      render(<StrictMode><RequestLoadingIndicator /></StrictMode>);
-      renderSetup({
-        strictMode,
-        mode: "connections",
-        focusConnectionId: "connection-a",
-        connections: [{
-          connection_id: "connection-a",
-          display_name: "Preserved mailbox",
-          extension_install_id: "install-a",
-          oauth_provider_id: "example",
-          oauth_configuration_id: primary.configuration_id,
-          connection_type: "example_mail",
-          connection_config: { oauth: { lifecycle_status: "connected" } },
-        }],
-      });
-
-      const target = await screen.findByLabelText("Connection Preserved mailbox");
-      expect(target).toHaveClass("is-focused");
-      expect(screen.getByRole("dialog", { name: "Loading requests" })).toHaveFocus();
-      await act(async () => { finishRequest(); });
-
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
-      expect(target).toHaveFocus();
-    } finally {
-      await act(async () => { finishRequest(); });
-      focusBoundary.mockRestore();
-    }
-  });
-
-  it("keeps a newly opened modal focused instead of the deferred callback connection", async () => {
-    const focusBoundary = nativeLoaderFocusBoundary();
-    const finishRequest = beginRequest();
-    try {
-      render(<RequestLoadingIndicator />);
-      renderSetup({
-        mode: "connections",
-        focusConnectionId: "connection-a",
-        connections: [{
-          connection_id: "connection-a",
-          display_name: "Preserved mailbox",
-          extension_install_id: "install-a",
-          oauth_provider_id: "example",
-          oauth_configuration_id: primary.configuration_id,
-          connection_type: "example_mail",
-          connection_config: { oauth: { lifecycle_status: "connected" } },
-        }],
-      });
-      await screen.findByLabelText("Connection Preserved mailbox");
-      render(<DsDialog open onClose={() => {}} title="Action plan" description="Plan details" eyebrow="Plan">Plan</DsDialog>);
-
-      await act(async () => { finishRequest(); });
-
-      const plan = screen.getByRole("dialog", { name: "Action plan" });
-      expect(within(plan).getByRole("button", { name: "Close Action plan" })).toHaveFocus();
-      expect(screen.getByLabelText("Connection Preserved mailbox")).not.toHaveFocus();
-    } finally {
-      await act(async () => { finishRequest(); });
-      focusBoundary.mockRestore();
-    }
-  });
-
-  it("cancels callback focus when its connection page unmounts during loading", async () => {
-    const focusBoundary = nativeLoaderFocusBoundary();
-    const finishRequest = beginRequest();
-    try {
-      render(<RequestLoadingIndicator />);
-      const view = renderSetup({
-        mode: "connections",
-        focusConnectionId: "connection-a",
-        connections: [{
-          connection_id: "connection-a",
-          display_name: "Preserved mailbox",
-          extension_install_id: "install-a",
-          oauth_provider_id: "example",
-          oauth_configuration_id: primary.configuration_id,
-          connection_type: "example_mail",
-          connection_config: { oauth: { lifecycle_status: "connected" } },
-        }],
-      });
-      const target = await screen.findByLabelText("Connection Preserved mailbox");
-      focusBoundary.mockClear();
-      view.unmount();
-
-      await act(async () => { finishRequest(); });
-
-      expect(target.isConnected).toBe(false);
-      expect(focusBoundary.mock.contexts).not.toContain(target);
-    } finally {
-      await act(async () => { finishRequest(); });
-      focusBoundary.mockRestore();
-    }
-  });
-
   it.each([undefined, "retired_intent"] as const)("uses the sole declared page-owned intent to reconnect a legacy row with stored intent %s", async (storedIntentId) => {
     const user = userEvent.setup();
     renderSetup({
@@ -2402,6 +2291,12 @@ describe("ExtensionOAuthSetup", () => {
     const pending = await screen.findByRole("button", { name: "Retrying…" });
     expect(pending).toBeEnabled();
     expect(pending).toHaveAttribute("aria-busy", "true");
+    // Only the pressed action is busy: its sibling keeps its look and ignores presses meanwhile.
+    const disconnect = screen.getByRole("button", { name: "Disconnect" });
+    expect(disconnect).toBeEnabled();
+    expect(disconnect).not.toHaveAttribute("aria-busy");
+    await user.click(disconnect);
+    expect(screen.queryByText(/^Disconnect Mailbox\?/u)).not.toBeInTheDocument();
 
     const retryResponse: OAuthPostConnectRetryResult & { detail: string } = {
       outcome: "needs_attention",

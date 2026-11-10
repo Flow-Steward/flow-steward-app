@@ -578,6 +578,7 @@ export function RegistryToolsDetailPage() {
     saving,
     setSaveStatus,
     toggleEntityEnabled,
+    toggling,
   } = useRegistryEntityDetail({
     endpoint: "/api/tools",
     idKey: "tool_id",
@@ -812,16 +813,17 @@ export function RegistryToolsDetailPage() {
                 identifier everywhere, readable or not. The id is in the URL,
                 which is where anyone who needs it looks. */}
             {entity.enabled || isAvailable ? (
-              <button
-                className="fs-button"
-                disabled={saving}
+              <Button
+                busy={toggling}
+                busyLabel={t("react.settings.updating", "Updating…")}
                 onClick={() => {
                   ignoreAsyncResult(toggleEntityEnabled());
                 }}
                 type="button"
+                variant={null}
               >
                 {entity.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-              </button>
+              </Button>
             ) : null}
             <SaveStatusBadge status={saveStatus} />
           </>

@@ -1,86 +1,43 @@
 import { buildHttpHeaders, fetchJson } from "@/lib/http/client";
-import { hasPendingRequests } from "@/lib/http/request-activity";
 
 describe("fetchJson", () => {
-  it.each([undefined, "foreground", "background"] as const)("keeps %s presentation local while preserving request auth, body, cache and signal", async (presentation) => {
+  it("preserves request auth, body, cache and signal", async () => {
     Object.defineProperty(document, "cookie", { configurable: true, value: "fs_csrf=transport-token" });
     let resolve!: (response: Response) => void;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise((finish) => { resolve = finish; }));
     const controller = new AbortController();
     const init = { method: "POST", body: JSON.stringify({ name: "draft" }), cache: "no-store" as const, signal: controller.signal };
-    const pending = fetchJson("/api/transport", init, presentation ? { presentation } : undefined);
+    const pending = fetchJson("/api/transport", init);
     try {
-      expect(hasPendingRequests()).toBe(presentation !== "background");
       const [url, actual] = fetchMock.mock.calls[0];
       expect(url).toBe("/api/transport");
       expect(actual).toEqual({ ...init, credentials: "same-origin", headers: expect.any(Headers) });
       expect(new Headers(actual?.headers).get("x-csrf-token")).toBe("transport-token");
       expect(new Headers(actual?.headers).get("Accept")).toBe("application/json");
       expect(new Headers(actual?.headers).get("Content-Type")).toBe("application/json");
-      expect(actual).not.toHaveProperty("presentation");
       resolve(new Response(JSON.stringify({ ok: true, data: { saved: true }, kind: "detail", error: null }), { headers: { "content-type": "application/json" } }));
       await expect(pending).resolves.toEqual({ saved: true });
     } finally {
       resolve(new Response("{}"));
       await pending;
     }
-    expect(hasPendingRequests()).toBe(false);
   });
 
-  it("refreshes a read already on screen without the blocking loader", async () => {
-    const respond = () => new Response(JSON.stringify({ items: [] }), { headers: { "content-type": "application/json" } });
-    let resolve!: (response: Response) => void;
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise((finish) => { resolve = finish; }));
-
-    const first = fetchJson("/api/workflows");
-    expect(hasPendingRequests()).toBe(true);
-    resolve(respond());
-    await first;
-
-    const poll = fetchJson("/api/workflows");
-    expect(hasPendingRequests()).toBe(false);
-    resolve(respond());
-    await poll;
-
-    const save = fetchJson("/api/workflows", { method: "POST", body: "{}" });
-    expect(hasPendingRequests()).toBe(true);
-    resolve(respond());
-    await save;
-    expect(hasPendingRequests()).toBe(false);
-  });
-
-  it("keeps the loader for a read whose earlier attempt failed", async () => {
-    let resolve!: (response: Response) => void;
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise((finish) => { resolve = finish; }));
-
-    const failed = fetchJson("/api/extensions");
-    resolve(new Response(JSON.stringify({ detail: "down" }), { status: 503, headers: { "content-type": "application/json" } }));
-    await expect(failed).rejects.toMatchObject({ status: 503 });
-
-    const retry = fetchJson("/api/extensions");
-    expect(hasPendingRequests()).toBe(true);
-    resolve(new Response("{}", { headers: { "content-type": "application/json" } }));
-    await retry;
-  });
-
-  it.each([401, 403, 503])("preserves background HTTP %s failures without starting global activity", async (status) => {
+  it.each([401, 403, 503])("preserves HTTP %s failures", async (status) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ error: "Existing server error" }), { status, headers: { "content-type": "application/json", "Retry-After": "12" } }));
-    await expect(fetchJson("/api/status", {}, { presentation: "background" })).rejects.toMatchObject({ status, message: "Existing server error", retryAfterSeconds: 12 });
-    expect(hasPendingRequests()).toBe(false);
+    await expect(fetchJson("/api/status", {})).rejects.toMatchObject({ status, message: "Existing server error", retryAfterSeconds: 12 });
   });
 
-  it("preserves AbortError identity and credentials for a background read", async () => {
+  it("preserves AbortError identity and credentials", async () => {
     const controller = new AbortController();
     const aborted = new DOMException("Request cancelled", "AbortError");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(aborted), { once: true });
     }));
-    const request = fetchJson("/api/background", { signal: controller.signal, credentials: "include" }, { presentation: "background" });
-    expect(hasPendingRequests()).toBe(false);
+    const request = fetchJson("/api/background", { signal: controller.signal, credentials: "include" });
     controller.abort();
     await expect(request).rejects.toBe(aborted);
     expect(fetchMock.mock.calls[0][1]?.credentials).toBe("include");
-    expect(hasPendingRequests()).toBe(false);
   });
 
   afterEach(() => {

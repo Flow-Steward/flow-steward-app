@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { DsAlert, DsCard, DsSelect } from "@/components/shared/design-system";
+import { DsAlert, DsCard, SingleCombobox } from "@/components/shared/design-system";
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { ProjectNotificationRoutesEditor } from "@/pages/projects/notifications";
 import {
@@ -57,18 +57,15 @@ export function SettingsNotificationsPage() {
   // as if it had been picked. The empty state below asks for a choice instead.
   const effectiveProjectId = selectedProjectId;
 
-  const projectScopePlaceholder = projectsQuery.isLoading
-    ? t("react.settings.loading_projects", "Loading projects...")
-    : projectsQuery.isError
-      ? t("react.settings.projects_unavailable", "Projects unavailable")
-      : t("react.settings.select_a_project", "Select a project");
-  const projectOptions = [
-    { value: "", label: projectScopePlaceholder },
-    ...projects.map((project) => ({
-      value: String(project.id),
-      label: (project.name || "").trim() || t("react.settings.unnamed_project", "Unnamed project"),
-    })),
-  ];
+  const projectScopePlaceholder = projectsQuery.isError
+    ? t("react.settings.projects_unavailable", "Projects unavailable")
+    : t("react.settings.select_a_project", "Select a project");
+  // The projects arrive asynchronously, so the scope is a Combobox with its
+  // loading row (a plain Select must not load its options).
+  const projectOptions = projects.map((project) => ({
+    value: String(project.id),
+    label: (project.name || "").trim() || t("react.settings.unnamed_project", "Unnamed project"),
+  }));
 
   return (
     <>
@@ -79,10 +76,12 @@ export function SettingsNotificationsPage() {
         <div className="fs-field">
           <label className="fs-field-label" htmlFor="settings-notification-project-select">
             {t("extensions.detail.project_scope", "Project scope")} </label>
-          <DsSelect
+          <SingleCombobox
             ariaLabel={t("extensions.detail.project_scope", "Project scope")}
-            disabled={projectsQuery.isLoading || projectsQuery.isError}
+            disabled={projectsQuery.isError}
             id="settings-notification-project-select"
+            loading={projectsQuery.isLoading}
+            loadingLabel={t("react.settings.loading_projects", "Loading projects…")}
             onChange={setSelectedProjectId}
             options={projectOptions}
             placeholder={projectScopePlaceholder}

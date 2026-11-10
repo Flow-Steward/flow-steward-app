@@ -90,8 +90,8 @@ function RunBarAction({ action, label, busyLabel, navigationBusy, variant = "sec
   const descriptionId = useId();
   return <>
     <Button aria-describedby={action.disabledReason ? descriptionId : undefined} busy={Boolean(action.busy)} busyLabel={busyLabel}
-      disabled={!action.busy && (navigationBusy || action.disabled)}
-      onClick={() => invokeNavigation(action.onInvoke)} size="sm" title={action.disabledReason || undefined} type="button" variant={variant}>
+      disabled={!action.busy && action.disabled}
+      onClick={() => { if (!navigationBusy) invokeNavigation(action.onInvoke); }} size="sm" title={action.disabledReason || undefined} type="button" variant={variant}>
       {label}
     </Button>
     {action.disabledReason ? <span className="sr-only" id={descriptionId}>{action.disabledReason}</span> : null}
@@ -169,7 +169,7 @@ export function CanvasRunBar({
           {stopAction ? <RunBarAction action={stopAction} busyLabel={t("react.jobs.cancelling", "Cancelling…")} label={t("react.workflows.run_bar_stop", "Stop")} navigationBusy={navigationBusy} /> : null}
           {runAgainAction && !historical ? <RunBarAction action={runAgainAction} busyLabel={t("react.extensions.starting", "Starting…")} label={t("react.workflows.run_bar_run_again", "Run again")} navigationBusy={navigationBusy} /> : null}
           {clearMarksAction ? <IconButton icon={X} size="small" label={t("react.workflows.run_bar_clear_marks", "Clear marks")}
-            disabled={navigationBusy || clearMarksAction.disabled || clearMarksAction.busy} onClick={() => invokeNavigation(clearMarksAction.onInvoke)} /> : null}
+            disabled={clearMarksAction.disabled || clearMarksAction.busy} onClick={() => { if (!navigationBusy) invokeNavigation(clearMarksAction.onInvoke); }} /> : null}
         </span>
       </> : <>{selection.kind === "loading" ? <span className="workflow-runbar-icon" data-tone="running"><ToneIcon tone="running" /></span> : null}<span className="workflow-runbar-text" role="status">
         <span className="workflow-runbar-title" id={`${id}-title`}>{selection.kind === "loading"

@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DashboardPage } from "./index";
 import { fetchDashboardSummary } from "./api";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { OperationalOverview, type OperationalOverviewProps } from "./operational-overview";
 import { ATTENTION_QUEUE_GROUPS } from "./job-links";
+import { LOADER_DELAY_MS, LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
 
 vi.mock("./api", () => ({ fetchDashboardSummary: vi.fn() }));
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: () => true }));
@@ -84,7 +85,8 @@ describe("dashboard attention queue links", () => {
     vi.mocked(fetchDashboardSummary).mockResolvedValue(summary);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(<QueryClientProvider client={client}><MemoryRouter><DashboardPage /></MemoryRouter></QueryClientProvider>);
-    await screen.findByRole("link", { name: /^Failed \/ Stuck/ });
+    // While loading the card is named by its label alone; the count arrives with the answer.
+    await screen.findByRole("link", { name: /^Failed \/ Stuck: / });
     return () => { view.unmount(); client.clear(); };
   }
 
@@ -139,7 +141,7 @@ describe("dashboard attention queue links", () => {
         ],
       },
     });
-    // The cards render at zero before the summary lands; the count link waits for it.
+    // The count link waits for the summary, like the cards.
     await screen.findByRole("link", { name: /Open queue · 2 more/ });
     const queue = within(screen.getByRole("region", { name: "Attention queue" }));
     const rows = queue.getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/jobs/"));
@@ -159,6 +161,138 @@ describe("dashboard attention queue links", () => {
     const teardown = await showDashboard({ hero_kpis: { needs_attention: { value: 0 } }, groups: { needs_attention: [] } });
     expect(screen.queryByRole("link", { name: /Resolve attention/ })).not.toBeInTheDocument();
     expect(statusesOf(screen.getByRole("link", { name: /Open queue/ }))).toEqual([...ATTENTION_QUEUE_GROUPS]);
+    teardown();
+  });
+});
+
+/** The figure and description of every card, as text: empty while loading. */
+function cardFigures(): string[] {
+  return Array.from(document.querySelectorAll(".fs-metric-figure")).map((node) => node.textContent || "");
+}
+
+function paintedSkeletons(container: ParentNode = document): number {
+  return container.querySelectorAll(".fs-skeleton").length;
+}
+
+describe("dashboard status cards while loading", () => {
+  it("keep the real labels and stand the figure and description on the Skeleton, with no state or wave", () => {
+    renderOverview({ loading: "skeleton", needsAttention: 0, failedOrStuck: 0 });
+    for (const label of ["Failed / Stuck", "In progress", "Waiting for approval", "Waiting", "Completed"]) {
+      const card = screen.getByRole("link", { name: label });
+      expect(card).toHaveAttribute("aria-busy", "true");
+      expect(card).not.toHaveAttribute("data-state");
+      expect(card).not.toContainHTML("fs-metric-wave");
+      expect(paintedSkeletons(card)).toBe(2);
+    }
+    expect(cardFigures()).toEqual(["", "", "", "", ""]);
+    expect(screen.queryByText("None right now")).not.toBeInTheDocument();
+    // The all-clear is an answer, not a wait.
+    expect(screen.queryByText("Everything is running clean")).not.toBeInTheDocument();
+  });
+
+  it("hold the same structure unpainted before the loader delay", () => {
+    renderOverview({ loading: "reserved" });
+    expect(screen.getByRole("link", { name: "Completed" })).toBeInTheDocument();
+    expect(cardFigures()).toEqual(["", "", "", "", ""]);
+    expect(paintedSkeletons()).toBe(0);
+  });
+});
+
+describe("dashboard loading timing", () => {
+  type Deferred = { promise: Promise<Record<string, unknown>>; resolve: (value: Record<string, unknown>) => void };
+  function deferred(): Deferred {
+    let resolve: Deferred["resolve"] = () => undefined;
+    const promise = new Promise<Record<string, unknown>>((done) => { resolve = done; });
+    return { promise, resolve };
+  }
+  const SUMMARY_24H = { hero_kpis: { needs_attention: { value: 1 }, in_progress: { value: 7 }, waiting: { value: 4 } }, groups: { needs_attention: [{ id: "job-1", status: "failed" }] } };
+  const SUMMARY_7D = { hero_kpis: { needs_attention: { value: 1 }, in_progress: { value: 9 }, waiting: { value: 6 } }, groups: { needs_attention: [{ id: "job-1", status: "failed" }] } };
+
+  let answers: Record<string, Deferred>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    answers = { "24h": deferred(), "7d": deferred() };
+    vi.mocked(fetchDashboardSummary).mockReset();
+    vi.mocked(fetchDashboardSummary).mockImplementation((range: string) => answers[range].promise as never);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function advance(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  function showDashboardPage() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(<QueryClientProvider client={client}><MemoryRouter><DashboardPage /></MemoryRouter></QueryClientProvider>);
+    return () => { view.unmount(); client.clear(); };
+  }
+
+  function queueSkeletonRows(): number {
+    // eslint-disable-next-line testing-library/no-node-access
+    return screen.getByRole("region", { name: "Attention queue" }).querySelectorAll(".fs-cc__queue-row--skeleton").length;
+  }
+
+  it("paints nothing for the first 400ms and never a zero, then the cards and three queue rows on the Skeleton", async () => {
+    const teardown = showDashboardPage();
+    await advance(LOADER_DELAY_MS - 1);
+    expect(cardFigures()).toEqual(["", "", "", "", ""]);
+    expect(paintedSkeletons()).toBe(0);
+    expect(screen.queryByText("Nothing needs you")).not.toBeInTheDocument();
+    expect(screen.getByText("Failed, blocked or interrupted jobs, oldest first.")).toBeInTheDocument();
+    // The quick links are static: no loading state at all.
+    expect(screen.getByRole("link", { name: /Create a project/ })).toBeInTheDocument();
+
+    await advance(1);
+    expect(paintedSkeletons(screen.getByRole("link", { name: "In progress" }))).toBe(2);
+    expect(queueSkeletonRows()).toBe(3);
+    expect(cardFigures()).toEqual(["", "", "", "", ""]);
+
+    await act(async () => {
+      answers["24h"].resolve(SUMMARY_24H);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // Held for the minimum time once shown.
+    expect(cardFigures()).toEqual(["", "", "", "", ""]);
+    await advance(LOADER_MIN_SHOWN_MS);
+    expect(screen.getByRole("link", { name: /^In progress: 7\./ })).toBeInTheDocument();
+    expect(queueSkeletonRows()).toBe(0);
+    expect(paintedSkeletons()).toBe(0);
+    teardown();
+  });
+
+  it("put the cards back in Loading on a range switch and never show the previous range's numbers", async () => {
+    const teardown = showDashboardPage();
+    await act(async () => {
+      answers["24h"].resolve(SUMMARY_24H);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("link", { name: /^In progress: 7\./ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "7d" }));
+    await advance(0);
+    expect(screen.queryByRole("link", { name: /^In progress: 7\./ })).not.toBeInTheDocument();
+    expect(cardFigures()).toEqual(["", "", "", "", ""]);
+    // The queue is a live snapshot, not range-scoped: it keeps its rows.
+    expect(queueSkeletonRows()).toBe(0);
+    expect(screen.getAllByRole("link").some((link) => link.getAttribute("href") === "/jobs/job-1")).toBe(true);
+
+    await advance(LOADER_DELAY_MS);
+    expect(paintedSkeletons(screen.getByRole("link", { name: "In progress" }))).toBe(2);
+
+    await act(async () => {
+      answers["7d"].resolve(SUMMARY_7D);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByRole("link", { name: /^In progress: 9\./ })).not.toBeInTheDocument();
+    await advance(LOADER_MIN_SHOWN_MS);
+    expect(screen.getByRole("link", { name: /^In progress: 9\./ })).toBeInTheDocument();
+    expect(cardFigures()).not.toContain("");
     teardown();
   });
 });

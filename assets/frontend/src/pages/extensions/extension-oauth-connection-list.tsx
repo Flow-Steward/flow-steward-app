@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { InlineConfirm } from "@/components/shared/inline-confirm";
 import { Button } from "@/components/ui/button";
-import { focusAfterRequestLoading } from "@/components/shared/request-loading-focus";
 import { isHttpError } from "@/lib/http/errors";
 import "@/pages/extensions/extension-manifest.css";
 import {
@@ -161,8 +160,11 @@ function connectionDisconnectingNotice(view: OAuthConnectionRowView, canManage: 
     : t("react.extensions.disconnect_in_progress_this_connection_is_temporarily_read_only", "Disconnect in progress. This connection is temporarily read-only.");
 }
 
+/** The row action that is running, so only its own button shows busy. */
+type OAuthConnectionAction = "test" | "retry" | "reconnect" | "disconnect";
+
 function OAuthConnectionActions({
-  busy,
+  pending,
   canManage,
   imported,
   onDisconnect,
@@ -172,7 +174,7 @@ function OAuthConnectionActions({
   row,
   view,
 }: Readonly<{
-  busy: boolean;
+  pending: OAuthConnectionAction | null;
   canManage: boolean;
   /** Reconnecting an imported grant means pasting a new refresh token. */
   imported: boolean;
@@ -189,9 +191,9 @@ function OAuthConnectionActions({
     return (
       <Button
         aria-label={t("react.extensions.resume_disconnect_value0", "Resume disconnect {value0}", { value0: view.displayName })}
-        busy={busy}
+        busy={pending === "disconnect"}
         busyLabel={t("react.extensions.resuming", "Resuming…")}
-        onClick={() => onDisconnect(row, true)}
+        onClick={() => { if (!pending) onDisconnect(row, true); }}
         size="sm"
         type="button"
         variant="secondary"
@@ -204,20 +206,22 @@ function OAuthConnectionActions({
   return (
     <div className="fs-manifest-actions">
       {onTest && view.lifecycle === "connected" ? (
-        <button
+        <Button
           aria-label={t("react.extensions.test_value0", "Test {value0}", { value0: view.displayName })}
-          className="fs-button sm"
-          disabled={busy}
-          onClick={() => onTest(row)}
+          busy={pending === "test"}
+          busyLabel={t("react.extensions.checking", "Checking…")}
+          onClick={() => { if (!pending) onTest(row); }}
+          size="sm"
           type="button"
+          variant="secondary"
         >
-          {t("react.extensions.test", "Test")}</button>
+          {t("react.extensions.test", "Test")}</Button>
       ) : null}
       {view.retryablePostConnect ? (
         <Button
-          busy={busy}
+          busy={pending === "retry"}
           busyLabel={t("react.extensions.retrying", "Retrying…")}
-          onClick={() => onRetry(row)}
+          onClick={() => { if (!pending) onRetry(row); }}
           size="sm"
           type="button"
           variant="primary"
@@ -226,33 +230,38 @@ function OAuthConnectionActions({
         </Button>
       ) : null}
       {view.reconnectable ? (
-        <button
+        <Button
           aria-label={imported
             ? t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: view.displayName })
             : t("react.extensions.reconnect_value0", "Reconnect {value0}", { value0: view.displayName })}
-          className="fs-button sm primary"
-          disabled={busy}
-          onClick={() => onReconnect(row)}
+          busy={pending === "reconnect"}
+          busyLabel={t("react.extensions.oauth_import_connecting", "Connecting…")}
+          onClick={() => { if (!pending) onReconnect(row); }}
+          size="sm"
           type="button"
+          variant="primary"
         >
           {imported
             ? t("react.extensions.oauth_import_replace", "Replace refresh token")
-            : t("react.extensions.reconnect", "Reconnect")}</button>
+            : t("react.extensions.reconnect", "Reconnect")}</Button>
       ) : null}
       {view.lifecycle !== "disconnected" ? (
-        <button
-          className="fs-button sm ghost-danger"
-          disabled={busy}
-          onClick={() => onDisconnect(row)}
+        <Button
+          busy={pending === "disconnect"}
+          busyLabel={t("react.extensions.disconnecting", "Disconnecting…")}
+          onClick={() => { if (!pending) onDisconnect(row); }}
+          size="sm"
           type="button"
+          variant="ghost-danger"
         >
-          {t("react.extensions.disconnect", "Disconnect")}</button>
+          {t("react.extensions.disconnect", "Disconnect")}</Button>
       ) : null}
     </div>
   );
 }
 
 function OAuthConnectionRow({
+  busyAction,
   busyId,
   canManage,
   configurations,
@@ -270,6 +279,7 @@ function OAuthConnectionRow({
   replacement,
   row,
 }: Readonly<{
+  busyAction: OAuthConnectionAction;
   busyId: string;
   canManage: boolean;
   configurations: readonly OAuthConfigurationView[];
@@ -367,7 +377,7 @@ function OAuthConnectionRow({
         ) : null}
       </div>
       <OAuthConnectionActions
-        busy={busy}
+        pending={busy ? busyAction : null}
         canManage={canManage}
         imported={isRefreshTokenImportProvider(provider)}
         onDisconnect={onDisconnect}
@@ -401,6 +411,7 @@ export function ConnectionList({
   const { t } = useI18n();
   const focusedConnectionKeyRef = useRef("");
   const [busyId, setBusyId] = useState("");
+  const [busyAction, setBusyAction] = useState<OAuthConnectionAction>("test");
   const [disconnectConfirm, setDisconnectConfirm] = useState<{ connectionId: string; error: string } | null>(null);
   const [replacingId, setReplacingId] = useState("");
   const imported = isRefreshTokenImportProvider(provider);
@@ -452,10 +463,10 @@ export function ConnectionList({
     }
     const focusKey = `${scope.projectId}:${scope.installId}:${focusConnectionId}`;
     if (focusedConnectionKeyRef.current === focusKey) return;
-    return focusAfterRequestLoading(
-      globalThis.document?.getElementById(connectionDomId(focusConnectionId)) ?? null,
-      () => { focusedConnectionKeyRef.current = focusKey; },
-    );
+    const target = globalThis.document?.getElementById(connectionDomId(focusConnectionId));
+    if (!target) return;
+    target.focus();
+    if (target.ownerDocument.activeElement === target) focusedConnectionKeyRef.current = focusKey;
   }, [focusConnectionId, ownsFocusedConnection, scope.installId, scope.projectId]);
 
   useEffect(() => {
@@ -476,6 +487,7 @@ export function ConnectionList({
       return;
     }
     setBusyId(connectionId);
+    setBusyAction("retry");
     setError("");
     setRetryHelpTarget(null);
     try {
@@ -521,6 +533,7 @@ export function ConnectionList({
       return;
     }
     setBusyId(connectionId);
+    setBusyAction("disconnect");
     setError("");
     setRetryHelpTarget(null);
     try {
@@ -571,6 +584,7 @@ export function ConnectionList({
       return;
     }
     setBusyId(connectionId);
+    setBusyAction("test");
     setError("");
     setRetryHelpTarget(null);
     try {
@@ -619,6 +633,7 @@ export function ConnectionList({
       return;
     }
     setBusyId(connectionId);
+    setBusyAction("reconnect");
     setError("");
     setRetryHelpTarget(null);
     try {
@@ -654,6 +669,7 @@ export function ConnectionList({
       <h3 className="fs-manifest-section-title">{t("project_detail.connections.title", "Connections")}</h3>
       {owned.map((row) => (
         <OAuthConnectionRow
+          busyAction={busyAction}
           busyId={busyId}
           canManage={canManage}
           configurations={configurations}

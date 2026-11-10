@@ -19,6 +19,7 @@ import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { CatalogIcon } from "@/components/shared/catalog-browse";
 import type { ExtensionRecord } from "@/pages/extensions/api";
 import {
@@ -278,7 +279,7 @@ function createExtensionColumns({
       width: 152,
       cell: (extension) => {
         const extId = extension.extension_id;
-        const busy = Boolean(busyById[extId]);
+        const pending = busyById[extId];
         const toggleLabel = choose(Boolean(extension.active), t("react.extensions.display_disable", "Disable"), t("react.extensions.display_enable", "Enable"));
         return (
           <div className="fs-extensions-actions">
@@ -290,37 +291,28 @@ function createExtensionColumns({
             >
               <ExternalLink aria-hidden="true" />
             </Link>
-            <button
-              aria-label={toggleLabel}
-              className="fs-icon-button"
+            <IconButton
+              aria-busy={pending === "toggle" || undefined}
               data-ext-action-index={extId}
-              disabled={busy || Boolean(extension.broken && !extension.active)}
-              onClick={() => ignoreAsyncResult(handleToggle(extension))}
-              title={toggleLabel}
-              type="button"
-            >
-              <Power aria-hidden="true" />
-            </button>
-            <button
-              aria-label={t("react.extensions.extension_runtime_health", "Extension runtime health")}
-              className="fs-icon-button"
-              disabled={busy}
-              onClick={() => ignoreAsyncResult(handleHealthCheck(extension))}
-              title={t("react.extensions.extension_runtime_health", "Extension runtime health")}
-              type="button"
-            >
-              <Activity aria-hidden="true" />
-            </button>
-            <button
-              aria-label={t("react.extensions.uninstall", "Uninstall")}
-              className="fs-icon-button fs-extensions-uninstall"
-              disabled={anyTrue([busy, !archiveLifecycleAvailable])}
-              onClick={() => ignoreAsyncResult(handleUninstall(extension))}
-              title={t("react.extensions.uninstall", "Uninstall")}
-              type="button"
-            >
-              <Trash2 aria-hidden="true" />
-            </button>
+              disabled={Boolean(extension.broken && !extension.active)}
+              icon={Power}
+              label={toggleLabel}
+              onClick={() => { if (!pending) ignoreAsyncResult(handleToggle(extension)); }}
+            />
+            <IconButton
+              aria-busy={pending === "health" || undefined}
+              icon={Activity}
+              label={t("react.extensions.extension_runtime_health", "Extension runtime health")}
+              onClick={() => { if (!pending) ignoreAsyncResult(handleHealthCheck(extension)); }}
+            />
+            <IconButton
+              aria-busy={pending === "uninstall" || undefined}
+              className="fs-extensions-uninstall"
+              disabled={!archiveLifecycleAvailable}
+              icon={Trash2}
+              label={t("react.extensions.uninstall", "Uninstall")}
+              onClick={() => { if (!pending) ignoreAsyncResult(handleUninstall(extension)); }}
+            />
           </div>
         );
       },

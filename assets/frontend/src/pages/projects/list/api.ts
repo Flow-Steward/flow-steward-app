@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 import { readStoredWorkspaceId } from "@/lib/utils/workspace-selection";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
@@ -51,7 +51,7 @@ export async function fetchProjectsList({
   /** "name" or "job_count"; the endpoint whitelists the sortable keys. */
   sort?: string;
   direction?: "asc" | "desc" | "";
-}, options?: FetchJsonOptions) {
+}) {
   const params = new URLSearchParams({
     page: stringFromUnknownValue(page),
     per_page: stringFromUnknownValue(perPage),
@@ -77,5 +77,5 @@ export async function fetchProjectsList({
   if (selectedWorkspaceId) {
     params.set("workspace_id", selectedWorkspaceId);
   }
-  return fetchJson<ProjectsListResponse>(`/api/v2/projects?${params.toString()}`, undefined, options);
+  return fetchJson<ProjectsListResponse>(`/api/v2/projects?${params.toString()}`);
 }

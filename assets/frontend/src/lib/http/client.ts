@@ -1,5 +1,4 @@
 import { HttpError } from "@/lib/http/errors";
-import { beginRequest, isLoadedRead, rememberLoadedRead } from "@/lib/http/request-activity";
 import { isApiEnvelope } from "@/lib/http/types";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
@@ -60,91 +59,58 @@ export function buildHttpHeaders(init: RequestInit = {}): Headers {
   return headers;
 }
 
-export type FetchJsonOptions = {
-  presentation?: "foreground" | "background";
-};
-
-function readKey(input: RequestInfo | URL, init: RequestInit): string | null {
-  const request = input instanceof Request ? input : null;
-  const method = (init.method || request?.method || "GET").toUpperCase();
-  if (method !== "GET") {
-    return null;
-  }
-  if (request) {
-    return request.url;
-  }
-  return input instanceof URL ? input.href : stringFromUnknownValue(input);
-}
-
 export async function fetchJson<T>(
   input: RequestInfo | URL,
   init: RequestInit = {},
-  options: FetchJsonOptions = {},
 ): Promise<T> {
   const headers = buildHttpHeaders(init);
-  const key = readKey(input, init);
-  const presentation =
-    options.presentation ?? (key !== null && isLoadedRead(key) ? "background" : "foreground");
+  const response = await fetch(input, {
+    ...init,
+    credentials: init.credentials || "same-origin",
+    headers,
+  });
 
-  const finishRequest = presentation === "background" ? undefined : beginRequest();
-  try {
-    const response = await fetch(input, {
-      ...init,
-      credentials: init.credentials || "same-origin",
-      headers,
-    });
+  const payload = await parseResponseBody(response);
 
-    const payload = await parseResponseBody(response);
-
-    if (isApiEnvelope(payload)) {
-      if (!payload.ok) {
-        throw new HttpError({
-          headers: response.headers,
-          status: payload.error?.status ?? response.status,
-          url: response.url || stringFromUnknownValue(input),
-          payload,
-        });
-      }
-      if (key !== null) rememberLoadedRead(key);
-      return payload.data as T;
-    }
-
-    if (!response.ok) {
+  if (isApiEnvelope(payload)) {
+    if (!payload.ok) {
       throw new HttpError({
         headers: response.headers,
-        status: response.status,
+        status: payload.error?.status ?? response.status,
         url: response.url || stringFromUnknownValue(input),
         payload,
       });
     }
-
-    if (key !== null) rememberLoadedRead(key);
-    return payload as T;
-  } finally {
-    finishRequest?.();
+    return payload.data as T;
   }
+
+  if (!response.ok) {
+    throw new HttpError({
+      headers: response.headers,
+      status: response.status,
+      url: response.url || stringFromUnknownValue(input),
+      payload,
+    });
+  }
+
+  return payload as T;
 }
 
 /** A text body as it is, with the same credentials and errors as `fetchJson`. */
 export async function fetchText(input: RequestInfo | URL, init: RequestInit = {}): Promise<string> {
   const headers = buildHttpHeaders({ ...init, headers: { Accept: "text/plain", ...init.headers } });
-  const finishRequest = beginRequest();
-  try {
-    const response = await fetch(input, {
-      ...init,
-      credentials: init.credentials || "same-origin",
-      headers,
+  const response = await fetch(input, {
+    ...init,
+    credentials: init.credentials || "same-origin",
+    headers,
+  });
+  if (!response.ok) {
+    throw new HttpError({
+      headers: response.headers,
+      status: response.status,
+      url: response.url || stringFromUnknownValue(input),
+      payload: await parseResponseBody(response),
     });
-    if (!response.ok) {
-      throw new HttpError({
-        headers: response.headers,
-        status: response.status,
-        url: response.url || stringFromUnknownValue(input),
-        payload: await parseResponseBody(response),
-      });
-    }
-    return await response.text();
-  } finally {
-    finishRequest();
   }
+  return await response.text();
 }

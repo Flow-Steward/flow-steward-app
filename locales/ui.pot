@@ -13470,9 +13470,6 @@ msgstr ""
 msgid "react.shared.remove_value1_filter"
 msgstr ""
 
-msgid "react.shared.request_loading"
-msgstr ""
-
 msgid "react.shared.restore_plan"
 msgstr ""
 
@@ -29381,4 +29378,13 @@ msgid "react.agent_access.step_install_kept_plugin_hint"
 msgstr ""
 
 msgid "react.agent_access.step_install_copied_plugin_hint"
+msgstr ""
+
+msgid "react.jobs.rejecting"
+msgstr ""
+
+msgid "react.workflows.regenerating_url"
+msgstr ""
+
+msgid "react.workflows.rotating_credential"
 msgstr ""

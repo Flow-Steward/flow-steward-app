@@ -92,6 +92,21 @@ it("respects parent busy state", () => {
   expect(value.onBackToLatest).not.toHaveBeenCalled();
 });
 
+it("keeps sibling run actions in their normal look while another navigation runs and ignores their presses", () => {
+  const stop = vi.fn();
+  const clear = vi.fn();
+  render(<CanvasRunBar {...props()} clearMarksAction={{ onInvoke: clear }} navigationBusy stopAction={{ onInvoke: stop }} />);
+  const stopButton = screen.getByRole("button", { name: "Stop" });
+  const clearButton = screen.getByRole("button", { name: "Clear marks" });
+  expect(stopButton).toBeEnabled();
+  expect(stopButton).not.toHaveAttribute("aria-busy");
+  expect(clearButton).toBeEnabled();
+  fireEvent.click(stopButton);
+  fireEvent.click(clearButton);
+  expect(stop).not.toHaveBeenCalled();
+  expect(clear).not.toHaveBeenCalled();
+});
+
 it("does not project a rejected old navigation promise onto a newly supplied run", async () => {
   let rejectOld!: (reason: Error) => void;
   const oldNavigation = new Promise<boolean>((_resolve, reject) => { rejectOld = reject; });

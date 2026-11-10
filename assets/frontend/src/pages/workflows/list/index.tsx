@@ -341,7 +341,7 @@ export function WorkflowsListPage() {
 
   const workflowsQuery = useQuery({
     queryKey: [...queryKeys.workflowsList({ search: deferredSearch, enabledOnly }), projectFilter.accountId],
-    queryFn: () => fetchWorkflows({ enabledOnly, search: deferredSearch }, { presentation: "background" }),
+    queryFn: () => fetchWorkflows({ enabledOnly, search: deferredSearch }),
     enabled: canReadRegistry,
     refetchOnMount: "always",
   });

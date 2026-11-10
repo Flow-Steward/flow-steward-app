@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { queryKeys } from "@/lib/query/keys";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
 import { fetchJobDetail, type JobDetail } from "@/pages/jobs/detail/api";
 import type { WorkflowTestRunResult } from "@/pages/workflows/shared/simulate-api";
 
@@ -690,10 +689,8 @@ it("reads the run once when Results open, closes without handing observation off
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = renderPage({ surface: "builder", initialEntry: entry, queryClient });
   await chooseInitialHistory();
-  const { unmount: unmountLoading } = render(<RequestLoadingIndicator />);
   try {
     const opener = within(await bar()).getByRole("button", { name: "Results" });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument());
     const pointers = [localStorage.getItem(ackKey), localStorage.getItem(threadKey)];
     const readsBeforeOpen = fixture.detailReads.length;
     await user.click(opener);
@@ -705,7 +702,6 @@ it("reads the run once when Results open, closes without handing observation off
     const readsBeforeClose = fixture.detailReads.length;
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Test Run results" })).not.toBeInTheDocument());
-    expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
     await waitFor(() => expect(opener).toHaveFocus());
     // Closing hands nothing off: no further detail read.
     expect(fixture.detailReads.slice(readsBeforeClose)).toEqual([]);
@@ -716,7 +712,6 @@ it("reads the run once when Results open, closes without handing observation off
     noAuthoringWrite();
   } finally {
     view.unmount();
-    unmountLoading();
     queryClient.clear();
     measure.mockRestore();
   }

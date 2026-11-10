@@ -662,8 +662,8 @@ export function TrashPage() {
           <Button
             busy={trashQuery.isFetching}
             busyLabel={t("react.shared.refreshing", "Refreshing…")}
-            disabled={actionBusy}
             onClick={() => {
+              if (actionBusy) return;
               ignoreAsyncResult(refetchTrash());
             }}
             type="button"

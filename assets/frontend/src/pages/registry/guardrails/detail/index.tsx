@@ -163,6 +163,7 @@ export function RegistryGuardrailsDetailPage() {
     saving,
     setSaveStatus,
     toggleEntityEnabled,
+    toggling,
   } = useRegistryEntityDetail({
     endpoint: "/api/guardrails",
     idKey: "id",
@@ -323,16 +324,17 @@ export function RegistryGuardrailsDetailPage() {
           <>
             <Link className="fs-button" to="/registry/guardrails">
               {t("react.registry.back_to_guardrails", "Back to guardrails")}</Link>
-            <button
-              className="fs-button"
-              disabled={saving}
+            <Button
+              busy={toggling}
+              busyLabel={t("react.settings.updating", "Updating…")}
               onClick={() => {
                 ignoreAsyncResult(toggleEntityEnabled());
               }}
               type="button"
+              variant={null}
             >
               {entity.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-            </button>
+            </Button>
             <SaveStatusBadge status={saveStatus} />
           </>
         }

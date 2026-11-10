@@ -27,6 +27,9 @@ import { useHasCapability } from "@/lib/auth/capabilities";
 
 type RegistryEntity = Record<string, unknown>;
 type RegistryProfile = "agents" | "tools" | "skills" | "guardrails" | "generic";
+/** "save-field" is a field saved on blur: no button waits on it, so it is not a pending action. */
+type SaveAction = "save-prompts" | "save-prompt" | "save-instructions" | "save-scope" | "save-field";
+type DetailAction = SaveAction | "toggle" | "delete-plan" | "delete";
 type TabSpec = {
   key: string;
   label: string;
@@ -278,13 +281,20 @@ export function RegistryDetailSurface({
   const tabs = tabLabelForProfile(profileKey, t);
   const [activeTab, setActiveTab] = useState<string>(tabs[0]?.key || "overview");
   const [saveStatus, setSaveStatus] = useState("");
-  const [saving, setSaving] = useState(false);
+  // The action that is running: only its button is busy, presses on the
+  // other actions are ignored until it settles.
+  const [pending, setPending] = useState<DetailAction | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [mcpDeletePlan, setMcpDeletePlan] = useState<McpProjectedToolDeletePlan | null>(null);
   const [mcpDeleteError, setMcpDeleteError] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const savingShown = useLoaderDelay(saving);
+  const deleting = pending === "delete";
   const deletingShown = useLoaderDelay(deleting);
+  const toggleShown = useLoaderDelay(pending === "toggle");
+  const deletePlanShown = useLoaderDelay(pending === "delete-plan");
+  const savePromptsShown = useLoaderDelay(pending === "save-prompts");
+  const savePromptShown = useLoaderDelay(pending === "save-prompt");
+  const saveInstructionsShown = useLoaderDelay(pending === "save-instructions");
+  const saveScopeShown = useLoaderDelay(pending === "save-scope");
   const [promptDraft, setPromptDraft] = useState("");
   const [instructionsDraft, setInstructionsDraft] = useState("");
   const [scopeDraft, setScopeDraft] = useState("");
@@ -353,13 +363,15 @@ export function RegistryDetailSurface({
   const guardrailScope = firstStringArray(entity, ["_agents", "agent_ids", "agents"]);
   const guardrailConfig = firstObject(entity, ["config"]);
 
-  async function saveEntityPatch(patch: RegistryEntity) {
+  async function saveEntityPatch(action: SaveAction, patch: RegistryEntity) {
+    const tracked = action !== "save-field";
+    if (tracked && pending) return;
     if (!resolvedEntityId) {
       setSaveStatus(t("react.registry.display_select_valid_entity", "Select a valid entity before saving."));
       return;
     }
     setSaveStatus("");
-    setSaving(true);
+    if (tracked) setPending(action);
     try {
       const payload = { ...entity, ...patch };
       await updateRegistryEntity(endpoint, resolvedEntityId, payload);
@@ -369,17 +381,18 @@ export function RegistryDetailSurface({
     } catch (error) {
       setSaveStatus(error instanceof Error ? error.message : t("react.registry.display_failed_save_changes", "Failed to save changes."));
     } finally {
-      setSaving(false);
+      if (tracked) setPending(null);
     }
   }
 
   async function toggleEntityEnabled() {
+    if (pending) return;
     if (!resolvedEntityId) {
       setSaveStatus(t("react.registry.display_entity_id_missing", "Entity id is missing."));
       return;
     }
     setSaveStatus("");
-    setSaving(true);
+    setPending("toggle");
     try {
       await toggleRegistryEntity(endpoint, resolvedEntityId);
       setSaveStatus(t("react.registry.display_enabled_state_updated", "Enabled state updated."));
@@ -388,17 +401,18 @@ export function RegistryDetailSurface({
     } catch (error) {
       setSaveStatus(error instanceof Error ? error.message : t("react.registry.failed_to_toggle_entity", "Failed to toggle entity."));
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
   async function deleteEntity() {
+    if (pending) return;
     if (!resolvedEntityId) {
       setSaveStatus(t("react.registry.display_entity_id_missing", "Entity id is missing."));
       return;
     }
     setSaveStatus("");
-    setDeleting(true);
+    setPending("delete");
     try {
       await deleteRegistryEntity(endpoint, resolvedEntityId);
       setDeleteConfirmOpen(false);
@@ -406,22 +420,23 @@ export function RegistryDetailSurface({
     } catch (error) {
       setSaveStatus(error instanceof Error ? error.message : t("react.registry.failed_to_delete_entity", "Failed to delete entity."));
     } finally {
-      setDeleting(false);
+      setPending(null);
     }
   }
 
   async function openDeleteFlow() {
+    if (pending) return;
     const implementation = objectOrEmpty(entity.implementation);
     const kind = firstStringFromUnknownValue([implementation.type, implementation.kind, ""]).trim();
     if (endpoint === "/api/tools" && kind === "mcp") {
-      setDeleting(true);
+      setPending("delete-plan");
       setMcpDeleteError("");
       try {
         setMcpDeletePlan(await fetchMcpProjectedToolDeletePlan(resolvedEntityId));
       } catch (error) {
         setSaveStatus(error instanceof Error ? error.message : t("react.registry.failed_to_load_mcp_tool_impact", "Failed to load MCP tool impact."));
       } finally {
-        setDeleting(false);
+        setPending(null);
       }
       return;
     }
@@ -429,8 +444,8 @@ export function RegistryDetailSurface({
   }
 
   async function deleteMcpTool() {
-    if (!mcpDeletePlan) return;
-    setDeleting(true);
+    if (!mcpDeletePlan || pending) return;
+    setPending("delete");
     setMcpDeleteError("");
     try {
       await deleteMcpProjectedToolConfirmed(mcpDeletePlan.tool_id, mcpDeletePlan.revision);
@@ -439,7 +454,7 @@ export function RegistryDetailSurface({
     } catch (error) {
       setMcpDeleteError(error instanceof Error ? error.message : t("react.registry.failed_to_move_mcp_tool_to_trash", "Failed to move MCP tool to Trash."));
     } finally {
-      setDeleting(false);
+      setPending(null);
     }
   }
 
@@ -467,22 +482,24 @@ export function RegistryDetailSurface({
           {renderWhen(!effectiveReadOnly, (
             <>
               <button
+                aria-busy={pending === "toggle" || undefined}
                 className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-200 hover:border-cyan-300/40 disabled:opacity-60"
-                disabled={saving || deleting}
                 onClick={() => {
                   ignoreAsyncResult(toggleEntityEnabled());
                 }}
                 type="button"
               >
-                {entity.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
+                <ButtonBusyContent busyLabel={t("react.settings.updating", "Updating…")} shown={toggleShown}>
+                  {entity.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
+                </ButtonBusyContent>
               </button>
               <button
+                aria-busy={pending === "delete-plan" || undefined}
                 className="rounded-full border border-rose-300/35 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100 hover:border-rose-300/55 disabled:opacity-60"
-                disabled={saving || deleting}
                 onClick={() => ignoreAsyncResult(openDeleteFlow())}
                 type="button"
               >
-                {t("settings.model_providers.delete", "Delete")}</button>
+                <ButtonBusyContent busyLabel={t("react.shared.opening", "Opening…")} shown={deletePlanShown}>{t("settings.model_providers.delete", "Delete")}</ButtonBusyContent></button>
             </>
           ))}
           {renderWhen(Boolean(saveStatus), (
@@ -558,7 +575,7 @@ export function RegistryDetailSurface({
                   if (!value || value === firstStringFromUnknownValue([entity.display_name, entity.name, ""]).trim()) {
                     return;
                   }
-                  ignoreAsyncResult(saveEntityPatch({ display_name: value, name: value }));
+                  ignoreAsyncResult(saveEntityPatch("save-field", { display_name: value, name: value }));
                 }}
                 placeholder={t("react.registry.display_name", "Display name")}
                 type="text"
@@ -575,7 +592,7 @@ export function RegistryDetailSurface({
                   if (value === firstStringFromUnknownValue([entity.description, ""]).trim()) {
                     return;
                   }
-                  ignoreAsyncResult(saveEntityPatch({ description: value }));
+                  ignoreAsyncResult(saveEntityPatch("save-field", { description: value }));
                 }}
                 placeholder={t("registry.workflows.simulation.description", "Description")}
               />
@@ -606,16 +623,16 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
-                aria-busy={saving || undefined}
+                aria-busy={pending === "save-prompts" || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
                 onClick={() => {
-                  if (saving) return;
+                  if (pending) return;
                   const prompts = { ...agentPrompts, system: promptDraft.trim() };
-                  ignoreAsyncResult(saveEntityPatch({ prompts }));
+                  ignoreAsyncResult(saveEntityPatch("save-prompts", { prompts }));
                 }}
                 type="button"
               >
-                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_prompts", "Save prompts")}</ButtonBusyContent></button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savePromptsShown}>{t("react.registry.save_prompts", "Save prompts")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() =>
@@ -704,15 +721,15 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
-                aria-busy={saving || undefined}
+                aria-busy={pending === "save-prompt" || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
                 onClick={() => {
-                  if (saving) return;
-                  ignoreAsyncResult(saveEntityPatch({ prompt: promptDraft.trim() }));
+                  if (pending) return;
+                  ignoreAsyncResult(saveEntityPatch("save-prompt", { prompt: promptDraft.trim() }));
                 }}
                 type="button"
               >
-                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_prompt", "Save prompt")}</ButtonBusyContent></button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savePromptShown}>{t("react.registry.save_prompt", "Save prompt")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() => setPromptDraft(toolPrompt)}
@@ -761,11 +778,11 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
-                aria-busy={saving || undefined}
+                aria-busy={pending === "save-instructions" || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
                 onClick={() => {
-                  if (saving) return;
-                  ignoreAsyncResult(saveEntityPatch({
+                  if (pending) return;
+                  ignoreAsyncResult(saveEntityPatch("save-instructions", {
                     instructions: instructionsDraft
                       .split("\n")
                       .map((line) => line.trim())
@@ -774,7 +791,7 @@ export function RegistryDetailSurface({
                 }}
                 type="button"
               >
-                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_instructions", "Save instructions")}</ButtonBusyContent></button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={saveInstructionsShown}>{t("react.registry.save_instructions", "Save instructions")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() => setInstructionsDraft(skillInstructions.join("\n"))}
@@ -802,15 +819,15 @@ export function RegistryDetailSurface({
             />
             <div className="flex flex-wrap gap-2">
               <button
-                aria-busy={saving || undefined}
+                aria-busy={pending === "save-scope" || undefined}
                 className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100 disabled:opacity-60"
                 onClick={() => {
-                  if (saving) return;
-                  ignoreAsyncResult(saveEntityPatch({ _agents: parseCommaSeparated(scopeDraft) }));
+                  if (pending) return;
+                  ignoreAsyncResult(saveEntityPatch("save-scope", { _agents: parseCommaSeparated(scopeDraft) }));
                 }}
                 type="button"
               >
-                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={savingShown}>{t("react.registry.save_scope", "Save scope")}</ButtonBusyContent></button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={saveScopeShown}>{t("react.registry.save_scope", "Save scope")}</ButtonBusyContent></button>
               <button
                 className="rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-200 hover:border-cyan-300/35"
                 onClick={() => setScopeDraft(guardrailScope.join(", "))}

@@ -9,4 +9,4 @@ export { DsDrawer, DsDialog, RowActionMenu } from "./design-system-overlays";
 export { Pagination, DsTable, DsTableLink, BulkActionBar } from "./design-system-table";
 export type { DsTableSort, DsTableColumn, DsBulkAction } from "./design-system-table";
 export { DsMetricCard, DsTimeline, BlankCell, DsTabs, DsTabLinks, DsProgress, DsLogOutput } from "./design-system-display";
-export type { DsTimelineEvent, DsTabItem, DsTabLink, DsProgressState } from "./design-system-display";
+export type { DsMetricCardLoading, DsTimelineEvent, DsTabItem, DsTabLink, DsProgressState } from "./design-system-display";

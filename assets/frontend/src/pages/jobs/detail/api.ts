@@ -272,15 +272,9 @@ export async function fetchJobDetail(jobId: string) {
 
 export async function fetchJobExecutionStepsPage(jobId: string, cursor: string) {
   const params = new URLSearchParams({ limit: "50", cursor });
-  // Pages come newest first, so an older page's cursor moves with every step the run
-  // records: while it runs, each 3 s refresh asks for a URL never read before. Read
-  // as a first load, every refresh covered the page with the blocking loader -- the
-  // "micro-loads" on every step of a long run. Older pages only extend history
-  // already on screen, so they load in the background.
   return fetchJson<JobExecutionStepsPage>(
     `/api/v2/jobs/${encodeURIComponent(jobId)}/execution-steps?${params.toString()}`,
     { cache: "no-store" },
-    cursor ? { presentation: "background" } : {},
   );
 }
 

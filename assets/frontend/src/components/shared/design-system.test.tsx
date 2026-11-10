@@ -3,16 +3,14 @@ import { resolve } from "node:path";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { vi } from "vitest";
 
 import { fallbackContext, I18nContext } from "@/lib/i18n/context";
-import { beginRequest } from "@/lib/http/request-activity";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useConfirmDialog } from "@/components/shared/use-confirm-dialog";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
 
 import settingsStyles from "@/components/shared/design-system.css?raw";
 import shellStyles from "@/styles/design-system-shell.css?raw";
@@ -1064,65 +1062,18 @@ it.each([false, true])("retains a temporarily disabled drawer opener only while 
 });
 
 
-function QueuedDrawerReturnHarness({ open, context = "run-a", openerState = "visible", mounted = true }: {
-  open: boolean; context?: string; openerState?: "visible" | "disabled" | "hidden" | "removed"; mounted?: boolean;
-}) {
+function QueuedDrawerReturnHarness({ open, context = "run-a" }: { open: boolean; context?: string }) {
   const fallbackRef = useRef<HTMLButtonElement>(null);
   return <>
     <button ref={fallbackRef} type="button">Queued fallback</button>
-    <button type="button">External focus owner</button>
-    {openerState !== "removed" ? <button disabled={openerState === "disabled"} hidden={openerState === "hidden"} type="button">Queued opener</button> : null}
-    {mounted ? <DsDrawer open={open} title="Queued results" focusContext={context} focusFallback={() => fallbackRef.current} onClose={() => {}}><input aria-label="Queued detail" /></DsDrawer> : null}
-    <RequestLoadingIndicator />
+    <button type="button">Queued opener</button>
+    <DsDrawer open={open} title="Queued results" focusContext={context} focusFallback={() => fallbackRef.current} onClose={() => {}}><input aria-label="Queued detail" /></DsDrawer>
   </>;
 }
 
-it.each(["context", "context-aba", "disabled", "hidden", "removed", "reopen", "unmount", "external"] as const)("rechecks queued drawer return focus safely after %s", async (change) => {
+it("retires the original owner when closing and replacing context in the same commit", async () => {
   const user = userEvent.setup();
   const view = render(<QueuedDrawerReturnHarness open={false} />);
-  let finishRequest: (() => void) | undefined;
-  try {
-    const opener = screen.getByRole("button", { name: "Queued opener" });
-    await user.click(opener);
-    view.rerender(<QueuedDrawerReturnHarness open />);
-    const drawer = screen.getByRole("dialog", { name: "Queued results" });
-    await waitFor(() => expect(within(drawer).getByRole("button", { name: "Close" })).toHaveFocus());
-    act(() => { finishRequest = beginRequest(); });
-    const loader = screen.getByRole("dialog", { name: "Loading requests" });
-    expect(loader).toHaveFocus();
-    view.rerender(<QueuedDrawerReturnHarness open={false} />);
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Queued results" })).not.toBeInTheDocument());
-    expect(loader).toHaveFocus();
-
-    if (change === "context" || change === "context-aba") {
-      view.rerender(<QueuedDrawerReturnHarness open={false} context="run-b" />);
-      if (change === "context-aba") view.rerender(<QueuedDrawerReturnHarness open={false} context="run-a" />);
-    } else if (change === "disabled" || change === "hidden" || change === "removed") {
-      view.rerender(<QueuedDrawerReturnHarness open={false} openerState={change} />);
-    } else if (change === "reopen") {
-      view.rerender(<QueuedDrawerReturnHarness open />);
-    } else if (change === "unmount") {
-      view.rerender(<QueuedDrawerReturnHarness open={false} mounted={false} />);
-    } else {
-      await user.click(screen.getByRole("button", { name: "External focus owner" }));
-    }
-    act(() => { finishRequest?.(); });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument());
-    expect(opener).not.toHaveFocus();
-    if (change === "disabled" || change === "hidden" || change === "removed") expect(screen.getByRole("button", { name: "Queued fallback" })).toHaveFocus();
-    if (change === "external") expect(screen.getByRole("button", { name: "External focus owner" })).toHaveFocus();
-    if (change === "reopen") expect(screen.getByRole("dialog", { name: "Queued results" })).toBeInTheDocument();
-  } finally {
-    act(() => { finishRequest?.(); });
-    view.unmount();
-  }
-});
-
-
-it.each([false, true])("retires the original owner when closing and replacing context in the same commit (loading=%s)", async (loading) => {
-  const user = userEvent.setup();
-  const view = render(<QueuedDrawerReturnHarness open={false} />);
-  let finishRequest: (() => void) | undefined;
   try {
     const opener = screen.getByRole("button", { name: "Queued opener" });
     const fallback = screen.getByRole("button", { name: "Queued fallback" });
@@ -1130,15 +1081,11 @@ it.each([false, true])("retires the original owner when closing and replacing co
     view.rerender(<QueuedDrawerReturnHarness open />);
     const drawer = screen.getByRole("dialog", { name: "Queued results" });
     await waitFor(() => expect(within(drawer).getByRole("button", { name: "Close" })).toHaveFocus());
-    if (loading) act(() => { finishRequest = beginRequest(); });
     view.rerender(<QueuedDrawerReturnHarness open={false} context="run-b" />);
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Queued results" })).not.toBeInTheDocument());
-    act(() => { finishRequest?.(); });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument());
     expect(opener).not.toHaveFocus();
     expect(fallback).not.toHaveFocus();
   } finally {
-    act(() => { finishRequest?.(); });
     view.unmount();
   }
 });

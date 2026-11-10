@@ -13792,9 +13792,6 @@ msgstr "Pašalinti {value1}"
 msgid "react.shared.remove_value1_filter"
 msgstr "Pašalinti filtrą {value1}"
 
-msgid "react.shared.request_loading"
-msgstr "Įkeliamos užklausos"
-
 msgid "react.shared.restore_plan"
 msgstr "Atkūrimo planas"
 
@@ -30859,3 +30856,12 @@ msgstr "Šiuo metu · seniausia nepavykusi: {age}"
 
 msgid "react.dashboard.test_run_from_the_builder"
 msgstr "Bandomasis vykdymas iš kūrimo priemonės"
+
+msgid "react.jobs.rejecting"
+msgstr "Atmetama…"
+
+msgid "react.workflows.regenerating_url"
+msgstr "Generuojama iš naujo…"
+
+msgid "react.workflows.rotating_credential"
+msgstr "Keičiama…"

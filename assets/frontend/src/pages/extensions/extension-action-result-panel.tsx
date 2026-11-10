@@ -5,6 +5,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { ChevronRight } from "lucide-react";
 
 import { DsBadge, RequiredLabel, type DsBadgeTone } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import {
   manifestActionOutcome,
   objectOrEmpty,
@@ -33,18 +34,27 @@ export type ExtensionEffectRecovery = {
   onLater: () => void;
 };
 
+type RecoveryAction = "approve" | "reject" | "retry";
+
 function EffectRecoveryControls({ recovery }: Readonly<{ recovery: ExtensionEffectRecovery }>) {
   const { t } = useI18n();
   const [comment, setComment] = useState("");
   const [commentError, setCommentError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [pending, setPending] = useState<RecoveryAction | null>(null);
   const { effect } = recovery;
-  const busy = recovery.busy || submitting;
+  const busy = recovery.busy || pending !== null;
   const canDecide = recovery.canManage && effect.decision_allowed;
   const inProgress = effect.retry_unavailable_reason === "retry_in_progress";
   const canRetry = recovery.canManage && effect.retry_supported
     && effect.resolution_ref?.effect_id === effect.effect_id
     && recovery.originalRequestAvailable && !inProgress;
+
+  async function run(action: RecoveryAction, task: () => Promise<void>) {
+    if (busy) return;
+    setPending(action);
+    try { await task(); }
+    finally { setPending(null); }
+  }
 
   async function decide(action: "approve" | "reject") {
     if (!canDecide || busy) return;
@@ -54,9 +64,7 @@ function EffectRecoveryControls({ recovery }: Readonly<{ recovery: ExtensionEffe
       return;
     }
     setCommentError("");
-    setSubmitting(true);
-    try { await recovery.onDecision(action, trimmed); }
-    finally { setSubmitting(false); }
+    await run(action, () => recovery.onDecision(action, trimmed));
   }
 
   return <div className="space-y-3">
@@ -67,13 +75,13 @@ function EffectRecoveryControls({ recovery }: Readonly<{ recovery: ExtensionEffe
       {commentError || recovery.error ? <p className="fs-extension-result-error" role="alert">{commentError || recovery.error}</p> : null}
       <div className="flex flex-wrap gap-2">
         {canDecide ? <>
-          <button className="fs-button accent" type="button" disabled={busy} onClick={() => ignoreAsyncResult(decide("approve"))}>{t("react.extensions.effect_recovery_completed", "Operation completed — continue")}</button>
-          <button className="fs-button" type="button" disabled={busy} onClick={() => ignoreAsyncResult(decide("reject"))}>{t("react.extensions.effect_recovery_not_completed", "Operation not completed — retry")}</button>
+          <Button type="button" variant="accent" busy={pending === "approve"} busyLabel={t("react.extensions.saving", "Saving…")} onClick={() => ignoreAsyncResult(decide("approve"))}>{t("react.extensions.effect_recovery_completed", "Operation completed — continue")}</Button>
+          <Button type="button" variant="secondary" busy={pending === "reject"} busyLabel={t("react.extensions.retrying", "Retrying…")} onClick={() => ignoreAsyncResult(decide("reject"))}>{t("react.extensions.effect_recovery_not_completed", "Operation not completed — retry")}</Button>
         </> : null}
-        {!effect.decision_allowed || !recovery.originalRequestAvailable ? <button className="fs-button" type="button" disabled={busy || !canRetry} onClick={() => ignoreAsyncResult(recovery.onRetry())}>{t("react.extensions.effect_recovery_retry", "Retry original action")}</button> : null}
+        {!effect.decision_allowed || !recovery.originalRequestAvailable ? <Button type="button" variant="secondary" busy={pending === "retry"} busyLabel={t("react.extensions.retrying", "Retrying…")} disabled={!canRetry} onClick={() => ignoreAsyncResult(run("retry", recovery.onRetry))}>{t("react.extensions.effect_recovery_retry", "Retry original action")}</Button> : null}
       </div>
     </>}
-    <button className="fs-button" type="button" disabled={busy} onClick={recovery.onLater}>{t("react.extensions.effect_recovery_later", "Decide later")}</button>
+    <Button type="button" variant="secondary" onClick={() => { if (!busy) recovery.onLater(); }}>{t("react.extensions.effect_recovery_later", "Decide later")}</Button>
   </div>;
 }
 

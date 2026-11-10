@@ -123,6 +123,7 @@ export function RegistrySkillsDetailPage() {
     saving,
     setSaveStatus,
     toggleEntityEnabled,
+    toggling,
   } = useRegistryEntityDetail({
     endpoint: "/api/skills",
     idKey: "skill_id",
@@ -622,16 +623,17 @@ export function RegistrySkillsDetailPage() {
                 Guardrails detail; the decision that followed was to drop the
                 identifier everywhere, readable or not. The id is in the URL,
                 which is where anyone who needs it looks. */}
-            <button
-              className="fs-button"
-              disabled={saving}
+            <Button
+              busy={toggling}
+              busyLabel={t("react.settings.updating", "Updating…")}
               onClick={() => {
                 ignoreAsyncResult(toggleEntityEnabled());
               }}
               type="button"
+              variant={null}
             >
               {entity.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-            </button>
+            </Button>
             <SaveStatusBadge status={saveStatus} />
           </>
         }

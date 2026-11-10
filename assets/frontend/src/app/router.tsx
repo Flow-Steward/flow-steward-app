@@ -2,6 +2,7 @@ import { createElement, lazy, Suspense, useState, type ComponentType } from "rea
 import { createBrowserRouter, RouterProvider, Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { holdForLoader } from "@/components/shared/loader-clock";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { PagePlaceholder } from "@/components/shared/page-placeholder";
 import { registeredPageComponents } from "@/app/extensions";
@@ -20,7 +21,7 @@ function lazyNamed<T extends Record<string, unknown>, K extends keyof T>(
   loader: () => Promise<T>,
   exportName: K,
 ) {
-  return lazy(async () => ({ default: (await loader())[exportName] as ComponentType }));
+  return lazy(async () => ({ default: (await holdForLoader(loader()))[exportName] as ComponentType }));
 }
 
 const ExtensionsHubPage = lazyNamed(() => import("@/pages/extensions"), "ExtensionsHubPage");
@@ -121,7 +122,7 @@ const WorkflowsProjectsPage = lazyNamed(
 );
 
 const WorkflowsBuilderPageLazy = lazy(async () => {
-  const module = await import("@/pages/workflows/builder");
+  const module = await holdForLoader(import("@/pages/workflows/builder"));
   return { default: module.WorkflowsBuilderPage };
 });
 

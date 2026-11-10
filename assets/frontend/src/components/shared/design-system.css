@@ -631,6 +631,11 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-multi-option[aria-selected="true"] .fs-select-check { opacity: 1; }
 .fs-combo-empty { min-height: var(--fs-form-dialog-select-option-height); color: var(--fs-text-tertiary); padding: var(--fs-form-dialog-select-option-padding); font-size: 13px; }
 
+/* Canon, `combobox-preview.html` `.combo-loading`: the pending row is the empty
+   row's geometry with the round mono S loader leading a named noun. It is not an
+   option, so it takes no hover wash. */
+.fs-combobox-loading { display: flex; align-items: center; gap: var(--fs-combobox-state-gap); min-height: var(--fs-form-dialog-select-option-height); color: var(--fs-text-tertiary); padding: var(--fs-form-dialog-select-option-padding); font-size: 13px; }
+
 .fs-icon-button,
 .fs-row-action,
 .fs-pagination-button,
@@ -936,6 +941,12 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
    inside it carries its own pointer. */
 .fs-table tbody tr[data-clickable] { cursor: pointer; }
 .fs-table tbody tr[data-clickable] .fs-table-action-cell { cursor: default; }
+
+/* Loading rows (data-table.md "Loading"): one Skeleton line per cell, sitting
+   in the cell's own text line box so the row keeps a text row's height. The
+   rows are not actions, so they take no hover. */
+.fs-table tbody tr.fs-table-skeleton-row:hover { --fs-settings-row-bg: var(--fs-bg-surface); }
+.fs-table-skeleton-row .fs-skeleton-line { display: inline-block; max-width: 100%; vertical-align: middle; }
 
 
 .fs-table th:first-child,
@@ -1534,6 +1545,16 @@ a.fs-metric[data-state="danger"]:hover { border-color: var(--fs-status-danger); 
    muted surface and the figure greys out instead of competing with a signal. */
 .fs-metric[data-state="clear"] { background: var(--fs-bg-surface-muted); }
 .fs-metric[data-state="clear"] .fs-metric-figure { color: var(--fs-text-tertiary); }
+
+/* Loading (metric-card.md: "Skeleton or reserved structure, no layout jump").
+   The figure's stand-in is exactly one figure line tall (line-height 1, so 1em)
+   and the description's is one line inside the description's own line box, so
+   the card measures the same before and after the answer. Without the
+   .fs-skeleton class the same boxes hold the geometry unpainted, which is the
+   first 400ms. */
+.fs-metric-figure-skeleton { display: block; width: 1.5em; height: 1em; }
+.fs-metric-meta-skeleton { flex: 1 1 auto; }
+.fs-metric-meta-skeleton > .fs-skeleton-line { display: inline-block; width: var(--fs-skeleton-last-line-width); vertical-align: middle; }
 
 /* The hover swap still happens, it just stops being animated. */
 @media (prefers-reduced-motion: reduce) {

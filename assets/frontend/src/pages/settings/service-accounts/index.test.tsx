@@ -356,6 +356,33 @@ describe("SettingsServiceAccountsPage", () => {
     expect(screen.getByLabelText("jobs.write")).not.toBeChecked();
   });
 
+  it("marks only the pressed identity action busy and ignores the other actions while it runs", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    let settle: () => void = () => undefined;
+    mockedUpdateServiceAccount.mockImplementationOnce(
+      () => new Promise((resolve) => { settle = () => resolve({ status: "updated" }); }),
+    );
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /CI Bot/i }));
+    await user.click(screen.getByRole("button", { name: "Disable identity" }));
+
+    // The toggle flips the shown state at once, so its name is now "Enable identity".
+    expect(screen.getByRole("button", { name: /able identity/ })).toHaveAttribute("aria-busy", "true");
+    const save = screen.getByRole("button", { name: "Save identity" });
+    const remove = within(screen.getByRole("dialog", { name: "Service account drawer" })).getByRole("button", { name: "Delete" });
+    expect(save).not.toHaveAttribute("aria-busy");
+    expect(save).toBeEnabled();
+    expect(remove).toBeEnabled();
+    await user.click(save);
+    await user.click(remove);
+    expect(mockedUpdateServiceAccount).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: /Delete service account/ })).not.toBeInTheDocument();
+
+    settle();
+    await waitFor(() => expect(screen.getByRole("button", { name: /able identity/ })).not.toHaveAttribute("aria-busy"));
+  });
+
   it("uses the complete shared MCP-relevant token scope catalog", async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderPage();

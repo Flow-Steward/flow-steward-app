@@ -357,7 +357,7 @@ export function AiAgentsSection() {
         </fieldset>
         <div className="fs-agent-fieldset">
           <OptionalLabel id={projectsLabelId}>{t("react.oauth.column_projects", "Projects")}</OptionalLabel>
-          <MultiCombobox ariaLabel={t("react.oauth.column_projects", "Projects")} disabled={locked || projectsQuery.isLoading} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
+          <MultiCombobox ariaLabel={t("react.oauth.column_projects", "Projects")} disabled={locked} loading={projectsQuery.isLoading} loadingLabel={t("react.settings.loading_projects", "Loading projects…")} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
           <span className="fs-field-helper">{t("react.agent_access.projects_help", "Leave empty for every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account.")}</span>
         </div>
         <fieldset className="fs-agent-fieldset" disabled={locked}>

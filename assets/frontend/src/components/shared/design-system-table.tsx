@@ -94,6 +94,11 @@ export function Pagination({
   );
 }
 
+/** Stable keys for a fixed run of stand-in rows; they never reorder. */
+function skeletonRowKeys(count: number): string[] {
+  return Array.from({ length: count }, (_, position) => `skeleton-row-${position + 1}`);
+}
+
 export type DsTableSort = { key: string; direction: "asc" | "desc" };
 
 export type DsTableColumn<Row> = {
@@ -116,6 +121,13 @@ export type DsTableColumn<Row> = {
   /** Sets the cell's title attribute — the bridge called this tooltip_key. */
   tooltip?: (row: Row) => string | undefined;
   cell: (row: Row) => ReactNode;
+  /**
+   * Width of this column's Skeleton line while the table waits for its first
+   * rows, sized to what the column usually holds (short for a status, long for
+   * a name). Omit for a column whose content is chrome, such as the row actions:
+   * its cells stay empty.
+   */
+  skeletonWidth?: string;
 };
 
 /**
@@ -142,6 +154,7 @@ export function DsTable<Row>({
   rowSelectable,
   rowReplacement,
   rowClickFocusable = true,
+  skeletonRows = 0,
 }: Readonly<{
   ariaLabel: string;
   columns: ReadonlyArray<DsTableColumn<Row>>;
@@ -175,6 +188,15 @@ export function DsTable<Row>({
    * the row and then the link, and a click on the link stays the link's.
    */
   rowClickFocusable?: boolean;
+  /**
+   * The canon Skeleton in place of the body (skeleton.md, data-table.md
+   * "Loading"): headers stay real and this fixed number of rows stands in, one
+   * line per cell at the column's `skeletonWidth`. The owner times it with
+   * useLoaderDelay and passes 0 the moment the real rows (or the empty state)
+   * take over; while it is above zero `rows` are not drawn, so a Skeleton and
+   * real rows never share the body.
+   */
+  skeletonRows?: number;
 }>) {
   const { t } = useI18n();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -230,7 +252,7 @@ export function DsTable<Row>({
     <>
       <div className="fs-table-scroll" ref={scrollRef} style={maxHeight ? { maxHeight, overflowY: "auto" } : undefined}>
         <table
-          aria-busy={busy}
+          aria-busy={busy || skeletonRows > 0}
           aria-label={ariaLabel}
           className={embedded ? "fs-table embedded" : "fs-table"}
         >
@@ -285,7 +307,19 @@ export function DsTable<Row>({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {skeletonRows > 0 ? skeletonRowKeys(skeletonRows).map((key) => (
+              // Decorative stand-ins: the table's aria-busy says it is waiting.
+              <tr aria-hidden="true" className="fs-table-skeleton-row" key={key}>
+                {selectable ? <td className="fs-table-select-cell" /> : null}
+                {columns.map((column) => (
+                  <td data-numeric={column.align === "right" ? true : undefined} key={column.key}>
+                    {column.skeletonWidth ? (
+                      <span className="fs-skeleton fs-skeleton-line" style={{ width: column.skeletonWidth }} />
+                    ) : null}
+                  </td>
+                ))}
+              </tr>
+            )) : rows.map((row) => {
               const replacement = rowReplacement?.(row);
               if (replacement) {
                 return (

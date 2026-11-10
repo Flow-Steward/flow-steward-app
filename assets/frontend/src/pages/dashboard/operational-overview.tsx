@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Check } from "lucide-react";
 
-import { DsMetricCard } from "@/components/shared/design-system";
+import { DsMetricCard, type DsMetricCardLoading } from "@/components/shared/design-system";
 import "@/pages/dashboard/dashboard-segmented.css";
 import { formatAge } from "@/pages/dashboard/format";
 import { FAILED_OR_STUCK_GROUPS, jobsListHref } from "@/pages/dashboard/job-links";
@@ -39,6 +39,12 @@ export type OperationalOverviewProps = {
   successRate: string;
   successRateDeltaPp: number | null;
   generatedAt: string;
+  /**
+   * The numbers for this range have not arrived: every card shows its Loading
+   * state (labels real, figure and description on the Skeleton) and the
+   * all-clear notice waits, so no zero and no previous range's number shows.
+   */
+  loading?: DsMetricCardLoading;
 };
 
 function relativeAge(generatedAt: string, now: number, t: I18nContextValue["t"] = fallbackContext.t): string {
@@ -145,6 +151,7 @@ export function OperationalOverview({
   successRate,
   successRateDeltaPp,
   generatedAt,
+  loading,
 }: Readonly<OperationalOverviewProps>) {
   const { t } = useI18n();
   const deltaLabel = formatDeltaPp(successRateDeltaPp);
@@ -193,7 +200,7 @@ export function OperationalOverview({
         </fieldset>
       </header>
 
-      <HealthyQueueNotice needsAttention={needsAttention} />
+      {loading ? null : <HealthyQueueNotice needsAttention={needsAttention} />}
 
       <div className="fs-ov__grid">
         {/* One card per status group, with the group's label: red when the run
@@ -207,6 +214,7 @@ export function OperationalOverview({
           clear={failedOrStuck === 0}
           danger={failedOrStuck > 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(failedOrStuck)}
           label={`${jobStatusGroupLabel("failed", t)} / ${jobStatusGroupLabel("stuck", t)}`}
           meta={failedMeta}
@@ -218,6 +226,7 @@ export function OperationalOverview({
           ariaLabel={t("react.dashboard.in_progress_value1_open_the_job_queue_filtered_to_running_jobs", "In progress: {value1}. Open the job queue filtered to running jobs", { value1: String(inProgress) })}
           clear={inProgress === 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(inProgress)}
           label={jobStatusGroupLabel("in_progress", t)}
           meta={hasInProgressMeta ? inProgressMeta : null}
@@ -230,6 +239,7 @@ export function OperationalOverview({
           attention={awaitingApproval > 0}
           clear={awaitingApproval === 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(awaitingApproval)}
           label={jobStatusGroupLabel("awaiting_approval", t)}
           meta={awaitingMeta}
@@ -241,6 +251,7 @@ export function OperationalOverview({
           ariaLabel={t("react.dashboard.waiting_count_show_jobs", "Waiting: {count}. Show waiting jobs", { count: String(waiting) })}
           clear={waiting === 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(waiting)}
           label={jobStatusGroupLabel("waiting", t)}
           to={jobsListHref(["waiting"])}
@@ -252,6 +263,7 @@ export function OperationalOverview({
           clear={completed === 0}
           delta={deltaLabel && hasRate(successRate) ? { label: deltaLabel, tone: deltaTone } : undefined}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(completed)}
           label={jobStatusGroupLabel("completed", t)}
           meta={completedMeta}

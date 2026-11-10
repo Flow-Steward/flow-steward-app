@@ -82,6 +82,7 @@ export function useAgentDetailState() {
     saving,
     setSaveStatus,
     toggleEntityEnabled,
+    toggling,
   } = useRegistryEntityDetail({
     endpoint: "/api/agents",
     idKey: "agent_id",
@@ -202,7 +203,7 @@ export function useAgentDetailState() {
   const [draft, setDraft] = useKeyedState<AgentDraft>(draftStateKey, draftSeed);
   const saveRelationshipOperation = async (operation: () => Promise<unknown>) => {
     const saved = await saveEntityOperation(operation);
-    if (!saved) {
+    if (saved === false) {
       setDraft(draftSeed);
     }
   };
@@ -305,6 +306,7 @@ export function useAgentDetailState() {
   return {
     saving,
     toggleEntityEnabled,
+    toggling,
     entity,
     saveConflict,
     saveError,

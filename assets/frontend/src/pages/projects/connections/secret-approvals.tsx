@@ -146,8 +146,7 @@ export function ProjectSecretApprovals({ projectId }: ProjectSecretApprovalsProp
               <Button
                 busy={approvingOnly(row.connection_id)}
                 busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
-                disabled={approve.isPending && !approvingOnly(row.connection_id)}
-                onClick={() => approve.mutate([row])}
+                onClick={() => { if (!approve.isPending) approve.mutate([row]); }}
                 size="sm"
                 variant="secondary"
               >
@@ -161,8 +160,7 @@ export function ProjectSecretApprovals({ projectId }: ProjectSecretApprovalsProp
           <Button
             busy={approvingIds.length > 1}
             busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
-            disabled={approve.isPending && approvingIds.length <= 1}
-            onClick={() => approve.mutate(chosen)}
+            onClick={() => { if (!approve.isPending) approve.mutate(chosen); }}
           >
             <ShieldCheck className="h-4 w-4" />
             {chosenReleases.size === 1

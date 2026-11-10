@@ -46,8 +46,6 @@ import {
 import { fetchProjectsList, type ProjectsListResponse } from "@/pages/projects/list/api";
 import type * as ProjectsListApi from "@/pages/projects/list/api";
 import { RegistryWorkspacesPage } from "@/pages/registry/workspaces";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
-import { hasPendingRequests } from "@/lib/http/request-activity";
 import { persistWorkspaceSelection, WORKSPACE_STORAGE_KEY } from "@/lib/utils/workspace-selection";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import {
@@ -568,7 +566,7 @@ describe("ExtensionsHubPage", () => {
     mockedResolveExtensionExternalEffect.mockResolvedValue(receipt);
   }
 
-  it("refreshes Project scope from an empty workspace using background transport without disturbing an unrelated draft", async () => {
+  it("refreshes Project scope from an empty workspace without disturbing an unrelated draft", async () => {
     const user = userEvent.setup();
     localStorage.setItem(WORKSPACE_STORAGE_KEY, "ws-other");
     const actualApi = await vi.importActual<typeof ProjectsListApi>("@/pages/projects/list/api");
@@ -590,7 +588,7 @@ describe("ExtensionsHubPage", () => {
       return json({ projects: [], page: 1, per_page: 200, total: 0, total_pages: 0 });
     }));
     const view = renderPage("/extensions/smoke.guardrail.enforcement", "admin", undefined, false,
-      <><RegistryWorkspacesPage /><RequestLoadingIndicator /></>);
+      <RegistryWorkspacesPage />);
     try {
       await waitFor(() => expect(requestedScopes).toEqual(["ws-other"]));
       await user.click(await screen.findByRole("combobox", { name: "Project scope" }));
@@ -599,11 +597,9 @@ describe("ExtensionsHubPage", () => {
       await user.click(screen.getByRole("button", { name: "New workspace" }));
       const draft = screen.getByRole("textbox", { name: "Workspace name" });
       await user.type(draft, "Unrelated workspace draft");
-      await waitFor(() => expect(hasPendingRequests()).toBe(false));
+      await waitFor(() => expect(view.queryClient.isFetching()).toBe(0));
       await act(async () => { persistWorkspaceSelection("ws-default"); });
       await waitFor(() => expect(requestedScopes).toEqual(["ws-other", "ws-default"]));
-      expect(hasPendingRequests()).toBe(false);
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Workspace name" })).toBe(draft);
       expect(draft).toHaveValue("Unrelated workspace draft");
       expect(draft).toHaveFocus();
@@ -3449,7 +3445,7 @@ describe("ExtensionsHubPage", () => {
     const openLink = within(firstRow).getByRole("link", { name: "Open" });
     fireEvent.click(within(firstRow).getByRole("button", { name: "Extension runtime health" }));
     await waitFor(() => expect(mockedCheckExtensionHealth).toHaveBeenCalled());
-    await waitFor(() => expect(within(firstRow).getByRole("button", { name: "Extension runtime health" })).toBeEnabled());
+    await waitFor(() => expect(within(firstRow).getByRole("button", { name: "Extension runtime health" })).not.toHaveAttribute("aria-busy"));
     expect(within(firstRow).getByRole("link", { name: "Open" })).toBe(openLink);
   });
 

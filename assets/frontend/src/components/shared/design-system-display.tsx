@@ -38,7 +38,16 @@ function MetricWave() {
  * `attention`. `unavailable` is the separate published state for a value that
  * cannot be read at all. `clear` is the calm zero: nothing happened, so the
  * card steps back to the muted surface and the figure turns grey.
+ *
+ * `loading` is the published Loading state (metric-card.md): the label is known
+ * and renders for real; the figure and the description stand in on the canon
+ * Skeleton at their own heights, so the card keeps its size and no number - not
+ * even a zero - shows before the answer. No wave and no colour state while it
+ * waits. The owner times it through useLoaderDelay: "reserved" holds the
+ * geometry unpainted for the first 400ms, "skeleton" paints the blocks.
  */
+export type DsMetricCardLoading = "reserved" | "skeleton";
+
 export function DsMetricCard({
   label,
   figure,
@@ -52,6 +61,7 @@ export function DsMetricCard({
   clear = false,
   density = "standard",
   wave = true,
+  loading,
 }: Readonly<{
   label: string;
   /** Already formatted: the card does not decide number formatting. */
@@ -71,13 +81,34 @@ export function DsMetricCard({
   density?: "hero" | "standard" | "compact";
   /** The wave belongs to variants A and E; drop it on a bare figure card. */
   wave?: boolean;
+  /** The answer has not arrived yet; figure, meta, wave and state are ignored. */
+  loading?: DsMetricCardLoading;
 }>) {
+  // A card that is still loading carries no colour state: it has no answer yet.
   let state: "danger" | "attention" | "unavailable" | "clear" | undefined;
-  if (danger) state = "danger";
-  else if (attention) state = "attention";
-  else if (unavailable) state = "unavailable";
-  else if (clear) state = "clear";
-  const body = (
+  if (!loading) {
+    if (danger) state = "danger";
+    else if (attention) state = "attention";
+    else if (unavailable) state = "unavailable";
+    else if (clear) state = "clear";
+  }
+  const skeleton = loading === "skeleton" ? "fs-skeleton " : "";
+  const body = loading ? (
+    <>
+      <span className="fs-metric-top">
+        <span className="fs-metric-label">{label}</span>
+      </span>
+      <span aria-hidden="true" className="fs-metric-figure">
+        <span className={`${skeleton}fs-metric-figure-skeleton`} />
+      </span>
+      <span aria-hidden="true" className="fs-metric-meta">
+        <span className="fs-metric-meta-skeleton">
+          <span className={`${skeleton}fs-skeleton-line`} />
+        </span>
+      </span>
+      {to ? <ArrowRight aria-hidden="true" className="fs-metric-go" /> : null}
+    </>
+  ) : (
     <>
       <span className="fs-metric-top">
         <span className="fs-metric-label">{label}</span>
@@ -93,11 +124,14 @@ export function DsMetricCard({
       {to ? <ArrowRight aria-hidden="true" className="fs-metric-go" /> : null}
     </>
   );
+  // While loading, the accessible name is the label alone: the owner's name
+  // carries the count, and a count the page does not have must not be read out.
+  const busy = loading ? true : undefined;
   if (!to) {
-    return <div className="fs-metric" data-density={density} data-state={state}>{body}</div>;
+    return <div aria-busy={busy} className="fs-metric" data-density={density} data-loading={loading} data-state={state}>{body}</div>;
   }
   return (
-    <Link aria-label={ariaLabel} className="fs-metric" data-density={density} data-state={state} to={to}>
+    <Link aria-busy={busy} aria-label={loading ? undefined : ariaLabel} className="fs-metric" data-density={density} data-loading={loading} data-state={state} to={to}>
       {body}
     </Link>
   );
