@@ -9,7 +9,12 @@ on:
         type: choice
         required: true
         default: tier2
-        options: [tier2, release, release-sonar, sonar-diagnostic, parallel-diagnostic, reuse-smoke, secret-scan-only]
+        options: [tier2, release, release-sonar, single-check, sonar-diagnostic, parallel-diagnostic, reuse-smoke, secret-scan-only]
+      check:
+        description: Registry check id that single-check runs alone (a diagnostic, not release evidence)
+        type: string
+        required: false
+        default: ''
       reuse_run_id:
         description: Optional official source run; secret-scan-only imports only its per-file scanner manifest
         type: string
@@ -243,7 +248,7 @@ jobs:
             fs-audit python -m core.application.tooling.quality.reuse_smoke "${smoke_args[@]}" \
             2>&1 | tee logs/quality/hosted/reuse-smoke.log
       - name: Run canonical Tier 2
-        if: env.QUALITY_MODE != 'reuse-smoke'
+        if: env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check'
         run: |
           set -o pipefail
           # Sample only this disposable job's containers, including a failed gate.
@@ -266,7 +271,7 @@ jobs:
         if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Build the canonical disposable PostgreSQL image
-        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'
+        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'single-check'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -283,6 +288,17 @@ jobs:
           ./core/entrypoints/cli/scripts/lint.sh --full \
             --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
             2>&1 | tee logs/quality/hosted/full.log
+      - name: Run one requested check alone
+        if: env.QUALITY_MODE == 'single-check'
+        env:
+          CHECK_ID: ${{ inputs.check }}
+        run: |
+          set -o pipefail
+          # Re-checks one check after a gate run failed only there; it is
+          # diagnostic only and never stands in for cumulative release evidence.
+          [[ "$CHECK_ID" =~ ^[a-z0-9-]+$ ]] || { echo '::error::single-check needs a registry check id in the check input.'; exit 1; }
+          ./core/entrypoints/cli/scripts/lint.sh --checks "$CHECK_ID" \
+            2>&1 | tee logs/quality/hosted/single-check.log
       - name: Reject results if main advanced beyond the candidate
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Collect bounded diagnostics

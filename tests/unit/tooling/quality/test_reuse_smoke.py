@@ -176,11 +176,18 @@ def test_smoke_workflow_skips_all_full_tiers_and_imports_the_real_source_artifac
     assert "github.ref_name == 'codex/quality-reuse-live'" in workflow["env"]["QUALITY_MODE"]
     steps = workflow["jobs"]["quality"]["steps"]
     tier_two = next(step for step in steps if step.get("name") == "Run canonical Tier 2")
-    assert tier_two["if"] == "env.QUALITY_MODE != 'reuse-smoke'"
+    assert tier_two["if"] == (
+        "env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check'"
+    )
     for step in steps:
-        if "lint.sh --full" in step.get("run", "") or "PostgreSQL image" in step.get("name", ""):
+        if "lint.sh --full" in step.get("run", ""):
             assert (
                 step["if"] == "env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'"
+            )
+        if "PostgreSQL image" in step.get("name", ""):
+            assert step["if"] == (
+                "env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'"
+                " || env.QUALITY_MODE == 'single-check'"
             )
     for job_id in ("parallel_tier_three", "sonar"):
         condition = workflow["jobs"][job_id]["if"]
@@ -194,3 +201,18 @@ def test_smoke_workflow_skips_all_full_tiers_and_imports_the_real_source_artifac
     validator = next(step for step in steps if step.get("id") == "validate-reuse-source")
     assert "steps.smoke-source.outputs.run_id != ''" in validator["if"]
     assert "remote-quality.yml" in validator["with"]["script"]
+
+
+def test_single_check_runs_only_the_requested_check() -> None:
+    source_root = Path(os.environ.get("PYTEST_SOURCE_REPO_ROOT", str(ROOT)))
+    workflow = yaml.safe_load((source_root / ".github/workflows/remote-quality.yml").read_text())
+    inputs = workflow.get("on", workflow.get(True))["workflow_dispatch"]["inputs"]
+    assert "single-check" in inputs["mode"]["options"]
+    assert inputs["check"]["default"] == ""
+    steps = workflow["jobs"]["quality"]["steps"]
+    single = next(step for step in steps if step.get("if") == "env.QUALITY_MODE == 'single-check'")
+    assert single["env"]["CHECK_ID"] == "${{ inputs.check }}"
+    assert 'lint.sh --checks "$CHECK_ID"' in single["run"]
+    assert "--full" not in single["run"] and "--fast" not in single["run"]
+    sonar = workflow["jobs"]["sonar"]["if"]
+    assert "single-check" not in sonar
