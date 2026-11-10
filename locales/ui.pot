@@ -13917,6 +13917,12 @@ msgstr ""
 msgid "react.workflows.action_details"
 msgstr ""
 
+msgid "react.workflows.action_invoke_connection"
+msgstr ""
+
+msgid "react.workflows.action_invoke_unavailable"
+msgstr ""
+
 msgid "react.workflows.action_step"
 msgstr ""
 

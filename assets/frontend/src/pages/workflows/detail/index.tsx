@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { actionInvokeRef } from "@/pages/workflows/detail/detail-action-invoke";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { useQueryClient } from "@tanstack/react-query";
@@ -880,7 +881,10 @@ function WorkflowDetailPageContent({
             ),
         ),
         stepKindDraft,
-        stepKindSelection: stepKindDraft === "connector" ? stepOptions.stepToolCategory : stepKindDraft,
+        // An Invoke that calls an extension action is an extension tool in the kind list.
+        stepKindSelection: stepKindDraft === "connector"
+          ? stepOptions.stepToolCategory
+          : stepKindDraft === "invoke_workflow" && actionInvokeRef(stepOptions.stepKindConfig) ? "extension_tools" : stepKindDraft,
         stepOptional,
         stepOverrideDraft,
         stepStructurePending: Boolean(selectedStep && stepChangeSet.touchesStep(selectedStep.runtimeId)),

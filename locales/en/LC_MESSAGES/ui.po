@@ -13683,6 +13683,12 @@ msgstr "No catalog fields match your search."
 msgid "react.registry.no_data_contracts_match_search"
 msgstr "No data contracts match your search."
 
+msgid "react.workflows.action_invoke_connection"
+msgstr "Connection: {value0}"
+
+msgid "react.workflows.action_invoke_unavailable"
+msgstr "This extension action is no longer available. Choose the action again."
+
 msgid "react.workflows.all_projects"
 msgstr "All projects"
 

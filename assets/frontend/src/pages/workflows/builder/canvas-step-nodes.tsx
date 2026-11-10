@@ -102,10 +102,13 @@ function renderStepBadges(data: StepNodeData, t: ReturnType<typeof useI18n>["t"]
 export function StepIdentity({ data, visual }: Readonly<{ data: StepNodeData; visual: ReturnType<typeof stepVisual> }>) {
   const { t } = useI18n();
   // System, Extension and MCP tools are one connector kind, told apart by the marketplace's icons.
-  const Icon = data.step.kind === "connector" ? stepVisual("connector", data.step.tool_category).Icon : visual.Icon;
-  const kindLabel = data.step.kind === "connector" ? undefined : localizedSTEP_KIND_OPTIONS(t).find((option) => option.value === data.step.kind)?.label || data.step.kind;
+  // An Invoke that calls an extension action is an extension tool to the person.
+  const actionInvoke = data.step.kind === "invoke_workflow" && Boolean(data.step.extension_id);
+  const asTool = data.step.kind === "connector" || actionInvoke;
+  const Icon = asTool ? stepVisual("connector", actionInvoke ? "extension_tools" : data.step.tool_category).Icon : visual.Icon;
+  const kindLabel = asTool ? undefined : localizedSTEP_KIND_OPTIONS(t).find((option) => option.value === data.step.kind)?.label || data.step.kind;
   return <div className="workflow-card-heading">
-    <span className={joinClasses("workflow-card-icon", visual.iconClass)} aria-hidden={data.step.kind === "connector" || undefined} role={data.step.kind === "connector" ? undefined : "img"} aria-label={kindLabel} title={kindLabel}><Icon aria-hidden="true" strokeWidth={2} /></span>
+    <span className={joinClasses("workflow-card-icon", visual.iconClass)} aria-hidden={asTool || undefined} role={asTool ? undefined : "img"} aria-label={kindLabel} title={kindLabel}><Icon aria-hidden="true" strokeWidth={2} /></span>
     <p className="workflow-card-title">{data.step.display_name}</p>
     <WorkflowStepExtensionMark extensionId={data.step.extension_id || ""} />
   </div>;

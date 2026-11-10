@@ -19,6 +19,11 @@ function record(value: unknown): Record<string, unknown> {
 export function stepExtensionId(step: Record<string, unknown> | null | undefined): string {
   const source = record(step);
   const kind = text(source.step_kind) || text(source.kind);
+  if (kind === "invoke_workflow") {
+    // An Invoke that calls an extension action reads as that extension's step.
+    const actionExtension = text(record(record(record(source.override).invoke_workflow).action).extension_id);
+    return CANONICAL_EXTENSION_ID.test(actionExtension) ? actionExtension : "";
+  }
   if (kind && kind !== "connector") return "";
   const configured = text(record(record(source.override).connector).extension_id);
   if (configured) return CANONICAL_EXTENSION_ID.test(configured) ? configured : "";

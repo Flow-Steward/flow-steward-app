@@ -13881,6 +13881,12 @@ msgstr "Nė vienas katalogo laukas neatitinka paieškos."
 msgid "react.registry.no_data_contracts_match_search"
 msgstr "Nė viena duomenų sutartis neatitinka paieškos."
 
+msgid "react.workflows.action_invoke_connection"
+msgstr "Jungtis: {value0}"
+
+msgid "react.workflows.action_invoke_unavailable"
+msgstr "Šis plėtinio veiksmas nebepasiekiamas. Pasirinkite veiksmą iš naujo."
+
 msgid "react.workflows.all_projects"
 msgstr "Visi projektai"
 
