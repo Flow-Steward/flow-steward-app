@@ -359,6 +359,32 @@ def action_config_issues(config: Mapping[str, Any] | None) -> list[dict[str, str
     return []
 
 
+def action_invoke_dependencies(config: Any) -> list[tuple[str, str, str]]:
+    """``(dependency kind, ref, install id)`` rows of one action Invoke config.
+
+    The same kinds a connector step records, so where-used and the uninstall
+    inventory see an action step: its installs, its action and the connections
+    its slots hold. A malformed or plain Invoke has none.
+    """
+    if not isinstance(config, Mapping) or ACTION_CONFIG_KEY not in config:
+        return []
+    try:
+        ref = parse_action_ref(config[ACTION_CONFIG_KEY])
+    except ActionContractError:
+        return []
+    rows: list[tuple[str, str, str]] = []
+    if ref.install_id:
+        rows.append(("extension_install", ref.install_id, ref.install_id))
+        rows.append(("extension_action", ref.action_id, ref.install_id))
+    for install_id in sorted(set(action_installs(config).values()) - {ref.install_id}):
+        rows.append(("extension_install", install_id, install_id))
+    for binding in action_connections(config).values():
+        connection_id = binding.get("connection_id", "")
+        if connection_id:
+            rows.append(("project_connection", connection_id, ""))
+    return rows
+
+
 def slot_of_binding(binding: Mapping[str, Any] | None) -> str:
     """The slot a connector step's ``connection_binding`` reads, or ``""``."""
     return _text(dict(binding or {}).get(SLOT_BINDING_KEY))
@@ -390,6 +416,7 @@ __all__ = [
     "action_connections",
     "action_implementation_of",
     "action_installs",
+    "action_invoke_dependencies",
     "action_ref_of",
     "composite_action_context",
     "is_action_implementation",

@@ -267,6 +267,11 @@ def _step_config_summary(step: dict[str, Any], *, workflow_id: str) -> str:
         hook = _to_object(cfg.get("hook"))
         if hook:
             return f"Hook: {str(hook.get('display_name') or hook.get('hook_id') or '').strip()}"
+        action = _to_object(cfg.get("action"))
+        if action:
+            # An extension action reads like a connector step, never as its workflow (ADR 0065).
+            extension_id = str(action.get("extension_id") or "").strip()
+            return f"extension.{extension_id} -> {str(action.get('action_id') or '').strip()}"
         child_workflow_id = str(cfg.get("workflow_id") or step.get("workflow_id") or "").strip()
         return f"invoke {child_workflow_id}" if child_workflow_id else f"invoke from {workflow_id}"
     if step_kind == "if":

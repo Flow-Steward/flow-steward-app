@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.application.extensions.projected_dataset_bridge import projection_bridge_id
 from core.application.workflows.extension_connection_validation import (
     named_extension_without_install,
 )
@@ -168,6 +169,8 @@ class WorkflowPortabilityRewriteMixin:
             if mapped_workflow:
                 invoke["workflow_id"] = mapped_workflow
                 override["invoke_workflow"] = invoke
+            if "action" in invoke:
+                override["invoke_workflow"] = self._rewrite_action_invoke(invoke, resolution_index)
 
             connector_install_id = _text(override.get("connector_install_id"))
             mapped_install = self._mapped_ref("extension", connector_install_id, resolution_index)
@@ -206,6 +209,43 @@ class WorkflowPortabilityRewriteMixin:
                 )
                 override["connector"] = connector
             row["override"] = override
+        return row
+
+    def _rewrite_action_invoke(
+        self,
+        invoke: dict[str, Any],
+        resolution_index: dict[tuple[str, str], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Point an action Invoke at this account's installs and connections (ADR 0065).
+
+        The implementation id carries the install (``extension.<install>.<id>``),
+        so it follows the action's mapped install unless the bundle resolved the
+        child itself.
+        """
+        row = dict(invoke)
+        action = _as_dict(row.get("action"))
+        source_install = _text(action.get("install_id"))
+        mapped_install = self._mapped_ref(
+            "extension", source_install, resolution_index
+        ) or self._mapped_ref("extension", _text(action.get("extension_id")), resolution_index)
+        if mapped_install:
+            row["action"] = {**action, "install_id": mapped_install}
+            prefix = projection_bridge_id(source_install, "x")[:-1] if source_install else ""
+            target = _text(row.get("workflow_id"))
+            if prefix and target.startswith(prefix):
+                row["workflow_id"] = projection_bridge_id(mapped_install, target[len(prefix) :])
+        installs = _as_dict(row.get("installs"))
+        if installs:
+            row["installs"] = {
+                extension_id: self._mapped_ref("extension", _text(install_id), resolution_index)
+                or self._mapped_ref("extension", _text(extension_id), resolution_index)
+                or install_id
+                for extension_id, install_id in installs.items()
+            }
+        if row.get("connections"):
+            row["connections"] = self._rewrite_connection_binding(
+                row["connections"], resolution_index
+            )
         return row
 
     def _rewrite_tool_list(

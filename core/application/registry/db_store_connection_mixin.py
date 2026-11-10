@@ -2,6 +2,8 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from core.application.workflows.workflow_action_contract import action_invoke_dependencies
+
 from .db_store_common import *  # NOSONAR
 
 
@@ -557,6 +559,19 @@ class RegistryDBStoreConnectionMixin:
                     step_id=step_id,
                     dependency_kind="project_connection",
                     dependency_ref=connection_ref,
+                )
+            # An Invoke that calls an extension action depends on the same things a
+            # connector step does: the installs, the action and the slot connections
+            # (ADR 0065). The child workflow row above is its implementation.
+            for kind, ref, install_id in action_invoke_dependencies(
+                override.get("invoke_workflow")
+            ):
+                _push_dependency(
+                    group_id=group_id,
+                    step_id=step_id,
+                    dependency_kind=kind,
+                    dependency_ref=ref,
+                    install_id=install_id or None,
                 )
 
         with self._transaction() as cur:

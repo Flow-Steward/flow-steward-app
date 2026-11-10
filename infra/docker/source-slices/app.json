@@ -998,6 +998,7 @@
     "core/application/workflows/test_run_submission_service.py",
     "core/application/workflows/workflow_action_contract.py",
     "core/application/workflows/workflow_action_launch_gate.py",
+    "core/application/workflows/workflow_action_release.py",
     "core/application/workflows/workflow_action_validation.py",
     "core/application/workflows/workflow_activation_service.py",
     "core/application/workflows/workflow_authoring_requests.py",

@@ -67,6 +67,9 @@ class ExtensionInstallProjectionService:
         self._check_release_hooks(
             snapshots, install_record=install_record, release=release, account_id=account_id
         )
+        self._check_release_actions(
+            snapshots, install_record=install_record, release=release, account_id=account_id
+        )
         for snapshot in snapshots:
             if not bool(getattr(snapshot, "publish", True)):
                 continue
@@ -115,6 +118,51 @@ class ExtensionInstallProjectionService:
             )
         except HookReleaseBlockedError as exc:
             raise ServiceConflictError(str(exc), payload={"hooks": exc.issues}) from exc
+
+    def _check_release_actions(
+        self, snapshots: list[Any], *, install_record: Any, release: Any, account_id: str
+    ) -> None:
+        """A release never breaks a step that calls one of its composite actions (ADR 0065)."""
+        from core.application.extensions.composite_actions import (
+            composite_action_handlers,
+            required_dependency_ids,
+        )
+        from core.application.workflows.workflow_action_release import (
+            ActionReleaseBlockedError,
+            check_release_actions,
+        )
+
+        connection_provider = getattr(self._context, "persistence_connection", None)
+        connection = connection_provider() if callable(connection_provider) else None
+        if connection is None or not callable(getattr(connection, "cursor", None)):
+            # In-memory lifecycle stores keep no workflows that could call an action.
+            return
+        registry_store = self._registry_store(required_methods=("get_workflow",))
+        if registry_store is None:
+            return
+        descriptor = dict(getattr(release, "descriptor", {}) or {})
+        workflows = {
+            _normalize_text(getattr(snapshot, "artifact_id", "")): dict(
+                getattr(snapshot, "snapshot", {}) or {}
+            )
+            for snapshot in snapshots
+            if _normalize_text(getattr(snapshot, "artifact_kind", "")) == "workflow"
+            and bool(getattr(snapshot, "publish", True))
+        }
+        try:
+            with connection.cursor() as cur:
+                check_release_actions(
+                    registry_store,
+                    cur,
+                    account_id=account_id,
+                    install_id=install_record.install_id,
+                    extension_id=release.extension_id,
+                    workflows=workflows,
+                    action_handlers=composite_action_handlers(descriptor.get("action_definitions")),
+                    required_dependencies=frozenset(required_dependency_ids(descriptor)),
+                )
+        except ActionReleaseBlockedError as exc:
+            raise ServiceConflictError(str(exc), payload={"actions": exc.issues}) from exc
 
     def materialize_dataset_bridges(
         self,

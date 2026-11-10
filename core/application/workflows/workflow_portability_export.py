@@ -14,6 +14,7 @@ from core.application.workflows.extension_connection_validation import (
     named_extension_without_install,
     step_extension_id,
 )
+from core.application.workflows.workflow_action_contract import action_invoke_dependencies
 from core.application.workflows.workflow_catalog_identity import parse_projected_identity
 from core.application.workflows.workflow_portability_artifacts import (
     DEFINITIONS_KEY,
@@ -365,6 +366,34 @@ class WorkflowPortabilityExportMixin:
                     ),
                 )
 
+            # An Invoke that calls an extension action (ADR 0065) needs the same
+            # things mapped on import as a connector step: its installs and the
+            # connection each slot holds. Its implementation is the extension's.
+            invoke_config = _as_dict(override.get("invoke_workflow"))
+            for kind, ref, _install in action_invoke_dependencies(invoke_config):
+                if kind == "extension_install":
+                    _add_dependency(
+                        dependencies,
+                        "extension",
+                        ref,
+                        source=f"{source}.override.invoke_workflow.action",
+                        metadata={"dependency_kind": "extension_install"},
+                    )
+                elif kind == "project_connection":
+                    _add_dependency(
+                        dependencies,
+                        "project_connection",
+                        ref,
+                        source=f"{source}.override.invoke_workflow.connections",
+                    )
+
+        action_implementations = {
+            _text(
+                _as_dict(_as_dict(step.get("override")).get("invoke_workflow")).get("workflow_id")
+            )
+            for step in _workflow_steps(workflow)
+            if "action" in _as_dict(_as_dict(step.get("override")).get("invoke_workflow"))
+        }
         runtime_deps = _as_list(settings.get("workflow_runtime_dependencies"))
         if workflow_id and include_stored:
             runtime_deps.extend(_list_runtime_dependencies(self.db, workflow_id))
@@ -377,6 +406,8 @@ class WorkflowPortabilityExportMixin:
             if _invalid_dependency_ref(dep_ref):
                 continue
             if dep_kind == "child_workflow":
+                if dep_ref in action_implementations:
+                    continue  # the extension's own workflow behind an action step
                 _add_dependency(dependencies, "child_workflow", dep_ref, source=source)
             elif dep_kind == "published_block":
                 block_key = _text(dep.get("block_key") or dep_ref)
