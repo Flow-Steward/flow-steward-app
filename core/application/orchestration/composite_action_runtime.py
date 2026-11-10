@@ -290,6 +290,38 @@ def action_invoke_for_state(
     return plan, plan.direct_spec(source), None
 
 
+#: Marks the message of an action Invoke so the run view labels it as an extension action.
+ACTION_INVOKE_ARTIFACT = "action_invoke"
+
+
+def action_invoke_report(step: Mapping[str, Any], summary: str, artifacts: dict[str, Any]) -> str:
+    """Word an action Invoke's message as its action and tag its artifacts.
+
+    The Invoke runtime speaks of a child workflow by id. For an action step the
+    id is replaced by the action, and the extension and action are recorded so
+    the run view shows the step like any other extension action.
+    """
+    override = step.get("override") if isinstance(step, Mapping) else None
+    config = override.get("invoke_workflow") if isinstance(override, Mapping) else None
+    try:
+        ref = (
+            parse_action_ref(config.get(ACTION_CONFIG_KEY)) if isinstance(config, Mapping) else None
+        )
+    except (ActionContractError, AttributeError):
+        ref = None
+    if ref is None or not isinstance(config, Mapping) or ACTION_CONFIG_KEY not in config:
+        return summary
+    artifacts.setdefault("extension_id", ref.extension_id)
+    artifacts.setdefault("operation_id", ref.action_id)
+    artifacts[ACTION_INVOKE_ARTIFACT] = True
+    workflow_id = _text(config.get("workflow_id"))
+    text = str(summary or "")
+    for wording in (f"Child workflow '{workflow_id}'", f"workflow '{workflow_id}'"):
+        if workflow_id and wording in text:
+            text = text.replace(wording, f"Extension action '{ref.action_id}'")
+    return text.replace(workflow_id, ref.action_id) if workflow_id else text
+
+
 def write_action_context(child_meta: dict[str, Any], plan: ActionPlan | None) -> None:
     """Record the action context in the launch metadata of the child job."""
     if plan is not None:
@@ -407,10 +439,12 @@ def job_action_context(state: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
+    "ACTION_INVOKE_ARTIFACT",
     "ActionPlan",
     "ActionRuntimeError",
     "ConnectorActionBinding",
     "action_invoke_for_state",
+    "action_invoke_report",
     "child_origin_issue",
     "job_action_context",
     "plan_action_invoke",

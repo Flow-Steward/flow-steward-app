@@ -96,7 +96,37 @@ def validate_invoke_workflow_step(
         if load_workflow
         else get_workflow_row(db, child_workflow_id)
     )
+    from core.application.workflows.workflow_action_validation import action_invoke_issues
+
+    # An extension action implemented by a workflow, or its refusal (ADR 0065).
+    parent_workflow = (
+        load_workflow(workflow_id) if load_workflow else get_workflow_row(db, workflow_id)
+    )
+    parent_row = parent_workflow if isinstance(parent_workflow, dict) else {}
+    child_row = child_workflow if isinstance(child_workflow, dict) else {}
+    action_issues = action_invoke_issues(
+        db,
+        spec=spec,
+        child_workflow=child_row or None,
+        parent_workflow=parent_row,
+        account_id=str(parent_row.get("account_id") or child_row.get("account_id") or ""),
+    )
+    errors.extend(
+        _issue(code=row["code"], message=row["message"], path=f"{path_prefix}.{row['path']}")
+        for row in action_issues
+    )
     if not isinstance(child_workflow, dict):
+        if "action" in spec:
+            # The workflow behind an action is never named: say the action is unavailable.
+            if not action_issues:
+                errors.append(
+                    _issue(
+                        code="workflow.extension_operation_unavailable",
+                        message="This extension action is not available. Choose the action again.",
+                        path=f"{path_prefix}.override.invoke_workflow.action",
+                    )
+                )
+            return {"valid": False, "errors": errors, "warnings": warnings}
         errors.append(
             _issue(
                 code="invoke.child_workflow_missing",
@@ -105,25 +135,6 @@ def validate_invoke_workflow_step(
             )
         )
         return {"valid": False, "errors": errors, "warnings": warnings}
-
-    from core.application.workflows.workflow_action_validation import action_invoke_issues
-
-    # An extension action implemented by a workflow, or its refusal (ADR 0065).
-    parent_workflow = (
-        load_workflow(workflow_id) if load_workflow else get_workflow_row(db, workflow_id)
-    )
-    parent_row = parent_workflow if isinstance(parent_workflow, dict) else {}
-    action_issues = action_invoke_issues(
-        db,
-        spec=spec,
-        child_workflow=child_workflow,
-        parent_workflow=parent_row,
-        account_id=str(parent_row.get("account_id") or child_workflow.get("account_id") or ""),
-    )
-    errors.extend(
-        _issue(code=row["code"], message=row["message"], path=f"{path_prefix}.{row['path']}")
-        for row in action_issues
-    )
 
     if _workflow_reaches_target_via_invoke(
         db,

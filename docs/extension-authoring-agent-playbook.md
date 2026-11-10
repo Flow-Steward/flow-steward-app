@@ -773,6 +773,69 @@ In a typical reference extension, workflows, agents, skills, and tools are publi
 through the descriptor. Dataset, saved query, data connection, and seed files are
 kept beside them as reference material for realistic demo/project seed support.
 
+## Composite Actions
+
+A composite action is one action that a workflow of your bundle implements
+(ADR 0065). Use it to give people a single step for a job that takes several
+steps of a base extension: your bundle depends on that extension, and your
+workflow calls its actions, branches and loops for them.
+
+A person sees an ordinary action of your extension. The workflow behind it is
+never listed, linked to a project, edited, exported or launched; the action
+cannot be called outside a workflow.
+
+Build it in a Development environment:
+
+1. Declare the base extension as a required dependency
+   (`dependencies.extensions`, `required: true`, with a version range).
+2. Build the workflow like any callable workflow and test it there. Set
+   `settings.callable.enabled: true` and `trigger_channels: [parent_workflow]`
+   only, and declare its inputs and outputs.
+3. Mark it as the implementation and name the connections it needs as slots:
+
+   ```yaml
+   settings:
+     action_implementation:
+       action_id: orders.create_full
+       connections:
+         - slot: amazon
+           extension_id: acme.amazon
+           connection_type_ids: [seller_account]
+   ```
+
+4. In each connector step that needs a connection, name the slot. While you
+   test in Development the step may also name a connection of yours; the
+   packaged workflow must not:
+
+   ```yaml
+   connector_id: extension.acme.amazon      # package id, never an install id
+   connection_binding_jsonb: {slot: amazon}
+   override:
+     connector: {extension_id: acme.amazon, operation_id: orders.create}
+   ```
+
+5. Declare the action with `handler: {mode: workflow, workflow_id: <local id>}`
+   and `workflow_visible: true`, plus its same-ID Contract V2 operation. The
+   operation's inputs and outputs must equal the workflow's `expected_inputs`
+   and `expected_outputs`. Do not give the operation `connection_type_ids`.
+
+Before packaging, strip what belongs to your environment from the workflow:
+`connector_install_id` and every `connection_id`. Release validation refuses a
+bundle that keeps them.
+
+Rules the release validation enforces for the workflow:
+
+- no hook, and no plain Invoke of another workflow;
+- an Invoke is an action of this extension (`workflow_id` is its local id) or of
+  a required dependency (the action alone, no `workflow_id`); pass your slots
+  on with `connections: {<their slot>: {slot: <your slot>}}`;
+- connector steps name this extension or a required dependency only.
+
+What an update may change: a new release is refused while an enabled workflow
+of the account calls the action and the release removes the action, removes a
+mapped input or output, adds a required input, a connection slot or a
+dependency. Add an optional input, or ship a new action, instead.
+
 ## Callbacks And Ingress
 
 Use callbacks for provider webhooks routed through Flow Steward into an action.

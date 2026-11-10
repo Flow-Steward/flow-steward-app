@@ -5,6 +5,9 @@ from __future__ import annotations
 from core.application.orchestration.agent_message_projection import (
     public_replay_outcome,
 )
+from core.application.workflows.workflow_action_launch_gate import (
+    ActionImplementationLaunchError,
+)
 
 from .command_services_common import *  # NOSONAR
 from .job_operator_actions import journal_acknowledge, journal_cancel, require_restartable
@@ -412,6 +415,9 @@ class JobCommandService:
                 test_mode=bool(replay_snapshot.get("test_mode")),
                 replay_snapshot=replay_snapshot,
             )
+        except ActionImplementationLaunchError:
+            # The run of an extension action restarts with the workflow that called it.
+            raise
         except Exception as exc:
             logger.warning("restart_job(%s) failed: %s", job_id, exc)
             raise ServiceError("Failed to restart job") from exc

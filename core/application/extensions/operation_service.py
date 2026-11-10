@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.principal import coerce_optional_project_id
+from core.application.extensions.composite_actions import HANDLER_MODE_WORKFLOW
 from core.application.management.command_models import (
     ExtensionActionResultView,
     ExtensionQueryResultView,
@@ -213,6 +214,13 @@ class ExtensionOperationService:
         )
         if extension.get("enabled") is False and handler_mode == "extension":
             raise ServiceConflictError(ERR_EXTENSION_DISABLED)
+        if handler_mode == HANDLER_MODE_WORKFLOW:
+            # Implemented by a workflow: it runs only as a step of a workflow (ADR 0065).
+            message = f"Action '{action_id}' runs only as a step of a workflow."
+            raise ServiceForbiddenError(
+                message,
+                payload={"error": message, "code": "composite_action_direct_call_forbidden"},
+            )
 
         target = copy.deepcopy(body.target or {})
         if body.scope and not target.get("scope"):

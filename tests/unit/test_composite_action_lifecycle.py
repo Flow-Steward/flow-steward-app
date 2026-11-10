@@ -126,10 +126,13 @@ def test_a_compatible_release_changes_nothing_for_the_caller() -> None:
         ({"handlers": {"orders.create_full": "other"}}, "no longer offers action"),
         (
             {"workflow": implementation(inputs=("order", "priority"))},
-            "requires input 'priority', which is not mapped",
+            "the action requires input 'priority', which is not mapped",
         ),
-        ({"workflow": implementation(inputs=())}, "no longer declares input 'order'"),
-        ({"workflow": implementation(outputs=())}, "no longer declares output 'order_id'"),
+        ({"workflow": implementation(inputs=())}, "the action no longer declares input 'order'"),
+        (
+            {"workflow": implementation(outputs=())},
+            "the action no longer declares output 'order_id'",
+        ),
         (
             {"workflow": implementation(slots=("amazon", "books"))},
             "adds connection 'books', which the step has not chosen",
@@ -249,3 +252,102 @@ def test_an_action_step_reads_as_its_extension_on_the_canvas() -> None:
         _step_config_summary(action_step(), workflow_id="orders")
         == f"extension.{ADDON} -> orders.create_full"
     )
+
+
+def test_an_action_step_reports_as_its_action_never_as_a_workflow() -> None:
+    from core.application.orchestration.composite_action_runtime import action_invoke_report
+
+    artifacts: dict = {}
+    summary = action_invoke_report(
+        action_step(), f"Child workflow '{IMPLEMENTATION_ID}' completed successfully", artifacts
+    )
+
+    assert summary == "Extension action 'orders.create_full' completed successfully"
+    assert artifacts == {
+        "extension_id": ADDON,
+        "operation_id": "orders.create_full",
+        "action_invoke": True,
+    }
+    enqueue = action_invoke_report(
+        action_step(),
+        f"invoke_workflow enqueue failed: Workflow '{IMPLEMENTATION_ID}' not found",
+        {},
+    )
+    assert IMPLEMENTATION_ID not in enqueue
+    # A plain Invoke keeps its own wording and gets no tag.
+    plain = {"override": {"invoke_workflow": {"workflow_id": "report"}}}
+    untouched: dict = {}
+    assert action_invoke_report(plain, "Child workflow 'report' completed", untouched) == (
+        "Child workflow 'report' completed"
+    )
+    assert untouched == {}
+
+
+def test_the_canvas_card_of_an_action_step_has_no_invoke_summary_key() -> None:
+    from core.application.workflows.canvas_graph_common import _step_config_summary_metadata
+
+    assert _step_config_summary_metadata(action_step(), workflow_id="orders") == {}
+    plain = {"step_kind": "invoke_workflow", "override": {"invoke_workflow": {"workflow_id": "x"}}}
+    assert _step_config_summary_metadata(plain, workflow_id="orders")["config_summary_key"] == (
+        "react.workflows.invoke_workflow_summary"
+    )
+
+
+def test_an_install_gives_each_implementation_the_anchor_a_run_pins() -> None:
+    from types import SimpleNamespace
+
+    from core.application.extensions.command_install_projection import (
+        ExtensionInstallProjectionService,
+    )
+
+    saved: list[tuple[dict, dict]] = []
+
+    class RegistryStore:
+        def __init__(self) -> None:
+            self.rows: dict[str, dict] = {"extension.pi_addon.kept": {"workflow_id": "kept"}}
+
+        def get_workflow(self, workflow_id: str) -> dict | None:
+            return self.rows.get(workflow_id)
+
+        def save_workflow(self, payload: dict, **kwargs) -> None:
+            saved.append((payload, kwargs))
+            self.rows[payload["workflow_id"]] = payload
+
+    store = RegistryStore()
+    service = ExtensionInstallProjectionService(
+        context=SimpleNamespace(
+            logger=lambda: SimpleNamespace(db_store=store), persistence_connection=lambda: None
+        )
+    )
+
+    def snapshot(artifact_id: str, body: dict, *, kind: str = "workflow", publish: bool = True):
+        return SimpleNamespace(
+            artifact_kind=kind, artifact_id=artifact_id, publish=publish, snapshot=body
+        )
+
+    marked = implementation()
+    service._ensure_action_implementation_anchors(
+        [
+            snapshot("create_full", {**marked, "display_name": "Create order with shipment"}),
+            snapshot("kept", marked),  # its anchor already exists
+            snapshot("report", {"workflow_id": "report", "settings": {}}),  # an ordinary workflow
+            snapshot("draft", marked, publish=False),
+            snapshot("create_full", marked, kind="tool"),
+        ],
+        install_record=SimpleNamespace(install_id="pi_addon"),
+    )
+
+    assert saved == [
+        (
+            {
+                "workflow_id": IMPLEMENTATION_ID,
+                "display_name": "Create order with shipment",
+                "enabled": True,
+                "source_install_id": "pi_addon",
+                "local_workflow_id": "create_full",
+                "projection_mode": "derived",
+                "visible_in_catalog": False,
+            },
+            {"author": "extension-install", "create_only": True},
+        )
+    ]

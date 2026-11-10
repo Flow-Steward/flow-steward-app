@@ -86,6 +86,7 @@ class ExtensionInstallProjectionService:
                     is_active=True,
                 )
             )
+        self._ensure_action_implementation_anchors(snapshots, install_record=install_record)
 
     def _check_release_hooks(
         self, snapshots: list[Any], *, install_record: Any, release: Any, account_id: str
@@ -118,6 +119,58 @@ class ExtensionInstallProjectionService:
             )
         except HookReleaseBlockedError as exc:
             raise ServiceConflictError(str(exc), payload={"hooks": exc.issues}) from exc
+
+    def _ensure_action_implementation_anchors(
+        self, snapshots: list[Any], *, install_record: Any
+    ) -> None:
+        """Give every action implementation the registry anchor a run pins (ADR 0065).
+
+        A job pins its workflow through a ``registry_workflows`` anchor. Ordinary
+        extension workflows get theirs when a project links them; an
+        implementation is never linked, so the install creates it. The anchor is
+        an identity only: hidden, and its definition stays in the projection.
+        """
+        from core.application.extensions.projected_dataset_bridge import projection_bridge_id
+        from core.application.workflows.workflow_action_contract import is_action_implementation
+
+        implementations = [
+            snapshot
+            for snapshot in snapshots
+            if _normalize_text(getattr(snapshot, "artifact_kind", "")) == "workflow"
+            and bool(getattr(snapshot, "publish", True))
+            and is_action_implementation(dict(getattr(snapshot, "snapshot", {}) or {}))
+        ]
+        if not implementations:
+            return
+        registry_store = self._registry_store(required_methods=("get_workflow", "save_workflow"))
+        if registry_store is None:
+            # In-memory lifecycle stores keep no registry rows and run no jobs.
+            return
+        install_id = _normalize_text(getattr(install_record, "install_id", ""))
+
+        def ensure() -> None:
+            for snapshot in implementations:
+                local_id = _normalize_text(getattr(snapshot, "artifact_id", ""))
+                workflow_id = projection_bridge_id(install_id, local_id)
+                if registry_store.get_workflow(workflow_id):
+                    continue
+                body = dict(getattr(snapshot, "snapshot", {}) or {})
+                registry_store.save_workflow(
+                    {
+                        "workflow_id": workflow_id,
+                        "display_name": _normalize_text(body.get("display_name")) or local_id,
+                        "enabled": True,
+                        "source_install_id": install_id,
+                        "local_workflow_id": local_id,
+                        "projection_mode": "derived",
+                        "visible_in_catalog": False,
+                    },
+                    author="extension-install",
+                    create_only=True,
+                )
+
+        if not self._run_with_lifecycle_connection(registry_store, ensure):
+            ensure()
 
     def _check_release_actions(
         self, snapshots: list[Any], *, install_record: Any, release: Any, account_id: str

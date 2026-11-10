@@ -549,6 +549,10 @@ def _build_message_steps(
         # A step kind's own runtime actor is not an agent: name the kind of
         # step instead, and the extension it called as its tool.
         step_type_label = STEP_KIND_RUNTIME_ACTOR_LABELS.get(agent, "")
+        # An Invoke that calls an extension action is an extension action to the reader.
+        action_invoke = artifacts.get("action_invoke") is True
+        if action_invoke:
+            step_type_label = STEP_KIND_RUNTIME_ACTOR_LABELS.get("connector_step", step_type_label)
         step_type_keys = {
             "connector": "react.workflows.tool_action",
             "http_request": "react.workflows.http_request",
@@ -569,7 +573,11 @@ def _build_message_steps(
             "batch": "react.workflows.batch",
         }
         step_type_key = (
-            step_type_keys.get(str(artifacts.get("step_kind") or ""), "") if step_type_label else ""
+            step_type_keys.get(
+                "connector" if action_invoke else str(artifacts.get("step_kind") or ""), ""
+            )
+            if step_type_label
+            else ""
         )
         tool_id = str(artifacts.get("extension_id") or artifacts.get("connector_id") or "").strip()
         message_id = str(message.get("id") or "").strip()

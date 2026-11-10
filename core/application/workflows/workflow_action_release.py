@@ -94,11 +94,15 @@ def _step_reasons(
     ):
         return [f"the release no longer offers action '{ref.action_id}'"]
     assert workflow is not None
-    reasons = mapping_compatibility(
-        dict(config.get("input_mapping") or {}),
-        dict(config.get("output_mapping") or {}),
-        workflow.get("settings") or {},
-    )
+    reasons = [
+        # The shared rule speaks of a child workflow; a person added an action.
+        reason.replace("the child ", "the action ")
+        for reason in mapping_compatibility(
+            dict(config.get("input_mapping") or {}),
+            dict(config.get("output_mapping") or {}),
+            workflow.get("settings") or {},
+        )
+    ]
     bound = action_connections(config)
     reasons.extend(
         f"the release adds connection '{slot.slot}', which the step has not chosen"
