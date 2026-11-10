@@ -45,6 +45,11 @@ case "${1:-}" in
     printf 'audit_image=%s-fs-audit:latest\n' "${project}" >> "${GITHUB_OUTPUT}"
     df -h .
     ;;
+  prepare-postgres)
+    # pg-audit consumes the same image as pg-fs but has no build definition.
+    # Build the canonical image explicitly on clean runners; do not start pg-fs.
+    "${compose[@]}" build pg-fs
+    ;;
   diagnostics)
     mkdir -p logs/quality/hosted
     "${compose[@]}" ps --all > logs/quality/hosted/containers.txt
@@ -90,7 +95,7 @@ case "${1:-}" in
     done
     ;;
   *)
-    echo 'Usage: hosted-quality.sh check-candidate|prepare|diagnostics|cleanup|prepare-artifacts' >&2
+    echo 'Usage: hosted-quality.sh check-candidate|prepare|prepare-postgres|diagnostics|cleanup|prepare-artifacts' >&2
     exit 2
     ;;
 esac
