@@ -213,6 +213,7 @@ def test_single_check_runs_only_the_requested_check() -> None:
     single = next(step for step in steps if step.get("if") == "env.QUALITY_MODE == 'single-check'")
     assert single["env"]["CHECK_ID"] == "${{ inputs.check }}"
     assert 'lint.sh --checks "$CHECK_ID"' in single["run"]
+    assert "-v /var/run/docker.sock:/var/run/docker.sock" in single["run"]
     assert "--full" not in single["run"] and "--fast" not in single["run"]
     sonar = workflow["jobs"]["sonar"]["if"]
     assert "single-check" not in sonar

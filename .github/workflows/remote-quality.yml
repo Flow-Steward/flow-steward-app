@@ -297,8 +297,20 @@ jobs:
           # Re-checks one check after a gate run failed only there; it is
           # diagnostic only and never stands in for cumulative release evidence.
           [[ "$CHECK_ID" =~ ^[a-z0-9-]+$ ]] || { echo '::error::single-check needs a registry check id in the check input.'; exit 1; }
-          ./core/entrypoints/cli/scripts/lint.sh --checks "$CHECK_ID" \
-            2>&1 | tee logs/quality/hosted/single-check.log
+          execution="$(CHECK_ID="$CHECK_ID" python3 -c 'import json, os; rows = json.load(open("infra/tooling/quality/check-registry.json"))["checks"]; print(next(row.get("execution", "orchestrator") for row in rows if row["id"] == os.environ["CHECK_ID"]))')"
+          if [[ "$execution" == "external" ]]; then
+            # External checks drive their own Docker stack, so they run the way
+            # run-external-tier-three.sh runs them: in fs-audit, as root, with the socket.
+            source core/entrypoints/cli/scripts/docker_compose_env.sh
+            fs_compose run --no-deps --rm -T --user 0:0 \
+              -e "FS_COMPOSE_PROJECT_NAME=fs-oauth-generic-single-${GITHUB_RUN_ID}" \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              fs-audit bash core/entrypoints/cli/scripts/lint.sh --checks "$CHECK_ID" \
+              2>&1 | tee logs/quality/hosted/single-check.log
+          else
+            ./core/entrypoints/cli/scripts/lint.sh --checks "$CHECK_ID" \
+              2>&1 | tee logs/quality/hosted/single-check.log
+          fi
       - name: Reject results if main advanced beyond the candidate
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Collect bounded diagnostics
