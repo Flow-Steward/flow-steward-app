@@ -298,3 +298,22 @@ def test_validation_messages_lose_the_library_prefix() -> None:
 
     assert readable_issue("Value error, Invalid email address") == "invalid email address"
     assert readable_issue("URL must use https") == "URL must use https"
+
+
+def test_short_lists_line_up_with_the_other_facts(capsys) -> None:
+    output = _plain(
+        _spec("users.create"),
+        {
+            "status": "created",
+            "user": {"email": "a@acme.io", "roles": ["admin"], "is_active": True},
+        },
+        capsys,
+    )
+    lines = [line for line in output.splitlines() if ":" in line and line.startswith("    ")]
+
+    assert {line.index(":") for line in lines} != set()
+    assert len({len(line) - len(line.lstrip()) for line in lines}) == 1
+    values = {
+        line.split(":", 1)[1].strip(): line.index(line.split(":", 1)[1].strip()) for line in lines
+    }
+    assert len(set(values.values())) == 1  # every value starts in the same column

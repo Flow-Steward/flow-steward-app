@@ -350,8 +350,13 @@ def payload_blocks(
             blocks.append(Line(humanize_key(key), "heading", indent))
             blocks.extend(payload_blocks(value, indent=indent + 2))
         elif isinstance(value, Sequence):
+            list_blocks = _list_blocks(key, value, indent, (columns or {}).get(key, ()))
+            if len(list_blocks) == 1 and isinstance(list_blocks[0], Pairs):
+                # A short list reads as one more aligned fact, not a section of its own.
+                pending.extend(list_blocks[0].rows)
+                continue
             flush()
-            blocks.extend(_list_blocks(key, value, indent, (columns or {}).get(key, ())))
+            blocks.extend(list_blocks)
         else:
             pending.append((humanize_key(key), str(value)))
     flush()
