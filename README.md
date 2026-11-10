@@ -69,7 +69,7 @@ remains a separate operator step.
 Use a full (not shallow) Git clone, then run:
 
 ```bash
-git clone --branch v0.9.13 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.14 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ./flow-steward status

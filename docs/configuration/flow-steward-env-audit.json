@@ -10819,15 +10819,16 @@
     "code_read_locations": [
       "core/application/tooling/anonymous_installer_acceptance.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "audit_tools"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
-      "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Internal task owner supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "audit",
     "required": false,
     "retired_alias_names": [],
     "secret": false,
@@ -10838,18 +10839,19 @@
     "code_read_locations": [
       "core/application/tooling/anonymous_installer_acceptance.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "audit_tools"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
-      "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Internal resource token supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "audit",
     "required": false,
     "retired_alias_names": [],
-    "secret": true,
+    "secret": false,
     "variable_name": "FS_TASK_RESOURCE_TOKEN"
   },
   {

@@ -8696,6 +8696,40 @@
       "default": "10",
       "owner": "core/infrastructure/config/runtime_config.py",
       "notes": "Queue-depth workload throttle threshold; minimum 1."
+    },
+    {
+      "name": "FS_TASK_RESOURCE_OWNER",
+      "groups": [
+        "audit_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "audit",
+      "notes": "Internal task owner supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it."
+    },
+    {
+      "name": "FS_TASK_RESOURCE_TOKEN",
+      "groups": [
+        "audit_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "audit",
+      "notes": "Internal resource token supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it."
     }
   ]
 }

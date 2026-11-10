@@ -27,7 +27,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `artifact_storage_bundled_seaweedfs` | Bundled SeaweedFS artifact storage. | `8` |
 | `artifact_storage_external_s3` | External S3-compatible artifact storage. | `10` |
 | `artifact_storage_local_fs` | Local persistent filesystem artifact storage. | `2` |
-| `audit_tools` | Audit and security scanning helpers. | `31` |
+| `audit_tools` | Audit and security scanning helpers. | `33` |
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
@@ -52,10 +52,10 @@ python -m core.application.tooling.ops.generate_env_catalog
 
 ## Summary
 - Raw env-like names discovered by audit: `823`
-- Cataloged variables from `.env.example*` or manifest: `600`
-- Raw audit-only names outside examples/manifest: `223`
+- Cataloged variables from `.env.example*` or manifest: `602`
+- Raw audit-only names outside examples/manifest: `221`
 - Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `510`
+- Variables in canonical manifest: `512`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
@@ -63,10 +63,10 @@ Cataloged variables by scope:
 - Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
-- Tooling Internal: `78`
+- Tooling Internal: `80`
 
 Raw audit-only names by scope:
-- Internal Runtime: `5`
+- Internal Runtime: `3`
 - Script Internal: `125`
 - Test Only: `44`
 - Tooling Internal: `8`
@@ -901,6 +901,8 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_SEMGREP_RETRY_DELAY_SECONDS` | audit_tools | local_development | no | no | `2` | - | CLI scripts (1) | Delay between explicit transient Semgrep registry transport retries. | `core/entrypoints/cli/scripts/semgrep_retry.sh` |
 | `FS_SEMGREP_TIMEOUT` | audit_tools | local_development | no | no | `30` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_SEMGREP_TIMEOUT_THRESHOLD` | audit_tools | local_development | no | no | `25` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
+| `FS_TASK_RESOURCE_OWNER` | audit_tools | local_development | no | no | - | - | Tooling (1) | Internal task owner supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it. | `core/application/tooling/anonymous_installer_acceptance.py` |
+| `FS_TASK_RESOURCE_TOKEN` | audit_tools | local_development | no | no | - | - | Tooling (1) | Internal resource token supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it. | `core/application/tooling/anonymous_installer_acceptance.py` |
 | `FS_VULTURE_MIN_CONFIDENCE` | audit_tools | local_development | no | no | `90` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_XENON_MAX_ABSOLUTE` | audit_tools | local_development | no | no | `F` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_XENON_MAX_AVERAGE` | audit_tools | local_development | no | no | `B` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
@@ -969,7 +971,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 
 | Scope | Count | Common Usage Areas |
 |---|---|---|
-| Internal Runtime | `5` | CLI scripts (3), Tooling (2), Tests (1) |
+| Internal Runtime | `3` | CLI scripts (3), Tests (1) |
 | Script Internal | `125` | CLI scripts (191), CLI (12), Tests (7), Tooling (6), Database (3) |
 | Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |

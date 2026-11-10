@@ -71,41 +71,52 @@ fi
 
 probe_dir="$(cd -- "${probe_dir}" && pwd -P)"
 kept_name=".docker-desktop-mount-probe"
-random_hex="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
-nonce="$(date +%s)-$$-${random_hex}"
-fresh_name="${kept_name}-${nonce}"
-# A different length every run: a cached size shows up as truncated or padded content.
-padding="$(printf '%*s' "$((16#${random_hex:0:4} % 97))" '' | tr ' ' '.')"
-expected="${nonce}${padding}"
-cleanup_probe() {
-  rm -f -- "${probe_dir}/${fresh_name}" "${probe_dir}/${kept_name}.next"
-}
-trap cleanup_probe EXIT
-printf '%s\n' "${expected}" > "${probe_dir}/${kept_name}.next"
-mv -f -- "${probe_dir}/${kept_name}.next" "${probe_dir}/${kept_name}"
-printf '%s\n' "${nonce}" > "${probe_dir}/${fresh_name}"
+# Another refresh on the same folder (parallel gate checks, parallel tests) can
+# replace the kept file between our write and the container's read. That run's
+# content is no evidence of a stale view, so the probe is repeated (a few times)
+# while the host file no longer holds what this run wrote.
+attempt=0
+while :; do
+  attempt=$((attempt + 1))
+  random_hex="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+  nonce="$(date +%s)-$$-${random_hex}"
+  fresh_name="${kept_name}-${nonce}"
+  next_name="${kept_name}.next-${nonce}"
+  # A different length every run: a cached size shows up as truncated or padded content.
+  padding="$(printf '%*s' "$((16#${random_hex:0:4} % 97))" '' | tr ' ' '.')"
+  expected="${nonce}${padding}"
+  trap 'rm -f -- "${probe_dir}/${fresh_name}" "${probe_dir}/${next_name}"' EXIT
+  printf '%s\n' "${expected}" > "${probe_dir}/${next_name}"
+  mv -f -- "${probe_dir}/${next_name}" "${probe_dir}/${kept_name}"
+  printf '%s\n' "${nonce}" > "${probe_dir}/${fresh_name}"
 
-# Line 1: the size the container is told; line 2: the content it reads; then the
-# directory listing. Each is a separate way the stale view has shown up.
-if ! seen="$(
-  docker run --rm --pull never --network none --user 0:0 \
-    -v "${probe_dir}:/probe:ro" --entrypoint sh "${image}" -c \
-    'f=/probe/'"${kept_name}"'; stat -c %s "$f"; printf "%s\n" "$(cat "$f")"; ls -a /probe' \
-    2>/dev/null
-)"; then
-  echo "[docker-desktop] Could not start a container to check that host files are current." >&2
-  exit 0
-fi
+  # Line 1: the size the container is told; line 2: the content it reads; then the
+  # directory listing. Each is a separate way the stale view has shown up.
+  if ! seen="$(
+    docker run --rm --pull never --network none --user 0:0 \
+      -v "${probe_dir}:/probe:ro" --entrypoint sh "${image}" -c \
+      'f=/probe/'"${kept_name}"'; stat -c %s "$f"; printf "%s\n" "$(cat "$f")"; ls -a /probe' \
+      2>/dev/null
+  )"; then
+    echo "[docker-desktop] Could not start a container to check that host files are current." >&2
+    exit 0
+  fi
+  rm -f -- "${probe_dir}/${fresh_name}"
 
-seen_size="$(printf '%s\n' "${seen}" | sed -n 1p)"
-seen_content="$(printf '%s\n' "${seen}" | sed -n 2p)"
-fresh_visible=0
-if printf '%s\n' "${seen}" | sed -n '3,$p' | grep -Fxq -- "${fresh_name}"; then
-  fresh_visible=1
-fi
-if [[ "${seen_size}" == "$((${#expected} + 1))" && "${seen_content}" == "${expected}" && "${fresh_visible}" -eq 1 ]]; then
-  exit 0
-fi
+  seen_size="$(printf '%s\n' "${seen}" | sed -n 1p)"
+  seen_content="$(printf '%s\n' "${seen}" | sed -n 2p)"
+  fresh_visible=0
+  if printf '%s\n' "${seen}" | sed -n '3,$p' | grep -Fxq -- "${fresh_name}"; then
+    fresh_visible=1
+  fi
+  if [[ "${seen_size}" == "$((${#expected} + 1))" && "${seen_content}" == "${expected}" && "${fresh_visible}" -eq 1 ]]; then
+    exit 0
+  fi
+  host_content="$(cat -- "${probe_dir}/${kept_name}" 2>/dev/null || true)"
+  if [[ "${host_content}" == "${expected}" || "${attempt}" -ge 5 ]]; then
+    break
+  fi
+done
 
 cat >&2 <<EOF
 [docker-desktop] Containers see a stale copy of ${probe_dir}:
