@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -587,3 +588,30 @@ def test_hosted_postgres_preparation_builds_without_starting_services(
             "pg-fs",
         ]
     ]
+
+
+def test_audit_pytest_interrupts_a_test_that_exceeds_its_timeout(tmp_path: Path) -> None:
+    # Exercise the installed audit toolchain, not an explicit plugin import:
+    # forgetting the dependency would silently let this test finish normally.
+    probe = tmp_path / "test_timeout_probe.py"
+    probe.write_text(
+        "import time\nimport pytest\n\n"
+        "@pytest.mark.timeout(0.1)\n"
+        "def test_hanging_probe():\n"
+        "    time.sleep(2)\n"
+    )
+    env = {**os.environ, "PYTEST_ADDOPTS": "", "PYTEST_TIMEOUT": "0"}
+    env.pop("PYTEST_DISABLE_PLUGIN_AUTOLOAD", None)
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", str(probe)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "Timeout (>0.1s)" in output, output
+    assert "PytestUnknownMarkWarning" not in output
