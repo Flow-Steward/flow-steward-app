@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import ssl
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -11,8 +12,14 @@ from urllib.parse import urlsplit
 
 from core.infrastructure.config.runtime_env import runtime_env
 
-_TRANSPORT_MODES = frozenset({"tls", "compose-local", "audit-local", "loopback-local"})
+_TRANSPORT_MODES = frozenset(
+    {"tls", "compose-local", "audit-local", "loopback-local", "platform-private"}
+)
 _REJECTION = "RabbitMQ transport is invalid or disallowed by FS_RABBITMQ_TRANSPORT_MODE"
+_PRIVATE_HOST_ENV = "FS_RABBITMQ_PRIVATE_HOST"
+# A provider private-network service name: DNS labels only. IP literals are refused
+# because the declaration names a provider-routed service, not an address.
+_DNS_LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,8 +41,19 @@ def rabbitmq_transport_mode(env: Mapping[str, str] | None = None) -> str:
     return mode
 
 
+def _declared_private_host(env: Mapping[str, str] | None) -> str:
+    raw = runtime_env.get(_PRIVATE_HOST_ENV, "") if env is None else env.get(_PRIVATE_HOST_ENV, "")
+    host = str(raw or "").strip().lower()
+    labels = host.split(".")
+    if not host or len(host) > 253 or not all(_DNS_LABEL.match(label) for label in labels):
+        raise ValueError(_REJECTION)
+    if all(label.isdigit() for label in labels):
+        raise ValueError(_REJECTION)
+    return host
+
+
 def validate_rabbitmq_endpoint(url: str, env: Mapping[str, str] | None = None) -> RabbitMQEndpoint:
-    """Local permission is an explicit deployment assertion, never DNS inference."""
+    """Plaintext permission is an explicit deployment assertion, never DNS inference."""
     try:
         mode = rabbitmq_transport_mode(env)
         if not isinstance(url, str) or any(char.isspace() or ord(char) < 32 for char in url):
@@ -59,6 +77,10 @@ def validate_rabbitmq_endpoint(url: str, env: Mapping[str, str] | None = None) -
                 allowed = host == "rabbitmq-audit" and port == 5672
             elif mode == "loopback-local":
                 allowed = ipaddress.ip_address(host).is_loopback
+            elif mode == "platform-private":
+                # The operator declares the one provider private-network service
+                # that may carry plaintext; nothing else inherits that permission.
+                allowed = host == _declared_private_host(env) and port == 5672
             else:
                 allowed = False
             if not allowed:

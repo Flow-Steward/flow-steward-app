@@ -177,3 +177,116 @@ def test_verified_custom_ca_query_and_percent_encoded_credentials_remain_support
     assert parameters.virtual_host == "/"
     assert parameters.ssl_options.context.verify_mode == ssl.CERT_REQUIRED
     assert parameters.ssl_options.context.check_hostname is True
+
+
+_PRIVATE = "rabbitmq.railway.internal"
+
+
+def _platform_private(monkeypatch, sink: str, url: str, declared: str | None = _PRIVATE):
+    if declared is None:
+        monkeypatch.delenv("FS_RABBITMQ_PRIVATE_HOST", raising=False)
+    else:
+        monkeypatch.setenv("FS_RABBITMQ_PRIVATE_HOST", declared)
+    return _parameters_at_sink(
+        monkeypatch, sink, url, "platform-private", forbid_socket=not url.startswith("amqps")
+    )
+
+
+@pytest.mark.parametrize("sink", ["queue", "heartbeat"])
+@pytest.mark.parametrize("declared", [_PRIVATE, " Rabbitmq.Railway.Internal "])
+def test_platform_private_allows_plaintext_only_to_the_declared_host(monkeypatch, sink, declared):
+    monkeypatch.setenv("FS_RABBITMQ_PRIVATE_HOST", declared)
+    parameters = _parameters_at_sink(
+        monkeypatch, sink, f"amqp://user:password@{_PRIVATE}:5672/flow", "platform-private"
+    )
+    assert parameters.ssl_options is None
+    assert parameters.host == _PRIVATE
+    assert parameters.port == 5672
+
+
+@pytest.mark.parametrize("sink", ["queue", "heartbeat"])
+@pytest.mark.parametrize(
+    "url,declared",
+    [
+        ("amqp://u:p@other.railway.internal:5672/flow", _PRIVATE),
+        ("amqp://u:p@rabbitmq.railway.internal.attacker.test:5672/flow", _PRIVATE),
+        ("amqp://u:p@rabbitmq.railway.internal:5673/flow", _PRIVATE),
+        ("amqp://u:p@rabbitmq.railway.internal/flow", _PRIVATE),
+        ("amqp://u:p@rabbitmq.railway.internal:5672/flow", None),
+        ("amqp://u:p@rabbitmq.railway.internal:5672/flow", ""),
+        ("amqp://u:p@rabbitmq-fs:5672/", _PRIVATE),
+        ("amqp://u:p@127.0.0.1:5672/", _PRIVATE),
+        ("amqp://u:p@10.0.0.7:5672/", "10.0.0.7"),
+        ("amqp://u:p@[fd00::7]:5672/", "fd00::7"),
+        ("amqp://u:p@rabbitmq.railway.internal:5672/flow", "rabbitmq.railway.internal:5672"),
+        ("amqp://u:p@rabbitmq.railway.internal:5672/flow", "u@rabbitmq.railway.internal"),
+        ("amqp://u:p@rabbitmq.railway.internal:5672/flow", "rabbitmq.railway.internal/flow"),
+        ("amqp://u:p@rabbitmq.railway.internal:5672/flow", "-rabbitmq.railway.internal"),
+    ],
+)
+def test_platform_private_refuses_every_other_plaintext_endpoint(monkeypatch, sink, url, declared):
+    with pytest.raises(ValueError, match="RabbitMQ transport") as caught:
+        _platform_private(monkeypatch, sink, url, declared)
+    assert url not in str(caught.value)
+    assert caught.value.__cause__ is None
+
+
+@pytest.mark.parametrize("sink", ["queue", "heartbeat"])
+@pytest.mark.parametrize("mode", ["tls", "compose-local", "audit-local", "loopback-local"])
+def test_other_modes_never_inherit_the_private_host_declaration(monkeypatch, sink, mode):
+    monkeypatch.setenv("FS_RABBITMQ_PRIVATE_HOST", _PRIVATE)
+    with pytest.raises(ValueError, match="RabbitMQ transport"):
+        _parameters_at_sink(
+            monkeypatch, sink, f"amqp://u:p@{_PRIVATE}:5672/flow", mode, forbid_socket=True
+        )
+
+
+@pytest.mark.parametrize("sink", ["queue", "heartbeat"])
+def test_platform_private_keeps_verified_tls_for_any_broker(monkeypatch, sink):
+    parameters = _platform_private(
+        monkeypatch, sink, "amqps://u:p@broker.example.test:5671/flow", declared=None
+    )
+    assert parameters.ssl_options.context.verify_mode == ssl.CERT_REQUIRED
+    assert parameters.ssl_options.context.check_hostname is True
+    assert parameters.ssl_options.server_hostname == "broker.example.test"
+
+
+def test_platform_private_component_url_and_doctor_env_use_the_declared_mapping():
+    from core.infrastructure.config.connection_strings import build_rabbitmq_url
+    from core.infrastructure.config.rabbitmq_transport import validate_rabbitmq_endpoint
+
+    env = {
+        "FS_RABBITMQ_TRANSPORT_MODE": "platform-private",
+        "FS_RABBITMQ_PRIVATE_HOST": _PRIVATE,
+        "RABBITMQ_HOST": _PRIVATE,
+        "RABBITMQ_USER": "flow",
+        "RABBITMQ_PASS": "password",
+    }
+    url = build_rabbitmq_url(env)
+    assert url == f"amqp://flow:password@{_PRIVATE}:5672/"
+    endpoint = validate_rabbitmq_endpoint(url, env)
+    assert (endpoint.host, endpoint.port, endpoint.tls) == (_PRIVATE, 5672, False)
+
+
+def test_compact_children_receive_the_private_host_declaration():
+    from core.infrastructure.config.compact_runtime import CompactRuntimeSettings
+    from core.infrastructure.runtime.compact.process_spec import build_process_specs
+
+    settings = CompactRuntimeSettings.from_environment(
+        {"FS_DEPLOYMENT_PROFILE": "compact", "FS_WORKER_PROCESSES": "1"}
+    )
+    specs = build_process_specs(
+        settings,
+        parent_environment={
+            "PATH": "/usr/bin",
+            "FS_WORKER_MCP_BEARER_TOKEN": "worker-token",
+            "FS_RABBITMQ_TRANSPORT_MODE": "platform-private",
+            "FS_RABBITMQ_PRIVATE_HOST": _PRIVATE,
+        },
+        public_port=8080,
+        observation_fd=7,
+    )
+    for role in ("app", "worker-0", "control"):
+        spec = next(item for item in specs if item.role == role)
+        assert spec.environment["FS_RABBITMQ_TRANSPORT_MODE"] == "platform-private", role
+        assert spec.environment["FS_RABBITMQ_PRIVATE_HOST"] == _PRIVATE, role

@@ -28,7 +28,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `artifact_storage_external_s3` | External S3-compatible artifact storage. | `10` |
 | `artifact_storage_local_fs` | Local persistent filesystem artifact storage. | `2` |
 | `audit_tools` | Audit and security scanning helpers. | `31` |
-| `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
+| `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `45` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
 | `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `174` |
@@ -51,15 +51,15 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `823`
-- Cataloged variables from `.env.example*` or manifest: `600`
+- Raw env-like names discovered by audit: `824`
+- Cataloged variables from `.env.example*` or manifest: `601`
 - Raw audit-only names outside examples/manifest: `223`
 - Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `510`
+- Variables in canonical manifest: `511`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `136`
+- Internal Runtime: `137`
 - Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
@@ -244,7 +244,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### core/infrastructure/config/rabbitmq_transport.py
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_RABBITMQ_TRANSPORT_MODE` | core_runtime | production, local_development | no | no | `tls` | .env.example, .env.example.prod | Config (1) | tls (default), compose-local, audit-local, or loopback-local. Local modes require exact owned endpoints; remote brokers always require verified TLS. | `core/infrastructure/config/rabbitmq_transport.py` |
+| `FS_RABBITMQ_TRANSPORT_MODE` | core_runtime | production, local_development | no | no | `tls` | .env.example, .env.example.prod | Config (1) | tls (default), compose-local, audit-local, loopback-local, or platform-private. Local and platform-private modes require exact declared endpoints; any other broker requires verified TLS. | `core/infrastructure/config/rabbitmq_transport.py` |
 #### core/infrastructure/config/runtime_config.py
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
@@ -681,6 +681,10 @@ The table below includes every variable that is either shipped in an `.env.examp
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
 | `FS_OPERATION_LOG_ROOT` | core_runtime | production, local_development | no | no | - | - | CLI (1) | CLI operation log directory override. Unset falls back to FS_CLI_OPERATION_LOG_ROOT, the host checkout logs, then .flow-steward/logs. | `core/entrypoints/cli/platform/operation_log.py` |
+#### core/infrastructure/config/rabbitmq_transport.py
+| Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
+|---|---|---|---|---|---|---|---|---|---|
+| `FS_RABBITMQ_PRIVATE_HOST` | compact_runtime | production | no | no | - | - | Config (1) | Exact provider private-network broker host name (no IP literals) allowed for plaintext amqp on port 5672 when FS_RABBITMQ_TRANSPORT_MODE=platform-private. Ignored in every other mode. | `core/infrastructure/config/rabbitmq_transport.py` |
 #### core/infrastructure/config/runtime_config.py
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
