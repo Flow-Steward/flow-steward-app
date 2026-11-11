@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -552,3 +553,65 @@ def test_source_coverage_is_restored_only_for_exact_current_sha(
         assert restored.read_text() == "source coverage"
     else:
         assert not restored.exists()
+
+
+@pytest.mark.parametrize("build_status", [0, 17])
+def test_hosted_postgres_preparation_builds_without_starting_services(
+    candidate: tuple[Path, dict[str, str]], build_status: int
+) -> None:
+    _, env = candidate
+    root = Path(env["GITHUB_WORKSPACE"])
+    fake_bin = root / "bin"
+    fake_bin.mkdir()
+    calls = root / "docker-calls.jsonl"
+    docker = fake_bin / "docker"
+    docker.write_text(
+        "#!/usr/bin/env python3\nimport json, pathlib, sys\n"
+        f"with pathlib.Path({str(calls)!r}).open('a') as out:\n"
+        "    out.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        f"sys.exit({build_status})\n"
+    )
+    docker.chmod(0o755)
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    result = _run(env, "prepare-postgres")
+    assert result.returncode == build_status, result.stderr
+    assert [json.loads(line) for line in calls.read_text().splitlines()] == [
+        [
+            "compose",
+            "-p",
+            "fs-quality-123-1-quality",
+            "-f",
+            "infra/docker/docker-compose.yaml",
+            "-f",
+            "infra/docker/docker-compose.quality-hosted.yaml",
+            "build",
+            "pg-fs",
+        ]
+    ]
+
+
+def test_audit_pytest_interrupts_a_test_that_exceeds_its_timeout(tmp_path: Path) -> None:
+    # Exercise the installed audit toolchain, not an explicit plugin import:
+    # forgetting the dependency would silently let this test finish normally.
+    probe = tmp_path / "test_timeout_probe.py"
+    probe.write_text(
+        "import time\nimport pytest\n\n"
+        "@pytest.mark.timeout(0.1)\n"
+        "def test_hanging_probe():\n"
+        "    time.sleep(2)\n"
+    )
+    env = {**os.environ, "PYTEST_ADDOPTS": "", "PYTEST_TIMEOUT": "0"}
+    env.pop("PYTEST_DISABLE_PLUGIN_AUTOLOAD", None)
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", str(probe)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "Timeout (>0.1s)" in output, output
+    assert "PytestUnknownMarkWarning" not in output

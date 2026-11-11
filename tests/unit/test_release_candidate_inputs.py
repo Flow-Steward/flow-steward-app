@@ -745,7 +745,7 @@ def test_runtime_candidate_marks_cached_frontend_dist_fresh_after_source_copy() 
 
     source_copy = "COPY --chown=fs:fs --from=source-slices /out/app/ /app/"
     dist_copy = (
-        "COPY --chmod=u=rwX,go=rX --chown=fs:fs --from=frontend-build "
+        "COPY --chown=fs:fs --from=frontend-build "
         "/app/assets/frontend/dist assets/frontend/dist"
     )
     freshness_marker = "RUN touch assets/frontend/dist/.vite/manifest.json"

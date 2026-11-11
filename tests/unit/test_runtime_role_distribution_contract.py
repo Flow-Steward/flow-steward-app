@@ -733,7 +733,7 @@ def test_frontend_and_app_artifacts_include_the_platform_kit_runtime_assets() ->
     assert "COPY assets/platform-kit/ assets/platform-kit/" in frontend_build
     assert "COPY assets/platform-kit/ assets/platform-kit/" in frontend_development
     assert (
-        "COPY --chmod=u=rwX,go=rX --chown=fs:fs --from=frontend-build /app/assets/platform-kit "
+        "COPY --chown=fs:fs --from=frontend-build /app/assets/platform-kit "
         "assets/platform-kit" in app_runtime
     )
 

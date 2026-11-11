@@ -10,7 +10,14 @@ the source has (measured: 700 stays 700). Under umask 077 every copied directory
 So the images normalise modes themselves instead of trusting the build host. The rule
 is derived from the stages: in every runtime stage, every COPY sets modes, unless its
 source is normalised by construction -- the source slices, whose materialiser writes
-644/755 itself, or the Traefik binary, which is chmod-ed explicitly.
+644/755 itself, the frontend build, which runs chmod -R over its outputs, or the
+Traefik binary, which is chmod-ed explicitly.
+
+The frontend trees must not carry a symbolic --chmod at all. BuildKit 0.20 (Docker
+28.0) applies --chmod=u=rwX to nested directories without the X, measured: every
+subdirectory arrives as drw-r--r--, whatever mode its source had, so not even the owner
+can enter it. The OAuth browser lane built its image with such a daemon on GitHub
+runners, and fs-app answered every platform-kit/components/*.js request with a fault.
 """
 
 from __future__ import annotations
@@ -31,7 +38,7 @@ RUNTIME_STAGES = {
     },
     "infra/mcp/Dockerfile": {"runtime"},
 }
-NORMALISED_SOURCES = ("--from=source-slices", "--from=compact-traefik")
+NORMALISED_SOURCES = ("--from=source-slices", "--from=frontend-build", "--from=compact-traefik")
 MODE = "--chmod=u=rwX,go=rX"
 
 
@@ -72,14 +79,32 @@ def test_the_rule_reaches_every_runtime_stage(dockerfile: str) -> None:
         assert copies.get(stage), f"{dockerfile}: no COPY found in stage {stage}"
 
 
-def test_the_ui_assets_that_were_unreadable_are_normalised() -> None:
-    """The measured case, named: platform-kit into the app and Compact images."""
-    copies = _copies("infra/docker/Dockerfile")
+def _stage_runs(dockerfile: str, stage: str) -> str:
+    text = (ROOT / dockerfile).read_text(encoding="utf-8").replace("\\\n", " ")
+    body = text.split(f" AS {stage}\n", 1)[1].split("\nFROM ", 1)[0]
+    return "\n".join(line for line in body.splitlines() if line.startswith("RUN "))
 
+
+def test_the_ui_assets_that_were_unreadable_are_normalised() -> None:
+    """The measured case, named: platform-kit into the app and Compact images.
+
+    Its modes are set where it is built, and no runtime COPY of a frontend tree
+    re-applies a symbolic mode that an older BuildKit would get wrong.
+    """
+    copies = _copies("infra/docker/Dockerfile")
+    build_runs = _stage_runs("infra/docker/Dockerfile", "frontend-build")
+
+    assert re.search(
+        r"chmod -R u=rwX,go=rX /app/assets/frontend/dist /app/assets/platform-kit\s+"
+        r"/app/assets/platform-components\.css",
+        build_runs,
+    ), build_runs
     for stage in ("app-runtime", "compact-runtime"):
         kit = [line for line in copies[stage] if "assets/platform-kit" in line]
         assert kit, (stage, kit)
-        assert all(MODE in line for line in kit), (stage, kit)
+        frontend = [line for line in copies[stage] if "--from=frontend-build" in line]
+        assert len(frontend) == 3, (stage, frontend)
+        assert not [line for line in frontend if "--chmod=" in line], (stage, frontend)
 
 
 # --- the other half: an unreadable asset answered 401 ---

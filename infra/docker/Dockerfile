@@ -385,13 +385,21 @@ RUN cd assets/frontend && npm ci
 
 FROM frontend-dependencies AS frontend-build
 
+# The runtime images copy these trees without --chmod, so their modes are set here.
+# BuildKit 0.20 (Docker 28.0) applies a symbolic --chmod=u=rwX to nested directories
+# without the X: every subdirectory arrives as drw-r--r--, and nobody, not even its
+# owner, can enter it. platform-kit/components was unreachable that way in the OAuth
+# browser lane on GitHub runners. coreutils chmod applies X correctly on any daemon.
+
 COPY assets/frontend/ assets/frontend/
 COPY assets/platform-kit/ assets/platform-kit/
 COPY assets/platform-components.css assets/platform-components.css
 RUN cd assets/frontend \
     && rm -rf dist \
     && npm run build \
-    && test -f dist/index.html
+    && test -f dist/index.html \
+    && chmod -R u=rwX,go=rX /app/assets/frontend/dist /app/assets/platform-kit \
+       /app/assets/platform-components.css
 
 
 FROM frontend-dependencies AS frontend-development
@@ -490,9 +498,9 @@ FROM runtime-dependencies AS app-runtime
 
 COPY --chmod=u=rwX,go=rX infra/docker/sitecustomize.py /usr/local/lib/python3.12/site-packages/sitecustomize.py
 COPY --chown=fs:fs --from=source-slices /out/app/ /app/
-COPY --chmod=u=rwX,go=rX --chown=fs:fs --from=frontend-build /app/assets/frontend/dist assets/frontend/dist
-COPY --chmod=u=rwX,go=rX --chown=fs:fs --from=frontend-build /app/assets/platform-kit assets/platform-kit
-COPY --chmod=u=rwX,go=rX --chown=fs:fs --from=frontend-build /app/assets/platform-components.css assets/platform-components.css
+COPY --chown=fs:fs --from=frontend-build /app/assets/frontend/dist assets/frontend/dist
+COPY --chown=fs:fs --from=frontend-build /app/assets/platform-kit assets/platform-kit
+COPY --chown=fs:fs --from=frontend-build /app/assets/platform-components.css assets/platform-components.css
 RUN touch assets/frontend/dist/.vite/manifest.json \
     && pip install --no-cache-dir --no-deps ./core/infrastructure/extension_sdk/public \
     && python -c "import flowsteward_extension_sdk"
@@ -573,9 +581,9 @@ RUN groupadd --gid 10100 fs-artifacts \
 
 COPY --from=compact-traefik /usr/local/bin/traefik /usr/local/bin/traefik
 COPY --from=source-slices /out/compact/ /app/
-COPY --chmod=u=rwX,go=rX --from=frontend-build /app/assets/frontend/dist assets/frontend/dist
-COPY --chmod=u=rwX,go=rX --from=frontend-build /app/assets/platform-kit assets/platform-kit
-COPY --chmod=u=rwX,go=rX --from=frontend-build /app/assets/platform-components.css assets/platform-components.css
+COPY --from=frontend-build /app/assets/frontend/dist assets/frontend/dist
+COPY --from=frontend-build /app/assets/platform-kit assets/platform-kit
+COPY --from=frontend-build /app/assets/platform-components.css assets/platform-components.css
 COPY --chmod=u=rwX,go=rX VERSION VERSION
 COPY --chmod=0755 infra/docker/compact/flow-steward /usr/local/bin/flow-steward
 RUN touch assets/frontend/dist/.vite/manifest.json \
