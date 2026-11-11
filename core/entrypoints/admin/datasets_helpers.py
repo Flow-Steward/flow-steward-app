@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -13,7 +12,7 @@ from fastapi import HTTPException
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID
 from core.application.datasets.catalog_scope import _scope_matches_row
-from core.application.datasets.connection_actions import PROJECT_STATE_UPDATE_FAILED_MESSAGE
+from core.application.datasets.connection_actions import mark_project_state_update_failed
 from core.application.datasets.definition_values import (
     _apply_schema_defaults,
     _non_empty_secret_values,
@@ -34,8 +33,6 @@ from core.entrypoints.admin.datasets_models import (
     DatasetQueryTemplateAction,
 )
 from core.entrypoints.admin.datasets_secret_choices import requested_secret_choices
-
-logger = logging.getLogger(__name__)
 
 DATASET_NOT_FOUND_MESSAGE = "Dataset not found"
 DATA_CONNECTION_STORAGE_IS_NOT_AVAILABLE_VALUE = "Data connection storage is not available"
@@ -359,16 +356,8 @@ def _process_connection_project_state_updates(
             actor_id=None,
         )
     except Exception:
-        logger.exception(
-            "Applying project state updates failed connection_id=%s",
-            str(connection.get("connection_id") or "").strip(),
-        )
-        invocation["status"] = "failed"
-        invocation["detail"] = "project_state_update_failed"
-        invocation["errors"] = [
-            *list(invocation.get("errors") or []),
-            {"code": "project_state_update_failed", "message": PROJECT_STATE_UPDATE_FAILED_MESSAGE},
-        ]
+        connection_id = str(connection.get("connection_id") or "").strip()
+        mark_project_state_update_failed(invocation, connection_id=connection_id)
 
 
 def _response_from_invocation(invocation: dict[str, Any]) -> dict:

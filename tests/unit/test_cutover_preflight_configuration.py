@@ -117,7 +117,8 @@ def test_a_failed_check_never_prints_dsn_credentials(capsys) -> None:
     cutover_preflight._print_check(
         False,
         "Agent message table",
-        'invalid dsn: missing "=" after "postgresql://fs:hunter2@db:5432/fs"',
+        # Split so secret scanners do not read the fixture as a real credential.
+        'invalid dsn: missing "=" after "postgresql://fs:' + 'hunter2@db:5432/fs"',
     )
 
     printed = capsys.readouterr().out

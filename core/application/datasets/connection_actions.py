@@ -92,16 +92,26 @@ def _process_project_state_updates(
             extension_install_id=_text(connection.get("extension_install_id")) or None,
         )
     except Exception:
-        logger.exception(
-            "Applying project state updates failed connection_id=%s",
-            _text(connection.get("connection_id")),
+        mark_project_state_update_failed(
+            invocation, connection_id=_text(connection.get("connection_id"))
         )
-        invocation["status"] = "failed"
-        invocation["detail"] = "project_state_update_failed"
-        invocation["errors"] = [
-            *list(invocation.get("errors") or []),
-            {"code": "project_state_update_failed", "message": PROJECT_STATE_UPDATE_FAILED_MESSAGE},
-        ]
+
+
+def mark_project_state_update_failed(
+    invocation: dict[str, Any], *, connection_id: str = ""
+) -> None:
+    """Log the failure and record it on the invocation without the exception text.
+
+    Call it from an ``except`` block: the traceback goes to the log, the caller
+    only ever sees the fixed message.
+    """
+    logger.exception("Applying project state updates failed connection_id=%s", connection_id)
+    invocation["status"] = "failed"
+    invocation["detail"] = "project_state_update_failed"
+    invocation["errors"] = [
+        *list(invocation.get("errors") or []),
+        {"code": "project_state_update_failed", "message": PROJECT_STATE_UPDATE_FAILED_MESSAGE},
+    ]
 
 
 def _resolve_extension(connection: Mapping[str, Any], db: Any) -> dict[str, Any] | None:

@@ -14,7 +14,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
-from core.application.datasets.connection_actions import PROJECT_STATE_UPDATE_FAILED_MESSAGE
+from core.application.datasets.connection_actions import mark_project_state_update_failed
 from core.application.extensions.provider_install_binding import (
     resolve_install_bound_provider_extension,
 )
@@ -503,13 +503,7 @@ def _apply_provider_project_state_updates(
             actor_id=_scope_value(scope, "actor_id") or None,
         )
     except Exception:
-        _logger.exception("Applying provider project state updates failed")
-        invocation["status"] = "failed"
-        invocation["detail"] = "project_state_update_failed"
-        invocation["errors"] = [
-            *list(invocation.get("errors") or []),
-            {"code": "project_state_update_failed", "message": PROJECT_STATE_UPDATE_FAILED_MESSAGE},
-        ]
+        mark_project_state_update_failed(invocation)
 
 
 def _normalize_task_provider_payload(
