@@ -304,7 +304,20 @@ def test_an_install_gives_each_implementation_the_anchor_a_run_pins() -> None:
 
     class RegistryStore:
         def __init__(self) -> None:
-            self.rows: dict[str, dict] = {"extension.pi_addon.kept": {"workflow_id": "kept"}}
+            self.rows: dict[str, dict] = {
+                "extension.pi_addon.kept": {
+                    "workflow_id": "extension.pi_addon.kept",
+                    "display_name": "kept",
+                    "revision": 3,
+                },
+                # A stale name: a release renamed the workflow behind the action.
+                "extension.pi_addon.renamed": {
+                    "workflow_id": "extension.pi_addon.renamed",
+                    "display_name": "Old name",
+                    "revision": 7,
+                    "settings": {"note": "kept"},
+                },
+            }
 
         def get_workflow(self, workflow_id: str) -> dict | None:
             return self.rows.get(workflow_id)
@@ -329,7 +342,8 @@ def test_an_install_gives_each_implementation_the_anchor_a_run_pins() -> None:
     service._ensure_action_implementation_anchors(
         [
             snapshot("create_full", {**marked, "display_name": "Create order with shipment"}),
-            snapshot("kept", marked),  # its anchor already exists
+            snapshot("kept", marked),  # its anchor already exists under the same name
+            snapshot("renamed", {**marked, "display_name": "New name"}),
             snapshot("report", {"workflow_id": "report", "settings": {}}),  # an ordinary workflow
             snapshot("draft", marked, publish=False),
             snapshot("create_full", marked, kind="tool"),
@@ -349,5 +363,18 @@ def test_an_install_gives_each_implementation_the_anchor_a_run_pins() -> None:
                 "visible_in_catalog": False,
             },
             {"author": "extension-install", "create_only": True},
-        )
+        ),
+        (
+            {
+                "workflow_id": "extension.pi_addon.renamed",
+                "display_name": "New name",
+                "settings": {"note": "kept"},
+                "enabled": True,
+                "source_install_id": "pi_addon",
+                "local_workflow_id": "renamed",
+                "projection_mode": "derived",
+                "visible_in_catalog": False,
+            },
+            {"author": "extension-install", "expected_revision": 7},
+        ),
     ]

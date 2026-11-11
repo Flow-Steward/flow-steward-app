@@ -12,6 +12,28 @@ from .command_context import ExtensionCommandContext
 from .extension_runtime import ExtensionRegistryProjectionRecord
 from .service_support import _normalize_text
 
+#: What an anchor row keeps when the install renames it (the fields a project link keeps).
+_ANCHOR_KEPT_FIELDS = (
+    "workflow_key",
+    "version",
+    "description",
+    "trigger",
+    "settings",
+    "tags",
+    "builder_metadata_jsonb",
+    "account_id",
+    "scope_kind",
+    "source_release_id",
+    "source_projection_id",
+    "derived_from_kind",
+    "derived_from_ref",
+    "sync_status",
+    "availability_status",
+    "availability_reason_code",
+    "availability_reason_text",
+    "new_runs_blocked",
+)
+
 
 def _denied_token(
     command: ExtensionRuntimeTokenInput,
@@ -152,13 +174,21 @@ class ExtensionInstallProjectionService:
             for snapshot in implementations:
                 local_id = _normalize_text(getattr(snapshot, "artifact_id", ""))
                 workflow_id = projection_bridge_id(install_id, local_id)
-                if registry_store.get_workflow(workflow_id):
-                    continue
                 body = dict(getattr(snapshot, "snapshot", {}) or {})
+                display_name = _normalize_text(body.get("display_name")) or local_id
+                existing = registry_store.get_workflow(workflow_id)
+                if isinstance(existing, dict) and existing.get("display_name") == display_name:
+                    continue
+                # The run of an action is titled by this name; a release may rename it.
                 registry_store.save_workflow(
                     {
+                        **{
+                            key: existing[key]
+                            for key in _ANCHOR_KEPT_FIELDS
+                            if isinstance(existing, dict) and key in existing
+                        },
                         "workflow_id": workflow_id,
-                        "display_name": _normalize_text(body.get("display_name")) or local_id,
+                        "display_name": display_name,
                         "enabled": True,
                         "source_install_id": install_id,
                         "local_workflow_id": local_id,
@@ -166,7 +196,11 @@ class ExtensionInstallProjectionService:
                         "visible_in_catalog": False,
                     },
                     author="extension-install",
-                    create_only=True,
+                    **(
+                        {"expected_revision": int(existing["revision"])}
+                        if isinstance(existing, dict) and existing.get("revision") is not None
+                        else {"create_only": True}
+                    ),
                 )
 
         if not self._run_with_lifecycle_connection(registry_store, ensure):
