@@ -30,7 +30,7 @@ _ROUTE_IDENTIFIERS = {
 
 
 def test_scope_and_route_tables_cover_exact_public_inventory() -> None:
-    assert len(MCP_TOOL_SCOPES) == 73
+    assert len(MCP_TOOL_SCOPES) == 74
     assert set(MCP_TOOL_SCOPES) == set(MCP_TOOL_ROUTES)
     assert {
         "kb_search",

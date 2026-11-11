@@ -207,9 +207,6 @@
   --fs-public-auth-brand-title-mobile-size: 26px;
   --fs-public-auth-brand-title-line-height: 1.04;
   --fs-public-auth-submit-loading-opacity: 0.7;
-  --fs-public-auth-submit-spinner-duration: 600ms;
-  --fs-public-auth-submit-spinner-track: rgb(255 255 255 / 40%);
-  --fs-public-auth-submit-spinner-head: #fff;
 
   /* Command menu component roles - Canonical contract */
   --fs-command-surface: var(--fs-bg-surface);
@@ -806,9 +803,8 @@
   --fs-switch-focus-ring: var(--fs-focus-ring);
   --fs-switch-motion: var(--fs-motion-background-hover);
 
-  /* Loading roles */
-  --fs-loader-node: var(--fs-green, #1e6251);
-  --fs-spinner-loop: 1s;
+  /* Indeterminate Progress keeps its own cadence. */
+  --fs-progress-loop: 1s;
 
   /* Skeleton roles. A skeleton holds the geometry of content that has not
      arrived, so every measure here describes what it stands in for rather than
@@ -1542,59 +1538,6 @@
 }
 
 
-/* Shared region-level Loader signature
-   Four solid theme-primary green nodes rise as a calm wave for page, card or block loading.
-   Control-level IconButton loading uses .fs-spinner-icon instead. */
-.fs-wave-loader {
-  display: inline-flex;
-  width: 18px;
-  height: 14px;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  flex: none;
-  vertical-align: -0.125em;
-}
-
-.fs-wave-loader > span {
-  width: 3.5px;
-  height: 3.5px;
-  border-radius: var(--fs-radius-circle, 50%);
-  background: var(--fs-loader-node, var(--fs-green, #1e6251));
-  opacity: 0.34;
-  transform: translateY(3px);
-  animation: fs-wave-loader var(--fs-wave-loop, 1.4s) var(--fs-ease, ease) infinite;
-}
-
-.fs-wave-loader > span:nth-child(1) {
-  animation-delay: 0s;
-}
-
-.fs-wave-loader > span:nth-child(2) {
-  animation-delay: 0.14s;
-}
-
-.fs-wave-loader > span:nth-child(3) {
-  animation-delay: 0.28s;
-}
-
-.fs-wave-loader > span:nth-child(4) {
-  animation-delay: 0.42s;
-}
-
-.fs-spinner-icon {
-  display: block;
-  stroke-width: var(--fs-spinner-stroke);
-  transform-origin: center;
-  animation: fs-spinner-rotate var(--fs-spinner-loop, 1s) linear infinite;
-}
-
-@keyframes fs-spinner-rotate {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .fs-skeleton {
   display: block;
   background: var(--fs-skeleton-bg);
@@ -1627,19 +1570,6 @@
   .fs-skeleton { animation: none; opacity: var(--fs-skeleton-opacity-rest); }
 }
 
-@keyframes fs-wave-loader {
-  0%,
-  100% {
-    opacity: 0.34;
-    transform: translateY(3px);
-  }
-
-  50% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   /* Every duration collapses to the reduced step, so each semantic motion token
      resolves to 1ms. The state itself still changes: feedback is never removed,
@@ -1661,16 +1591,6 @@
 
   .fs-loader-orbit.md {
     background-image: url("../assets/brand/loader/flow-steward-loader-orbit-still.svg");
-  }
-
-  .fs-wave-loader > span {
-    animation: none;
-    opacity: 0.78;
-    transform: none;
-  }
-
-  .fs-spinner-icon {
-    animation: none;
   }
 }
 
@@ -1768,7 +1688,7 @@
   --fs-action-accent: #ff7504;
   --fs-action-accent-hover: #ff9233;
   --fs-action-accent-active: #ffa65c;
-  --fs-action-accent-text: #190d02;
+  --fs-action-accent-text: #fff;
   --fs-action-accent-wash: rgb(255 117 4 / 12%);
 
   /* Status roles */
@@ -2050,9 +1970,6 @@
   /* Progress roles — the subtle border is too faint to read as a track on a
      dark surface, so the track alone steps up to the strong border role. */
   --fs-progress-track-bg: var(--fs-border-strong);
-
-  /* Loading roles */
-  --fs-loader-node: var(--fs-action-primary, #3fa88f);
 
   /* Skeleton roles */
   --fs-skeleton-bg: var(--fs-bg-surface-muted);

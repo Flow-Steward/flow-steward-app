@@ -399,6 +399,19 @@ one of these local modes is inherited. Verified TLS remains allowed in every mod
 For host development, `loopback-local` permits plaintext only at an explicit
 numeric loopback address and port, such as `127.0.0.1:5673` or `[::1]:5673`.
 `localhost`, other DNS names, and non-loopback private addresses do not qualify.
+
+A Compact installation on a hosting provider (Railway, Fly.io, Render) that
+reaches its broker over the provider's private network selects
+`platform-private` and names that one broker in `FS_RABBITMQ_PRIVATE_HOST`, for
+example `rabbitmq.railway.internal`. Plaintext is then allowed only to that
+exact host name on an explicit port `5672`; IP literals are refused, and the
+variable is ignored in every other mode. Select it only when the provider keeps
+that network unreachable from the internet, and note who else shares it: every
+service in the same Railway environment, every application in the same Fly.io
+organization, every service in the same Render workspace and region. Render does
+not document encryption of private traffic. See
+[ADR 0064](../architecture/adr/0064-rabbitmq-platform-private-transport.md).
+
 No mode disables certificate checks. Deployment doctor applies the same policy
 before probing the broker socket. Refusal diagnostics never include URI credentials.
 

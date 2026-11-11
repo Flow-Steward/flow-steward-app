@@ -3,8 +3,6 @@ import { MoreVertical, X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PropsWithChildren, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { focusAfterRequestLoading, resolveRequestLoadingOpener } from "@/components/shared/request-loading-focus";
-
 /* Drawer — non-blocking contextual detail, per
    03_components/overlays-feedback/drawer.md. Deliberately not `aria-modal` and
    deliberately without a scrim: the page beneath stays interactive. Reach for
@@ -61,7 +59,6 @@ export function DsDrawer({
   const previousContextRef = useRef(focusContext);
   const returnFocusEpochRef = useRef(0);
   const returnFocusMountedRef = useRef(false);
-  const cancelReturnFocusRef = useRef<(() => void) | null>(null);
   useLayoutEffect(() => {
     optionsRef.current = { onClose, focusContext, returnOwner, focusFallback };
   }, [onClose, focusContext, returnOwner, focusFallback]);
@@ -72,13 +69,9 @@ export function DsDrawer({
       openReturnOwnerRef.current = returnOwner;
     }
     returnFocusEpochRef.current += 1;
-    cancelReturnFocusRef.current?.();
-    cancelReturnFocusRef.current = null;
     return () => {
       returnFocusMountedRef.current = false;
       returnFocusEpochRef.current += 1;
-      cancelReturnFocusRef.current?.();
-      cancelReturnFocusRef.current = null;
     };
   }, [focusContext, open, returnOwner]);
   useEffect(() => {
@@ -138,32 +131,13 @@ export function DsDrawer({
         const focused = deepestActiveElement();
         // A page action or child navigation that already moved focus owns it.
         if (focused && focused !== document.body && !panel?.contains(focused)) return;
-        const raw = document.activeElement;
-        const loader = raw instanceof HTMLElement && resolveRequestLoadingOpener(raw) !== raw ? raw : null;
-        const resolveTarget = () => {
-          if (canReceiveDrawerFocus(opener)) return opener;
-          const fallback = optionsRef.current.focusFallback?.();
-          return canReceiveDrawerFocus(fallback) ? fallback : null;
-        };
-        cancelReturnFocusRef.current = focusAfterRequestLoading(opener || optionsRef.current.focusFallback?.() || null, () => {}, {
-          resolveTarget,
-          focusOptions: { preventScroll: true },
-          canFocus: (target) => {
-            if (!ownsReturn() || !canReceiveDrawerFocus(target)) return false;
-            const actual = document.activeElement;
-            const resolved = deepestActiveElement();
-            // Loader cleanup unregisters before delivery and DOM removal. Only
-            // this captured, now-closed loader may still represent the old panel.
-            const closingLoader = actual === loader && loader instanceof HTMLDialogElement && !loader.open;
-            if (actual instanceof HTMLElement && actual !== document.body && !panel?.contains(actual)
-              && resolveRequestLoadingOpener(actual) === actual && !closingLoader) return false;
-            if (resolved && resolved !== document.body && !panel?.contains(resolved) && !closingLoader) return false;
-            const modal = Array.from(document.querySelectorAll<HTMLElement>(
-              'dialog[open][aria-modal="true"], [role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]',
-            )).findLast((node) => !node.closest('[hidden], [aria-hidden="true"]'));
-            return !modal || modal.contains(target);
-          },
-        });
+        const target = canReceiveDrawerFocus(opener) ? opener : optionsRef.current.focusFallback?.();
+        if (!canReceiveDrawerFocus(target)) return;
+        const modal = Array.from(document.querySelectorAll<HTMLElement>(
+          'dialog[open][aria-modal="true"], [role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]',
+        )).findLast((node) => !node.closest('[hidden], [aria-hidden="true"]'));
+        if (modal && !modal.contains(target)) return;
+        target.focus({ preventScroll: true });
       });
     };
   }, [open]);
@@ -244,7 +218,7 @@ function deepestActiveElement(): HTMLElement | null {
   while (activeElement?.shadowRoot?.activeElement) {
     activeElement = activeElement.shadowRoot.activeElement;
   }
-  return resolveRequestLoadingOpener(activeElement instanceof HTMLElement ? activeElement : null);
+  return activeElement instanceof HTMLElement ? activeElement : null;
 }
 
 export function DsDialog({

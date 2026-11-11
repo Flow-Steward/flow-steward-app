@@ -120,6 +120,33 @@ describe("ExtensionDetailPanel marketplace links", () => {
     }
   });
 
+  it("marks only the running lifecycle action busy and ignores sibling presses while it runs", async () => {
+    const user = userEvent.setup();
+    const handleToggle = vi.fn();
+    const handleUninstall = vi.fn();
+    render(
+      <AuthContext.Provider value={{ session: { roles: ["admin"] } } as never}>
+        <ExtensionDetailPanel
+          {...panelProps()}
+          busyById={{ "fixture.extension": "health" }}
+          detailExtension={{ extension_id: "fixture.extension", active: true } as never}
+          handleToggle={handleToggle}
+          handleUninstall={handleUninstall}
+        />
+      </AuthContext.Provider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Extension runtime health" })).toHaveAttribute("aria-busy", "true");
+    for (const name of ["Disable", "Uninstall"]) {
+      const sibling = screen.getByRole("button", { name });
+      expect(sibling).toBeEnabled();
+      expect(sibling).not.toHaveAttribute("aria-busy");
+      await user.click(sibling);
+    }
+    expect(handleToggle).not.toHaveBeenCalled();
+    expect(handleUninstall).not.toHaveBeenCalled();
+  });
+
   it("shows administrators the code review folded, in plain words, with file and line", () => {
     const props = panelProps();
     render(

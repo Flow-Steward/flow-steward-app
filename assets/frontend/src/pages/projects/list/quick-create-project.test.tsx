@@ -242,7 +242,7 @@ describe("Quick create project contract", () => {
     const fetchSpy = spyOnCreateRequest();
     renderPage();
     const dialog = await openCreate();
-    expect(within(dialog).getByText("Loading workspaces...")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Loading workspaces…")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Name" }), { target: { value: "Pending inventory" } });
     fireEvent.submit(within(dialog).getByTestId("create-modal"));

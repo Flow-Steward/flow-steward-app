@@ -26,7 +26,8 @@ export function ApprovalDecision({ approval, commentDraft, focusRequest = true }
   const requestRef = useRef<HTMLParagraphElement>(null);
   const titleId = useId();
   const commentId = useId();
-  const busy = useLoaderDelay(approval.pending);
+  const [pressed, setPressed] = useState<"approve" | "reject" | "abort" | "">("");
+  const pendingAction = approval.pending ? pressed : "";
   const allowedActions = approval.allowedActions || ["approve", "reject"];
   const [localComment, setLocalComment] = useState({ identity: approval.identity, value: "" });
   if (localComment.identity !== approval.identity) setLocalComment({ identity: approval.identity, value: "" });
@@ -60,10 +61,10 @@ export function ApprovalDecision({ approval, commentDraft, focusRequest = true }
     </div>
     {approval.error ? <p className="workflow-kept-error" role="alert">{approval.error}</p> : null}
     <div className="workflow-approval-actions">
-      {allowedActions.includes("reject") ? <Button disabled={approval.pending} onClick={() => approval.decide(false, comment)} type="button" variant="secondary">{t("react.workflows.approval_reject", "Reject")}</Button> : null}
-      {allowedActions.includes("abort") ? <Button disabled={approval.pending || !approval.abort} onClick={() => approval.abort?.(comment)} type="button" variant="secondary">{t("react.jobs.cancel_run", "Cancel run")}</Button> : null}
-      {allowedActions.includes("approve") ? <Button aria-busy={approval.pending || undefined} disabled={approval.pending} onClick={() => approval.decide(true, comment)} type="button" variant="primary">
-        {busy ? <DsLoader variant="orbit-inline" /> : null}{t("react.workflows.approval_approve", "Approve")}</Button> : null}
+      {allowedActions.includes("reject") ? <Button busy={pendingAction === "reject"} busyLabel={t("react.settings.sending", "Sending…")} onClick={() => { if (approval.pending) return; setPressed("reject"); approval.decide(false, comment); }} type="button" variant="secondary">{t("react.workflows.approval_reject", "Reject")}</Button> : null}
+      {allowedActions.includes("abort") ? <Button busy={pendingAction === "abort"} busyLabel={t("react.jobs.cancelling", "Cancelling…")} disabled={!approval.abort} onClick={() => { if (approval.pending) return; setPressed("abort"); approval.abort?.(comment); }} type="button" variant="secondary">{t("react.jobs.cancel_run", "Cancel run")}</Button> : null}
+      {allowedActions.includes("approve") ? <Button busy={pendingAction === "approve"} busyLabel={t("react.settings.sending", "Sending…")} onClick={() => { if (approval.pending) return; setPressed("approve"); approval.decide(true, comment); }} type="button" variant="primary">
+        {t("react.workflows.approval_approve", "Approve")}</Button> : null}
     </div>
   </section>;
 }
@@ -89,7 +90,6 @@ function KeptTestOutputSection({ evidence, step, latest }: Readonly<{ evidence: 
   const kept = evidence.kept.get(step.stepId);
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const busy = useLoaderDelay(evidence.keptPending);
   if (!stepKindKeepsOutput(step.kind)) {
     return <section className="workflow-step-run" aria-labelledby={`${id}-title`}>
       <h3 className="workflow-step-run-title" id={`${id}-title`}>{t("react.workflows.kept_output_title", "Test output")}</h3>
@@ -123,18 +123,18 @@ function KeptTestOutputSection({ evidence, step, latest }: Readonly<{ evidence: 
       <p className="workflow-step-run-sub">{t("react.workflows.kept_output_in_use", "In test runs this step does not do its work: it returns these values. Real runs are not affected.")}</p>
       {Object.entries(kept.outputs).map(([name, value]) => <RunValue key={name} name={name} value={value} />)}
       <div className="workflow-kept-actions">
-        <Button disabled={evidence.keptPending} onClick={() => { setError(""); setDraft(JSON.stringify(kept.outputs, null, 2)); }} size="sm" type="button" variant="secondary">{t("react.workflows.kept_output_edit", "Edit")}</Button>
-        <Button aria-busy={evidence.keptPending || undefined} disabled={evidence.keptPending} onClick={() => ignoreAsyncResult((async () => setError(await evidence.clearOutput(step.stepId)))())} size="sm" type="button" variant="secondary">
-          {busy ? <DsLoader variant="orbit-inline" /> : null}{t("react.workflows.kept_output_stop_using", "Stop using it")}</Button>
+        <Button onClick={() => { if (evidence.keptPending) return; setError(""); setDraft(JSON.stringify(kept.outputs, null, 2)); }} size="sm" type="button" variant="secondary">{t("react.workflows.kept_output_edit", "Edit")}</Button>
+        <Button busy={evidence.keptPending} busyLabel={t("react.settings.updating", "Updating…")} onClick={() => ignoreAsyncResult((async () => setError(await evidence.clearOutput(step.stepId)))())} size="sm" type="button" variant="secondary">
+          {t("react.workflows.kept_output_stop_using", "Stop using it")}</Button>
       </div>
     </> : null}
     {!kept && draft === null ? <>
       <p className="workflow-step-run-sub">{t("react.workflows.kept_output_offer", "In test runs this step does its work. Keep an output to stand in for it: the test then skips the step and goes on with those values. Real runs are not affected.")}</p>
       {step.local ? <p className="workflow-step-run-sub">{t("react.workflows.kept_output_apply_first", "Apply the changes before keeping a test output for this step.")}</p> : <div className="workflow-kept-actions">
-        {latestKeepable ? <Button disabled={evidence.keptPending} onClick={() => ignoreAsyncResult((async () => {
+        {latestKeepable ? <Button busy={evidence.keptPending} busyLabel={t("react.settings.saving", "Saving…")} onClick={() => ignoreAsyncResult((async () => {
           setError(await evidence.keepOutput(step.stepId, keptOutputsFromPass(latestKeepable, step.declaredOutputs), { kind: "run", jobId: evidence.jobId }));
         })())} size="sm" type="button" variant="secondary">{t("react.workflows.kept_output_keep_latest", "Keep the latest output")}</Button> : null}
-        <Button disabled={evidence.keptPending} onClick={() => { setError(""); setDraft(emptyKeptDraft(step.declaredOutputs)); }} size="sm" type="button" variant="secondary">{t("react.workflows.kept_output_write", "Write it yourself")}</Button>
+        <Button onClick={() => { if (evidence.keptPending) return; setError(""); setDraft(emptyKeptDraft(step.declaredOutputs)); }} size="sm" type="button" variant="secondary">{t("react.workflows.kept_output_write", "Write it yourself")}</Button>
       </div>}
     </> : null}
     {draft !== null ? <div className="fs-field">
@@ -144,8 +144,8 @@ function KeptTestOutputSection({ evidence, step, latest }: Readonly<{ evidence: 
       <p className="fs-field-helper" id={`${id}-help`}>{t("react.workflows.kept_output_values_help", "One value per output; each is JSON and is checked on Save.")}</p>
       <div className="workflow-kept-actions">
         <Button onClick={() => { setDraft(null); setError(""); }} size="sm" type="button" variant="secondary">{t("common.cancel", "Cancel")}</Button>
-        <Button aria-busy={evidence.keptPending || undefined} disabled={evidence.keptPending} onClick={save} size="sm" type="button" variant="primary">
-          {busy ? <DsLoader variant="orbit-inline" /> : null}{t("common.save", "Save")}</Button>
+        <Button busy={evidence.keptPending} busyLabel={t("react.settings.saving", "Saving…")} onClick={save} size="sm" type="button" variant="primary">
+          {t("common.save", "Save")}</Button>
       </div>
     </div> : null}
     {error ? <p className="workflow-kept-error" id={`${id}-error`} role="alert">{error}</p> : null}
@@ -156,6 +156,7 @@ function KeptTestOutputSection({ evidence, step, latest }: Readonly<{ evidence: 
 export function StepTestRunLatest({ evidence, step, commentDraft }: Readonly<{ evidence?: WorkflowTestRunEvidence | null; step: StepTestRunStep | null; commentDraft?: ReviewCommentDraft }>) {
   const { t } = useI18n();
   const id = useId();
+  const runningLoader = useLoaderDelay(evidence?.passes.filter((pass) => pass.stepId === step?.stepId).at(-1)?.state === "running");
   if (!evidence || !step) return null;
   const passes = evidence.passes.filter((pass) => pass.stepId === step.stepId);
   const latest = passes.at(-1);
@@ -164,7 +165,7 @@ export function StepTestRunLatest({ evidence, step, commentDraft }: Readonly<{ e
     {approval ? <ApprovalDecision approval={approval} commentDraft={commentDraft} /> : null}
     {latest ? <section className="workflow-step-run" aria-labelledby={`${id}-latest`}>
       <h3 className="workflow-step-run-title" id={`${id}-latest`}>{t("react.workflows.latest_workflow_test_run", "Latest workflow test run")}</h3>
-      <p className="workflow-step-run-state workflow-step-run-sub" data-run={latest.state}>{passStateLine(latest, t)}</p>
+      <p className="workflow-step-run-state workflow-step-run-sub" data-run={latest.state}>{latest.state === "running" && runningLoader ? <DsLoader variant="orbit-inline" label={passStateLine(latest, t)} /> : passStateLine(latest, t)}</p>
       {passes.length > 1 ? <p className="workflow-step-run-sub">{t("react.workflows.step_run_latest_of_passes", "The latest of {count} passes in this run.", { count: String(passes.length) })}</p> : null}
       {latest.state !== "running" ? <RunPassValues error={latest.state === "failed" ? latest.error : ""} inputs={latest.inputs} outputs={latest.outputs} /> : null}
     </section> : null}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { extensionActionErrorGuidance, translatedExtensionActionErrorGuidance } from "@/pages/extensions/extension-action-error-guidance";
@@ -50,6 +50,31 @@ it.each([
   await user.type(comment, "  Checked provider records  ");
   await user.click(screen.getByRole("button", { name: label }));
   expect(recovery.onDecision).toHaveBeenCalledExactlyOnceWith(action, "Checked provider records");
+});
+
+it("marks only the pressed recovery decision busy and ignores sibling presses while it runs", async () => {
+  const user = userEvent.setup();
+  let finish: () => void = () => undefined;
+  const recovery = recoveryProps({ onDecision: vi.fn(() => new Promise<void>((resolve) => { finish = resolve; })) });
+  render(<ExtensionActionResultPanel {...{ result: recoveryResult, recovery }} />);
+  await user.type(screen.getByRole("textbox", { name: "Comment" }), "Checked provider records");
+  const approve = screen.getByRole("button", { name: "Operation completed — continue" });
+  const reject = screen.getByRole("button", { name: "Operation not completed — retry" });
+  const later = screen.getByRole("button", { name: "Decide later" });
+  await user.click(approve);
+
+  expect(approve).toHaveAttribute("aria-busy", "true");
+  for (const sibling of [reject, later]) {
+    expect(sibling).toBeEnabled();
+    expect(sibling).not.toHaveAttribute("aria-busy");
+  }
+  await user.click(reject);
+  await user.click(later);
+  expect(recovery.onDecision).toHaveBeenCalledExactlyOnceWith("approve", "Checked provider records");
+  expect(recovery.onLater).not.toHaveBeenCalled();
+
+  await act(async () => { finish(); });
+  expect(approve).not.toHaveAttribute("aria-busy");
 });
 
 it("keeps a restored effect visible and explicitly disables retry without its exact original request", () => {

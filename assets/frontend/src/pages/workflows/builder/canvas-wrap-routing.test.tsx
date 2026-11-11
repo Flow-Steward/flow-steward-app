@@ -64,6 +64,13 @@ const route = (source: string, target: string, outcome: string) => shell().visib
   edge.data?.edge.source.kind === (source.startsWith("group:") ? "group" : "step") &&
   edge.data.edge.source.id === source.replace(/^group:/, "") && edge.target === target && edge.data.edge.outcome.name === outcome,
 )?.data?.route;
+/** A connection into a later row takes the gap above it: no point of it goes lower than where it enters the target. */
+function expectComesFromAbove(source: string, target: string) {
+  const drawn = route(source, target, "success");
+  expect(drawn?.kind).toBe("upper-band");
+  const entry = drawn!.points!.at(-1)!;
+  expect(Math.max(...drawn!.points!.map((point) => point.y))).toBe(entry.y);
+}
 function mount(canvasGraph: WorkflowCanvasGraph) {
   const changeSet = { operations: [], status: "clean", hasChanges: false, applyIssues: [], blockingIssueMessages: [], keptIssueMessages: [], checkState: "idle", applyRefused: false, applyError: "", apply: vi.fn(async () => false), reload: vi.fn(async () => false), discard: vi.fn() };
   const props = { canvasGraph, advancedMode: true, workflowId: "wrap_routing", changeSet,
@@ -115,7 +122,8 @@ it("drops the automatic row hint when a manually placed child reconciles its roo
   localStorage.setItem(manualLayoutStorageKey("wrap_routing"), JSON.stringify(manual));
   mount(graph!);
   await waitFor(() => expect(shell().nodesWithCanvasState.find((node) => node.id === "group:box")?.position.x).not.toBe(automaticGroup.position.x));
-  expect(route(incoming.source, "group:box", "success")?.kind).toBe("lower-band");
+  // The row hint is gone, yet the connection still drops into the row from above, never under it.
+  expectComesFromAbove(incoming.source, "group:box");
   expect(JSON.parse(localStorage.getItem(manualLayoutStorageKey("wrap_routing")) || "{}")).toEqual(manual);
 });
 
@@ -138,7 +146,7 @@ it("uses displayed geometry when the cross-row target root itself is placed by h
   localStorage.setItem(manualLayoutStorageKey("wrap_routing"), JSON.stringify(manual));
   mount(chain(false));
   await waitFor(() => expect(shell().nodesWithCanvasState.find((node) => node.id === targetId)?.position).toEqual(manual[targetId]));
-  expect(route(sourceId, targetId, "success")?.kind).toBe("lower-band");
+  expectComesFromAbove(sourceId, targetId);
   expect(JSON.parse(localStorage.getItem(manualLayoutStorageKey("wrap_routing")) || "{}")).toEqual(manual);
 });
 

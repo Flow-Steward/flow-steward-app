@@ -1,5 +1,8 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { DsCard, DsBadge, DsAlert } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { Plus, X, Ban, Trash2, Save } from "lucide-react";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { formatUserDateTime } from "@/lib/time/user-timezone";
@@ -13,6 +16,7 @@ import {
   tokenId,
   toStringList,
   type AccountDrawerMode,
+  type ServiceAccountAction,
   type TokenDrawerMode,
 } from "./service-account-support";
 import { MachineTokenUsageExample } from "./machine-token-form";
@@ -22,17 +26,18 @@ export function ServiceAccountsListCard({
   isLoading,
   onCreate,
   onSelect,
-  saving,
+  pending,
   selectedKey,
 }: Readonly<{
   accounts: EntityRecord[];
   isLoading: boolean;
   onCreate: () => void;
   onSelect: (account: EntityRecord) => void;
-  saving: boolean;
+  pending: ServiceAccountAction | null;
   selectedKey: string;
 }>) {
   const { t } = useI18n();
+  const loaderShown = useLoaderDelay(isLoading);
   return (
     <DsCard>
       <div className="fs-panel-heading">
@@ -41,7 +46,7 @@ export function ServiceAccountsListCard({
             {t("react.settings.service_accounts_2", "Service accounts")} </h2>
           <p className="fs-card-description">{t("react.settings.each_service_account_is_an_identity_credentials_live_inside_it", "Each service account is an identity; credentials live inside it.")}</p>
         </div>
-        <button className="fs-button primary" disabled={saving} onClick={onCreate} type="button">
+        <button className="fs-button primary" onClick={() => { if (!pending) onCreate(); }} type="button">
           <Plus aria-hidden="true" />
           {t("react.settings.new_service_account", "New service account")} </button>
       </div>
@@ -71,7 +76,8 @@ export function ServiceAccountsListCard({
           })}
         </ul>
       ) : null}
-      {!isLoading && !accounts.length ? (
+      {loaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : null}
+      {!isLoading && !loaderShown && !accounts.length ? (
         <div className="fs-table-state">
           <strong>{t("react.settings.no_service_accounts_found", "No service accounts found.")}</strong>
           <span>{t("react.settings.create_an_identity_then_issue_machine_tokens_inside_it", "Create an identity, then issue machine tokens inside it.")}</span>
@@ -87,7 +93,7 @@ export function ServiceAccountCredentials({
   isLoading,
   onCreate,
   onSelect,
-  saving,
+  pending,
   timezone,
   tokens,
 }: Readonly<{
@@ -96,11 +102,12 @@ export function ServiceAccountCredentials({
   isLoading: boolean;
   onCreate: () => void;
   onSelect: (token: EntityRecord) => void;
-  saving: boolean;
+  pending: ServiceAccountAction | null;
   timezone: string;
   tokens: EntityRecord[];
 }>) {
   const { t } = useI18n();
+  const loaderShown = useLoaderDelay(isLoading);
   return (
     <section className="fs-panel-group">
       <div className="fs-panel-heading">
@@ -111,8 +118,8 @@ export function ServiceAccountCredentials({
         </div>
         <button
           className="fs-button"
-          disabled={!accountKey || saving || !accountActive}
-          onClick={onCreate}
+          disabled={!accountKey || !accountActive}
+          onClick={() => { if (!pending) onCreate(); }}
           type="button"
         >
           <Plus aria-hidden="true" />
@@ -151,7 +158,8 @@ export function ServiceAccountCredentials({
           })}
         </ul>
       ) : null}
-      {!isLoading && !tokens.length ? (
+      {loaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : null}
+      {!isLoading && !loaderShown && !tokens.length ? (
         <p className="fs-empty-copy">{t("react.settings.no_machine_tokens_issued_for_this_identity", "No machine tokens issued for this identity.")}</p>
       ) : null}
     </section>
@@ -170,7 +178,7 @@ export function ServiceAccountDrawer({
   onClose,
   onDelete,
   onToggleActive,
-  saving,
+  pending,
   suspended,
 }: Readonly<{
   accountActive: boolean;
@@ -184,7 +192,7 @@ export function ServiceAccountDrawer({
   onClose: () => void;
   onDelete: () => void;
   onToggleActive: () => void;
-  saving: boolean;
+  pending: ServiceAccountAction | null;
   suspended: boolean;
 }>) {
   const { t } = useI18n();
@@ -227,23 +235,23 @@ export function ServiceAccountDrawer({
       <div className="fs-settings-drawer-foot">
         {detailMode ? (
           <>
-            <button className="fs-button" disabled={saving || !accountKey} onClick={onToggleActive} type="button">
+            <Button busy={pending === "toggle-account"} busyLabel={t("react.settings.updating", "Updating…")} disabled={!accountKey} onClick={() => { if (!pending) onToggleActive(); }} type="button" variant={null}>
               <Ban aria-hidden="true" />
               {accountActive ? t("react.settings.disable_identity", "Disable identity") : t("react.settings.enable_identity", "Enable identity")}
-            </button>
-            <button className="fs-button ghost-danger" disabled={saving || !accountKey} onClick={onDelete} type="button">
+            </Button>
+            <button className="fs-button ghost-danger" disabled={!accountKey} onClick={() => { if (!pending) onDelete(); }} type="button">
               <Trash2 aria-hidden="true" />
               {t("projects.grid.action.delete", "Delete")} </button>
-            <button className="fs-button primary" disabled={saving || !accountKey} form="service-account-form" type="submit">
+            <Button busy={pending === "update-account"} busyLabel={t("react.settings.saving", "Saving…")} disabled={!accountKey} form="service-account-form" type="submit" variant="primary">
               <Save aria-hidden="true" />
-              {saving ? t("project_edit.security.saving", "Saving...") : t("react.settings.save_identity", "Save identity")}
-            </button>
+              {t("react.settings.save_identity", "Save identity")}
+            </Button>
           </>
         ) : (
-          <button className="fs-button primary" disabled={saving} form="service-account-form" type="submit">
+          <Button busy={pending === "create-account"} busyLabel={t("react.settings.creating", "Creating…")} form="service-account-form" type="submit" variant="primary">
             <Plus aria-hidden="true" />
-            {saving ? t("project_edit.security.saving", "Saving...") : t("react.settings.create_service_account", "Create service account")}
-          </button>
+            {t("react.settings.create_service_account", "Create service account")}
+          </Button>
         )}
       </div>
     </AccessibleDrawer>
@@ -301,7 +309,7 @@ export function MachineTokenDrawer({
   onHideSecret,
   onRevoke,
   revoked,
-  saving,
+  pending,
   selectedToken,
   selectedTokenId,
   suspended,
@@ -318,7 +326,7 @@ export function MachineTokenDrawer({
   onHideSecret: () => void;
   onRevoke: () => void;
   revoked: boolean;
-  saving: boolean;
+  pending: ServiceAccountAction | null;
   selectedToken: EntityRecord | undefined;
   selectedTokenId: string;
   suspended: boolean;
@@ -330,7 +338,7 @@ export function MachineTokenDrawer({
     return null;
   }
   const editMode = mode === "edit";
-  const actionDisabled = !accountKey || !selectedTokenId || saving;
+  const actionDisabled = !accountKey || !selectedTokenId;
   return (
     <AccessibleDrawer
       ariaLabel={t("react.settings.machine_token_drawer", "Machine token drawer")}
@@ -362,28 +370,28 @@ export function MachineTokenDrawer({
       <div className="fs-settings-drawer-foot">
         {editMode ? (
           <>
-            <button className="fs-button" disabled={actionDisabled || revoked} onClick={onRevoke} type="button">
+            <button className="fs-button" disabled={actionDisabled || revoked} onClick={() => { if (!pending) onRevoke(); }} type="button">
               <Ban aria-hidden="true" />
               {t("account.tokens.revoke", "Revoke")} </button>
             <button
               className="fs-button ghost-danger"
               disabled={actionDisabled}
               id="machine-token-delete-action"
-              onClick={onDelete}
+              onClick={() => { if (!pending) onDelete(); }}
               type="button"
             >
               <Trash2 aria-hidden="true" />
               {t("projects.grid.action.delete", "Delete")} </button>
-            <button className="fs-button primary" disabled={actionDisabled || revoked} form="machine-token-form" type="submit">
+            <Button busy={pending === "update-token"} busyLabel={t("react.settings.saving", "Saving…")} disabled={!accountKey || !selectedTokenId || revoked} form="machine-token-form" type="submit" variant="primary">
               <Save aria-hidden="true" />
-              {saving ? t("project_edit.security.saving", "Saving...") : t("react.settings.save_token", "Save token")}
-            </button>
+              {t("react.settings.save_token", "Save token")}
+            </Button>
           </>
         ) : (
-          <button className="fs-button primary" disabled={!accountKey || saving} form="machine-token-form" type="submit">
+          <Button busy={pending === "create-token"} busyLabel={t("react.settings.creating", "Creating…")} disabled={!accountKey} form="machine-token-form" type="submit" variant="primary">
             <Plus aria-hidden="true" />
-            {saving ? t("project_edit.security.saving", "Saving...") : t("react.settings.create_machine_token", "Create machine token")}
-          </button>
+            {t("react.settings.create_machine_token", "Create machine token")}
+          </Button>
         )}
       </div>
     </AccessibleDrawer>

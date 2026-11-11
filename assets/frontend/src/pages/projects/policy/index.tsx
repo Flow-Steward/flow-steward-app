@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DsSelect } from "@/components/shared/design-system";
 import {
@@ -280,14 +281,16 @@ export function ProjectPolicyEditor({ projectId }: Readonly<ProjectPolicyEditorP
         ) : null}
       </Card>
 
-      <button
-        className="fs-button primary"
-        disabled={saving || Boolean(retryPolicyError)}
+      <Button
+        busy={saving}
+        busyLabel={t("react.projects.saving", "Saving…")}
+        disabled={Boolean(retryPolicyError)}
         onClick={() => ignoreAsyncResult(handleSave())}
         type="button"
+        variant="primary"
       >
-        {saving ? t("project_edit.security.saving", "Saving...") : t("settings.retention.save_policy", "Save policy")}
-      </button>
+        {t("settings.retention.save_policy", "Save policy")}
+      </Button>
 
       {policyQuery.isError ? (
         <Card className="border-selected fs-surface-attention">

@@ -7,7 +7,9 @@ import { useHref } from "react-router";
 
 import { CatalogByline, CatalogChipRow, CatalogFact, CatalogPageHead, CatalogPills } from "@/components/shared/catalog-browse";
 import { DsAlert, DsBadge, DsSelect, DsValueChip, OptionalLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import type { WorkflowCatalogCreateResult, WorkflowCatalogItem } from "@/pages/workflows/catalog/api";
 import {
   categoryName,
@@ -171,8 +173,8 @@ function CheckingState() {
   const { t } = useI18n();
   const visible = useLoaderDelay();
   return (
-    <div className="fs-table-state" role="status">
-      {visible ? <span>{t("react.workflows.checking_this_installation", "Checking this installation…")}</span> : <span className="fs-sr-only">{t("react.workflows.checking_this_installation", "Checking this installation…")}</span>}
+    <div className="fs-table-state">
+      {visible ? <DsLoader variant="wide-block" label={t("react.workflows.checking_this_installation", "Checking this installation…")} /> : null}
     </div>
   );
 }
@@ -343,14 +345,16 @@ export function CatalogSetupStage({
             </div>
           ) : null}
           <div>
-            <button
-              className="fs-button"
-              disabled={setup.phase === "checking" || setup.creating}
+            <Button
+              busy={setup.phase === "checking"}
+              busyLabel={t("react.extensions.checking", "Checking…")}
+              disabled={setup.creating}
               onClick={() => setup.checkAgain()}
               type="button"
+              variant={null}
             >
               <RefreshCw aria-hidden="true" />
-              {t("react.workflows.check_again", "Check again")}</button>
+              {t("react.workflows.check_again", "Check again")}</Button>
           </div>
         </section>
       ) : null}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { DsLoader } from "@/components/shared/ds-loader";
 import { LOADER_DELAY_MS } from "@/components/shared/use-loader-delay";
-import { beginPageWait } from "@/lib/http/request-activity";
+import { markLoaderHidden, markLoaderShown } from "@/components/shared/loader-clock";
 
 /** Canon Loader: a wait shorter than this reads as a flash, so nothing paints. */
 export { LOADER_DELAY_MS as PAGE_LOADING_DELAY_MS } from "@/components/shared/use-loader-delay";
@@ -20,8 +20,9 @@ import "@/components/shared/page-loading-state.css";
  *   empty region, never a flash.
  * - The region is a status and announces once, when the line appears.
  * - Reduced motion swaps to the published still asset (themes.css).
- * - It owns the wait: the global request indicator paints nothing meanwhile,
- *   so the page never shows two loaders for one wait.
+ * - Once painted it stays at least 500ms: as a Suspense fallback it cannot
+ *   hold itself, so it reports its paint to the loader clock and the lazy page
+ *   holds its own resolution (`holdForLoader`).
  */
 /**
  * One wait across the page loaders that hand it on (the session restore, then
@@ -52,17 +53,18 @@ export function PageLoadingState({
 }>) {
   const [joined] = useState(() => joinPageWait(Date.now()));
   const [visible, setVisible] = useState(joined.visible);
-  useEffect(() => beginPageWait(), []);
   useEffect(() => {
     pageWait.open += 1;
     if (!joined.handover) Object.assign(pageWait, { startedAt: joined.startedAt, shownAt: 0 });
     return () => {
       pageWait.open -= 1;
+      if (pageWait.open === 0) markLoaderHidden();
     };
   }, [joined]);
   useEffect(() => {
     if (visible) {
       if (!pageWait.shownAt) pageWait.shownAt = Date.now();
+      markLoaderShown(pageWait.shownAt);
       return;
     }
     const timer = globalThis.setTimeout(() => setVisible(true), Math.max(0, LOADER_DELAY_MS - (Date.now() - joined.startedAt)));

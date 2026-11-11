@@ -19,7 +19,6 @@ async function fetchFilterProjects(workspaceId: string, failureMessage: string):
   for (let page = 1; page <= totalPages; page += 1) {
     const payload = await fetchProjectsList(
       { page, perPage: 200, search: "", workspaceId },
-      { presentation: "background" },
     );
     if (!payload || !Array.isArray(payload.projects) || !Number.isInteger(payload.total_pages) || payload.total_pages < 1) {
       throw new Error(failureMessage);

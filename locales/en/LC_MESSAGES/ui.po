@@ -1374,7 +1374,7 @@ msgstr ""
 "still contain raw runtime context."
 
 msgid "jobs.detail.execution_waterfall"
-msgstr "Execution waterfall"
+msgstr "Execution steps"
 
 msgid "jobs.detail.inspector.description"
 msgstr ""
@@ -5737,6 +5737,15 @@ msgstr "Jobs could not be loaded"
 msgid "react.jobs.jobs_list_and_triage"
 msgstr "Jobs list and triage"
 
+msgid "react.jobs.kind_extension_tool"
+msgstr "Extension tool"
+
+msgid "react.jobs.kind_mcp_tool"
+msgstr "MCP tool"
+
+msgid "react.jobs.kind_system_tool"
+msgstr "System tool"
+
 msgid "react.jobs.lane_value0_step_value1_value2"
 msgstr "Lane {value0}: {value1} ({value2})"
 
@@ -5760,6 +5769,9 @@ msgstr "Loading full text…"
 
 msgid "react.jobs.loading_job_detail"
 msgstr "Loading job detail…"
+
+msgid "react.jobs.no_evidence_recorded"
+msgstr "No evidence recorded"
 
 msgid "react.jobs.no_execution_step_is_selected"
 msgstr "No execution step is selected."
@@ -5875,7 +5887,7 @@ msgid "react.jobs.select_a_job_with_runtime_steps_to_inspect_details"
 msgstr "Select a job with runtime steps to inspect details."
 
 msgid "react.jobs.select_a_step_from_the_execution_waterfall"
-msgstr "Select a step from the execution waterfall."
+msgstr "Select a step from the execution steps."
 
 msgid "react.jobs.select_a_step_to_inspect_runtime_details_and_context"
 msgstr "Select a step to inspect runtime details and context."
@@ -6127,7 +6139,7 @@ msgid "react.monitoring.clean_orphan_data"
 msgstr "Clean orphan data"
 
 msgid "react.monitoring.cleaning"
-msgstr "Cleaning"
+msgstr "Cleaning…"
 
 msgid "react.monitoring.clear_filters"
 msgstr "Clear filters"
@@ -6612,7 +6624,7 @@ msgid "react.monitoring.refine_by_workflow_and_event_hierarchy_above"
 msgstr "Refine by workflow and event hierarchy above."
 
 msgid "react.monitoring.refreshing"
-msgstr "Refreshing..."
+msgstr "Refreshing…"
 
 msgid "react.monitoring.remove_value1_filter"
 msgstr "Remove {value1} filter"
@@ -6624,7 +6636,7 @@ msgid "react.monitoring.replica_completeness"
 msgstr "Replica completeness:"
 
 msgid "react.monitoring.requesting_redrive"
-msgstr "Requesting redrive..."
+msgstr "Requesting redrive…"
 
 msgid "react.monitoring.retrying"
 msgstr "Retrying"
@@ -7179,10 +7191,10 @@ msgid "react.projects.load_the_project_workflow_inventory_before_creating_a_rout
 msgstr "Load the project workflow inventory before creating a route."
 
 msgid "react.projects.loading_channels"
-msgstr "Loading channels..."
+msgstr "Loading channels…"
 
 msgid "react.projects.loading_connections"
-msgstr "Loading connections..."
+msgstr "Loading connections…"
 
 msgid "react.projects.loading_datasets"
 msgstr "Loading datasets..."
@@ -7194,7 +7206,7 @@ msgid "react.projects.loading_history"
 msgstr "Loading history…"
 
 msgid "react.projects.loading_notification_routes"
-msgstr "Loading notification routes..."
+msgstr "Loading notification routes…"
 
 msgid "react.projects.loading_project_data_connections"
 msgstr "Loading project data connections..."
@@ -7203,7 +7215,7 @@ msgid "react.projects.loading_project_settings"
 msgstr "Loading project settings…"
 
 msgid "react.projects.loading_project_workflows"
-msgstr "Loading project workflows..."
+msgstr "Loading project workflows…"
 
 msgid "react.projects.loading_projects"
 msgstr "Loading projects"
@@ -7212,7 +7224,7 @@ msgid "react.projects.loading_workflow_catalog"
 msgstr "Loading workflow catalog..."
 
 msgid "react.projects.loading_workspaces"
-msgstr "Loading workspaces..."
+msgstr "Loading workspaces…"
 
 msgid "react.projects.local_timezone"
 msgstr "local timezone"
@@ -8344,7 +8356,7 @@ msgid "react.registry.create_your_first_guardrail_rule_to_start_validating_agent
 msgstr "Create your first guardrail rule to start validating agent outputs."
 
 msgid "react.registry.creating"
-msgstr "Creating..."
+msgstr "Creating…"
 
 msgid "react.registry.credentials"
 msgstr "Credentials"
@@ -8483,7 +8495,7 @@ msgid "react.registry.delete_value0"
 msgstr "Delete {value0}"
 
 msgid "react.registry.deleting"
-msgstr "Deleting..."
+msgstr "Deleting…"
 
 msgid "react.registry.delivery"
 msgstr "delivery"
@@ -9336,7 +9348,7 @@ msgid "react.registry.loading_remote_tools"
 msgstr "Loading remote tools..."
 
 msgid "react.registry.loading_schema"
-msgstr "Loading schema..."
+msgstr "Loading schema…"
 
 msgid "react.registry.loading_tool_detail"
 msgstr "Loading tool detail"
@@ -10375,7 +10387,7 @@ msgid "react.registry.refresh_token_required"
 msgstr "Refresh token required"
 
 msgid "react.registry.refreshing_schema"
-msgstr "Refreshing schema..."
+msgstr "Refreshing schema…"
 
 msgid "react.registry.register_a_connector_to_get_started"
 msgstr "Register a connector to get started."
@@ -10475,7 +10487,7 @@ msgid "react.registry.restored_workflow_revision_as_new"
 msgstr "Restored {value0} as a new revision."
 
 msgid "react.registry.restoring"
-msgstr "Restoring..."
+msgstr "Restoring…"
 
 msgid "react.registry.retrieving_the_current_tool_configuration"
 msgstr "Retrieving the current tool configuration."
@@ -11708,6 +11720,12 @@ msgstr "Custom scanner configuration."
 msgid "react.settings.custom_scanner_rule"
 msgstr "Custom scanner rule."
 
+msgid "react.settings.date_format"
+msgstr "Date format"
+
+msgid "react.settings.dates_and_times_read_like"
+msgstr "Dates and times read like {example} everywhere in Flow Steward."
+
 msgid "react.settings.deactivate_user"
 msgstr "Deactivate user"
 
@@ -11756,7 +11774,7 @@ msgid "react.settings.delete_value1_this_cannot_be_undone"
 msgstr "Delete {value1}? This cannot be undone."
 
 msgid "react.settings.deleting"
-msgstr "Deleting..."
+msgstr "Deleting…"
 
 msgid "react.settings.deployment_name"
 msgstr "Deployment name"
@@ -11993,7 +12011,7 @@ msgid "react.settings.loading_account_settings"
 msgstr "Loading account settings"
 
 msgid "react.settings.loading_general_settings_snapshot"
-msgstr "Loading general settings snapshot..."
+msgstr "Loading general settings snapshot…"
 
 msgid "react.settings.loading_personal_tokens"
 msgstr "Loading personal tokens"
@@ -12761,6 +12779,15 @@ msgstr "This settings area is available as a dedicated React screen."
 
 msgid "react.settings.threshold"
 msgstr "Threshold"
+
+msgid "react.settings.time_format"
+msgstr "Time format"
+
+msgid "react.settings.time_format_12h"
+msgstr "12-hour"
+
+msgid "react.settings.time_format_24h"
+msgstr "24-hour"
 
 msgid "react.settings.token"
 msgstr "Token"
@@ -13546,7 +13573,7 @@ msgid "react.shared.reassign"
 msgstr ". Reassign:"
 
 msgid "react.shared.refreshing"
-msgstr "Refreshing..."
+msgstr "Refreshing…"
 
 msgid "react.shared.relative_days"
 msgstr "{count}d"
@@ -13565,9 +13592,6 @@ msgstr "Remove {value1}"
 
 msgid "react.shared.remove_value1_filter"
 msgstr "Remove {value1} filter"
-
-msgid "react.shared.request_loading"
-msgstr "Loading requests"
 
 msgid "react.shared.restore_plan"
 msgstr "Restore plan"
@@ -14063,6 +14087,21 @@ msgstr "Returned files mapping"
 msgid "react.workflows.returned_files_note"
 msgstr "To return a file, tick “Return from workflow” on the step result that saves it."
 
+msgid "react.workflows.run_bar_live_failed"
+msgstr "Run failed"
+
+msgid "react.workflows.run_bar_live_finished"
+msgstr "Run finished"
+
+msgid "react.workflows.run_bar_live_finished_in"
+msgstr "Run finished in {duration}"
+
+msgid "react.workflows.run_bar_live_running"
+msgstr "Run in progress"
+
+msgid "react.workflows.run_bar_live_stopped"
+msgstr "Run stopped"
+
 msgid "react.workflows.snapshot_mode"
 msgstr "Comparison purpose"
 
@@ -14071,6 +14110,9 @@ msgstr "From extension {value0}"
 
 msgid "react.workflows.step_not_set_up_summary"
 msgstr "Not set up yet"
+
+msgid "react.workflows.step_saved_with_connection_repair"
+msgstr "Step parameters saved. {count} other steps used the deleted connection and now use this one too."
 
 msgid "react.workflows.step_test_input_help"
 msgstr "Test values are optional. Only this step runs; earlier steps and loop context are not loaded. A saved mapping alone does not preload a value. Leaving a value blank may make the test fail."
@@ -16104,7 +16146,7 @@ msgid "react.workflows.continue_summary"
 msgstr "Next item"
 
 msgid "react.workflows.continuing"
-msgstr "Continuing..."
+msgstr "Continuing…"
 
 msgid "react.workflows.contract"
 msgstr "Contract"
@@ -18183,7 +18225,7 @@ msgid "react.workflows.linked_variant_2272bea6"
 msgstr "linked"
 
 msgid "react.workflows.linking_project"
-msgstr "Linking project..."
+msgstr "Linking project…"
 
 msgid "react.workflows.list"
 msgstr "List"
@@ -19398,7 +19440,7 @@ msgid "react.workflows.run_workflow_test_run"
 msgstr "Run workflow test run"
 
 msgid "react.workflows.running"
-msgstr "Running..."
+msgstr "Running…"
 
 msgid "react.workflows.running_preflight"
 msgstr "Running preflight…"
@@ -19830,7 +19872,7 @@ msgid "react.workflows.start_from_scratch"
 msgstr "Start from scratch"
 
 msgid "react.workflows.starting_test_run"
-msgstr "Starting Test Run..."
+msgstr "Starting Test Run…"
 
 msgid "react.workflows.state_aliases"
 msgstr "State aliases"
@@ -23207,7 +23249,7 @@ msgid "registry.workflow_detail.library.title"
 msgstr "Library"
 
 msgid "registry.workflow_detail.loading"
-msgstr "Loading..."
+msgstr "Loading…"
 
 msgid "registry.workflow_detail.on_failure.save"
 msgstr "Save Failure"
@@ -24686,7 +24728,7 @@ msgid "settings.loading.mcp_connectors"
 msgstr "Loading MCP connectors..."
 
 msgid "settings.loading.model_providers"
-msgstr "Loading model providers..."
+msgstr "Loading model providers…"
 
 msgid "settings.loading.notifications"
 msgstr "Loading notifications..."
@@ -25007,7 +25049,7 @@ msgid "settings.retention.saved"
 msgstr "Retention settings saved."
 
 msgid "settings.retention.saving"
-msgstr "Saving..."
+msgstr "Saving…"
 
 msgid "settings.retention.script_note"
 msgstr ""
@@ -28387,7 +28429,7 @@ msgid "react.jobs.file_preview_hide"
 msgstr "Hide"
 
 msgid "react.jobs.file_preview_loading"
-msgstr "Loading preview..."
+msgstr "Loading preview…"
 
 msgid "react.jobs.file_preview_not_utf8"
 msgstr "This file is not UTF-8 text, so it cannot be shown here. Download it instead."
@@ -28784,18 +28826,6 @@ msgstr "The AI agent setup could not be loaded"
 msgid "react.agent_access.loading"
 msgstr "Loading the AI agent setup…"
 
-msgid "react.agent_access.oauth_access_description"
-msgstr "{client} connects from its own servers. You choose the access in Flow Steward when it connects: sign in, pick the access, projects and expiry, and approve. No token is created here."
-
-msgid "react.agent_access.step3_title"
-msgstr "3. Access"
-
-msgid "react.agent_access.oauth_ready_title"
-msgstr "Ready for cloud AI apps"
-
-msgid "react.agent_access.oauth_ready_copy"
-msgstr "After you approve, the access appears under Personal tokens → Connected AI apps, where you can revoke it."
-
 msgid "react.agent_access.token_access_description"
 msgstr "{client} uses a personal access token from your account. It can never do more than you can."
 
@@ -28803,7 +28833,7 @@ msgid "react.agent_access.access_level"
 msgstr "What the agent may do"
 
 msgid "react.agent_access.projects_help"
-msgstr "Empty means every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account and are not limited by project."
+msgstr "Leave empty for every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account."
 
 msgid "react.agent_access.uncertain_title"
 msgstr "We could not confirm whether the token was created"
@@ -28824,16 +28854,13 @@ msgid "react.agent_access.secret_already_shown_title"
 msgstr "This token already exists; its secret was shown once"
 
 msgid "react.agent_access.secret_already_shown_copy"
-msgstr "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token below and create a new one."
+msgstr "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token in step 3 and create a new one."
 
 msgid "react.agent_access.title"
 msgstr "AI agents"
 
 msgid "react.agent_access.description"
 msgstr "Connect an AI client to Flow Steward: pick the client and the package, get the settings filled in, and make the first request."
-
-msgid "react.agent_access.step1_title"
-msgstr "1. AI client"
 
 msgid "react.agent_access.choose_client"
 msgstr "Which client do you use?"
@@ -28847,9 +28874,6 @@ msgstr "On your computer"
 msgid "react.agent_access.package_description"
 msgstr "The package teaches the agent how to work with Flow Steward. It holds no address and no token."
 
-msgid "react.agent_access.step2_title"
-msgstr "2. Package"
-
 msgid "react.agent_access.choose_package"
 msgstr "What will you do with the agent?"
 
@@ -28862,26 +28886,14 @@ msgstr "The address is this installation's public MCP address."
 msgid "react.agent_access.setup_description_no_mcp"
 msgstr "This package does not connect to this installation, so no token is needed."
 
-msgid "react.agent_access.step4_title"
-msgstr "4. Set up {client}"
-
-msgid "react.agent_access.step5_title"
-msgstr "5. First request"
-
-msgid "react.agent_access.usage_after_token"
-msgstr "Once the token exists, its expiry, scopes and last use appear here."
-
 msgid "react.agent_access.usage_oauth"
 msgstr "The approved access, with its expiry, scopes and last use, appears under Personal tokens → Connected AI apps."
 
 msgid "react.agent_access.token_placeholder"
 msgstr "<your personal token>"
 
-msgid "react.agent_access.copied"
-msgstr "Copied."
-
 msgid "react.agent_access.copy_failed"
-msgstr "Could not copy. Select the text and copy it manually."
+msgstr "Couldn't copy. Select the text and copy it manually."
 
 msgid "react.agent_access.open_release"
 msgstr "Open the release"
@@ -28958,17 +28970,8 @@ msgstr "Follow the install steps"
 msgid "react.agent_access.step_open_readme_description"
 msgstr "The package README has the install, update and removal steps for this client."
 
-msgid "react.agent_access.create_another_token_help"
-msgstr "The token above keeps working until it expires or you revoke it in step 5."
-
 msgid "react.agent_access.create_another_token"
 msgstr "Create another token"
-
-msgid "react.agent_access.token_ready_copy"
-msgstr "Download or copy what step 4 shows: nothing else to fill in. This page shows the token only now; after you leave, create another one if you need it."
-
-msgid "react.agent_access.token_ready_title"
-msgstr "The token is created and already in the setup below"
 
 msgid "react.agent_access.package_after_token"
 msgstr "The download is ready once the token is created."
@@ -28995,7 +28998,7 @@ msgid "react.agent_access.step_download_skills"
 msgstr "Download the skills"
 
 msgid "react.agent_access.step_personal_plugin_description"
-msgstr "It holds the package's skills, this installation's address and your token, so there is nothing to configure. It holds your token: keep it like a password, do not share it or put it in Git."
+msgstr "It holds your token: keep it like a password, do not share it or put it in Git."
 
 msgid "react.agent_access.step_download_plugin"
 msgstr "Download the plugin"
@@ -29007,16 +29010,16 @@ msgid "react.agent_access.step_install_plugin"
 msgstr "Install it"
 
 msgid "react.agent_access.step_install_copied_plugin_description"
-msgstr "Unpack the archive and move the folder it makes to your home folder. Then run this in a terminal (PowerShell on Windows) and start a new session. If the folder has another name, change it in the command. To install a newer download, run the same commands again. They need the {client} command-line tool."
+msgstr "Unpack the archive and move the folder it makes to your home folder. Then run this in a terminal (PowerShell on Windows) and start a new session. The commands need the {client} command-line tool."
 
 msgid "react.agent_access.step_install_kept_plugin_description"
-msgstr "Unpack the archive, move the folder it makes to your home folder and keep it there: {client} loads the plugin from it. Then run this in a terminal (PowerShell on Windows) and start a new session. If the folder has another name, change it in the command. To install a newer download, first run: claude plugin marketplace remove {package}"
+msgstr "Unpack the archive and move its folder to your home folder: {client} loads the plugin from there. Then run this in a terminal (PowerShell on Windows) and start a new session."
 
 msgid "react.agent_access.step_install_plugin_folder_description"
 msgstr "Unpack the archive and move the folder it makes into plugins/local inside the .cursor folder of your home folder; create plugins/local if it is missing. On a Mac, press Cmd+Shift+. in Finder to see .cursor. Then run Developer: Reload Window in {client}. An organization admin may have to allow local plugin imports. To install a newer download, replace the folder."
 
 msgid "react.agent_access.step_personal_plugin"
-msgstr "Download your plugin"
+msgstr "Download the plugin"
 
 msgid "react.agent_access.step_gemini_add"
 msgstr "Add the server"
@@ -29202,7 +29205,10 @@ msgid "react.registry.typed_json_value"
 msgstr "Used as a typed JSON value."
 
 msgid "react.projects.secret_approval.loading"
-msgstr "Checking the use of stored secrets..."
+msgstr "Checking the use of stored secrets…"
+
+msgid "react.projects.secret_approval.approving"
+msgstr "Approving…"
 
 msgid "react.projects.secret_approval.title"
 msgstr "Stored secrets need approval"
@@ -30318,3 +30324,126 @@ msgstr "1. Create the Microsoft 365 client"
 
 msgid "react.agent_access.platform_step_package"
 msgstr "3. Build the agent package"
+
+msgid "react.agent_access.copied_button"
+msgstr "Copied"
+
+msgid "react.agent_access.step_prefix"
+msgstr "Step {number}."
+
+msgid "react.agent_access.in_the_cloud"
+msgstr "In the cloud"
+
+msgid "react.agent_access.all_projects"
+msgstr "All projects"
+
+msgid "react.agent_access.token_expires"
+msgstr "Expires {date}"
+
+msgid "react.agent_access.revoke"
+msgstr "Revoke"
+
+msgid "react.agent_access.no_request_yet"
+msgstr "No request yet"
+
+msgid "react.agent_access.step_client_title"
+msgstr "AI client"
+
+msgid "react.agent_access.step_package_title"
+msgstr "Package"
+
+msgid "react.agent_access.step_access_title"
+msgstr "Access"
+
+msgid "react.agent_access.step_setup_title"
+msgstr "Set up {client}"
+
+msgid "react.agent_access.step_setup_title_no_client"
+msgstr "Set up the client"
+
+msgid "react.agent_access.step_first_request_title"
+msgstr "First request"
+
+msgid "react.agent_access.access_not_needed"
+msgstr "Not needed: the Developer package does not connect to this installation."
+
+msgid "react.agent_access.change"
+msgstr "Change"
+
+msgid "react.agent_access.change_step"
+msgstr "Change {step}"
+
+msgid "react.agent_access.continue"
+msgstr "Continue"
+
+msgid "react.agent_access.choose_client_to_continue"
+msgstr "Choose a client to continue."
+
+msgid "react.agent_access.choose_package_to_continue"
+msgstr "Choose a package to continue."
+
+msgid "react.agent_access.oauth_access_summary"
+msgstr "{client} connects through OAuth: you choose access in Flow Steward when you connect."
+
+msgid "react.agent_access.oauth_access_body"
+msgstr "When you add Flow Steward in {client}, you sign in to Flow Steward and choose there what the agent may do, which projects it reaches and when access expires, then confirm."
+
+msgid "react.agent_access.oauth_no_token"
+msgstr "No token is created on this page. The connection then appears in {link}."
+
+msgid "react.agent_access.connected_apps_link"
+msgstr "Personal tokens › Connected AI apps"
+
+msgid "react.agent_access.oauth_m365_admin"
+msgstr "Your organisation's administrator adds Flow Steward to Microsoft 365 once. After that, you sign in to Flow Steward when you connect and choose access there."
+
+msgid "react.agent_access.token_expires_on"
+msgstr "The token expires on {date}."
+
+msgid "react.agent_access.setup_description_plugin"
+msgstr "The plugin carries this installation's MCP address and your token, so there is nothing to configure."
+
+msgid "react.agent_access.setup_description_developer_plugin"
+msgstr "The plugin installs the Developer package. It needs no token."
+
+msgid "react.agent_access.token_in_setup_title"
+msgstr "Your token is already in this setup"
+
+msgid "react.agent_access.token_in_setup_copy"
+msgstr "This page shows it only now. After you leave, create another token if you need it."
+
+msgid "react.agent_access.token_missing_title"
+msgstr "This setup has no token"
+
+msgid "react.agent_access.token_missing_copy"
+msgstr "A token is shown only once, so this page cannot fill it in again. Create another token to fill in this setup."
+
+msgid "react.agent_access.step_install_kept_plugin_hint"
+msgstr "If the folder has another name, change it in the command. To install a newer download, first run `claude plugin marketplace remove {package}`."
+
+msgid "react.agent_access.step_install_copied_plugin_hint"
+msgstr "If the folder has another name, change it in the command. To install a newer download, run the same commands again."
+
+msgid "react.dashboard.age_ago"
+msgstr "{age} ago"
+
+msgid "react.dashboard.open_queue_count_more"
+msgstr "Open queue · {count} more"
+
+msgid "react.dashboard.right_now"
+msgstr "Right now"
+
+msgid "react.dashboard.right_now_oldest_failing_age"
+msgstr "Right now · oldest failing {age}"
+
+msgid "react.dashboard.test_run_from_the_builder"
+msgstr "Test run from the builder"
+
+msgid "react.jobs.rejecting"
+msgstr "Rejecting…"
+
+msgid "react.workflows.regenerating_url"
+msgstr "Regenerating…"
+
+msgid "react.workflows.rotating_credential"
+msgstr "Rotating…"

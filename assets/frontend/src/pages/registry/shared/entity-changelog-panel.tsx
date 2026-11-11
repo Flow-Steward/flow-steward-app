@@ -9,6 +9,7 @@ import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 import { DsAlert, DsBadge, DsDrawer } from "@/components/shared/design-system";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { Button } from "@/components/ui/button";
 import { useConfirmDialog } from "@/components/shared/use-confirm-dialog";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import {
@@ -182,11 +183,11 @@ function ChangelogDiffContent({
       <p className="fs-changelog__compare">{revisionPresentation.explanation || (previousEntryId ? changelogComparisonLabel(entityType, previousEntry, selectedEntry, previousEntryId, selectedEntryRef || "", t) : t("react.registry.no_previous_revision_available_for_the_selected_entry", "No previous revision available for the selected entry."))}</p>
       {revisionPresentation.canRestore ? <div className="fs-changelog__restore-bar">
         <span className="fs-changelog__restore-note">{restoreDisabledReason || restoreNote || <>{t("react.registry.restore_applies_the_selected_revision_to", "Restore applies the selected revision to")}{" "}{entityType}/{entityId}.</>}</span>
-        <button className="fs-button primary" disabled={!selectedEntryRef || restoring || Boolean(restoreDisabledReason)} onClick={onRestore} type="button">{restoring ? t("react.registry.restoring", "Restoring...") : t("react.registry.restore_this_revision", "Restore this revision")}</button>
+        <Button busy={restoring} busyLabel={t("react.registry.restoring", "Restoring…")} disabled={!selectedEntryRef || Boolean(restoreDisabledReason)} onClick={onRestore} type="button" variant="primary">{t("react.registry.restore_this_revision", "Restore this revision")}</Button>
       </div> : null}
-      {diffLoaderVisible ? <span className="fs-changelog__loading"><DsLoader variant="orbit-inline" />{t("react.registry.loading_diff", "Loading diff…")}</span> : null}
+      {diffLoaderVisible ? <span className="fs-changelog__loading"><DsLoader label={t("react.registry.loading_diff", "Loading diff…")} variant="orbit-inline" /></span> : null}
       {diffError ? <DsAlert tone="danger" title={diffError instanceof Error ? diffError.message : t("react.registry.failed_to_load_diff", "Failed to load diff.")} /> : null}
-      {revisionPresentation.canCompareContent && !diffLoading && previousEntryId && !diffChanges.length ? <p className="fs-empty-copy">{t("react.registry.no_explicit_diff_rows_were_returned", "No explicit diff rows were returned.")}</p> : null}
+      {revisionPresentation.canCompareContent && !diffLoading && !diffLoaderVisible && previousEntryId && !diffChanges.length ? <p className="fs-empty-copy">{t("react.registry.no_explicit_diff_rows_were_returned", "No explicit diff rows were returned.")}</p> : null}
       {Object.keys(diffSummaryRow).length ? (
         <div className="fs-changelog__summary">{Object.entries(diffSummaryRow).map(([key, value]) => <DsBadge key={key}>{key}: {normalizeText(value, t)}</DsBadge>)}</div>
       ) : null}
@@ -347,11 +348,10 @@ export function RegistryEntityChangelogPanel({
 
       {historyLoaderVisible ? (
         <span className="fs-changelog__loading">
-          <DsLoader variant="orbit-inline" />
-          {t("react.registry.loading_history", "Loading history…")}</span>
+          <DsLoader label={t("react.registry.loading_history", "Loading history…")} variant="orbit-inline" /></span>
       ) : null}
 
-      {!loading && !rows.length ? (
+      {!loading && !historyLoaderVisible && !rows.length ? (
         <p className="fs-empty-copy">{emptyMessage || t("react.registry.display_no_history_entries", "No history entries available.")}</p>
       ) : null}
 

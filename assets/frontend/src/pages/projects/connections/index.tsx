@@ -2,9 +2,11 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { Link } from "react-router";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { fetchProjectConnectionsList } from "@/pages/projects/connections/api";
@@ -30,6 +32,7 @@ export function ProjectConnectionsEditor({ projectId }: Readonly<ProjectConnecti
     queryFn: () => fetchProjectConnectionsList(projectId),
     enabled: Boolean(projectId),
   });
+  const loaderShown = useLoaderDelay(connectionsQuery.isLoading);
 
   const connections = useMemo(
     () => (Array.isArray(connectionsQuery.data) ? connectionsQuery.data : []),
@@ -45,10 +48,10 @@ export function ProjectConnectionsEditor({ projectId }: Readonly<ProjectConnecti
           <CardDescription>{t("react.projects.current_extension_extension_runtime_and_connector_bindings_for_this_project", "Current extension, extension runtime, and connector bindings for this project.")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {connectionsQuery.isLoading ? (
-            <div className="flex items-center gap-2 text-sm fs-ink-secondary">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t("react.projects.loading_connections", "Loading connections...")} </div>
+          {loaderShown ? (
+            <div className="text-sm fs-ink-secondary">
+              <DsLoader label={t("react.projects.loading_connections", "Loading connections…")} variant="orbit-inline" />
+            </div>
           ) : null}
           {connections.map((connection) => {
             const connectionId = firstStringFromUnknownValue([connection.connection_id, ""]);
@@ -93,7 +96,7 @@ export function ProjectConnectionsEditor({ projectId }: Readonly<ProjectConnecti
               </div>
             );
           })}
-          {!connectionsQuery.isLoading && !connectionsQuery.isError && !connections.length ? (
+          {!connectionsQuery.isLoading && !loaderShown && !connectionsQuery.isError && !connections.length ? (
             <p className="fs-empty-copy">{t("react.projects.connections_appear_here_when_an_extension_connects_one_for_this_project", "Connections appear here when an extension connects one for this project.")}</p>
           ) : null}
         </CardContent>

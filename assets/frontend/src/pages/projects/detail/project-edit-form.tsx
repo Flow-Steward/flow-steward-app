@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import type { Dispatch, ReactNode, SetStateAction, SyntheticEvent } from "react";
 import { DsAlert, DsFormSelect, DsSelect, DsTabs } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 
 import { AssignmentSelector, type AssignmentSelectorRow } from "@/components/shared/assignment-selector";
 import {
@@ -782,13 +783,15 @@ export function ProjectEditForm({
             <div className="fs-footer-actions">
               <button className="fs-button secondary" onClick={onDiscard} type="button">
                 {t("common.cancel", "Cancel")} </button>
-              <button
-                className="fs-button primary"
-                disabled={!projectDataReady || mutationPending || modelRouteUnavailable}
+              <Button
+                busy={mutationPending}
+                busyLabel={t("react.projects.saving", "Saving…")}
+                disabled={!projectDataReady || modelRouteUnavailable}
                 type="submit"
+                variant="primary"
               >
-                {mutationPending ? t("project_edit.security.saving", "Saving...") : t("project_edit.button.save", "Save Project")}
-              </button>
+                {t("project_edit.button.save", "Save Project")}
+              </Button>
             </div>
           ))}
         </footer>

@@ -36,7 +36,7 @@ import {
   extensionActionFailureMessage,
 } from "./manifest-action-support";
 
-import type { useExtensionsHubState } from "./use-extensions-hub-state";
+import type { ExtensionBusyAction, useExtensionsHubState } from "./use-extensions-hub-state";
 import { isHttpError } from "@/lib/http/errors";
 
 /** The refreshed plan a 409 "impact changed" carries, if this error is one. */
@@ -112,8 +112,8 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
     setViewFilter(nextFilter);
   }
 
-  async function withBusy(extensionKey: string, action: () => Promise<void>) {
-    setBusyById((current) => ({ ...current, [extensionKey]: true }));
+  async function withBusy(extensionKey: string, action: () => Promise<void>, kind: ExtensionBusyAction = "other") {
+    setBusyById((current) => ({ ...current, [extensionKey]: kind }));
     try {
       await action();
     } finally {
@@ -183,7 +183,7 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
           ...current,
           [extensionKey]: `Extension ${nextActive ? "activated" : "disabled"}.`,
         }));
-      });
+      }, "toggle");
     };
     try {
       await applyToggle();
@@ -261,7 +261,7 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
           ...current,
           [syntheticKey]: statusMessage,
         }));
-      });
+      }, "install");
     };
     try {
       await installFile();
@@ -577,7 +577,7 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
         ...current,
         [extensionKey]: "Extension uninstalled.",
       }));
-    });
+    }, "uninstall");
   }
 
   async function handleHealthCheck(extension: ExtensionRecord) {
@@ -607,7 +607,7 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
         ...current,
         [extensionKey]: summary,
       }));
-    });
+    }, "health");
   }
   return {
     withBusy,

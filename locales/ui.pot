@@ -3642,6 +3642,9 @@ msgstr ""
 msgid "react.dashboard.a_quieter_command_surface_for_projects_jobs_approvals_and_ai_assisted_stewardship"
 msgstr ""
 
+msgid "react.dashboard.age_ago"
+msgstr ""
+
 msgid "react.dashboard.attention_queue"
 msgstr ""
 
@@ -3723,6 +3726,9 @@ msgstr ""
 msgid "react.dashboard.open_queue"
 msgstr ""
 
+msgid "react.dashboard.open_queue_count_more"
+msgstr ""
+
 msgid "react.dashboard.operational_overview"
 msgstr ""
 
@@ -3735,6 +3741,12 @@ msgstr ""
 msgid "react.dashboard.review_jobs"
 msgstr ""
 
+msgid "react.dashboard.right_now"
+msgstr ""
+
+msgid "react.dashboard.right_now_oldest_failing_age"
+msgstr ""
+
 msgid "react.dashboard.start_from_the_highest_priority_work"
 msgstr ""
 
@@ -3745,6 +3757,9 @@ msgid "react.dashboard.success_rate"
 msgstr ""
 
 msgid "react.dashboard.system_monitoring"
+msgstr ""
+
+msgid "react.dashboard.test_run_from_the_builder"
 msgstr ""
 
 msgid "react.dashboard.time_range"
@@ -5616,6 +5631,15 @@ msgstr ""
 msgid "react.jobs.jobs_list_and_triage"
 msgstr ""
 
+msgid "react.jobs.kind_extension_tool"
+msgstr ""
+
+msgid "react.jobs.kind_mcp_tool"
+msgstr ""
+
+msgid "react.jobs.kind_system_tool"
+msgstr ""
+
 msgid "react.jobs.lane_value0_step_value1_value2"
 msgstr ""
 
@@ -5644,6 +5668,9 @@ msgid "react.jobs.loading_job_detail"
 msgstr ""
 
 msgid "react.jobs.no_action_required"
+msgstr ""
+
+msgid "react.jobs.no_evidence_recorded"
 msgstr ""
 
 msgid "react.jobs.no_execution_step_is_selected"
@@ -11532,6 +11559,12 @@ msgstr ""
 msgid "react.settings.custom_scanner_rule"
 msgstr ""
 
+msgid "react.settings.date_format"
+msgstr ""
+
+msgid "react.settings.dates_and_times_read_like"
+msgstr ""
+
 msgid "react.settings.deactivate_user"
 msgstr ""
 
@@ -12597,6 +12630,15 @@ msgstr ""
 msgid "react.settings.threshold"
 msgstr ""
 
+msgid "react.settings.time_format"
+msgstr ""
+
+msgid "react.settings.time_format_12h"
+msgstr ""
+
+msgid "react.settings.time_format_24h"
+msgstr ""
+
 msgid "react.settings.token"
 msgstr ""
 
@@ -13426,9 +13468,6 @@ msgid "react.shared.remove_value1"
 msgstr ""
 
 msgid "react.shared.remove_value1_filter"
-msgstr ""
-
-msgid "react.shared.request_loading"
 msgstr ""
 
 msgid "react.shared.restore_plan"
@@ -16364,6 +16403,24 @@ msgid "react.workflows.import_status_from_file"
 msgstr ""
 
 msgid "react.workflows.new_id_for_value0"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_failed"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_finished"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_finished_in"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_running"
+msgstr ""
+
+msgid "react.workflows.run_bar_live_stopped"
+msgstr ""
+
+msgid "react.workflows.step_saved_with_connection_repair"
 msgstr ""
 
 msgid "react.workflows.uses_the_one_already_here_unchanged"
@@ -27726,18 +27783,6 @@ msgstr ""
 msgid "react.agent_access.loading"
 msgstr ""
 
-msgid "react.agent_access.oauth_access_description"
-msgstr ""
-
-msgid "react.agent_access.step3_title"
-msgstr ""
-
-msgid "react.agent_access.oauth_ready_title"
-msgstr ""
-
-msgid "react.agent_access.oauth_ready_copy"
-msgstr ""
-
 msgid "react.agent_access.token_access_description"
 msgstr ""
 
@@ -27774,9 +27819,6 @@ msgstr ""
 msgid "react.agent_access.description"
 msgstr ""
 
-msgid "react.agent_access.step1_title"
-msgstr ""
-
 msgid "react.agent_access.choose_client"
 msgstr ""
 
@@ -27787,9 +27829,6 @@ msgid "react.agent_access.local"
 msgstr ""
 
 msgid "react.agent_access.package_description"
-msgstr ""
-
-msgid "react.agent_access.step2_title"
 msgstr ""
 
 msgid "react.agent_access.choose_package"
@@ -27804,22 +27843,10 @@ msgstr ""
 msgid "react.agent_access.setup_description_no_mcp"
 msgstr ""
 
-msgid "react.agent_access.step4_title"
-msgstr ""
-
-msgid "react.agent_access.step5_title"
-msgstr ""
-
-msgid "react.agent_access.usage_after_token"
-msgstr ""
-
 msgid "react.agent_access.usage_oauth"
 msgstr ""
 
 msgid "react.agent_access.token_placeholder"
-msgstr ""
-
-msgid "react.agent_access.copied"
 msgstr ""
 
 msgid "react.agent_access.copy_failed"
@@ -27900,16 +27927,7 @@ msgstr ""
 msgid "react.agent_access.step_open_readme_description"
 msgstr ""
 
-msgid "react.agent_access.create_another_token_help"
-msgstr ""
-
 msgid "react.agent_access.create_another_token"
-msgstr ""
-
-msgid "react.agent_access.token_ready_copy"
-msgstr ""
-
-msgid "react.agent_access.token_ready_title"
 msgstr ""
 
 msgid "react.agent_access.package_after_token"
@@ -28105,6 +28123,9 @@ msgid "react.workflows.agent_file_formats_encoding"
 msgstr ""
 
 msgid "react.projects.secret_approval.loading"
+msgstr ""
+
+msgid "react.projects.secret_approval.approving"
 msgstr ""
 
 msgid "react.projects.secret_approval.title"
@@ -29258,4 +29279,112 @@ msgid "react.agent_access.platform_step_create"
 msgstr ""
 
 msgid "react.agent_access.platform_step_package"
+msgstr ""
+
+msgid "react.agent_access.copied_button"
+msgstr ""
+
+msgid "react.agent_access.step_prefix"
+msgstr ""
+
+msgid "react.agent_access.in_the_cloud"
+msgstr ""
+
+msgid "react.agent_access.all_projects"
+msgstr ""
+
+msgid "react.agent_access.token_expires"
+msgstr ""
+
+msgid "react.agent_access.revoke"
+msgstr ""
+
+msgid "react.agent_access.no_request_yet"
+msgstr ""
+
+msgid "react.agent_access.step_client_title"
+msgstr ""
+
+msgid "react.agent_access.step_package_title"
+msgstr ""
+
+msgid "react.agent_access.step_access_title"
+msgstr ""
+
+msgid "react.agent_access.step_setup_title"
+msgstr ""
+
+msgid "react.agent_access.step_setup_title_no_client"
+msgstr ""
+
+msgid "react.agent_access.step_first_request_title"
+msgstr ""
+
+msgid "react.agent_access.access_not_needed"
+msgstr ""
+
+msgid "react.agent_access.change"
+msgstr ""
+
+msgid "react.agent_access.change_step"
+msgstr ""
+
+msgid "react.agent_access.continue"
+msgstr ""
+
+msgid "react.agent_access.choose_client_to_continue"
+msgstr ""
+
+msgid "react.agent_access.choose_package_to_continue"
+msgstr ""
+
+msgid "react.agent_access.oauth_access_summary"
+msgstr ""
+
+msgid "react.agent_access.oauth_access_body"
+msgstr ""
+
+msgid "react.agent_access.oauth_no_token"
+msgstr ""
+
+msgid "react.agent_access.connected_apps_link"
+msgstr ""
+
+msgid "react.agent_access.oauth_m365_admin"
+msgstr ""
+
+msgid "react.agent_access.token_expires_on"
+msgstr ""
+
+msgid "react.agent_access.setup_description_plugin"
+msgstr ""
+
+msgid "react.agent_access.setup_description_developer_plugin"
+msgstr ""
+
+msgid "react.agent_access.token_in_setup_title"
+msgstr ""
+
+msgid "react.agent_access.token_in_setup_copy"
+msgstr ""
+
+msgid "react.agent_access.token_missing_title"
+msgstr ""
+
+msgid "react.agent_access.token_missing_copy"
+msgstr ""
+
+msgid "react.agent_access.step_install_kept_plugin_hint"
+msgstr ""
+
+msgid "react.agent_access.step_install_copied_plugin_hint"
+msgstr ""
+
+msgid "react.jobs.rejecting"
+msgstr ""
+
+msgid "react.workflows.regenerating_url"
+msgstr ""
+
+msgid "react.workflows.rotating_credential"
 msgstr ""

@@ -27,7 +27,14 @@ function object(value: unknown): Record<string, unknown> {
  * Opt-in archived canvas evidence. Shares the inspector's queries, reads only
  * this job, and follows bounded history pages without following child links.
  */
-export function useJobExecutionSnapshot(jobId: string, enabled: boolean, expectedProjectId?: string) {
+export function useJobExecutionSnapshot(
+  jobId: string, enabled: boolean, expectedProjectId?: string,
+  /**
+   * Follow and poll the history by itself. False is a passive reader of the first page the page
+   * already reads and polls (its snapshot is then complete only for a short run).
+   */
+  followPages = true,
+) {
   const active = enabled && Boolean(jobId);
   const definitionQuery = useQuery({
     queryKey: ["jobs", "detail", jobId, "definition"],
@@ -43,7 +50,10 @@ export function useJobExecutionSnapshot(jobId: string, enabled: boolean, expecte
     getNextPageParam: (page) => page.page?.has_more && page.page.next_cursor ? page.page.next_cursor : undefined,
     enabled: active,
     retry: false,
-    refetchInterval: (query) => query.state.data?.pages[0]?.run_terminal ? false : 3_000,
+    // A reader that does not follow pages rides on the page's own poll of the same query:
+    // it neither re-reads on mount nor keeps a second timer.
+    refetchOnMount: followPages,
+    refetchInterval: (query) => !followPages || query.state.data?.pages[0]?.run_terminal ? false : 3_000,
   });
   const pages = historyQuery.data?.pages;
   const nextCursor = pages?.at(-1)?.page?.next_cursor || "";
@@ -52,8 +62,8 @@ export function useJobExecutionSnapshot(jobId: string, enabled: boolean, expecte
   const canLoadMore = more && Boolean(nextCursor) && !repeatedCursor && (pages?.length || 0) < MAX_EXECUTION_PAGES;
   const { fetchNextPage, isFetching, isError } = historyQuery;
   useEffect(() => {
-    if (active && canLoadMore && !isFetching && !isError) void fetchNextPage();
-  }, [active, canLoadMore, fetchNextPage, isError, isFetching, nextCursor]);
+    if (active && followPages && canLoadMore && !isFetching && !isError) void fetchNextPage();
+  }, [active, canLoadMore, fetchNextPage, followPages, isError, isFetching, nextCursor]);
 
   const snapshot = useMemo<JobExecutionSnapshot | null>(() => {
     const definition = definitionQuery.data;

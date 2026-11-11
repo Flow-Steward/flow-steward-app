@@ -25,6 +25,8 @@ import {
 } from "react-hook-form";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
@@ -217,17 +219,6 @@ function newPasswordErrorFromLoginError(error: unknown): string {
   return payloadRecord(error).field === "new_password" ? error.message : "";
 }
 
-function WaveLoader() {
-  return (
-    <span aria-hidden="true" className="fs-public-auth__wave-loader">
-      <span />
-      <span />
-      <span />
-      <span />
-    </span>
-  );
-}
-
 function Notice({ notice, role = "alert" }: Readonly<{ notice: AuthNotice; role?: "alert" | "status" }>) {
   let Icon = Info;
   if (notice.tone === "danger") {
@@ -278,11 +269,12 @@ function ExternalProviderSection({
   visible: boolean;
 }>) {
   const { t } = useI18n();
+  const loaderShown = useLoaderDelay(status === "loading");
   if (!visible) return null;
   return (
     <section aria-labelledby="public-auth-provider-title" className="fs-public-auth__provider-section">
       <h3 id="public-auth-provider-title">{t("react.auth.continue_with_external_sign_in", "Continue with external sign-in")}</h3>
-      {status === "loading" ? <div aria-live="polite" className="fs-public-auth__provider-loading"><WaveLoader /><span>{t("react.auth.loading_sign_in_providers", "Loading sign-in providers…")}</span></div> : null}
+      {status === "loading" && loaderShown ? <div className="fs-public-auth__provider-loading"><DsLoader label={t("react.auth.loading_sign_in_providers", "Loading sign-in providers…")} variant="orbit-inline" /></div> : null}
       {status === "ready" ? (
         <div className="fs-public-auth__provider-list">
           {providers.map((provider) => (
@@ -372,13 +364,15 @@ function LoginAccountField({
 
 function LoginSubmitArea({ activeNotice, label, submitting }: Readonly<{ activeNotice: AuthNotice | null; label: string; submitting: boolean }>) {
   const { t } = useI18n();
+  // Public Auth submit exception (button.md): busy and disabled at once; after
+  // the loader delay the label hides and the round mono Loader stands centred.
+  const loaderShown = useLoaderDelay(submitting);
   return (
     <>
       <AnimatePresence initial={false}>{activeNotice ? <Notice key={`${activeNotice.tone}-${activeNotice.title}`} notice={activeNotice} /> : null}</AnimatePresence>
-      <MotionButton {...AUTH_BUTTON_MOTION} aria-label={submitting ? t("react.auth.signing_in", "Signing in…") : undefined} aria-busy={submitting} className="fs-public-auth__button fs-public-auth__sign-in-button" data-loading={submitting ? "true" : undefined} disabled={submitting} id="login-btn" size="lg" type="submit">
-        <AnimatePresence initial={false}>{submitting ? <motion.span animate={{ opacity: 1 }} aria-hidden="true" className="fs-public-auth__button-spinner" data-testid="auth-submit-spinner" exit={{ opacity: 0 }} initial={{ opacity: 0 }} transition={AUTH_FEEDBACK_TRANSITION} /> : null}</AnimatePresence>
+      <MotionButton {...AUTH_BUTTON_MOTION} aria-label={submitting ? t("react.auth.signing_in", "Signing in…") : undefined} aria-busy={submitting} className="fs-public-auth__button fs-public-auth__sign-in-button" data-loading={loaderShown ? "true" : undefined} disabled={submitting} id="login-btn" size="lg" type="submit">
+        {loaderShown ? <span className="fs-public-auth__button-loader" data-testid="auth-submit-spinner"><DsLoader variant="orbit-inline" /></span> : null}
         <span className="fs-public-auth__button-label">{label}</span>
-        <span className="fs-public-auth__reduced-loading-label">{t("react.auth.signing_in", "Signing in…")}</span>
       </MotionButton>
     </>
   );

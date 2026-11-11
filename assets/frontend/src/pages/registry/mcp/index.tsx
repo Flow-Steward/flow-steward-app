@@ -14,6 +14,7 @@ import {
   PageContainer,
 } from "@/components/shared/design-system";
 
+import { Button } from "@/components/ui/button";
 import { type McpConnectorDeletePlan } from "@/pages/registry/mcp/api";
 
 import { McpConnectorDeletePlanModal } from "@/pages/registry/mcp/delete-plan-modal";
@@ -231,14 +232,15 @@ export function RegistryMcpPage() {
               type="button"
             >
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button primary"
-              disabled={createMutation.isPending}
+            <Button
+              busy={createMutation.isPending}
+              busyLabel={t("settings.retention.saving", "Saving…")}
               form="mcp-create-form"
               type="submit"
+              variant="primary"
             >
-              {createMutation.isPending ? t("settings.retention.saving", "Saving...") : t("react.registry.save_mcp", "Save MCP")}
-            </button>
+              {t("react.registry.save_mcp", "Save MCP")}
+            </Button>
           </>
         }
         onClose={() => setCreateOpen(false)}

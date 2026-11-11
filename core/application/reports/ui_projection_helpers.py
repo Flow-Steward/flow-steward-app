@@ -28,6 +28,7 @@ from core.application.workflows.workflow_step_kinds import (
     STEP_KIND_RUNTIME_ACTOR_LABELS,
     STEP_KIND_TRANSFORM,
 )
+from core.infrastructure.config.workflow_file_limits import file_preview_max_bytes
 
 from . import ui_projection_common as _common
 from . import ui_projection_review_workspace as _review
@@ -291,6 +292,7 @@ def _artifact_descriptors(
         from core.application.extensions.artifact_presentation import artifact_presentation_view
 
         metadata = artifact_presentation_view(metadata, resolve_artifact=resolve_artifact)
+        size_bytes = max(0, int(metadata.get("size_bytes") or 0))
         descriptors.append(
             {
                 "artifact_id": artifact_id,
@@ -299,7 +301,9 @@ def _artifact_descriptors(
                 "content_type": str(
                     metadata.get("content_type") or "application/octet-stream"
                 ).strip(),
-                "size_bytes": max(0, int(metadata.get("size_bytes") or 0)),
+                "size_bytes": size_bytes,
+                # Known before anyone asks: the run view says so instead of offering a preview.
+                "preview_too_large": size_bytes > file_preview_max_bytes(),
                 "available": available,
                 "download_url": (
                     f"/api/jobs/{job_id}/artifacts/{artifact_id}" if available else None

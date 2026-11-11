@@ -121,6 +121,8 @@ _BROKER_ENV = frozenset(
         # so without it no Compact worker or heartbeat reporter could reach RabbitMQ
         # and a fresh install never became ready.
         "FS_RABBITMQ_TRANSPORT_MODE",
+        # The exact provider private-network broker host for platform-private mode.
+        "FS_RABBITMQ_PRIVATE_HOST",
     }
 )
 _MONITORING_ENV = frozenset(

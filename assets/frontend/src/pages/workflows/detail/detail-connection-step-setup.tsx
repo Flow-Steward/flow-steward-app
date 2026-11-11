@@ -5,6 +5,8 @@ import { extensionIconUrl } from "@/pages/extensions/extension-icon";
 import { mcpCatalogIconUrl } from "@/pages/registry/mcp/api";
 import { connectorToolCategory } from "./detail-tool-categories";
 import { DsSelect, RequiredLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { IconButton } from "@/components/ui/icon-button";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -436,6 +438,7 @@ export function DatasetQueryStepSetup({ ctx, inputClass }: Readonly<{ ctx: Workf
     selectedDatasetQueryTemplate,
     stepKindConfig,
   } = ctx;
+  const templatesLoaderShown = useLoaderDelay(Boolean(datasetQueryTemplatesQuery.isLoading));
   const errors = stepNumericFieldErrors("dataset_query", stepKindConfig, t);
 
       const parameterSchema = objectOrEmpty(
@@ -472,8 +475,8 @@ export function DatasetQueryStepSetup({ ctx, inputClass }: Readonly<{ ctx: Workf
               ))]}
             />
           </label>
-          {datasetQueryTemplatesQuery.isLoading ? (
-            <p className="text-xs text-[var(--fs-text-tertiary)]">{t("react.workflows.loading_saved_query_catalog", "Loading saved query catalog…")}</p>
+          {templatesLoaderShown ? (
+            <p className="text-xs text-[var(--fs-text-tertiary)]"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_saved_query_catalog", "Loading saved query catalog…")} /></p>
           ) : null}
           {datasetQueryTemplatesQuery.isError ? (
             <p className="rounded-lg border border-[var(--fs-status-danger-border)] bg-[var(--fs-status-danger-bg)] px-3 py-2 text-xs text-[var(--fs-status-danger)]">
@@ -481,6 +484,7 @@ export function DatasetQueryStepSetup({ ctx, inputClass }: Readonly<{ ctx: Workf
           ) : null}
           {!datasetQueryTemplateOptions.length &&
           !datasetQueryTemplatesQuery.isLoading &&
+          !templatesLoaderShown &&
           !datasetQueryTemplatesQuery.isError ? (
             <p className="rounded-lg border border-[var(--fs-status-attention-border)] bg-[var(--fs-status-attention-wash)] px-3 py-2 text-xs text-[var(--fs-status-attention-ink)]">
               {t("react.workflows.no_saved_queries_are_available_create_one_from_registry_datasets_before_saving_this_step", "No saved queries are available. Create one from Registry → Datasets before saving this step.")}</p>

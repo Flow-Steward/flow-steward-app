@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 import { DsAlert, DsFormSelect, DsSelect } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { fetchWorkflowLinkedProjects } from "@/pages/workflows/shared/project-context";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useWorkflowHookProjectContext } from "./detail-hook-project-context";
@@ -23,7 +25,8 @@ export function WorkflowHookProjectPicker({
     workflowId, projectHint: projectId, enabled: canAuthor,
   });
   const projectsHref = `/registry/workflows/${encodeURIComponent(workflowId)}/projects`;
-  if (projects.isPending) return compact ? null : <p className="fs-empty-copy">{t("react.workflows.loading_linked_projects", "Loading linked projects…")}</p>;
+  const projectsLoaderShown = useLoaderDelay(projects.isPending && !compact);
+  if (projects.isPending || projectsLoaderShown) return projectsLoaderShown ? <p className="fs-empty-copy"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_linked_projects", "Loading linked projects…")} /></p> : null;
   if (projects.isError) return <span className="text-xs fs-ink-attention" role="status">{t("react.workflows.linked_projects_could_not_be_loaded", "Linked projects could not be loaded")}</span>;
   if (!choices.length) {
     const reason = t("react.workflows.hooks_no_project", "Link this workflow to a project to connect its hooks.");
@@ -55,7 +58,8 @@ export function WorkflowScheduleProjectContext({
     queryFn: () => fetchWorkflowLinkedProjects(workflowId),
     enabled: Boolean(workflowId), retry: false,
   });
-  if (projects.isPending) return <p className="fs-empty-copy">{t("react.workflows.loading_linked_projects", "Loading linked projects…")}</p>;
+  const projectsLoaderShown = useLoaderDelay(projects.isPending);
+  if (projects.isPending || projectsLoaderShown) return projectsLoaderShown ? <p className="fs-empty-copy"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_linked_projects", "Loading linked projects…")} /></p> : null;
   if (projects.isError) return <DsAlert title={t("react.workflows.linked_projects_could_not_be_loaded", "Linked projects could not be loaded")} tone="danger">{t("react.workflows.the_project_list_is_incomplete", "The project list is incomplete.")}{" "}{projects.error.message}</DsAlert>;
   const choices = projects.data || [];
   const validHint = choices.some((project) => project.id === projectHint);

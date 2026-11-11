@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { vi } from "vitest";
 
-import { extensionBrowserAssetUrl, type ManifestRenderContext } from "@/pages/extensions/extension-manifest-render-model";
+import { extensionBrowserAssetUrl, manifestActionKey, type ManifestRenderContext } from "@/pages/extensions/extension-manifest-render-model";
 import { renderManifestComponent } from "@/pages/extensions/extension-manifest-renderer";
 import { contractActionInputNames } from "@/pages/extensions/extension-manifest-utils";
 
@@ -326,7 +326,11 @@ describe("renderManifestComponent", () => {
     expect(onConnectionOAuthDisconnect).toHaveBeenCalledWith(expect.anything(), connection);
   });
 
-  it("identifies two Mail accounts in row actions and disables mutations while busy", () => {
+  it("identifies two Mail accounts in row actions and shows only the pressed one busy", async () => {
+    const user = userEvent.setup();
+    const onConnectionSelect = vi.fn();
+    const onConnectionOAuth = vi.fn();
+    const onConnectionDelete = vi.fn();
     const connections = [
       {
         connection_id: "mail-invoices",
@@ -359,24 +363,35 @@ describe("renderManifestComponent", () => {
           },
           renderContext({
             busy: true,
+            busyAction: manifestActionKey("connection", "mail_accounts", "mail-invoices", "disconnect"),
             extensionId: "fixture.extension-oauth",
             oauthConnectionTypes: ["fixture_mail_account"],
             projectConnections: connections,
+            onConnectionDelete,
+            onConnectionOAuth,
+            onConnectionSelect,
           }),
         )}
       </>,
     );
 
+    expect(screen.getByRole("button", { name: "Disconnect Invoices (invoices@example.test)" })).toHaveAttribute("aria-busy", "true");
     for (const name of [
       "Edit Invoices (invoices@example.test)",
-      "Disconnect Invoices (invoices@example.test)",
       "Remove Invoices (invoices@example.test)",
       "Edit Stock (stock@example.test)",
       "Reconnect Stock (stock@example.test)",
       "Remove Stock (stock@example.test)",
     ]) {
-      expect(screen.getByRole("button", { name })).toBeDisabled();
+      const sibling = screen.getByRole("button", { name });
+      expect(sibling).toBeEnabled();
+      expect(sibling).not.toHaveAttribute("aria-busy");
+      await user.click(sibling);
     }
+    // Presses are ignored while another action of the extension runs.
+    expect(onConnectionSelect).not.toHaveBeenCalled();
+    expect(onConnectionOAuth).not.toHaveBeenCalled();
+    expect(onConnectionDelete).not.toHaveBeenCalled();
     expect(
       screen.getByRole("group", {
         name: "Invoices (invoices@example.test) actions",
@@ -697,6 +712,7 @@ describe("renderManifestComponent", () => {
   it("passes the selected eligible channel row to its test action", async () => {
     const user = userEvent.setup();
     const onManifestAction = vi.fn();
+    const onActionPress = vi.fn();
     const rows = [
       {
         channel_id: "old-self-bot",
@@ -745,19 +761,15 @@ describe("renderManifestComponent", () => {
       ],
     };
 
-    render(
-      <>
-        {renderManifestComponent(
-          component,
-          renderContext({
-            componentQueryData: {
-              channel_test_grid: { items: rows, total: rows.length },
-            },
-            onManifestAction,
-          }),
-        )}
-      </>,
-    );
+    const gridContext = (overrides: Partial<ManifestRenderContext> = {}) => renderContext({
+      componentQueryData: {
+        channel_test_grid: { items: rows, total: rows.length },
+      },
+      onActionPress,
+      onManifestAction,
+      ...overrides,
+    });
+    const view = render(<>{renderManifestComponent(component, gridContext())}</>);
 
     const testButtons = screen.getAllByRole("button", { name: "Send test" });
     expect(testButtons).toHaveLength(2);
@@ -774,6 +786,17 @@ describe("renderManifestComponent", () => {
         data: rows[1],
       },
     );
+
+    // While it runs, only the pressed row's action is busy; the other row's ignores presses.
+    expect(onActionPress).toHaveBeenCalledOnce();
+    const [pressedKey] = onActionPress.mock.calls[0];
+    view.rerender(<>{renderManifestComponent(component, gridContext({ busy: true, busyAction: pressedKey }))}</>);
+    const [otherRow, pressedRow] = screen.getAllByRole("button", { name: "Send test" });
+    expect(pressedRow).toHaveAttribute("aria-busy", "true");
+    expect(otherRow).toBeEnabled();
+    expect(otherRow).not.toHaveAttribute("aria-busy");
+    await user.click(otherRow);
+    expect(onManifestAction).toHaveBeenCalledOnce();
   });
 
   it("paginates an unpaged grid response locally", async () => {

@@ -3,9 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
 
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
-import { hasPendingRequests } from "@/lib/http/request-activity";
 import { WorkflowsOverviewPage } from "@/pages/workflows/overview";
 
 const workflowId = "lazy-settings-fixture";
@@ -173,11 +171,19 @@ function fixture(options: FixtureOptions = {}) {
   return { requested, unexpected, detail };
 }
 
+let currentClient: QueryClient | null = null;
+
+/** Every query of the rendered journey has finished reading. */
+async function readsSettled() {
+  await waitFor(() => expect(currentClient?.isFetching() ?? 0).toBe(0));
+}
+
 function renderJourney(path: string, role: "admin" | "operator" = "admin", cachedDetail?: unknown) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   if (cachedDetail) client.setQueryData(["workflows", "detail", workflowId], cachedDetail);
+  currentClient = client;
   const router = createMemoryRouter([
     { path: "/registry/workflows/:workflowId", element: <WorkflowsOverviewPage /> },
     // A navigation trap, not a mock of Settings or Builder implementation.
@@ -187,7 +193,6 @@ function renderJourney(path: string, role: "admin" | "operator" = "admin", cache
     <AuthContext.Provider value={auth(role)}>
       <QueryClientProvider client={client}>
         <RouterProvider router={router} />
-        <RequestLoadingIndicator />
       </QueryClientProvider>
     </AuthContext.Provider>,
   );
@@ -206,12 +211,11 @@ it("opens real Settings from Overview without initializing the Builder or losing
   const view = renderJourney(`${rootPath}?project_id=${projectId}`);
   try {
     await screen.findByRole("heading", { name: "Shipping status workflow" });
-    await waitFor(() => expect(hasPendingRequests()).toBe(false));
+    await readsSettled();
     expectNoGraphReads(state.requested);
     expect(state.requested.map(({ path }) => path)).not.toContain(contractPath);
     expect(state.requested.map(({ path }) => path)).not.toContain(`/api/workflows/${workflowId}/export-policy`);
     expect(screen.queryByRole("textbox", { name: "Display name" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Manage schedules" })).not.toBeInTheDocument();
     expect(state.unexpected).toEqual([]);
 
@@ -245,7 +249,7 @@ it("opens real Settings from Overview without initializing the Builder or losing
     expect(state.requested.filter(({ path }) => path === contractPath).every(({ cache }) => cache === "no-store")).toBe(true);
     expect(state.requested.every(({ method }) => method === "GET")).toBe(true);
     expect(state.unexpected).toEqual([]);
-    await waitFor(() => expect(hasPendingRequests()).toBe(false));
+    await readsSettled();
   } finally { view.dispose(); }
 });
 
@@ -270,7 +274,7 @@ it("does not initialize author Settings for an operator's direct Overview tab", 
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`, "operator");
   try {
     await screen.findByRole("heading", { name: "Shipping status workflow" });
-    await waitFor(() => expect(hasPendingRequests()).toBe(false));
+    await readsSettled();
     await user.click(screen.getByRole("button", { name: "Workflow actions" }));
     expect(within(await screen.findByRole("menu", { name: "Workflow actions" }))
       .queryByRole("menuitem", { name: "Workflow settings" })).not.toBeInTheDocument();
@@ -286,7 +290,7 @@ it("does not initialize author Settings for an operator's direct Overview tab", 
 
 async function openSettings() {
   await screen.findByRole("textbox", { name: "Display name" });
-  await waitFor(() => expect(hasPendingRequests()).toBe(false));
+  await readsSettled();
 }
 
 function inputControl<T extends HTMLInputElement | HTMLTextAreaElement>(name: string): T {
@@ -472,7 +476,7 @@ it("releases workflow A's Settings controller before visiting B without a settin
     await openSettings();
     await act(async () => { await view.router.navigate(`/registry/workflows/second-settings-fixture?project_id=${projectId}`); });
     await screen.findByRole("heading", { name: "Second shipping workflow" });
-    await waitFor(() => expect(hasPendingRequests()).toBe(false));
+    await readsSettled();
     expect(screen.queryByRole("textbox", { name: "Display name" })).not.toBeInTheDocument();
     expect(state.requested.some(({ path }) => path === "/api/workflows/second-settings-fixture/contract")).toBe(false);
     const originalContractReads = state.requested.filter(({ path }) => path === contractPath).length;
@@ -557,7 +561,7 @@ it.each([
     expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
     // The overview's own cards stay out of a settings tab.
     expect(screen.queryByRole("heading", { name: "Run statistics" })).not.toBeInTheDocument();
-    await waitFor(() => expect(hasPendingRequests()).toBe(false));
+    await readsSettled();
     expect(state.unexpected).toEqual([]);
   } finally { view.dispose(); }
 });
@@ -597,7 +601,7 @@ it("leaves a deep link to a channel tab alone while the channel is off", async (
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=schedules`);
   try {
     await screen.findByRole("heading", { name: "Shipping status workflow" });
-    await waitFor(() => expect(hasPendingRequests()).toBe(false));
+    await readsSettled();
     expect(new URLSearchParams(view.router.state.location.search).get("tab")).toBe("schedules");
     expect(screen.queryByRole("link", { name: "Schedules" })).not.toBeInTheDocument();
   } finally { view.dispose(); }

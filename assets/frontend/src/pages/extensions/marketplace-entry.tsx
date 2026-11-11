@@ -11,6 +11,7 @@ import { ExternalLink } from "lucide-react";
 import { Link } from "react-router";
 
 import { CatalogFact, CatalogPageHead } from "@/components/shared/catalog-browse";
+import { Button } from "@/components/ui/button";
 import { DsAlert, DsBadge } from "@/components/shared/design-system";
 import { EntryIcon, Publisher } from "@/pages/extensions/marketplace-card";
 import type { ExtensionCatalogEntry, ExtensionCatalogInstallState } from "@/pages/extensions/catalog-api";
@@ -76,7 +77,7 @@ export function MarketplaceEntry({
     }
   }, [install.outcome, action.kind]);
 
-  const busy = install.phase !== "idle";
+  const restingPhase = install.phase === "installing" ? "idle" : install.phase;
   const badges = marketplaceBadges(entry, context.earliest, context.now, t);
   const paragraphs = (entry.description || entry.summary).split(/\n\s*\n/).filter(Boolean);
   const categories = entry.categories.map((id) => categoryName(context.labels, id)).join(", ");
@@ -102,17 +103,18 @@ export function MarketplaceEntry({
   const canAct = canAdminister || action.kind === "open";
   const button =
     action.kind === "install" || action.kind === "update" ? (
-      <button
-        aria-busy={install.phase === "installing" || undefined}
+      <Button
         aria-describedby={describedBy}
-        className="fs-button primary"
+        busy={install.phase === "installing"}
+        busyLabel={action.kind === "update" ? updateLabel("installing", entry.version, t) : installLabel("installing", t)}
         data-marketplace-install={entry.extension_id}
-        disabled={action.disabled || busy}
+        disabled={action.disabled || install.phase === "awaiting_approval"}
         onClick={() => onInstall(entry)}
         type="button"
+        variant="primary"
       >
-        {action.kind === "update" ? updateLabel(install.phase, entry.version, t) : installLabel(install.phase, t)}
-      </button>
+        {action.kind === "update" ? updateLabel(restingPhase, entry.version, t) : installLabel(restingPhase, t)}
+      </Button>
     ) : (
       openLink
     );

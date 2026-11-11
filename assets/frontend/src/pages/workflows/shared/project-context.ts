@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 import { fetchProjectsList, type ProjectListItem } from "@/pages/projects/list/api";
 import { isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
@@ -40,14 +40,14 @@ export function workflowIdsFromProjectBindingPayload(payload: unknown): string[]
     .filter(isTruthy);
 }
 
-export async function fetchAllProjectsForWorkflowContext(options?: FetchJsonOptions): Promise<ProjectListItem[]> {
+export async function fetchAllProjectsForWorkflowContext(): Promise<ProjectListItem[]> {
   const perPage = 200;
   const firstPage = await fetchProjectsList({
     page: 1,
     perPage,
     search: "",
     includeAllWorkspaces: true,
-  }, options);
+  });
   const projects = [...(firstPage.projects || [])];
   const totalPages = Number(firstPage.total_pages || 1);
   for (let page = 2; page <= totalPages; page += 1) {
@@ -56,7 +56,7 @@ export async function fetchAllProjectsForWorkflowContext(options?: FetchJsonOpti
       perPage,
       search: "",
       includeAllWorkspaces: true,
-    }, options);
+    });
     projects.push(...(payload.projects || []));
   }
   return projects;
@@ -67,27 +67,26 @@ type WorkflowLinkedProjectsResponse = { workflow_id?: string; projects?: Project
 /** The projects that link the workflow, in project-list order, in one read.
  *  The server answers it from each project's own bindings; a failed read
  *  rejects instead of becoming "no links". */
-async function fetchWorkflowLinkedProjectRows(workflowId: string, options?: FetchJsonOptions): Promise<ProjectListItem[]> {
+async function fetchWorkflowLinkedProjectRows(workflowId: string): Promise<ProjectListItem[]> {
   const payload = await fetchJson<WorkflowLinkedProjectsResponse>(
     `/api/workflows/${encodeURIComponent(workflowId)}/linked-projects`,
     undefined,
-    options,
   );
   return Array.isArray(payload?.projects) ? payload.projects.filter((project) => textOrEmpty(project?.id)) : [];
 }
 
-export async function findWorkflowLinkedProjectId(workflowId: string, options?: FetchJsonOptions): Promise<string> {
+export async function findWorkflowLinkedProjectId(workflowId: string): Promise<string> {
   const normalizedWorkflowId = textOrEmpty(workflowId);
   if (!normalizedWorkflowId) {
     return "";
   }
-  const [first] = await fetchWorkflowLinkedProjectRows(normalizedWorkflowId, options);
+  const [first] = await fetchWorkflowLinkedProjectRows(normalizedWorkflowId);
   return first ? textOrEmpty(first.id) : "";
 }
 
 /** Complete authorized link enumeration; a failed read must not become no links. */
-export async function fetchWorkflowLinkedProjects(workflowId: string, options?: FetchJsonOptions): Promise<ProjectListItem[]> {
+export async function fetchWorkflowLinkedProjects(workflowId: string): Promise<ProjectListItem[]> {
   const normalizedWorkflowId = textOrEmpty(workflowId);
   if (!normalizedWorkflowId) return [];
-  return fetchWorkflowLinkedProjectRows(normalizedWorkflowId, options);
+  return fetchWorkflowLinkedProjectRows(normalizedWorkflowId);
 }

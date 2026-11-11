@@ -64,7 +64,9 @@ describe("JobsDetailPage canonical rendering", () => {
     const modelUsage = await screen.findByText(/unknown\/model/);
     const usage = screen.getByTestId("job-usage-breakdown");
     expect(modelUsage).toHaveTextContent(new RegExp(`\\b${expectedTotal} tokens · 1 calls\\b`));
-    expect(within(usage).getByText(`Tokens: ${expectedTotal}`)).toBeInTheDocument();
+    // The total is its own figure (tabular numerals) inside the "Tokens:" line.
+    expect(within(usage).getByText((_, element) => Boolean(element?.classList.contains("job-usage"))
+      && element?.textContent === `Tokens: ${expectedTotal}`)).toBeInTheDocument();
   });
 
   it("lets each repeated loop execution open its own recorded inputs", async () => {
@@ -246,7 +248,7 @@ describe("JobsDetailPage canonical rendering", () => {
     expect(mockedFetchJobIncident).not.toHaveBeenCalled();
   });
 
-  it("shows report preparation immediately and blocks duplicate download requests", async () => {
+  it("shows report preparation and blocks duplicate download requests", async () => {
     primeApi(jobPayload({ status: "completed", finished_at: "2026-04-25T10:02:00Z" }));
     const downloadUrls: string[] = [];
     const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
@@ -261,8 +263,8 @@ describe("JobsDetailPage canonical rendering", () => {
     fireEvent.click(download);
     fireEvent.click(download);
 
-    expect(download).toBeDisabled();
-    expect(download).toHaveTextContent("Preparing report…");
+    expect(download).toHaveAttribute("aria-busy", "true");
+    expect(await screen.findByRole("button", { name: "Preparing report…" })).toBe(download);
     expect(anchorClick).toHaveBeenCalledTimes(1);
     expect(downloadUrls[0]).toMatch(
       /^http:\/\/localhost(?::\d+)?\/api\/jobs\/42\/report\?download_token=[A-Za-z0-9_-]{16,64}$/,

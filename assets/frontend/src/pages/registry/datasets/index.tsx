@@ -8,6 +8,7 @@ import { AssignmentSelector } from "@/components/shared/assignment-selector";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { Button } from "@/components/ui/button";
 
 import {
   AdvancedTableFilters,
@@ -171,14 +172,15 @@ export function RegistryDatasetsPage() {
           <>
             <button className="fs-button" onClick={closeCreate} type="button">
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button primary"
-              disabled={saving}
+            <Button
+              busy={saving}
+              busyLabel={t("react.registry.creating", "Creating…")}
               form={CREATE_FORM_ID}
               type="submit"
+              variant="primary"
             >
-              {saving ? t("react.registry.creating", "Creating...") : t("react.registry.create_dataset", "Create dataset")}
-            </button>
+              {t("react.registry.create_dataset", "Create dataset")}
+            </Button>
           </>
         }
         initialFocusRef={displayNameRef}
@@ -372,16 +374,18 @@ export function RegistryDatasetsPage() {
           <div className="fs-field full">
             <div className="fs-footer-actions">
               <span className="fs-field-label">{t("react.registry.schema_resources", "Schema resources")}</span>
-              <button
-                className="fs-button"
-                disabled={!selectedConnection || introspectMutation.isPending}
+              <Button
+                busy={introspectMutation.isPending}
+                busyLabel={t("react.registry.loading_schema", "Loading schema…")}
+                disabled={!selectedConnection}
                 onClick={() =>
                   selectedConnection && introspectCreateConnection(selectedConnection.connection_id)
                 }
                 type="button"
+                variant="secondary"
               >
-                {introspectMutation.isPending ? t("react.registry.loading_schema", "Loading schema...") : t("react.registry.introspect_schema", "Introspect schema")}
-              </button>
+                {t("react.registry.introspect_schema", "Introspect schema")}
+              </Button>
             </div>
             <span className="fs-field-helper">
               {t("react.registry.start_with_an_empty_selection_then_choose_only_the_tables_and_columns_you_want_to_expose", "Start with an empty selection, then choose only the tables and columns you want to expose.")}</span>

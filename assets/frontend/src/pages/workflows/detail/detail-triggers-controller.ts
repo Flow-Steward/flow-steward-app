@@ -34,6 +34,10 @@ import {
 } from "@/pages/workflows/detail/detail-webhook-signature-builder";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
+type TriggerAction =
+  | "create-webhook" | "save-webhook" | "dry-run" | "delete-webhook" | "rotate" | "regenerate"
+  | "create-provider" | "save-provider" | "delete-provider";
+
 export function useWorkflowTriggersController(ctx: Record<string, any>) {
   const { t } = useI18n();
   const {
@@ -48,7 +52,10 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
     workflowRecord,
   } = ctx;
 
-  const [triggerSavePending, setTriggerSavePending] = useState(false);
+  // The trigger action that is running: only its button is busy, and the
+  // other trigger actions ignore presses until it settles.
+  const [triggerAction, setTriggerAction] = useState<TriggerAction | null>(null);
+  const triggerSavePending = triggerAction !== null;
   const [triggerNotice, setTriggerNotice] = useState("");
   const [webhookEditorMode, setWebhookEditorMode] = useState<"create" | "edit">(
     "create",
@@ -442,6 +449,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
   }
 
   async function handleCreateWebhookTrigger() {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (!normalizedWorkflowId) {
       return;
@@ -451,7 +459,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       return;
     }
     setTriggerNotice("");
-    setTriggerSavePending(true);
+    setTriggerAction("create-webhook");
     try {
       const payloadBody = {
         project_id: resolvedWebhookProjectId || null,
@@ -503,11 +511,12 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
         error instanceof Error ? error.message : t("react.workflows.failed_to_create_webhook", "Failed to create webhook."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
   async function handleSaveWebhookTrigger() {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (!normalizedWorkflowId || !selectedWebhook) {
       return;
@@ -517,7 +526,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       return;
     }
     setTriggerNotice("");
-    setTriggerSavePending(true);
+    setTriggerAction("save-webhook");
     try {
       const payload = await saveJson(
         webhookLifecyclePath(selectedWebhook.entry_key),
@@ -574,7 +583,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
           : t("react.workflows.failed_to_save_webhook_settings", "Failed to save webhook settings."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
@@ -602,6 +611,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
   }
 
   async function handleDryRunWebhook(entryKey: string) {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (!normalizedWorkflowId || !entryKey) {
       return;
@@ -627,7 +637,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
         label: t("react.workflows.dry_run_files", "Dry-run files"),
       }, t);
       setTriggerNotice("");
-      setTriggerSavePending(true);
+      setTriggerAction("dry-run");
       try {
         const payload = await saveJson(
           webhookLifecyclePath(entryKey, "dry-run"),
@@ -654,7 +664,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
           error instanceof Error ? error.message : t("react.workflows.failed_to_dry_run_webhook", "Failed to dry-run webhook."),
         );
       } finally {
-        setTriggerSavePending(false);
+        setTriggerAction(null);
       }
     } catch (error) {
       setTriggerNotice(
@@ -665,6 +675,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
   }
 
   async function handleDeleteWebhook(entryKey: string) {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (!normalizedWorkflowId || !entryKey) {
       return;
@@ -674,7 +685,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       return;
     }
     setTriggerNotice("");
-    setTriggerSavePending(true);
+    setTriggerAction("delete-webhook");
     try {
       await saveJson(webhookLifecyclePath(entryKey), { method: "DELETE" });
       await workflowTriggersQuery.refetch();
@@ -687,11 +698,12 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
         error instanceof Error ? error.message : t("react.workflows.failed_to_delete_webhook", "Failed to delete webhook."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
   async function handleCreateProviderTrigger() {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (providerProjectResolutionPending) {
       setTriggerNotice(t("react.workflows.wait_for_project_context_to_resolve_before_creating_a_provider_trigger", "Wait for project context to resolve before creating a provider trigger."));
@@ -706,7 +718,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       return;
     }
     setTriggerNotice("");
-    setTriggerSavePending(true);
+    setTriggerAction("create-provider");
     try {
       const payload = await saveJson(
         `/api/workflows/${encodeURIComponent(normalizedWorkflowId)}/triggers/providers`,
@@ -733,11 +745,12 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
         error instanceof Error ? error.message : t("react.workflows.failed_to_save_provider_trigger", "Failed to save provider trigger."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
   async function handleSaveProviderTrigger() {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (providerProjectResolutionPending) {
       setTriggerNotice(t("react.workflows.wait_for_project_context_to_resolve_before_updating_provider_triggers", "Wait for project context to resolve before updating provider triggers."));
@@ -752,7 +765,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       return;
     }
     setTriggerNotice("");
-    setTriggerSavePending(true);
+    setTriggerAction("save-provider");
     try {
       await saveJson(
         `/api/workflows/${encodeURIComponent(normalizedWorkflowId)}/triggers/providers/${encodeURIComponent(selectedProviderTrigger.trigger_id)}`,
@@ -780,11 +793,12 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
           : t("react.workflows.failed_to_update_provider_trigger", "Failed to update provider trigger."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
   async function handleDeleteProviderTrigger(triggerId: string) {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (providerProjectResolutionPending) {
       setTriggerNotice(t("react.workflows.wait_for_project_context_to_resolve_before_deleting_provider_triggers", "Wait for project context to resolve before deleting provider triggers."));
@@ -794,7 +808,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       return;
     }
     setTriggerNotice("");
-    setTriggerSavePending(true);
+    setTriggerAction("delete-provider");
     try {
       await saveJson(
         `/api/workflows/${encodeURIComponent(normalizedWorkflowId)}/triggers/providers/${encodeURIComponent(triggerId)}`,
@@ -812,11 +826,12 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
           : t("react.workflows.failed_to_delete_provider_trigger", "Failed to delete provider trigger."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
   async function handleRotateWebhookCredential(entryKey: string) {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (!normalizedWorkflowId || !entryKey) {
       return;
@@ -825,7 +840,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       setTriggerNotice(t("react.workflows.wait_for_project_context_to_resolve_before_rotating_this_credential", "Wait for project context to resolve before rotating this credential."));
       return;
     }
-    setTriggerSavePending(true);
+    setTriggerAction("rotate");
     setTriggerNotice("");
     try {
       const payload = await saveJson(
@@ -842,11 +857,12 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
         error instanceof Error ? error.message : t("react.workflows.failed_to_rotate_credential", "Failed to rotate credential."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
   async function handleRegenerateWebhookUrl(entryKey: string) {
+    if (triggerAction) return;
     const normalizedWorkflowId = firstStringFromUnknownValue([workflowId, ""]).trim();
     if (!normalizedWorkflowId || !entryKey) {
       return;
@@ -855,7 +871,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
       setTriggerNotice(t("react.workflows.wait_for_project_context_to_resolve_before_regenerating_this_url", "Wait for project context to resolve before regenerating this URL."));
       return;
     }
-    setTriggerSavePending(true);
+    setTriggerAction("regenerate");
     setTriggerNotice("");
     try {
       const payload = await saveJson(
@@ -872,7 +888,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
         error instanceof Error ? error.message : t("react.workflows.failed_to_regenerate_webhook_url", "Failed to regenerate webhook URL."),
       );
     } finally {
-      setTriggerSavePending(false);
+      setTriggerAction(null);
     }
   }
 
@@ -941,6 +957,7 @@ export function useWorkflowTriggersController(ctx: Record<string, any>) {
     setWebhookSignatureBuilderDraft: updateWebhookSignatureBuilderDraft,
     setWebhookSourceCidrsDraft,
     setWebhookSourceExactIpsDraft,
+    triggerAction,
     triggerNotice,
     triggerSavePending,
     webhookAllowedContentTypesDraft,

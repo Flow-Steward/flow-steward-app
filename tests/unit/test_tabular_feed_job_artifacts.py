@@ -87,6 +87,7 @@ def test_tabular_csv_node_persists_downloadable_output_without_bulk_state(mapped
             "filename": "catalog.csv",
             "content_type": "text/csv",
             "size_bytes": result["size_bytes"],
+            "preview_too_large": False,
             "available": True,
             "download_url": f"/api/jobs/job-export/artifacts/{artifact_id}",
         }

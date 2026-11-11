@@ -31,7 +31,7 @@ it.each(["awaiting_timer", "awaiting_child"])("keeps polling a step in %s beyond
   await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
   expect(view.result.current.stepTestRunPayload?.status).toBe("completed");
   expect(view.result.current.stepTestRunMessage).toBe("Step test run completed successfully.");
-  expect(fetchState.mock.calls.every(([thread, options]) => thread === "long-step" && options?.presentation === "background")).toBe(true);
+  expect(fetchState.mock.calls.every(([thread]) => thread === "long-step")).toBe(true);
   const completedCalls = fetchState.mock.calls.length;
   await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
   expect(fetchState).toHaveBeenCalledTimes(completedCalls);
@@ -134,7 +134,7 @@ it("retires an outstanding isolated poll after workflow A to B to A", async () =
   await act(async () => { await view.result.current.stepTestRunMutation.mutateAsync(); });
   await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
   expect(fetchState).toHaveBeenCalledTimes(1);
-  expect(fetchState).toHaveBeenCalledWith("retired-step-thread", { presentation: "background" });
+  expect(fetchState).toHaveBeenCalledWith("retired-step-thread");
   view.rerender({ ...owner, workflowId: "workflow-b" });
   view.rerender(owner);
   await act(async () => { finishPoll?.({ ...pending, status: "completed", final_status: "completed", outputs: { retired: true } }); });

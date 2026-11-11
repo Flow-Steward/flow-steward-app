@@ -970,7 +970,9 @@ def test_the_host_record_is_private_from_the_moment_it_appears(tmp_path: Path) -
         assert record.read_text(encoding="utf-8").strip() == str(process.pid)
 
         os.killpg(process.pid, signal.SIGINT)
-        process.communicate(timeout=15)
+        # Every chmod costs a second here, so the cleanup after Ctrl-C is slow by
+        # design; a loaded full gate needed more than 15 s for it.
+        process.communicate(timeout=60)
 
     assert not record.exists()
 

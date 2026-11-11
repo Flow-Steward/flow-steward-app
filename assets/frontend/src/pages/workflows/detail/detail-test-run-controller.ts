@@ -222,7 +222,6 @@ function usePendingTestRunPolling(
       try {
         const latest = await fetchWorkflowTestRunState(
           threadId,
-          { presentation: "background" },
         );
         if (cancelled) {
           return;

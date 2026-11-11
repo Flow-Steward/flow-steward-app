@@ -2,8 +2,11 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { McpCatalogIcon } from "@/pages/registry/mcp/mcp-catalog-presentation";
 import { type ReactNode } from "react";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+
 import { type KeyValueRow } from "./key-value-rows";
 import { type ScopeRow } from "./mcp-form-rows";
+import { ConnectorRowActions } from "./mcp-connector-row-actions";
 import { mcpStatusLabel } from "./mcp-status-label";
 export { rowsFromRecord, scopeRows } from "./mcp-form-rows";
 export type { ScopeRow } from "./mcp-form-rows";
@@ -12,7 +15,6 @@ import {
   BlankCell,
   DsBadge,
   DsValueChip,
-  RowActionMenu,
   type DsBadgeTone,
   type DsTableColumn,
 } from "@/components/shared/design-system";
@@ -20,6 +22,7 @@ import {
 import { type McpConnectorRecord } from "@/pages/registry/mcp/api";
 
 import { fetchProjectsList } from "@/pages/projects/list/api";
+import { formatUserDateTime } from "@/lib/time/user-timezone";
 
 export type FormSubmitEvent = {
   currentTarget: HTMLFormElement;
@@ -106,7 +109,7 @@ export function formatLastSync(value: string, status: string, t: I18nContextValu
   if (Number.isNaN(date.getTime())) {
     return status === "failed" ? t("settings.mcp.oauth.failed", "Failed") : value;
   }
-  return `${date.toLocaleString()}${status === "failed" ? ` (${t("react.extensions.failed", "failed")})` : ""}`;
+  return `${formatUserDateTime(date)}${status === "failed" ? ` (${t("react.extensions.failed", "failed")})` : ""}`;
 }
 
 /** What the Health column shows: a turned-off connector reads as disabled. */
@@ -119,8 +122,11 @@ export function connectorCredential(row: McpConnectorRecord): string {
   return row.auth_mode === "oauth2" ? row.oauth_status.status || row.auth_status : "";
 }
 
+/** The row action that is running, so only the pressed item shows it. */
+export type McpRowBusy = { action: "sync" | "health" | "delete-plan" | "delete"; connectorId: string };
+
 export type ConnectorColumnsOptions = {
-  busyConnectorId: string;
+  busyConnector: McpRowBusy | null;
   canManageProject: boolean;
   /** The project's name for a connector's project_id. */
   projectName: (projectId: string) => string;
@@ -133,7 +139,7 @@ export type ConnectorColumnsOptions = {
 };
 
 export function buildConnectorColumns({
-  busyConnectorId,
+  busyConnector,
   canManageProject,
   projectName,
   onDelete,
@@ -219,64 +225,24 @@ export function buildConnectorColumns({
       key: "actions",
       header: "",
       ariaLabel: t("extensions.table.actions", "Actions"),
-      cell: (row) => {
-        const connectorId = row.connector_id;
-        const busy = busyConnectorId === connectorId;
-        return (
-          <RowActionMenu
-            label={t("react.registry.actions_for_value0", "Actions for {value0}", { value0: row.display_name })}
-            onOpenChange={(open) => onRowMenuChange(open ? connectorId : null)}
-            open={rowMenu === connectorId}
-          >
-            <div className="fs-row-menu-group">
-              <button onClick={() => onView(connectorId)} role="menuitem" type="button">{t("react.registry.view", "View")}</button>
-              {canManageProject ? null : <span className="fs-row-menu-label">{t("settings.access.service_accounts.form.level.read", "Read only")}</span>}
-              {canManageProject ? (
-                <>
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      onSync(connectorId);
-                      onRowMenuChange(null);
-                    }}
-                    role="menuitem"
-                    type="button"
-                  >{t("react.registry.sync", "Sync")}</button>
-                  <button
-                    disabled={busy}
-                    onClick={() => {
-                      onHealth(connectorId);
-                      onRowMenuChange(null);
-                    }}
-                    role="menuitem"
-                    type="button"
-                  >{t("settings.mcp.health", "Health")}</button>
-                </>
-              ) : null}
-            </div>
-            {canManageProject ? (
-              <>
-                <div className="fs-row-menu-separator" />
-                <div className="fs-row-menu-group">
-                  <button
-                    className="danger"
-                    disabled={busy}
-                    onClick={() => {
-                      onDelete(connectorId, row.display_name);
-                      onRowMenuChange(null);
-                    }}
-                    role="menuitem"
-                    type="button"
-                  >{t("settings.model_providers.delete", "Delete")}</button>
-                </div>
-              </>
-            ) : null}
-          </RowActionMenu>
-        );
-      },
+      cell: (row) => (
+        <ConnectorRowActions
+          busyAction={busyConnector?.connectorId === row.connector_id ? busyConnector.action : null}
+          canManageProject={canManageProject}
+          onDelete={onDelete}
+          onHealth={onHealth}
+          onRowMenuChange={onRowMenuChange}
+          onSync={onSync}
+          onView={onView}
+          row={row}
+          rowMenu={rowMenu}
+          t={t}
+        />
+      ),
     },
   ];
 }
+
 
 export function isValidHttpEndpoint(value: string): boolean {
   try {
@@ -315,23 +281,25 @@ export function projectCanManage(
 
 export function mcpTableState({
   loading,
+  loaderShown,
   loadError,
   total,
   filtered,
   onRetry,
 }: Readonly<{
   loading: boolean;
+  /** `useLoaderDelay(loading)` from the owner: the block Loader waits 400ms and stays 500ms. */
+  loaderShown: boolean;
   loadError: string;
   total: number;
   /** Whether a search or a filter narrowed the list. */
   filtered: boolean;
   onRetry: () => void;
 }>, t: I18nContextValue["t"] = fallbackContext.t): ReactNode {
-  if (loading) {
-    return <div className="fs-table-state">
-      <strong>{t("react.registry.loading_mcp_connectors", "Loading MCP connectors")}</strong>
-      <span>{t("react.registry.the_catalog_will_remain_in_this_table_layout", "The catalog will remain in this table layout.")}</span>
-    </div>;
+  if (loading || loaderShown) {
+    return loaderShown ? <div className="fs-table-state">
+      <DsLoader label={t("react.registry.loading_mcp_connectors", "Loading MCP connectors")} variant="wide-block" />
+    </div> : null;
   }
   if (loadError) {
     return <div className="fs-table-state">

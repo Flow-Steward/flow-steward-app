@@ -4,6 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 
 import { AssignmentSelector } from "@/components/shared/assignment-selector";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 
 import {
   DsAlert,
@@ -97,6 +100,8 @@ export function RegistryDatasetsDetailPage() {
     focusRowTrigger,
     deleteQueryTarget,
   } = useDatasetDetailState();
+  const queryConnectorLoaderShown = useLoaderDelay(!queryCreationReady && queryConnectorLoading);
+  const savedQueriesLoaderShown = useLoaderDelay(savedQueriesQuery.isLoading);
 
   return (
     <PageContainer className="fs-page-sections" width="standard">
@@ -111,14 +116,16 @@ export function RegistryDatasetsDetailPage() {
                 Guardrails detail. `linked projects` stays — it is state a reader
                 cannot get from anywhere else on this row. */}
             <DsValueChip>{t("react.registry.linked_projects", "linked projects:")}{" "}{linkedProjectIds.length || t("registry.published_blocks.none", "none")}</DsValueChip>
-            {!configurationReadOnly ? <button
-              className="fs-button"
-              disabled={toggleMutation.isPending || !dataset}
+            {!configurationReadOnly ? <Button
+              busy={toggleMutation.isPending}
+              busyLabel={t("react.settings.updating", "Updating…")}
+              disabled={!dataset}
               onClick={() => toggleMutation.mutate()}
               type="button"
+              variant="secondary"
             >
               {draft.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-            </button> : null}
+            </Button> : null}
           </>
         }
         description={configurationReadOnly ? t("react.registry.inspect_package_dataset", "Inspect package-defined dataset configuration and saved queries.") : t("react.registry.edit_dataset_metadata_and_scope_saved_queries_stay_bound_to_this_dataset", "Edit dataset metadata and scope. Saved queries stay bound to this dataset.")}
@@ -347,14 +354,16 @@ export function RegistryDatasetsDetailPage() {
                 </div>
 
                 <div className="fs-footer-actions">
-                  <button
-                    className="fs-button primary"
-                    disabled={saveMutation.isPending || !datasetId || !selectedResourceCount}
+                  <Button
+                    busy={saveMutation.isPending}
+                    busyLabel={t("settings.retention.saving", "Saving…")}
+                    disabled={!datasetId || !selectedResourceCount}
                     onClick={handleSave}
                     type="button"
+                    variant="primary"
                   >
-                    {saveMutation.isPending ? t("settings.retention.saving", "Saving...") : t("react.registry.save_dataset", "Save dataset")}
-                  </button>
+                    {t("react.registry.save_dataset", "Save dataset")}
+                  </Button>
                   {/* A completed save used to be a chip in the page header. */}
                   {message ? <DsAlert title={message} tone="success" /> : null}
                 </div>
@@ -369,9 +378,9 @@ export function RegistryDatasetsDetailPage() {
                     {t("react.registry.add_query", "Add query")}</button>
                   {message ? <DsAlert title={message} tone="success" /> : null}
                 </div>
-                {!queryCreationReady ? queryConnectorLoading ? (
-                  <p role="status" className="fs-field-helper">{t("react.registry.loading_query_connection", "Loading connection details…")}</p>
-                ) : (
+                {queryConnectorLoaderShown ? (
+                  <p className="fs-field-helper"><DsLoader label={t("react.registry.loading_query_connection", "Loading connection details…")} variant="orbit-inline" /></p>
+                ) : !queryCreationReady && !queryConnectorLoading ? (
                   <DsAlert title={t("react.registry.query_connector_unavailable", "Connection details are unavailable. Retry or check the dataset connection.")} tone="danger">
                     <button className="fs-button" onClick={retryQueryConnectionDetails} type="button">
                       {t("react.registry.retry_query_connection", "Retry connection details")}
@@ -385,7 +394,7 @@ export function RegistryDatasetsDetailPage() {
                   rowKey={(row) => row.query_template_id}
                   rows={savedQueries}
                   state={
-                    savedQueries.length ? null : (
+                    savedQueriesLoaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : savedQueriesQuery.isLoading || savedQueries.length ? null : (
                       <div className="fs-table-state">
                         <strong>{t("react.registry.no_saved_queries_yet", "No saved queries yet")}</strong>
                         <span>
@@ -412,14 +421,16 @@ export function RegistryDatasetsDetailPage() {
           <>
             <button className="fs-button" onClick={() => setPreviewDraft(null)} type="button">
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button primary"
-              disabled={previewQueryMutation.isPending || validateQueryMutation.isPending || !previewProjectReady}
+            <Button
+              busy={previewQueryMutation.isPending || validateQueryMutation.isPending}
+              busyLabel={previewDraft?.mode === "validate" ? t("registry.index.validating", "Validating…") : t("react.workflows.running", "Running…")}
+              disabled={!previewProjectReady}
               onClick={runPreviewQuery}
               type="button"
+              variant="primary"
             >
               {previewDraft?.mode === "validate" ? t("react.registry.run_validation", "Run validation") : t("react.registry.run_preview", "Run preview")}
-            </button>
+            </Button>
           </>
         }
         initialFocusRef={previewParamsRef}
@@ -481,14 +492,15 @@ export function RegistryDatasetsDetailPage() {
           <>
             <button className="fs-button" onClick={closeQueryModal} type="button">
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            {!queryConfigurationReadOnly ? <button
-              className="fs-button primary"
-              disabled={saveQueryMutation.isPending}
+            {!queryConfigurationReadOnly ? <Button
+              busy={saveQueryMutation.isPending}
+              busyLabel={t("settings.retention.saving", "Saving…")}
               onClick={handleSaveSavedQuery}
               type="button"
+              variant="primary"
             >
-              {saveQueryMutation.isPending ? t("settings.retention.saving", "Saving...") : t("react.registry.save_query", "Save query")}
-            </button> : null}
+              {t("react.registry.save_query", "Save query")}
+            </Button> : null}
           </>
         }
         initialFocusRef={queryNameRef}

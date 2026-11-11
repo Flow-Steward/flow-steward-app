@@ -1,5 +1,6 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
+import { formatDateTime, toDate } from "@/lib/time/date-time-format";
 
 export type ConnectorOption = {
   connector_id: string;
@@ -351,8 +352,7 @@ export function formatDate(value?: string): string {
   if (!value) {
     return "-";
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
+  return toDate(value) ? formatDateTime(value) : "-";
 }
 
 export function csvStrings(value: string): string[] {

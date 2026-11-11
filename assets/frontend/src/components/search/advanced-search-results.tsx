@@ -6,7 +6,6 @@ import { Fragment, useEffect, useMemo, useRef } from "react";
 import {
   Activity,
   Bot,
-  LoaderCircle,
   Network,
   Search,
   Workflow,
@@ -21,6 +20,9 @@ import {
   resultTitle,
 } from "@/components/search/advanced-search-result-format";
 import type { AdvancedSearchView } from "@/components/search/use-advanced-search";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 
 const ICON_BY_GROUP: Record<string, LucideIcon> = {
   jobs: Network,
@@ -194,6 +196,11 @@ export function AdvancedSearchResults({
     active?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
+  // The searching message waits out the loader delay and, once shown, stays
+  // for the minimum display time before the results replace it.
+  const searchingShown = useLoaderDelay(view === "searching");
+  const loadingMoreShown = useLoaderDelay(Boolean(loadingMore));
+  const shownView = searchingShown ? "searching" : view;
   let cursor = -1;
 
   return (
@@ -206,7 +213,7 @@ export function AdvancedSearchResults({
       ref={regionRef}
       role="listbox"
     >
-      {view === "initial" ? (
+      {shownView === "initial" ? (
         <Message>
           <Search aria-hidden="true" />
           <strong>{t("react.shared.search_across_flow_steward", "Search across Flow Steward")}</strong>
@@ -214,15 +221,15 @@ export function AdvancedSearchResults({
         </Message>
       ) : null}
 
-      {view === "searching" ? (
+      {shownView === "searching" && searchingShown ? (
         <Message>
-          <LoaderCircle aria-hidden="true" className="fs-advanced-search__spinner" />
+          <DsLoader variant="orbit-slot" />
           <strong>{t("shell.search.loading", "Searching…")}</strong>
           <p>{t("react.shared.keeping_your_current_scope_and_filters", "Keeping your current scope and filters.")}</p>
         </Message>
       ) : null}
 
-      {view === "empty" ? (
+      {shownView === "empty" ? (
         <Message>
           <Search aria-hidden="true" />
           <strong>{t("react.shared.no_matching_results", "No matching results")}</strong>
@@ -230,7 +237,7 @@ export function AdvancedSearchResults({
         </Message>
       ) : null}
 
-      {view === "error" ? (
+      {shownView === "error" ? (
         <div className="fs-advanced-search__message">
           <div className="fs-advanced-search__message-inner fs-advanced-search__error" role="alert">
             <strong>{t("react.shared.search_couldn_t_load", "Search couldn’t load")}</strong>
@@ -241,7 +248,7 @@ export function AdvancedSearchResults({
         </div>
       ) : null}
 
-      {view === "results" ? (
+      {shownView === "results" ? (
         <div className="fs-advanced-search__result-list">
           {sections.map((section) => (
             <div key={section.heading ?? "flat"}>
@@ -271,12 +278,12 @@ export function AdvancedSearchResults({
           {canLoadMore ? (
             <button
               className="fs-advanced-search__load-more"
+              aria-busy={loadingMore || undefined}
               data-loading={loadingMore ? "true" : undefined}
-              disabled={loadingMore}
-              onClick={onLoadMore}
+              onClick={() => { if (!loadingMore) onLoadMore(); }}
               type="button"
             >
-              {loadingMore ? t("shell.search.loading_more", "Loading…") : t("job_security.load_more", "Load more")}
+              <ButtonBusyContent busyLabel={t("shell.search.loading_more", "Loading…")} shown={loadingMoreShown}>{t("job_security.load_more", "Load more")}</ButtonBusyContent>
             </button>
           ) : null}
         </div>

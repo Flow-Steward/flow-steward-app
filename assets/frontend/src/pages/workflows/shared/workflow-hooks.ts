@@ -1,7 +1,6 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import type { FetchJsonOptions } from "@/lib/http/client";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchWorkflowDetail } from "@/pages/workflows/shared/api";
 import { fetchWorkflowHooks, workflowHooksQueryKey } from "@/pages/workflows/shared/hook-api";
@@ -69,15 +68,14 @@ export function declaredWorkflowHooks(steps: unknown): WorkflowHookState[] {
  */
 export function useWorkflowHookStates({
   enabled = true,
-  options,
   projectId,
   steps,
   workflowId,
-}: Readonly<{ enabled?: boolean; options?: FetchJsonOptions; projectId: string; steps: unknown; workflowId: string }>) {
+}: Readonly<{ enabled?: boolean; projectId: string; steps: unknown; workflowId: string }>) {
   const declared = useMemo(() => declaredWorkflowHooks(steps), [steps]);
   const hooksQuery = useQuery({
     queryKey: workflowHooksQueryKey(projectId, workflowId),
-    queryFn: () => options ? fetchWorkflowHooks(projectId, workflowId, options) : fetchWorkflowHooks(projectId, workflowId),
+    queryFn: () => fetchWorkflowHooks(projectId, workflowId),
     enabled: enabled && declared.length > 0 && Boolean(projectId && workflowId),
     retry: false,
   });
@@ -92,7 +90,7 @@ export function useWorkflowHookStates({
   const targetQueries = useQueries({
     queries: targetIds.map((targetId) => ({
       queryKey: queryKeys.workflowDetail(targetId),
-      queryFn: () => options ? fetchWorkflowDetail(targetId, options) : fetchWorkflowDetail(targetId),
+      queryFn: () => fetchWorkflowDetail(targetId),
       enabled,
       retry: false,
       staleTime: 30_000,

@@ -4,6 +4,8 @@ import type { WorkflowCanvasGraph, WorkflowContractSummary, WorkflowTargetRef } 
 import type { JobDefinitionPayload } from "./api";
 import { targetLabel } from "@/pages/workflows/builder/api";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { localizedSTEP_KIND_OPTIONS } from "@/pages/workflows/detail/detail-automation-core";
+import type { ToolCategory } from "@/pages/workflows/detail/detail-tool-categories";
 
 /** An archived graph has no live-workflow fallback, including for unsupported formats. */
 export function archivedDefinitionCanvasGraph(definition: JobDefinitionPayload, t: I18nContextValue["t"] = fallbackContext.t): WorkflowCanvasGraph | null {
@@ -24,10 +26,24 @@ export function archivedDefinitionCanvasGraph(definition: JobDefinitionPayload, 
     })),
     settings: { execution_graph: definition.execution_graph },
   });
-  return canvasGraphWithDefinition({
+  const graph = canvasGraphWithDefinition({
     workflow: { id: workflowId, display_name: workflowId, revision: definition.revision, enabled: false, callable_by_parent: false },
     interface_contract: {}, output_contract: {}, groups: [], steps: [], edges: [], validation_issues: [], automation_rules: [],
   }, model, t);
+  // An archived card has no server summary; it names its kind in words (Extension tool, Transform), never by id.
+  const kinds = new Map(localizedSTEP_KIND_OPTIONS(t).map((option) => [option.value, option.label]));
+  return {
+    ...graph,
+    steps: graph.steps.map((step) => step.config_summary === step.kind
+      ? { ...step, config_summary: step.kind === "connector" ? toolKindLabel(step.tool_category, t) : kinds.get(step.kind) || step.kind }
+      : step),
+  };
+}
+
+function toolKindLabel(category: ToolCategory | undefined, t: I18nContextValue["t"]): string {
+  if (category === "extension_tools") return t("react.jobs.kind_extension_tool", "Extension tool");
+  if (category === "mcp_tools") return t("react.jobs.kind_mcp_tool", "MCP tool");
+  return t("react.jobs.kind_system_tool", "System tool");
 }
 
 

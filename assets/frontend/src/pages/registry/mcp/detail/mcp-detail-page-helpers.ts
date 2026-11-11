@@ -8,6 +8,7 @@ export { keyValueRowProblem, RESERVED_OAUTH_PARAMETER_IDENTITIES, type KeyValueR
 import { isHttpError } from "@/lib/http/errors";
 
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { formatUserDateTime } from "@/lib/time/user-timezone";
 
 /** The `message` state reports successes and failures alike, so the outcome
  *  travels with the text and picks the alert tone. */
@@ -71,8 +72,7 @@ export function storedHeadersMessage(mode: McpSettingsDraft["headers_mode"], t: 
   return t("react.registry.saved_headers_stay_masked_and_unchanged", "Saved headers stay masked and unchanged.");
 }
 
-export function oauthStartLabel(pending: boolean, mustRestart: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (pending) return t("react.extensions.starting", "Starting…");
+export function oauthStartLabel(mustRestart: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return mustRestart ? t("react.registry.reconnect_authorization", "Reconnect Authorization") : t("react.registry.start_authorization", "Start Authorization");
 }
 
@@ -80,8 +80,7 @@ export function formatDateTime(value: string, t: I18nContextValue["t"] = fallbac
   if (!value) {
     return t("react.registry.mcp_final_never_date", "Never");
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return formatUserDateTime(value);
 }
 
 export function apiErrorCode(error: unknown): string {

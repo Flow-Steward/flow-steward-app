@@ -1,7 +1,5 @@
-import { hasPendingRequests } from "@/lib/http/request-activity";
 import type * as SimulateApi from "@/pages/workflows/shared/simulate-api";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import {
   fetchSpy,
@@ -177,13 +175,11 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
     localStorage.setItem("fs.workflow-run-job.weekly_report", jobId);
     vi.useFakeTimers();
     const view = renderPage({ initialEntry: "/registry/workflows/weekly_report/builder?drawer=workflow-test-run&project_id=project_alpha", surface: "builder" });
-    const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
     try {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       expect(calls).toBe(2);
       expect(mockedFetchWorkflowTestRunState.mock.calls).toEqual([[THREAD_ID], [THREAD_ID]]);
       expect(pending).toHaveLength(0);
-      expect(hasPendingRequests()).toBe(false);
       // Keep one fake-clock act owner: concurrent findBy wrappers also need a timer drain.
       const launch = screen.queryByRole("dialog", { name: "Start a test run" });
       if (launch) fireEvent.click(within(launch).getByRole("button", { name: "Cancel" }));
@@ -200,28 +196,26 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
       expect(calls).toBe(4); expect(pending).toHaveLength(2);
       expect(mockedFetchWorkflowTestRunState.mock.calls.slice(2)).toEqual([
-        [THREAD_ID, { presentation: "background" }],
-        [THREAD_ID, { presentation: "background" }],
+        [THREAD_ID],
+        [THREAD_ID],
       ]);
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Comment for rejection" })).toBe(field);
       expect(field).toHaveFocus(); expect(field).toHaveValue("Still reviewing real output");
       await act(async () => { pending.splice(0).forEach((resolve) => resolve(new Response(JSON.stringify({ error: "Temporary read failure" }), { status: 503, headers: { "content-type": "application/json" } }))); await vi.advanceTimersByTimeAsync(0); });
       await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
       expect(calls).toBe(6); expect(pending).toHaveLength(2);
       expect(mockedFetchWorkflowTestRunState.mock.calls.slice(4)).toEqual([
-        [THREAD_ID, { presentation: "background" }],
-        [THREAD_ID, { presentation: "background" }],
+        [THREAD_ID],
+        [THREAD_ID],
       ]);
       expect(field).toHaveFocus(); expect(field).toHaveValue("Still reviewing real output");
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       await act(async () => { pending.splice(0).forEach((resolve) => resolve(new Response(JSON.stringify(ownedRun), { headers: { "content-type": "application/json" } }))); await vi.advanceTimersByTimeAsync(0); });
       expect(field).toHaveValue("Still reviewing real output"); expect(field).toHaveFocus();
       expect(fetchSpy.mock.calls.filter(([, init]) => init?.method && init.method !== "GET")).toEqual([]);
-      expect(mockedFetchWorkflowTestRunState).toHaveBeenLastCalledWith(THREAD_ID, { presentation: "background" });
+      expect(mockedFetchWorkflowTestRunState).toHaveBeenLastCalledWith(THREAD_ID);
     } finally {
-      view.unmount(); unmountIndicator(); pending.splice(0).forEach((resolve) => resolve(new Response("{}")));
+      view.unmount(); pending.splice(0).forEach((resolve) => resolve(new Response("{}")));
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers(); vi.useRealTimers();
     }
@@ -336,7 +330,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
     fixture.setRun(FAILED_RUN);
     await reopenLaunchDialog(view.router);
     await waitFor(() => expect(screen.getByLabelText("Run workflow test run")).toBeEnabled(), { timeout: 3000 });
-    expect(mockedFetchWorkflowTestRunState).toHaveBeenCalledWith(THREAD_ID, { presentation: "background" });
+    expect(mockedFetchWorkflowTestRunState).toHaveBeenCalledWith(THREAD_ID);
     await openRememberedResults();
     await waitFor(async () => expect(await runHeading()).toHaveTextContent("Failed"), { timeout: 3000 });
     await reopenLaunchDialog(view.router);

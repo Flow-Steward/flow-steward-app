@@ -2,7 +2,7 @@
 import type { Node } from "@xyflow/react";
 import type { CanvasPosition } from "./canvas-core";
 import { canvasEdgeLabelPoint } from "./canvas-edge-label-placement";
-import { routeCanvasEdges, type CanvasEdgeRoute, type CanvasEdgeRouteInput } from "./canvas-edge-routing";
+import { routeCanvasEdges, type CanvasEdgeRoute, type CanvasEdgeRouteInput, type CanvasRect } from "./canvas-edge-routing";
 import { createWrappedRootRouteHints } from "./canvas-wrap-routing";
 import type { buildCanvasLayout, CanvasEdgeData } from "./layout";
 
@@ -50,6 +50,19 @@ export function canvasDragScope(positioned: readonly Node[], draggingIds: Readon
   return new Set(positioned.filter((node) => roots.has(rootOf(node.id))).map((node) => node.id));
 }
 
+/**
+ * The top of the row a connection drops into: the target card and every card of its own scope that
+ * stands beside it below the source. A connection that wraps down to an earlier column comes in through
+ * the gap above that row, the same way an automatic row wrap does, whatever moved the cards there.
+ */
+export function droppedRowTop(source: CanvasRect, target: CanvasRect, siblings: readonly CanvasRect[]): number {
+  const sourceBottom = source.y + source.height;
+  const targetBottom = target.y + target.height;
+  return siblings.reduce((top, card) => (
+    card.y >= sourceBottom && card.y < targetBottom && card.y + card.height > target.y ? Math.min(top, card.y) : top
+  ), target.y);
+}
+
 export function routeCanvasEdgeSet({ nodes, positioned, rootRows, edges, draggingIds, previous }: RouteSetInput): CanvasEdgeRouteMemo {
   const byId = new Map(positioned.map((node) => [node.id, node]));
   const absolute = (node: Node): CanvasPosition => { let point = { ...node.position }; let parent = node.parentId ? byId.get(node.parentId) : undefined; const visited = new Set([node.id]); while (parent && !visited.has(parent.id)) { visited.add(parent.id); point = { x: point.x + parent.position.x, y: point.y + parent.position.y }; parent = parent.parentId ? byId.get(parent.parentId) : undefined; } return point; };
@@ -84,12 +97,21 @@ export function routeCanvasEdgeSet({ nodes, positioned, rootRows, edges, draggin
     const obstacles = moving ? [] : positioned.filter((node) => node.type !== "canvasNote" && node.id !== source.id && node.id !== target.id && !isAncestor(node, source) && !isAncestor(node, target)).map((node) => rectangles.get(node.id)!);
     const sourceSide = sourceHandle.position === "bottom" ? "bottom" : "right";
     const targetSide = targetHandle.position === "bottom" ? "bottom" : "left";
-    const rowHint = wrappedRouteHints({
+    let rowHint = wrappedRouteHints({
       source: { node: source, rect: sourceRect }, target: { node: target, rect: targetRect },
       sameScope: Boolean(edge.data.routing?.sameScope),
       failure: Boolean(edge.data.failurePath), repeat: Boolean(edge.data.rework),
       sourceSide, targetSide,
     });
+    // Without the automatic row (a frame fitted round its members, a card placed by hand), a connection that
+    // drops to a later row still comes in from above: never round under the row it goes to.
+    const dropsToLaterRow = rowHint.backward === undefined && Boolean(edge.data.routing?.sameScope) &&
+      !edge.data.failurePath && !edge.data.rework && sourceSide === "right" && targetSide === "left" &&
+      targetRect.x <= sourceRect.x && targetRect.y >= sourceRect.y + sourceRect.height;
+    if (dropsToLaterRow) {
+      const siblings = positioned.filter((node) => node.type !== "canvasNote" && node.parentId === target.parentId).map((node) => rectangles.get(node.id)!);
+      rowHint = { backward: false, targetRowTop: droppedRowTop(sourceRect, targetRect, siblings) };
+    }
     inputs.push({ source: { x: sourceRect.x + sourceHandle.x + (sourceHandle.width ?? 10) / 2, y: sourceRect.y + sourceHandle.y + (sourceHandle.height ?? 10) / 2 }, target: { x: targetRect.x + targetHandle.x + (targetHandle.width ?? 10) / 2, y: targetRect.y + targetHandle.y + (targetHandle.height ?? 10) / 2 }, obstacles, endCards: moving ? [] : [source, target].filter((node) => !isAncestor(node, source) && !isAncestor(node, target)).map((node) => rectangles.get(node.id)!), backward: rowHint.backward ?? (targetRect.x <= sourceRect.x), failure: edge.data.failurePath, repeat: edge.data.rework, shapeGroupKey: `${source.id}:${target.id}:${edge.targetHandle}`, longJump: edge.data.routing?.longJump, sourceSide, targetSide, ...(rowHint.targetRowTop === undefined ? {} : { targetRowTop: rowHint.targetRowTop }) });
     routedIds.push(edge.id);
   }

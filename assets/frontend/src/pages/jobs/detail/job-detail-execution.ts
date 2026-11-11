@@ -1,4 +1,5 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
+import type { DsBadgeTone } from "@/components/shared/design-system";
 import type { JobIncidentDrilldown } from "@/pages/jobs/detail/api";
 import {
   firstReadableText,
@@ -488,4 +489,39 @@ export function formatElapsed(milliseconds: number, t: I18nContextValue["t"] = f
     return t("react.jobs.value1_min_value2_s", "{value1} min {value2} s", { value1: String(minutes), value2: String(seconds) });
   }
   return t("react.jobs.value1_s", "{value1} s", { value1: String(seconds) });
+}
+
+/** The step's result as a badge: green for done, red for broken, orange while it runs or waits. */
+export function executionStepTone(step: Entity): DsBadgeTone {
+  const status = firstReadableText(step.status).toLowerCase();
+  if (["completed", "succeeded", "success", "done"].includes(status)) return "green";
+  if (["failed", "error", "interrupted", "timed_out"].includes(status)) return "danger";
+  if (isRunningStep(step) || status.startsWith("awaiting") || ["pending", "queued", "waiting", "blocked"].includes(status)) return "orange";
+  return "neutral";
+}
+
+/** The status label, a raw status code ("failed") read as words ("Failed"). */
+export function executionStepBadgeLabel(step: Entity, t: I18nContextValue["t"]): string {
+  const label = executionStepStatusLabel(step, t);
+  return /^[a-z_]+$/.test(label) ? humanizeDiagnosticLabel(label) : label;
+}
+
+/** A step's recorded milliseconds as "850ms", "2.2s" or "3m 5s"; other recorded text as it is. */
+export function formatStepDuration(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  const milliseconds = Number(value);
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) {
+    return firstReadableText(value);
+  }
+  if (milliseconds < 1000) {
+    return `${Math.round(milliseconds)}ms`;
+  }
+  if (milliseconds < 60_000) {
+    return `${Math.round(milliseconds / 100) / 10}s`;
+  }
+  const minutes = Math.floor(milliseconds / 60_000);
+  const seconds = Math.round((milliseconds % 60_000) / 1000);
+  return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }

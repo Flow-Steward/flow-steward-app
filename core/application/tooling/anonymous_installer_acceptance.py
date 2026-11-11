@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import time
@@ -11,6 +10,12 @@ import uuid
 from pathlib import Path
 
 from core.application.tooling.release_automation import require_complete_release
+from core.application.tooling.resource_cleanup.models import (
+    DISPOSABLE_LABEL,
+    OWNER_LABEL,
+    TOKEN_LABEL,
+)
+from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
 _PLATFORMS = ("linux/amd64", "linux/arm64")
 
@@ -31,11 +36,11 @@ def check_registry(reference: str, expected: dict, revision: str, directory: Pat
     volume = name + "-images"
     labels = [
         "--label",
-        "org.flowsteward.task=" + os.environ.get("FS_TASK_RESOURCE_OWNER", name),
+        f"{OWNER_LABEL}=" + (_runtime_env.get("FS_TASK_RESOURCE_OWNER", "") or name),
         "--label",
-        "org.flowsteward.resource-token=" + os.environ.get("FS_TASK_RESOURCE_TOKEN", identity),
+        f"{TOKEN_LABEL}=" + (_runtime_env.get("FS_TASK_RESOURCE_TOKEN", "") or identity),
         "--label",
-        "org.flowsteward.disposable=true",
+        f"{DISPOSABLE_LABEL}=true",
     ]
     created_volume = created_container = False
     report: dict = {"reference": reference, "daemon": name, "volume": volume, "platforms": {}}

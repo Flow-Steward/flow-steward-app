@@ -18,6 +18,7 @@ import { schemaFields } from "./data-connection-helpers";
 import { type DataConnectionRow } from "./data-connection-grid";
 
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { Button } from "@/components/ui/button";
 
 import { draftValue, saveButtonLabel } from "./connection-page-helpers";
 import { useDataConnectionsState } from "./data-connections-state";
@@ -158,14 +159,16 @@ export function RegistryDataConnectionsPage() {
           <>
             <button className="fs-button" onClick={() => setCreateOpen(false)} type="button">
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button primary"
+            <Button
+              busy={saving}
+              busyLabel={draft.connection_id ? t("settings.retention.saving", "Saving…") : t("react.registry.creating", "Creating…")}
               disabled={createBlocked}
               form="data-connection-editor-form"
               type="submit"
+              variant="primary"
             >
-              {saveButtonLabel(saving, Boolean(draft.connection_id), t)}
-            </button>
+              {saveButtonLabel(Boolean(draft.connection_id), t)}
+            </Button>
           </>
         }
         initialFocusRef={workspaceFieldRef}
@@ -373,14 +376,15 @@ export function RegistryDataConnectionsPage() {
               type="button"
             >
               {t("extensions.repeater.cancel", "Cancel")}</button>
-            <button
-              className="fs-button danger"
-              disabled={deleteMutation.isPending}
+            <Button
+              busy={deleteMutation.isPending}
+              busyLabel={t("react.registry.deleting", "Deleting…")}
               onClick={confirmDeleteConnection}
               type="button"
+              variant="danger"
             >
-              {deleteMutation.isPending ? t("react.registry.deleting", "Deleting...") : t("react.registry.delete_connection", "Delete connection")}
-            </button>
+              {t("react.registry.delete_connection", "Delete connection")}
+            </Button>
           </>
         }
         onClose={() => setPendingDeleteConnection(null)}

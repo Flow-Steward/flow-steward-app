@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { Trash2 } from "lucide-react";
 import { DsAlert, DsBadge, DsCard, DsTable, DsValueChip, type DsTableColumn } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { type Entity, type OrphanStorageRow, displayValue, labelFromKey, unknownRows, orphanStorageScope, orphanStorageTitle, orphanCleanupSupported, orphanStorageDetailEntries } from "./monitoring-data";
 import { DetailRow, PanelHeading, EmptyState } from "./monitoring-display";
@@ -33,10 +34,10 @@ function OrphanStorageItem({
         <div className="fs-monitoring-status">
           <DsBadge tone="danger">{firstStringFromUnknownValue([row.backend, "orphan"])}</DsBadge>
           {cleanupSupported ? (
-            <button className="fs-button danger" disabled={cleaning} onClick={() => onClean(row)} type="button">
+            <Button busy={cleaning} busyLabel={t("react.monitoring.cleaning", "Cleaning…")} onClick={() => onClean(row)} type="button" variant="danger">
               <Trash2 aria-hidden="true" />
-              <span>{cleaning ? t("react.monitoring.cleaning", "Cleaning") : t("react.monitoring.clean_orphan_data", "Clean orphan data")}</span>
-            </button>
+              <span>{t("react.monitoring.clean_orphan_data", "Clean orphan data")}</span>
+            </Button>
           ) : null}
         </div>
       </div>

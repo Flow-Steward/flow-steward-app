@@ -1,6 +1,5 @@
 import type * as HttpClient from "@/lib/http/client";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
@@ -138,7 +137,6 @@ describe("WorkflowsListPage", () => {
     vi.useFakeTimers();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = renderPage("/registry/workflows?search=nightly", queryClient);
-    const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
     try {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       const field = screen.getByRole("searchbox", { name: "Search workflows" });
@@ -155,7 +153,6 @@ describe("WorkflowsListPage", () => {
       expect(calls).toBe(2);
       expect(pending).toBeDefined();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.getByRole("searchbox", { name: "Search workflows" })).toBe(field);
       expect(field).toHaveValue("nightly"); expect(field).toHaveFocus();
       expect(screen.getByRole("link", { name: "Nightly reconciliation" })).toBe(row);
@@ -163,7 +160,7 @@ describe("WorkflowsListPage", () => {
       expect(screen.getByRole("link", { name: "Nightly extra" })).toBeInTheDocument();
       expect(field).toHaveValue("nightly"); expect(field).toHaveFocus();
     } finally {
-      view.unmount(); unmountIndicator(); pending?.(new Response("[]"));
+      view.unmount(); pending?.(new Response("[]"));
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers(); vi.useRealTimers(); fetchMock.mockRestore();
       mockedFetchJson.mockReset(); if (previousHttp) mockedFetchJson.mockImplementation(previousHttp);
@@ -411,7 +408,6 @@ describe("WorkflowsListPage", () => {
     await waitFor(() => {
       expect(mockedFetchWorkflows).toHaveBeenLastCalledWith(
         expect.objectContaining({ enabledOnly: false }),
-        { presentation: "background" },
       );
     });
   });

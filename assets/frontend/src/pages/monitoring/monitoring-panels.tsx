@@ -2,6 +2,8 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { Link } from "react-router";
 import { DsAlert, DsBadge, DsCard, DsMetricCard, DsTable, DsValueChip, type DsBadgeTone, type DsTableColumn } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { useUserTimezone } from "@/lib/time/user-timezone";
 import { type Entity, type HealthRow, type RuntimeComponents, componentObservationGroups, historyRows, isFreshObservation, measuredCount, serviceVerdicts } from "./monitoring-data";
@@ -314,8 +316,13 @@ export function MonitoringQueryStatus({
   error,
 }: Readonly<{ loading: boolean; error: unknown }>) {
   const { t } = useI18n();
-  if (loading) {
-    return <DsAlert title={t("react.monitoring.loading_monitoring_summary", "Loading monitoring summary…")} />;
+  const loaderShown = useLoaderDelay(loading);
+  if (loading || loaderShown) {
+    return loaderShown ? (
+      <div className="fs-table-state">
+        <DsLoader label={t("react.monitoring.loading_monitoring_summary", "Loading monitoring summary…")} variant="wide-block" />
+      </div>
+    ) : null;
   }
   if (!error) return null;
   return (

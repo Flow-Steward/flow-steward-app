@@ -5,6 +5,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+
 import {
   AdvancedTableFilters,
   DsAlert,
@@ -127,6 +130,7 @@ export function RegistrySecretsPage() {
   const [feedback, setFeedback] = useState("");
 
   const secretsQuery = useQuery({ queryKey: CATALOG_SECRETS_QUERY_KEY, queryFn: fetchCatalogSecrets });
+  const secretsLoaderShown = useLoaderDelay(secretsQuery.isLoading);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["secrets"] });
 
   const rows = (secretsQuery.data ?? []).filter((secret) => matches(secret, filters));
@@ -278,8 +282,8 @@ export function RegistrySecretsPage() {
               ))}
             </tbody>
           </table>
-          {secretsQuery.isLoading ? (
-            <div className="fs-table-state">{t("react.registry.secrets.loading", "Loading secrets…")}</div>
+          {secretsLoaderShown ? (
+            <div className="fs-table-state"><DsLoader label={t("react.registry.secrets.loading", "Loading secrets…")} variant="wide-block" /></div>
           ) : null}
           {secretsQuery.isError ? (
             <div className="fs-table-state">
@@ -288,7 +292,7 @@ export function RegistrySecretsPage() {
               </DsAlert>
             </div>
           ) : null}
-          {!secretsQuery.isLoading && !secretsQuery.isError && rows.length === 0 ? (
+          {!secretsQuery.isLoading && !secretsLoaderShown && !secretsQuery.isError && rows.length === 0 ? (
             <div className="fs-table-state">
               {secretsQuery.data?.length
                 ? t("react.registry.secrets.no_match", "No secret matches these filters.")

@@ -16,7 +16,10 @@ import {
   PageContainer,
   type DsTableColumn,
 } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
 import { LifecyclePlanModal, type LifecyclePlan } from "@/components/shared/lifecycle-plan-modal";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { WorkspaceDeletePlanModal } from "@/components/shared/workspace-delete-plan-modal";
 import {
   fetchDataConnections,
@@ -137,6 +140,8 @@ export function RegistryWorkspacesDetailPage() {
   }
   const [message, setMessage] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
+  /* Its own flag: the lifecycle confirm is a different action from the delete plan's. */
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletePlan, setDeletePlan] = useState<WorkspaceDeletePlan | null>(null);
@@ -171,6 +176,9 @@ export function RegistryWorkspacesDetailPage() {
     await queryClient.invalidateQueries({ queryKey: ["registry", "workspaces"] });
   };
 
+  const projectsLoaderShown = useLoaderDelay(projectsQuery.isLoading);
+  const connectionsLoaderShown = useLoaderDelay(connectionsQuery.isLoading);
+  const datasetsLoaderShown = useLoaderDelay(datasetsQuery.isLoading);
   const saveMutation = useMutation({
     mutationFn: (payload: WorkspacePayload) => updateWorkspace(workspaceId, payload),
     onSuccess: async () => {
@@ -327,8 +335,8 @@ export function RegistryWorkspacesDetailPage() {
             </div>
           </div>
           <div className="fs-footer-actions">
-            <button className="fs-button primary" disabled={saveMutation.isPending} type="submit">
-              {t("users.modal.save", "Save")}</button>
+            <Button busy={saveMutation.isPending} busyLabel={t("react.settings.saving", "Saving…")} type="submit" variant="primary">
+              {t("users.modal.save", "Save")}</Button>
             {/* A successful save used to be a bare span: silent to assistive
                 technology. `DsAlert` derives `role="status"` from its tone. */}
             {message ? <DsAlert title={message} tone="success" /> : null}
@@ -364,7 +372,7 @@ export function RegistryWorkspacesDetailPage() {
                   rowKey={(row) => firstStringFromUnknownValue([row.id, ""])}
                   rows={projects}
                   state={
-                    projects.length ? null : (
+                    projectsLoaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : projectsQuery.isLoading || projects.length ? null : (
                       <div className="fs-table-state">
                         <strong>{t("projects.empty.all_title", "No projects yet")}</strong>
                         <span>{t("react.registry.no_projects_are_assigned_to_this_workspace_yet", "No projects are assigned to this workspace yet.")}</span>
@@ -385,7 +393,7 @@ export function RegistryWorkspacesDetailPage() {
                   rowKey={(row) => row.connection_id}
                   rows={connections}
                   state={
-                    connections.length ? null : (
+                    connectionsLoaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : connectionsQuery.isLoading || connections.length ? null : (
                       <div className="fs-table-state">
                         <strong>{t("react.registry.no_data_connections_yet", "No data connections yet")}</strong>
                         <span>{t("react.registry.no_data_connections_in_this_workspace_yet", "No data connections in this workspace yet.")}</span>
@@ -406,7 +414,7 @@ export function RegistryWorkspacesDetailPage() {
                   rowKey={(row) => row.dataset_id}
                   rows={workspaceDatasets}
                   state={
-                    workspaceDatasets.length ? null : (
+                    datasetsLoaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : datasetsQuery.isLoading || workspaceDatasets.length ? null : (
                       <div className="fs-table-state">
                         <strong>{t("react.registry.no_datasets_yet", "No datasets yet")}</strong>
                         <span>{t("react.registry.no_datasets_in_this_workspace_yet", "No datasets in this workspace yet.")}</span>
@@ -454,7 +462,7 @@ export function RegistryWorkspacesDetailPage() {
       />
 
       <LifecyclePlanModal
-        busy={deleteBusy}
+        busy={lifecycleBusy}
         error={modalError}
         onClose={() => {
           setModalOpen(false);
@@ -462,9 +470,10 @@ export function RegistryWorkspacesDetailPage() {
           setModalError("");
         }}
         onConfirm={(selectedNodeIds) => {
-          if (!modalPlan) {
+          if (!modalPlan || lifecycleBusy) {
             return;
           }
+          setLifecycleBusy(true);
           ignoreAsyncResult(executeLifecyclePlan("workspace", workspaceId, modalPlan.action_type as "restore" | "hard_delete", selectedNodeIds, modalPlan.plan_version)
             .then(async () => {
               setMessage(modalPlan.action_type === "restore" ? t("react.registry.workspace_restored", "Workspace restored.") : t("react.registry.workspace_deleted", "Workspace deleted."));
@@ -474,6 +483,9 @@ export function RegistryWorkspacesDetailPage() {
             })
             .catch((error) => {
               setModalError(error instanceof Error ? error.message : t("react.registry.lifecycle_action_failed", "Lifecycle action failed."));
+            })
+            .finally(() => {
+              setLifecycleBusy(false);
             }));
         }}
         open={modalOpen}

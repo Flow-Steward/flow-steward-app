@@ -118,6 +118,8 @@ export async function fetchAccountProfileRecord(): Promise<{
         : [],
       timezone: firstStringFromUnknownValue([user.timezone, ""]),
       locale: firstStringFromUnknownValue([user.locale, ""]),
+      date_format: firstStringFromUnknownValue([user.date_format, ""]),
+      time_format: firstStringFromUnknownValue([user.time_format, ""]),
       auth_source: firstStringFromUnknownValue([session.auth_source, ""]),
     },
     email_change_status: objectOrEmpty(timezonePayload) as EmailChangeStatus,
@@ -144,6 +146,17 @@ export async function saveAccountProfileRecord(
       request: fetchJson<unknown>("/api/users/me/timezone", {
         method: "PATCH",
         body: JSON.stringify({ timezone: changes.timezone.trim() }),
+      }),
+    });
+  }
+  for (const field of ["date_format", "time_format"] as const) {
+    const value = changes[field];
+    if (value === undefined) continue;
+    operations.push({
+      field,
+      request: fetchJson<unknown>("/api/users/me/date-time-format", {
+        method: "PATCH",
+        body: JSON.stringify({ [field]: value.trim() }),
       }),
     });
   }

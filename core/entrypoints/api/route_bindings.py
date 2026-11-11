@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 
 from core.application.settings.ui_i18n import build_client_i18n_payload
 from core.entrypoints.api.app_bootstrap import create_api_app_bootstrap_router
+from core.entrypoints.api.auth_users_preferences import session_date_time_format
 from core.entrypoints.api.contracts_v2 import create_api_contracts_v2_router
 from core.entrypoints.api.dashboard_metrics import create_dashboard_metrics_router
 from core.entrypoints.api.events import create_api_events_router
@@ -263,6 +264,9 @@ def register_api_routes(
         registered_pages_resolver=registered_pages_resolver,
         shell_navigation_resolver=shell_navigation_resolver,
         external_sign_in_resolver=external_sign_in_resolver,
+        date_time_format_reader=lambda user: session_date_time_format(
+            dict(user), get_identity_store
+        ),
         api_error_response=api_error_response,
     )
     app.include_router(api_app_bootstrap_router)

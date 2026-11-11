@@ -630,6 +630,7 @@
    block that cannot shift the rows above it while it loads. */
 .fs-advanced-search__load-more {
   display: block;
+  gap: var(--fs-space-100);
   width: 100%;
   min-height: 32px;
   margin-top: 2px;
@@ -687,12 +688,10 @@
   line-height: 1.5;
 }
 
-.fs-advanced-search__spinner {
-  animation: fs-advanced-search-spin 700ms linear infinite;
-}
-
-@keyframes fs-advanced-search-spin {
-  to { transform: rotate(360deg); }
+/* The searching state's icon slot: the round colour Loader stands where the icon would. */
+.fs-advanced-search__message .fs-loader-orbit {
+  display: block;
+  margin: 0 auto 10px;
 }
 
 .fs-advanced-search__error {
@@ -740,5 +739,4 @@
   }
 
   .fs-advanced-search__menu { animation-duration: var(--fs-duration-reduced, 1ms); }
-  .fs-advanced-search__spinner { animation-duration: 1.4s; }
 }

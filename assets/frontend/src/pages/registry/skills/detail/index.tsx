@@ -12,6 +12,7 @@ import {
   DsTabs,
   PageContainer,
 } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/http/client";
 import { useKeyedState } from "@/lib/react/useKeyedState";
 import { fetchRegistryList } from "@/pages/registry/shared/api";
@@ -122,6 +123,7 @@ export function RegistrySkillsDetailPage() {
     saving,
     setSaveStatus,
     toggleEntityEnabled,
+    toggling,
   } = useRegistryEntityDetail({
     endpoint: "/api/skills",
     idKey: "skill_id",
@@ -366,9 +368,9 @@ export function RegistrySkillsDetailPage() {
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button
-          className="fs-button primary"
-          disabled={saving}
+        <Button
+          busy={saving}
+          busyLabel={t("react.settings.saving", "Saving…")}
           onClick={() => {
             ignoreAsyncResult(saveEntityPatch({
               display_name: draft.displayName.trim(),
@@ -378,8 +380,9 @@ export function RegistrySkillsDetailPage() {
             }));
           }}
           type="button"
+          variant="primary"
         >
-          {t("settings.extensions.save_config", "Save Config")}</button>
+          {t("settings.extensions.save_config", "Save Config")}</Button>
         <button
           className="fs-button"
           onClick={() => {
@@ -424,9 +427,9 @@ export function RegistrySkillsDetailPage() {
         }
       />
       <div className="flex flex-wrap gap-2">
-        <button
-          className="fs-button primary"
-          disabled={saving}
+        <Button
+          busy={saving}
+          busyLabel={t("react.settings.saving", "Saving…")}
           onClick={() => {
             ignoreAsyncResult(saveEntityPatch({
               builder_metadata_jsonb: builderMetadataPayload({
@@ -440,8 +443,9 @@ export function RegistrySkillsDetailPage() {
             }));
           }}
           type="button"
+          variant="primary"
         >
-          {t("react.registry.save_builder_metadata", "Save Builder metadata")}</button>
+          {t("react.registry.save_builder_metadata", "Save Builder metadata")}</Button>
         <button
           className="fs-button"
           onClick={() => {
@@ -477,9 +481,9 @@ export function RegistrySkillsDetailPage() {
         />
       </div>
       <div className="flex flex-wrap gap-2">
-        <button
-          className="fs-button primary"
-          disabled={saving}
+        <Button
+          busy={saving}
+          busyLabel={t("react.settings.saving", "Saving…")}
           onClick={() => {
             ignoreAsyncResult(saveEntityPatch({
               instructions: draft.instructions
@@ -489,8 +493,9 @@ export function RegistrySkillsDetailPage() {
             }));
           }}
           type="button"
+          variant="primary"
         >
-          {t("react.registry.save_instructions", "Save instructions")}</button>
+          {t("react.registry.save_instructions", "Save instructions")}</Button>
         <button
           className="fs-button"
           onClick={() => {
@@ -618,16 +623,17 @@ export function RegistrySkillsDetailPage() {
                 Guardrails detail; the decision that followed was to drop the
                 identifier everywhere, readable or not. The id is in the URL,
                 which is where anyone who needs it looks. */}
-            <button
-              className="fs-button"
-              disabled={saving}
+            <Button
+              busy={toggling}
+              busyLabel={t("react.settings.updating", "Updating…")}
               onClick={() => {
                 ignoreAsyncResult(toggleEntityEnabled());
               }}
               type="button"
+              variant={null}
             >
               {entity.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-            </button>
+            </Button>
             <SaveStatusBadge status={saveStatus} />
           </>
         }

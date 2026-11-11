@@ -100,7 +100,7 @@ describe("SettingsAccountPage", () => {
     });
     mockedFetchCurrentAccountRecord.mockResolvedValue({ account_id: "acc_default", display_name: "Flow Steward" });
     mockedFetchAccountProfileRecord.mockResolvedValue({
-      profile: { id: "u1", email: "admin@example.com", username: "admin@example.com", display_name: "Admin User", roles: ["admin"], account_id: "acc_default", account_ids: ["acc_default"], timezone: "UTC", locale: "en", auth_source: "local" },
+      profile: { id: "u1", email: "admin@example.com", username: "admin@example.com", display_name: "Admin User", roles: ["admin"], account_id: "acc_default", account_ids: ["acc_default"], timezone: "UTC", locale: "en", date_format: "D MMM YYYY", time_format: "24h", auth_source: "local" },
       email_change_status: {},
     });
     mockedFetchPersonalTokensCollection.mockResolvedValue({ tokens: [], total: 0, page: 1, per_page: 5, total_pages: 0 });
@@ -261,6 +261,20 @@ describe("SettingsAccountPage", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("offers each date and time format by example and saves only the one changed", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByDisplayValue("Admin User");
+    expect(screen.getByTestId("date-time-format-preview")).toHaveTextContent("31 Dec 2026, 16:05");
+    await user.click(screen.getByRole("combobox", { name: "Date format" }));
+    await user.click(screen.getByRole("option", { name: "12/31/2026" }));
+    await user.click(screen.getByRole("combobox", { name: "Time format" }));
+    await user.click(screen.getByRole("option", { name: /12-hour · 4:05 PM/ }));
+    expect(screen.getByTestId("date-time-format-preview")).toHaveTextContent("12/31/2026, 4:05 PM");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(mockedSaveAccountProfileRecord).toHaveBeenCalledWith({ date_format: "MM/DD/YYYY", time_format: "12h" }, expect.any(Function)));
+  });
+
   it("keeps the saved language selected when saving it switches the interface language", async () => {
     // Saving the language refreshes the session, which switches the interface
     // language; the form must not fall back to the profile it was loaded with.
@@ -348,7 +362,7 @@ describe("SettingsAccountPage", () => {
 
   it("uses the approved provider-managed state when local authentication is unavailable", async () => {
     mockedFetchAccountProfileRecord.mockResolvedValue({
-      profile: { id: "u1", email: "admin@example.com", username: "admin@example.com", display_name: "Admin User", roles: ["admin"], account_id: "acc_default", account_ids: ["acc_default"], timezone: "UTC", locale: "en", auth_source: "external" },
+      profile: { id: "u1", email: "admin@example.com", username: "admin@example.com", display_name: "Admin User", roles: ["admin"], account_id: "acc_default", account_ids: ["acc_default"], timezone: "UTC", locale: "en", date_format: "D MMM YYYY", time_format: "24h", auth_source: "external" },
       email_change_status: {},
     });
     renderPage("/settings/account?tab=signin");

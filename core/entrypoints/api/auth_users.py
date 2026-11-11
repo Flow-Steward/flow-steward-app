@@ -51,6 +51,7 @@ from core.application.settings.ui_i18n import (
     resolve_ui_locale,
 )
 from core.entrypoints.api import auth_users_email_change as _email_change_helpers
+from core.entrypoints.api import auth_users_preferences as _preferences
 
 _ERR_EMAIL_NOT_SET_UP = (
     "Email is not set up, so the new address cannot be verified. "
@@ -232,29 +233,7 @@ def create_auth_users_router(
         must_change_password = (
             bool(user.get("must_change_password", False)) if auth_source == "local" else False
         )
-        user_timezone = str(user.get("timezone") or "").strip()
-        if not user_timezone:
-            user_id = str(user.get("id") or "").strip()
-            bl = get_logger_only() if user_id else None
-            if bl:
-                try:
-                    user_timezone = user_profile_repository.load_user_timezone(bl, user_id)
-                    if user_timezone:
-                        user["timezone"] = user_timezone
-                except Exception:
-                    user_timezone = str(user.get("timezone") or "").strip()
-        user_locale = str(user.get("locale") or "").strip()
-        if not user_locale:
-            user_id = str(user.get("id") or "").strip()
-            bl = get_logger_only() if user_id else None
-            if bl:
-                try:
-                    user_locale = user_profile_repository.load_user_locale(bl, user_id)
-                    if user_locale:
-                        user["locale"] = user_locale
-                except Exception:
-                    user_locale = str(user.get("locale") or "").strip()
-        user_locale = normalize_ui_locale(user_locale)
+        preferences = _preferences.session_preferences(user, get_logger_only)
         return {
             "authenticated": True,
             "local_auth_enabled": local_auth_enabled(),
@@ -273,10 +252,24 @@ def create_auth_users_router(
                 "account_ids": list(user.get("account_ids") or []),
                 "account_memberships": list(user.get("account_memberships") or []),
                 "must_change_password": must_change_password,
-                "timezone": user_timezone,
-                "locale": user_locale,
+                **preferences,
             },
         }
+
+    @router.patch("/api/users/me/date-time-format")
+    async def api_user_update_date_time_format(request: Request):
+        """Update the authenticated user's date pattern and clock."""
+        user = request_auth_user_payload(request)
+        user_id = str(user.get("id") or "").strip() if isinstance(user, dict) else ""
+        if not user_id:
+            return JSONResponse({"error": err_authentication_required}, status_code=401)
+        return await _preferences.save_date_time_format(
+            request,
+            user_id,
+            get_logger_only=get_logger_only,
+            err_invalid_json_body=err_invalid_json_body,
+            err_database_not_configured=err_database_not_configured,
+        )
 
     @router.patch("/api/users/me/profile")
     async def api_user_update_profile(request: Request, body: AuthUserProfileUpdateRequest):

@@ -313,7 +313,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
   const nextActionTitle =
     firstReadableText(projectedNextAction.title, fallbackNextActionTitle) || t("jobs.detail.next_action.title", "Next action");
   let fallbackNextActionBody =
-    t("react.jobs.continue_monitoring_run", "Continue monitoring this run from the execution waterfall and step inspector.");
+    t("react.jobs.continue_monitoring_run", "Continue monitoring this run from the execution steps and step inspector.");
   if (needsApproval) {
     fallbackNextActionBody =
       t("react.jobs.human_decision_active", "A human decision is active for this run. Continue from the review workspace below.");
@@ -326,7 +326,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
   }
   const nextActionBody =
     firstReadableText(projectedNextAction.body, fallbackNextActionBody) ||
-    t("react.jobs.continue_monitoring_run", "Continue monitoring this run from the execution waterfall and step inspector.");
+    t("react.jobs.continue_monitoring_run", "Continue monitoring this run from the execution steps and step inspector.");
 
   const { totalTokensValue } = jobUsageTotals({
     projected: canonicalDetail.sections.usageBreakdown,

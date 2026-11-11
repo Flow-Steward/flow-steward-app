@@ -136,7 +136,9 @@ export function useRegistryEntityDetail({
   const [saveError, setSaveError] = useState("");
   // A taken id or name keeps the server's matches and suggestion for the alert.
   const [saveConflict, setSaveConflict] = useState<RegistryConflict | null>(null);
-  const [saving, setSaving] = useState(false);
+  // The running action, so a save and the Enable/Disable toggle each show
+  // busy only on their own button; presses on the other are ignored.
+  const [pending, setPending] = useState<"save" | "toggle" | null>(null);
 
   /** Clearing the status (pages do this on edit) clears a pending error too. */
   function updateSaveStatus(value: string) {
@@ -175,13 +177,15 @@ export function useRegistryEntityDetail({
   const resolvedEntityId = firstStringFromUnknownValue([entity[idKey], entity.id, routeEntityId]).trim();
   const entityName = firstStringFromUnknownValue([entity.display_name, entity.name, entity[`${idKey}`], resolvedEntityId, title]).trim();
 
-  async function saveEntityOperation(operation: () => Promise<unknown>) {
+  /** Resolves `null` when the press was ignored because another action runs. */
+  async function saveEntityOperation(operation: () => Promise<unknown>): Promise<boolean | null> {
+    if (pending) return null;
     if (!resolvedEntityId) {
       failSave(t("react.registry.display_select_valid_entity", "Select a valid entity before saving."));
       return false;
     }
     updateSaveStatus("");
-    setSaving(true);
+    setPending("save");
     try {
       const result = await operation();
       const resultStatus =
@@ -199,7 +203,7 @@ export function useRegistryEntityDetail({
       );
       return false;
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
@@ -212,12 +216,13 @@ export function useRegistryEntityDetail({
   }
 
   async function toggleEntityEnabled() {
+    if (pending) return;
     if (!resolvedEntityId) {
       failSave(t("react.registry.display_entity_id_missing", "Entity id is missing."));
       return;
     }
     updateSaveStatus("");
-    setSaving(true);
+    setPending("toggle");
     try {
       await toggleRegistryEntity(endpoint, resolvedEntityId);
       updateSaveStatus("Enabled state updated.");
@@ -226,7 +231,7 @@ export function useRegistryEntityDetail({
     } catch (error) {
       failSave(error instanceof Error ? error.message : t("react.registry.failed_to_toggle_entity", "Failed to toggle entity."));
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
@@ -242,8 +247,9 @@ export function useRegistryEntityDetail({
     saveConflict,
     saveError,
     saveStatus,
-    saving,
+    saving: pending === "save",
     setSaveStatus: updateSaveStatus,
     toggleEntityEnabled,
+    toggling: pending === "toggle",
   };
 }

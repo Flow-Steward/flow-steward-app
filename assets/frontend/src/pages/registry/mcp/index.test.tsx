@@ -196,6 +196,30 @@ describe("RegistryMcpPage", () => {
     expect(await screen.findByRole("menuitem", { name: "View" })).toBeInTheDocument();
   });
 
+  it("marks only the running row action busy and ignores the other items meanwhile", async () => {
+    mockedSyncMcpConnector.mockReturnValue(new Promise(() => {}));
+    renderPage();
+
+    const user = userEvent.setup();
+    const opener = await screen.findByRole("button", { name: /^Actions for / });
+    await user.click(opener);
+    await user.click(screen.getByRole("menuitem", { name: "Sync" }));
+    await waitFor(() => expect(mockedSyncMcpConnector).toHaveBeenCalledTimes(1));
+
+    await user.click(opener);
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Sync" })).toHaveAttribute("aria-busy", "true"));
+    const health = screen.getByRole("menuitem", { name: "Health" });
+    const remove = screen.getByRole("menuitem", { name: "Delete" });
+    for (const item of [health, remove]) {
+      expect(item).toBeEnabled();
+      expect(item).not.toHaveAttribute("aria-busy");
+    }
+    await user.click(health);
+    await user.click(remove);
+    expect(mockedCheckMcpConnectorHealth).not.toHaveBeenCalled();
+    expect(mockedFetchMcpConnectorDeletePlan).not.toHaveBeenCalled();
+  });
+
   it("keeps MCP visible but hides mutation controls from viewers", async () => {
     mockedUseHasCapability.mockReturnValue(false);
     renderPage();

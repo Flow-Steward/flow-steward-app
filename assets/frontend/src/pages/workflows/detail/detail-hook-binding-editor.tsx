@@ -3,6 +3,9 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsValueChip, RequiredLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { contractRows } from "@/pages/workflows/detail/detail-step-editing";
@@ -103,6 +106,7 @@ export function HookBindingEditor({ projectId, workflowId, hookId, canAuthor, st
   });
   const hook = hookQuery.data;
   const [clearing, setClearing] = useState(false);
+  const hookLoaderShown = useLoaderDelay(hookQuery.isLoading);
 
   if (!projectId) {
     return (
@@ -112,8 +116,8 @@ export function HookBindingEditor({ projectId, workflowId, hookId, canAuthor, st
       </DsAlert>
     );
   }
-  if (hookQuery.isLoading) {
-    return <p className="text-xs text-[var(--fs-text-tertiary)]">{t("react.workflows.loading_hook", "Loading the hook…")}</p>;
+  if (hookQuery.isLoading || hookLoaderShown) {
+    return hookLoaderShown ? <p className="text-xs text-[var(--fs-text-tertiary)]"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_hook", "Loading the hook…")} /></p> : null;
   }
   if (hookQuery.isError || !hook) {
     const issues = hookErrorIssues(hookQuery.error);
@@ -261,8 +265,9 @@ function HookTestRunPanelContent({ projectId, workflowId, hookId, blockedReason,
     }
   }
 
-  if (hookQuery.isLoading) {
-    return <p className="text-xs text-[var(--fs-text-tertiary)]">{t("react.workflows.loading_hook", "Loading the hook…")}</p>;
+  const hookLoaderShown = useLoaderDelay(hookQuery.isLoading);
+  if (hookQuery.isLoading || hookLoaderShown) {
+    return hookLoaderShown ? <p className="text-xs text-[var(--fs-text-tertiary)]"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_hook", "Loading the hook…")} /></p> : null;
   }
   if (!hook) return null;
   if (!binding) {
@@ -313,8 +318,8 @@ function HookTestRunPanelContent({ projectId, workflowId, hookId, blockedReason,
                   {blockedReason}
                 </p>
               ) : null}
-              <button aria-label={t("react.workflows.run_hook_test_run", "Run hook test run")} className="fs-button sm" disabled={busy || Boolean(blockedReason)} onClick={() => ignoreAsyncResult(runTest())} type="button">
-                {t("registry.workflow_detail.run_lab.tab.test_run", "Test Run")}</button>
+              <Button aria-label={t("react.workflows.run_hook_test_run", "Run hook test run")} busy={busy} busyLabel={t("react.workflows.running", "Running…")} disabled={Boolean(blockedReason)} onClick={() => ignoreAsyncResult(runTest())} size="sm" type="button" variant={null}>
+                {t("registry.workflow_detail.run_lab.tab.test_run", "Test Run")}</Button>
               {testResult ? (
                 <div className="space-y-2 text-xs fs-ink-secondary" data-testid="hook-test-result">
                   <p className="flex flex-wrap items-center gap-2">

@@ -58,7 +58,8 @@ export function DsCard({
   testId,
 }: PropsWithChildren<{
   title?: string;
-  description?: string;
+  /** Usually text; a page may set part of it apart, such as an error code in code type. */
+  description?: ReactNode;
   footer?: ReactNode;
   className?: string;
   testId?: string;

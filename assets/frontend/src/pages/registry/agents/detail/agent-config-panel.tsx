@@ -1,5 +1,8 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { DsAlert, DsSelect } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 
 import { buildAgentConfigPayload, compatibleModelOptionsForProvider } from "./agent-detail-helpers";
 
@@ -52,6 +55,7 @@ export function AgentConfigPanel({
 }: Readonly<AgentConfigPanelProps>) {
   const { t } = useI18n();
   const categories = useCatalogCategories();
+  const modelCatalogLoaderShown = useLoaderDelay(modelCatalogLoading);
   return (
     <div className="fs-panel-group">
       <div className="fs-panel-heading">
@@ -162,9 +166,9 @@ export function AgentConfigPanel({
           />
         </div>
       </div>
-      {renderWhen(modelCatalogLoading, (
+      {renderWhen(modelCatalogLoaderShown, (
         <div className="fs-table-state">
-          <strong>{t("react.registry.loading_model_options", "Loading model options…")}</strong>
+          <DsLoader label={t("react.registry.loading_model_options", "Loading model options…")} variant="wide-block" />
         </div>
       ))}
       {renderWhen(modelCatalogUnavailable, (
@@ -193,11 +197,11 @@ export function AgentConfigPanel({
         ))}
       </dl>
       <div className="fs-badge-row">
-        <button
-          className="fs-button primary"
+        <Button
+          busy={saving}
+          busyLabel={t("react.settings.saving", "Saving…")}
           disabled={
-            saving
-            || agentRouteUnavailable
+            agentRouteUnavailable
             || modelCatalogUnavailable
             || modelCatalogLoading
           }
@@ -214,8 +218,9 @@ export function AgentConfigPanel({
             }));
           }}
           type="button"
+          variant="primary"
         >
-          {t("react.registry.save_config", "Save config")}</button>
+          {t("react.registry.save_config", "Save config")}</Button>
         <button
           className="fs-button"
           onClick={() => {

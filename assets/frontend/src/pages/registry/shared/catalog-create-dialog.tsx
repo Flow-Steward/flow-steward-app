@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import type { Dispatch, SetStateAction, SyntheticEvent } from "react";
 import { DsAlert, DsCheckbox, DsDialog, DsSelect } from "@/components/shared/design-system";
 import { AssignmentSelector } from "@/components/shared/assignment-selector";
+import { Button } from "@/components/ui/button";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { EntityForm, RegistryEntity } from "./catalog-surface-helpers";
 import type { RegistryConflict } from "./registry-conflict";
@@ -134,18 +135,19 @@ export function RegistryCreateDialog({
                 type="button"
               >
                 {t("extensions.repeater.cancel", "Cancel")}</button>
-              <button
-                className="fs-button primary"
+              <Button
+                busy={saving}
+                busyLabel={t("react.registry.creating", "Creating…")}
                 disabled={
-                  saving
-                  || (endpoint === "/api/guardrails" && !guardrailScopeValid)
+                  (endpoint === "/api/guardrails" && !guardrailScopeValid)
                   || (endpoint === "/api/agents" && (modelOptionsQuery.isLoading || modelOptionsQuery.isError))
                 }
                 form={createModalId}
                 type="submit"
+                variant="primary"
               >
-                {saving ? t("react.registry.creating", "Creating...") : t("react.registry.create_entry", "Create entry")}
-              </button>
+                {t("react.registry.create_entry", "Create entry")}
+              </Button>
             </>
           }
           onClose={() => setCreateFormOpen(false)}
