@@ -200,6 +200,7 @@ def test_native_backup_transport_keeps_password_out_of_argv(tmp_path: Path) -> N
         "-d",
         "flow_steward",
         "-Fc",
+        "--lock-wait-timeout=300s",
     )
     assert runner.calls[1][0] == ("pg_restore", "-l")
     assert all("not-in-argv" not in item for call, _kwargs in runner.calls for item in call)
@@ -367,3 +368,60 @@ def test_native_restore_keeps_reset_restore_and_finalize_failures_visible(
 
     assert captured.value.code == expected_code
     assert captured.value.step == expected_step
+
+
+def test_data_sized_commands_have_no_wall_clock_limit(tmp_path: Path) -> None:
+    """A 14 GB demo database failed every backup after the old fixed five minutes."""
+    runner = _NativeRunner()
+    gateway = FilesystemBackupGateway.for_native_database(
+        project_root=tmp_path,
+        database_host="postgres.internal",
+        database_port=5432,
+        database_user="flow_steward",
+        database_name="flow_steward",
+        database_password="secret",
+        runner=runner,
+        key_source=lambda: "backup-key",
+    )
+    workspace = gateway.prepare_create("no-wall-clock")
+    log = gateway.open_log("no-wall-clock")
+
+    gateway.dump_database(workspace.dump_path, log=log)
+    gateway.inspect_dump(workspace.dump_path, log=log)
+
+    assert [kwargs["timeout"] for _call, kwargs in runner.calls] == [None, None]
+    assert "--lock-wait-timeout=300s" in runner.calls[0][0]
+
+
+def test_a_bounded_restore_step_that_times_out_says_so(tmp_path: Path) -> None:
+    import subprocess
+
+    def runner(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    gateway = FilesystemBackupGateway.for_native_database(
+        project_root=tmp_path,
+        database_host="postgres.internal",
+        database_port=5432,
+        database_user="operator",
+        database_name="flow_steward",
+        database_password="secret",
+        runner=runner,
+        key_source=lambda: "backup-key",
+    )
+    workspace = gateway.prepare_create("bounded-timeout")
+    workspace.dump_path.write_bytes(b"PGDMP")
+    log = gateway.open_log("bounded-timeout")
+
+    with pytest.raises(BackupGatewayError) as raised:
+        gateway.restore_database(
+            workspace.dump_path,
+            log=log,
+            maintenance_confirmed=True,
+            verified=True,
+            recovery_target="installation-a",
+            expected_recovery_target="installation-a",
+        )
+
+    assert raised.value.code == "backup_database_reset_failed"
+    assert "did not finish within 300 s" in raised.value.cause
