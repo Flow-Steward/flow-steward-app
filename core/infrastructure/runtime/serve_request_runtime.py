@@ -210,7 +210,6 @@ def service_error_response(
         str(payload_dict.get("message") or "").strip()
         or str(payload_dict.get("error") or "").strip()
         or str(getattr(exc, "message", "") or "").strip()
-        or str(exc)
     )
     details_raw = payload_dict.get("details")
     details = dict(details_raw) if isinstance(details_raw, dict) else {}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
@@ -10,6 +11,12 @@ from core.infrastructure.extension_runtime.extension_runtime import run_extensio
 from core.infrastructure.extension_runtime.extension_runtime_helpers import (
     resolve_extension_runtime_record,
     resolve_extension_runtime_record_by_install_id,
+)
+
+logger = logging.getLogger(__name__)
+
+PROJECT_STATE_UPDATE_FAILED_MESSAGE = (
+    "The extension result could not be applied to the project state."
 )
 
 
@@ -84,12 +91,16 @@ def _process_project_state_updates(
             actor_id=None,
             extension_install_id=_text(connection.get("extension_install_id")) or None,
         )
-    except Exception as exc:
+    except Exception:
+        logger.exception(
+            "Applying project state updates failed connection_id=%s",
+            _text(connection.get("connection_id")),
+        )
         invocation["status"] = "failed"
         invocation["detail"] = "project_state_update_failed"
         invocation["errors"] = [
             *list(invocation.get("errors") or []),
-            {"code": "project_state_update_failed", "message": str(exc)},
+            {"code": "project_state_update_failed", "message": PROJECT_STATE_UPDATE_FAILED_MESSAGE},
         ]
 
 

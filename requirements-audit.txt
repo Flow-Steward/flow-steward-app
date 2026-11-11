@@ -19,7 +19,7 @@ sqlfluff==4.2.2
 types-PyYAML==6.0.12.20250915
 types-requests==2.33.0.20260327
 # pre-commit brings virtualenv; 21.14.9+ fixes GHSA-vxj4-q4g9-crj7 and GHSA-c978-59m8-c77v.
-virtualenv==21.14.12
+virtualenv==21.14.13
 vulture==2.11
 xenon==0.9.1
 

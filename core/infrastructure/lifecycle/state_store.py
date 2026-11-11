@@ -16,10 +16,13 @@ from uuid import uuid4
 
 from core.application.installer.redaction import redact_installer_text
 from core.application.lifecycle.contracts import (
+    ARTIFACT_ONLY_OPERATION_KINDS,
     LifecycleLockDiagnosis,
     LifecycleLockStatus,
     LifecycleOperationJournal,
+    LifecycleOperationKind,
     LifecycleOperationStatus,
+    journal_blocks_new_work,
 )
 from core.application.lifecycle.errors import LifecycleError
 from core.infrastructure.installer.state_store import (
@@ -107,9 +110,40 @@ class LifecycleStateStore:
 
     def unfinished_journals(self) -> tuple[LifecycleOperationJournal, ...]:
         """Return durable mutations that must be resumed or reconciled before new work."""
+        journals = [
+            journal
+            for journal in self._read_journals(strict=True)
+            if journal_blocks_new_work(
+                kind=journal.kind, status=journal.status, retryable=journal.retryable
+            )
+        ]
+        return tuple(sorted(journals, key=lambda item: item.updated_at, reverse=True))
+
+    def failed_artifact_operations(self) -> tuple[LifecycleOperationJournal, ...]:
+        """Return the newest run of each artifact-only kind when that run did not finish.
+
+        Such a failure does not block new work (`journal_blocks_new_work`); it is only
+        reported, until a later run of the same kind completes.
+        """
+        newest: dict[LifecycleOperationKind, LifecycleOperationJournal] = {}
+        for journal in self._read_journals(strict=False):
+            if journal.kind not in ARTIFACT_ONLY_OPERATION_KINDS:
+                continue
+            seen = newest.get(journal.kind)
+            if seen is None or journal.updated_at > seen.updated_at:
+                newest[journal.kind] = journal
+        return tuple(
+            journal
+            for journal in newest.values()
+            if journal.status
+            not in {LifecycleOperationStatus.COMPLETED, LifecycleOperationStatus.RUNNING}
+        )
+
+    def _read_journals(self, *, strict: bool) -> list[LifecycleOperationJournal]:
+        """Read every operation journal; `strict` fails closed on an unreadable one."""
         with self._journal_lock:
             if not self.operations_dir.exists():
-                return ()
+                return []
             journals: list[LifecycleOperationJournal] = []
             for path in self.operations_dir.glob("*.json"):
                 if not _SAFE_OPERATION_ID.fullmatch(path.stem):
@@ -118,18 +152,13 @@ class LifecycleStateStore:
                     raw = path.read_text(encoding="utf-8")
                     if _is_release_prepared_marker(path, raw):
                         continue
-                    journal = LifecycleOperationJournal.model_validate_json(raw)
+                    journals.append(LifecycleOperationJournal.model_validate_json(raw))
                 except (OSError, ValueError) as exc:
-                    raise ValueError(
-                        f"Lifecycle operation journal {path.name!r} is unreadable"
-                    ) from exc
-                if journal.status in {
-                    LifecycleOperationStatus.RUNNING,
-                    LifecycleOperationStatus.CANCELLED,
-                    LifecycleOperationStatus.RECOVERY_REQUIRED,
-                } or (journal.status is LifecycleOperationStatus.FAILED and journal.retryable):
-                    journals.append(journal)
-            return tuple(sorted(journals, key=lambda item: item.updated_at, reverse=True))
+                    if strict:
+                        raise ValueError(
+                            f"Lifecycle operation journal {path.name!r} is unreadable"
+                        ) from exc
+            return journals
 
     def open_log(self, operation_id: str) -> SecureLifecycleLog:
         safe_id = _validated_operation_id(operation_id)

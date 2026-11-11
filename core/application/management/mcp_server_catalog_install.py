@@ -23,17 +23,20 @@ connector only remembers where it came from (``catalog_item_id``,
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable, Sequence
 from typing import Any
 from urllib.parse import urlsplit
 
+from core.application.auth.oauth_client_values import OAuthConnectionError
 from core.application.management.command_models import (
     McpConnectorCreateInput,
     McpHeaderSecretChoice,
 )
 from core.application.management.errors import (
     ServiceConflictError,
+    ServiceError,
     ServiceNotFoundError,
     ServiceValidationError,
 )
@@ -58,6 +61,9 @@ from core.application.management.mcp_server_catalog import (
 )
 from core.application.management.scope import ScopeContext
 
+logger = logging.getLogger(__name__)
+
+_CLIENT_NOT_SAVED_MESSAGE = "The OAuth client could not be saved."
 _URL_VARIABLE = re.compile(r"\{(\w+)\}", re.ASCII)
 _HOST_VALUE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 _PATH_VALUE = re.compile(r"^[A-Za-z0-9._~-]{1,200}$")
@@ -357,8 +363,17 @@ class McpServerCatalogService:
             try:
                 self._save_client(connector.connector_id, scope, client_id, client_secret)
                 client_saved = True
-            except Exception as exc:
-                client_error = str(exc) or "The OAuth client could not be saved."
+            except ServiceError as exc:
+                client_error = exc.message or _CLIENT_NOT_SAVED_MESSAGE
+            except OAuthConnectionError as exc:
+                # The OAuth layer's own refusal ("Client ID and Client Secret are
+                # required"), written for the person entering the client.
+                client_error = str(exc) or _CLIENT_NOT_SAVED_MESSAGE
+            except Exception:
+                logger.exception(
+                    "Saving the OAuth client failed connector_id=%s", connector.connector_id
+                )
+                client_error = _CLIENT_NOT_SAVED_MESSAGE
         needs_client = (
             remote.auth_mode == "oauth2"
             and remote.client_registration == "user_supplied"

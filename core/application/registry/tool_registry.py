@@ -30,8 +30,13 @@ class ToolRegistry:
                     manifest = ToolManifest.from_db_row(row)
                     self._tools[manifest.tool_id] = manifest
                 except Exception as e:
-                    logger.exception(
-                        "Failed to load tool from DB row %s: %s", row.get("tool_id"), e
+                    from core.application.security.credential_redaction import redact_text
+
+                    # A validation error quotes the rejected row, tool config included.
+                    logger.error(
+                        "Failed to load tool from DB row %s: %s",
+                        row.get("tool_id"),
+                        redact_text(str(e)),
                     )
             from core.application.registry.projected_artifact_rows import projected_artifact_rows
 

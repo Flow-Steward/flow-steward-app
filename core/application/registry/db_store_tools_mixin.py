@@ -27,6 +27,13 @@ from core.application.registry.db_store_common import (
 )
 
 
+def _redacted_error(exc: Exception) -> str:
+    """A row's validation error quotes the rejected row, tool config included."""
+    from core.application.security.credential_redaction import redact_text
+
+    return redact_text(str(exc))
+
+
 class _ProjectScopeLoader(Protocol):
     def __call__(
         self,
@@ -574,7 +581,11 @@ class RegistryDBStoreToolsMixin:
             try:
                 catalog.append(ToolManifest.from_db_row(row).catalog_entry())
             except Exception as exc:
-                logger.warning("Skipping invalid tool catalog row %s: %s", row.get("tool_id"), exc)
+                logger.warning(
+                    "Skipping invalid tool catalog row %s: %s",
+                    row.get("tool_id"),
+                    _redacted_error(exc),
+                )
         return catalog
 
     def get_effective_tool_catalog(self, agent_id: str) -> list[dict]:
@@ -602,7 +613,9 @@ class RegistryDBStoreToolsMixin:
                 )
             except Exception as exc:
                 logger.warning(
-                    "Skipping invalid effective tool catalog row %s: %s", row.get("tool_id"), exc
+                    "Skipping invalid effective tool catalog row %s: %s",
+                    row.get("tool_id"),
+                    _redacted_error(exc),
                 )
         return catalog
 

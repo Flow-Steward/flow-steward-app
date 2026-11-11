@@ -36,12 +36,15 @@ def _get_checkpointer():
         return None
     try:
         import psycopg
-        from langgraph.checkpoint.postgres import PostgresSaver
         from psycopg.rows import dict_row
+
+        from core.infrastructure.db.checkpoint_saver import history_bounded_saver_class
+
+        saver_class = history_bounded_saver_class()
 
         # autocommit=True is required for PostgresSaver checkpoint persistence.
         conn = psycopg.connect(uri, autocommit=True, row_factory=dict_row)
-        return PostgresSaver(conn)
+        return saver_class(conn)
     except Exception as e:
         logger.warning("PostgresSaver init failed in core.graph: %s", type(e).__name__)
         return None

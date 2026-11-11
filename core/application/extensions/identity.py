@@ -10,5 +10,8 @@ from core.infrastructure.extension_runtime.package_identity import (
     is_canonical_extension_id as is_canonical_extension_id,
 )
 from core.infrastructure.extension_runtime.package_identity import (
+    managed_extension_dir as managed_extension_dir,
+)
+from core.infrastructure.extension_runtime.package_identity import (
     normalize_extension_id as normalize_extension_id,
 )

@@ -318,10 +318,14 @@ What follows depends on whether the release changes the database, and the instal
 ./flow-steward maintenance disable --confirm
 ```
 
-`database preflight` changes nothing. It lists what would stop the upgrade, and `database upgrade` runs the same checks again before it changes anything (ADR 0056):
+The same steps apply when `./flow-steward release upgrade` stops with `release_migration_required`; in that case repeat the same `release upgrade` command instead of `./install.sh --from-source`, and keep maintenance enabled until it succeeds.
+
+The previous release's processes must not be connected while the migration runs. On Scalable, `database upgrade --maintenance-confirmed --confirm` run while maintenance is enabled stops them itself before it starts: `fs-app`, `fs-worker`, `control-plane`, `fs-mcp` and `fs-extension-installer`, whichever are running. Postgres, RabbitMQ and storage keep running. It says what it stopped and leaves it stopped; the second `./install.sh --from-source` (or the repeated `release upgrade`) starts the new release. Do not use `stack stop` for this: it stops Postgres too. Without maintenance enabled nothing is stopped, and the upgrade refuses with `database_upgrade_blocked`.
+
+`database preflight` changes nothing. It lists what would stop the upgrade, and `database upgrade` runs the same checks again before it changes anything (ADR 0056). A blocked upgrade fails with `database_upgrade_blocked` and lists every blocking issue with its next step:
 
 - a schema no published release shipped, a migration or upgrade phase this release does not know, or migration drift;
-- Flow Steward processes that are still connected. Every process names its database session `flow-steward:<role>:<version>`; stop the previous release's app, worker, scheduler and MCP processes first. Releases before this check did not name their sessions, so sessions of the application's database user without a name block too. When you have confirmed the listed sessions are not Flow Steward processes, pass `--allow-unlabeled-sessions` to both commands;
+- Flow Steward processes that are still connected (`runtime_sessions`). Every process names its database session `flow-steward:<role>:<version>`; the previous release's app, worker, control-plane and MCP processes must stop first, which `database upgrade` does on Scalable as described above. Releases before 0.9.14 did not name their sessions, so sessions of the application's database user without a name block too (`unlabeled_sessions`). When you have confirmed the listed sessions are not Flow Steward processes, pass `--allow-unlabeled-sessions` to both commands;
 - data the release cannot move on its own, such as a stored connection credential shared by connections of different projects (enter it separately per connection first).
 
 A second upgrade started while one runs fails at once instead of waiting. Recovery is forward only: after a migration has committed, fix the cause and run the same release's `database upgrade` again; going back to the previous release means restoring the backup.

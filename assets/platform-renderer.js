@@ -220,11 +220,16 @@ class PlatformRenderer {
   static _setPath(obj, path, value) {
     const keys = path.split('.');
     let cur = obj;
+    // A path from data must not reach an object's prototype: such a path is ignored.
     for (let i = 0; i < keys.length - 1; i++) {
-      if (cur[keys[i]] === null || cur[keys[i]] === undefined) {cur[keys[i]] = {};}
-      cur = cur[keys[i]];
+      const key = keys[i];
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {return;}
+      if (cur[key] === null || cur[key] === undefined) {cur[key] = {};}
+      cur = cur[key];
     }
-    cur[keys[keys.length - 1]] = value;
+    const last = keys[keys.length - 1];
+    if (last === '__proto__' || last === 'constructor' || last === 'prototype') {return;}
+    cur[last] = value;
   }
 
   static formatDatetime(v) {

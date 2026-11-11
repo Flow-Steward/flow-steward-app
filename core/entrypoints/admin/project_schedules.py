@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -18,6 +19,8 @@ from core.application.management.command_models import (
     ProjectScheduledJobUpdateInput,
 )
 from core.application.management.guards import require_project_access
+
+logger = logging.getLogger(__name__)
 
 
 class ApiScheduledJobCreateRequest(BaseModel):
@@ -164,8 +167,13 @@ def create_project_schedules_router(
                 schedule_tz = str(sj.get("schedule_timezone") or "").strip() or clean_tz
                 new_next = cron_next_run_at(cron_expr, datetime.now(UTC), schedule_tz=schedule_tz)
                 recalculated_updates.append((sj_id, new_next))
-            except Exception as exc:
-                failed_jobs.append({"scheduled_job_id": sj_id, "error": str(exc)})
+            except Exception:
+                logger.exception(
+                    "Scheduled job next run recalculation failed scheduled_job_id=%s", sj_id
+                )
+                failed_jobs.append(
+                    {"scheduled_job_id": sj_id, "error": "next run could not be calculated"}
+                )
 
         if failed_jobs:
             return JSONResponse(
@@ -428,7 +436,8 @@ def create_project_schedules_router(
             }
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        except Exception as exc:
-            return JSONResponse({"error": f"Preview failed: {exc}"}, status_code=500)
+        except Exception:
+            logger.exception("Schedule preview failed project_id=%s", project_id)
+            return JSONResponse({"error": "Preview failed"}, status_code=500)
 
     return router

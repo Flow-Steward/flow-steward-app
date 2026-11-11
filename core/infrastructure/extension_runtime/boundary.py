@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from core.infrastructure.security.path_containment import contained_path
+
 _MESSAGE_EXTENSION_COMMAND_PATH_MUST_STAY_WITHIN_ITS_BUNDLE = (
     "Extension command path must stay within its bundle"
 )
@@ -83,9 +85,8 @@ def _command_python_file(bundle_root: Path, command: list[str]) -> Path | None:
     candidate = _command_python_path_argument(command)
     if candidate is None or candidate.suffix.lower() != ".py" or candidate.is_absolute():
         return None
-    resolved = (bundle_root / candidate).resolve()
     try:
-        resolved.relative_to(bundle_root)
+        resolved = contained_path(bundle_root, candidate)
     except (OSError, ValueError):
         return None
     return resolved if resolved.is_file() else None
@@ -168,8 +169,7 @@ def validate_extension_runtime_command(
                 )
             ]
         try:
-            resolved_script = (root / script_path).resolve(strict=True)
-            resolved_script.relative_to(root)
+            resolved_script = contained_path(root, script_path)
         except (OSError, RuntimeError, ValueError):
             return [
                 _issue(

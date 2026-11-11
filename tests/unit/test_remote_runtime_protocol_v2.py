@@ -873,3 +873,44 @@ def test_remote_runtime_client_blocks_dns_rebound_private_peer(monkeypatch) -> N
 
     with pytest.raises(url_safety.PinnedPeerError):
         client.health()
+
+
+def _recording_client(endpoints: dict[str, str], calls: list[str]) -> RemoteRuntimeClient:
+    def _http_call(method, url, headers, payload, timeout):
+        calls.append(url)
+        return 200, {"ok": True, "result": {}}
+
+    return RemoteRuntimeClient(
+        base_url="https://runtime.example.com/api",
+        endpoints=endpoints,
+        http_call=_http_call,
+    )
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://attacker.example/steal",
+        "//attacker.example/steal",
+        "../admin",
+        "/v1/../../admin",
+    ],
+)
+def test_client_refuses_endpoints_that_leave_the_runtime_base(endpoint: str) -> None:
+    calls: list[str] = []
+    client = _recording_client({"health": endpoint}, calls)
+
+    with pytest.raises(ValueError, match=r"relative to runtime\.remote\.base_url"):
+        client.health()
+    assert calls == []
+
+
+def test_client_refuses_a_substituted_id_that_climbs_out_of_the_base() -> None:
+    calls: list[str] = []
+    client = _recording_client({"query": "/queries/{query_id}"}, calls)
+
+    with pytest.raises(ValueError, match=r"relative to runtime\.remote\.base_url"):
+        client.invoke_query("../../admin", {})
+    client.invoke_query("orders.list", {})
+
+    assert calls == ["https://runtime.example.com/api/queries/orders.list"]

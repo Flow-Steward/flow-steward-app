@@ -66,6 +66,7 @@ __all__ = [
     "pin_httpx_transport",
     "pinned_requests_session",
     "resolve_pinned_ips",
+    "verified_tls_client_context",
 ]
 
 
@@ -412,6 +413,13 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
         )
 
 
+def verified_tls_client_context() -> ssl.SSLContext:
+    """A certificate- and hostname-verifying client context that refuses TLS before 1.2."""
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
     """HTTPS connection that dials a validated IP but uses the real hostname
     for TLS SNI and certificate verification."""
@@ -422,7 +430,7 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
     def connect(self) -> None:
         ips = self._pinned_ips or (self.host,)
-        context = self._context or ssl.create_default_context()  # type: ignore[attr-defined]
+        context = self._context or verified_tls_client_context()  # type: ignore[attr-defined]
         server_hostname = self.host
         last_exc: Exception | None = None
         for ip in ips:
@@ -502,7 +510,7 @@ def build_pinned_opener(
 
     # Explicitly disable environment/system proxy discovery. These sinks carry
     # credentials and must dial only the validated, pinned destination.
-    tls_context = ssl.create_default_context()
+    tls_context = verified_tls_client_context()
     if not tls_context.check_hostname or tls_context.verify_mode != ssl.CERT_REQUIRED:
         raise RuntimeError("TLS certificate verification is required")
     handlers: list[Any] = [

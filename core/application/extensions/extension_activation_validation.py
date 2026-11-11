@@ -18,14 +18,14 @@ def validate_managed_release_artifact(
     descriptor_root = _normalize_text(descriptor.get("bundle_root"))
     if not descriptor_root:
         return
-    from core.application.extensions.identity import extension_folder_name
+    from core.application.extensions.identity import extension_folder_name, managed_extension_dir
     from core.infrastructure.extension_runtime.extension_runtime import (
         compile_extension_bundle,
         default_extensions_root,
     )
 
-    resolved_active_root = active_root or (
-        Path(default_extensions_root()) / extension_folder_name(extension_id)
+    resolved_active_root = active_root or managed_extension_dir(
+        default_extensions_root(), extension_id
     )
     managed_releases_root = resolved_active_root.parent / ".releases" / resolved_active_root.name
     try:
