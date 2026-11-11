@@ -20,7 +20,7 @@ it("labels saved validation while drafting and lists identical draft issues only
   expect(await screen.findByRole("button", { name: /Diagnostics.*Saved workflow valid/ })).toBeInTheDocument();
   const kept = await screen.findByTestId("change-check-kept");
   expect(within(kept).getAllByText(issue.message)).toHaveLength(1);
-}, 15_000);
+});
 
 it("keeps a past owned result available after explicit history selection when the next start fails", async () => {
   const jobId = "previous-success";
@@ -93,4 +93,4 @@ it("keeps a past owned result available after explicit history selection when th
   expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId);
   expect(await screen.findByText("\"Prior successful report\"")).toBeInTheDocument();
   expect(localStorage.getItem("fs.workflow-run-job.weekly_report")).toBe(jobId);
-}, 15_000);
+});

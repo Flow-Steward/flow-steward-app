@@ -184,7 +184,7 @@ describe("numeric fields through the actual workflow page", () => {
     expect(boundary.writes).toHaveLength(1);
     expect(boundary.writes[0].expected_revision).toBe(7);
     expect(boundary.storedConfig()[key]).toBe(expected);
-  }, 20_000);
+  });
 
   it("keeps optional blank byte limits in the payload rather than asserting a runtime default", async () => {
     const user = userEvent.setup();
@@ -352,7 +352,7 @@ describe("HTTP response-mode preservation through the workflow page", () => {
     expect(boundary.writes).toHaveLength(2);
     expect(boundary.writes[1].expected_revision).toBe(8);
     expect(boundary.storedConfig()).toEqual(initial);
-  }, 15_000);
+  });
 
   it("keeps an over-inline limit visible, links and focuses its error without a write, then restores artifact mode", async () => {
     const user = userEvent.setup();
@@ -397,7 +397,7 @@ describe("HTTP response-mode preservation through the workflow page", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Numeric step/i }));
     expect(await screen.findByRole("textbox", { name: "Max response bytes" })).toHaveValue("");
-  }, 15_000);
+  });
 });
 
 
@@ -493,5 +493,5 @@ describe("HTTP preservation with a fresh mounted readback owner", () => {
       releaseRead();
       view?.unmount();
     }
-  }, 15_000);
+  });
 });

@@ -752,7 +752,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
         expect(screen.queryByTestId("connector-imported-binding")).not.toBeInTheDocument();
       }
     }
-  }, 15_000);
+  });
 
   it("edits transform mappings from the action catalog and runs preview", async () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ revision: 1,

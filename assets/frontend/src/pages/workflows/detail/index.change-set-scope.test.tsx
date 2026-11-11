@@ -100,4 +100,4 @@ it.each(["Apply changes", "Discard changes"])("retires the owned new-step parame
     expect(applied).toBe(true);
     expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Local Stop");
   }
-}, 15_000);
+});

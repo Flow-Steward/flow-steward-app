@@ -155,7 +155,7 @@ it("scopes both Control/Meta+A and Escape to the canvas, leaving search input, I
   const blockedDialog = screen.getByRole("dialog", { name: "Keep this selection?" });
   fireEvent.keyDown(within(blockedDialog).getByRole("button", { name: /Cancel/ }), { key: "a", code: "KeyA", ctrlKey: true });
   expect(screen.queryByRole("toolbar", { name: "Selected items" })).not.toBeInTheDocument();
-}, 15_000);
+});
 
 it("routes graph Undo/Redo keys only from canvas focus while preserving native search-input editing", async () => {
   render(<Host />);

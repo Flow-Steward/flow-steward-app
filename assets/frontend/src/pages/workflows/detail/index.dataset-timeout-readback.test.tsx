@@ -211,7 +211,7 @@ describe("Dataset timeout through public fields, Save and fresh HTTP readback", 
       view?.unmount();
       await boundary.restore();
     }
-  }, 15_000);
+  });
 
   it("retains unfinished numeric text across Close/reopen without an automatic write", async () => {
     const boundary = await installDatasetTransport({ ...baseConfig, timeout_seconds: 45 });
@@ -251,7 +251,7 @@ describe("Dataset timeout through public fields, Save and fresh HTTP readback", 
       view?.unmount();
       await boundary.restore();
     }
-  }, 15_000);
+  });
 
   it("keeps the explicit new-Dataset creation default30 when staging without a durable write", async () => {
     const boundary = await installDatasetTransport({ ...baseConfig, timeout_seconds: 45 });
@@ -274,5 +274,5 @@ describe("Dataset timeout through public fields, Save and fresh HTTP readback", 
       view?.unmount();
       await boundary.restore();
     }
-  }, 15_000);
+  });
 });

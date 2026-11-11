@@ -279,7 +279,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
     expect(screen.getByLabelText("Run workflow test run")).toBeDisabled();
     await openRememberedResults();
     expect(await screen.findByRole("textbox", { name: "Comment for rejection" })).toHaveValue("Checked the report");
-  }, 20_000);
+  });
 
   it("keeps a second workflow test run disabled while the durable run is pending", async () => {
     globalThis.localStorage.setItem(STORAGE_KEY, THREAD_ID);
@@ -471,5 +471,5 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
       vi.clearAllTimers();
       vi.useRealTimers();
     }
-  }, 15_000);
+  });
 });

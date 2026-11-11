@@ -48,7 +48,7 @@ it("preserves transform source and destination through local update and reopenin
       }) }) }),
     })]));
   });
-}, 15_000);
+});
 
 
 describe.each([false, true])("Transform required fields with workflow enabled=%s", (enabled) => {
@@ -98,5 +98,5 @@ describe.each([false, true])("Transform required fields with workflow enabled=%s
       expected_revision: 7,
       operations: [{ op: "update_step_config", step_id: "normalize_audit", patch: { override: { transform } } }],
     });
-  }, 15_000);
+  });
 });

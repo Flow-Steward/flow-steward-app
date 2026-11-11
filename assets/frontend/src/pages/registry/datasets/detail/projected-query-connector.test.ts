@@ -87,4 +87,4 @@ it("handles a long interior hyphen suffix within a generous interactive budget",
   expect(selected).toBe(connector);
   // Linear scans take milliseconds; the previous backtracking suffix takes seconds.
   expect(elapsed).toBeLessThan(1_000);
-}, 30_000);
+});
