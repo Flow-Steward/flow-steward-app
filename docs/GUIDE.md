@@ -121,6 +121,14 @@ Later SQL migrations use `database upgrade` on existing installations with
 pending migrations. Enable maintenance and verify a backup before running it
 with `--maintenance-confirmed --confirm`; see the
 [deployment lifecycle procedure](operations/compact-scalable-deployment.md#update-an-installation-to-new-sources).
+The previous release's processes must not be connected during the migration. On
+Scalable, while maintenance is enabled, the confirmed `database upgrade` stops
+`fs-app`, `fs-worker`, `control-plane`, `fs-mcp` and `fs-extension-installer`
+itself, keeps Postgres, RabbitMQ and storage running, and leaves them stopped
+until `./install.sh` or the repeated `release upgrade` starts the new release.
+`stack stop` is not a substitute: it stops Postgres as well. When something still
+blocks, the upgrade fails with `database_upgrade_blocked` and lists each issue and
+its next step; its log path is the host path under the logs directory.
 
 Production installation downloads the published management installer tagged with
 its checkout VERSION (`flow-steward-installer:X.Y.Z`). It runs the Python installer
@@ -2260,7 +2268,11 @@ through the procedure for the installation's [deployment profile](operations/com
 Release upgrade uses the same durable maintenance status surface as every other
 operator workflow. Maintenance must already be fully enabled before upgrade and
 remains enabled on success or failure. Only an explicit healthy disable reopens
-work.
+work. Unfinished mutations (config apply, release upgrade, restore, stack
+changes) block `maintenance disable` until they are resumed. A failed
+`backup create` does not: it changed nothing in the installation, so `status`
+and `doctor` only report it until a later backup succeeds, and the next
+`backup create` starts a new backup.
 
 #### Official production upgrade
 

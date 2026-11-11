@@ -170,7 +170,7 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Pa
             compose_action=
             for arg in "$@"; do
               case "$arg" in
-                ps|start|up|rm|run|exec)
+                ps|start|stop|up|rm|run|exec)
                   compose_action=$arg
                   break
                   ;;
@@ -195,6 +195,14 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Pa
                   printf '%s\\n' 'container lookup failed' >&2
                   exit 51
                 fi
+                case " $* " in
+                  *" --services "*)
+                    for service in ${FAKE_RUNNING_SERVICES:-}; do
+                      printf '%s\\n' "$service"
+                    done
+                    exit 0
+                    ;;
+                esac
                 if [ -f "$FAKE_DOCKER_STATE" ] || [ "${FAKE_CONTAINER_PRESENT:-1}" = "1" ]; then
                   printf '%s\\n' "${FAKE_CONTAINER_ID:-fakeclicontainerid}"
                 fi
@@ -233,6 +241,9 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Pa
                 rm -f "$FAKE_DOCKER_STATE"
                 printf '%s\\n' 'fake invalid fs-cli removed'
                 exit 0
+                ;;
+              stop)
+                exit "${FAKE_STOP_EXIT:-0}"
                 ;;
               exec)
                 if [ -d "$FS_DOCKER_HOST_PROJECT_ROOT/.flow-steward/runtime/cli-runtime.lock" ]; then
@@ -2977,6 +2988,102 @@ def test_database_commands_run_in_the_configured_release_not_the_running_app(
     assert "ARG=--no-deps" in log
 
 
+_UPGRADE = ("database", "upgrade", "--maintenance-confirmed", "--confirm")
+_RUNNING = "pg-fs rabbitmq-fs seaweedfs fs-cli fs-app fs-worker control-plane fs-mcp"
+
+
+def _enable_maintenance(repo: Path) -> None:
+    runtime = repo / ".flow-steward/runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "maintenance-state.json").write_text(
+        json.dumps({"owner_kind": "manual", "phase": "enabled"}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _upgrade_env(**extra: str | None) -> dict[str, str | None]:
+    return {
+        "FAKE_IMAGE_REVISION": "test-revision",
+        "FAKE_RUNNING_SERVICES": _RUNNING,
+        "FS_INSTALLER_STATE_DIR": None,
+        "FS_LOGS_DIR": None,
+        **extra,
+    }
+
+
+def test_database_upgrade_in_maintenance_stops_only_the_previous_release_writers(
+    fake_repo: tuple[Path, Path],
+) -> None:
+    """2026-11-11 demo upgrade: `database upgrade` refused (runtime_sessions) while the
+    0.9.12 app, worker, control-plane and mcp ran, and `stack stop` would also stop
+    Postgres; the operator ran `docker stop` by hand."""
+    _enable_maintenance(fake_repo[0])
+
+    result = _run_launcher(fake_repo, *_UPGRADE, env=_upgrade_env())
+
+    assert result.returncode == 0, result.stderr
+    log = _log(fake_repo)
+    stop_block = next(block for block in log.split("CMD=") if "ACTION=stop\n" in block)
+    for writer in ("fs-app", "fs-worker", "control-plane", "fs-mcp"):
+        assert f"ARG={writer}\n" in stop_block
+    for kept in ("pg-fs", "rabbitmq-fs", "seaweedfs", "fs-cli"):
+        assert f"ARG={kept}\n" not in stop_block
+    assert log.index("ACTION=stop") < log.index("ACTION=run")
+    assert "Postgres, RabbitMQ and storage keep running" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("maintenance", "args"),
+    [
+        (False, _UPGRADE),  # no maintenance: the preflight refuses and says to enable it
+        (True, ("database", "upgrade", "--maintenance-confirmed")),  # still to be reviewed
+        (True, ("database", "upgrade", "--confirm")),
+        (True, ("database", "preflight")),
+        (True, (*_UPGRADE, "--help")),
+    ],
+)
+def test_database_commands_stop_nothing_unless_a_confirmed_upgrade_runs_in_maintenance(
+    fake_repo: tuple[Path, Path],
+    maintenance: bool,
+    args: tuple[str, ...],
+) -> None:
+    if maintenance:
+        _enable_maintenance(fake_repo[0])
+
+    result = _run_launcher(fake_repo, *args, env=_upgrade_env())
+
+    assert result.returncode == 0, result.stderr
+    assert _count_action(fake_repo, "stop") == 0
+
+
+def test_database_upgrade_does_not_migrate_when_the_writers_cannot_be_stopped(
+    fake_repo: tuple[Path, Path],
+) -> None:
+    _enable_maintenance(fake_repo[0])
+
+    result = _run_launcher(fake_repo, *_UPGRADE, env=_upgrade_env(FAKE_STOP_EXIT="1"))
+
+    assert result.returncode == 7
+    assert "nothing was migrated" in result.stderr
+    assert _count_action(fake_repo, "run") == 0
+
+
+def test_database_commands_report_their_log_under_the_host_logs_directory(
+    fake_repo: tuple[Path, Path],
+) -> None:
+    """2026-11-11: the error said `Log: /app/logs/cli/...`, a container path."""
+    result = _run_launcher(fake_repo, *_UPGRADE, env=_upgrade_env())
+
+    assert result.returncode == 0, result.stderr
+    host_root = f"{fake_repo[0].resolve()}/logs/cli"
+    assert _arg_sequence(
+        "-e",
+        "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli",
+        "-e",
+        f"FS_CLI_OPERATION_LOG_HOST_ROOT={host_root}",
+    ) in _log(fake_repo)
+
+
 @pytest.mark.parametrize("command", ["restore-parity-capture", "restore-parity-verify"])
 def test_restore_parity_commands_use_lifecycle_runtime(
     fake_repo: tuple[Path, Path],
@@ -4128,6 +4235,8 @@ def test_non_tty_exec_preserves_child_exit_and_spaced_args_without_retry(
             "COLORTERM=truecolor",
             "-e",
             "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli",
+            "-e",
+            f"FS_CLI_OPERATION_LOG_HOST_ROOT={fake_repo[0].resolve()}/logs/cli",
             "-e",
             "FS_CLI_HOST_NO_COLOR=",
             "fs-app",
