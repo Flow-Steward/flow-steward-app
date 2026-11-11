@@ -182,6 +182,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/clone/ core/infrastru
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/config/ core/infrastructure/config/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/db/__init__.py \
+    core/infrastructure/db/checkpoint_history.py \
     core/infrastructure/db/job_activity_store.py \
     core/infrastructure/db/schema_contract.py \
     core/infrastructure/db/schema_contract_catalog.py \

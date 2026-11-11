@@ -433,6 +433,7 @@
     "core/infrastructure/db/__init__.py",
     "core/infrastructure/db/action_log_store.py",
     "core/infrastructure/db/agent_message_store.py",
+    "core/infrastructure/db/checkpoint_history.py",
     "core/infrastructure/db/command_audit_store.py",
     "core/infrastructure/db/dashboard_rollups_store.py",
     "core/infrastructure/db/db_pool.py",

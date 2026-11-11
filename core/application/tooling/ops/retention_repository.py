@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.infrastructure.db.checkpoint_history import prune_threads_to_latest
 from core.application.tooling.ops.retention_cleanup_common import (
     psycopg_runtime,
     system_settings_store,
@@ -668,42 +669,35 @@ def _delete_checkpoint_rows_for_thread(cur, *, cache: dict[str, bool], thread_id
     return deleted
 
 
-def _delete_or_count_terminal_job_checkpoints(
+def _terminal_jobs_where(
     cur,
     *,
     cache: dict[str, bool],
     account_id: str,
-    days: int,
-    dry_run: bool,
-) -> int:
-    if not (
-        _table_exists(cur, cache, "jobs")
-        and _column_exists(cur, cache, table="jobs", column="thread_id")
-    ):
-        return 0
+    finished_before_sql: str,
+    finished_before_params: list[Any],
+) -> tuple[str, list[Any]] | None:
+    """The terminal jobs of one account that finished before a cutoff, or None.
 
-    checkpoint_tables = [
-        table
-        for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints")
-        if _table_exists(cur, cache, table)
-    ]
-    if not checkpoint_tables:
-        return 0
-
+    None means the account cannot be scoped on this database, so nothing of it
+    may be touched.
+    """
     resolved_account_id = system_settings_store.normalize_account_id(account_id)
     jobs_where = (
         """
         j.thread_id IS NOT NULL
         AND j.thread_id <> ''
         AND j.finished_at IS NOT NULL
-        AND j.finished_at < NOW() - (%s * INTERVAL '1 day')
+        AND j.finished_at < """
+        + finished_before_sql
+        + """
         AND j.status = ANY(%s)
     """
         + f"""
         {_invoke_child_hold_sql("j")}
     """
     )
-    jobs_params: list[Any] = [days, _TERMINAL_JOB_STATUSES]
+    jobs_params: list[Any] = [*finished_before_params, _TERMINAL_JOB_STATUSES]
     if _project_account_scoping_available(cur, cache):
         jobs_where += """
         AND EXISTS (
@@ -715,7 +709,44 @@ def _delete_or_count_terminal_job_checkpoints(
         """
         jobs_params.append(resolved_account_id)
     elif resolved_account_id != DEFAULT_ACCOUNT_ID:
+        return None
+    return jobs_where, jobs_params
+
+
+def _checkpoint_tables(cur, cache: dict[str, bool]) -> list[str]:
+    if not (
+        _table_exists(cur, cache, "jobs")
+        and _column_exists(cur, cache, table="jobs", column="thread_id")
+    ):
+        return []
+    return [
+        table
+        for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints")
+        if _table_exists(cur, cache, table)
+    ]
+
+
+def _delete_or_count_terminal_job_checkpoints(
+    cur,
+    *,
+    cache: dict[str, bool],
+    account_id: str,
+    days: int,
+    dry_run: bool,
+) -> int:
+    checkpoint_tables = _checkpoint_tables(cur, cache)
+    if not checkpoint_tables:
         return 0
+    terminal = _terminal_jobs_where(
+        cur,
+        cache=cache,
+        account_id=account_id,
+        finished_before_sql="NOW() - (%s * INTERVAL '1 day')",
+        finished_before_params=[days],
+    )
+    if terminal is None:
+        return 0
+    jobs_where, jobs_params = terminal
 
     total = 0
     for table in checkpoint_tables:
@@ -733,6 +764,53 @@ def _delete_or_count_terminal_job_checkpoints(
             dry_run=dry_run,
         )
     return total
+
+
+#: A finished job's thread has had no writer for this long, so its history can go.
+_CHECKPOINT_HISTORY_SETTLE_SQL = "NOW() - INTERVAL '1 hour'"
+
+
+def _compact_or_count_terminal_job_checkpoint_history(
+    cur,
+    *,
+    cache: dict[str, bool],
+    account_id: str,
+    dry_run: bool,
+) -> int:
+    """Keep only the latest checkpoint of every finished job until it expires.
+
+    Runs saved before checkpoint history was bounded kept every checkpoint of
+    every step; the job's own retention period still decides when the last one
+    goes. A thread that is not finished prunes itself as it saves.
+    """
+    if len(_checkpoint_tables(cur, cache)) != 3:
+        return 0
+    terminal = _terminal_jobs_where(
+        cur,
+        cache=cache,
+        account_id=account_id,
+        finished_before_sql=_CHECKPOINT_HISTORY_SETTLE_SQL,
+        finished_before_params=[],
+    )
+    if terminal is None:
+        return 0
+    jobs_where, jobs_params = terminal
+    cur.execute(
+        f"""
+        SELECT c.thread_id
+        FROM checkpoints AS c
+        WHERE c.thread_id IN (SELECT j.thread_id FROM jobs AS j WHERE {jobs_where})
+        GROUP BY c.thread_id, c.checkpoint_ns
+        HAVING COUNT(*) > 1
+        """,
+        tuple(jobs_params),
+    )
+    thread_ids = sorted(
+        {str(row["thread_id"] if isinstance(row, dict) else row[0]) for row in cur.fetchall()}
+    )
+    if dry_run:
+        return len(thread_ids)
+    return prune_threads_to_latest(cur, thread_ids)
 
 
 #: ADR 0047 decision 11: inbound OAuth records, oldest-first dependency order.
