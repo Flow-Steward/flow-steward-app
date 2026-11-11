@@ -53,16 +53,21 @@ class ActionPlan:
     workflow_id: str
     installs: dict[str, str]
     connections: dict[str, str]
+    #: The extension's name when the child was created; a run is labelled by it.
+    extension_name: str = ""
 
     def context(self) -> dict[str, Any]:
         """The ``jobs.meta`` action context of the child."""
-        return {
+        context: dict[str, Any] = {
             "extension_id": self.extension_id,
             "install_id": self.install_id,
             "action_id": self.action_id,
             "installs": dict(self.installs),
             "connections": dict(self.connections),
         }
+        if self.extension_name:
+            context["extension_name"] = self.extension_name
+        return context
 
     def direct_spec(self, spec: Mapping[str, Any]) -> dict[str, Any]:
         """The Invoke config as a plain direct Invoke of the implementation."""
@@ -179,6 +184,7 @@ def plan_action_invoke(
         workflow_id=workflow_id,
         installs=installs,
         connections=connections,
+        extension_name=_text(getattr(installed, "extension_name", "")),
     )
 
 

@@ -15,6 +15,8 @@ from core.application.workflows.workflow_action_contract import (
     action_implementation_of,
     action_installs,
     action_ref_of,
+    action_run_label,
+    action_run_of,
     composite_action_context,
     is_action_implementation,
     is_installed_action_implementation,
@@ -258,3 +260,33 @@ def test_the_action_context_is_read_from_job_metadata_only() -> None:
     assert composite_action_context({COMPOSITE_ACTION_META_KEY: "conn-1"}) == {}
     assert composite_action_context("not json") == {}
     assert composite_action_context(None) == {}
+
+
+def test_the_run_of_an_action_reads_as_the_action_and_its_extension() -> None:
+    context = {"extension_id": "acme.amazon-pro", "action_id": "orders.create_full"}
+    named = {**context, "extension_name": "Amazon Pro"}
+    job = {"selected_workflow_display_name": "Create order with shipment"}
+
+    # A detail row carries the whole meta, a list row only the selected column.
+    assert action_run_label({**job, "meta": {COMPOSITE_ACTION_META_KEY: named}}) == (
+        "Create order with shipment · Amazon Pro"
+    )
+    assert action_run_label({**job, COMPOSITE_ACTION_META_KEY: named}) == (
+        "Create order with shipment · Amazon Pro"
+    )
+    # A run created before the name was recorded reads by the extension's id.
+    assert action_run_of({"meta": json.dumps({COMPOSITE_ACTION_META_KEY: context})}) == {
+        **context,
+        "extension_name": "acme.amazon-pro",
+    }
+    assert action_run_label({COMPOSITE_ACTION_META_KEY: context}) == (
+        "orders.create_full · acme.amazon-pro"
+    )
+
+
+def test_an_ordinary_run_has_no_action_label() -> None:
+    assert action_run_label({"selected_workflow_display_name": "Weekly report", "meta": {}}) is None
+    assert (
+        action_run_label({COMPOSITE_ACTION_META_KEY: {"extension_id": "acme.amazon-pro"}}) is None
+    )
+    assert action_run_of(None) == {}

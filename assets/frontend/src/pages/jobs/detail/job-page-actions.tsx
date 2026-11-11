@@ -15,6 +15,7 @@ export function JobPageActions({
   requestCancelJob,
   requestRestartJob,
   requestAcknowledgeJob,
+  restartAllowed = true,
   restartPending,
 }: Readonly<{
   acknowledged: boolean;
@@ -28,6 +29,8 @@ export function JobPageActions({
   requestCancelJob: () => void;
   requestRestartJob: () => void;
   requestAcknowledgeJob: (acknowledged: boolean) => void;
+  /** False for a run that is restarted only through its parent run. */
+  restartAllowed?: boolean;
   restartPending: boolean;
 }>) {
   const { t } = useI18n();
@@ -40,7 +43,7 @@ export function JobPageActions({
         </Button>
       ) : null}
       {canMutate && isCancellable ? <Button busy={cancelPending} busyLabel={t("react.jobs.cancelling", "Cancelling…")} data-testid="job-cancel-button" onClick={requestCancelJob} type="button" variant="accent">{t("registry.workflow_detail.automation.action.cancel_job", "Cancel job")}</Button> : null}
-      {canMutate && isTerminal ? <Button busy={restartPending} busyLabel={t("react.jobs.restarting", "Restarting…")} data-testid="job-restart-button" onClick={requestRestartJob} type="button" variant="primary">{t("react.jobs.restart_job", "Restart job")}</Button> : null}
+      {canMutate && isTerminal && restartAllowed ? <Button busy={restartPending} busyLabel={t("react.jobs.restarting", "Restarting…")} data-testid="job-restart-button" onClick={requestRestartJob} type="button" variant="primary">{t("react.jobs.restart_job", "Restart job")}</Button> : null}
     </div>
   );
 }

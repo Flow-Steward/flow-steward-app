@@ -9,6 +9,7 @@ import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import {
   humanizeDiagnosticLabel,
   firstReadableText,
+  isActionRun,
   normalizeTimestamp,
   workflowPath,
 } from "@/pages/jobs/detail/job-detail-core";
@@ -85,11 +86,17 @@ function JobRunBadges({
       <span className="fs-badge">{t("react.jobs.started", "Started:")} {normalizeTimestamp(canonicalDetail.startedAt, userTimezone)}</span>
       <span className="fs-badge">{t("react.jobs.finished", "Finished:")} {normalizeTimestamp(canonicalDetail.finishedAt, userTimezone)}</span>
       <JobTriggerBadge trigger={canonicalDetail.job.trigger} />
-      {selectedWorkflow ? (
+      {selectedWorkflow && isActionRun(canonicalDetail.job) ? (
+        <span className="fs-badge green min-w-0 max-w-full" data-testid="job-action-name">
+          <span className="break-words">{t("react.workflows.action", "Action:")} {selectedWorkflowLabel}</span>
+        </span>
+      ) : null}
+      {selectedWorkflow && !isActionRun(canonicalDetail.job) ? (
         <Link className="fs-badge green min-w-0 max-w-full" data-testid="job-workflow-link" title={selectedWorkflowLabel !== selectedWorkflow ? t("react.jobs.workflow_id_value1", "Workflow ID: {value1}", { value1: String(selectedWorkflow) }) : undefined} to={workflowPath(selectedWorkflow)}>
           <span className="break-words">{t("project_detail.task.preview.workflow", "Workflow:")} {selectedWorkflowLabel}</span>
         </Link>
-      ) : <span className="fs-badge" data-testid="job-workflow-missing">{t("react.jobs.workflow_not_recorded", "Workflow not recorded")}</span>}
+      ) : null}
+      {selectedWorkflow ? null : <span className="fs-badge" data-testid="job-workflow-missing">{t("react.jobs.workflow_not_recorded", "Workflow not recorded")}</span>}
     </div>
   );
 }
@@ -408,7 +415,7 @@ export function JobsDetailPage({
         </div>
       ) : (
         <DsPageHeader
-        action={<JobPageActions acknowledged={Boolean(canonicalDetail.job.acknowledged_at)} acknowledgePending={acknowledgeMutation.isPending} canAcknowledge={ACKNOWLEDGEABLE_GROUPS.has(jobStatusGroup(canonicalDetail.statusCode) || "")} requestAcknowledgeJob={requestAcknowledgeJob} canMutate={canMutate} cancelPending={cancelMutation.isPending} isCancellable={isCancellable} isTerminal={isTerminal} reportDownload={reportDownload} requestCancelJob={requestCancelJob} requestRestartJob={requestRestartJob} restartPending={restartMutation.isPending} />}
+        action={<JobPageActions acknowledged={Boolean(canonicalDetail.job.acknowledged_at)} acknowledgePending={acknowledgeMutation.isPending} canAcknowledge={ACKNOWLEDGEABLE_GROUPS.has(jobStatusGroup(canonicalDetail.statusCode) || "")} requestAcknowledgeJob={requestAcknowledgeJob} canMutate={canMutate} cancelPending={cancelMutation.isPending} isCancellable={isCancellable} isTerminal={isTerminal} reportDownload={reportDownload} requestCancelJob={requestCancelJob} requestRestartJob={requestRestartJob} restartAllowed={!isActionRun(canonicalDetail.job)} restartPending={restartMutation.isPending} />}
         description={pageDescription}
         eyebrow={t("jobs.page_title", "Jobs")}
         title={workflowTitle}

@@ -16,6 +16,7 @@ import {
   DEFAULT_JOB_VIEW_STATE,
   failureSummaryFromDetail,
   firstReadableText,
+  isActionRun,
   listFromUnknown,
   objectOrEmpty,
   safeEntityId,
@@ -413,6 +414,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
       executionPage: executionStepHistoryQuery.data?.pages[0],
       definitionError: definitionQuery.isError,
       workflowWait: objectOrEmpty(runtimeEntity.workflow_wait),
+      actionRun: isActionRun(canonicalDetail.job),
     },
     invocationView: {
       hasInvocation,

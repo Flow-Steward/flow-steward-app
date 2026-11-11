@@ -90,6 +90,17 @@ def test_a_persons_step_resolves_to_the_implementation_and_its_context() -> None
         "installs": {ADDON: "pi_addon", BASE: "pi_base"},
         "connections": {"amazon": "conn-1"},
     }
+    # The extension's name is recorded with the run, which is labelled by it.
+    named = InstalledComposites(
+        install_id="pi_addon",
+        extension_id=ADDON,
+        release_id="pr_1",
+        active=True,
+        actions={"orders.create_full": composite()},
+        required_dependencies=frozenset({BASE}),
+        extension_name="Amazon Pro",
+    )
+    assert plan(resolver=installs(pi_addon=named)).context()["extension_name"] == "Amazon Pro"
     # The child is an ordinary direct Invoke; the action keys never reach it.
     assert resolved.direct_spec(spec()) == {
         "workflow_id": IMPLEMENTATION_ID,

@@ -1084,8 +1084,7 @@ def test_connector_message_uses_step_display_name_and_keeps_structured_registry_
 
     message = update["agent_messages"][-1]
     assert message["summary"] == (
-        "Connector step 'Measure failure reason' failed via extension_action: "
-        "artifact_upload_missing"
+        "Extension action 'Measure failure reason' failed: artifact_upload_missing"
     )
     assert connector_id not in message["summary"]
     assert message["artifacts"]["connector_id"] == connector_id

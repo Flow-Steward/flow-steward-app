@@ -39,6 +39,8 @@ class InstalledComposites:
     active: bool
     actions: Mapping[str, CompositeAction] = field(default_factory=dict)
     required_dependencies: frozenset[str] = frozenset()
+    #: The name a person knows the extension by, as its release declares it.
+    extension_name: str = ""
 
     def action(self, action_id: str) -> CompositeAction | None:
         return self.actions.get(str(action_id or "").strip())
@@ -86,6 +88,7 @@ def installed_composites(
     ``None`` means the account cannot see such an install. An inactive install
     is returned with ``active=False`` so callers can say why it cannot run.
     """
+    from core.application.extensions.display_labels import localized_extension_display_name
     from core.application.extensions.install import DBExtensionInstallStore
     from core.application.extensions.runtime_store_db import DBExtensionRuntimeStore
 
@@ -116,6 +119,7 @@ def installed_composites(
         active=_text(getattr(state, "value", state)).lower() == "active",
         actions=actions,
         required_dependencies=dependencies,
+        extension_name=localized_extension_display_name(getattr(release, "descriptor", None)),
     )
 
 

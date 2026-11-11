@@ -19,6 +19,7 @@ from core.application.observability_vocabulary import (
 from core.application.observability_vocabulary import (
     job_status_meta,
 )
+from core.application.workflows.workflow_action_contract import action_run_label
 from core.application.workflows.workflow_hook_contract import hook_run_label
 from core.application.workflows.workflow_start_runtime import WORKFLOW_RUN_SUMMARY_KEY
 
@@ -88,9 +89,12 @@ def serialize_attention_job_row(
         ),
         "worker_id": _opt_str(row.get("worker_id")),
         "selected_workflow": _opt_str(row.get("selected_workflow") or row.get("workflow_id")),
-        # A run of a hook's steps reads as the hook, never as its storage workflow.
+        # A run of a hook's steps reads as the hook, and the run of an extension
+        # action as the action, never as the workflow that stores them.
         "selected_workflow_display_name": _opt_str(
-            hook_run_label(row) or row.get("selected_workflow_display_name")
+            hook_run_label(row)
+            or action_run_label(row)
+            or row.get("selected_workflow_display_name")
         ),
         "current_step_id": _opt_str(row.get("current_step_id")),
         "current_group_id": _opt_str(row.get("current_group_id")),

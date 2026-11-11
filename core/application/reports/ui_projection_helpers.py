@@ -27,6 +27,9 @@ from core.application.workflows.workflow_step_kinds import (
     STEP_KIND_COLLECT,
     STEP_KIND_RUNTIME_ACTOR_LABELS,
     STEP_KIND_TRANSFORM,
+    TOOL_KIND_EXTENSION,
+    TOOL_KIND_LABELS,
+    connector_tool_kind,
 )
 from core.infrastructure.config.workflow_file_limits import file_preview_max_bytes
 
@@ -34,6 +37,12 @@ from . import ui_projection_common as _common
 from . import ui_projection_review_workspace as _review
 from . import ui_projection_usage as _usage
 
+#: The catalog keys of ``TOOL_KIND_LABELS``; the run's canvas cards use the same ones.
+_TOOL_KIND_LABEL_KEYS = {
+    "extension": "react.jobs.kind_extension_tool",
+    "mcp": "react.jobs.kind_mcp_tool",
+    "system": "react.jobs.kind_system_tool",
+}
 #: Pauses that are the active step still running (not a review gate).
 _SELF_RESUMING_WAIT_STATUSES = frozenset({STATUS_AWAITING_TIMER, STATUS_AWAITING_CHILD})
 _SPECIAL_WORDS = _common._SPECIAL_WORDS
@@ -551,10 +560,17 @@ def _build_message_steps(
         step_type_label = STEP_KIND_RUNTIME_ACTOR_LABELS.get(agent, "")
         # An Invoke that calls an extension action is an extension action to the reader.
         action_invoke = artifacts.get("action_invoke") is True
-        if action_invoke:
-            step_type_label = STEP_KIND_RUNTIME_ACTOR_LABELS.get("connector_step", step_type_label)
+        # A tool step is named by what it called: an extension, an MCP server or a
+        # system tool. The reader never meets a "connector" or a "tool action".
+        tool_kind = (
+            connector_tool_kind(artifacts.get("connector_id"), artifacts.get("extension_id"))
+            if action_invoke or agent == "connector_step"
+            else ""
+        )
+        if tool_kind:
+            step_type_label = TOOL_KIND_LABELS[tool_kind]
         step_type_keys = {
-            "connector": "react.workflows.tool_action",
+            "connector": _TOOL_KIND_LABEL_KEYS.get(tool_kind, ""),
             "http_request": "react.workflows.http_request",
             "dataset_query": "react.workflows.dataset_query",
             "transform": "react.workflows.transform",
@@ -580,6 +596,9 @@ def _build_message_steps(
             else ""
         )
         tool_id = str(artifacts.get("extension_id") or artifacts.get("connector_id") or "").strip()
+        if tool_kind == TOOL_KIND_EXTENSION:
+            # The extension's own id; the query service replaces it with its name.
+            tool_id = tool_id.removeprefix("extension.")
         message_id = str(message.get("id") or "").strip()
         scope_id = _step_scope_id(
             step_id=message_step_id,
@@ -626,6 +645,8 @@ def _build_message_steps(
                 "step_type_label": step_type_label,
                 "step_type_label_key": step_type_key,
                 "tool_label": tool_id,
+                "tool_kind": tool_kind,
+                "tool_extension_id": tool_id if tool_kind == TOOL_KIND_EXTENSION else "",
                 "operation_id": operation_id or None,
                 "operation_label": _operation_label(operation_id),
                 "title": title,

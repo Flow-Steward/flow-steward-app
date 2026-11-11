@@ -5738,7 +5738,7 @@ msgid "react.jobs.jobs_list_and_triage"
 msgstr "Jobs list and triage"
 
 msgid "react.jobs.kind_extension_tool"
-msgstr "Extension tool"
+msgstr "Extension action"
 
 msgid "react.jobs.kind_mcp_tool"
 msgstr "MCP tool"
@@ -14179,6 +14179,11 @@ msgstr "Last update"
 
 msgid "react.jobs.no_action_required"
 msgstr "No action is required"
+
+msgid "react.jobs.completed_action_run_help"
+msgstr ""
+"This run finished successfully. It is one step of another run; restart "
+"that run to execute it again."
 
 msgid "react.jobs.completed_restart_help"
 msgstr ""

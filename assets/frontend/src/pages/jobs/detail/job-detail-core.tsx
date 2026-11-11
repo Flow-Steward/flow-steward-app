@@ -170,6 +170,16 @@ export function structuredPayloadSummary(value: unknown): string {
   );
 }
 
+/**
+ * The run of an extension action: one step of its parent run. Its workflow is not
+ * one a person opens, and it is run again only by running the parent again.
+ */
+export function isActionRun(job: unknown): boolean {
+  const trigger = job && typeof job === "object" ? (job as Record<string, unknown>).trigger : null;
+  const action = trigger && typeof trigger === "object" ? (trigger as Record<string, unknown>).action : null;
+  return Boolean(action && typeof action === "object" && firstReadableText((action as Record<string, unknown>).action_id));
+}
+
 export function workflowPath(workflowId: string) {
   return `/registry/workflows/${encodeURIComponent(workflowId)}`;
 }

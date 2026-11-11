@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from core.application.extensions.extension_locales import resolve_locale_text
@@ -29,3 +29,34 @@ def localized_extension_display_name(descriptor: Any, *, locale: str = "") -> st
         "ext.display_name",
         descriptor_display_name(source),
     )
+
+
+def installed_extension_names(
+    connection: Any, *, account_id: str, extension_ids: Iterable[str], locale: str = ""
+) -> dict[str, str]:
+    """The names people know *extension_ids* by, from the releases the account's installs pin.
+
+    An extension the account cannot see, or one whose release declares no name,
+    is left out: the caller keeps showing whatever it had.
+    """
+    from core.application.extensions.install import DBExtensionInstallStore
+    from core.application.extensions.runtime_store_db import DBExtensionRuntimeStore
+
+    wanted = {str(value or "").strip() for value in extension_ids} - {""}
+    if connection is None or not wanted:
+        return {}
+    releases = DBExtensionRuntimeStore(connection)
+    names: dict[str, str] = {}
+    records = DBExtensionInstallStore(connection).list_for_account(
+        account_id, include_global=True, include_inactive_owned=True
+    )
+    for record in records:
+        extension_id = str(getattr(record, "extension_id", "") or "").strip()
+        release_id = str(getattr(record, "release_id", "") or "").strip()
+        if extension_id not in wanted or extension_id in names or not release_id:
+            continue
+        release = releases.get_release(release_id)
+        name = localized_extension_display_name(getattr(release, "descriptor", None), locale=locale)
+        if name:
+            names[extension_id] = name
+    return names

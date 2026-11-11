@@ -631,6 +631,11 @@ async def _build_job_detail_contract(
         user_role=user_role,
         resolve_artifact=resolve_artifact,
     )
+    await _name_step_extensions(
+        [*(sections.get("execution_steps") or []), sections.get("selected_step")],
+        job_query_service=job_query_service,
+        scope=scope,
+    )
     if execution_page_window is not None:
         execution_steps = sections.get("execution_steps")
         if not isinstance(execution_steps, list):
@@ -701,6 +706,26 @@ async def _build_job_detail_contract(
     )
 
 
+async def _name_step_extensions(
+    rows: list[Any], *, job_query_service: Any, scope: ScopeContext | None
+) -> None:
+    """Show each extension step by the name people know its extension by, not its id."""
+    steps = [row for row in rows if isinstance(row, dict) and row.get("tool_extension_id")]
+    if not steps:
+        return
+    names = await _invoke_service_method(
+        job_query_service,
+        "extension_display_names",
+        sorted({str(step["tool_extension_id"]) for step in steps}),
+        scope=scope,
+        default={},
+    )
+    for step in steps:
+        name = names.get(str(step["tool_extension_id"])) if isinstance(names, dict) else None
+        if name:
+            step["tool_label"] = name
+
+
 async def build_job_execution_steps_page(
     *,
     job_id: str,
@@ -763,6 +788,7 @@ async def build_job_execution_steps_page(
         workflow_run=section_workflow_run,
         resolve_artifact=resolve_artifact,
     )
+    await _name_step_extensions(execution_steps, job_query_service=job_query_service, scope=scope)
     page = _execution_step_page_meta(
         page_window=page_window,
         messages=messages,

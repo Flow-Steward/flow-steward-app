@@ -401,6 +401,42 @@ def composite_action_context(meta: Any) -> dict[str, Any]:
     return dict(context) if isinstance(context, Mapping) else {}
 
 
+def action_run_of(job: Mapping[str, Any] | None) -> dict[str, str]:
+    """The extension action a job runs, or ``{}`` for any other job.
+
+    *job* is a job row: its ``meta``, or the ``composite_action`` column a list
+    query selects out of it.
+    """
+    row = job if isinstance(job, Mapping) else {}
+    context = composite_action_context(
+        {COMPOSITE_ACTION_META_KEY: row.get(COMPOSITE_ACTION_META_KEY)}
+    ) or composite_action_context(row.get("meta"))
+    extension_id = _text(context.get("extension_id"))
+    action_id = _text(context.get("action_id"))
+    if not extension_id or not action_id:
+        return {}
+    return {
+        "extension_id": extension_id,
+        "action_id": action_id,
+        "extension_name": _text(context.get("extension_name")) or extension_id,
+    }
+
+
+def action_run_label(job: Mapping[str, Any] | None) -> str | None:
+    """How the run of an action reads in Jobs, or ``None`` for an ordinary run.
+
+    The implementation is never a workflow a person knows: its run reads as the
+    action (the implementation carries the action's name) followed by the
+    extension that offers it, e.g. ``Create order with shipment · Amazon Pro``.
+    """
+    run = action_run_of(job)
+    if not run:
+        return None
+    assert job is not None
+    name = _text(job.get("selected_workflow_display_name")) or run["action_id"]
+    return f"{name} · {run['extension_name']}"
+
+
 __all__ = [
     "ACTION_CONFIG_KEY",
     "ACTION_CONNECTIONS_KEY",
@@ -418,6 +454,8 @@ __all__ = [
     "action_installs",
     "action_invoke_dependencies",
     "action_ref_of",
+    "action_run_label",
+    "action_run_of",
     "composite_action_context",
     "is_action_implementation",
     "is_installed_action_implementation",

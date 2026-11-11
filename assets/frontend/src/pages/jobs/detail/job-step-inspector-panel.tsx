@@ -129,6 +129,10 @@ export function StepInspectorPanel({
       );
   const skill = agent ? firstReadableText(selectedStep.skill_label, selectedStep.skill) : "";
   const tool = firstReadableText(selectedStep.tool_label, selectedStep.tool, selectedStep.tool_name);
+  // A step that called an extension names the extension; "tool" is for MCP and system tools.
+  const toolFieldLabel = selectedStep.tool_kind === "extension"
+    ? t("extension_page.extension_fallback", "Extension")
+    : t("registry.tools.title_single", "Tool");
   const operation = firstReadableText(selectedStep.operation_label, selectedStep.operation_id);
   const model = firstReadableText(selectedStep.model, selectedStep.model_name, selectedStep.model_used);
   const attempt = firstReadableText(selectedStep.attempt, selectedStep.attempt_no, selectedStep.retry_no);
@@ -194,7 +198,7 @@ export function StepInspectorPanel({
           <InspectorField label={t("react.jobs.step_type", "Step type")} value={stepType} />
           <InspectorField label={t("events.columns.agent", "Agent")} value={agent} />
           <InspectorField label={t("registry.skills.title_single", "Skill")} value={skill} />
-          <InspectorField label={t("registry.tools.title_single", "Tool")} value={tool} />
+          <InspectorField label={toolFieldLabel} value={tool} />
           <InspectorField label={t("registry.agent_detail.changelog.action", "Action")} value={operation} variant="code" />
           <InspectorField label={t("project_edit.ai_models.model", "Model")} value={model} />
           <InspectorField label={t("react.jobs.attempt", "Attempt")} value={attempt} variant="number" />

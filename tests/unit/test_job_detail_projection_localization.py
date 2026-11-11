@@ -408,3 +408,22 @@ def test_overview_times_carry_the_instant_for_the_readers_own_format():
     assert facts["last_update"]["at"] == "2026-11-08T16:20:00+00:00"
     assert facts["started"]["value"] == "2026-11-08 14:13 UTC"
     assert "at" not in facts["duration"]
+
+
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_the_run_of_an_extension_action_is_not_offered_a_restart(status):
+    action = {"extension_id": "acme.amazon-pro", "action_id": "orders.create_full"}
+    job = {"id": "job-child", "status": status}
+    trigger = {"kind": "parent_workflow", "label": "Another workflow", "action": action}
+
+    ordinary = project_job_detail(job=job, include_sections=False, user_role="admin")
+    child = project_job_detail(
+        job={**job, "trigger": trigger}, include_sections=False, user_role="admin"
+    )
+
+    assert [row["kind"] for row in ordinary["job_actions"]["page_actions"]] == ["restart_job"]
+    # It is one step of its parent run: it is run again by running the parent again.
+    assert child["job_actions"]["page_actions"] == []
+    assert "restart that run" in child["next_action"]["body"].lower()
+    if status == "completed":
+        assert child["next_action"]["body_key"] == "react.jobs.completed_action_run_help"

@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from core.application.workflows.workflow_action_contract import action_run_of
+
 
 def _text(value: Any) -> str:
     return str(value or "").strip()
@@ -56,12 +58,17 @@ def job_trigger(job: Mapping[str, Any]) -> dict[str, Any]:
     parent_job = _text(meta.get("invoke_parent_job_id") or invocation.get("origin_job_id"))
     if source == "invoke_workflow" or entry_path == "invoke_workflow":
         parent_workflow = _text(meta.get("invoke_parent_workflow_id"))
-        return trigger(
+        started = trigger(
             "parent_workflow",
             "Another workflow",
             f"workflow {parent_workflow}" if parent_workflow else "",
             f"/jobs/{parent_job}" if parent_job else "",
         )
+        # The run of an extension action is one step of its parent run (ADR 0065).
+        action = action_run_of({"meta": meta})
+        if action:
+            started["action"] = action
+        return started
     if meta.get("scheduled_job_id") or source in {"schedule", "scheduled"} or channel == "schedule":
         cron = _text(meta.get("scheduled_cron_expr"))
         if _text(meta.get("scheduled_run_type")) == "manual":
