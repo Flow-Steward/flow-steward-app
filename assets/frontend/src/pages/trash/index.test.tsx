@@ -125,7 +125,7 @@ describe("TrashPage", () => {
     resolveList({ items: [] });
 
     expect(await screen.findByText(/showing 0 of 0/i)).toBeInTheDocument();
-    expect(screen.getByText("No deleted items found")).toBeInTheDocument();
+    expect(await screen.findByText("No deleted items found")).toBeInTheDocument();
   });
 
   it("opens lifecycle modal for bulk purge of a single project instead of a direct confirmation", async () => {
@@ -228,7 +228,12 @@ describe("TrashPage", () => {
       "restore",
       "20000000-0000-0000-0000-000000000001",
     );
-    await waitFor(() => expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled());
+    // Refresh keeps its normal look while the plan loads; its press is ignored.
+    const refresh = screen.getByRole("button", { name: "Refresh" });
+    expect(refresh).toBeEnabled();
+    const listCalls = mockedFetchTrashList.mock.calls.length;
+    fireEvent.click(refresh);
+    expect(mockedFetchTrashList).toHaveBeenCalledTimes(listCalls);
 
     resolvePlan({
       action_type: "restore",

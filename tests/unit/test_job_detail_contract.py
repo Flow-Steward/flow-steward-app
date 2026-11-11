@@ -502,6 +502,7 @@ def test_job_detail_invocation_projects_owned_input_artifact_download() -> None:
             "filename": "supplier-stock.csv",
             "content_type": "text/csv",
             "size_bytes": 4096,
+            "preview_too_large": False,
             "available": True,
             "download_url": "/api/jobs/42/artifacts/art-input",
         }
@@ -1448,6 +1449,7 @@ def test_connector_step_projects_operation_honest_timing_and_artifact_roles() ->
             "filename": "invoice.pdf",
             "content_type": "application/pdf",
             "size_bytes": 2048,
+            "preview_too_large": False,
             "available": True,
             "download_url": "/api/jobs/job-42/artifacts/art-input",
         }
@@ -1459,6 +1461,7 @@ def test_connector_step_projects_operation_honest_timing_and_artifact_roles() ->
             "filename": "invoice.md",
             "content_type": "text/markdown",
             "size_bytes": 4096,
+            "preview_too_large": False,
             "available": True,
             "download_url": "/api/jobs/job-42/artifacts/art-output",
         }
@@ -2934,6 +2937,7 @@ def test_http_artifact_saved_output_is_a_file_but_inline_artifact_text_is_not() 
             "filename": "body.txt",
             "content_type": "text/plain",
             "size_bytes": 13,
+            "preview_too_large": False,
             "available": True,
             "download_url": "/api/jobs/job-42/artifacts/art-7",
         }
@@ -3169,3 +3173,35 @@ def test_execution_page_keeps_container_evidence_independent_of_step_pagination(
         build_job_execution_steps_page(job_id="42", scope=None, job_query_service=service, limit=5)
     )
     assert "container_progress" not in foreign
+
+
+def test_artifact_descriptor_says_when_a_file_is_over_the_preview_limit(monkeypatch):
+    from core.application.reports import ui_projection_helpers
+
+    monkeypatch.setattr(ui_projection_helpers, "file_preview_max_bytes", lambda: 4096)
+    artifacts = {
+        artifact_id: {
+            "artifact_id": artifact_id,
+            "owner_scope": {"project_id": "proj-42", "job_id": "42"},
+            "filename": f"{artifact_id}.csv",
+            "content_type": "text/csv",
+            "size_bytes": size,
+            "persistence_status": "available",
+            "object_key": f"artifacts/{artifact_id}/{artifact_id}.csv",
+            "sha256": "a" * 64,
+        }
+        for artifact_id, size in (("art-small", 4096), ("art-large", 4097))
+    }
+
+    descriptors = ui_projection_helpers._artifact_descriptors(
+        ["artifact:art-small", "artifact:art-large"],
+        role="output",
+        project_id="proj-42",
+        job_id="42",
+        resolve_artifact=artifacts.get,
+    )
+
+    assert [(row["artifact_id"], row["preview_too_large"]) for row in descriptors] == [
+        ("art-small", False),
+        ("art-large", True),
+    ]

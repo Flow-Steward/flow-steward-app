@@ -7,6 +7,9 @@ import { ChevronRight } from "lucide-react";
 import { Link } from "react-router";
 
 import { DsAlert, DsCard, DsPageHeader, DsSelect, DsTabs, PageContainer } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/http/client";
 import { isHttpError } from "@/lib/http/errors";
 import { useKeyedState } from "@/lib/react/useKeyedState";
@@ -390,13 +393,16 @@ function ToolDetailLoadState({
   onRetry: () => void;
 }>) {
   const { t } = useI18n();
+  const loaderShown = useLoaderDelay(isLoading);
   if (isLoading) {
     return (
       <section className="fs-page-sections">
         <Link className="fs-link" to="/registry/tools">{t("react.registry.back_to_tools", "Back to tools")}</Link>
-        <output className="block">
-          <DsCard description={t("react.registry.retrieving_the_current_tool_configuration", "Retrieving the current tool configuration.")} title={t("react.registry.loading_tool_detail", "Loading tool detail")} />
-        </output>
+        {loaderShown ? (
+          <div className="fs-table-state">
+            <DsLoader label={t("react.registry.loading_tool_detail", "Loading tool detail")} variant="wide-block" />
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -516,7 +522,7 @@ function ToolConfigPanel({
         </details>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <button className="fs-button primary" disabled={saving} onClick={() => ignoreAsyncResult(onSave({ display_name: draft.displayName.trim(), name: draft.displayName.trim(), category: draft.category, description: draft.description.trim() }))} type="button">{t("settings.extensions.save_config", "Save Config")}</button>
+        <Button busy={saving} busyLabel={t("react.settings.saving", "Saving…")} onClick={() => ignoreAsyncResult(onSave({ display_name: draft.displayName.trim(), name: draft.displayName.trim(), category: draft.category, description: draft.description.trim() }))} type="button" variant="primary">{t("settings.extensions.save_config", "Save Config")}</Button>
         <button className="fs-button" onClick={() => { setDraft(draftSeed); setSaveStatus(""); }} type="button">{t("trash.reset", "Reset")}</button>
       </div>
     </div>
@@ -572,6 +578,7 @@ export function RegistryToolsDetailPage() {
     saving,
     setSaveStatus,
     toggleEntityEnabled,
+    toggling,
   } = useRegistryEntityDetail({
     endpoint: "/api/tools",
     idKey: "tool_id",
@@ -689,9 +696,9 @@ export function RegistryToolsDetailPage() {
           }
         />
         <div className="flex flex-wrap gap-2">
-          <button
-            className="fs-button primary"
-            disabled={saving}
+          <Button
+            busy={saving}
+            busyLabel={t("react.settings.saving", "Saving…")}
             onClick={() => {
               ignoreAsyncResult(saveEntityPatch({
                 builder_metadata_jsonb: builderMetadataPayload({
@@ -705,8 +712,9 @@ export function RegistryToolsDetailPage() {
               }));
             }}
             type="button"
+            variant="primary"
           >
-            {t("react.registry.save_builder_metadata", "Save Builder metadata")}</button>
+            {t("react.registry.save_builder_metadata", "Save Builder metadata")}</Button>
           <button
             className="fs-button"
             onClick={() => {
@@ -745,15 +753,16 @@ export function RegistryToolsDetailPage() {
         />
       </div>
       <div className="flex flex-wrap gap-2">
-        <button
-          className="fs-button primary"
-          disabled={saving}
+        <Button
+          busy={saving}
+          busyLabel={t("react.settings.saving", "Saving…")}
           onClick={() => {
             ignoreAsyncResult(saveEntityPatch({ prompt: draft.prompt.trim() }));
           }}
           type="button"
+          variant="primary"
         >
-          {t("react.registry.save_prompt", "Save prompt")}</button>
+          {t("react.registry.save_prompt", "Save prompt")}</Button>
         <button
           className="fs-button"
           onClick={() => {
@@ -804,16 +813,17 @@ export function RegistryToolsDetailPage() {
                 identifier everywhere, readable or not. The id is in the URL,
                 which is where anyone who needs it looks. */}
             {entity.enabled || isAvailable ? (
-              <button
-                className="fs-button"
-                disabled={saving}
+              <Button
+                busy={toggling}
+                busyLabel={t("react.settings.updating", "Updating…")}
                 onClick={() => {
                   ignoreAsyncResult(toggleEntityEnabled());
                 }}
                 type="button"
+                variant={null}
               >
                 {entity.enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-              </button>
+              </Button>
             ) : null}
             <SaveStatusBadge status={saveStatus} />
           </>

@@ -30,6 +30,7 @@ import { useWorkflowDetailAuthoringState } from "./detail-page-authoring-state";
 import { useStepDraftSession } from "./detail-step-draft-session";
 import { stableJson, useWorkflowDetailStepAuthoring } from "./detail-page-step-authoring";
 import { liveIssueResolved, withLiveValidation, type LiveStepDraft } from "./detail-live-validation";
+import type { WorkflowTestRunResult } from "@/pages/workflows/shared/simulate-api";
 
 type WorkflowsDetailPageProps = Readonly<{
   embedded?: boolean;
@@ -273,6 +274,13 @@ function WorkflowDetailPageContent({
     fieldErrors: authorTestRun.workflowTestRunValidationErrors,
     testBusy: authorTestRun.workflowTestRunMutation.isPending || authorTestRun.stepTestRunMutation.isPending || hookTestRun.stepTestRunMutation.isPending,
     open: workflowTestRunLaunchOpen, launchLock,
+    // A live run is followed on the canvas like a Test Run: the run bar shows its steps as
+    // they run, and the dialog closes so the canvas is visible. It never enters Test Run history.
+    onStarted: (jobId) => {
+      const owner = selectedRun.captureSubmissionOwner();
+      if (owner) selectedRun.acceptAcknowledgement({ job_id: jobId, workflow_id: workflowId, project_id: selectedProjectId || "" } as WorkflowTestRunResult, owner);
+      setWorkflowTestRunLaunchOpen(false);
+    },
   });
 
   const testRun = inHook

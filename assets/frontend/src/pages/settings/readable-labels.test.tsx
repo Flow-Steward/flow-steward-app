@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
@@ -72,7 +72,7 @@ describe("Settings readable labels with internal IDs unchanged", () => {
   it("distinguishes loading provider inventory from an empty inventory", async () => {
     installHttp(undefined, undefined, "loading");
     renderPage("general");
-    expect(await screen.findByText("Loading model providers...")).toBeInTheDocument();
+    expect(await screen.findByText("Loading model providers…")).toBeInTheDocument();
     expect(screen.queryByText("No model providers configured yet.")).not.toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("Settings readable labels with internal IDs unchanged", () => {
     const option = await screen.findByRole("option", { name: label });
     expect(document.body).not.toHaveTextContent(new RegExp(internalId));
     await userEvent.click(option);
-    expect(scope).toHaveTextContent(label);
+    expect(scope).toHaveValue(label);
     // The actual routing editor and its existing API functions run, not a
     // mock child exposing the ID as visible text. Only HTTP I/O is doubled.
     await waitFor(() => expect(http.requests).toEqual(expect.arrayContaining([
@@ -112,8 +112,16 @@ describe("Settings readable labels with internal IDs unchanged", () => {
     const http = installHttp(undefined, undefined, "loading");
     renderPage("notifications");
     const scope = await screen.findByRole("combobox", { name: "Project scope" });
-    expect(scope).toBeDisabled();
-    expect(scope).toHaveTextContent("Loading projects...");
+    // The field stays usable with its normal placeholder; the open list carries
+    // the named loading row (after the shared loader delay) instead.
+    expect(scope).toBeEnabled();
+    expect(scope).toHaveValue("");
+    expect(scope).toHaveAttribute("placeholder", "Select a project");
+    await userEvent.click(scope);
+    const listbox = await screen.findByRole("listbox", { name: "Project scope options" });
+    expect(listbox).toHaveAttribute("aria-busy", "true");
+    expect(within(listbox).getByText("Loading projects…")).toBeInTheDocument();
+    expect(within(listbox).queryByRole("option")).not.toBeInTheDocument();
     expect(http.requests.some(({ path }) => path.startsWith("/api/projects/"))).toBe(false);
   });
 
@@ -123,7 +131,7 @@ describe("Settings readable labels with internal IDs unchanged", () => {
     expect(await screen.findByText("Projects could not be loaded")).toBeInTheDocument();
     const scope = screen.getByRole("combobox", { name: "Project scope" });
     expect(scope).toBeDisabled();
-    expect(scope).toHaveTextContent("Projects unavailable");
+    expect(scope).toHaveAttribute("placeholder", "Projects unavailable");
     expect(http.requests.some(({ path }) => path.startsWith("/api/projects/"))).toBe(false);
   });
 });

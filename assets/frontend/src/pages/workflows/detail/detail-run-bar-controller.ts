@@ -47,6 +47,17 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 function text_(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
+/**
+ * A run started with "Run workflow" (live), not as a Test Run. The full detail names its task
+ * source; the compact detail the bar reads names only its trigger ("test_run" for a Test Run).
+ */
+export function isLiveRun(detail: unknown): boolean {
+  const data = record(detail);
+  const source = text_(record(data.job).task_source) || text_(data.task_source);
+  if (source) return source !== "workflow_test_run";
+  const trigger = text_(record(data.trigger).kind) || text_(record(record(data.job).trigger).kind);
+  return Boolean(trigger) && trigger !== "test_run";
+}
 
 /** The approval the selected run waits on, when every source names the same one. */
 export function selectedRunApprovalId(selectedRun: Pick<SelectedRun, "verifiedDetail">): string {
@@ -198,6 +209,7 @@ export function useWorkflowRunBarController(options: Options): CanvasRunBarProps
     statusCode: canonical.statusCode, isTerminal: canonical.isTerminal, snapshot, definition,
     detail: record(selectedRun.verifiedDetail), durationMs: selectedRun.durationMs, now, timezone: options.timezone,
     decisionPanelOpen: options.decisionPanelOpen,
+    liveRun: isLiveRun(selectedRun.verifiedDetail),
   }, t) : null;
   const historyRows = selectedRun.history.map((row, index) => {
     // The bounded history list can predate completion. Its selected row shares
@@ -236,7 +248,8 @@ export function useWorkflowRunBarController(options: Options): CanvasRunBarProps
     openFailedStepAction: verified && failedStepTarget(selectedRun) && options.requestOpenFailedStep
       ? { onInvoke: requestOpenFailedStep, disabled: navigationBusy || stopBusy } : undefined,
     clearMarksAction: verified && canonical?.isTerminal ? { onInvoke: () => navigate(selectedRun.requestClearMarks), disabled: navigationBusy || stopBusy } : undefined,
-    runAgainAction: verified && canonical?.isTerminal && options.requestRunAgain ? { onInvoke: requestRunAgain,
+    // "Run again" repeats a Test Run with its inputs; a live run is started again from Run workflow.
+    runAgainAction: verified && canonical?.isTerminal && options.requestRunAgain && !isLiveRun(selectedRun.verifiedDetail) ? { onInvoke: requestRunAgain,
       busy: options.runAgainBusy, disabled: navigationBusy || stopBusy || Boolean(options.runAgainBlockedReason), disabledReason: options.runAgainBlockedReason } : undefined,
     toolbarAction: verified && canonical && !canonical.isTerminal && isCancellableJobStatus(canonical.statusCode)
       ? { onInvoke: () => navigate(selectedRun.requestOpenResults), busy: navigationBusy } : undefined,

@@ -9,6 +9,8 @@ type RunOptions = {
   blockedReason: string; contract: unknown; contractReady: boolean; summary: string;
   inputs: Record<string, string>; fieldErrors: Record<string, string>; testBusy: boolean;
   open: boolean; launchLock: { current: symbol | null };
+  /** The run started: the builder follows it on the canvas like a Test Run. */
+  onStarted?: (jobId: string) => void;
 };
 
 /** Ordinary jobs never enter the test controller, history, samples or result cache. */
@@ -27,12 +29,15 @@ export function useWorkflowNormalRunController(options: RunOptions) {
   const fields = Array.isArray(contract.expected_inputs) ? contract.expected_inputs.map(objectOrEmpty) : [];
   const fileFields = fields.filter((field) => field.type === "file");
   const totalBytes = Object.values(files).reduce((size, file) => size + file.size, 0);
-  const blocked = !options.canRun || !options.enabled || !options.projectId || !Number.isSafeInteger(options.revision) || Number(options.revision) < 1 ||
-    contract.enabled !== true || !options.contractReady || Boolean(options.blockedReason) || !options.summary.trim() || options.testBusy ||
+  // Blocked by the run's own settings; a sibling test run that is starting
+  // blocks it too, but only as an ignored press, never as a disabled look.
+  const blockedAtRest = !options.canRun || !options.enabled || !options.projectId || !Number.isSafeInteger(options.revision) || Number(options.revision) < 1 ||
+    contract.enabled !== true || !options.contractReady || Boolean(options.blockedReason) || !options.summary.trim() ||
     !Array.isArray(contract.trigger_channels) || !contract.trigger_channels.includes("ui") ||
     Object.keys(options.fieldErrors).some((path) => !fileFields.some((field) => path === `inputs.${String(field.name)}`)) ||
     fileFields.some((field) => field.required && !files[String(field.name)]) ||
     Object.values(files).some((file) => !file.size) || Object.keys(files).length > 10 || totalBytes > 1_048_576;
+  const blocked = blockedAtRest || options.testBusy;
   const live = useRef({ blocked, acknowledged, files, owner });
   useLayoutEffect(() => { committed.current = options; live.current = { blocked, acknowledged, files, owner }; });
   useLayoutEffect(() => {
@@ -61,6 +66,7 @@ export function useWorkflowNormalRunController(options: RunOptions) {
       }, crypto.randomUUID());
       if (!isCurrent()) return;
       setJobId(response.job_id); setAcknowledged(false); setFiles({});
+      draft.onStarted?.(response.job_id);
     } catch (error) {
       if (isCurrent()) setMessage(error instanceof Error && error.message ? error.message : t("react.workflows.normal_run_failed", "Workflow could not start."));
     } finally {
@@ -68,7 +74,7 @@ export function useWorkflowNormalRunController(options: RunOptions) {
       if (mounted.current) setBusy(false);
     }
   }
-  return { acknowledged, setAcknowledged, busy, message, jobId, blocked, start, fileFields, files, fileOwner: owner,
+  return { acknowledged, setAcknowledged, busy, message, jobId, blocked, blockedAtRest, start, fileFields, files, fileOwner: owner,
     setFile: (name: string, file: File | undefined) => setFiles((previous) => {
       const next = { ...previous };
       if (file) {

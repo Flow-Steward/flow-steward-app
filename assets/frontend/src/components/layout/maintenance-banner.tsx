@@ -53,7 +53,7 @@ export function MaintenanceBanner() {
     try {
       const payload = await fetchJson<unknown>("/api/system/maintenance", {
         signal: controller.signal,
-      }, { presentation: "background" });
+      });
       const next = maintenanceStatusFromUnknown(payload);
       if (!controller.signal.aborted && next !== null) {
         setMaintenance(next);

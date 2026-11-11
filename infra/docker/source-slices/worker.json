@@ -797,6 +797,7 @@
     "core/application/workflows/workflow_sample_file_service.py",
     "core/application/workflows/workflow_start_runtime.py",
     "core/application/workflows/workflow_step_config_contracts.py",
+    "core/application/workflows/workflow_step_connection_binding.py",
     "core/application/workflows/workflow_step_kinds.py",
     "core/application/workflows/workflow_step_scope.py",
     "core/application/workflows/workflow_trigger_guards.py",
@@ -1193,6 +1194,10 @@
     },
     {
       "path": "db/migrations/20261104120000_secret_catalog_installation_wide.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261109150000_user_date_time_format.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

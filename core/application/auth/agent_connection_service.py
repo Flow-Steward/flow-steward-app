@@ -218,6 +218,8 @@ class AgentConnectionService:
             "title": step.title,
             "description_key": step.description_key,
             "description": step.description,
+            "hint_key": step.hint_key,
+            "hint": step.hint,
             "values": {**values, "archive": archive},
             "content": self._fill(step.template, values),
             "uses_token": step.uses_token,

@@ -14,6 +14,7 @@ import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { addDays, formatCalendarDay, todayIn, wholeDaysBetween } from "@/lib/time/calendar-days";
+import { DATE_FORMATS, DEFAULT_DATE_FORMAT, DEFAULT_TIME_FORMAT, formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime, formatTime as formatDisplayTime, isDateFormat, isTimeFormat, TIME_FORMATS, type TimeFormat } from "@/lib/time/date-time-format";
 import { useUserTimezone } from "@/lib/time/user-timezone";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
@@ -70,6 +71,9 @@ import {
   DsPageHeader,
 } from "@/components/shared/design-system";
 import type { DsOption } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import {
   TOKEN_SCOPES,
   type AccountProfile,
@@ -104,7 +108,10 @@ function getAccountTabs(t: I18nContextValue["t"] = fallbackContext.t) {
   return [...getBuiltInAccountTabs(t), ...EXTENSION_ACCOUNT_TABS.map((tab) => ({ key: tab.key, label: tab.label }))];
 }
 const FALLBACK_TIMEZONES = ["UTC", "Europe/London", "Europe/Paris", "Europe/Vilnius", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"];
-const EMPTY_PROFILE: AccountProfile = { id: "", email: "", username: "", display_name: "", roles: [], account_id: "", account_ids: [], timezone: "", locale: "", auth_source: "" };
+const EMPTY_PROFILE: AccountProfile = { id: "", email: "", username: "", display_name: "", roles: [], account_id: "", account_ids: [], timezone: "", locale: "", date_format: "", time_format: "", auth_source: "" };
+const PROFILE_FIELDS: ProfileField[] = ["display_name", "timezone", "locale", "date_format", "time_format"];
+/** The sample every format choice is drawn with: a day past the 12th, so day and month never read alike. */
+const FORMAT_SAMPLE = "2026-12-31T16:05:00Z";
 
 function tabPageRecord(tab: AccountProfileTabExtension): RegisteredPageRecord {
   return { key: `account_${tab.key}`, page_key: `account_${tab.key}`, label: tab.label, title: tab.title || tab.label, path: `/settings/account?tab=${encodeURIComponent(tab.key)}`, component_key: tab.componentKey };
@@ -116,8 +123,16 @@ function initials(value: string) {
 
 function formatDate(value?: string, t: I18nContextValue["t"] = fallbackContext.t) {
   if (!value) return t("account.tokens.never", "Never");
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString();
+  return formatDisplayDate(value);
+}
+
+function dateFormatOptions(locale: string): DsOption[] {
+  return DATE_FORMATS.map((dateFormat) => ({ value: dateFormat, label: formatDisplayDate(FORMAT_SAMPLE, { dateFormat, locale, timezone: "UTC" }) }));
+}
+
+function timeFormatOptions(locale: string, t: I18nContextValue["t"]): DsOption[] {
+  const labels: Record<TimeFormat, string> = { "24h": t("react.settings.time_format_24h", "24-hour"), "12h": t("react.settings.time_format_12h", "12-hour") };
+  return TIME_FORMATS.map((timeFormat) => ({ value: timeFormat, label: `${labels[timeFormat]} · ${formatDisplayTime(FORMAT_SAMPLE, { timeFormat, locale, timezone: "UTC" })}` }));
 }
 
 function timezoneOptions(current: string): DsOption[] {
@@ -166,6 +181,7 @@ export function SettingsAccountPage() {
   const activeTab = getAccountTabs(t).some((tab) => tab.key === requestedTab) ? requestedTab : "profile";
 
   const profileQuery = useQuery({ queryKey: ["settings", "account", "profile"], queryFn: fetchAccountProfileRecord });
+  const profileLoaderShown = useLoaderDelay(profileQuery.isLoading);
   const profile = profileQuery.data?.profile || EMPTY_PROFILE;
   const localeChoices = useMemo(() => localeOptions(supportedLocales, t), [supportedLocales, t]);
   const emailChangeStatus = profileQuery.data?.email_change_status;
@@ -190,7 +206,7 @@ export function SettingsAccountPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [pendingTab, setPendingTab] = useState("");
   const [discardOpen, setDiscardOpen] = useState(false);
-  const dirtyFields = useMemo(() => (["display_name", "timezone", "locale"] as ProfileField[]).filter((field) => draft[field] !== saved[field]), [draft, saved]);
+  const dirtyFields = useMemo(() => PROFILE_FIELDS.filter((field) => draft[field] !== saved[field]), [draft, saved]);
 
   // The fallback language only fills a profile that has none; a change of the
   // interface language (which saving the language itself causes) must not
@@ -202,17 +218,19 @@ export function SettingsAccountPage() {
 
   useEffect(() => {
     if (!profileQuery.data) return;
-    const normalized = {
+    const normalized: AccountProfile = {
       ...profileQuery.data.profile,
       timezone: profileQuery.data.profile.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       locale: profileQuery.data.profile.locale || localeFallbackRef.current,
+      date_format: isDateFormat(profileQuery.data.profile.date_format) ? profileQuery.data.profile.date_format : DEFAULT_DATE_FORMAT,
+      time_format: isTimeFormat(profileQuery.data.profile.time_format) ? profileQuery.data.profile.time_format : DEFAULT_TIME_FORMAT,
     };
     const previousSaved = savedRef.current;
     setSaved(normalized);
     // A field the user is still editing stays as typed.
     setDraft((previous) => {
       const next = { ...normalized };
-      for (const field of ["display_name", "timezone", "locale"] as ProfileField[]) {
+      for (const field of PROFILE_FIELDS) {
         if (previous[field] !== previousSaved[field]) next[field] = previous[field];
       }
       return next;
@@ -244,6 +262,7 @@ export function SettingsAccountPage() {
   const [tokenPage, setTokenPage] = useState(1);
   const [tokenPerPage, setTokenPerPage] = useState(5);
   const tokensQuery = useQuery({ queryKey: ["settings", "account", "tokens", tokenPage, tokenPerPage], queryFn: () => fetchPersonalTokensCollection(tokenPage, tokenPerPage), placeholderData: (previous) => previous });
+  const tokensLoaderShown = useLoaderDelay(tokensQuery.isLoading);
   const [createTokenOpen, setCreateTokenOpen] = useState(false);
   const [tokenLabel, setTokenLabel] = useState("");
   const [expiry, setExpiry] = useState<ExpiryChoice>("30");
@@ -394,12 +413,15 @@ export function SettingsAccountPage() {
     const saveStatus = profileSaveStatus(savingProfile, dirtyFields.length, t);
     return (
     <form className="fs-panel-stack" noValidate onSubmit={(event) => ignoreAsyncResult(saveProfile(event))}>
-      <DsCard title={t("account.profile.title", "Profile")} description={t("react.settings.your_identity_and_preferences_across_flow_steward", "Your identity and preferences across Flow Steward.")} footer={<><span className={`fs-footer-status ${saveStatus.className}`}>{saveStatus.label}</span><button className="fs-button primary" disabled={!dirtyFields.length || savingProfile} type="submit">{savingProfile ? t("react.settings.saving", "Saving…") : t("react.settings.save_changes", "Save changes")}</button></>}>
+      <DsCard title={t("account.profile.title", "Profile")} description={t("react.settings.your_identity_and_preferences_across_flow_steward", "Your identity and preferences across Flow Steward.")} footer={<><span className={`fs-footer-status ${saveStatus.className}`}>{saveStatus.label}</span><Button busy={savingProfile} busyLabel={t("react.settings.saving", "Saving…")} disabled={!dirtyFields.length} type="submit" variant="primary">{t("react.settings.save_changes", "Save changes")}</Button></>}>
         <div className="fs-identity"><span className="fs-avatar" aria-hidden="true">{initials(draft.display_name || draft.email)}</span><div className="fs-identity-copy"><div className="fs-identity-name">{draft.display_name || t("react.settings.your_profile", "Your profile")}</div><div className="fs-identity-email">{draft.email || "—"}</div></div><div className="fs-identity-context"><div className="fs-badge-row">{draft.roles.map((role, index) => <span className={`fs-badge${index === 0 ? " green" : ""}`} key={role}>{role}</span>)}</div></div></div>
         <div className="fs-form-grid">
           <label className="fs-field full"><RequiredLabel>{t("react.settings.display_name", "Display name")}</RequiredLabel><input autoComplete="name" className="fs-input" id="account-display-name" name="display-name" onChange={(event) => setDraft((value) => ({ ...value, display_name: event.target.value }))} required value={draft.display_name} /></label>
           <div className="fs-field"><span className="fs-field-label">{t("account.timezone.title", "Timezone")}</span><SingleCombobox ariaLabel={t("account.timezone.title", "Timezone")} onChange={(timezone) => setDraft((value) => ({ ...value, timezone }))} options={timezoneOptions(draft.timezone)} value={draft.timezone} /><span className="fs-field-helper">{t("react.settings.used_for_dates_schedules_and_activity_timestamps", "Used for dates, schedules and activity timestamps.")}</span></div>
           <div className="fs-field"><span className="fs-field-label">{t("react.settings.interface_language", "Interface language")}</span><DsSelect ariaLabel={t("react.settings.interface_language", "Interface language")} onChange={(locale) => setDraft((value) => ({ ...value, locale }))} options={localeChoices} value={draft.locale} /><span className="fs-field-helper">{t("react.settings.applies_after_the_profile_refresh_completes", "Applies after the profile refresh completes.")}</span></div>
+          <div className="fs-field"><span className="fs-field-label">{t("react.settings.date_format", "Date format")}</span><DsSelect ariaLabel={t("react.settings.date_format", "Date format")} onChange={(date_format) => setDraft((value) => ({ ...value, date_format }))} options={dateFormatOptions(draft.locale || currentLocale)} value={draft.date_format} /></div>
+          <div className="fs-field"><span className="fs-field-label">{t("react.settings.time_format", "Time format")}</span><DsSelect ariaLabel={t("react.settings.time_format", "Time format")} onChange={(time_format) => setDraft((value) => ({ ...value, time_format }))} options={timeFormatOptions(draft.locale || currentLocale, t)} value={draft.time_format} /></div>
+          <div className="fs-field full"><span className="fs-field-helper" data-testid="date-time-format-preview">{t("react.settings.dates_and_times_read_like", "Dates and times read like {example} everywhere in Flow Steward.", { example: formatDisplayDateTime(FORMAT_SAMPLE, { dateFormat: isDateFormat(draft.date_format) ? draft.date_format : DEFAULT_DATE_FORMAT, timeFormat: isTimeFormat(draft.time_format) ? draft.time_format : DEFAULT_TIME_FORMAT, locale: draft.locale || currentLocale, timezone: "UTC" }) })}</span></div>
         </div>
         {profileFeedbackMessage ? <DsAlert tone={profileFeedbackKind === "success" ? "success" : "warning"} title={profileFeedbackKind === "error" ? t("react.settings.profile_was_not_saved", "Profile was not saved") : t("react.settings.profile_update", "Profile update")}>{profileFeedbackMessage}</DsAlert> : null}
       </DsCard>
@@ -420,7 +442,7 @@ export function SettingsAccountPage() {
     return (
       <div className="fs-panel-stack">
       {emailChangeAvailable ? (
-      <DsCard title={t("react.settings.email_address", "Email address")} description={t("react.settings.update_the_address_used_to_sign_in_after_verification", "Update the address used to sign in after verification.")} footer={<><span className="fs-footer-status">{pendingEmailSummary}</span><button className="fs-button primary" disabled={emailSaving} form="email-change-form" type="submit">{emailSaving ? t("react.settings.sending", "Sending…") : t("react.settings.send_verification", "Send verification")}</button></>}>
+      <DsCard title={t("react.settings.email_address", "Email address")} description={t("react.settings.update_the_address_used_to_sign_in_after_verification", "Update the address used to sign in after verification.")} footer={<><span className="fs-footer-status">{pendingEmailSummary}</span><Button busy={emailSaving} busyLabel={t("react.settings.sending", "Sending…")} form="email-change-form" type="submit" variant="primary">{t("react.settings.send_verification", "Send verification")}</Button></>}>
         <div className="fs-current-value"><span><span className="fs-current-value-label">{t("react.settings.current_email", "Current email")}</span><br /><strong>{profile.email}</strong></span></div>
         <form className="fs-field" id="email-change-form" noValidate onSubmit={(event) => ignoreAsyncResult(requestEmail(event))}><RequiredLabel>{t("react.settings.new_email_address", "New email address")}</RequiredLabel><input autoComplete="email" className="fs-input" id="account-new-email" name="email" onChange={(event) => setNewEmail(event.target.value)} placeholder={t("account.email.placeholder", "name@company.com")} required type="email" value={newEmail} /><span className="fs-field-helper">{t("react.settings.we_send_a_verification_link_before_the_address_changes", "We send a verification link before the address changes.")}</span></form>
         {emailMessage ? <DsAlert tone={emailRequestSucceeded ? "success" : "danger"} title={t("react.settings.email_change", "Email change")}>{emailMessage}</DsAlert> : null}
@@ -432,7 +454,7 @@ export function SettingsAccountPage() {
           {t("react.settings.a_new_sign_in_email_has_to_be_verified_by_email_once_an_administrator_connects_an_email_extension_you_can_chan", "A new sign-in email has to be verified by email. Once an administrator connects an email extension, you can change it here.")} </DsAlert>
       </DsCard>
       )}
-      <DsCard title={t("auth.common.password", "Password")} description={t("react.settings.change_your_local_password_and_optionally_revoke_other_sessions", "Change your local password and optionally revoke other sessions.")} footer={<><span className="fs-footer-status">{t("react.settings.password_has_not_been_changed", "Password has not been changed")}</span><button className="fs-button primary" disabled={passwordSaving} form="password-change-form" type="submit">{passwordSaving ? t("react.settings.saving", "Saving…") : t("react.settings.change_password", "Change password")}</button></>}>
+      <DsCard title={t("auth.common.password", "Password")} description={t("react.settings.change_your_local_password_and_optionally_revoke_other_sessions", "Change your local password and optionally revoke other sessions.")} footer={<><span className="fs-footer-status">{t("react.settings.password_has_not_been_changed", "Password has not been changed")}</span><Button busy={passwordSaving} busyLabel={t("react.settings.saving", "Saving…")} form="password-change-form" type="submit" variant="primary">{t("react.settings.change_password", "Change password")}</Button></>}>
         <form className="fs-form-grid" id="password-change-form" noValidate onSubmit={(event) => ignoreAsyncResult(changePassword(event))}>
           <div className="fs-field full"><RequiredLabel>{t("react.settings.current_password", "Current password")}</RequiredLabel><SensitiveInput ariaLabel={t("react.settings.current_password", "Current password")} autoComplete="current-password" id="account-current-password" name="current-password" onChange={(event) => setCurrentPassword(event.target.value)} required value={currentPassword} /></div>
           <div className="fs-field"><RequiredLabel>{t("react.settings.new_password", "New password")}</RequiredLabel><SensitiveInput ariaLabel={t("react.settings.new_password", "New password")} autoComplete="new-password" id="account-new-password" minLength={10} name="new-password" onChange={(event) => setNewPassword(event.target.value)} required value={newPassword} /></div>
@@ -453,7 +475,7 @@ export function SettingsAccountPage() {
       <div className="fs-panel-heading"><div><h2 className="fs-panel-title">{t("react.settings.personal_access_tokens", "Personal access tokens")}</h2><p>{t("react.settings.create_scoped_credentials_for_api_and_automation_access", "Create scoped credentials for API and automation access.")}</p></div><button className="fs-button primary" onClick={() => setCreateTokenOpen(true)} type="button">{t("react.settings.create_token", "Create token")}</button></div>
       <article className="fs-card fs-token-table-card">
         {tokensQuery.isError ? <div className="fs-card-body"><DsAlert tone="danger" title={t("react.settings.tokens_could_not_be_loaded", "Tokens could not be loaded")}>{t("react.settings.check_the_connection_and_try_again", "Check the connection and try again.")}</DsAlert><button className="fs-button" onClick={() => ignoreAsyncResult(tokensQuery.refetch())} type="button">{t("job_security.retry", "Retry")}</button></div> : null}
-        <div className="fs-table-scroll"><table className="fs-table fs-token-table" aria-label={t("react.settings.personal_access_tokens", "Personal access tokens")} aria-busy={tokensQuery.isFetching}><thead><tr><th>{t("account.tokens.label", "Label")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("react.settings.scopes", "Scopes")}</th><th>{t("react.settings.restrictions", "Restrictions")}</th><th>{t("account.tokens.created", "Created")}</th><th>{t("account.tokens.expires", "Expires")}</th><th>{t("react.settings.last_used", "Last used")}</th><th aria-label={t("monitoring.table.actions", "Actions")} /></tr></thead><tbody>{tokenRows.map((token) => <tr key={token.id}><td><strong>{token.label}</strong></td><td><span className={`fs-badge ${tokenStatus(token) === "Active" ? "green" : ""}`}>{tokenStatus(token, t)}</span></td><td title={token.scopes.join(", ")}>{token.scopes[0] || "—"}{token.scopes.length > 1 ? ` +${token.scopes.length - 1}` : ""}</td><td>{token.allowed_project_ids.length || token.allowed_workflow_ids.length ? t("react.settings.value1_projects_value2_workflows", "{value1} projects · {value2} workflows", { value1: String(token.allowed_project_ids.length), value2: String(token.allowed_workflow_ids.length) }) : t("react.settings.unrestricted_within_authority", "Unrestricted within authority")}</td><td>{formatDate(token.created_at, t)}</td><td>{token.expires_at ? formatDate(token.expires_at, t) : t("account.tokens.no_expiry", "No expiry")}</td><td>{formatDate(token.last_used_at, t)}</td><td className="fs-table-action-cell"><RowActionMenu label={t("react.settings.actions_for_value1", "Actions for {value1}", { value1: String(token.label) })} onOpenChange={(open) => setMenuToken(open ? token : null)} open={menuToken?.id === token.id}><button onClick={() => { setRevokeTarget(token); setMenuToken(null); }} role="menuitem" type="button">{t("react.settings.revoke_token", "Revoke token")}</button></RowActionMenu></td></tr>)}</tbody></table>{!tokensQuery.isLoading && !tokenRows.length ? <div className="fs-table-state"><strong>{t("react.settings.no_personal_tokens_yet", "No personal tokens yet")}</strong><span>{t("react.settings.create_a_scoped_token_when_an_api_or_automation_client_needs_access", "Create a scoped token when an API or automation client needs access.")}</span><button className="fs-button primary" onClick={() => setCreateTokenOpen(true)} type="button">{t("react.settings.create_token", "Create token")}</button></div> : null}{tokensQuery.isLoading ? <div className="fs-table-state"><strong>{t("react.settings.loading_personal_tokens", "Loading personal tokens")}</strong><span>{t("react.settings.table_geometry_remains_stable_while_data_is_fetched", "Table geometry remains stable while data is fetched.")}</span></div> : null}</div>
+        <div className="fs-table-scroll"><table className="fs-table fs-token-table" aria-label={t("react.settings.personal_access_tokens", "Personal access tokens")} aria-busy={tokensQuery.isFetching}><thead><tr><th>{t("account.tokens.label", "Label")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("react.settings.scopes", "Scopes")}</th><th>{t("react.settings.restrictions", "Restrictions")}</th><th>{t("account.tokens.created", "Created")}</th><th>{t("account.tokens.expires", "Expires")}</th><th>{t("react.settings.last_used", "Last used")}</th><th aria-label={t("monitoring.table.actions", "Actions")} /></tr></thead><tbody>{tokenRows.map((token) => <tr key={token.id}><td><strong>{token.label}</strong></td><td><span className={`fs-badge ${tokenStatus(token) === "Active" ? "green" : ""}`}>{tokenStatus(token, t)}</span></td><td title={token.scopes.join(", ")}>{token.scopes[0] || "—"}{token.scopes.length > 1 ? ` +${token.scopes.length - 1}` : ""}</td><td>{token.allowed_project_ids.length || token.allowed_workflow_ids.length ? t("react.settings.value1_projects_value2_workflows", "{value1} projects · {value2} workflows", { value1: String(token.allowed_project_ids.length), value2: String(token.allowed_workflow_ids.length) }) : t("react.settings.unrestricted_within_authority", "Unrestricted within authority")}</td><td>{formatDate(token.created_at, t)}</td><td>{token.expires_at ? formatDate(token.expires_at, t) : t("account.tokens.no_expiry", "No expiry")}</td><td>{formatDate(token.last_used_at, t)}</td><td className="fs-table-action-cell"><RowActionMenu label={t("react.settings.actions_for_value1", "Actions for {value1}", { value1: String(token.label) })} onOpenChange={(open) => setMenuToken(open ? token : null)} open={menuToken?.id === token.id}><button onClick={() => { setRevokeTarget(token); setMenuToken(null); }} role="menuitem" type="button">{t("react.settings.revoke_token", "Revoke token")}</button></RowActionMenu></td></tr>)}</tbody></table>{!tokensQuery.isLoading && !tokensLoaderShown && !tokenRows.length ? <div className="fs-table-state"><strong>{t("react.settings.no_personal_tokens_yet", "No personal tokens yet")}</strong><span>{t("react.settings.create_a_scoped_token_when_an_api_or_automation_client_needs_access", "Create a scoped token when an API or automation client needs access.")}</span><button className="fs-button primary" onClick={() => setCreateTokenOpen(true)} type="button">{t("react.settings.create_token", "Create token")}</button></div> : null}{tokensLoaderShown ? <div className="fs-table-state"><DsLoader label={t("react.settings.loading_personal_tokens", "Loading personal tokens")} variant="wide-block" /></div> : null}</div>
         <Pagination onPageChange={setTokenPage} onPerPageChange={(value) => { setTokenPerPage(value); setTokenPage(1); }} page={tokenPage} perPage={tokenPerPage} total={tokensQuery.data?.total || 0} />
       </article>
       <ConnectedAppsSection />
@@ -462,15 +484,8 @@ export function SettingsAccountPage() {
   }
 
   function renderAccountSettingsPanel() {
-    if (profileQuery.isLoading) {
-      return (
-        <article className="fs-card">
-          <div className="fs-card-body">
-            <strong>{t("react.settings.loading_account_settings", "Loading account settings")}</strong>
-            <span className="fs-field-helper">{t("react.settings.profile_and_sign_in_data_will_appear_in_this_settings_layout", "Profile and sign-in data will appear in this settings layout.")}</span>
-          </div>
-        </article>
-      );
+    if (profileQuery.isLoading || profileLoaderShown) {
+      return profileLoaderShown ? <div className="fs-table-state"><DsLoader label={t("react.settings.loading_account_settings", "Loading account settings")} variant="wide-block" /></div> : null;
     }
     if (profileQuery.isError) {
       return (
@@ -547,20 +562,20 @@ export function SettingsAccountPage() {
   function renderAccountDialogs() {
     return (
       <>
-        <DsDialog busy={tokenSubmitting} closeLabel={t("react.settings.close_create_token_dialog", "Close create token dialog")} description={t("react.settings.choose_the_minimum_scopes_and_restrictions_this_client_needs", "Choose the minimum scopes and restrictions this client needs.")} eyebrow={t("react.settings.personal_tokens", "Personal tokens")} footer={<><button className="fs-button" disabled={tokenSubmitting} onClick={() => setCreateTokenOpen(false)} type="button">{t("common.cancel", "Cancel")}</button><button className="fs-button primary" disabled={tokenSubmitting} form="create-personal-token" type="submit">{tokenSubmitting ? t("react.settings.creating", "Creating…") : t("react.settings.create_token", "Create token")}</button></>} onClose={() => setCreateTokenOpen(false)} open={createTokenOpen} title={t("react.settings.create_personal_token", "Create personal token")}>
+        <DsDialog busy={tokenSubmitting} closeLabel={t("react.settings.close_create_token_dialog", "Close create token dialog")} description={t("react.settings.choose_the_minimum_scopes_and_restrictions_this_client_needs", "Choose the minimum scopes and restrictions this client needs.")} eyebrow={t("react.settings.personal_tokens", "Personal tokens")} footer={<><button className="fs-button" disabled={tokenSubmitting} onClick={() => setCreateTokenOpen(false)} type="button">{t("common.cancel", "Cancel")}</button><Button busy={tokenSubmitting} busyLabel={t("react.settings.creating", "Creating…")} form="create-personal-token" type="submit" variant="primary">{t("react.settings.create_token", "Create token")}</Button></>} onClose={() => setCreateTokenOpen(false)} open={createTokenOpen} title={t("react.settings.create_personal_token", "Create personal token")}>
           <form className="fs-dialog-form" id="create-personal-token" noValidate onSubmit={(event) => ignoreAsyncResult(createToken(event))}>
             <label className="fs-field"><RequiredLabel>{t("account.tokens.label", "Label")}</RequiredLabel><input className="fs-input" id="personal-token-label" name="label" onChange={(event) => setTokenLabel(event.target.value)} placeholder={t("react.settings.e_g_local_cli", "e.g. Local CLI")} required value={tokenLabel} /></label>
             <fieldset className="fs-field"><legend className="fs-field-label">{t("react.settings.expiration", "Expiration")}</legend><div className="fs-radio-grid">{(["none", "30", "90", "custom"] as ExpiryChoice[]).map((value) => <DsRadio checked={expiry === value} key={value} name="token-expiry" onChange={() => setExpiry(value)} value={value}>{expiryLabel(value, t)}</DsRadio>)}</div>{expiry === "custom" ? renderCustomExpiry() : null}</fieldset>
             <fieldset aria-required="true" className="fs-field"><legend className="fs-field-label fs-required-label">{t("react.settings.scopes", "Scopes")}<span aria-hidden="true" className="fs-required">*</span></legend><div className="fs-scope-grid">{TOKEN_SCOPES.map((scope) => <DsCheckbox checked={scopes.includes(scope)} key={scope} onChange={(checked) => setScopes(checked ? [...scopes, scope] : scopes.filter((value) => value !== scope))}>{scope}</DsCheckbox>)}</div><span className="fs-field-helper">{t("react.settings.personal_token_scope_help", "Select at least one scope. Granular scopes do not grant workflow authoring or full administrative access. The server still enforces your role and restrictions.")}</span></fieldset>
             {isAdmin ? <div className="fs-field"><DsCheckbox checked={administratorAccess} onChange={setAdministratorAccess}>{t("react.settings.personal_token_admin_access", "Full administrator access (admin:all)")}</DsCheckbox><span className="fs-field-helper">{t("react.settings.personal_token_admin_access_help", "Allows workflow creation and all other administrator operations permitted by your account, project and workflow restrictions. Select only for trusted clients.")}</span></div> : null}
-            <div className="fs-field"><span className="fs-field-label">{t("react.settings.project_restrictions", "Project restrictions")}</span><MultiCombobox ariaLabel={t("react.settings.project_restrictions", "Project restrictions")} disabled={projectsQuery.isLoading} onChange={setProjectIds} options={projectOptions} placeholder={projectsQuery.isLoading ? t("react.settings.loading_projects", "Loading projects…") : t("react.settings.search_projects", "Search projects")} selected={projectIds} /><span className="fs-field-helper">{t("react.settings.empty_means_unrestricted_within_your_existing_authority", "Empty means unrestricted within your existing authority.")}</span></div>
-            <div className="fs-field"><span className="fs-field-label">{t("react.settings.workflow_restrictions", "Workflow restrictions")}</span><MultiCombobox ariaLabel={t("react.settings.workflow_restrictions", "Workflow restrictions")} disabled={workflowsQuery.isLoading} onChange={setWorkflowIds} options={workflowOptions} placeholder={workflowsQuery.isLoading ? t("react.settings.loading_workflows", "Loading workflows…") : t("react.settings.search_workflows", "Search workflows")} selected={workflowIds} /><span className="fs-field-helper">{t("react.settings.options_load_only_while_this_dialog_is_needed", "Options load only while this dialog is needed.")}</span></div>
+            <div className="fs-field"><span className="fs-field-label">{t("react.settings.project_restrictions", "Project restrictions")}</span><MultiCombobox ariaLabel={t("react.settings.project_restrictions", "Project restrictions")} loading={projectsQuery.isLoading} loadingLabel={t("react.settings.loading_projects", "Loading projects…")} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} /><span className="fs-field-helper">{t("react.settings.empty_means_unrestricted_within_your_existing_authority", "Empty means unrestricted within your existing authority.")}</span></div>
+            <div className="fs-field"><span className="fs-field-label">{t("react.settings.workflow_restrictions", "Workflow restrictions")}</span><MultiCombobox ariaLabel={t("react.settings.workflow_restrictions", "Workflow restrictions")} loading={workflowsQuery.isLoading} loadingLabel={t("react.settings.loading_workflows", "Loading workflows…")} onChange={setWorkflowIds} options={workflowOptions} placeholder={t("react.settings.search_workflows", "Search workflows")} selected={workflowIds} /><span className="fs-field-helper">{t("react.settings.options_load_only_while_this_dialog_is_needed", "Options load only while this dialog is needed.")}</span></div>
             {tokenError ? <DsAlert tone="danger" title={t("react.settings.token_could_not_be_created", "Token could not be created")}>{tokenError}</DsAlert> : null}
           </form>
         </DsDialog>
 
         <DsDialog closeLabel={t("react.settings.close_one_time_token_secret", "Close one-time token secret")} description={t("react.settings.this_secret_is_shown_once_and_disappears_when_you_close_this_dialog", "This secret is shown once and disappears when you close this dialog.")} eyebrow={t("react.settings.created_successfully", "Created successfully")} footer={<button className="fs-button primary" onClick={dismissSecret} type="button">{t("react.settings.i_ve_saved_it", "I've saved it")}</button>} onClose={dismissSecret} open={Boolean(secret)} title={t("react.settings.save_your_personal_token", "Save your personal token")} variant="secret"><div className="fs-secret-card"><div><h3 className="fs-card-title">{secretLabel}</h3><p className="fs-secret-description">{t("react.settings.store_this_value_in_a_secure_credential_manager", "Store this value in a secure credential manager.")}</p></div><DsAlert tone="warning" title={t("react.settings.you_cannot_view_this_token_again", "You cannot view this token again")}>{t("react.settings.copy_it_before_dismissing_this_surface", "Copy it before dismissing this surface.")}</DsAlert><div className="fs-secret-row"><SensitiveInput ariaLabel={t("react.settings.one_time_token_secret", "One-time token secret")} className="fs-code-value" readOnly value={secret} /><button className="fs-button" onClick={() => ignoreAsyncResult(copySecret())} type="button">{t("react.settings.copy_token", "Copy token")}</button></div></div></DsDialog>
-        <DsDialog busy={revoking} closeLabel={t("react.settings.close_revoke_confirmation", "Close revoke confirmation")} description={t("react.settings.clients_using_this_token_lose_access_immediately_this_action_cannot_be_undone", "Clients using this token lose access immediately. This action cannot be undone.")} eyebrow={t("react.settings.personal_tokens", "Personal tokens")} footer={<><button className="fs-button" disabled={revoking} onClick={() => setRevokeTarget(null)} type="button">{t("common.cancel", "Cancel")}</button><button className="fs-button danger" disabled={revoking} onClick={() => ignoreAsyncResult(confirmRevoke())} type="button">{revoking ? t("react.settings.revoking", "Revoking…") : t("react.settings.revoke_token", "Revoke token")}</button></>} onClose={() => setRevokeTarget(null)} open={Boolean(revokeTarget)} title={t("react.settings.revoke_value1", "Revoke “{value1}”?", { value1: String(revokeTarget?.label || t("react.settings.token_lowercase", "token")) })} variant="confirm"><DsAlert tone="danger" title={t("react.settings.immediate_access_loss", "Immediate access loss")}>{t("react.settings.confirm_only_after_the_client_has_another_credential", "Confirm only after the client has another credential.")}</DsAlert></DsDialog>
+        <DsDialog busy={revoking} closeLabel={t("react.settings.close_revoke_confirmation", "Close revoke confirmation")} description={t("react.settings.clients_using_this_token_lose_access_immediately_this_action_cannot_be_undone", "Clients using this token lose access immediately. This action cannot be undone.")} eyebrow={t("react.settings.personal_tokens", "Personal tokens")} footer={<><button className="fs-button" disabled={revoking} onClick={() => setRevokeTarget(null)} type="button">{t("common.cancel", "Cancel")}</button><Button busy={revoking} busyLabel={t("react.settings.revoking", "Revoking…")} onClick={() => ignoreAsyncResult(confirmRevoke())} type="button" variant="danger">{t("react.settings.revoke_token", "Revoke token")}</Button></>} onClose={() => setRevokeTarget(null)} open={Boolean(revokeTarget)} title={t("react.settings.revoke_value1", "Revoke “{value1}”?", { value1: String(revokeTarget?.label || t("react.settings.token_lowercase", "token")) })} variant="confirm"><DsAlert tone="danger" title={t("react.settings.immediate_access_loss", "Immediate access loss")}>{t("react.settings.confirm_only_after_the_client_has_another_credential", "Confirm only after the client has another credential.")}</DsAlert></DsDialog>
         <DsDialog closeLabel={t("react.settings.close_discard_confirmation", "Close discard confirmation")} description={t("react.settings.display_name_timezone_and_language_return_to_their_last_saved_values", "Display name, timezone and language return to their last saved values.")} eyebrow={t("react.settings.unsaved_profile", "Unsaved profile")} footer={<><button className="fs-button" onClick={() => setDiscardOpen(false)} type="button">{t("react.settings.keep_editing", "Keep editing")}</button><button className="fs-button danger" onClick={() => { setDraft(saved); setDiscardOpen(false); if (pendingTab) goToTab(pendingTab, true); }} type="button">{t("react.settings.discard_changes", "Discard changes")}</button></>} onClose={() => setDiscardOpen(false)} open={discardOpen} title={t("react.settings.discard_your_profile_changes", "Discard your profile changes?")} variant="confirm" />
         {copyFeedback ? <DsToast tone={copyFeedback.tone}>{copyFeedback.message}</DsToast> : null}
       </>

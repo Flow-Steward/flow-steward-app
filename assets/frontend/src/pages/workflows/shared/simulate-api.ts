@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 
 export type WorkflowSimulationResult = {
   workflow_id: string;
@@ -167,13 +167,12 @@ export async function testRunWorkflow({
   });
 }
 
-export async function fetchWorkflowTestRunState(threadId: string, options?: FetchJsonOptions) {
+export async function fetchWorkflowTestRunState(threadId: string) {
   return fetchJson<WorkflowTestRunResult>(
     `/api/workflows/test-runs/${encodeURIComponent(threadId)}`,
     {
       method: "GET",
     },
-    options,
   );
 }
 

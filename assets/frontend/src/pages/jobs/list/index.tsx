@@ -34,6 +34,8 @@ import {
 import { firstStringFromUnknownValue, isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { JOB_SKELETON_ROWS, JOB_SKELETON_WIDTHS } from "@/pages/jobs/list/job-skeleton";
 import {
   AdvancedTableFilters,
   BulkActionBar,
@@ -269,6 +271,9 @@ export function JobsListPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [totalRows, setTotalRows] = useState(0);
+  // False until the first answer (or its fallback) lands: until then an empty
+  // body means "not yet", never "no jobs".
+  const [jobsLoaded, setJobsLoaded] = useState(false);
   const [selectedJobs, setSelectedJobs] = useState<ReadonlySet<string>>(new Set());
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   const allJobsRef = useRef<JobListItem[]>([]);
@@ -576,6 +581,7 @@ export function JobsListPage() {
     setPerPage(responsePerPage);
     setTotalRows(responseTotal);
     setPage(responsePage);
+    setJobsLoaded(true);
     publishWindowGlobals();
     syncJobFiltersAndGrid();
   }
@@ -896,7 +902,8 @@ export function JobsListPage() {
           </RowActionMenu>
         );
       });
-    return columns.map((column) => {
+    return columns.map((declared) => {
+      const column = { ...declared, skeletonWidth: JOB_SKELETON_WIDTHS[declared.key] };
       if (column.key === "status") {
         return { ...column, cell: jobStatusCell };
       }
@@ -921,6 +928,13 @@ export function JobsListPage() {
       };
     });
   }, [jobsConfig]);
+
+  // First load only: headers, filters, toolbar and pagination are real, the
+  // body stays empty for 400ms, then holds the skeleton rows for at least
+  // 500ms; a later refresh keeps the rows it has.
+  const firstLoadPending = !jobsLoaded && displayRows.length === 0;
+  const skeletonShown = useLoaderDelay(firstLoadPending);
+  const showEmptyState = jobsLoaded && !skeletonShown && displayRows.length === 0;
 
   return (
     <PageContainer className="fs-page-sections" width="wide">
@@ -1035,13 +1049,15 @@ export function JobsListPage() {
           selectable={jobBulkActions.length > 0}
           selectedKeys={selectedJobs}
           onSelectionChange={setSelectedJobs}
+          busy={firstLoadPending}
+          skeletonRows={skeletonShown ? JOB_SKELETON_ROWS : 0}
           state={
-            displayRows.length ? null : (
+            showEmptyState ? (
               <div className="fs-table-state" data-testid="jobs-grid">
                 <strong>{t("jobs.empty.title", "No jobs found")}</strong>
                 <span>{t("jobs.empty.description", "Try adjusting your search or filters.")}</span>
               </div>
-            )
+            ) : null
           }
         />
         <Pagination

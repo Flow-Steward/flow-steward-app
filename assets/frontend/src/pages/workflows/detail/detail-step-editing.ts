@@ -457,15 +457,13 @@ export function editableOverrideForRawStep(
       .length
       ? objectOrEmpty(connector.output_mapping)
       : mappingObjectFromRaw(raw, "output_mapping_jsonb", "output_mapping");
-    const connectionBinding = Object.keys(
-      objectOrEmpty(connector.connection_binding),
-    ).length
-      ? objectOrEmpty(connector.connection_binding)
-      : mappingObjectFromRaw(
-          raw,
-          "connection_binding_jsonb",
-          "connection_binding",
-        );
+    // The step's own binding is what runs, readiness and saves use; the editor shows
+    // that one, so a connection that is gone reads as gone instead of a stale copy
+    // left in the connector override.
+    const storedBinding = mappingObjectFromRaw(raw, "connection_binding_jsonb", "connection_binding");
+    const connectionBinding = Object.keys(storedBinding).length
+      ? storedBinding
+      : objectOrEmpty(connector.connection_binding);
     return {
       ...override,
       connector: {

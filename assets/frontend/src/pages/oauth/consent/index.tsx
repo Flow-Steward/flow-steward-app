@@ -13,6 +13,7 @@ import {
   PageContainer,
 } from "@/components/shared/design-system";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
+import { Button } from "@/components/ui/button";
 import { RequireAuth } from "@/lib/auth/guards";
 import { isHttpError } from "@/lib/http/errors";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
@@ -114,7 +115,8 @@ function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; vi
   const expiryOptions = view.expiry_days_options.length ? view.expiry_days_options : [7, 30, 90];
   const [expiryDays, setExpiryDays] = useState<number>(expiryOptions.includes(view.default_expiry_days) ? view.default_expiry_days : expiryOptions[0]);
   const [projectIds, setProjectIds] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [pendingDecision, setPendingDecision] = useState<"approve" | "deny" | null>(null);
+  const submitting = pendingDecision !== null;
   const [decisionError, setDecisionError] = useState<{ title: string; copy: string } | null>(null);
   const projectsQuery = useQuery({ queryKey: ["oauth", "consent", "projects"], queryFn: () => fetchProjectsList({ page: 1, perPage: 200, search: "" }), enabled: available.length > 0 });
   const projectOptions = useMemo(() => (projectsQuery.data?.projects || []).map((project) => ({ value: String(project.id), label: project.name?.trim() || t("react.settings.unnamed_project", "Unnamed project") })), [projectsQuery.data, t]);
@@ -123,7 +125,7 @@ function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; vi
   async function decide(decision: "approve" | "deny") {
     if (submitting) return;
     if (decision === "approve" && !preset) return;
-    setSubmitting(true);
+    setPendingDecision(decision);
     setDecisionError(null);
     try {
       const body = decision === "approve" && preset
@@ -133,7 +135,7 @@ function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; vi
       onRedirect(result.redirect_to);
     } catch (error) {
       setDecisionError(requestErrorNotice(error, t));
-      setSubmitting(false);
+      setPendingDecision(null);
     }
   }
 
@@ -193,7 +195,7 @@ function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; vi
         <DsCard title={t("react.oauth.limits_title", "Projects and duration")} description={t("react.oauth.limits_description", "Narrow the access further and choose when it ends.")}>
           <div className="fs-field">
             <span className="fs-field-label">{t("react.settings.project_restrictions", "Project restrictions")}</span>
-            <MultiCombobox ariaLabel={t("react.settings.project_restrictions", "Project restrictions")} disabled={projectsQuery.isLoading || submitting} onChange={setProjectIds} options={projectOptions} placeholder={projectsQuery.isLoading ? t("react.settings.loading_projects", "Loading projects…") : t("react.settings.search_projects", "Search projects")} selected={projectIds} />
+            <MultiCombobox ariaLabel={t("react.settings.project_restrictions", "Project restrictions")} disabled={submitting} loading={projectsQuery.isLoading} loadingLabel={t("react.settings.loading_projects", "Loading projects…")} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
             <span className="fs-field-helper">{t("react.oauth.projects_help", "Empty means every project you can access. Choosing projects does not isolate account-wide agents and skills.")}</span>
           </div>
           <fieldset className="fs-field">
@@ -213,11 +215,11 @@ function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; vi
       {decisionError ? <DsAlert title={decisionError.title} tone="danger">{decisionError.copy}</DsAlert> : null}
 
       <div className="fs-footer-actions">
-        <button className="fs-button" disabled={submitting} onClick={() => ignoreAsyncResult(decide("deny"))} type="button">{t("react.oauth.deny", "Deny")}</button>
+        <Button busy={pendingDecision === "deny"} busyLabel={t("react.oauth.sending", "Sending…")} onClick={() => ignoreAsyncResult(decide("deny"))} type="button" variant="secondary">{t("react.oauth.deny", "Deny")}</Button>
         {available.length ? (
-          <button className="fs-button primary" disabled={submitting || !preset} onClick={() => ignoreAsyncResult(decide("approve"))} type="button">
-            {submitting ? t("react.oauth.sending", "Sending…") : t("react.oauth.allow", "Allow access")}
-          </button>
+          <Button busy={pendingDecision === "approve"} busyLabel={t("react.oauth.sending", "Sending…")} disabled={!preset} onClick={() => ignoreAsyncResult(decide("approve"))} type="button" variant="primary">
+            {t("react.oauth.allow", "Allow access")}
+          </Button>
         ) : null}
       </div>
     </ConsentShell>

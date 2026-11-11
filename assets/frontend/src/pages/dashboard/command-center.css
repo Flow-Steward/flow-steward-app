@@ -1,17 +1,14 @@
-/* Command center — dashboard entry block.
+/* Attention queue — the dashboard's triage panel.
  *
- * Published --fs-* roles only: the right-context rail for the surface and
- * Badge for the queue statuses.
+ * The shell is the dashboard panel (.fs-dp, Card roles) shared with Operational
+ * overview and Move the work forward, so the three read as one family: same
+ * surface, padding and heading. Only the rows are assembled here, from
+ * published --fs-* roles and the Badge family for the statuses.
  *
  * One Design System gap this surface still assembles by hand, worth closing
  * upstream: there is no two-level list row (title over context + status)
  * anywhere in the catalog.
  */
-
-.fs-cc {
-  display: grid;
-  min-width: 0;
-}
 
 .fs-cc__queue-link svg {
   width: var(--fs-icon-size-supporting);
@@ -22,50 +19,32 @@
 
 /* ---------- attention queue ---------- */
 
-.fs-cc__queue {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: var(--fs-space-150);
-  border: 1px solid var(--fs-right-context-rail-border);
-  border-radius: var(--fs-right-context-rail-radius);
-  background: var(--fs-elevation-surface-sunken);
-}
-
-.fs-cc__queue-title-head {
-  margin: 0;
-  font-family: var(--ff-display);
-  font-size: var(--fs-card-title-size);
-  line-height: var(--fs-type-h3-line-height);
-  font-weight: var(--fs-card-title-weight);
-  color: var(--fs-text-primary);
-}
-
-.fs-cc__queue-caption {
-  margin: var(--fs-space-025) 0 0;
-  font-size: var(--fs-type-caption-size);
-  line-height: var(--fs-type-caption-line-height);
-  color: var(--fs-text-tertiary);
-}
-
 .fs-cc__queue-list {
   display: flex;
   flex-direction: column;
-  margin-top: var(--fs-space-100);
+  min-width: 0;
+  margin-top: var(--fs-space-150);
 }
 
-/* Two-level row: at 240px a single line cannot hold title, context and status.
-   Grid is icon column + content column, icon aligned to the first text line. */
+/* Two-level row: icon, title over context, the status centred on the row and
+   the chevron that says the row opens the run. */
 .fs-cc__queue-row {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  align-items: start;
-  gap: var(--fs-space-100);
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--fs-space-150);
   min-width: 0;
-  padding: var(--fs-space-100);
+  min-height: var(--fs-dashboard-row-roomy);
+  padding: var(--fs-space-100) var(--fs-space-150);
   border-radius: var(--fs-radius-control);
   text-decoration: none;
   transition: background var(--fs-motion-background-hover);
+}
+
+/* Rows are separated by a hairline; a shadow keeps the row box (and its focus
+   ring and hover background) the same size as the unseparated first row. */
+.fs-cc__queue-row + .fs-cc__queue-row {
+  box-shadow: 0 -1px 0 var(--fs-border-subtle);
 }
 
 /* Hover changes background only. Raised elevation is for movable or
@@ -82,8 +61,6 @@
 .fs-cc__queue-icon {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
   color: var(--fs-text-tertiary);
 }
 
@@ -103,38 +80,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-type-field-label-size);
+  font-size: var(--fs-type-body-size);
   line-height: var(--fs-type-field-label-line-height);
-  color: var(--fs-text-secondary);
-}
-
-.fs-cc__queue-row:hover .fs-cc__queue-title {
+  font-weight: var(--fs-type-weight-medium);
   color: var(--fs-text-primary);
 }
 
-.fs-cc__queue-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--fs-space-075);
-  min-width: 0;
-}
-
-/* Caption 12px, not the 11px micro step: micro is the uppercase label role. */
 .fs-cc__queue-context {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-type-caption-size);
-  line-height: var(--fs-type-caption-line-height);
-  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
+  color: var(--fs-text-secondary);
 }
 
 .fs-cc__queue-badge {
   display: inline-flex;
   align-items: center;
   flex: none;
-  margin-left: auto;
   height: var(--fs-badge-height-sm);
   padding: var(--fs-badge-padding-sm);
   border: 1px solid var(--fs-badge-neutral-border);
@@ -147,6 +112,19 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Chevrons on a row use the default 16px grid, quiet until the row is hovered. */
+.fs-cc__queue-chevron {
+  width: var(--fs-icon-size-default);
+  height: var(--fs-icon-size-default);
+  flex: none;
+  stroke-width: var(--fs-icon-stroke);
+  color: var(--fs-text-tertiary);
+}
+
+.fs-cc__queue-row:hover .fs-cc__queue-chevron {
+  color: var(--fs-text-secondary);
 }
 
 /* Orange means a human needs to look; red means it broke. */
@@ -170,21 +148,13 @@
   color: var(--fs-status-danger);
 }
 
-.fs-cc__queue-more {
-  margin: var(--fs-space-100) 0 0;
-  padding: 0 var(--fs-space-100);
-  font-size: var(--fs-type-caption-size);
-  line-height: var(--fs-type-caption-line-height);
-  color: var(--fs-text-tertiary);
-}
-
 /* Empty states are plain blocks, never a chip or a badge. */
 .fs-cc__queue-clear {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--fs-space-050);
-  padding: var(--fs-space-200) var(--fs-space-100);
+  padding: var(--fs-space-200) var(--fs-space-150) var(--fs-space-100);
 }
 
 .fs-cc__queue-mark {
@@ -216,9 +186,9 @@
   color: var(--fs-text-tertiary);
 }
 
-/* Pinned so the link sits on one line whatever the row count. */
+/* One link to the whole queue, carrying the count the panel leaves out. */
 .fs-cc__queue-foot {
-  margin-top: auto;
+  display: flex;
   padding-top: var(--fs-space-150);
 }
 
@@ -228,8 +198,10 @@
   gap: var(--fs-space-075);
   border-radius: var(--fs-radius-micro);
   color: var(--fs-text-brand);
-  font-size: var(--fs-type-caption-size);
+  font-size: var(--fs-type-field-label-size);
+  line-height: var(--fs-type-field-label-line-height);
   font-weight: var(--fs-type-weight-medium);
+  font-variant-numeric: tabular-nums;
   text-decoration: none;
 }
 
@@ -242,10 +214,30 @@
   box-shadow: var(--fs-focus-ring);
 }
 
-/* Below the rail breakpoint the queue moves under the composer rather than
-   squeezing into an unreadable column. */
 @media (prefers-reduced-motion: reduce) {
   .fs-cc__queue-row {
     transition-duration: var(--fs-duration-reduced);
   }
+}
+
+/* Loading rows (skeleton.md): a title line over a shorter context line, each in
+   its own text line box so a stand-in row is as tall as a real one. The icon
+   slot keeps its width so the lines start where the titles will; no badge and
+   no chevron, because neither is known yet. Not a link, so no hover. */
+.fs-cc__queue-row--skeleton:hover {
+  background: none;
+}
+
+.fs-cc__queue-row--skeleton .fs-cc__queue-icon {
+  width: var(--fs-icon-size-default);
+}
+
+.fs-cc__queue-row--skeleton .fs-skeleton-line {
+  display: inline-block;
+  width: 60%;
+  vertical-align: middle;
+}
+
+.fs-cc__queue-row--skeleton .fs-cc__queue-context .fs-skeleton-line {
+  width: 35%;
 }

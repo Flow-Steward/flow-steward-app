@@ -1,7 +1,10 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { DsCheckbox, DsDialog, DsSelect, RequiredLabel } from "@/components/shared/design-system";
-import { AlertTriangle, Loader2, Save } from "lucide-react";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, Save } from "lucide-react";
 import { Link } from "react-router";
 import { ROUTE_FIELD_ELEMENT_IDS, type RouteFieldId } from "./validation";
 import type { ProjectNotificationProvider, ProviderChannel } from "./api";
@@ -26,8 +29,7 @@ function getEventOptions(t: I18nContextValue["t"] = fallbackContext.t) {
  * knew which extension sends mail, and a second one would silently get the wrong
  * form.
  */
-function routeSaveLabel(saving: boolean, mode: RouteModalMode, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (saving) return t("project_edit.security.saving", "Saving...");
+function routeSaveLabel(mode: RouteModalMode, t: I18nContextValue["t"] = fallbackContext.t): string {
   return mode === "create" ? t("react.projects.create_route", "Create route") : t("react.projects.save_route", "Save route");
 }
 
@@ -59,6 +61,7 @@ function RouteTargetEditor({
   onChange: (patch: Partial<RouteDraft>) => void;
 }>) {
   const { t } = useI18n();
+  const channelsLoaderShown = useLoaderDelay(Boolean(channelsQuery?.isLoading));
   if (usesEmailApRecipient) {
     return (
       <label className="mt-2 block text-xs uppercase tracking-[0.15em] fs-ink-secondary">
@@ -82,12 +85,12 @@ function RouteTargetEditor({
         {t("react.projects.choose_a_provider_to_load_its_configured_channels", "Choose a provider to load its configured channels.")} </p>
     );
   }
-  if (channelsQuery?.isLoading) {
-    return (
-      <div className="mt-2 flex items-center gap-2 text-sm fs-ink-secondary">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("react.projects.loading_channels", "Loading channels...")} </div>
-    );
+  if (channelsQuery?.isLoading || channelsLoaderShown) {
+    return channelsLoaderShown ? (
+      <div className="mt-2 text-sm fs-ink-secondary">
+        <DsLoader label={t("react.projects.loading_channels", "Loading channels…")} variant="orbit-inline" />
+      </div>
+    ) : null;
   }
   if (channelsQuery?.error) {
     return (
@@ -184,6 +187,7 @@ export function NotificationRouteDialog({
   onSave: () => void;
 }>) {
   const { t } = useI18n();
+  const workflowsLoaderShown = useLoaderDelay(workflowsLoading);
   return (
     <DsDialog
       busy={saving}
@@ -194,16 +198,18 @@ export function NotificationRouteDialog({
         <>
           <button className="fs-button" onClick={onClose} type="button">
             {t("common.cancel", "Cancel")} </button>
-          <button
-            className="fs-button primary"
-            disabled={saving || (mode === "create" && (!workflowsReady || !createInventoryReady))}
+          <Button
+            busy={saving}
+            busyLabel={t("react.projects.saving", "Saving…")}
+            disabled={mode === "create" && (!workflowsReady || !createInventoryReady)}
             id="notification-route-save"
             onClick={onSave}
             type="button"
+            variant="primary"
           >
             <Save className="h-4 w-4" />
-            {routeSaveLabel(saving, mode, t)}
-          </button>
+            {routeSaveLabel(mode, t)}
+          </Button>
         </>
       }
       onClose={onClose}
@@ -309,7 +315,7 @@ export function NotificationRouteDialog({
             options={workflowChoices}
             value={draft.workflow_id}
           />
-          {workflowsLoading ? <p>{t("react.projects.loading_project_workflows", "Loading project workflows...")}</p> : null}
+          {workflowsLoaderShown ? <p><DsLoader label={t("react.projects.loading_project_workflows", "Loading project workflows…")} variant="orbit-inline" /></p> : null}
           {workflowsError ? <div role="alert">
             <p>{t("react.projects.project_workflow_inventory_is_unavailable_existing_selection_is_preserved_new_routes_require_a_complete_invent", "Project workflow inventory is unavailable. Existing selection is preserved; new routes require a complete inventory.")}</p>
             <button className="fs-button sm" onClick={onRetryWorkflows} type="button">{t("react.projects.retry_project_workflows", "Retry project workflows")}</button>

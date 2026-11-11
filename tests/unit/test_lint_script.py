@@ -581,6 +581,10 @@ fi"""
     quality_permissions = scripts / "quality_permissions.sh"
     quality_permissions.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
     quality_permissions.chmod(quality_permissions.stat().st_mode | stat.S_IXUSR)
+    # Covered by tests/unit/tooling/test_docker_desktop_file_cache.py; a no-op here.
+    mount_refresh = scripts / "docker_desktop_file_cache.sh"
+    mount_refresh.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    mount_refresh.chmod(mount_refresh.stat().st_mode | stat.S_IXUSR)
     docker_compose_env = scripts / "docker_compose_env.sh"
     docker_compose_env.write_text(
         "#!/usr/bin/env bash\n"

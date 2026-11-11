@@ -12073,7 +12073,7 @@ class TestWorkflowCRUD:
         )
         assert "Workflow catalog" in contract_text
         assert (
-            'fetchWorkflows({ enabledOnly, search: deferredSearch }, { presentation: "background" })'
+            'fetchWorkflows({ enabledOnly, search: deferredSearch })'
             in contract_text
         )
         assert "handleCloneWorkflow" in contract_text

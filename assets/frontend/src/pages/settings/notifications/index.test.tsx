@@ -93,8 +93,9 @@ it("does not open notification routing for a project nobody chose", async () => 
   await user.click(scope);
   expect(await screen.findByRole("option", { name: "First project" })).toBeInTheDocument();
   expect(screen.queryByText("routes:project-first")).not.toBeInTheDocument();
-  // Nothing is chosen: the placeholder option is the selected one.
-  expect(screen.getByRole("option", { name: "Select a project" })).toHaveAttribute("aria-selected", "true");
+  // Nothing is chosen: the field is empty and no project option is selected.
+  expect(scope).toHaveValue("");
+  for (const option of screen.getAllByRole("option")) expect(option).toHaveAttribute("aria-selected", "false");
   expect(screen.getByText(/select a project to configure/i)).toBeInTheDocument();
 });
 

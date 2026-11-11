@@ -1,28 +1,14 @@
 import { useContext } from "react";
 
 import { AuthContext } from "@/lib/auth/context";
-import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { browserTimezone, formatDateTime } from "@/lib/time/date-time-format";
+import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
-export function browserTimezone(): string {
-  if (globalThis.Intl === undefined) {
-    return "UTC";
-  }
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-}
+export { browserTimezone };
 
-export function formatUserDateTime(value: unknown, timezone = browserTimezone()): string {
-  if (value === null || value === undefined || value === "") {
-    return "—";
-  }
-  const date = new Date(stringFromUnknownValue(value));
-  if (Number.isNaN(date.getTime())) {
-    return stringFromUnknownValue(value);
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: timezone || browserTimezone(),
-  }).format(date);
+/** The date and time in the reader's own date pattern and clock, in the given zone (the reader's by default). */
+export function formatUserDateTime(value: unknown, timezone?: string): string {
+  return formatDateTime(value, timezone ? { timezone } : undefined);
 }
 
 export function useUserTimezone(): string {

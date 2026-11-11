@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 import type { TranslateParams } from "@/lib/i18n/context";
 
 export {
@@ -477,7 +477,7 @@ export async function fetchWorkflows({
 }: {
   enabledOnly: boolean;
   search: string;
-}, options?: FetchJsonOptions) {
+}) {
   const params = new URLSearchParams();
   if (enabledOnly) {
     params.set("enabled_only", "true");
@@ -486,11 +486,11 @@ export async function fetchWorkflows({
     params.set("search", search.trim());
   }
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return fetchJson<WorkflowListItem[]>(`/api/workflows${suffix}`, { cache: "no-store" }, options);
+  return fetchJson<WorkflowListItem[]>(`/api/workflows${suffix}`, { cache: "no-store" });
 }
 
-export async function fetchWorkflowDetail(workflowId: string, options?: FetchJsonOptions) {
-  return fetchJson<WorkflowDetail>(`/api/workflows/${encodeURIComponent(workflowId)}`, { cache: "no-store" }, options);
+export async function fetchWorkflowDetail(workflowId: string) {
+  return fetchJson<WorkflowDetail>(`/api/workflows/${encodeURIComponent(workflowId)}`, { cache: "no-store" });
 }
 
 export async function fetchWorkflowDag(workflowId: string) {
@@ -580,19 +580,17 @@ export type WorkflowStats = {
   avg_duration_seconds: number | null;
 };
 
-export async function fetchWorkflowStats(workflowId: string, options?: FetchJsonOptions) {
+export async function fetchWorkflowStats(workflowId: string) {
   return fetchJson<WorkflowStats>(
     `/api/workflows/${encodeURIComponent(workflowId)}/stats`,
     {},
-    options,
   );
 }
 
-export async function fetchWorkflowExportPolicy(workflowId: string, options?: FetchJsonOptions) {
+export async function fetchWorkflowExportPolicy(workflowId: string) {
   return fetchJson<WorkflowExportPolicy>(
     `/api/workflows/${encodeURIComponent(workflowId)}/export-policy`,
     { cache: "no-store" },
-    options,
   );
 }
 

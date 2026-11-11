@@ -398,7 +398,7 @@ function WorkflowSecretApprovalCard({ projectId, workflowId, revision, unsavedCh
               <DestinationRules disabled={approve.isPending} onChange={setRules} rules={rules} />
             </div>
           ) : null}
-          <Button disabled={approve.isPending || missingRules || status.isFetching} onClick={() => approve.mutate(data)} size="sm" type="button">
+          <Button busy={approve.isPending} busyLabel={t("react.settings.saving", "Saving…")} disabled={!approve.isPending && (missingRules || status.isFetching)} onClick={() => approve.mutate(data)} size="sm" type="button">
             <ShieldCheck className="h-3.5 w-3.5" />
             {t("react.workflows.secret_approval.approve", "Approve use of secrets")}
           </Button>

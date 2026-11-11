@@ -1,6 +1,6 @@
 import type { WorkflowCanvasGraph, WorkflowCanvasStep, WorkflowGraphEdge, WorkflowOutcome } from "../shared/api";
 import { applyCanvasNodeState } from "./canvas-state-helpers";
-import { canvasDragScope, CanvasEdgeRouteCache, routeCanvasEdgeSet } from "./canvas-edge-route-set";
+import { canvasDragScope, CanvasEdgeRouteCache, droppedRowTop, routeCanvasEdgeSet } from "./canvas-edge-route-set";
 import { buildCanvasLayout } from "./layout";
 
 const step = (id: string, extra: Partial<WorkflowCanvasStep> = {}): WorkflowCanvasStep => ({ id, kind: "set_variable", display_name: id, config_summary: "", ports: [{ outcome: { name: "success" }, label: "Next" }], ...extra });
@@ -122,5 +122,19 @@ describe("canvas connections reuse what did not move", () => {
     const input = { nodes: layout.nodes, rootRows: layout.rootRows, edges: layout.edges, draggingIds: new Set<string>() };
     const first = cache.route({ ...input, positioned: place() });
     expect(cache.route({ ...input, positioned: place() })).toBe(first);
+  });
+});
+
+describe("the row a connection drops into", () => {
+  const source = { x: 1800, y: 400, width: 224, height: 80 };
+  it("starts at the tallest card beside the target, not at the source row's frame that hangs lower", () => {
+    const target = { x: 0, y: 760, width: 224, height: 80 };
+    const sourceRowFrame = { x: 1100, y: 410, width: 600, height: 260 };
+    const targetRowFrame = { x: 300, y: 744, width: 300, height: 170 };
+    const farBelow = { x: 0, y: 1000, width: 224, height: 80 };
+    expect(droppedRowTop(source, target, [sourceRowFrame, targetRowFrame, farBelow, target])).toBe(744);
+  });
+  it("is the target's own top when nothing stands beside it", () => {
+    expect(droppedRowTop(source, { x: 0, y: 760, width: 224, height: 80 }, [])).toBe(760);
   });
 });

@@ -32,6 +32,7 @@ def _build_client(
     bootstrap_required: bool = False,
     local_auth_enabled: bool = True,
     app_edition: str = "community",
+    stored_date_time_format: tuple[str, str] = ("MM/DD/YYYY", "12h"),
 ) -> TestClient:
     app = FastAPI()
 
@@ -118,6 +119,7 @@ def _build_client(
             external_sign_in_resolver=lambda: {
                 "providers_path": "/external-sign-in/providers",
             },
+            date_time_format_reader=lambda _user: stored_date_time_format,
             api_error_response=_api_error_response,
         )
     )
@@ -158,6 +160,8 @@ def test_api_app_bootstrap_includes_user_permissions_and_memberships() -> None:
     assert body["auth"]["auth_source"] == "local"
     assert body["auth"]["user"]["username"] == "admin"
     assert body["auth"]["user"]["account_memberships"][0]["account_id"] == "acc_default"
+    assert body["auth"]["user"]["date_format"] == "MM/DD/YYYY"
+    assert body["auth"]["user"]["time_format"] == "12h"
     assert body["auth"]["permissions"]["can_mutate"] is True
     assert body["environment"]["edition"] == "private"
     assert body["feature_flags"]["identity_access"] is True
@@ -167,6 +171,14 @@ def test_api_app_bootstrap_includes_user_permissions_and_memberships() -> None:
     assert body["registered_pages"][0]["component_key"] == "private.fixture"
     assert body["registered_pages"][0]["auth_user_present"] is True
     assert body["shell_navigation"]["system"][0]["auth_user_present"] is True
+
+
+def test_api_app_bootstrap_gives_a_user_without_a_valid_choice_the_default_formats() -> None:
+    client = _build_client(with_auth=True, stored_date_time_format=("", "am/pm"))
+
+    user = client.get("/api/app/bootstrap").json()["auth"]["user"]
+
+    assert (user["date_format"], user["time_format"]) == ("D MMM YYYY", "24h")
 
 
 def test_api_app_bootstrap_exposes_bootstrap_required_flag() -> None:

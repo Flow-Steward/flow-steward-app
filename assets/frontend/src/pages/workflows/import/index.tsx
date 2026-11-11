@@ -6,6 +6,8 @@ import { CheckCircle2, FileText, Upload } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "@/components/ui/button";
+
 import { fetchProjectsList } from "@/pages/projects/list/api";
 
 import {
@@ -400,15 +402,17 @@ export function WorkflowsImportPage() {
                 value={targetWorkflowId}
               />
             </div>
-            <button
-              className="fs-button primary"
-              disabled={!bundleYaml.trim() || preflighting || applying}
+            <Button
+              busy={preflighting}
+              busyLabel={t("react.workflows.running_preflight", "Running preflight…")}
+              disabled={!bundleYaml.trim() || applying}
               onClick={() => ignoreAsyncResult(runPreflight())}
               type="button"
+              variant="primary"
             >
               <FileText aria-hidden="true" />
-              {preflighting ? t("react.workflows.running_preflight", "Running preflight…") : t("react.workflows.run_preflight", "Run preflight")}
-            </button>
+              {t("react.workflows.run_preflight", "Run preflight")}
+            </Button>
           </div>
         </div>
       </article>
@@ -531,15 +535,17 @@ export function WorkflowsImportPage() {
               the hint drops onto its own full-width line. */}
           <div className="fs-card-body">
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                className="fs-button primary"
-                disabled={!canApply}
+              <Button
+                busy={applying}
+                busyLabel={t("react.workflows.importing", "Importing…")}
+                disabled={!canApply && !applying}
                 onClick={() => ignoreAsyncResult(runApply())}
                 type="button"
+                variant="primary"
               >
                 <CheckCircle2 aria-hidden="true" />
-                {applying ? t("react.workflows.importing", "Importing…") : t("react.workflows.import_workflow", "Import workflow")}
-              </button>
+                {t("react.workflows.import_workflow", "Import workflow")}
+              </Button>
               {!requiredResolutionsReady && !canApply ? (
                 <span className="fs-field-helper error">
                   {t("react.workflows.select_required_dependency_resolutions_first", "Select required dependency resolutions first.")}</span>

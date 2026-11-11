@@ -30,6 +30,12 @@ from .ui_projection_helpers import (
 )
 
 
+def _iso_datetime(value: Any) -> str:
+    """The instant as ISO 8601 in UTC, so the interface draws it in the reader's own format."""
+    dt = _as_datetime(value)
+    return dt.astimezone(UTC).isoformat() if dt else ""
+
+
 def _entity_id(value: Any) -> str | None:
     normalized = str(value or "").strip()
     return normalized or None
@@ -140,6 +146,9 @@ def _build_hero_summary(
         summary = headline
         summary_key = headline_key
 
+    last_update_at = (
+        job.get("heartbeat_at") or runtime.get("heartbeat_at") or job.get("finished_at")
+    )
     return {
         "status_label": str(lifecycle_status.get("label") or meta["label"]),
         "status_tone": str(lifecycle_status.get("tone") or meta["tone"]),
@@ -159,6 +168,7 @@ def _build_hero_summary(
                 "label": "Started",
                 "label_key": "project_detail.jobs.grid.started",
                 "value": _format_datetime(job.get("started_at")),
+                "at": _iso_datetime(job.get("started_at")),
             },
             {
                 "id": "duration",
@@ -170,9 +180,8 @@ def _build_hero_summary(
                 "id": "last_update",
                 "label": "Last update",
                 "label_key": "react.jobs.last_update",
-                "value": _format_datetime(
-                    job.get("heartbeat_at") or runtime.get("heartbeat_at") or job.get("finished_at")
-                ),
+                "value": _format_datetime(last_update_at),
+                "at": _iso_datetime(last_update_at),
             },
         ],
     }

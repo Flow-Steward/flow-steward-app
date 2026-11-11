@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { DsAlert, DsDialog } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
 import { isWorkflowRevisionConflict, workflowChangeErrorIssues } from "@/pages/workflows/builder/api";
 import { changeIssueMessage, type WorkflowChangeSetController } from "@/pages/workflows/detail/detail-change-set";
@@ -121,6 +122,7 @@ export function WorkflowEditConflictDialog({
   const [result, setResult] = useState<EditSessionCompareResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const compareLoaderShown = useLoaderDelay(loading);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const requestRef = useRef(0);
@@ -248,12 +250,12 @@ export function WorkflowEditConflictDialog({
   if (stage === "confirm_mine") {
     footer = <>
       <Button disabled={busy} onClick={() => setStage("review")} type="button" variant="secondary">{t("common.cancel", "Cancel")}</Button>
-      <Button disabled={busy} onClick={() => void keepMine()} type="button">{t("react.workflows.edit_session_confirm_mine", "Replace with my version")}</Button>
+      <Button busy={busy} busyLabel={t("react.settings.saving", "Saving…")} onClick={() => void keepMine()} type="button">{t("react.workflows.edit_session_confirm_mine", "Replace with my version")}</Button>
     </>;
   } else if (stage === "confirm_server") {
     footer = <>
       <Button disabled={busy} onClick={() => setStage("review")} type="button" variant="secondary">{t("common.cancel", "Cancel")}</Button>
-      <Button disabled={busy} onClick={() => void acceptServer()} type="button">{t("react.workflows.edit_session_confirm_server", "Discard my copy")}</Button>
+      <Button busy={busy} busyLabel={t("react.settings.updating", "Updating…")} onClick={() => void acceptServer()} type="button">{t("react.workflows.edit_session_confirm_server", "Discard my copy")}</Button>
     </>;
   } else {
     footer = <>
@@ -281,7 +283,7 @@ export function WorkflowEditConflictDialog({
       <div className="space-y-4">
         {notice ? <DsAlert title={notice} /> : null}
         {error ? <DsAlert title={error} tone="danger" /> : null}
-        {loading ? <span className="fs-changelog__loading"><DsLoader variant="orbit-inline" />{t("react.workflows.edit_session_comparing", "Comparing versions…")}</span> : null}
+        {compareLoaderShown ? <span className="fs-changelog__loading"><DsLoader variant="orbit-inline" label={t("react.workflows.edit_session_comparing", "Comparing versions…")} /></span> : null}
         {stage === "confirm_mine" && revision ? (
           <DsAlert tone="warning" title={t("react.workflows.edit_session_confirm_mine_text", "Save your copy as the version after revision {revision}? Changes on the server that your copy does not have will be replaced. Whether the workflow is on, its notes and input secrets stay as they are.", { revision })} />
         ) : null}

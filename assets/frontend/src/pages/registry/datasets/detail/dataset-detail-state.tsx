@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useResourceSelection } from "../use-resource-selection";
 import { connectionSchemaSnapshot, datasetIntrospectionFailure } from "../dataset-page-helpers";
 import { DsAlert } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 
 import { useParams, useSearchParams } from "react-router";
 
@@ -662,16 +663,18 @@ export function useDatasetDetailState() {
     <div className="fs-field full">
       <div className="fs-footer-actions">
         <span className="fs-field-label">{t("react.registry.schema_resources", "Schema resources")}</span>
-        <button
-          className="fs-button"
-          disabled={!selectedConnection || introspectMutation.isPending}
+        <Button
+          busy={introspectMutation.isPending}
+          busyLabel={t("react.registry.refreshing_schema", "Refreshing schema…")}
+          disabled={!selectedConnection}
           onClick={() =>
             selectedConnection && introspectDetailConnection(selectedConnection.connection_id)
           }
           type="button"
+          variant="secondary"
         >
-          {introspectMutation.isPending ? t("react.registry.refreshing_schema", "Refreshing schema...") : t("react.registry.introspect_schema", "Introspect schema")}
-        </button>
+          {t("react.registry.introspect_schema", "Introspect schema")}
+        </Button>
       </div>
       <span className="fs-field-helper">
         {t("react.registry.refresh_schema_from_the_connection_then_choose_the_exact_resources_and_columns_this_dataset_may_expose", "Refresh schema from the connection, then choose the exact resources and columns this dataset may expose.")}</span>

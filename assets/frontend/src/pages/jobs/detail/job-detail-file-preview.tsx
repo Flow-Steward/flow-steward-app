@@ -11,8 +11,11 @@ import { useI18n } from "@/lib/i18n/useI18n";
  */
 
 import { useState } from "react";
+import { Info } from "lucide-react";
 
+import { DsLoader } from "@/components/shared/ds-loader";
 import { FileThumbnail } from "@/components/shared/file-thumbnail";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { fetchText } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
 import { sizeLabel } from "@/pages/extensions/marketplace-model";
@@ -66,12 +69,13 @@ function useTextPreview(previewUrl: string) {
 /** The text shown as characters: a Markdown or HTML file is never rendered. */
 function TextPreviewPanel({ name, state }: Readonly<{ name: string; state: TextPreviewState }>) {
   const { t } = useI18n();
+  const loaderShown = useLoaderDelay(state.status === "loading");
   if (state.status === "closed") return null;
   return (
     <div className="basis-full" data-testid="job-file-text-preview">
-      {state.status === "loading" ? <p className="text-xs fs-ink-tertiary">{t("react.jobs.file_preview_loading", "Loading preview...")}</p> : null}
+      {loaderShown ? <p className="text-xs fs-ink-tertiary"><DsLoader variant="orbit-inline" label={t("react.jobs.file_preview_loading", "Loading preview…")} /></p> : null}
       {state.status === "failed" ? <p className="text-xs fs-ink-danger" role="alert">{state.message}</p> : null}
-      {state.status === "ready" ? (
+      {state.status === "ready" && !loaderShown ? (
         <pre aria-label={name} className="mt-1 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded border border-subtle p-3 text-xs fs-surface-raised">
           {state.text}
         </pre>
@@ -97,7 +101,9 @@ export function JobFileItem({
     file.download_url || file.job_attachment_url || file.href || file.url,
   );
   const available = file.available !== false && Boolean(href);
-  const kind = available ? filePreviewKind(file) : "";
+  // Over the preview limit, known from the start: no preview offered, the reason shown at once.
+  const tooLarge = available && file.preview_too_large === true;
+  const kind = available && !tooLarge ? filePreviewKind(file) : "";
   const previewUrl = kind ? filePreviewUrl(href) : "";
   const textPreviewUrl = kind === "text" ? previewUrl : "";
   const textPreview = useTextPreview(textPreviewUrl);
@@ -114,18 +120,24 @@ export function JobFileItem({
           {name}
         </p>
         {details.length ? <p className="mt-0.5 text-xs fs-ink-tertiary">{details.join(" · ")}</p> : null}
+        {tooLarge ? (
+          <p className="job-file-note" data-testid="job-file-preview-too-large">
+            <Info aria-hidden="true" />
+            {t("react.jobs.file_preview_too_large", "This file is larger than the preview limit. Download the original to read it.")}
+          </p>
+        ) : null}
       </div>
       {textPreviewUrl ? (
-        <button aria-expanded={textPreview.state.status !== "closed"} className="fs-button secondary shrink-0" onClick={textPreview.toggle} type="button">
+        <button aria-expanded={textPreview.state.status !== "closed"} className="fs-button secondary sm shrink-0" onClick={textPreview.toggle} type="button">
           {textPreview.state.status === "closed" ? t("react.jobs.file_preview_view", "View") : t("react.jobs.file_preview_hide", "Hide")}
         </button>
       ) : null}
       {kind === "pdf" && previewUrl ? (
-        <a className="fs-button secondary shrink-0" href={previewUrl} rel="noopener noreferrer" target="_blank">
+        <a className="fs-button secondary sm shrink-0" href={previewUrl} rel="noopener noreferrer" target="_blank">
           {t("settings.common.open", "Open")} </a>
       ) : null}
       {available ? (
-        <a className="fs-button secondary shrink-0" download href={href}>
+        <a className="fs-button secondary sm shrink-0" download href={href}>
           {t("react.jobs.download", "Download")} </a>
       ) : (
         <span className="shrink-0 text-xs fs-ink-tertiary">{t("react.jobs.download_unavailable", "Download unavailable")}</span>

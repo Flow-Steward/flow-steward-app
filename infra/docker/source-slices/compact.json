@@ -855,6 +855,7 @@
     "core/application/security/observability_service.py",
     "core/application/security/policy_service.py",
     "core/application/settings/__init__.py",
+    "core/application/settings/date_time_format.py",
     "core/application/settings/embedding_credentials.py",
     "core/application/settings/embedding_repository.py",
     "core/application/settings/llm_capability_verifier.py",
@@ -1087,6 +1088,7 @@
     "core/application/workflows/workflow_secret_default_service.py",
     "core/application/workflows/workflow_start_runtime.py",
     "core/application/workflows/workflow_step_config_contracts.py",
+    "core/application/workflows/workflow_step_connection_binding.py",
     "core/application/workflows/workflow_step_kinds.py",
     "core/application/workflows/workflow_step_scope.py",
     "core/application/workflows/workflow_template_catalog.py",
@@ -1164,6 +1166,7 @@
     "core/entrypoints/api/auth_tokens_accounts.py",
     "core/entrypoints/api/auth_users.py",
     "core/entrypoints/api/auth_users_email_change.py",
+    "core/entrypoints/api/auth_users_preferences.py",
     "core/entrypoints/api/contracts_v2.py",
     "core/entrypoints/api/dashboard_metrics.py",
     "core/entrypoints/api/dependencies.py",
@@ -1843,6 +1846,10 @@
     },
     {
       "path": "db/migrations/20261104120000_secret_catalog_installation_wide.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261109150000_user_date_time_format.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

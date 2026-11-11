@@ -7,6 +7,7 @@ import { humanizeDiagnosticLabel } from "@/pages/jobs/detail/job-detail-core";
 import { mergeExecutionStepsChronologically } from "@/pages/jobs/detail/job-detail-execution";
 import { jobStatusGroup } from "@/pages/jobs/status-groups";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { formatTime, toDate } from "@/lib/time/date-time-format";
 
 type T = I18nContextValue["t"];
 type Entity = Record<string, unknown>;
@@ -317,17 +318,11 @@ export function useTestRunPassData(jobId: string, enabled: boolean) {
   };
 }
 
-/** "15:07:43" in the viewer's zone; `clock: "locale"` keeps the locale's 12/24-hour habit ("03:08:51 PM"). */
-export function runClockTime(value: unknown, timezone: string, clock: "24h" | "locale" = "24h"): string {
+/** "15:07:43" (or "3:07:43 PM") in the viewer's zone and their own 12/24-hour clock. */
+export function runClockTime(value: unknown, timezone: string): string {
   const raw = text(value);
-  if (!raw) return "";
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", ...(clock === "24h" ? { hour12: false } : {}), ...(timezone ? { timeZone: timezone } : {}) }).format(date);
-  } catch {
-    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", ...(clock === "24h" ? { hour12: false } : {}) }).format(date);
-  }
+  if (!raw || !toDate(raw)) return "";
+  return formatTime(raw, { seconds: true, ...(timezone ? { timezone } : {}) });
 }
 
 /** The output targets a step declares ("state.shipment"), from its contract preview. */

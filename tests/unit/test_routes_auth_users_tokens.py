@@ -45,6 +45,9 @@ class _Cursor:
         if "SELECT locale FROM users WHERE id =" in normalized:
             self._next_fetchone = ("ru",)
             return
+        if "SELECT date_format, time_format FROM users WHERE id =" in normalized:
+            self._next_fetchone = ("DD.MM.YYYY", "12h")
+            return
         if "SELECT COUNT(*) AS total" in normalized:
             self._next_fetchone = {"total": 2 if "WHERE deleted_at IS NULL" in normalized else 1}
             return
@@ -337,6 +340,8 @@ def test_auth_users_router_success_paths() -> None:
     assert me.status_code == 200
     assert me.json()["user"]["timezone"] == "Europe/Vilnius"
     assert me.json()["user"]["locale"] == ""
+    assert me.json()["user"]["date_format"] == "DD.MM.YYYY"
+    assert me.json()["user"]["time_format"] == "12h"
     assert me.json()["csrf_token"] == "csrf-1"
 
     profile = client.patch("/api/users/me/profile", json={"display_name": "Admin Updated"})
@@ -350,6 +355,16 @@ def test_auth_users_router_success_paths() -> None:
     locale_update = client.patch("/api/users/me/locale", json={"locale": "en-US"})
     assert locale_update.status_code == 200
     assert locale_update.json()["locale"] == "en"
+
+    format_update = client.patch(
+        "/api/users/me/date-time-format", json={"date_format": "MM/DD/YYYY", "time_format": "12h"}
+    )
+    assert format_update.status_code == 200
+    assert ("MM/DD/YYYY", "12h", "1") in cursor.executed_params
+    # The answer is what the store holds after the save.
+    assert format_update.json()["date_format"] == "DD.MM.YYYY"
+    bad_format = client.patch("/api/users/me/date-time-format", json={"date_format": "%d.%m"})
+    assert bad_format.status_code == 422
 
     auth_user["timezone"] = ""
     detect = client.post("/api/users/me/detect-timezone", json={"timezone": "Europe/Vilnius"})

@@ -182,7 +182,7 @@ describe("ProjectNotificationOverview", () => {
     mockedFetchOverview.mockReturnValue(new Promise((done) => { resolve = done; }));
     renderOverview();
 
-    expect(screen.getByText("Loading automatic notifications…")).toBeInTheDocument();
+    expect(await screen.findByText("Loading automatic notifications…")).toBeInTheDocument();
     expect(screen.queryByText(/No automatic notifications are set up/)).not.toBeInTheDocument();
     resolve([]);
     expect(await screen.findByText(/No automatic notifications are set up/)).toBeInTheDocument();

@@ -16,6 +16,23 @@ import {
 
 import "@/pages/extensions/extension-manifest.css";
 
+/** Names one manifest control, so the busy state can tell which one was pressed. */
+export function manifestActionKey(...parts: unknown[]): string {
+  return parts.map((part) => stringFrom(part)).join(":");
+}
+
+/** True for the pressed control while its action runs. */
+export function manifestActionBusy(context: ManifestRenderContext, key: string): boolean {
+  return context.busy && context.busyAction === key;
+}
+
+/** Starts a control's action unless another one is running; siblings keep their look. */
+export function pressManifestAction(context: ManifestRenderContext, key: string, run: () => void) {
+  if (context.busy) return;
+  context.onActionPress?.(key);
+  run();
+}
+
 /** The account whose Disconnect is waiting on its inline confirmation. */
 export type PendingConnectionDisconnect = {
   connectionId: string;
@@ -24,7 +41,12 @@ export type PendingConnectionDisconnect = {
 };
 
 export type ManifestRenderContext = {
+  /** An action of this extension is running: every manifest control ignores presses. */
   busy: boolean;
+  /** While `busy`, the key (`manifestActionKey`) of the pressed control: only it shows busy. */
+  busyAction?: string;
+  /** Records which control was pressed, just before its action starts. */
+  onActionPress?: (key: string) => void;
   /** The platform's translator for its own labels; extension text arrives translated. */
   t?: (key: string, defaultText?: string) => string;
   /** Switch to `pageId` and focus the component anchored as `anchorId` there. */

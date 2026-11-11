@@ -160,6 +160,8 @@ def _canonical_column_rows() -> list[tuple[str, str, str, bool, str | None]]:
             True,
             "'00000000-0000-0000-0000-000000000002'::uuid",
         ),
+        ("users", "date_format", "character varying(16)", False, None),
+        ("users", "time_format", "character varying(8)", False, None),
         ("user_account_memberships", "id", "uuid", True, "gen_random_uuid()"),
         ("user_account_memberships", "user_id", "uuid", True, None),
         ("user_account_memberships", "account_id", "uuid", True, None),

@@ -90,7 +90,7 @@ it.each(["connectors", "data-connections", "failed-connectors"])("waits for inst
   await userEvent.click(add);
   expect(screen.queryByRole("dialog", { name: "Add query" })).not.toBeInTheDocument();
   if (delayed === "failed-connectors") await userEvent.click(await screen.findByRole("button", { name: "Retry connection details" }));
-  else { expect(screen.getByText("Loading connection details…")).toBeVisible(); release(); }
+  else { expect(await screen.findByText("Loading connection details…")).toBeVisible(); release(); }
   await waitFor(() => expect(add).toBeEnabled());
   await userEvent.click(add);
   expect(await screen.findByLabelText("JSON query definition")).toBeVisible();

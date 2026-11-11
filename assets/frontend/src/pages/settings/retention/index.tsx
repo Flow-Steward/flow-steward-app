@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DsAlert, DsCard } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import {
   fetchRetentionSettingsRecord,
   saveRetentionSettingsRecord,
@@ -136,14 +137,16 @@ export function SettingsRetentionPage() {
         description={t("react.settings.configure_cleanup_windows_for_action_logs_job_logs_and_soft_deleted_items_and_how_many_revisions_each_item_kee", "Configure cleanup windows for action logs, job logs, and soft-deleted items, and how many revisions each item keeps. Environment defaults: action logs {value1}d, job logs {value2}d, trash {value3}d, terminal job checkpoints {value4}d, revisions kept per item {value5}.", { value1: String(defaultActionLogs), value2: String(defaultJobLogs), value3: String(defaultTrash), value4: String(defaultTerminalJobCheckpoints), value5: String(defaultRevisionsKeep) })}
         footer={
           <div className="fs-footer-actions">
-            <button
-              className="fs-button primary"
-              disabled={saving || retentionQuery.isLoading}
+            <Button
+              busy={saving}
+              busyLabel={t("react.settings.saving", "Saving…")}
+              disabled={retentionQuery.isLoading}
               form="retention-settings-form"
               type="submit"
+              variant="primary"
             >
-              {saving ? t("project_edit.security.saving", "Saving...") : t("react.settings.save_retention_settings", "Save retention settings")}
-            </button>
+              {t("react.settings.save_retention_settings", "Save retention settings")}
+            </Button>
           </div>
         }
         title={t("react.settings.retention_policy", "Retention policy")}

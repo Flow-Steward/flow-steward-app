@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useI18n } from "@/lib/i18n/useI18n";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { fetchWorkflowLinkedProjects } from "@/pages/workflows/shared/project-context";
 import { fetchProjectScheduledJobs } from "@/pages/projects/scheduled-jobs/api";
 
@@ -11,8 +13,10 @@ export function CanvasScheduleSummary({ workflowId, projectHint = "" }: Readonly
   const project = choices.find((choice) => choice.id === projectHint) || (!projectHint && choices.length === 1 ? choices[0] : undefined);
   const projectId = project?.id || "";
   const schedules = useQuery({ queryKey: ["projects", "scheduled-jobs", projectId], queryFn: () => fetchProjectScheduledJobs(projectId), enabled: Boolean(projectId), retry: false });
+  const loading = projects.isPending || Boolean(projectId && schedules.isPending);
+  const loaderShown = useLoaderDelay(loading);
   if (projects.isError || schedules.isError) return <p>{t("react.workflows.schedules_could_not_be_loaded", "Schedules could not be loaded")}</p>;
-  if (projects.isPending || (projectId && schedules.isPending)) return <p>{t("react.workflows.loading_schedules", "Loading schedules…")}</p>;
+  if (loading || loaderShown) return loaderShown ? <p><DsLoader variant="orbit-inline" label={t("react.workflows.loading_schedules", "Loading schedules…")} /></p> : null;
   if (!projectId) return <p>{t("react.workflows.choose_schedule_project_summary", "Choose a linked project in Schedules to view its schedule.")}</p>;
   const jobs = (schedules.data?.jobs || []).filter((job) => job.workflow_id === workflowId);
   return <div className="space-y-1">

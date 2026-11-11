@@ -1,4 +1,4 @@
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
+import { LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
 import type * as ProjectContext from "@/pages/workflows/shared/project-context";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -125,7 +125,7 @@ describe("Workflow overview Hooks section", () => {
       "href",
       "/registry/workflows/wf/builder?drawer=step&step_id=before_finish&project_id=p-1",
     );
-    expect(mockedHooks).toHaveBeenCalledWith("p-1", "wf", { presentation: "background" });
+    expect(mockedHooks).toHaveBeenCalledWith("p-1", "wf");
   });
 
   it("counts the steps the project keeps in a hook, never naming the workflow that holds them", async () => {
@@ -252,20 +252,20 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
   });
   vi.useFakeTimers();
   const view = renderPage("/registry/workflows/wf?tab=hooks&account_id=account-7&from=overview");
-  const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
   try {
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     expect(screen.getByText(author.display_name)).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Projects" }); link.focus();
     async function assertUsable(keepFocus = true) {
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Projects" })).toBe(link);
       if (keepFocus) expect(link).toHaveFocus();
     }
     await assertUsable(); expect(requested).toContain("/api/workflows/wf/linked-projects");
     // Finding both linked projects must not select either without a user choice.
     await act(async () => { releaseLinks(); await vi.advanceTimersByTimeAsync(0); });
+    // The linked-projects line loader was painted, so it holds its minimum time before the picker replaces it.
+    await act(async () => { await vi.advanceTimersByTimeAsync(LOADER_MIN_SHOWN_MS); });
     await assertUsable();
     expect(requested.filter((path) => /^\/api\/projects\/[^/]+\/workflows$/.test(path))).toEqual([]);
     expect(requested.filter((path) => path.endsWith("/hooks"))).toEqual([]);
@@ -311,7 +311,7 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
     } finally { unmountReload(); }
     expect(requested.some((path) => /export-policy|\/dag|canvas/.test(path))).toBe(false);
   } finally {
-    view.unmount(); unmountIndicator(); releaseLinks(); waiting.forEach((resolve) => resolve(response({}))); waiting.clear();
+    view.unmount(); releaseLinks(); waiting.forEach((resolve) => resolve(response({}))); waiting.clear();
     if (vi.isFakeTimers()) {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers();

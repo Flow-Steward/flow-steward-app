@@ -1491,6 +1491,15 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
       -e "FS_BOUNDARY_TRACKED_FILES_MANIFEST=${boundary_manifest_container}"
     )
 
+    # The checkout reaches fs-audit as a bind mount. Docker Desktop's VM keeps what it
+    # once saw of a mounted folder, so without this a gate in a clone that was gated
+    # before could miss a new file, read a renamed-away one as NUL bytes, or read a
+    # rewritten one truncated. After the last host write above, nothing on the host
+    # changes the tree for the rest of this run. A stale view it cannot repair stops
+    # the gate here: a result about files the checks could not see is not evidence.
+    "${SCRIPT_DIR}/docker_desktop_file_cache.sh" refresh "${FS_TEST_AUDIT_IMAGE_ID}" \
+      "${ROOT_DIR}/logs/quality" || exit $?
+
     needs_test_infra=0
     if [[ ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
       needs_test_infra=1

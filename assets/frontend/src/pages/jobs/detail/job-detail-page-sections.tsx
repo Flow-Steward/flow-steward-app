@@ -3,14 +3,20 @@ import { StepInspectorPanel } from "./job-step-inspector-panel";
 import { ReadableDataFields, ReadableFileList } from "./readable-data-fields";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
-import { createElement, useEffect, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { Link } from "react-router";
 
-import { DsAlert, DsCard, DsDrawer, DsValueChip } from "@/components/shared/design-system";
-import { jobStatusGroup } from "@/pages/jobs/status-groups";
+import { ChevronRight } from "lucide-react";
+import { DsAlert, DsBadge, DsCard, DsDrawer, DsValueChip } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
+import { jobStatusGroup, jobStatusGroupTone } from "@/pages/jobs/status-groups";
+import "./job-detail.css";
 import {
   type ApprovalDecisionPayload,
   type JobDefinitionPayload,
+  type JobExecutionSnapshot,
   type JobExecutionStepsPage,
   type JobDetail,
   type JobFailureSummary,
@@ -38,7 +44,7 @@ import {
   type CanonicalJobDetailView,
 } from "@/pages/jobs/detail/job-detail-view-model";
 import { JobDefinitionCanvas } from "./job-definition-canvas";
-import { executionStepKey, executionStepStatusLabel, isRunningStep } from "@/pages/jobs/detail/job-detail-execution";
+import { executionStepBadgeLabel, executionStepKey, executionStepTone, formatStepDuration, isRunningStep } from "@/pages/jobs/detail/job-detail-execution";
 import { StepLiveActivity, StepLiveFiles } from "@/pages/jobs/detail/job-detail-step-live";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
@@ -66,6 +72,8 @@ export type JobRunDefinitionView = {
   activeSteps: Entity[];
   definition: JobDefinitionPayload | undefined;
   executionPage?: JobExecutionStepsPage;
+  /** The page's own read of the run's step history, when it keeps one; the canvas then reads none. */
+  executionSnapshot?: JobExecutionSnapshot | null;
   definitionError: boolean;
   workflowWait: Entity;
 };
@@ -118,6 +126,18 @@ type JobDetailPrimaryContentProps = {
   userTimezone: string;
 };
 
+/** The revision line with its digest set verbatim in code, whatever order a language puts them in. */
+function DefinitionRevisionText({ digest, revision }: Readonly<{ digest: string; revision: string }>) {
+  const { t } = useI18n();
+  const text = t("react.jobs.executed_definition_revision_value0_digest_value1", "Executed definition: revision {value0} · {value1}", {
+    value0: revision,
+    value1: digest,
+  });
+  const at = digest ? text.lastIndexOf(digest) : -1;
+  if (at < 0) return <span>{text}</span>;
+  return <span>{text.slice(0, at)}<code>{digest}</code>{text.slice(at + digest.length)}</span>;
+}
+
 function JobRunDefinitionFacts({
   runDefinition,
   showDefinitionCanvas = true,
@@ -135,22 +155,19 @@ function JobRunDefinitionFacts({
     .map((step) => step.for_each_progress)
     .find((progress): progress is Record<string, unknown> => Boolean(progress) && typeof progress === "object");
   const currentWorkflowLink = workflowId ? (
-    <Link className="fs-link text-sm" data-testid="job-current-workflow-link" to={workflowPath(workflowId)}>
+    <Link className="fs-link job-link" data-testid="job-current-workflow-link" to={workflowPath(workflowId)}>
       {t("react.jobs.open_the_current_workflow", "Open the current workflow")}
     </Link>
   ) : null;
   return (
     <div className="mt-3 space-y-2" data-testid="job-run-definition">
       {definition?.available ? (
-        <p className="text-sm fs-ink-secondary" data-testid="job-run-definition-revision">
-          {t("react.jobs.executed_definition_revision_value0_digest_value1", "Executed definition: revision {value0} · {value1}", {
-            value0: String(definition.revision ?? ""),
-            value1: firstReadableText(definition.digest).slice(0, 12),
-          })}{" "}
+        <p className="job-definition-line" data-testid="job-run-definition-revision">
+          <DefinitionRevisionText digest={firstReadableText(definition.digest).slice(0, 12)} revision={String(definition.revision ?? "")} />
           {currentWorkflowLink}
         </p>
       ) : null}
-      {showDefinitionCanvas && definition?.available && !definitionError ? <JobDefinitionCanvas key={definition.snapshot_id || definition.digest} definition={definition} jobId={runDefinition.jobId} projectId={runDefinition.projectId} executionPage={runDefinition.executionPage} /> : null}
+      {showDefinitionCanvas && definition?.available && !definitionError ? <JobDefinitionCanvas key={definition.snapshot_id || definition.digest} definition={definition} jobId={runDefinition.jobId} projectId={runDefinition.projectId} executionPage={runDefinition.executionPage} executionSnapshot={runDefinition.executionSnapshot} /> : null}
       {definition && !definition.available ? (
         <div data-testid="job-run-definition-unavailable">
           <DsAlert tone="warning" title={t("react.jobs.definition_snapshot_unavailable", "Definition snapshot unavailable")}>
@@ -279,16 +296,15 @@ function JobStepFailureAlert({
       ? t("react.jobs.step_value1_failed", "Step “{value1}” failed", { value1: stepName })
       : t("react.jobs.the_run_stopped_on_an_error", "The run stopped on an error");
   return (
-    <div data-testid="job-step-failure">
+    <div className="job-step-failure" data-testid="job-step-failure">
       <DsAlert title={title} tone={isDesignedStop ? "warning" : "danger"}>
-        <p>
+        <p className="job-step-failure-text">
           {code ? <DsValueChip>{code}</DsValueChip> : null}
-          {code && message ? " " : null}
-          {message}
+          {message ? <span>{message}</span> : null}
         </p>
         {stepIndex >= 0 ? (
           <button
-            className="fs-link"
+            className="fs-link job-link"
             onClick={() => setViewState((current) => ({ ...current, selectedStepIndex: stepIndex, selectedStepKey: executionStepKey(executionSteps[stepIndex], stepIndex), stepSheetOpen: true }))}
             type="button"
           >
@@ -299,6 +315,9 @@ function JobStepFailureAlert({
     </div>
   );
 }
+
+/** Overview facts that are dates and durations: the data face, with even figures. */
+const NUMERIC_FACT_IDS = new Set(["started", "duration", "last_update"]);
 
 function JobRunOverviewCard(props: Readonly<JobDetailPrimaryContentProps>) {
   const {
@@ -312,13 +331,14 @@ function JobRunOverviewCard(props: Readonly<JobDetailPrimaryContentProps>) {
     userTimezone,
   } = props;
   const { t } = useI18n();
-  const overviewFacts = [
-    { label: t("account_settings.card.status", "Status"), value: statusLabel },
+  const overviewFacts: Entity[] = [
+    { id: "status", label: t("account_settings.card.status", "Status"), value: statusLabel },
     ...heroFacts.filter(
       (fact) =>
         firstStringFromUnknownValue([fact.label]).trim().toLowerCase() !== "status",
     ),
   ].slice(0, 5);
+  const statusTone = jobStatusGroupTone(jobStatusGroup(canonicalDetail.statusCode));
 
   return (
     <div data-testid="job-run-overview">
@@ -335,21 +355,18 @@ function JobRunOverviewCard(props: Readonly<JobDetailPrimaryContentProps>) {
       >
         <JobStepFailureAlert {...props} />
         {overviewFacts.length ? (
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+          <dl className="job-facts job-facts--overview">
             {overviewFacts.map((fact, index) => (
-              <div
-                className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2"
-                key={firstStringFromUnknownValue([fact.label, index]) + "-" + index}
-              >
-                <p className="text-xs uppercase tracking-[0.14em] fs-ink-tertiary">
-                  {firstStringFromUnknownValue([fact.label, t("react.jobs.fact", "Fact")])}
-                </p>
-                <p className="mt-1 break-words text-sm fs-ink-primary">
-                  {normalizeValue(fact.value)}
-                </p>
+              <div className="job-fact" key={firstStringFromUnknownValue([fact.label, index]) + "-" + index}>
+                <dt>{firstStringFromUnknownValue([fact.label, t("react.jobs.fact", "Fact")])}</dt>
+                {fact.id === "status" ? (
+                  <dd><DsBadge tone={statusTone}>{normalizeValue(fact.value)}</DsBadge></dd>
+                ) : (
+                  <dd className={NUMERIC_FACT_IDS.has(firstReadableText(fact.id)) ? "is-number" : undefined}>{firstReadableText(fact.at) ? normalizeTimestamp(fact.at, userTimezone) : normalizeValue(fact.value)}</dd>
+                )}
               </div>
             ))}
-          </div>
+          </dl>
         ) : null}
         {runDefinition ? <JobRunDefinitionFacts runDefinition={runDefinition} showDefinitionCanvas={showDefinitionCanvas} userTimezone={userTimezone} /> : null}
       </DsCard>
@@ -426,7 +443,22 @@ function JobInputsCard({
   );
 }
 
+/** "…failed via extension_action: connection_resolution_failed:…": the trailing error code, set apart verbatim. */
+const TRAILING_ERROR_CODE = /^(.*?:)\s*([a-z0-9_.-]+(?::[A-Za-z0-9_.-]+)+)$/su;
+
+function FailureMessage({ text }: Readonly<{ text: string }>) {
+  const match = TRAILING_ERROR_CODE.exec(text);
+  if (!match) return <>{text}</>;
+  return <>{match[1]} <code>{match[2]}</code></>;
+}
+
+function isEmptyFact(value: unknown): boolean {
+  const text = firstStringFromUnknownValue([value]).trim();
+  return !text || text === "—" || text === "-";
+}
+
 function JobFailureCard({
+  canonicalDetail,
   failureDiagnosticIds,
   failureEvidence,
   failureSummary,
@@ -442,90 +474,88 @@ function JobFailureCard({
     failureSummary.next_action,
     failureSummary.remediation?.summary,
   );
-  const facts = [
-    [
-      "Type",
-      humanizeDiagnosticLabel(
-        firstStringFromUnknownValue([failureSummary.kind, "unknown"]),
-      ),
-    ],
-    [
-      "Status",
-      firstReadableText(
-        failureSummary.status,
-        statusLabel,
-        humanizeDiagnosticLabel(
-          firstStringFromUnknownValue([statusText, "unknown"]),
-        ),
-      ),
-    ],
-    ["Retryable", retryableLabel(failureSummary.retryable, t)],
+  const failureStatus = firstReadableText(failureSummary.status);
+  const statusGroup = jobStatusGroup(failureStatus) ?? jobStatusGroup(canonicalDetail.statusCode);
+  const status = failureStatus
+    ? humanizeDiagnosticLabel(failureStatus)
+    : firstReadableText(statusLabel, humanizeDiagnosticLabel(firstStringFromUnknownValue([statusText, "unknown"])));
+  const facts: Array<{ label: string; value: ReactNode }> = [
+    {
+      label: t("events.fields.type", "Type"),
+      value: humanizeDiagnosticLabel(firstStringFromUnknownValue([failureSummary.kind, "unknown"])),
+    },
+    { label: t("account_settings.card.status", "Status"), value: <DsBadge tone={jobStatusGroupTone(statusGroup)}>{status}</DsBadge> },
+    { label: "Retryable", value: retryableLabel(failureSummary.retryable, t) },
   ];
+  // The status is already a fact of its own; evidence rows repeat it.
+  const evidence = failureEvidence
+    .filter((row) => firstStringFromUnknownValue([row.label]).trim().toLowerCase() !== "status")
+    .slice(0, 6);
+  const message = firstStringFromUnknownValue([
+    failureSummary.detail,
+    failureSummary.summary,
+    t("react.jobs.a_terminal_failure_was_recorded", "A terminal failure was recorded."),
+  ]);
 
   return (
     <DsCard
-      className="fs-card-danger"
-      description={firstStringFromUnknownValue([
-        failureSummary.detail,
-        failureSummary.summary,
-        t("react.jobs.a_terminal_failure_was_recorded", "A terminal failure was recorded."),
-      ])}
+      className="fs-card-danger job-failure-card"
+      description={<span className="job-failure-message"><FailureMessage text={message} /></span>}
       testId="job-failure-summary"
       title={firstStringFromUnknownValue([failureSummary.title, t("react.jobs.failure_summary", "Failure summary")])}
     >
-      <div className="space-y-3 text-sm">
-        <div className="grid gap-2 md:grid-cols-3">
-          {facts.map(([label, value]) => (
-            <div
-              className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2"
-              key={label}
-            >
-              <p className="text-xs uppercase tracking-[0.14em] fs-ink-tertiary">
-                {label}
-              </p>
-              <p className="mt-1 fs-ink-primary">{value}</p>
-            </div>
-          ))}
-        </div>
+      <dl className="job-facts job-facts--three">
+        {facts.map((fact) => (
+          <div className="job-fact" key={fact.label}>
+            <dt>{fact.label}</dt>
+            <dd>{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
 
-        {failureEvidence.length ? (
-          <div className="grid gap-2 md:grid-cols-2">
-            {failureEvidence.slice(0, 6).map((row, index) => (
-              <div
-                className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2"
-                key={firstStringFromUnknownValue([row.label, index]) + "-" + index}
-              >
-                <p className="text-xs uppercase tracking-[0.14em] fs-ink-tertiary">
-                  {firstStringFromUnknownValue([row.label, t("jobs.detail.diagnostics.evidence", "Evidence")])}
-                </p>
-                <p className="mt-1 fs-ink-primary">{normalizeValue(row.value)}</p>
+      {evidence.length ? (
+        <dl className="job-facts job-facts--two">
+          {evidence.map((row, index) => {
+            const label = firstStringFromUnknownValue([row.label, t("jobs.detail.diagnostics.evidence", "Evidence")]);
+            const empty = isEmptyFact(row.value);
+            return (
+              <div className="job-fact" key={label + "-" + index}>
+                <dt>{label}</dt>
+                <dd className={empty ? "is-empty" : undefined}>
+                  {empty
+                    ? label.trim().toLowerCase() === "evidence"
+                      ? t("react.jobs.no_evidence_recorded", "No evidence recorded")
+                      : t("react.jobs.not_recorded", "Not recorded")
+                    : normalizeValue(row.value)}
+                </dd>
               </div>
-            ))}
-          </div>
-        ) : null}
+            );
+          })}
+        </dl>
+      ) : null}
 
-        {nextAction ? (
-          <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2">
-            <p className="text-xs uppercase tracking-[0.14em] fs-ink-tertiary">
-              {t("jobs.detail.next_action.title", "Next action")} </p>
-            <p className="mt-1 fs-ink-primary">{nextAction}</p>
-          </div>
-        ) : null}
-
-        {Object.keys(failureDiagnosticIds).length ? (
-          <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2">
-            <p className="text-xs uppercase tracking-[0.14em] fs-ink-tertiary">
-              {t("react.jobs.diagnostic_ids", "Diagnostic IDs")} </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {Object.entries(failureDiagnosticIds).map(([key, value]) => (
-                <span className="fs-badge ink" key={key}>
-                  {humanizeDiagnosticLabel(key)}: {stringFromUnknownValue(value)}
-                </span>
-              ))}
+      {nextAction || Object.keys(failureDiagnosticIds).length ? (
+        <dl className="job-facts">
+          {nextAction ? (
+            <div className="job-fact">
+              <dt>{t("jobs.detail.next_action.title", "Next action")}</dt>
+              <dd>{nextAction}</dd>
             </div>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+          {Object.keys(failureDiagnosticIds).length ? (
+            <div className="job-fact">
+              <dt>{t("react.jobs.diagnostic_ids", "Diagnostic IDs")}</dt>
+              <dd className="job-diagnostic-ids">
+                {Object.entries(failureDiagnosticIds).map(([key, value]) => (
+                  <span className="fs-badge" key={key}>
+                    {humanizeDiagnosticLabel(key)}: <code>{stringFromUnknownValue(value)}</code>
+                  </span>
+                ))}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
     </DsCard>
   );
 }
@@ -568,6 +598,13 @@ function JobReviewCard({
   );
 }
 
+/** A running step reads Running where a finished one shows its outcome; the round Loader joins after the delay. */
+function JobStepRunningStatus() {
+  const { t } = useI18n();
+  const loaderShown = useLoaderDelay();
+  return <span className="job-step-running">{loaderShown ? <DsLoader variant="orbit-inline" /> : null}{t("react.workflows.run_bar_running", "Running")}</span>;
+}
+
 function JobExecutionWaterfall({
   executionSteps,
   hasMoreExecutionSteps,
@@ -578,6 +615,7 @@ function JobExecutionWaterfall({
 }: Readonly<JobDetailPrimaryContentProps>) {
   const { t } = useI18n();
   const hasRunningStep = executionSteps.some(isRunningStep);
+  const historyLoaderShown = useLoaderDelay(isLoadingMoreExecutionSteps && !executionSteps.length);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!hasRunningStep) {
@@ -591,22 +629,23 @@ function JobExecutionWaterfall({
       className="min-w-0"
       description={t("react.jobs.select_a_step_to_inspect_runtime_details_and_context", "Select a step to inspect runtime details and context.")}
       testId="job-execution-waterfall"
-      title={t("jobs.detail.execution_waterfall", "Execution waterfall")}
+      title={t("jobs.detail.execution_waterfall", "Execution steps")}
     >
-      {createElement(
-        "platform-execution-waterfall",
-        {},
+      {/* No legacy web-component wrapper: its shadow shell drew a second frame and an empty header above the list. */}
         <div className="space-y-2">
           {hasMoreExecutionSteps ? (
-            <button
-              className="fs-button secondary w-full"
-              disabled={isLoadingMoreExecutionSteps}
+            <Button
+              busy={isLoadingMoreExecutionSteps}
+              busyLabel={t("react.jobs.loading_earlier_steps", "Loading earlier steps…")}
+              className="w-full"
               onClick={() => void loadMoreExecutionSteps()}
               type="button"
+              variant="secondary"
             >
-              {isLoadingMoreExecutionSteps ? t("react.jobs.loading_earlier_steps", "Loading earlier steps…") : t("react.jobs.load_earlier_steps", "Load earlier steps")}
-            </button>
+              {t("react.jobs.load_earlier_steps", "Load earlier steps")}
+            </Button>
           ) : null}
+          <ol className="job-steps">
           {executionSteps.map((step, index) => {
             const isActive = index === selectedStepIndex;
             const summary = firstReadableText(
@@ -615,20 +654,12 @@ function JobExecutionWaterfall({
               step.description,
             );
             const liveFiles = isRunningStep(step) && Array.isArray(step.live_files) ? (step.live_files as Entity[]) : [];
+            const duration = formatStepDuration(firstReadableText(step.duration_display, step.duration_ms, step.elapsed_ms));
             return (
-              <div
-                key={executionStepKey(step, index)}
-              >
+              <li key={executionStepKey(step, index)}>
               <button
                 aria-pressed={isActive}
-                className={[
-                  "w-full min-w-0 fs-surface-radius border px-3 py-2 text-left text-sm transition",
-                  isActive
-                    ? "border-selected fs-surface-selected fs-ink-brand"
-                    : "border-subtle fs-surface-inset fs-ink-primary hover:border-selected",
-                ]
-                  .map((value) => stringFromUnknownValue(value))
-                  .join(" ")}
+                className="job-step"
                 onClick={() =>
                   setViewState((current) => ({
                     ...current,
@@ -639,8 +670,8 @@ function JobExecutionWaterfall({
                 }
                 type="button"
               >
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                  <span className="min-w-0 break-words font-medium">
+                <span className="job-step-text">
+                  <span className="job-step-title">
                     {firstStringFromUnknownValue([
                       step.title,
                       step.display_name,
@@ -648,37 +679,39 @@ function JobExecutionWaterfall({
                       t("react.jobs.step", "Step ") + (index + 1),
                     ])}
                   </span>
-                  <span className="shrink-0 text-xs fs-ink-tertiary">
-                    {executionStepStatusLabel(step, t)}
-                  </span>
-                </div>
-                {isRunningStep(step) ? (
-                  <StepLiveActivity now={now} step={step} />
-                ) : summary ? (
-                  <p className="mt-1 break-words text-xs fs-ink-tertiary">
-                    {summary}
-                  </p>
+                  {isRunningStep(step) ? (
+                    <StepLiveActivity now={now} step={step} />
+                  ) : summary ? (
+                    <span className="job-step-meta">{summary}</span>
+                  ) : null}
+                </span>
+                {isRunningStep(step) ? <JobStepRunningStatus /> : <DsBadge tone={executionStepTone(step)}>{executionStepBadgeLabel(step, t)}</DsBadge>}
+                {duration ? (
+                  <span className="job-step-time" title={t("jobs.columns.duration", "Duration")}>{duration}</span>
                 ) : null}
+                <ChevronRight aria-hidden="true" className="job-step-chevron" />
               </button>
               <StepLiveFiles files={liveFiles} />
-              </div>
+              </li>
             );
           })}
-          {!executionSteps.length ? (
+          </ol>
+          {!executionSteps.length && historyLoaderShown ? (
+            <DsLoader variant="wide-block" label={t("react.jobs.loading_execution_history", "Loading execution history…")} />
+          ) : null}
+          {!executionSteps.length && !isLoadingMoreExecutionSteps && !historyLoaderShown ? (
             <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-secondary">
-              {isLoadingMoreExecutionSteps
-                ? t("react.jobs.loading_execution_history", "Loading execution history…")
-                : t("react.jobs.no_execution_steps_are_available_from_the_runtime_feed_yet", "No execution steps are available from the runtime feed yet.")}
+              {t("react.jobs.no_execution_steps_are_available_from_the_runtime_feed_yet", "No execution steps are available from the runtime feed yet.")}
             </div>
           ) : null}
-        </div>,
-      )}
+        </div>
     </DsCard>
   );
 }
 
 function JobStepInspectorDrawer({
   canonicalDetail,
+  userTimezone,
   selectedStep,
   setViewState,
   stepSheetOpen,
@@ -705,6 +738,7 @@ function JobStepInspectorDrawer({
         jobId={canonicalDetail.jobId}
         selectedStep={selectedStep}
         testId="job-step-inspector"
+        timezone={userTimezone}
       />
     </DsDrawer>
   );
@@ -771,19 +805,12 @@ function JobUsageBreakdownCard({
   const { t } = useI18n();
   return (
     <DsCard testId="job-usage-breakdown" title={t("jobs.detail.usage.title", "Model usage")}>
-      <div className="space-y-2">
-        {createElement(
-          "platform-usage-breakdown",
-          {},
-          <>
-            <div className="flex flex-wrap items-center gap-2 fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-primary">
-              <span>
-                {t("react.jobs.tokens", "Tokens:")} {firstStringFromUnknownValue([totalTokensValue, 0])}
-              </span>
-
+          <div className="grid gap-2">
+            <div className="job-usage">
+              {t("react.jobs.tokens", "Tokens:")}{" "}
+              <span className="job-number">{firstStringFromUnknownValue([totalTokensValue, 0])}</span>
             </div>
-            <div className="mt-2 space-y-2">
-              {usageRows.map((row, index) => (
+            {usageRows.map((row, index) => (
                 <div
                   className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-xs fs-ink-primary"
                   key={
@@ -818,13 +845,11 @@ function JobUsageBreakdownCard({
                 </div>
               ))}
               {!usageRows.length ? (
-                <div className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-secondary">
-                  {t("react.jobs.no_model_usage_recorded_for_this_job", "No model usage recorded for this job.")} </div>
+                <div className="job-usage job-usage--empty">
+                  {t("react.jobs.no_model_usage_recorded_for_this_job", "No model usage recorded for this job.")}
+                </div>
               ) : null}
-            </div>
-          </>,
-        )}
-      </div>
+          </div>
     </DsCard>
   );
 }
@@ -866,7 +891,7 @@ function EmptyJobDetailPrimaryContent() {
         testId="job-next-action"
         title={t("jobs.detail.next_action.title", "Next action")}
       />
-      <DsCard testId="job-execution-waterfall" title={t("jobs.detail.execution_waterfall", "Execution waterfall")}>
+      <DsCard testId="job-execution-waterfall" title={t("jobs.detail.execution_waterfall", "Execution steps")}>
         <p className="fs-empty-copy">{t("react.jobs.no_execution_steps_are_available", "No execution steps are available.")}</p>
       </DsCard>
       <DsCard testId="job-step-inspector" title={t("react.jobs.step_inspector", "Step inspector")}>

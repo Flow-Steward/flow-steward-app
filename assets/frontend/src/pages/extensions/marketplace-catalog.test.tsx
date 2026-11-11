@@ -726,8 +726,11 @@ test.each<[ExtensionCatalogInstallState["phase"], string]>([
     installStateById: { "acme.crm": { phase, status: "" } },
   });
 
-  const button = await screen.findByRole("button", { name: label });
-  expect(button).toBeDisabled();
+  // Installing is busy (focus kept, presses ignored, label after the loader delay);
+  // awaiting approval is not this button's own pending action, so it rests disabled.
+  const button = await screen.findByRole("button", { name: label }, { timeout: 2000 });
+  if (phase === "installing") expect(button).toHaveAttribute("aria-busy", "true");
+  else expect(button).toBeDisabled();
   fireEvent.click(button);
   expect(onInstall).not.toHaveBeenCalled();
 });

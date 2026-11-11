@@ -456,7 +456,10 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     const start = screen.getByRole("button", { name: "Run workflow" });
     await waitFor(() => expect(start).toBeEnabled());
     fireEvent.click(start);
-    expect(await screen.findByRole("link", { name: "Open workflow Job Details" })).toHaveAttribute("href", "/jobs/ordinary-job-42");
+    // The live run is followed on the canvas: the dialog closes and the builder reads the started job.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Run workflow" })).not.toBeInTheDocument());
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) =>
+      new URL(String(input), "http://localhost").pathname === "/api/v2/jobs/ordinary-job-42")).toBe(true));
     const calls = fetchSpy.mock.calls.filter(([url]) => String(url).endsWith("/run"));
     expect(calls).toHaveLength(1);
     expect(JSON.parse(String(calls[0][1]?.body))).toEqual(expect.objectContaining({ project_id: "project_alpha", expected_revision: 7, acknowledged: true, inputs: { supplier: "acme" }, files: [] }));

@@ -3,11 +3,12 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useEffect, useMemo, useState } from "react";
 
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { useParams, useSearchParams } from "react-router";
 
 import type { AssignmentSelectorRow } from "@/components/shared/assignment-selector";
 import { DsAlert, DsPageHeader, PageContainer } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { useRememberProject } from "@/lib/utils/use-remember-project";
 import { queryKeys } from "@/lib/query/keys";
@@ -174,6 +175,7 @@ export function ProjectsDetailPage() {
     queryFn: () => fetchProjectDetail(projectId),
     enabled: Boolean(projectId),
   });
+  const detailLoaderShown = useLoaderDelay(detailQuery.isLoading);
 
   const workflowsQuery = useQuery({
     queryKey: ["projects", projectId, "workflows", "edit-workspace"],
@@ -915,14 +917,16 @@ export function ProjectsDetailPage() {
   const pageDescription =
     t("react.projects.project_details_workflow_bindings_data_connections_policies_model_routing_and_history_in_one_place", "Project details, workflow bindings, data connections, policies, model routing and history in one place.");
 
-  const pageBody = detailQuery.isLoading ? (
+  const pageBody = detailQuery.isLoading || detailLoaderShown ? (
     <section className="fs-project-header">
       <DsPageHeader description={pageDescription} eyebrow={t("monitoring.stat.projects.label", "Projects")} title={pageTitle} />
-      <article className="fs-card">
-        <div className="fs-card-body inline-flex items-center gap-2 text-sm fs-ink-secondary">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("react.projects.loading_project_settings", "Loading project settings…")} </div>
-      </article>
+      {detailLoaderShown ? (
+        <article className="fs-card">
+          <div className="fs-table-state">
+            <DsLoader label={t("react.projects.loading_project_settings", "Loading project settings…")} variant="wide-block" />
+          </div>
+        </article>
+      ) : null}
     </section>
   ) : (
     <section className="fs-project-header">

@@ -1,5 +1,7 @@
 import { AgentBindingFields, type AgentStepEditorContext } from "./detail-agent-step-editor";
 import { DsSelect, RequiredLabel } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ConnectorStepSetup, DatasetQueryStepSetup, HttpRequestStepSetup } from "./detail-connection-step-setup";
 import { TabularFeedBuilder } from "./detail-tabular-feed-builder";
@@ -265,6 +267,7 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
     updateIfConditionDraft,
     updateStepKindConfig,
   } = ctx;
+  const agentCatalogLoaderShown = useLoaderDelay(Boolean(agentCatalogQuery?.isLoading));
     const inputClass =
       "fs-input mt-1";
     function renderAgentSetup() {
@@ -285,14 +288,14 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
               ))]}
             />
           </label>
-          {agentCatalogQuery.isLoading ? (
-            <p className="text-xs text-[var(--fs-text-tertiary)]">{t("react.workflows.loading_agent_catalog", "Loading agent catalog…")}</p>
+          {agentCatalogLoaderShown ? (
+            <p className="text-xs text-[var(--fs-text-tertiary)]"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_agent_catalog", "Loading agent catalog…")} /></p>
           ) : null}
           {agentCatalogQuery.isError ? (
             <p className="rounded-lg border border-[var(--fs-status-danger-border)] bg-[var(--fs-status-danger-bg)] px-3 py-2 text-xs text-[var(--fs-status-danger)]">
               {t("react.workflows.agent_catalog_could_not_be_loaded_reopen_this_step_to_retry", "Agent catalog could not be loaded. Reopen this step to retry.")}</p>
           ) : null}
-          {!agentCatalogQuery.isLoading && !agentCatalogQuery.isError && !stepAgentOptions.length ? (
+          {!agentCatalogQuery.isLoading && !agentCatalogLoaderShown && !agentCatalogQuery.isError && !stepAgentOptions.length ? (
             <p className="rounded-lg border border-[var(--fs-status-attention-border)] bg-[var(--fs-status-attention-wash)] px-3 py-2 text-xs text-[var(--fs-status-attention-ink)]">
               {t("react.workflows.no_agents_are_available_create_or_enable_an_agent_in_registry_before_saving_this_step", "No agents are available. Create or enable an agent in Registry before saving this step.")}</p>
           ) : null}

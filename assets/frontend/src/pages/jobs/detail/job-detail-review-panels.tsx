@@ -3,7 +3,9 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 /* eslint-disable react-refresh/only-export-components */
 import { useId, useLayoutEffect, useState } from "react";
 
-import { Loader2 } from "lucide-react";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 
 import type {
   ApprovalDecisionPayload,
@@ -401,13 +403,13 @@ function ReviewLoadingNotice({
   isLoading,
 }: Readonly<{ isLoading: boolean }>) {
   const { t } = useI18n();
-  if (!isLoading) {
+  const loaderShown = useLoaderDelay(isLoading);
+  if (!loaderShown) {
     return null;
   }
   return (
-    <div className="inline-flex items-center gap-2 fs-surface-radius border border-subtle fs-surface-inset px-3 py-2 text-sm fs-ink-secondary">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      {t("react.jobs.loading_approval_workspace", "Loading approval workspace…")} </div>
+    <p className="text-sm fs-ink-secondary">
+      <DsLoader variant="orbit-inline" label={t("react.jobs.loading_approval_workspace", "Loading approval workspace…")} /></p>
   );
 }
 
@@ -554,62 +556,66 @@ function ReviewDraftFields({
 
 function StandardDecisionButtons({
   overrideSupported,
+  pendingMode,
   reworkExhausted,
   submit,
-  submitting,
   workspace,
 }: Readonly<{
   overrideSupported: boolean;
+  pendingMode: ReviewMode | null;
   reworkExhausted: boolean;
   submit: ReviewSubmit;
-  submitting: boolean;
   workspace: Entity;
 }>) {
   const { t } = useI18n();
   return (
     <>
-      <button
-        className="fs-button primary"
+      <Button
+        busy={pendingMode === "approve"}
+        busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
         data-testid="approval-approve-button"
-        disabled={submitting}
         onClick={() => ignoreAsyncResult(submit("approve"))}
         type="button"
+        variant="primary"
       >
         {firstReadableText(workspace.approve_label, t("jobs.actions.approve", "Approve"))}
-      </button>
+      </Button>
       {overrideSupported ? (
-        <button
-          className="fs-button accent"
+        <Button
+          busy={pendingMode === "override"}
+          busyLabel={t("react.workflows.continuing", "Continuing…")}
           data-testid="approval-override-button"
-          disabled={submitting}
           onClick={() => ignoreAsyncResult(submit("override"))}
           type="button"
+          variant="accent"
         >
           {firstReadableText(
             workspace.override_label,
             t("jobs.detail.review.override_continue", "Override and continue"),
           )}
-        </button>
+        </Button>
       ) : null}
       {reworkExhausted ? (
-        <button
-          className="fs-button danger"
+        <Button
+          busy={pendingMode === "abort"}
+          busyLabel={t("react.jobs.cancelling", "Cancelling…")}
           data-testid="approval-abort-button"
-          disabled={submitting}
           onClick={() => ignoreAsyncResult(submit("abort"))}
           type="button"
+          variant="danger"
         >
-          {t("react.jobs.cancel_run", "Cancel run")} </button>
+          {t("react.jobs.cancel_run", "Cancel run")} </Button>
       ) : (
-        <button
-          className="fs-button danger"
+        <Button
+          busy={pendingMode === "reject"}
+          busyLabel={t("react.jobs.rejecting", "Rejecting…")}
           data-testid="approval-reject-button"
-          disabled={submitting}
           onClick={() => ignoreAsyncResult(submit("reject"))}
           type="button"
+          variant="danger"
         >
           {firstReadableText(workspace.reject_label, t("jobs.detail.review.reject", "Reject"))}
-        </button>
+        </Button>
       )}
     </>
   );
@@ -618,38 +624,39 @@ function StandardDecisionButtons({
 function ReviewDecisionButtons({
   kind,
   overrideSupported,
+  pendingMode,
   reworkExhausted,
   submit,
-  submitting,
   workspace,
 }: Readonly<{
   kind: string;
   overrideSupported: boolean;
+  pendingMode: ReviewMode | null;
   reworkExhausted: boolean;
   submit: ReviewSubmit;
-  submitting: boolean;
   workspace: Entity;
 }>) {
   const { t } = useI18n();
   if (kind === "clarifying_answer") {
     return (
-      <button
-        className="fs-button primary"
+      <Button
+        busy={pendingMode === "answer"}
+        busyLabel={t("react.settings.sending", "Sending…")}
         data-testid="approval-answer-submit"
-        disabled={submitting}
         onClick={() => ignoreAsyncResult(submit("answer"))}
         type="button"
+        variant="primary"
       >
         {firstReadableText(workspace.submit_label, t("jobs.detail.review.send_answer", "Send answer"))}
-      </button>
+      </Button>
     );
   }
   return (
     <StandardDecisionButtons
       overrideSupported={overrideSupported}
+      pendingMode={pendingMode}
       reworkExhausted={reworkExhausted}
       submit={submit}
-      submitting={submitting}
       workspace={workspace}
     />
   );
@@ -664,13 +671,13 @@ function ReviewDecisionControls({
   kind,
   overrideContent,
   overrideSupported,
+  pendingMode,
   rejectRequiresComment,
   reworkExhausted,
   setAnswer,
   setComment,
   setOverrideContent,
   submit,
-  submitting,
   workspace,
 }: Readonly<{
   answer: string;
@@ -681,13 +688,13 @@ function ReviewDecisionControls({
   kind: string;
   overrideContent: string;
   overrideSupported: boolean;
+  pendingMode: ReviewMode | null;
   rejectRequiresComment: boolean;
   reworkExhausted: boolean;
   setAnswer: (value: string) => void;
   setComment: (value: string) => void;
   setOverrideContent: (value: string) => void;
   submit: ReviewSubmit;
-  submitting: boolean;
   workspace: Entity;
 }>) {
   const { t } = useI18n();
@@ -722,9 +729,9 @@ function ReviewDecisionControls({
         <ReviewDecisionButtons
           kind={kind}
           overrideSupported={overrideSupported}
+          pendingMode={pendingMode}
           reworkExhausted={reworkExhausted}
           submit={submit}
-          submitting={submitting}
           workspace={workspace}
         />
       </div>
@@ -752,6 +759,9 @@ function StatefulReviewWorkspacePanel({
   const [answer, setAnswer] = useState("");
   const [overrideContent, setOverrideContent] = useState("");
   const [error, setError] = useState("");
+  // The decision being sent: only its button is busy; presses on the
+  // other decisions are ignored until it settles.
+  const [pendingMode, setPendingMode] = useState<ReviewMode | null>(null);
 
   const kind = firstStringFromUnknownValue([
     workspace.kind,
@@ -777,6 +787,7 @@ function StatefulReviewWorkspacePanel({
     (allowedActions.includes("abort") && !allowedActions.includes("reject"));
 
   const submit: ReviewSubmit = async (mode) => {
+    if (pendingMode || submitting) return;
     setError("");
     if (!threadId) {
       setError(t("react.jobs.this_approval_gate_has_no_thread_id_recorded", "This approval gate has no thread ID recorded."));
@@ -812,6 +823,7 @@ function StatefulReviewWorkspacePanel({
     if (!result.payload) {
       return;
     }
+    setPendingMode(mode);
     try {
       await onSubmit(threadId, result.payload);
     } catch (submitError) {
@@ -820,6 +832,8 @@ function StatefulReviewWorkspacePanel({
           ? submitError.message
           : t("react.jobs.approval_request_failed", "Approval request failed."),
       );
+    } finally {
+      setPendingMode(null);
     }
   };
 
@@ -855,13 +869,13 @@ function StatefulReviewWorkspacePanel({
         kind={kind}
         overrideContent={overrideContent}
         overrideSupported={overrideSupported}
+        pendingMode={pendingMode}
         rejectRequiresComment={rejectRequiresComment}
         reworkExhausted={reworkExhausted}
         setAnswer={setAnswer}
         setComment={setComment}
         setOverrideContent={setOverrideContent}
         submit={submit}
-        submitting={submitting}
         workspace={workspace}
       />
     </div>

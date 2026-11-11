@@ -16,7 +16,7 @@ import {
   DashboardLoadError,
   QuickLinks,
 } from "@/pages/dashboard/dashboard-panels";
-import { formatAge } from "@/pages/dashboard/format";
+import { formatAgeAgo } from "@/pages/dashboard/format";
 import {
   ATTENTION_QUEUE_GROUPS,
   FAILED_OR_STUCK_GROUPS,
@@ -25,7 +25,8 @@ import {
 } from "@/pages/dashboard/job-links";
 import { jobStatusGroup } from "@/pages/jobs/status-groups";
 import { OperationalOverview } from "@/pages/dashboard/operational-overview";
-import { PageContainer } from "@/components/shared/design-system";
+import { PageContainer, type DsMetricCardLoading } from "@/components/shared/design-system";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { fetchDashboardSummary } from "@/pages/dashboard/api";
 import { queryKeys } from "@/lib/query/keys";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
@@ -41,7 +42,7 @@ type DashboardGroupMap = Record<string, Array<Record<string, unknown>>>;
 
 
 
-/** Five rows fill the rail without turning it into a second job list. */
+/** Five rows fill the panel without turning it into a second job list. */
 const QUEUE_LIMIT = 5;
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -110,22 +111,44 @@ function attentionTone(status: string): AttentionQueueTone {
   return group === "awaiting_approval" || group === "interrupted" ? "attention" : "neutral";
 }
 
+/** When the run stopped (or started, for one still open): the queue's age and order. */
+const QUEUE_STAMP_FIELDS = ["finished_at", "started_at", "queued_at"];
+
+/**
+ * A row is named by its workflow, so five runs of different workflows read
+ * apart; a builder Test Run says so in place of the project it belongs to.
+ * Rows run oldest first, as the panel's caption promises.
+ */
 function attentionQueue(
   rows: Array<Record<string, unknown>>,
   generatedAt: string, t: I18nContextValue["t"] = fallbackContext.t,
 ): AttentionQueueItem[] {
-  return rows.map((row, index) => {
+  const items = rows.map((row, index) => {
     const id = firstStringFromUnknownValue([row.id, row.job_id, index]);
     const status = firstStringFromUnknownValue([row.status, ""]);
-    return {
-      age: formatAge(oldestAgeMs([row], ["finished_at", "started_at", "queued_at"], generatedAt), t),
+    const ageMs = oldestAgeMs([row], QUEUE_STAMP_FIELDS, generatedAt);
+    const origin = row.task_source === "workflow_test_run"
+      ? t("react.dashboard.test_run_from_the_builder", "Test run from the builder")
+      : firstStringFromUnknownValue([row.project_name, ""]);
+    const item: AttentionQueueItem = {
       id,
-      project: firstStringFromUnknownValue([row.project_name, ""]),
+      meta: [origin, formatAgeAgo(ageMs, t)].filter(Boolean).join(" · "),
       status: firstStringFromUnknownValue([row.status_label, row.status, ""]),
-      title: firstStringFromUnknownValue([row.task_summary, row.display_summary, row.title, t("react.dashboard.job_value1", "Job {value1}", { value1: String(id) })]),
+      title: firstStringFromUnknownValue([
+        row.selected_workflow_display_name,
+        row.task_summary,
+        row.display_summary,
+        row.title,
+        t("react.dashboard.job_value1", "Job {value1}", { value1: String(id) }),
+      ]),
       tone: attentionTone(status),
     };
+    return { ageMs, index, item };
   });
+  // Oldest first; a row without a readable time goes last, and equal ages keep
+  // the server's order so a refresh does not reshuffle them.
+  items.sort((left, right) => (right.ageMs ?? -1) - (left.ageMs ?? -1) || left.index - right.index);
+  return items.map(({ item }) => item);
 }
 
 export function DashboardPage() {
@@ -137,11 +160,25 @@ export function DashboardPage() {
     queryKey: queryKeys.dashboardSummary(range),
     queryFn: () => fetchDashboardSummary(range),
     refetchInterval: 15_000,
-    // Changing the range changes the query key, so without this the cache miss
-    // renders `undefined` for a beat: every counter drops to zero and the
-    // attention card loses its colour until the new payload lands.
+    // Changing the range changes the query key. The previous payload stays as a
+    // placeholder so the attention queue (a live snapshot, not range-scoped)
+    // and the header do not blink; the range-scoped cards below never read it.
     placeholderData: (previous) => previous,
   });
+  // The cards wait for numbers of the range they are labelled with: on the
+  // first load and on every range switch they show their Loading state until
+  // the new answer lands, never a zero and never the previous range's numbers.
+  const cardsPending = summaryQuery.isPending || summaryQuery.isPlaceholderData;
+  const cardsSkeleton = useLoaderDelay(cardsPending);
+  let cardsLoading: DsMetricCardLoading | undefined;
+  if (cardsSkeleton) cardsLoading = "skeleton";
+  else if (cardsPending) cardsLoading = "reserved";
+  // The queue waits only for its first answer; a range switch keeps it.
+  const queuePending = summaryQuery.isPending;
+  const queueSkeleton = useLoaderDelay(queuePending);
+  let queueLoading: DsMetricCardLoading | undefined;
+  if (queueSkeleton) queueLoading = "skeleton";
+  else if (queuePending) queueLoading = "reserved";
 
   const summary = summaryQuery.data || {};
   const hero = asHeroKpis(summary.hero_kpis);
@@ -173,7 +210,7 @@ export function DashboardPage() {
   const longestRunningMs = oldestAgeMs(groups.running || [], ["started_at", "queued_at"], generatedAt);
   const oldestFailingMs = oldestAgeMs(
     failedOrStuckRows(groups.needs_attention || []),
-    ["finished_at", "started_at", "queued_at"],
+    QUEUE_STAMP_FIELDS,
     generatedAt,
   );
   const oldestWaitingMs = oldestAgeMs(
@@ -225,6 +262,7 @@ export function DashboardPage() {
         failedOrStuck={failedOrStuck}
         generatedAt={generatedAt}
         inProgress={inProgress}
+        loading={cardsLoading}
         longestRunningMs={longestRunningMs}
         needsAttention={needsAttention}
         oldestFailingMs={oldestFailingMs}
@@ -242,7 +280,7 @@ export function DashboardPage() {
         />
       ) : null}
 
-      <CommandCenter queue={visibleQueue} queueHref={attentionHref} queueTotal={queue.length} />
+      <CommandCenter loading={queueLoading} queue={visibleQueue} queueHref={attentionHref} queueTotal={queue.length} />
 
       <div className="fs-dash__row">
         <QuickLinks

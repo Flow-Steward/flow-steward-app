@@ -23,6 +23,8 @@ import {
 } from "@/components/shared/design-system";
 import { columnsFromGridConfig, visibleRowActions } from "@/components/shared/data-grid-adapter";
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 import "../../monitoring.css";
 
@@ -199,6 +201,9 @@ export function ProcessesControlPanel() {
     queryFn: fetchProcessesPayload,
     refetchInterval: 10_000,
   });
+  const initialLoaderShown = useLoaderDelay(processesQuery.isPending);
+  const initialLoading = processesQuery.isPending || initialLoaderShown;
+  const tableLoader = initialLoaderShown ? <div className="fs-table-state"><DsLoader variant="wide-block" /></div> : null;
 
   const { jobs, workers, workerProcesses } = useMemo(
     () => processPayloadToGridRows(processesQuery.data, t),
@@ -341,13 +346,17 @@ export function ProcessesControlPanel() {
     }
   }
 
+  /* While a confirmed action runs, the other controls keep their look and ignore presses:
+     only the dialog's confirm button shows the work. */
   function runBulkJobAction(actionId: string) {
+    if (busy) return;
     const handler =
       (globalThis as unknown as ProcessesWindow).bulkProcessJobAction ?? fallbackBulkProcessJobAction;
     ignoreAsyncResult(Promise.resolve(handler(actionId, [...selectedJobs])));
   }
 
   function runBulkWorkerAction(actionId: string) {
+    if (busy) return;
     const handler =
       (globalThis as unknown as ProcessesWindow).bulkWorkerAction ?? fallbackBulkWorkerAction;
     ignoreAsyncResult(Promise.resolve(handler(actionId, [...selectedWorkers])));
@@ -484,8 +493,8 @@ export function ProcessesControlPanel() {
           </div>
           <button
             className="fs-button"
-            disabled={busy}
             onClick={() => {
+              if (busy) return;
               ignoreAsyncResult(processesQuery.refetch());
             }}
             type="button"
@@ -517,18 +526,18 @@ export function ProcessesControlPanel() {
             rows={jobs}
             selectable
             selectedKeys={selectedJobs}
+            busy={processesQuery.isPending}
             state={
-              jobs.length ? null : (
+              initialLoading ? tableLoader : (jobs.length ? null : (
                 <div className="fs-table-state" data-testid="proc-jobs-grid">
                   <strong>{normalizeState(jobsConfig, "title")}</strong>
                   <span>{normalizeState(jobsConfig, "description")}</span>
                 </div>
-              )
+              ))
             }
           />
           <BulkActionBar
             actions={bulkActionsFromConfig(jobsConfig)}
-            busy={busy}
             count={selectedJobs.size}
             onAction={runBulkJobAction}
             onClear={() => setSelectedJobs(new Set())}
@@ -552,8 +561,9 @@ export function ProcessesControlPanel() {
             rows={workers}
             selectable
             selectedKeys={selectedWorkers}
+            busy={processesQuery.isPending}
             state={
-              workers.length ? null : (
+              initialLoading ? tableLoader : (workers.length ? null : (
                 <div className="fs-table-state" data-testid="proc-workers-grid">
                   <strong>{normalizeState(workersConfig, "title")}</strong>
                   <span>
@@ -564,12 +574,11 @@ export function ProcessesControlPanel() {
                       : normalizeState(workersConfig, "description")}
                   </span>
                 </div>
-              )
+              ))
             }
           />
           <BulkActionBar
             actions={bulkActionsFromConfig(workersConfig)}
-            busy={busy}
             count={selectedWorkers.size}
             onAction={runBulkWorkerAction}
             onClear={() => setSelectedWorkers(new Set())}

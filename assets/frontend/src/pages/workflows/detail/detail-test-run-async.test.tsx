@@ -105,8 +105,8 @@ describe("asynchronous workflow test runs", () => {
     expect(result.final_status).toBe("completed");
     expect(fetchState).toHaveBeenCalledTimes(2);
     expect(fetchState.mock.calls).toEqual([
-      ["thread-1", { presentation: "background" }],
-      ["thread-1", { presentation: "background" }],
+      ["thread-1"],
+      ["thread-1"],
     ]);
     fetchState.mockRestore();
   });

@@ -1,0 +1,234 @@
+/*
+ * Settings → Account → AI agents: the setup as a vertical stepper (design
+ * boards "AI agents", 09.11.2026). One card per step: a finished step folds
+ * into its choice with Change, the current step is open, later steps are
+ * numbered rows, a skipped step says why. The column keeps the 880px measure
+ * of Tabbed settings detail so the long setup lines stay readable.
+ */
+.fs-agent-setup { max-width: 880px; }
+
+.fs-agent-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-agent-step {
+  border: 1px solid var(--fs-card-border);
+  border-radius: var(--fs-radius-container);
+  background: var(--fs-bg-surface);
+}
+
+.fs-agent-step.current,
+.fs-agent-step.open { border-color: var(--fs-border-default); }
+
+/* The published Stepper: 12px above and below the step head. */
+.fs-agent-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--fs-space-150);
+  padding: var(--fs-space-150) var(--fs-space-200);
+}
+
+.fs-agent-step-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--fs-border-default);
+  border-radius: 999px;
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-tertiary);
+  font: 500 12px/1 var(--ff-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-agent-step-mark svg { width: 12px; height: 12px; }
+.fs-agent-step.current .fs-agent-step-mark { border-color: var(--fs-action-primary); background: var(--fs-action-primary); color: var(--fs-action-primary-text); }
+.fs-agent-step.open .fs-agent-step-mark { color: var(--fs-text-secondary); }
+.fs-agent-step.done .fs-agent-step-mark { border-color: var(--fs-status-success-border); background: var(--fs-status-success-bg); color: var(--fs-status-success); }
+
+.fs-agent-step-titles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.fs-agent-step-title {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font: 500 15px/20px var(--ff-display);
+  letter-spacing: -0.01em;
+}
+
+.fs-agent-step.next .fs-agent-step-title { color: var(--fs-text-tertiary); }
+
+.fs-agent-step-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font: 400 13px/20px var(--ff-body);
+}
+
+.fs-agent-step-actions {
+  display: flex;
+  flex: none;
+  align-self: center;
+  gap: var(--fs-space-050);
+}
+
+.fs-agent-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 2px var(--fs-space-200) var(--fs-space-200) 52px;
+}
+
+.fs-agent-step-footer { display: flex; gap: var(--fs-space-100); }
+
+/* Choices: a radio with its name, the description right under it. */
+.fs-agent-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-100);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fs-agent-fieldset > legend { padding: 0; }
+
+.fs-agent-client-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fs-space-300);
+}
+
+.fs-agent-options { display: flex; flex-direction: column; gap: var(--fs-space-150); }
+.fs-agent-option { display: flex; flex-direction: column; gap: 2px; }
+.fs-agent-option-name { color: var(--fs-text-primary); font-weight: 500; }
+
+/* The stepper's radio rows are 20px, as in the boards: the description sits
+   right under the name instead of below a 32px row. */
+.fs-agent-setup .fs-radio-label { min-height: var(--fs-space-250); }
+
+.fs-agent-option-description {
+  margin-left: 24px;
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-field-helper-size);
+  line-height: var(--fs-field-helper-line-height);
+}
+
+.fs-agent-option-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-space-050);
+  margin: var(--fs-space-050) 0 0 24px;
+}
+
+.fs-agent-microlabel {
+  color: var(--fs-text-tertiary);
+  font: 500 11px/1.4 var(--ff-data);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.fs-agent-inline-options { display: flex; flex-wrap: wrap; gap: var(--fs-space-300); }
+
+/* Step 4's parts: a title, one line of text, the block and a hint under it. */
+.fs-agent-sub { display: flex; flex-direction: column; gap: var(--fs-space-100); }
+
+.fs-agent-sub-title {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font: 500 13px/20px var(--ff-body);
+}
+
+.fs-agent-text {
+  margin: 0;
+  color: var(--fs-text-secondary);
+  font: 400 13px/20px var(--ff-body);
+}
+
+.fs-agent-sub .fs-field-helper code {
+  color: var(--fs-text-secondary);
+  font: 400 0.92em/1 var(--ff-code);
+  white-space: nowrap;
+}
+
+.fs-agent-link {
+  color: var(--fs-text-primary);
+  text-decoration: underline;
+  text-decoration-color: var(--fs-border-default);
+  text-underline-offset: 3px;
+}
+
+/* A command or a prompt; Copy sits inside, top right, and keeps its width. */
+.fs-agent-code-block { position: relative; display: flex; flex-direction: column; gap: var(--fs-space-075); }
+
+.fs-agent-code {
+  margin: 0;
+  padding: var(--fs-space-150) 108px var(--fs-space-150) var(--fs-space-150);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  border: 1px solid var(--fs-log-surface-border);
+  border-radius: var(--fs-log-surface-radius);
+  background: var(--fs-log-surface-bg);
+  color: var(--fs-text-primary);
+  font: 400 12px/1.65 var(--ff-code);
+}
+
+.fs-agent-code.prose { font: 400 13px/20px var(--ff-body); }
+
+.fs-button.fs-agent-copy {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  min-width: 72px;
+}
+
+.fs-button.fs-agent-copy[data-copied="true"] { color: var(--fs-text-primary); }
+
+/* Outside a code block (the Microsoft 365 values) the button stays in its row. */
+dd .fs-button.fs-agent-copy { position: static; }
+.fs-agent-copy-error { margin: 0; }
+
+/* Step 5's check: the first request with this token, or not yet. */
+.fs-agent-check {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-200);
+  padding: var(--fs-space-150) var(--fs-space-150) var(--fs-space-150) 14px;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+}
+
+.fs-agent-check-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+
+.fs-agent-check-title {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-primary);
+  font: 500 13px/20px var(--ff-body);
+}
+
+.fs-agent-check-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fs-text-tertiary); }
+.fs-agent-check-dot[data-used="true"] { background: var(--fs-status-success); }
+
+@media (width <= 720px) {
+  .fs-agent-client-groups { grid-template-columns: minmax(0, 1fr); }
+  .fs-agent-step-head { flex-wrap: wrap; }
+  .fs-agent-step-body { padding-left: var(--fs-space-200); }
+}

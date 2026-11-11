@@ -568,6 +568,7 @@ def test_v2_lazy_execution_steps_preserves_post_authorization_presentation_reade
                 "filename": "orders.csv",
                 "content_type": "text/csv",
                 "size_bytes": 21,
+                "preview_too_large": False,
                 "available": True,
                 "download_url": f"/api/jobs/{JOB_ID}/artifacts/art-fixture",
             }

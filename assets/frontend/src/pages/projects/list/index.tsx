@@ -35,6 +35,9 @@ import {
   type DsTableColumn,
   type DsTableSort,
 } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/http/client";
 import {
   fetchProjectsList,
@@ -191,6 +194,8 @@ export function ProjectsListPage() {
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState("");
+  const listLoaderShown = useLoaderDelay(listLoading);
+  const workspaceLoaderShown = useLoaderDelay(workspaceLoading);
   const [createMessage, setCreateMessage] = useState("");
   const [workflowCatalog, setWorkflowCatalog] = useState<WorkflowListItem[]>([]);
   const loadProjectsPage = useCallback(async () => {
@@ -403,13 +408,12 @@ export function ProjectsListPage() {
   }
 
   let projectTableState: ReactNode = null;
-  if (listLoading) {
-    projectTableState = (
+  if (listLoading || listLoaderShown) {
+    projectTableState = listLoaderShown ? (
       <div className="fs-table-state">
-        <strong>{t("react.projects.loading_projects", "Loading projects")}</strong>
-        <span>{t("react.projects.the_inventory_will_remain_in_this_table_layout", "The inventory will remain in this table layout.")}</span>
+        <DsLoader label={t("react.projects.loading_projects", "Loading projects")} variant="wide-block" />
       </div>
-    );
+    ) : null;
   } else if (loadError) {
     projectTableState = (
       <div className="fs-table-state">
@@ -522,9 +526,9 @@ export function ProjectsListPage() {
         footer={
           <>
             <button className="fs-button" disabled={deleting} onClick={() => setDeleteTarget(null)} type="button">{t("common.cancel", "Cancel")}</button>
-            <button className="fs-button danger" disabled={deleting} onClick={() => ignoreAsyncResult(confirmDeleteProject())} type="button">
-              {deleting ? t("react.projects.deleting", "Deleting…") : t("react.projects.delete_project", "Delete project")}
-            </button>
+            <Button busy={deleting} busyLabel={t("react.projects.deleting", "Deleting…")} onClick={() => ignoreAsyncResult(confirmDeleteProject())} type="button" variant="danger">
+              {t("react.projects.delete_project", "Delete project")}
+            </Button>
           </>
         }
         onClose={() => setDeleteTarget(null)}
@@ -556,14 +560,16 @@ export function ProjectsListPage() {
                   type="button"
                 >
                   {t("common.cancel", "Cancel")} </button>
-                <button
-                  className="fs-button primary"
-                  disabled={!canCreateProjects || creating || workspaceLoading || Boolean(workspaceError) || workspaces.length === 0}
+                <Button
+                  busy={creating}
+                  busyLabel={t("react.settings.creating", "Creating…")}
+                  disabled={!canCreateProjects || workspaceLoading || Boolean(workspaceError) || workspaces.length === 0}
                   form="create-project-form"
                   type="submit"
+                  variant="primary"
                 >
-                  {creating ? t("react.projects.creating", "Creating...") : t("projects.modal.create", "Create")}
-                </button>
+                  {t("projects.modal.create", "Create")}
+                </Button>
           </>
         }
         onClose={() => {
@@ -601,8 +607,8 @@ export function ProjectsListPage() {
             <span className="fs-field-label">
               {t("project_mode.workspace", "Workspace")} <span aria-hidden="true" className="fs-required">*</span>
             </span>
-            {workspaceLoading ? (
-              <p className="fs-field-helper">{t("react.projects.loading_workspaces", "Loading workspaces...")}</p>
+            {workspaceLoading || workspaceLoaderShown ? (
+              workspaceLoaderShown ? <p className="fs-field-helper"><DsLoader label={t("react.projects.loading_workspaces", "Loading workspaces…")} variant="orbit-inline" /></p> : null
             ) : workspaceError ? (
               <DsAlert title={workspaceError} tone="danger" />
             ) : workspaces.length === 1 ? (

@@ -27,8 +27,8 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `artifact_storage_bundled_seaweedfs` | Bundled SeaweedFS artifact storage. | `8` |
 | `artifact_storage_external_s3` | External S3-compatible artifact storage. | `10` |
 | `artifact_storage_local_fs` | Local persistent filesystem artifact storage. | `2` |
-| `audit_tools` | Audit and security scanning helpers. | `31` |
-| `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `44` |
+| `audit_tools` | Audit and security scanning helpers. | `33` |
+| `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `45` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
 | `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `174` |
@@ -51,22 +51,22 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `823`
-- Cataloged variables from `.env.example*` or manifest: `600`
-- Raw audit-only names outside examples/manifest: `223`
+- Raw env-like names discovered by audit: `824`
+- Cataloged variables from `.env.example*` or manifest: `603`
+- Raw audit-only names outside examples/manifest: `221`
 - Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `510`
+- Variables in canonical manifest: `513`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `136`
+- Internal Runtime: `137`
 - Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
-- Tooling Internal: `78`
+- Tooling Internal: `80`
 
 Raw audit-only names by scope:
-- Internal Runtime: `5`
+- Internal Runtime: `3`
 - Script Internal: `125`
 - Test Only: `44`
 - Tooling Internal: `8`
@@ -244,7 +244,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### core/infrastructure/config/rabbitmq_transport.py
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_RABBITMQ_TRANSPORT_MODE` | core_runtime | production, local_development | no | no | `tls` | .env.example, .env.example.prod | Config (1) | tls (default), compose-local, audit-local, or loopback-local. Local modes require exact owned endpoints; remote brokers always require verified TLS. | `core/infrastructure/config/rabbitmq_transport.py` |
+| `FS_RABBITMQ_TRANSPORT_MODE` | core_runtime | production, local_development | no | no | `tls` | .env.example, .env.example.prod | Config (1) | tls (default), compose-local, audit-local, loopback-local, or platform-private. Local and platform-private modes require exact declared endpoints; any other broker requires verified TLS. | `core/infrastructure/config/rabbitmq_transport.py` |
 #### core/infrastructure/config/runtime_config.py
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
@@ -282,11 +282,11 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### images
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.13` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.13` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.13` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
-| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.13` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.13` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
+| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.14` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.14` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.14` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
+| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.14` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.14` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
 | `POSTGRES_IMAGE` | production_images | production | no | no | `fs-postgres-extended:0.1.0-pgvector-0.8.5` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins; Official installs and upgrades pin the release's flow-steward-postgres digest (0.9.2+); Source installs build this versioned tag locally. Do not use a floating pg17/latest tag. | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.postgres-extended.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `RABBITMQ_IMAGE` | production_images | production | no | no | `rabbitmq:3.13-management` | .env.example.prod | Docker Compose (3) | Official release discovery and third-party infrastructure pins | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `TRAEFIK_IMAGE` | production_images | production | no | no | `traefik:v3.3` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins | `infra/docker/compact/ingress-bundled_traefik.yaml`<br>`infra/docker/docker-compose.oauth-browser.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
@@ -681,6 +681,10 @@ The table below includes every variable that is either shipped in an `.env.examp
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
 | `FS_OPERATION_LOG_ROOT` | core_runtime | production, local_development | no | no | - | - | CLI (1) | CLI operation log directory override. Unset falls back to FS_CLI_OPERATION_LOG_ROOT, the host checkout logs, then .flow-steward/logs. | `core/entrypoints/cli/platform/operation_log.py` |
+#### core/infrastructure/config/rabbitmq_transport.py
+| Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
+|---|---|---|---|---|---|---|---|---|---|
+| `FS_RABBITMQ_PRIVATE_HOST` | compact_runtime | production | no | no | - | - | Config (1) | Exact provider private-network broker host name (no IP literals) allowed for plaintext amqp on port 5672 when FS_RABBITMQ_TRANSPORT_MODE=platform-private. Ignored in every other mode. | `core/infrastructure/config/rabbitmq_transport.py` |
 #### core/infrastructure/config/runtime_config.py
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
@@ -901,6 +905,8 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_SEMGREP_RETRY_DELAY_SECONDS` | audit_tools | local_development | no | no | `2` | - | CLI scripts (1) | Delay between explicit transient Semgrep registry transport retries. | `core/entrypoints/cli/scripts/semgrep_retry.sh` |
 | `FS_SEMGREP_TIMEOUT` | audit_tools | local_development | no | no | `30` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_SEMGREP_TIMEOUT_THRESHOLD` | audit_tools | local_development | no | no | `25` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
+| `FS_TASK_RESOURCE_OWNER` | audit_tools | local_development | no | no | - | - | Tooling (1) | Internal task owner supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it. | `core/application/tooling/anonymous_installer_acceptance.py` |
+| `FS_TASK_RESOURCE_TOKEN` | audit_tools | local_development | no | no | - | - | Tooling (1) | Internal resource token supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it. | `core/application/tooling/anonymous_installer_acceptance.py` |
 | `FS_VULTURE_MIN_CONFIDENCE` | audit_tools | local_development | no | no | `90` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_XENON_MAX_ABSOLUTE` | audit_tools | local_development | no | no | `F` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_XENON_MAX_AVERAGE` | audit_tools | local_development | no | no | `B` | .env.example.quality | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
@@ -969,7 +975,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 
 | Scope | Count | Common Usage Areas |
 |---|---|---|
-| Internal Runtime | `5` | CLI scripts (3), Tooling (2), Tests (1) |
+| Internal Runtime | `3` | CLI scripts (3), Tests (1) |
 | Script Internal | `125` | CLI scripts (191), CLI (12), Tests (7), Tooling (6), Database (3) |
 | Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |

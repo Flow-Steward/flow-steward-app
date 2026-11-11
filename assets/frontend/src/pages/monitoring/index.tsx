@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { DsDialog, DsPageHeader, DsTabs, PageContainer } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/query/keys";
 import { EventsAuditTrail } from "@/pages/monitoring/shared/events";
 import { cleanupMonitoringStorageOrphan, fetchMonitoringStorage, fetchMonitoringSummary } from "@/pages/monitoring/api";
@@ -225,14 +226,15 @@ export function MonitoringPage() {
                 type="button"
               >
                 {t("common.cancel", "Cancel")} </button>
-              <button
-                className="fs-button danger"
-                disabled={cleanupOrphanMutation.isPending}
+              <Button
+                busy={cleanupOrphanMutation.isPending}
+                busyLabel={t("react.projects.deleting", "Deleting…")}
                 onClick={confirmOrphanCleanup}
                 type="button"
+                variant="danger"
               >
-                {cleanupOrphanMutation.isPending ? t("react.monitoring.deleting", "Deleting...") : t("react.monitoring.delete_orphan_data", "Delete orphan data")}
-              </button>
+                {t("react.monitoring.delete_orphan_data", "Delete orphan data")}
+              </Button>
             </>
           }
           onClose={() => setPendingOrphan(null)}

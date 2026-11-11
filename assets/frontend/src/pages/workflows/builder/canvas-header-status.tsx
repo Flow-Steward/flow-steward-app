@@ -69,10 +69,8 @@ export function CanvasHeaderStatus({
         <X aria-hidden="true" />
         {t("react.workflows.discard_changes", "Discard changes")}
       </Button> : null}
-      <Button variant="primary" size="md" disabled={applyDisabled} onClick={() => ignoreAsyncResult(changeSet.apply())} type="button">
-        {changeSet.status === "applying"
-          ? t("react.workflows.applying_changes", "Applying…")
-          : t("react.workflows.apply_changes", "Apply changes")}
+      <Button variant="primary" size="md" busy={changeSet.status === "applying"} busyLabel={t("react.workflows.applying_changes", "Applying…")} disabled={changeSet.status !== "applying" && applyDisabled} onClick={() => ignoreAsyncResult(changeSet.apply())} type="button">
+        {t("react.workflows.apply_changes", "Apply changes")}
       </Button>
     </> : null}
     {structureLocked ? <span

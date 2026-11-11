@@ -431,7 +431,7 @@ def test_the_app_bind_mount_hides_the_image_frontend_build() -> None:
     assert "../../:/app" in services["fs-app"]["volumes"]
     dockerfile = (ROOT / "infra/docker/Dockerfile").read_text(encoding="utf-8")
     assert (
-        "COPY --chmod=u=rwX,go=rX --chown=fs:fs --from=frontend-build /app/assets/frontend/dist"
+        "COPY --chown=fs:fs --from=frontend-build /app/assets/frontend/dist"
         in dockerfile
     )
 

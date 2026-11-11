@@ -1,5 +1,4 @@
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
-import { act, configure, getConfig, render, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, getConfig, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -116,7 +115,6 @@ describe("WorkflowsDetailPage agent catalog (AUDIT-033)", () => {
     const step = await screen.findByRole("button", { name: /Step one/i });
     vi.useFakeTimers();
     const previousWrapper = getConfig().asyncWrapper;
-    let indicator: ReturnType<typeof render> | undefined;
     try {
       configure({ asyncWrapper: async (callback) => { const result = await act(async () => callback()); await act(async () => { await vi.advanceTimersByTimeAsync(0); }); return result; } });
       const user = userEvent.setup({ pointerEventsCheck: 0, advanceTimers: (delay) => { vi.advanceTimersByTime(delay); } });
@@ -124,13 +122,11 @@ describe("WorkflowsDetailPage agent catalog (AUDIT-033)", () => {
       const label = screen.getByRole("textbox", { name: "Step label" });
       await user.type(label, " draft");
       expect(label).toHaveValue("Step one draft");
-      indicator = render(<RequestLoadingIndicator />);
       expect(calls).toBe(1);
       hold = true;
       await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
       expect(calls).toBe(2); expect(resolvePoll).toBeDefined();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Step label" })).toBe(label);
       expect(label).toHaveValue("Step one draft"); expect(label).toHaveFocus();
       await user.keyboard(" survives refresh");
@@ -140,7 +136,7 @@ describe("WorkflowsDetailPage agent catalog (AUDIT-033)", () => {
       expect(screen.getByRole("combobox", { name: kind === "agent" ? "Agent" : "Saved query" })).toBeEnabled();
     } finally {
       configure({ asyncWrapper: previousWrapper });
-      view.unmount(); indicator?.unmount(); resolvePoll?.(new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } }));
+      view.unmount(); resolvePoll?.(new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } }));
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers(); vi.useRealTimers();
     }

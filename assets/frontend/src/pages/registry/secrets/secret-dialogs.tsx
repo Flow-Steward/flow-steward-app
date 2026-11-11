@@ -12,6 +12,7 @@ import {
   RequiredLabel,
   SensitiveInput,
 } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { HttpError } from "@/lib/http/errors";
 import {
   type CatalogSecret,
@@ -65,9 +66,9 @@ export function SecretEditorDialog({
           <button className="fs-button" disabled={saving} onClick={onClose} type="button">
             {t("common.cancel", "Cancel")}
           </button>
-          <button className="fs-button primary" disabled={saving} form="secret-editor" type="submit">
+          <Button busy={saving} busyLabel={adding ? t("react.settings.creating", "Creating…") : t("react.settings.saving", "Saving…")} form="secret-editor" type="submit" variant="primary">
             {adding ? t("react.registry.secrets.create", "Create secret") : t("react.registry.secrets.save", "Save")}
-          </button>
+          </Button>
         </>
       }
       onClose={onClose}
@@ -150,9 +151,9 @@ export function ReplaceSecretValueDialog({
           <button className="fs-button" disabled={saving} onClick={onClose} type="button">
             {t("common.cancel", "Cancel")}
           </button>
-          <button className="fs-button primary" disabled={saving || !value} form="secret-replace" type="submit">
+          <Button busy={saving} busyLabel={t("react.settings.saving", "Saving…")} disabled={!value} form="secret-replace" type="submit" variant="primary">
             {t("react.registry.secrets.replace", "Replace value")}
-          </button>
+          </Button>
         </>
       }
       onClose={onClose}
@@ -252,16 +253,18 @@ export function DeleteSecretDialog({
           <button className="fs-button" disabled={deleting} onClick={onClose} type="button">
             {t("common.cancel", "Cancel")}
           </button>
-          <button
-            className="fs-button danger"
-            disabled={deleting || !ready || (used && !acknowledged)}
+          <Button
+            busy={deleting}
+            busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")}
+            disabled={!ready || (used && !acknowledged)}
             onClick={() => onConfirm(revision)}
             type="button"
+            variant="danger"
           >
             {used
               ? t("react.registry.secrets.delete_with_uses", "Delete and remove its uses")
               : t("react.registry.secrets.delete", "Delete")}
-          </button>
+          </Button>
         </>
       }
       onClose={onClose}

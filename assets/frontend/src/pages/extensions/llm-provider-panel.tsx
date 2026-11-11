@@ -1,10 +1,13 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
+import { Button } from "@/components/ui/button";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Loader2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import {
   DsBadge,
@@ -28,6 +31,7 @@ import { invalidateModelRoutingQueries, providerErrorMessage } from "@/lib/utils
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 import "@/pages/extensions/extension-manifest.css";
+import { formatDate, formatDateTime, formatTime, toDate } from "@/lib/time/date-time-format";
 
 type Contract = Record<string, unknown>;
 
@@ -91,12 +95,10 @@ function httpsUrl(value: string): string {
 /** "10:42" today, otherwise a short date and time. */
 function checkedAt(value: string | null | undefined): string {
   if (!value) return "";
-  const at = new Date(value);
-  if (Number.isNaN(at.getTime())) return "";
-  const today = at.toDateString() === new Date().toDateString();
-  return today
-    ? at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : at.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  const at = toDate(value);
+  if (!at) return "";
+  const today = formatDate(at) === formatDate(new Date());
+  return today ? formatTime(at) : formatDateTime(at);
 }
 
 /** A discovery failure the server recorded is a bare category such as `timeout`. */
@@ -227,10 +229,13 @@ export function LlmProviderPanel({
   const [showAllModels, setShowAllModels] = useState(false);
   const [status, setStatus] = useState("");
   const [mutationPending, setMutationPending] = useState(false);
+  // Which of Save connection / Discover models started the pending mutation: that button is busy.
+  const [mutationAction, setMutationAction] = useState<"save" | "discover">("save");
   // Models being checked right now. Each row runs on its own: one model's
   // minute-long check does not hold up the others.
   const [checkingModels, setCheckingModels] = useState<ReadonlySet<string>>(new Set());
   const sources = useQuery({ queryKey: ["llm-provider-sources"], queryFn: fetchLlmProviderSources });
+  const sourcesLoaderShown = useLoaderDelay(sources.isLoading);
   const connection = useQuery({
     queryKey: ["llm-provider-status", installId],
     queryFn: () => fetchLlmProviderStatus(installId),
@@ -415,6 +420,7 @@ export function LlmProviderPanel({
     }
     if (mutationPending || requiredConfigMissing || secretInputBlocked) return;
     setMutationPending(true);
+    setMutationAction("discover");
     setStatus(t("react.extensions.manual_discovering_models", "Discovering models…"));
     try {
       setStatus(await runCheck());
@@ -427,6 +433,7 @@ export function LlmProviderPanel({
     if (mutationPending || requiredConfigMissing || secretInputBlocked) return;
     const checkAfterSave = installEnabled;
     setMutationPending(true);
+    setMutationAction("save");
     setStatus(t("react.extensions.manual_saving_connection", "Saving connection…"));
     let saveMessage = "";
     try {
@@ -636,8 +643,8 @@ export function LlmProviderPanel({
         </>
       ) : null}
       <div className="fs-manifest-actions">
-        <button className="fs-button sm primary" disabled={mutationPending || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(save())} type="button">{t("react.extensions.save_connection", "Save connection")}</button>
-        <button aria-describedby={!installEnabled ? enableGuidanceId : undefined} className="fs-button sm" disabled={!installEnabled || mutationPending || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(refresh())} type="button">{t("react.extensions.discover_models", "Discover models")}</button>
+        <Button busy={mutationPending && mutationAction === "save"} busyLabel={t("react.extensions.saving", "Saving…")} disabled={requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(save())} size="sm" type="button" variant="primary">{t("react.extensions.save_connection", "Save connection")}</Button>
+        <Button aria-describedby={!installEnabled ? enableGuidanceId : undefined} busy={mutationPending && mutationAction === "discover"} busyLabel={t("react.extensions.manual_discovering_models", "Discovering models…")} disabled={!installEnabled || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(refresh())} size="sm" type="button" variant="secondary">{t("react.extensions.discover_models", "Discover models")}</Button>
       </div>
       {status ? <p aria-live="polite" className="fs-manifest-description" role="status">{status}</p> : null}
       <label className="fs-search fs-llm-search">
@@ -651,7 +658,7 @@ export function LlmProviderPanel({
           <span>{t("react.extensions.show_all_models", "Show all models (")}{unsupportedCount} {" "}{t("react.extensions.not_supported", "not supported)")}</span>
         </label>
       ) : null}
-      {sources.isLoading ? <p className="fs-empty-copy">{t("react.extensions.loading_provider_models", "Loading provider models…")}</p> : null}
+      {sourcesLoaderShown ? <p className="fs-empty-copy"><DsLoader label={t("react.extensions.loading_provider_models", "Loading provider models…")} variant="orbit-inline" /></p> : null}
       {sources.isError ? (
         <div className="fs-manifest-list">
           <p className="fs-field-helper error" role="alert">{t("react.extensions.could_not_load_provider_models", "Could not load provider models.")}</p>
@@ -697,23 +704,21 @@ export function LlmProviderPanel({
                   </DsBadge>
                   {/* One button per row, kept while it is busy so focus stays on
                       it: aria-disabled rather than disabled, which would drop focus. */}
-                  <button
-                    aria-busy={checking || undefined}
+                  <Button
                     aria-describedby={[checking ? hintId : "", verificationUnavailable ? enableGuidanceId : ""].filter(Boolean).join(" ") || undefined}
-                    aria-disabled={checking || mutationPending || verificationUnavailable || (action.enable && secretInputBlocked) || undefined}
+                    aria-disabled={checking || verificationUnavailable || (action.enable && secretInputBlocked) || undefined}
                     aria-label={checking ? t("react.extensions.checking_value0", "Checking {value0}", { value0: model.model_id }) : action.ariaLabel}
-                    className={action.primary && !checking ? "fs-button sm primary" : "fs-button sm"}
+                    busy={checking}
+                    busyLabel={t("react.extensions.checking", "Checking…")}
                     onClick={() => {
                       if (!checking && !mutationPending && !verificationUnavailable && !(action.enable && secretInputBlocked)) ignoreAsyncResult(toggle(model, action.enable));
                     }}
+                    size="sm"
                     type="button"
+                    variant={action.primary && !checking ? "primary" : "secondary"}
                   >
-                    {checking ? (
-                      <>
-                        <Loader2 aria-hidden="true" className="fs-spinner-icon" />
-                        {t("react.extensions.checking", "Checking…")}</>
-                    ) : action.label}
-                  </button>
+                    {action.label}
+                  </Button>
                 </div>
               </div>
             );

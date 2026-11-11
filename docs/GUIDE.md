@@ -1501,6 +1501,7 @@ External webhook invocation belongs to CRM/ERP, forms, and other event providers
 |---|---|---|
 | Projects | `project_list()` | List project names, IDs, and job counts. |
 | Projects | `project_jobs(project_name, limit=10, page=1, status="")` | List one project's jobs the caller may see (its workflow restrictions apply), newest first, `limit` (at most 50) per page; `total`/`total_pages` tell whether more pages exist. `status` accepts statuses or group keys. |
+| Projects | `project_connections(project_name)` | List the project's connections (secret values are never included) with `connection_id`, display name, extension, connection type and health. A connector step names its connection by this id in `connection_binding_jsonb.connection_id`; a connection deleted and created again has a new id. |
 | Workflows | `workflow_list(project_name, enabled_only=true, include_validation=false)` | List workflows linked to a project. |
 | Workflows | `workflow_validate(workflow_id, project_name="")` | Validate workflow readiness statically (`execution_verified=false`, with `unperformed_checks`). With `project_name`, validate in that project binding; without it, use the global workflow endpoint under the caller’s workflow access restrictions. `workflow_suggestions` follows the same rule; `workflow_contract` requires a concrete `project_name`. |
 | Workflows | `workflow_contract(workflow_id, project_name)` | Return normalized public input/output contract and schemas. |
@@ -1650,7 +1651,7 @@ http://localhost:8099/jobs/{job_id}
   `in_progress`, `running`, `resume_pending`, and `awaiting_approval` jobs
 - **Restart job** — available to administrators and operators after the job reaches a terminal status
 
-Open **Jobs**, select a job, then select a step in **Execution waterfall** to
+Open **Jobs**, select a job, then select a step in **Execution steps** to
 open the **Step details** drawer (the step inspector). It shows recorded inputs,
 outputs, and step facts. An **Errors** section appears when the selected step
 has a recorded failure. The job page combines its execution summary with this
@@ -2042,6 +2043,7 @@ the requested command.
 | Runtime repair lock times out | Inspect the reported lock owner and timestamp. Let a live launcher finish; if the owner is stale, follow the stale-owner recovery printed by the launcher, then retry. Do not leave scheduled backups or health checks failing behind the lock. |
 | CLI image is missing, stale, or cannot be rebuilt | Inspect the referenced owner-only `.flow-steward/logs/cli-bootstrap-*.log`, rerun `./install.sh`, then retry. |
 | `fs-cli` cannot start or pass exact runtime verification | Inspect the referenced owner-only `.flow-steward/logs/cli-runtime-*.log`, rerun `./install.sh`, then retry. |
+| On Docker Desktop for Mac, a container reads an old version of a host file: a new file is missing, a renamed or deleted one is still there (sometimes as NUL bytes), a rewritten `.env.prod` is truncated; or `./install.sh` / `lint.sh` stop with `[docker-desktop] Containers see a stale copy of ...` | Docker Desktop's VM caches what it has seen of a mounted folder and relies on the host to say when an entry changed. Under the Docker VMM engine that notifier can block for days (Docker Desktop's `monitor.log` repeats `waiting for notification buffer (inval_entry)`), and from then on every folder mounted before reads stale. `./install.sh` and `lint.sh` drop the VM's cache and check a probe file before they start containers, and stop instead of running on wrong files. Restart Docker Desktop to clear it; if it recurs, switch Settings → General → Virtual Machine Manager from Docker VMM to Apple Virtualization framework. |
 
 Launcher progress and recovery diagnostics use stderr, so JSON stdout remains
 machine-readable. The runtime has no public port and is not a Python daemon or
@@ -2527,7 +2529,7 @@ through the explicit configuration-store boundary.
 | `FS_DB_DSN` | Yes | Primary PostgreSQL DSN for the app |
 | `LANGGRAPH_POSTGRES_URI` | Yes | LangGraph checkpoint store DSN |
 | `RABBITMQ_URL` | Yes | RabbitMQ connection URL; remote brokers require verified `amqps` |
-| `FS_RABBITMQ_TRANSPORT_MODE` | No | Default `tls`; canonical Compose declares `compose-local`, disposable audit declares `audit-local`; `loopback-local` requires an explicit numeric loopback address and port |
+| `FS_RABBITMQ_TRANSPORT_MODE` | No | Default `tls`; canonical Compose declares `compose-local`, disposable audit declares `audit-local`; `loopback-local` requires an explicit numeric loopback address and port; `platform-private` allows plaintext only to `FS_RABBITMQ_PRIVATE_HOST:5672` on a provider private network (ADR 0064) |
 | `MCP_URL` | Yes | Internal MCP endpoint URL |
 | `FS_SECRET_KEY` | Yes | App signing/encryption key |
 | `ENCRYPTION_KEY` | Yes | Stable AES-GCM key for encrypted stored secrets |

@@ -64,7 +64,10 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
       const reason = issue.message_key ? t(issue.message_key, issue.message || "", issue.message_params) : issue.message || (issue.title_key ? t(issue.title_key, issue.title, issue.title_params) : issue.title);
       return [{ key: `${step.id}:${issue.code || reason}`, stepId: step.step_id || step.id, nodeId: step.id, name: step.display_name || step.id, reason }];
     });
-  const blocked = Boolean(ctx.workflowTestRunBlockedReason) || busy || applying ||
+  // Blocked by settings, not by a press in flight: a run that is starting or
+  // changes being applied make the other buttons ignore presses, never disable.
+  const pressBusy = busy || applying;
+  const blocked = Boolean(ctx.workflowTestRunBlockedReason) ||
     workflowTestRunIsPending(ctx.workflowTestRunPayload) || ctx.workflowRunsBlocked ||
     ctx.workflowTestRunHasValidationErrors || !ctx.selectedProjectId.trim();
 
@@ -103,11 +106,11 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
       busy={busy || applying}
       footer={<>
         <Button type="button" variant="secondary" disabled={busy || applying} onClick={ctx.closeWorkflowTestRunLaunch}>{t("common.cancel", "Cancel")}</Button>
-        {normalRun ? <Button type="button" variant="secondary" disabled={busy || normalRun.blocked || !normalRun.acknowledged} onClick={() => ignoreAsyncResult(normalRun!.start())}>
+        {normalRun ? <Button type="button" variant="secondary" busy={Boolean(normalRun.busy)} busyLabel={t("react.extensions.starting", "Starting…")} disabled={!normalRun.busy && (normalRun.blockedAtRest || !normalRun.acknowledged)} onClick={() => { if (!pressBusy) ignoreAsyncResult(normalRun!.start()); }}>
           {t("react.workflows.normal_run", "Run workflow")}
         </Button> : null}
-        <Button type="button" variant="primary" aria-label={t("react.workflows.run_workflow_test_run", "Run workflow test run")} disabled={blocked} onClick={ctx.startWorkflowTestRun}>
-          {ctx.workflowTestRunMutation.isPending ? t("react.workflows.starting_test_run", "Starting Test Run...") : t("react.workflows.start_test_run", "Start test run")}
+        <Button type="button" variant="primary" aria-label={t("react.workflows.run_workflow_test_run", "Run workflow test run")} busy={ctx.workflowTestRunMutation.isPending} busyLabel={t("react.workflows.starting_test_run", "Starting Test Run…")} disabled={blocked && !ctx.workflowTestRunMutation.isPending} onClick={() => { if (!pressBusy) ctx.startWorkflowTestRun(); }}>
+          {t("react.workflows.start_test_run", "Start test run")}
         </Button>
       </>}
     >
@@ -141,7 +144,7 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
         {ctx.workflowTestRunBlockedReason ? <div data-testid="workflow-test-run-blocked" role="status">
           <DsAlert title={t("react.workflows.test_run_cannot_start", "The test cannot start yet")} tone="warning">
             <p>{ctx.workflowTestRunBlockedReason}</p>
-            {ctx.canvasChangeSet.hasChanges ? <Button type="button" variant="secondary" disabled={busy || applying} onClick={() => ignoreAsyncResult(ctx.canvasChangeSet.apply())}>{t("react.workflows.apply_changes", "Apply changes")}</Button> : null}
+            {ctx.canvasChangeSet.hasChanges ? <Button type="button" variant="secondary" busy={applying} busyLabel={t("react.workflows.applying_changes", "Applying…")} onClick={() => { if (!busy) ignoreAsyncResult(ctx.canvasChangeSet.apply()); }}>{t("react.workflows.apply_changes", "Apply changes")}</Button> : null}
           </DsAlert>
         </div> : null}
         {ctx.renderProjectLinkControl()}

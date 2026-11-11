@@ -3,6 +3,9 @@ import { Check, ChevronDown, ChevronLeft, Search, X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+
 /** `icon` is a small mark drawn before the label (an extension's logo tile). */
 export type DsOption = { value: string; label: string; description?: string; disabled?: boolean; icon?: ReactNode };
 /**
@@ -594,6 +597,39 @@ export function AdvancedTableFilters({
   );
 }
 
+/**
+ * Async options for a Combobox (`combobox.md` Loading state). The label names
+ * what is loading ("Loading projects…"), never a bare "Loading…", so it comes
+ * with `loading` and is required whenever `loading` is passed.
+ */
+type ComboboxLoadingProps =
+  | { loading?: undefined; loadingLabel?: undefined }
+  | { loading: boolean; loadingLabel: string };
+
+/**
+ * `busy` covers the request and the loader's minimum display time; the row
+ * itself paints only after the shared 400 ms delay (`loaderShown`).
+ */
+function useComboboxLoading(loading: boolean | undefined) {
+  const pending = Boolean(loading);
+  const loaderShown = useLoaderDelay(pending);
+  return { busy: pending || loaderShown, loaderShown };
+}
+
+/**
+ * The first row of the open list while options load: the round mono S loader
+ * and a named noun. It is not an option, so it is never highlighted or chosen;
+ * the field's live region announces it once instead of a nested status role.
+ */
+function ComboboxLoadingRow({ label }: Readonly<{ label: string }>) {
+  return (
+    <div className="fs-combobox-loading" role="presentation">
+      <DsLoader variant="orbit-inline" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export function SingleCombobox({
   ariaLabel,
   value,
@@ -601,6 +637,9 @@ export function SingleCombobox({
   onChange,
   placeholder: suppliedPlaceholder,
   disabled,
+  id,
+  loading,
+  loadingLabel,
 }: Readonly<{
   ariaLabel: string;
   value: string;
@@ -608,9 +647,12 @@ export function SingleCombobox({
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
-}>) {
+  /** Addresses the input so a visible `<label htmlFor>` names it. */
+  id?: string;
+} & ComboboxLoadingProps>) {
   const { t } = useI18n();
   const placeholder = suppliedPlaceholder ?? t("react.shared.search_options", "Search options");
+  const { busy, loaderShown } = useComboboxLoading(loading);
   const [open, setOpen] = useState(false);
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -625,6 +667,10 @@ export function SingleCombobox({
   }, [options, query, selected?.label]);
   const normalizedActiveIndex = activeIndex < filtered.length ? activeIndex : -1;
   const moveActive = createActiveIndexMover(filtered.length, () => setOpen(true), setActiveIndex);
+  // During the loader's 400 ms delay there is nothing honest to list yet: no
+  // options and no "No results", so the list stays closed until the row paints.
+  const menuHidden = busy && !loaderShown && filtered.length === 0;
+  const menuOpen = open && !disabled && !menuHidden;
   useEffect(() => {
     if (!open) return;
     const close = (event: MouseEvent) => {
@@ -648,10 +694,11 @@ export function SingleCombobox({
           aria-activedescendant={normalizedActiveIndex >= 0 ? `${listboxId}-option-${normalizedActiveIndex}` : undefined}
           aria-autocomplete="list"
           aria-controls={listboxId}
-          aria-expanded={open}
+          aria-expanded={open && !menuHidden}
           aria-label={ariaLabel}
           autoComplete="off"
           disabled={disabled}
+          id={id}
           onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(-1); }}
           onFocus={(event) => { setQuery(selected?.label || value); setOpen(true); setActiveIndex(-1); event.currentTarget.select(); }}
           onKeyDown={(event) => {
@@ -668,15 +715,18 @@ export function SingleCombobox({
           value={open ? query : selected?.label || value}
         />
       </div>
-      {open && !disabled ? (
-        <div className="fs-combo-menu" id={listboxId} role="listbox" aria-label={t("react.shared.value1_options", "{value1} options", { value1: String(ariaLabel) })}>
-          {filtered.length ? filtered.map((option, index) => (
+      {menuOpen ? (
+        <div className="fs-combo-menu" id={listboxId} role="listbox" aria-busy={busy || undefined} aria-label={t("react.shared.value1_options", "{value1} options", { value1: String(ariaLabel) })}>
+          {loaderShown ? <ComboboxLoadingRow label={loadingLabel ?? ""} /> : null}
+          {filtered.map((option, index) => (
             <button aria-selected={option.value === value} className="fs-combo-option" data-active={normalizedActiveIndex === index ? "true" : undefined} id={`${listboxId}-option-${index}`} key={option.value} onClick={() => choose(option)} onMouseDown={(event) => event.preventDefault()} role="option" tabIndex={-1} type="button">
               <span>{option.label}</span><Check className="fs-select-check" aria-hidden="true" />
             </button>
-          )) : <span className="fs-combo-empty">{t("react.shared.no_results", "No results")}</span>}
+          ))}
+          {filtered.length || busy ? null : <span className="fs-combo-empty">{t("react.shared.no_results", "No results")}</span>}
         </div>
       ) : null}
+      <span className="fs-sr-only" aria-live="polite">{menuOpen && loaderShown ? loadingLabel : ""}</span>
     </div>
   );
 }
@@ -689,6 +739,8 @@ export function MultiCombobox({
   placeholder,
   disabled,
   required,
+  loading,
+  loadingLabel,
 }: Readonly<{
   ariaLabel: string;
   options: DsOption[];
@@ -697,8 +749,9 @@ export function MultiCombobox({
   placeholder: string;
   disabled?: boolean;
   required?: boolean;
-}>) {
+} & ComboboxLoadingProps>) {
   const { t } = useI18n();
+  const { busy, loaderShown } = useComboboxLoading(loading);
   const [open, setOpen] = useState(false);
   const listboxId = useId();
   const [query, setQuery] = useState("");
@@ -714,14 +767,18 @@ export function MultiCombobox({
   const normalizedActiveIndex = activeIndex < filtered.length ? activeIndex : -1;
   const moveActive = createActiveIndexMover(filtered.length, () => setOpen(true), setActiveIndex);
   const selectedOptions = selected.map((value) => options.find((option) => option.value === value)).filter((option): option is DsOption => Boolean(option));
+  // As in the single Combobox: nothing to list during the loader's delay.
+  const menuHidden = busy && !loaderShown && filtered.length === 0;
+  const menuOpen = open && !disabled && !menuHidden;
   const menuPosition = useAnchoredMenuPosition({
-    open,
+    open: open && !menuHidden,
     anchorRef: fieldRef,
     menuRef,
     insideRefs: [rootRef],
     onDismiss: () => setOpen(false),
     maxHeightToken: "--fs-combobox-menu-max-height",
-    remeasureKey: filtered.length,
+    // The loading row adds or removes a row without changing the option count.
+    remeasureKey: `${filtered.length}:${loaderShown}`,
   });
   function toggle(value: string) {
     onChange(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]);
@@ -735,7 +792,7 @@ export function MultiCombobox({
           aria-autocomplete="list"
           aria-activedescendant={normalizedActiveIndex >= 0 ? `${listboxId}-option-${normalizedActiveIndex}` : undefined}
           aria-controls={listboxId}
-          aria-expanded={open}
+          aria-expanded={open && !menuHidden}
           aria-label={ariaLabel}
           aria-required={required}
           disabled={disabled}
@@ -755,20 +812,23 @@ export function MultiCombobox({
           role="combobox"
           value={query}
         />
-        {selected.length ? <button aria-label={t("react.shared.clear_value1", "Clear {value1}", { value1: String(ariaLabel.toLowerCase()) })} className="fs-icon-button" onClick={() => { onChange([]); setQuery(""); setActiveIndex(-1); inputRef.current?.focus(); }} type="button"><X aria-hidden="true" /></button> : null}
+        {/* Chosen values stay visible while options load; Clear does not. */}
+        {selected.length && !loaderShown ? <button aria-label={t("react.shared.clear_value1", "Clear {value1}", { value1: String(ariaLabel.toLowerCase()) })} className="fs-icon-button" onClick={() => { onChange([]); setQuery(""); setActiveIndex(-1); inputRef.current?.focus(); }} type="button"><X aria-hidden="true" /></button> : null}
       </div>
-      {open && !disabled ? createPortal(
-        <div className="fs-settings-portal fs-multi-menu fs-multi-menu-layer" id={listboxId} ref={menuRef} role="listbox" aria-label={t("react.shared.value1_options", "{value1} options", { value1: String(ariaLabel) })} aria-multiselectable="true" style={menuPosition}>
-          {filtered.length ? filtered.map((option, index) => (
+      {menuOpen ? createPortal(
+        <div className="fs-settings-portal fs-multi-menu fs-multi-menu-layer" id={listboxId} ref={menuRef} role="listbox" aria-busy={busy || undefined} aria-label={t("react.shared.value1_options", "{value1} options", { value1: String(ariaLabel) })} aria-multiselectable="true" style={menuPosition}>
+          {loaderShown ? <ComboboxLoadingRow label={loadingLabel ?? ""} /> : null}
+          {filtered.map((option, index) => (
             <button aria-selected={selected.includes(option.value)} className="fs-multi-option" data-active={normalizedActiveIndex === index ? "true" : undefined} id={`${listboxId}-option-${index}`} key={option.value} onClick={() => { toggle(option.value); inputRef.current?.focus(); }} onMouseDown={(event) => event.preventDefault()} role="option" tabIndex={-1} type="button">
               <span>{option.label}{option.description ? <small className="fs-field-helper"> · {option.description}</small> : null}</span>
               <Check className="fs-select-check" aria-hidden="true" />
             </button>
-          )) : <span className="fs-field-helper">{t("react.shared.no_results", "No results")}</span>}
+          ))}
+          {filtered.length || busy ? null : <span className="fs-field-helper">{t("react.shared.no_results", "No results")}</span>}
         </div>,
         document.body,
       ) : null}
-      <span className="fs-sr-only" aria-live="polite">{t("react.shared.selected_count", "{count} selected", { count: selected.length })}</span>
+      <span className="fs-sr-only" aria-live="polite">{menuOpen && loaderShown ? loadingLabel : t("react.shared.selected_count", "{count} selected", { count: selected.length })}</span>
     </div>
   );
 }

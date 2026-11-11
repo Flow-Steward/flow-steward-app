@@ -26,6 +26,7 @@ import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
 import { McpOAuthCard } from "@/pages/settings/security/mcp-oauth-card";
+import { Button } from "@/components/ui/button";
 
 import "@/pages/settings/shared/settings.css";
 
@@ -604,14 +605,15 @@ export function SettingsSecurityPage({
         description={policyDescription}
         footer={
           <div className="fs-footer-actions">
-            <button
-              className="fs-button primary"
-              disabled={savingPolicy}
+            <Button
+              busy={savingPolicy}
+              busyLabel={t("react.settings.saving", "Saving…")}
               onClick={() => ignoreAsyncResult(handleSavePolicy())}
               type="button"
+              variant="primary"
             >
-              {savingPolicy ? t("project_edit.security.saving", "Saving...") : t("settings.retention.save_policy", "Save policy")}
-            </button>
+              {t("settings.retention.save_policy", "Save policy")}
+            </Button>
           </div>
         }
         title={t("react.settings.security_policy", "Security policy")}

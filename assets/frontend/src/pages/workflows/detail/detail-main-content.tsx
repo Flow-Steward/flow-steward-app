@@ -18,6 +18,9 @@ import type {
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { applyRefusalMessage, changeIssueMessage, type WorkflowChangeSetController } from "@/pages/workflows/detail/detail-change-set";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 import type { GroupDraftDefaults } from "@/pages/workflows/detail/detail-drawer-controller";
 
 type ValidationIssueAction = (group: WorkflowValidationIssueGroup) => void;
@@ -29,6 +32,9 @@ export function WorkflowDetailMainContent({ ctx }: Readonly<{ ctx: Record<string
   const stepRowsById = (ctx.definitionRows?.stepRowsById || new Map()) as Map<string, WorkflowStepRow>;
   const entryKey = typeof ctx.entryKey === "string" ? ctx.entryKey : "";
   const changeSet = ctx.changeSet as WorkflowChangeSetController | undefined;
+  const applying = changeSet?.status === "applying";
+  const applyingShown = useLoaderDelay(applying);
+  const checkLoaderShown = useLoaderDelay(Boolean(changeSet?.hasChanges && changeSet.checkState === "checking"));
   const selectedStep = ctx.selectedStep as WorkflowStepRow | null;
   const isValid = Boolean(ctx.isValid);
   const validationErrorGroups =
@@ -194,14 +200,13 @@ export function WorkflowDetailMainContent({ ctx }: Readonly<{ ctx: Record<string
                 {changeSet.hasChanges ? (
                   <div className="flex gap-2">
                     <button
+                      aria-busy={applying || undefined}
                       className="rounded-lg border border-emerald-300/45 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-50 disabled:opacity-50"
-                      disabled={changeSet.status === "applying" || changeSet.status === "conflict"}
-                      onClick={() => ignoreAsyncResult(changeSet.apply())}
+                      disabled={changeSet.status === "conflict"}
+                      onClick={() => { if (!applying) ignoreAsyncResult(changeSet.apply()); }}
                       type="button"
                     >
-                      {changeSet.status === "applying"
-                        ? t("react.workflows.applying_changes", "Applying…")
-                        : t("react.workflows.apply_changes", "Apply changes")}
+                      <ButtonBusyContent busyLabel={t("react.workflows.applying_changes", "Applying…")} shown={applyingShown}>{t("react.workflows.apply_changes", "Apply changes")}</ButtonBusyContent>
                     </button>
                     <button
                       className="rounded-lg border border-white/20 px-3 py-1 text-xs text-slate-100 disabled:opacity-50"
@@ -243,9 +248,9 @@ export function WorkflowDetailMainContent({ ctx }: Readonly<{ ctx: Record<string
                 .map((message, index) => (
                   <p className="text-amber-100/90" key={`${message}:${index}`}>{message}</p>
                 ))}
-              {changeSet.hasChanges && changeSet.checkState === "checking" ? (
+              {checkLoaderShown ? (
                 <p className="text-amber-100/70" data-testid="change-check-status">
-                  {t("react.workflows.change_check_running", "Checking the changes against the server…")}
+                  <DsLoader variant="orbit-inline" label={t("react.workflows.change_check_running", "Checking the changes against the server…")} />
                 </p>
               ) : null}
               {changeSet.hasChanges && changeSet.checkState === "unavailable" ? (

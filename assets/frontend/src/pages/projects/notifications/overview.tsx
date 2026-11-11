@@ -4,10 +4,12 @@ import type { I18nContextValue } from "@/lib/i18n/context";
 import type { ReactNode } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsValueChip, type DsBadgeTone } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   fetchProjectNotificationOverview,
@@ -210,16 +212,16 @@ export function ProjectNotificationOverview({ projectId }: Readonly<{ projectId:
   });
   const entries = overviewQuery.data ?? [];
   const loading = overviewQuery.isPending;
+  const loaderShown = useLoaderDelay(loading);
   const failed = overviewQuery.isError && !overviewQuery.data;
 
   let body: ReactNode;
-  if (loading) {
-    body = (
-      <div className="flex items-center gap-2 text-sm fs-ink-secondary" role="status">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("react.projects.notification_overview_loading", "Loading automatic notifications…")}
+  if (loading || loaderShown) {
+    body = loaderShown ? (
+      <div className="text-sm fs-ink-secondary">
+        <DsLoader label={t("react.projects.notification_overview_loading", "Loading automatic notifications…")} variant="orbit-inline" />
       </div>
-    );
+    ) : null;
   } else if (failed) {
     body = (
       <DsAlert tone="danger" title={t("react.projects.notification_overview_failed", "Automatic notifications could not be loaded.")}>

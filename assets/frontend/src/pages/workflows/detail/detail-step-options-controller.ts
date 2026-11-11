@@ -182,7 +182,7 @@ export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
   // participant_key" (AUDIT-033). Load the registry catalog too.
   const agentCatalogQuery = useQuery({
     queryKey: ["workflows", "meta", "agent-catalog"],
-    queryFn: () => fetchRegistryList("/api/agents", { presentation: "background" }),
+    queryFn: () => fetchRegistryList("/api/agents"),
     enabled: drawerMode === "step" && stepKindDraft === "agent",
     retry: false,
     refetchInterval: 60_000,
@@ -197,7 +197,6 @@ export function useWorkflowStepOptionsController(ctx: Record<string, any>) {
     queryFn: () =>
       fetchDatasetQueryTemplates(
         selectedProjectId ? { projectId: selectedProjectId } : undefined,
-        { presentation: "background" },
       ),
     // Deliberately NOT gated on a selected project. `fetchDatasetQueryTemplates`
     // treats projectId as optional and scopes the result when one is present,

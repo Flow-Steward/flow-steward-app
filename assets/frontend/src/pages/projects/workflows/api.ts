@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
 
 export type ProjectWorkflowBindings = {
@@ -34,8 +34,8 @@ export function normalizeWorkflowBindingsSavePayload(
   };
 }
 
-export async function fetchProjectWorkflowBindings(projectId: string, options?: FetchJsonOptions) {
-  return fetchJson<ProjectWorkflowBindings>(`/api/projects/${encodeURIComponent(projectId)}/workflows`, undefined, options);
+export async function fetchProjectWorkflowBindings(projectId: string) {
+  return fetchJson<ProjectWorkflowBindings>(`/api/projects/${encodeURIComponent(projectId)}/workflows`);
 }
 
 export async function saveProjectWorkflowBindings(

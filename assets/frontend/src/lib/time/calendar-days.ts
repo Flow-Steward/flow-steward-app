@@ -1,3 +1,5 @@
+import { formatCalendarDate } from "@/lib/time/date-time-format";
+
 // Whole calendar days as YYYY-MM-DD strings, per the canon date contract.
 // No time and no offset, so the arithmetic runs in UTC and never shifts a day.
 
@@ -21,12 +23,7 @@ export function wholeDaysBetween(fromIsoDay: string, toIsoDay: string): number {
   return Math.round((utcTime(toIsoDay) - utcTime(fromIsoDay)) / DAY_MS);
 }
 
-// The reader sees their own locale's format; the stored value never surfaces.
+// The reader sees their own date format; the stored value never surfaces.
 export function formatCalendarDay(isoDay: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(utcTime(isoDay));
+  return formatCalendarDate(isoDay);
 }
