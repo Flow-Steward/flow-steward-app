@@ -357,3 +357,13 @@ def test_pinned_requests_session_blocks_private_dns(monkeypatch):
     )
     with pytest.raises(ValueError):
         url_safety.pinned_requests_session("https://idp.example.com/", purpose="identity provider")
+
+
+def test_pinned_https_refuses_tls_before_1_2_and_still_verifies_the_peer() -> None:
+    import ssl
+
+    context = url_safety.verified_tls_client_context()
+
+    assert context.minimum_version == ssl.TLSVersion.TLSv1_2
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
