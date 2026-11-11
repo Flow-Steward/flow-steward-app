@@ -573,10 +573,11 @@ class CloneRuntimeGateway:
     @staticmethod
     def _write_json_file(path: Path, value: object) -> None:
         with path.open("x", encoding="utf-8") as output:
+            # Owner-only before the first byte, as in `_write_json_atomic`.
+            os.fchmod(output.fileno(), 0o600)
             output.write(json.dumps(value, sort_keys=True, separators=(",", ":")))
             output.flush()
             os.fsync(output.fileno())
-        path.chmod(0o600)
 
     @staticmethod
     def _write_json_atomic(path: Path, value: object) -> None:

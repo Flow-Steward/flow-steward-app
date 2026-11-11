@@ -655,12 +655,15 @@ def dispatch_notification_from_reaction(
     except ValueError as exc:
         return {"status": "failed", "reason": str(exc), "executed": False}
     except Exception as exc:
+        from core.application.security.credential_redaction import redact_text
+
+        reason = redact_text(str(exc))
         logger.warning(
             "dispatch_notification_from_reaction failed for project_id=%s: %s",
             project_id,
-            exc,
+            reason,
         )
-        return {"status": "failed", "reason": str(exc), "executed": False}
+        return {"status": "failed", "reason": reason, "executed": False}
 
     if not deliveries:
         return {

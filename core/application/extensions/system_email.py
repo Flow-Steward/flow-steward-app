@@ -201,11 +201,13 @@ def _send(kind: str, *, recipient: str, locale: str, bl: Any = None, **values: A
     )
     if _text(result.get("status")) == "delivered":
         return {"ok": True, "reason": "sent", "provider": extension_key}
+    from core.application.security.credential_redaction import redact_text
+
     logger.warning(
         "System email %s was not delivered through %s: %s",
         kind,
         extension_key,
-        _text(result.get("error_text")) or "delivery failed",
+        redact_text(_text(result.get("error_text"))) or "delivery failed",
     )
     return {"ok": False, "reason": "send_failed", "provider": extension_key}
 
