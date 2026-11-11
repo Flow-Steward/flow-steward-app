@@ -45,6 +45,24 @@ def operation_log_root() -> Path:
     return DEFAULT_OPERATION_LOG_ROOT
 
 
+def reported_log_path(path: Path) -> str:
+    """The log path as the operator reaches it, which is not always where it was written.
+
+    2026-11-11: `database upgrade` runs in a one-shot application container that writes
+    its log to /app/logs/cli, and the error said `Log: /app/logs/cli/...`, a path that
+    does not exist on the host. The launcher names the host directory of that log root
+    in FS_CLI_OPERATION_LOG_HOST_ROOT; a path under the log root is reported there.
+    """
+    host_root = str(_runtime_env.get("FS_CLI_OPERATION_LOG_HOST_ROOT") or "").strip()
+    if not host_root:
+        return str(path)
+    try:
+        relative = Path(path).resolve().relative_to(operation_log_root().resolve())
+    except ValueError:
+        return str(path)
+    return str(Path(host_root) / relative)
+
+
 class OperationLogUnavailable(RuntimeError):
     """A mutating command could not open the operation log it records itself in.
 

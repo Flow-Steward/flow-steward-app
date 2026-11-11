@@ -128,6 +128,41 @@ class StackReadinessProbe:
                     else "Inspect the operation journal and its log.",
                 }
             )
+        return findings + self._failed_artifact_findings()
+
+    def _failed_artifact_findings(self) -> list[dict[str, object]]:
+        """Report a failed backup without blocking anything.
+
+        A backup writes a new file and changes nothing in the installation, so its
+        failure is not an unfinished operation (`journal_blocks_new_work`): it is shown
+        here until a later backup succeeds, and maintenance can still be turned off.
+        """
+        try:
+            failed = tuple(self.lifecycle_state.failed_artifact_operations())
+        except (OSError, ValueError):
+            return []
+        findings: list[dict[str, object]] = []
+        for journal in failed:
+            kind = str(getattr(journal.kind, "value", journal.kind)).replace("_", " ")
+            step = journal.failed_step or journal.current_step or "unknown"
+            code = f", {journal.last_error_code}" if journal.last_error_code else ""
+            command = self.complete_command(str(journal.recovery_command or "").strip())
+            findings.append(
+                {
+                    "id": "lifecycle_operation",
+                    "category": "core",
+                    "title": f"Last {kind} failed",
+                    "status": "warn",
+                    "detail": (
+                        f"{kind} {journal.operation_id} failed at step {step}"
+                        f"{code}; it made no backup and changed nothing else."
+                    ),
+                    "remediation": (
+                        "Read its log under .flow-steward/operations/logs, fix the cause, "
+                        f"then make a new backup with {command}."
+                    ),
+                }
+            )
         return findings
 
     def _preinstall_checks(self) -> list[dict[str, object]]:

@@ -31,7 +31,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `45` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `174` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `175` |
 | `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `36` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
@@ -51,15 +51,15 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `825`
-- Cataloged variables from `.env.example*` or manifest: `603`
+- Raw env-like names discovered by audit: `826`
+- Cataloged variables from `.env.example*` or manifest: `604`
 - Raw audit-only names outside examples/manifest: `222`
 - Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `513`
+- Variables in canonical manifest: `514`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `137`
+- Internal Runtime: `138`
 - Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
@@ -660,6 +660,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### api
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
+| `FS_CLI_OPERATION_LOG_HOST_ROOT` | core_runtime | production, local_development | no | no | - | - | CLI (1) | Host directory that FS_CLI_OPERATION_LOG_ROOT is mounted from; set by the launcher so the CLI reports a log path the operator can open on the host. | `core/entrypoints/cli/platform/operation_log.py` |
 | `FS_CLI_OPERATION_LOG_ROOT` | core_runtime | production, local_development | no | no | - | - | CLI (1) | Directory the CLI writes command operation logs to; set by the launcher for containerised runs. | `core/entrypoints/cli/platform/operation_log.py` |
 #### artifacts
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
