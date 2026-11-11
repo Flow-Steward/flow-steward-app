@@ -263,6 +263,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/reports/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/workflows/execution_graph.py \
+    core/application/workflows/workflow_action_contract.py \
     core/application/workflows/workflow_canvas_annotation_contract.py \
     core/application/workflows/workflow_contract_summary.py \
     core/application/workflows/workflow_history_snapshot.py \
@@ -332,6 +333,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/db/step_replay_store.py \
     core/infrastructure/db/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
+    core/infrastructure/security/path_containment.py \
     core/infrastructure/security/prompt_safety.py \
     core/infrastructure/security/secret_reference.py \
     core/infrastructure/security/stored_secrets.py \

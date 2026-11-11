@@ -10163,7 +10163,7 @@ def test_an_unapplied_forward_migration_has_a_dedicated_failure_code(
     assert raised.value.code == "release_migration_required"
     assert "database upgrade" in raised.value.remediation
     # 2026-11-11: the previous release's processes block the upgrade; the text says so.
-    assert "app, worker, control-plane and mcp" in raised.value.remediation
+    assert "previous release's Flow Steward" in raised.value.remediation
     assert "keeps Postgres, RabbitMQ and storage running" in raised.value.remediation
     assert len(checked) == 1
     assert application_service in checked[0]
