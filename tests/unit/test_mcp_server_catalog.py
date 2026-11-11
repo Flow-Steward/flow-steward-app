@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from core.application.auth.oauth_client_values import OAuthConnectionError
 from core.application.management import mcp_server_catalog as catalog
 from core.application.management import mcp_server_catalog_install as install_module
 from core.application.management.errors import (
@@ -521,7 +522,7 @@ def test_a_refused_client_does_not_undo_the_install(created, scope, monkeypatch)
     )
 
     def refuse(bl, **kw):
-        raise RuntimeError("client rejected")
+        raise OAuthConnectionError("client rejected")
 
     result = _service(save_oauth_credentials=refuse).install(
         "google-gmail",
@@ -534,6 +535,30 @@ def test_a_refused_client_does_not_undo_the_install(created, scope, monkeypatch)
     assert len(created.inputs) == 1
     assert result["next_step"] == "oauth_client"
     assert result["client_error"] == "client rejected"
+
+
+def test_an_unexpected_client_save_failure_keeps_its_text_out_of_the_answer(
+    created, scope, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        install_module.McpConnectorStore,
+        "get_connector_row",
+        lambda self, bl, cid, **kw: {"connector_id": cid},
+    )
+
+    def explode(bl, **kw):
+        raise RuntimeError("connection to server at 10.0.0.5 failed")
+
+    result = _service(save_oauth_credentials=explode).install(
+        "google-gmail",
+        remote_id="default",
+        item_revision=1,
+        scope=scope,
+        client_id="x",
+        client_secret="y",
+    )
+    assert result["next_step"] == "oauth_client"
+    assert result["client_error"] == "The OAuth client could not be saved."
 
 
 def test_an_api_token_install_stores_the_header_as_a_bearer_connector(created, scope) -> None:

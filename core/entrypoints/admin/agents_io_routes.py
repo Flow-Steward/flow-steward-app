@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -23,6 +24,8 @@ from core.entrypoints.admin._registry_scope import assert_row_in_account_scope, 
 from core.entrypoints.admin._service_errors import raise_service_http_error, service_db_getter
 from core.entrypoints.admin.agents_models import AgentInputItem, AgentOutputItem
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+
+logger = logging.getLogger(__name__)
 
 
 def register_agent_io_routes(
@@ -124,8 +127,9 @@ def register_agent_io_routes(
                     "invocations": row[0] if row else 0,
                     "avg_duration_secs": float(row[1]) if row and row[1] else None,
                 }
-        except Exception as e:
-            return {"agent_id": agent_id, "error": str(e)}
+        except Exception:
+            logger.exception("Agent statistics query failed agent_id=%s", agent_id)
+            return {"agent_id": agent_id, "error": "Agent statistics are unavailable"}
 
     # --------------------------------------------------------------------------- #
     # Structured I/O                                                               #

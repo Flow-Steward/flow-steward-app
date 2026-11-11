@@ -138,6 +138,21 @@ def test_service_error_response_keeps_extra_context_and_code() -> None:
     assert b'"context":{"extra_flag":true}' in response.body
 
 
+def test_service_error_response_never_echoes_exception_text_without_a_message() -> None:
+    response = serve_request_runtime.service_error_response(
+        RuntimeError("connection to server at 10.0.0.5 failed"),
+        None,
+        error_payload=_error_payload,
+        request_correlation_id=lambda _request, fallback="": fallback or "generated",
+        error_code_for_status=lambda status: f"status-{status}",
+        err_request_failed="Request failed",
+    )
+
+    assert response.status_code == 500
+    assert b"10.0.0.5" not in response.body
+    assert b"Request failed" in response.body
+
+
 def test_service_error_response_serializes_uuid_extra_context() -> None:
     trace_id = uuid.UUID("58eeaeb3-a9c1-4c51-b292-14eb86899d86")
     exc = type(

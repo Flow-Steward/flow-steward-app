@@ -2,12 +2,16 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+import logging
+
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 
 from .contract_validation_invoke import *  # noqa: F403,F401  # NOSONAR
 
 
 from .contract_item_validation import validate_contract_items
+
+_logger = logging.getLogger(__name__)
 
 _AGENT_NOT_FOUND = "agent.not_found"
 
@@ -246,11 +250,12 @@ def validate_tool_readiness(db, tool_id: str) -> dict:
                         path=PATH_TOOL_IMPLEMENTATION,
                     )
                 )
-        except Exception as exc:
+        except Exception:
+            _logger.exception("Tool runtime validation failed tool_id=%s", normalized_tool_id)
             errors.append(
                 _issue(
                     code="tool.runtime_validation_failed",
-                    message=f"Enabled tool runtime validation failed: {exc}",
+                    message="Enabled tool runtime validation failed; see the server log",
                     path=PATH_TOOL_IMPLEMENTATION,
                 )
             )

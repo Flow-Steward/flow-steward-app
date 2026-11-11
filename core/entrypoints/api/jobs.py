@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -38,6 +39,8 @@ from core.entrypoints.api.job_detail_routes import (
     JobDetailRouteDependencies,
     register_job_detail_routes,
 )
+
+logger = logging.getLogger(__name__)
 
 _MESSAGE_ADMIN_ROLE_REQUIRED = "Admin role required"
 
@@ -403,8 +406,11 @@ def create_api_jobs_router(
             try:
                 if worker_pid:
                     kill_result = terminate_worker_pid(worker_pid)
-            except Exception as kill_err:
-                kill_result = {"attempted": True, "error": str(kill_err), "pid": worker_pid}
+            except Exception:
+                logger.exception(
+                    "Watchdog kill of worker pid=%s failed job_id=%s", worker_pid, job_id
+                )
+                kill_result = {"attempted": True, "error": "worker_kill_failed", "pid": worker_pid}
 
             if status not in terminal:
                 cancel_job_terminally(
