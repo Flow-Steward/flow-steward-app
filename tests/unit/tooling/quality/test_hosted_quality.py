@@ -68,6 +68,33 @@ def test_main_is_fetched_again_and_stale_candidate_is_rejected(
     assert "Update this branch from origin/main" in result.stderr
 
 
+@pytest.mark.parametrize("mode", ["release", "release-sonar"])
+def test_release_candidate_behind_main_is_rejected_with_both_commits(
+    candidate: tuple[Path, dict[str, str]], mode: str
+) -> None:
+    origin, env = candidate
+    (origin / "source.py").write_text("VALUE = 2\n")
+    _git(origin, "commit", "-am", "Another pull request lands")
+    result = _run({**env, "QUALITY_MODE": mode})
+    assert result.returncode != 0
+    assert _git(origin, "rev-parse", "--short", "HEAD") in result.stderr
+    assert env["GITHUB_SHA"][:7] in result.stderr
+    assert "Update this branch from origin/main" in result.stderr
+
+
+@pytest.mark.parametrize("mode", ["tier2", "single-check"])
+def test_branch_result_behind_main_is_kept_with_a_warning(
+    candidate: tuple[Path, dict[str, str]], mode: str
+) -> None:
+    origin, env = candidate
+    (origin / "source.py").write_text("VALUE = 2\n")
+    _git(origin, "commit", "-am", "Another pull request lands")
+    result = _run({**env, "QUALITY_MODE": mode})
+    assert result.returncode == 0, result.stderr
+    assert "::warning::" in result.stdout
+    assert f"This {mode} result describes this branch only" in result.stdout
+
+
 @pytest.mark.parametrize("change", ["sha", "tracked", "untracked"])
 def test_wrong_or_dirty_candidate_is_rejected(
     candidate: tuple[Path, dict[str, str]], change: str
