@@ -24,6 +24,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from core.infrastructure.security.path_containment import contained_path
+
 MAX_SCANNED_FILES = 2_000
 MAX_SCANNED_BYTES = 5 * 1024 * 1024
 
@@ -223,8 +225,11 @@ def _declared_code(
                 inline.append((f"<{label} -c>", parts[index + 1]))
         for part in parts[1:]:
             if part.endswith(".py"):
-                candidate = (bundle_root / part).resolve()
-                if candidate.is_file() and candidate.is_relative_to(bundle_root.resolve()):
+                try:
+                    candidate = contained_path(bundle_root, part)
+                except ValueError:
+                    continue
+                if candidate.is_file():
                     declared.append(candidate)
     return inline, declared
 
@@ -305,16 +310,20 @@ def scan_extension_code(
     if too_many:
         errors.append(_too_large(""))
         return errors, warnings
+    real_root = Path(os.path.realpath(root))
     seen: set[Path] = set()
     for path in [*declared, *files]:
-        resolved = path.resolve()
-        # A link leading out of the bundle is the bundle boundary's concern.
-        if resolved in seen or not resolved.is_relative_to(root.resolve()):
+        try:
+            resolved = contained_path(real_root, path)
+        except ValueError:
+            # A link leading out of the bundle is the bundle boundary's concern.
+            continue
+        if resolved in seen:
             continue
         seen.add(resolved)
-        relative = resolved.relative_to(root.resolve()).as_posix()
+        relative = resolved.relative_to(real_root).as_posix()
         # Read at most what is left of the budget, plus one byte to notice more.
-        with path.open("rb") as handle:
+        with resolved.open("rb") as handle:
             source = handle.read(budget + 1)
         if len(source) > budget:
             errors.append(_too_large(relative))

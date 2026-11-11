@@ -591,7 +591,8 @@ def create_extension_callbacks_router(
         registration = service.resolve_registration(callback_token)
         if not registration:
             return _error(CALLBACK_REGISTRATION_NOT_FOUND_MESSAGE, 404)
-        if str(registration.get("extension_id") or "").strip() != str(extension_id or "").strip():
+        registered_extension_id = str(registration.get("extension_id") or "").strip()
+        if registered_extension_id != str(extension_id or "").strip():
             return _error(CALLBACK_REGISTRATION_NOT_FOUND_MESSAGE, 404)
         if str(registration.get("callback_id") or "").strip() != str(callback_id or "").strip():
             return _error(CALLBACK_REGISTRATION_NOT_FOUND_MESSAGE, 404)
@@ -623,13 +624,13 @@ def create_extension_callbacks_router(
             if query is None:
                 return _oauth_callback_response(
                     {"outcome": "restart_required"},
-                    extension_id=extension_id,
+                    extension_id=registered_extension_id,
                     project_id=str(registration.get("project_id") or ""),
                 )
             if oauth_authorization_callback is None:
                 return _oauth_callback_response(
                     {"outcome": "provider_unavailable"},
-                    extension_id=extension_id,
+                    extension_id=registered_extension_id,
                     project_id=str(registration.get("project_id") or ""),
                 )
             try:
@@ -652,14 +653,14 @@ def create_extension_callbacks_router(
                     response = await response
                 return _oauth_callback_response(
                     response,
-                    extension_id=extension_id,
+                    extension_id=registered_extension_id,
                     project_id=str(registration.get("project_id") or ""),
                 )
             except Exception:
                 logger.warning("Extension OAuth authorization callback failed")
                 return _oauth_callback_response(
                     {"outcome": "restart_required"},
-                    extension_id=extension_id,
+                    extension_id=registered_extension_id,
                     project_id=str(registration.get("project_id") or ""),
                 )
         if (

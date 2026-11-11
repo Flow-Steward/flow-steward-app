@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import SimpleNamespace
@@ -150,11 +151,11 @@ class ExtensionStateService:
         )
 
         default_root_text = str(default_extensions_root())
-        default_root = Path(default_root_text).resolve()
         requested_root_text = str(root or "").strip() or default_root_text
-        requested_root = Path(requested_root_text).resolve()
-        if requested_root != default_root:
+        if os.path.realpath(requested_root_text) != os.path.realpath(default_root_text):
             raise ServiceValidationError("Extension scan root must be the managed extensions root")
+        # The request only confirms the root; every path below is the host's own.
+        managed_root = Path(default_root_text).resolve()
         from core.infrastructure.extension_runtime.lifecycle_lock import (
             extension_lifecycle_lock,
         )
@@ -164,11 +165,9 @@ class ExtensionStateService:
                 raise ServiceUnavailableError(
                     "Extension lifecycle reconciliation is already in progress"
                 )
-            self._managed_release.reconcile_managed_extension_staging(
-                extensions_root=requested_root
-            )
+            self._managed_release.reconcile_managed_extension_staging(extensions_root=managed_root)
             self._context.recover_managed_release_publications(bl=bl)
-            scanned = scan_extensions(str(requested_root))
+            scanned = scan_extensions(str(managed_root))
             if not hasattr(bl, "sync_extension_scan_records"):
                 raise ServiceUnavailableError("Extension scan synchronization is not available")
             from .extension_scan_lifecycle import sync_extension_scan_with_llm_lifecycle

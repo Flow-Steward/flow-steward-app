@@ -13,6 +13,7 @@ from core.application.extensions.extension_contract_v2_common import (
     _error,
     _normalize_lower,
 )
+from core.infrastructure.security.path_containment import contained_path
 
 
 def _extract_contract_root(descriptor: dict[str, Any]) -> dict[str, Any] | None:
@@ -135,8 +136,9 @@ def _resolve_ref(
         )
         return None
 
-    target = (bundle_root / normalized_ref).resolve()
-    if not _path_is_inside(target, bundle_root):
+    try:
+        target = contained_path(bundle_root, normalized_ref)
+    except ValueError:
         _error(
             errors,
             path=path,
@@ -239,14 +241,6 @@ def _normalized_url_path(url_value: str) -> str:
     if not normalized.endswith("/"):
         normalized = normalized.rsplit("/", 1)[0] + "/"
     return normalized
-
-
-def _path_is_inside(candidate: Path, root: Path) -> bool:
-    try:
-        candidate.relative_to(root)
-        return True
-    except ValueError:
-        return False
 
 
 def _parse_json_or_yaml_text(raw: str, *, ref_hint: str) -> Any:

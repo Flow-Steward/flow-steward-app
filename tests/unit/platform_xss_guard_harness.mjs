@@ -133,4 +133,31 @@ assert.equal(safeActionBarClassToken('LG', sizes), 'lg');
 assert.equal(safeActionBarClassToken('primary" autofocus onclick="alert(1)', variants), '');
 assert.equal(safeActionBarClassToken('sm onmouseover=alert(1)', sizes), '');
 
+/* ── Dot-path setters never reach a prototype ── */
+
+const { PlatformRenderer } = await import(rendererUrl);
+const { PlatformElement } = await import(
+  pathToFileURL(path.join(ROOT, 'assets', 'platform-kit', 'platform-base.js')).href
+);
+
+for (const setPath of [
+  (obj, p, v) => PlatformRenderer._setPath(obj, p, v),
+  (obj, p, v) => PlatformElement.setPath(obj, p, v),
+]) {
+  for (const hostile of [
+    '__proto__.polluted',
+    'constructor.prototype.polluted',
+    'a.__proto__.polluted',
+    '__proto__',
+  ]) {
+    const target = {};
+    setPath(target, hostile, 'yes');
+    assert.equal({}.polluted, undefined, `prototype polluted through ${hostile}`);
+    assert.equal(Object.prototype.polluted, undefined, `prototype polluted through ${hostile}`);
+  }
+  const target = {};
+  setPath(target, 'a.b.c', 1);
+  assert.deepEqual(target, { a: { b: { c: 1 } } }, 'an ordinary path still sets the value');
+}
+
 console.log('OK');

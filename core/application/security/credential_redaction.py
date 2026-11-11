@@ -19,8 +19,11 @@ _SENSITIVE_KEY = re.compile(
     r"(?:api[_-]?key|authorization|bearer|cookie|credential|dsn|passphrase|password|private[_-]?key|secret|session|token)",
     re.IGNORECASE,
 )
+# The scheme is bounded: an unbounded one makes every letter of a long word a
+# candidate start that scans to its end, which is quadratic in the text length.
 _URL_CREDENTIALS = re.compile(
-    r"(?P<prefix>[a-z][a-z0-9+.-]*://[^:/@\s]+:)(?P<secret>[^@\s/]+)(?P<suffix>@)", re.IGNORECASE
+    r"(?P<prefix>[a-z][a-z0-9+.-]{0,31}://[^:/@\s]+:)(?P<secret>[^@\s/]+)(?P<suffix>@)",
+    re.IGNORECASE,
 )
 _AUTHORIZATION_BEARER = re.compile(
     r"(?i)(?P<label>\bauthorization\s*[:=]\s*bearer)(?P<separator>\s+)(?P<value>[^\s,;]+)"

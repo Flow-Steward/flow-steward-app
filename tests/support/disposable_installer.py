@@ -1733,6 +1733,7 @@ class DisposableInstallerProject:
                 context = ssl.create_default_context(
                     cafile=str(self.distribution_directory / ".ssl/cert.pem")
                 )
+                context.minimum_version = ssl.TLSVersion.TLSv1_2
                 if tls_mode == "provided":
                     with (
                         socket.create_connection(("127.0.0.1", port), timeout=10) as raw,

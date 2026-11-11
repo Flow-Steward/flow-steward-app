@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.error import HTTPError
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request
 
 from core.application.extensions.host_contract import (
@@ -893,10 +893,22 @@ class RemoteRuntimeClient:
             return _normalize_response(int(resp.status), decoded)
 
     def _url(self, path: str) -> str:
-        parsed_path = urlparse(str(path or ""))
-        if parsed_path.scheme or parsed_path.netloc or str(path or "").startswith("//"):
+        """``path`` appended to ``base_url``, which it can extend but never replace.
+
+        A path naming a scheme, a host or a parent segment is refused, and the
+        result is the validated base followed by the path, so no endpoint
+        template or substituted id can point the request at another origin.
+        """
+        raw_path = str(path or "")
+        parsed_path = urlparse(raw_path)
+        if (
+            parsed_path.scheme
+            or parsed_path.netloc
+            or raw_path.startswith("//")
+            or ".." in parsed_path.path.split("/")
+        ):
             raise ValueError(
                 "Remote runtime endpoint path must be relative to runtime.remote.base_url"
             )
         base = str(self.base_url or "").rstrip("/") + "/"
-        return urljoin(base, str(path or "").lstrip("/"))
+        return base + raw_path.lstrip("/")

@@ -30,6 +30,9 @@ def report_download_response(
     render: Callable[[], bytes],
 ) -> StreamingResponse:
     """Stream ``render()`` as a JSON attachment and confirm the start with a cookie."""
+    # The token names the cookie, so it is checked here, next to that use.
+    if not valid_report_download_token(download_token):
+        raise ValueError("Report download token must match REPORT_DOWNLOAD_TOKEN_PATTERN")
 
     async def _chunks() -> AsyncIterator[bytes]:
         # A leading JSON whitespace byte flushes the attachment headers
