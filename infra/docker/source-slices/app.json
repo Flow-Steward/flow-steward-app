@@ -1611,6 +1611,7 @@
     "core/infrastructure/security/jinja_sandbox.py",
     "core/infrastructure/security/models.py",
     "core/infrastructure/security/owner_only_secret.py",
+    "core/infrastructure/security/path_containment.py",
     "core/infrastructure/security/policy.py",
     "core/infrastructure/security/policy_loader.py",
     "core/infrastructure/security/posture.py",
