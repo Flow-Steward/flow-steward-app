@@ -188,6 +188,9 @@ def test_operational_candidate_and_workspace_identifiers_do_not_prevent_reuse(
         FS_BOUNDARY_TRACKED_FILES_MANIFEST="/app/logs/quality/tracked-files.txt",
     )
     canonical_environment["_"] = "/usr/bin/another-launcher"
+    # lint.sh sets these for the fs user only; the release gate reads as root.
+    canonical_environment["npm_config_cache"] = "/home/fs/.cache/flow-steward-quality/npm"
+    canonical_environment["npm_config_prefer_offline"] = "true"
 
     second = backend_runtime.backend_runtime_identity("2" * 40, environ=canonical_environment)
 

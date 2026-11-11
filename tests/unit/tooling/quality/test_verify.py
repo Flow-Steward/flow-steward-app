@@ -303,6 +303,7 @@ def test_restored_same_commit_reuses_frontend_and_retries_failed_backend(
         "lockfile",
         "environment",
         "npm_config",
+        "npm_cache",
         "toolchain",
         "custom_manifest",
     ],
@@ -319,6 +320,8 @@ def test_real_frontend_check_reuses_only_unchanged_inputs_across_commits(
     monkeypatch.delenv("VITE_FRONTEND_EXTENSION_MANIFEST", raising=False)
     monkeypatch.delenv("NODE_OPTIONS", raising=False)
     monkeypatch.delenv("npm_config_ignore_scripts", raising=False)
+    monkeypatch.delenv("npm_config_cache", raising=False)
+    monkeypatch.delenv("npm_config_prefer_offline", raising=False)
     if change == "custom_manifest":
         monkeypatch.setenv("VITE_FRONTEND_EXTENSION_MANIFEST", "/external/manifest.tsx")
     request = VerificationRequest(
@@ -341,6 +344,11 @@ def test_real_frontend_check_reuses_only_unchanged_inputs_across_commits(
         monkeypatch.setenv("NODE_OPTIONS", "--max-old-space-size=4096")
     elif change == "npm_config":
         monkeypatch.setenv("npm_config_ignore_scripts", "true")
+    elif change == "npm_cache":
+        # lint.sh points npm at the shared cache for the fs user only; the
+        # release gate reads the evidence as root without these settings.
+        monkeypatch.setenv("npm_config_cache", "/home/fs/.cache/flow-steward-quality/npm")
+        monkeypatch.setenv("npm_config_prefer_offline", "true")
     elif change == "toolchain":
         (repo / "requirements-audit.txt").write_text("changed-toolchain==1\n")
     subprocess.run(("git", "add", "."), cwd=repo, check=True)
@@ -367,8 +375,9 @@ def test_real_frontend_check_reuses_only_unchanged_inputs_across_commits(
         runner=runner,
     )
     assert result.status == "passed"
-    assert result.reused == (("frontend-tests",) if change == "backend" else ())
-    assert runner.calls == ([] if change == "backend" else ["frontend-tests"])
+    reusable = change in {"backend", "npm_cache"}
+    assert result.reused == (("frontend-tests",) if reusable else ())
+    assert runner.calls == ([] if reusable else ["frontend-tests"])
 
 
 def test_tier2_failure_stops_before_dependent_or_independent_checks(

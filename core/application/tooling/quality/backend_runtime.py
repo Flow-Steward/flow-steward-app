@@ -24,6 +24,11 @@ _RUNTIME_RECEIPT_PATH = Path("/opt/flow-steward/backend-runtime.sha256")
 # the baked receipt and distribution graph identify the installed runtime, while
 # custom startup/plugin/configuration paths below disable cross-SHA reuse.
 # PWD/OLDPWD/SHLVL/_ describe nested shell launches; every check sets its cwd.
+# lint.sh points npm at the shared quality cache only when the container user can
+# write it, and the final release gate reads evidence as root outside lint.sh.
+# npm's cache is content-addressed, so these never change what a check proves and
+# must not split the fingerprint of the run that wrote evidence and the reader's.
+NPM_CACHE_SETTINGS = frozenset({"npm_config_cache", "npm_config_prefer_offline"})
 _OPERATIONAL_NAMES = frozenset(
     {
         "FS_BUILD_SHA",
@@ -58,6 +63,7 @@ _OPERATIONAL_NAMES = frozenset(
         "GITHUB_STATE",
         "GITHUB_STEP_SUMMARY",
         "RUNNER_TEMP",
+        *NPM_CACHE_SETTINGS,
     }
 )
 _EXTERNAL_INPUT_NAMES = (
