@@ -139,3 +139,13 @@ describe("unavailable extension icon names", () => {
     expect(screen.queryByRole("img", { name: /acme.crm/ })).not.toBeInTheDocument();
   });
 });
+
+it("summarises an action Invoke like an extension step", async () => {
+  const { stepActionSummary } = await import("./workflow-step-extension");
+  const action = { extension_id: "acme.amazon-pro", install_id: "pi_addon", action_id: "orders.create_full" };
+
+  expect(stepActionSummary({ step_kind: "invoke_workflow", override: { invoke_workflow: { action } } }))
+    .toBe("extension.acme.amazon-pro -> orders.create_full");
+  expect(stepActionSummary({ step_kind: "invoke_workflow", override: { invoke_workflow: { workflow_id: "report" } } })).toBe("");
+  expect(stepActionSummary({ step_kind: "connector", override: { invoke_workflow: { action } } })).toBe("");
+});

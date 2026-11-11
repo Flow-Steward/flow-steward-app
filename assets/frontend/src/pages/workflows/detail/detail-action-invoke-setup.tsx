@@ -108,7 +108,11 @@ export function ActionInvokeSetup({ ctx }: Readonly<{ ctx: ActionInvokeSetupCont
         const options = listFromUnknown(slot.connections);
         const selected = textOrEmpty(objectOrEmpty(connections[name]).connection_id);
         const known = options.some((row) => textOrEmpty(row.connection_id) === selected);
-        const label = t("react.workflows.action_invoke_connection", "Connection: {value0}", { value0: name });
+        // A person knows the connection by its extension; the slot name tells two of one extension apart.
+        const extensionName = textOrEmpty(slot.extension_name);
+        const sameExtension = slots.filter((row) => textOrEmpty(row.extension_id) === textOrEmpty(slot.extension_id)).length;
+        const slotLabel = extensionName ? (sameExtension > 1 ? `${extensionName} (${name})` : extensionName) : name;
+        const label = t("react.workflows.action_invoke_connection", "Connection: {value0}", { value0: slotLabel });
         return (
           <label className="block text-xs text-[var(--fs-text-secondary)]" key={name}>
             <RequiredLabel>{label}</RequiredLabel>

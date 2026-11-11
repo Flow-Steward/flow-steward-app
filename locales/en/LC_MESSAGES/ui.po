@@ -5809,6 +5809,9 @@ msgstr "Open full Job Details"
 msgid "react.jobs.open_the_current_workflow"
 msgstr "Open the current workflow"
 
+msgid "react.jobs.open_the_run_behind_this_step"
+msgstr "Open the run behind this step"
+
 msgid "react.jobs.operation_kind"
 msgstr "operation kind"
 

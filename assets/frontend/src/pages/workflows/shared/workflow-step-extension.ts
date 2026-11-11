@@ -34,3 +34,13 @@ export function stepExtensionId(step: Record<string, unknown> | null | undefined
   if (!CANONICAL_EXTENSION_ID.test(extensionId) || head.startsWith("pi_") || UUID.test(head)) return "";
   return extensionId;
 }
+
+/** How an Invoke that calls an extension action reads on a card: `extension.<id> -> <action>`; "" otherwise. */
+export function stepActionSummary(step: Record<string, unknown> | null | undefined): string {
+  const source = record(step);
+  if ((text(source.step_kind) || text(source.kind)) !== "invoke_workflow") return "";
+  const action = record(record(record(source.override).invoke_workflow).action);
+  const extensionId = text(action.extension_id);
+  const actionId = text(action.action_id);
+  return extensionId && actionId ? `extension.${extensionId} -> ${actionId}` : "";
+}

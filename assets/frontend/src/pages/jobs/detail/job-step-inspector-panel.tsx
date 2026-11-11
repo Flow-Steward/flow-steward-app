@@ -5,6 +5,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
+import { Link } from "react-router";
 import { DsBadge, DsCard } from "@/components/shared/design-system";
 import { fetchJobStepOutputValue } from "./api";
 import { CopyValueButton, firstReadableText, humanizeDiagnosticLabel, listFromUnknown, normalizeTimestamp, objectOrEmpty, type Entity } from "./job-detail-core";
@@ -146,6 +147,7 @@ export function StepInspectorPanel({
     selectedStep.last_error,
   );
   const nextAction = firstReadableText(selectedStep.next, selectedStep.next_action);
+  const childJobId = firstReadableText(selectedStep.child_job_id);
   const evidenceItems = collectEvidenceItems(selectedStep, t);
   const inputs = userFacingStepFields(
     selectedStep.inputs || selectedStep.input || selectedStep.input_payload,
@@ -205,6 +207,13 @@ export function StepInspectorPanel({
             variant="number"
           />
         </dl>
+        {childJobId ? (
+          <p className="text-sm fs-ink-primary">
+            <Link className="fs-link" data-testid={`${testId}-child-run-link`} to={`/jobs/${encodeURIComponent(childJobId)}`}>
+              {t("react.jobs.open_the_run_behind_this_step", "Open the run behind this step")}
+            </Link>
+          </p>
+        ) : null}
 
         <section className="space-y-2" aria-labelledby={`${testId}-inputs-heading`}>
           <h3 className="text-sm font-semibold fs-ink-primary" id={`${testId}-inputs-heading`}>

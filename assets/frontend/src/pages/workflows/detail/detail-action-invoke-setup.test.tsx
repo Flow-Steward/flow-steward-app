@@ -154,3 +154,34 @@ it("says when the action is gone", async () => {
 
   expect(await screen.findByRole("alert")).toHaveTextContent("This extension action is no longer available.");
 });
+
+it("names a slot's connection by its extension, and by the slot when two share one", async () => {
+  const twoSlots = {
+    ...operation(TWO_ACCOUNTS),
+    implementation: {
+      kind: "workflow",
+      workflow_id: "extension.pi_addon.create_full",
+      installs: { "acme.amazon": "pi_base", "acme.books": "pi_books" },
+      slots: [
+        { slot: "source", extension_id: "acme.amazon", extension_name: "Amazon", connections: TWO_ACCOUNTS },
+        { slot: "target", extension_id: "acme.amazon", extension_name: "Amazon", connections: TWO_ACCOUNTS },
+        { slot: "ledger", extension_id: "acme.books", extension_name: "Books", connections: [] },
+      ],
+    },
+  };
+  vi.mocked(fetchJson).mockResolvedValue({ install_id: "pi_addon", operations: [twoSlots] });
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <ActionInvokeSetup ctx={{
+        stepKindConfig: { workflow_id: "extension.pi_addon.create_full", action: ACTION, installs: twoSlots.implementation.installs },
+        availableWorkflowVariableSuggestions: [],
+        updateStepKindConfig: vi.fn(),
+        renderWorkflowContractMappingEditor: () => null,
+      }} />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByRole("combobox", { name: "Connection: Amazon (source)" })).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Connection: Amazon (target)" })).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Connection: Books" })).toBeInTheDocument();
+});

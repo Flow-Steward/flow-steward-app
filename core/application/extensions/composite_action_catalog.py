@@ -18,14 +18,17 @@ def _text(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _active_install_ids(connection: Any, *, account_id: str) -> dict[str, list[str]]:
-    """Active installs the account may use, by extension id."""
+def _active_installs(
+    connection: Any, *, account_id: str
+) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """Active installs the account may use: ids by extension, and each install's release."""
     from core.application.extensions.install import DBExtensionInstallStore, InstallState
 
     records = DBExtensionInstallStore(connection).list_for_account(
         account_id or DEFAULT_ACCOUNT_ID, include_global=True, include_inactive_owned=True
     )
     installs: dict[str, list[str]] = {}
+    releases: dict[str, str] = {}
     for record in records:
         state = getattr(record, "state", "")
         if _text(getattr(state, "value", state)) != str(InstallState.active):
@@ -34,7 +37,18 @@ def _active_install_ids(connection: Any, *, account_id: str) -> dict[str, list[s
         install_id = _text(getattr(record, "install_id", ""))
         if extension_id and install_id:
             installs.setdefault(extension_id, []).append(install_id)
-    return {key: sorted(set(value)) for key, value in installs.items()}
+            releases[install_id] = _text(getattr(record, "release_id", ""))
+    return {key: sorted(set(value)) for key, value in installs.items()}, releases
+
+
+def _extension_name(connection: Any, release_id: str, *, locale: str) -> str:
+    """The name a person knows the extension by, from the release an install pins."""
+    from core.application.extensions.display_labels import localized_extension_display_name
+    from core.application.extensions.runtime_store_db import DBExtensionRuntimeStore
+
+    release = DBExtensionRuntimeStore(connection).get_release(release_id) if release_id else None
+    descriptor = getattr(release, "descriptor", None)
+    return localized_extension_display_name(descriptor, locale=locale) if descriptor else ""
 
 
 def composite_operation_payloads(
@@ -44,6 +58,7 @@ def composite_operation_payloads(
     account_id: str = "",
     project_id: str = "",
     connection_store: Any = None,
+    locale: str = "",
 ) -> dict[str, dict[str, Any]]:
     """``action_id → implementation`` for every composite action of *install_id*.
 
@@ -56,7 +71,8 @@ def composite_operation_payloads(
     installed = installed_composites(connection, install_id=install_id, account_id=account_id)
     if installed is None or not installed.actions:
         return {}
-    active = _active_install_ids(connection, account_id=_text(account_id))
+    active, releases = _active_installs(connection, account_id=_text(account_id))
+    names: dict[str, str] = {}
     payloads: dict[str, dict[str, Any]] = {}
     for action_id, action in installed.actions.items():
         needed = (
@@ -85,7 +101,19 @@ def composite_operation_payloads(
                     for row in connections
                     if _text(row.get("connection_type")) in slot.connection_type_ids
                 ]
-            slots.append({**slot.dump(), "install_id": slot_install, "connections": connections})
+            if slot_install and slot_install not in names:
+                names[slot_install] = _extension_name(
+                    connection, releases.get(slot_install, ""), locale=locale
+                )
+            slots.append(
+                {
+                    **slot.dump(),
+                    "install_id": slot_install,
+                    # What the builder calls the connection: the extension it belongs to.
+                    "extension_name": names.get(slot_install, ""),
+                    "connections": connections,
+                }
+            )
         payloads[action_id] = {
             "kind": "workflow",
             "workflow_id": action.workflow_id(installed.install_id),

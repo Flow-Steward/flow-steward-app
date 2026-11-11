@@ -125,7 +125,7 @@ def _enforce_project_scope(db: Any, scope: Any, project_id: str) -> str:
 
 
 def _composite_implementations(
-    db: Any, *, install_id: str, account_id: str, project_id: str
+    db: Any, *, install_id: str, account_id: str, project_id: str, locale: str = ""
 ) -> dict[str, dict[str, Any]]:
     """What the builder needs to save a composite action as its Invoke (ADR 0065)."""
     dsn = str(getattr(db, "dsn", "") or "").strip()
@@ -143,6 +143,7 @@ def _composite_implementations(
             account_id=account_id,
             project_id=project_id,
             connection_store=_get_connection_store(db) if project_id else None,
+            locale=locale,
         )
     except Exception as exc:
         logger.warning("composite action lookup failed for install_id=%s: %s", install_id, exc)
@@ -210,6 +211,7 @@ def get_extension_install_contract(
         install_id=install_id,
         account_id=str(contract.get("account_id") or ""),
         project_id=scoped_project_id,
+        locale=ui_locale,
     )
     for operation in operations:
         implementation = implementations.get(str(operation.get("action_id") or ""))
