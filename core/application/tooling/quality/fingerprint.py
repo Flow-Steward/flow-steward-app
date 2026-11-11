@@ -14,7 +14,10 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, Protocol
 
 from core.application.tooling.quality import pip_audit_acceptance
-from core.application.tooling.quality.backend_runtime import backend_runtime_identity
+from core.application.tooling.quality.backend_runtime import (
+    NPM_CACHE_SETTINGS,
+    backend_runtime_identity,
+)
 from core.application.tooling.quality.check_registry import CheckDefinition
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
@@ -116,8 +119,11 @@ def fingerprint_check(check: CheckDefinition, context: FingerprintContext) -> st
             {
                 key: value
                 for key, value in os.environ.items()
-                if key.startswith(("VITE_", "NODE_", "LC_", "npm_config_", "NPM_CONFIG_"))
-                or key in {"CI", "TZ", "LANG"}
+                if key not in NPM_CACHE_SETTINGS
+                and (
+                    key.startswith(("VITE_", "NODE_", "LC_", "npm_config_", "NPM_CONFIG_"))
+                    or key in {"CI", "TZ", "LANG"}
+                )
             },
             sort_keys=True,
         )

@@ -60,4 +60,4 @@ it("opens Interface › Outputs from a Stop card that lists a returned file with
   expect(within(drawer).getByTestId("workflow-contract-returned-files")).toHaveTextContent("Render report → file");
   expect(fetchSpy.mock.calls.filter(([url, init]) => String(url) === "/api/workflows/weekly_report" && init?.method === "PATCH")).toHaveLength(0);
   expect(fetchSpy.mock.calls.filter(([url, init]) => String(url).endsWith("/changes") && init?.method === "POST")).toHaveLength(0);
-}, 10_000);
+});

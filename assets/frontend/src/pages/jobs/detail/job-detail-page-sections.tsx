@@ -76,6 +76,8 @@ export type JobRunDefinitionView = {
   executionSnapshot?: JobExecutionSnapshot | null;
   definitionError: boolean;
   workflowWait: Entity;
+  /** The run of an extension action: its workflow is not one a person opens. */
+  actionRun?: boolean;
 };
 
 type JobDetailPrimaryContentProps = {
@@ -154,7 +156,7 @@ function JobRunDefinitionFacts({
   const forEachProgress = activeSteps
     .map((step) => step.for_each_progress)
     .find((progress): progress is Record<string, unknown> => Boolean(progress) && typeof progress === "object");
-  const currentWorkflowLink = workflowId ? (
+  const currentWorkflowLink = workflowId && !runDefinition.actionRun ? (
     <Link className="fs-link job-link" data-testid="job-current-workflow-link" to={workflowPath(workflowId)}>
       {t("react.jobs.open_the_current_workflow", "Open the current workflow")}
     </Link>

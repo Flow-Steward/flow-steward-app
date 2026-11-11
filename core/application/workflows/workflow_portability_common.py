@@ -423,6 +423,11 @@ def _step_uses_child_workflow(step: dict[str, Any]) -> bool:
 
 def _step_child_workflow_ref(step: dict[str, Any]) -> str:
     invoke_workflow = _step_invoke_workflow_override(step)
+    if "action" in invoke_workflow:
+        # The implementation of an extension action belongs to the extension
+        # (ADR 0065): it is never bundled or mapped as a child; the action's
+        # extension is the dependency.
+        return ""
     override_ref = _text(invoke_workflow.get("workflow_id"))
     if override_ref:
         return override_ref

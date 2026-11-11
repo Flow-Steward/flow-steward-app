@@ -179,7 +179,9 @@ class WorkerGraphExecutionAdapter:
         if not uri:
             raise CheckpointUnavailableError("checkpoint storage is not configured")
         try:
-            from langgraph.checkpoint.postgres import PostgresSaver
+            from core.infrastructure.db.checkpoint_saver import history_bounded_saver_class
+
+            saver_class = history_bounded_saver_class()
         except Exception as exc:
             logger.error(
                 "PostgresSaver is not importable: %s",
@@ -189,7 +191,7 @@ class WorkerGraphExecutionAdapter:
             raise CheckpointUnavailableError("checkpoint support is not installed") from None
         stack = contextlib.ExitStack()
         try:
-            checkpointer = stack.enter_context(PostgresSaver.from_conn_string(uri))
+            checkpointer = stack.enter_context(saver_class.from_conn_string(uri))
         except Exception as exc:
             stack.close()
             # Driver payloads and chained exceptions may contain connection credentials.

@@ -437,6 +437,34 @@ class LifecycleOperationStatus(StrEnum):
     RECOVERY_REQUIRED = "recovery_required"
 
 
+# Operations that only write a new artifact and never change the installation. Once
+# one stops, nothing is half-applied: a failure is reported, the next run starts
+# afresh, and it must not hold maintenance, config apply or an upgrade hostage
+# (2026-11-11: a failed `backup create` at pg_dump blocked `maintenance disable`, and
+# doctor's only advice was to rerun the backup that kept failing).
+ARTIFACT_ONLY_OPERATION_KINDS = frozenset({LifecycleOperationKind.BACKUP_CREATE})
+_BLOCKING_STATUSES = frozenset(
+    {
+        LifecycleOperationStatus.RUNNING,
+        LifecycleOperationStatus.CANCELLED,
+        LifecycleOperationStatus.RECOVERY_REQUIRED,
+    }
+)
+
+
+def journal_blocks_new_work(*, kind: object, status: object, retryable: object) -> bool:
+    """Return whether a journal is an unfinished operation that must be resumed first.
+
+    Takes plain values so that a journal read as JSON (doctor reads the Compact volume
+    that way) follows the same rule as a validated `LifecycleOperationJournal`.
+    """
+    if kind in ARTIFACT_ONLY_OPERATION_KINDS:
+        return status == LifecycleOperationStatus.RUNNING
+    return status in _BLOCKING_STATUSES or (
+        status == LifecycleOperationStatus.FAILED and retryable is not False
+    )
+
+
 class LifecycleOperationStep(_ClosedModel):
     """One declarative, resumable step and its cancellation boundary."""
 

@@ -10,12 +10,32 @@ from typing import Any
 
 from core.application.management.errors import ServiceNotFoundError
 from core.infrastructure.extension_runtime.browser_permissions import browser_permissions
+from core.infrastructure.security.path_containment import contained_path
 
 _MESSAGE_EXTENSION_BROWSER_ASSET_NOT_FOUND = "Extension browser asset not found"
 
-_ASSET_REF = re.compile(r"assets/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\.js")
+_ASSET_REF_PREFIX = "assets/"
+_ASSET_REF_SUFFIX = ".js"
+_ASSET_REF_SEGMENT = re.compile(r"[A-Za-z0-9_-]+")
+_MAX_ASSET_REF_LENGTH = 512
 _SHA256_HEX = re.compile(r"[0-9a-f]{64}")
 _MAX_BROWSER_ASSET_BYTES = 256 * 1024
+
+
+def _is_asset_ref(value: str) -> bool:
+    """``assets/<segment>/.../<segment>.js``, each segment ``[A-Za-z0-9_-]+``.
+
+    Checked segment by segment rather than with one pattern over the whole
+    reference, so a long request path costs linear time.
+    """
+    if (
+        len(value) > _MAX_ASSET_REF_LENGTH
+        or not value.startswith(_ASSET_REF_PREFIX)
+        or not value.endswith(_ASSET_REF_SUFFIX)
+    ):
+        return False
+    segments = value[len(_ASSET_REF_PREFIX) : -len(_ASSET_REF_SUFFIX)].split("/")
+    return all(_ASSET_REF_SEGMENT.fullmatch(segment) for segment in segments)
 
 
 def _picker_declarations(value: Any) -> Iterator[Mapping[str, Any]]:
@@ -43,7 +63,7 @@ def _declared_asset_refs(manifest: Mapping[str, Any]) -> set[str]:
         for script in scripts:
             if isinstance(script, Mapping) and set(script) == {"asset_ref"}:
                 asset_ref = script.get("asset_ref")
-                if isinstance(asset_ref, str) and _ASSET_REF.fullmatch(asset_ref):
+                if isinstance(asset_ref, str) and _is_asset_ref(asset_ref):
                     declared.add(asset_ref)
     return declared
 
@@ -51,18 +71,18 @@ def _declared_asset_refs(manifest: Mapping[str, Any]) -> set[str]:
 def resolve_declared_browser_asset(manifest: Mapping[str, Any], *, asset_ref: str) -> Path:
     """Return one regular bounded JS file explicitly declared by a Picker component."""
     normalized_ref = str(asset_ref or "").strip()
-    if _ASSET_REF.fullmatch(normalized_ref) is None or normalized_ref not in _declared_asset_refs(
-        manifest
+    bundle_root = str(manifest.get("bundle_root") or "").strip()
+    if (
+        not bundle_root
+        or not _is_asset_ref(normalized_ref)
+        or normalized_ref not in _declared_asset_refs(manifest)
     ):
         raise ServiceNotFoundError(_MESSAGE_EXTENSION_BROWSER_ASSET_NOT_FOUND)
-    bundle_root = Path(str(manifest.get("bundle_root") or "").strip()).resolve()
-    candidate = (bundle_root / normalized_ref).resolve()
-    if (
-        bundle_root == candidate
-        or bundle_root not in candidate.parents
-        or not candidate.is_file()
-        or candidate.stat().st_size > _MAX_BROWSER_ASSET_BYTES
-    ):
+    try:
+        candidate = contained_path(bundle_root, normalized_ref)
+    except ValueError as exc:
+        raise ServiceNotFoundError(_MESSAGE_EXTENSION_BROWSER_ASSET_NOT_FOUND) from exc
+    if not candidate.is_file() or candidate.stat().st_size > _MAX_BROWSER_ASSET_BYTES:
         raise ServiceNotFoundError(_MESSAGE_EXTENSION_BROWSER_ASSET_NOT_FOUND)
     return candidate
 

@@ -18,6 +18,7 @@ from core.application.observability_vocabulary import job_status_filter_statuses
 from core.application.reports.job_trigger import job_trigger
 from core.application.security.credential_redaction import redact
 from core.application.settings.timezone_service import day_boundaries_utc, resolve_effective_user_tz
+from core.application.workflows.workflow_action_contract import action_run_label
 from core.application.workflows.workflow_hook_contract import hook_run_label
 
 from .query_models import JobDetailContractView
@@ -683,6 +684,7 @@ class JobQueryServiceCoreMixin:
         selected_workflow = workflow_metadata["selected_workflow"]
         selected_workflow_display_name = (
             hook_run_label(job)
+            or action_run_label(job)
             or str(job.get("selected_workflow_display_name") or "").strip()
             or self._job_workflow_display_name(
                 bl,
@@ -739,6 +741,24 @@ class JobQueryServiceCoreMixin:
             ),
             failure_summary=build_job_failure_summary(job=job, runtime=runtime or {}),
         )
+
+    def extension_display_names(
+        self, extension_ids: list[str], *, scope: ScopeContext | None = None
+    ) -> dict[str, str]:
+        """The names a run's extension steps are shown by; ``{}`` when they cannot be read."""
+        from core.application.extensions.display_labels import installed_extension_names
+
+        try:
+            connection = getattr(self._logger_or_raise(), "conn", None)
+            return installed_extension_names(
+                connection,
+                account_id=self._scope(scope).account_id,
+                extension_ids=extension_ids,
+            )
+        except Exception as exc:
+            # A name is a courtesy: the run page still shows the extension's id.
+            logger.debug("Extension display names unavailable: %s", exc)
+            return {}
 
     async def get_job_detail_contract(
         self,

@@ -48,7 +48,7 @@ it("separates tool categories, sorts sources, and searches sources and actions",
   const systemSources = screen.getByRole("listbox", { name: "Tool options" });
   expect(within(systemSources).getByRole("option", { name: "Text" })).toBeInTheDocument();
   expect(within(systemSources).queryByRole("option", { name: "Shop" })).not.toBeInTheDocument();
-}, 15_000);
+});
 
 it("does not restore a saved extension after entering MCP through another kind", async () => {
   mockCatalog();
@@ -69,7 +69,7 @@ it("does not restore a saved extension after entering MCP through another kind",
   const sources = screen.getByRole("listbox", { name: "MCP server options" });
   expect(await within(sources).findByRole("option", { name: "Shop" })).toBeInTheDocument();
   expect(within(sources).queryByRole("option", { name: "Mail" })).not.toBeInTheDocument();
-}, 15_000);
+});
 
 /* Item 10: every System tools action was "Unavailable action #1/#2". The registry row of
    a built-in tool lost its operations' names, so each was named by its id, which the
@@ -111,7 +111,7 @@ it("names a system tool's actions by the catalog, never 'Unavailable action'", a
   const actions = optionNames(screen.getByRole("listbox", { name: "Action options" }));
   expect(actions).toEqual(["Choose action", "Stringify", "Pick", "Unnamed action"]);
   expect(actions.join(" ")).not.toMatch(/Unavailable/);
-}, 15_000);
+});
 
 it("says 'Unavailable action' only for a saved action the tool no longer has", async () => {
   mockSystemTools([{
@@ -132,7 +132,7 @@ it("says 'Unavailable action' only for a saved action the tool no longer has", a
   expect(screen.queryByText("Tool Action")).not.toBeInTheDocument();
   expect(screen.getByText("Action details", { selector: "summary" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open tool", hidden: true })).toHaveAttribute("href", "/registry/tools/std.json");
-}, 15_000);
+});
 
 it("keeps a saved disabled MCP source and action visible but unselectable", async () => {
   const disabledSource = {
@@ -166,4 +166,4 @@ it("keeps a saved disabled MCP source and action visible but unselectable", asyn
   expect(disabledActionOption).toBeDisabled();
   await user.click(disabledActionOption);
   expect(action).toHaveTextContent("Search docs");
-}, 15_000);
+});

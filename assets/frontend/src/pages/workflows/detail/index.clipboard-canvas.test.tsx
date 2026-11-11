@@ -505,7 +505,7 @@ it("duplicates a selected Group and its child from the one canonical Group desti
     expect(graph.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(1);
   });
   expect(postedChangeSets()).toEqual([]);
-}, 15_000);
+});
 
 it("allows Copy across source placements while disabling Duplicate without one destination", async () => {
   installContainerWorkflow();
@@ -797,7 +797,7 @@ it.each([0.5, 1, 1.5].flatMap((zoom) => ["keyboard", "menu"].map((route) => ({ z
   } finally {
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it.each(["reveal", "later-selection", "discard"] as const)("waits for published offset-auto paste geometry: %s", async (action) => {
   installWorkflow(); saveArrangeMode("weekly_report", "auto");
@@ -842,7 +842,7 @@ it.each(["reveal", "later-selection", "discard"] as const)("waits for published 
     viewportProbe.holdCreated = false; restoreViewport?.();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 
 it.each([false, true])("preserves nested child-local offsets and lane identity through a pointer-pasted Group (lanes %s)", async (lanes) => {
@@ -880,7 +880,7 @@ it.each([false, true])("preserves nested child-local offsets and lane identity t
   } finally {
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 
 it.each(["becomes-ready", "timeout"] as const)("keeps accepted offset-auto paste pending while dimensions are unavailable: %s", async (outcome) => {
@@ -936,7 +936,7 @@ it.each(["becomes-ready", "timeout"] as const)("keeps accepted offset-auto paste
     viewportProbe.holdSizes = false; vi.useRealTimers(); restoreViewport?.();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it("preserves an oversized pointer batch exactly and retires it through the bounded attention path", async () => {
   installWorkflow();
@@ -991,7 +991,7 @@ it("preserves an oversized pointer batch exactly and retires it through the boun
     vi.useRealTimers(); restoreViewport?.();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it("retires pending paste geometry through a project view epoch A→B→A without late fitting or placement", async () => {
   installWorkflow(); saveArrangeMode("weekly_report", "auto");
@@ -1045,7 +1045,7 @@ it("retires pending paste geometry through a project view epoch A→B→A withou
     viewportProbe.holdCreated = false; vi.useRealTimers(); for (const restore of restorers.reverse()) restore();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it("never publishes a held source-owner paste into a newly mounted destination workflow", async () => {
   installWorkflow(); saveArrangeMode("weekly_report", "auto"); saveArrangeMode("destination", "auto");
@@ -1096,7 +1096,7 @@ it("never publishes a held source-owner paste into a newly mounted destination w
     viewportProbe.holdCreated = false; for (const restore of restorers.reverse()) restore();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 
 it.each([0.5, 1, 1.5].flatMap((zoom) => ["header", "inspector"].map((leaveTo) => ({ zoom, leaveTo }))))("bounds only a clipped manual offset batch after $leaveTo leave at zoom $zoom", async ({ zoom, leaveTo }) => {
@@ -1181,7 +1181,7 @@ it.each([0.5, 1, 1.5].flatMap((zoom) => ["header", "inspector"].map((leaveTo) =>
     restoreViewport?.();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 
 it("places a tall clipped pointer batch beside the actual controls with one common grid delta", async () => {
@@ -1222,7 +1222,7 @@ it("places a tall clipped pointer batch beside the actual controls with one comm
   } finally {
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it("recomputes a pending pointer translation when positive published heights grow from 144 to 320", async () => {
   installWorkflow();
@@ -1256,7 +1256,7 @@ it("recomputes a pending pointer translation when positive published heights gro
     vi.useRealTimers();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it("refits changed positive auto bounds without treating its programmatic null move event as user intent", async () => {
   installWorkflow(); saveArrangeMode("weekly_report", "auto");
@@ -1295,7 +1295,7 @@ it("refits changed positive auto bounds without treating its programmatic null m
     vi.useRealTimers(); restoreViewport?.();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it.each(["pane-pan", "zoom-control"] as const)("retires pending auto reveal after a real %s, preserving the newer camera", async (action) => {
   if (action === "zoom-control") vi.useRealTimers();
@@ -1365,7 +1365,7 @@ it.each(["pane-pan", "zoom-control"] as const)("retires pending auto reveal afte
     vi.useRealTimers(); restoreViewport?.(); restoreRendererSize?.();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 it("preserves a newer keyboard placement after Undo returns its pasted subject to identical coordinates", async () => {
   installWorkflow();
@@ -1407,7 +1407,7 @@ it("preserves a newer keyboard placement after Undo returns its pasted subject t
     vi.useRealTimers();
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});
 
 
 it.each(["pointer", "offset"] as const)("publishes accepted %s manual geometry after an unrelated later selection, preserving that selection", async (mode) => {
@@ -1450,4 +1450,4 @@ it.each(["pointer", "offset"] as const)("publishes accepted %s manual geometry a
     viewportProbe.holdCreated = false;
     if (original) Object.defineProperty(navigator, "clipboard", original); else Reflect.deleteProperty(navigator, "clipboard");
   }
-}, 15_000);
+});

@@ -16,6 +16,7 @@ import {
   DEFAULT_JOB_VIEW_STATE,
   failureSummaryFromDetail,
   firstReadableText,
+  isActionRun,
   listFromUnknown,
   objectOrEmpty,
   safeEntityId,
@@ -219,8 +220,17 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
     ? executionSteps.findIndex((step, index) => executionStepKey(step, index) === viewState.selectedStepKey)
     : Math.min(Math.max(viewState.selectedStepIndex, 0), Math.max(executionSteps.length - 1, 0));
   // A temporarily absent occurrence must not turn into another row's details.
-  const selectedStep = executionSteps[selectedStepIndex] ||
+  const selectedStepRow = executionSteps[selectedStepIndex] ||
     (!viewState.selectedStepKey && Object.keys(selectedStepProjection).length ? selectedStepProjection : null);
+  // A step that ran another workflow, or an extension action behind one, links to that run.
+  const selectedStepExecutionId = String(selectedStepRow?.step_execution_id || "");
+  const selectedStepChildJobId = selectedStepExecutionId
+    ? (executionStepHistoryQuery.data?.pages[0]?.child_invocations || [])
+        .find((invocation) => invocation.step_execution_id === selectedStepExecutionId)?.child_job_id || ""
+    : "";
+  const selectedStep = selectedStepRow && selectedStepChildJobId
+    ? { ...selectedStepRow, child_job_id: selectedStepChildJobId }
+    : selectedStepRow;
 
   const decisionHistory: Entity[] = (() => {
     const fromDetail = canonicalDetail.sections.previousDecisions;
@@ -404,6 +414,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
       executionPage: executionStepHistoryQuery.data?.pages[0],
       definitionError: definitionQuery.isError,
       workflowWait: objectOrEmpty(runtimeEntity.workflow_wait),
+      actionRun: isActionRun(canonicalDetail.job),
     },
     invocationView: {
       hasInvocation,

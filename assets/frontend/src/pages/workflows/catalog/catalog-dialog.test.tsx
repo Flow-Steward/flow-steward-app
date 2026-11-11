@@ -294,7 +294,7 @@ test("1,000 templates page at 24, without another request", async () => {
   expect(screen.getByTestId("location")).toHaveTextContent("tpl_page=2");
   expect(within(pager).getByText("25–48 of 1000")).toBeInTheDocument();
   expect(mockedFetchCatalog).toHaveBeenCalledTimes(1);
-}, 30_000);
+});
 
 test("the table pages by its own Rows per page, 25 or 50", async () => {
   mockedFetchCatalog.mockResolvedValue(catalogIndex(60));
@@ -309,7 +309,7 @@ test("the table pages by its own Rows per page, 25 or 50", async () => {
   fireEvent.click(await screen.findByRole("option", { name: "50" }));
   expect(await within(pager).findByText("1–50 of 60")).toBeInTheDocument();
   expect(within(screen.getByRole("table", { name: "Templates" })).getAllByRole("row")).toHaveLength(51);
-}, 30_000);
+});
 
 test("browse → details → setup → result, and Escape steps back", async () => {
   const user = userEvent.setup();
@@ -1047,7 +1047,7 @@ test("Marketplace is linked under the app's base path", async () => {
     "href",
     "/app/extensions?find=synthetic_gmail#marketplace",
   );
-}, 15_000);
+});
 
 test("a missing extension is one card by its name, not also a raw dependency row", async () => {
   mockedPreflight.mockResolvedValue(
@@ -1078,7 +1078,7 @@ test("a missing extension is one card by its name, not also a raw dependency row
   expect(screen.queryByText("requires_extension_install")).not.toBeInTheDocument();
   expect(screen.queryByText(/5b1f0c9e-install/)).not.toBeInTheDocument();
   expect(screen.getByText("Resolve 1 item above.")).toBeInTheDocument();
-}, 15_000);
+});
 
 test("a blocked template shows the preflight's own reasons", async () => {
   mockedPreflight.mockResolvedValue(
@@ -1149,7 +1149,7 @@ test("Create another returns to the templates with the filters kept", async () =
   expect(await screen.findByRole("heading", { name: "1 template" })).toBeInTheDocument();
   expect(screen.getByTestId("location")).toHaveTextContent("tpl_trigger=manual");
   expect(screen.getByTestId("location")).not.toHaveTextContent("tpl=");
-}, 15_000);
+});
 
 function childConflict(ref: string) {
   return {
@@ -1202,7 +1202,7 @@ test("suggested ids are free here and do not collide with each other", async () 
   expect(await screen.findByRole("button", { name: "Use synthetic_template_0000_3" })).toBeInTheDocument();
   expect(screen.getByLabelText("New workflow id for fetch_messages")).toHaveValue("fetch_messages_3");
   expect(screen.getByLabelText("New workflow id for file_attachments")).toHaveValue("file_attachments_2");
-}, 15_000);
+});
 
 test("a taken child id is marked on its row and keeps Create off", async () => {
   vi.mocked(fetchWorkflows).mockResolvedValue([{ workflow_id: "fetch_messages" }, { workflow_id: "taken_id" }]);

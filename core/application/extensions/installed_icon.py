@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from core.application.extensions.default_icon import is_default_extension_icon
-from core.application.extensions.identity import extension_folder_name
+from core.application.extensions.identity import managed_extension_dir
 from core.infrastructure.extension_runtime.bundle_icon import (
     EXTENSION_ICON_FILENAME,
     read_extension_icon,
@@ -26,9 +26,7 @@ def installed_extension_bundle_dir(extension_id: str) -> Path | None:
     from core.infrastructure.extension_runtime.extension_runtime import default_extensions_root
 
     try:
-        return Path(default_extensions_root()) / extension_folder_name(
-            str(extension_id or "").strip()
-        )
+        return managed_extension_dir(default_extensions_root(), str(extension_id or "").strip())
     except (ValueError, OSError):
         return None
 

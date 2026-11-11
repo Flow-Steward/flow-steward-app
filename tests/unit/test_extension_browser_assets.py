@@ -63,6 +63,46 @@ def test_resolve_declared_browser_asset_rejects_undeclared_or_unsafe_paths(
         resolve_declared_browser_asset(_raises_input_61_1, asset_ref=asset_ref)
 
 
+def test_resolve_declared_browser_asset_refuses_a_declared_link_out_of_the_bundle(
+    tmp_path: Path,
+) -> None:
+    from core.application.extensions.browser_assets import resolve_declared_browser_asset
+
+    bundle = tmp_path / "bundle"
+    (bundle / "assets").mkdir(parents=True)
+    outside = tmp_path / "secret.js"
+    outside.write_text("secret", encoding="utf-8")
+    (bundle / "assets" / "picker-bridge.js").symlink_to(outside)
+
+    with pytest.raises(ServiceNotFoundError):
+        resolve_declared_browser_asset(_manifest(bundle), asset_ref="assets/picker-bridge.js")
+
+
+def test_resolve_declared_browser_asset_refuses_a_manifest_without_bundle_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.application.extensions.browser_assets import resolve_declared_browser_asset
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "picker-bridge.js").write_text("safe", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    manifest = {**_manifest(tmp_path), "bundle_root": ""}
+
+    with pytest.raises(ServiceNotFoundError):
+        resolve_declared_browser_asset(manifest, asset_ref="assets/picker-bridge.js")
+
+
+@pytest.mark.parametrize(
+    "asset_ref",
+    ["assets/" + "a/" * 4000 + "x.js", "assets/" + "a" * 100_000, "assets/.js", "assets/a/.js"],
+)
+def test_browser_asset_ref_check_refuses_long_or_empty_segments(asset_ref: str) -> None:
+    from core.application.extensions.browser_assets import _is_asset_ref
+
+    assert _is_asset_ref(asset_ref) is False
+    assert _is_asset_ref("assets/picker/bridge-v2_1.js") is True
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

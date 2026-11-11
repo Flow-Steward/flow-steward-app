@@ -21,6 +21,34 @@ describe("JobsDetailPage executed definition", () => {
     );
   });
 
+  it("offers neither the workflow nor a restart on the run of an extension action", async () => {
+    const trigger = {
+      kind: "parent_workflow",
+      label: "Another workflow",
+      link: "/jobs/41",
+      action: { extension_id: "acme.amazon-pro", action_id: "orders.create_full", extension_name: "Amazon Pro" },
+    };
+    primeApi(jobPayload({
+      status: "completed",
+      finished_at: "2026-04-25T10:05:00Z",
+      lifecycle: { status: { code: "completed", label: "", terminal: true } },
+      selected_workflow_display_name: "Create order with shipment · Amazon Pro",
+      trigger,
+      job: { id: 42, status: "completed", trigger },
+    }));
+    renderPage();
+
+    const facts = await screen.findByTestId("job-run-definition-revision");
+
+    // The implementation is not a workflow a person opens, and it runs only as a step of its parent.
+    expect(within(facts).queryByTestId("job-current-workflow-link")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("job-workflow-link")).not.toBeInTheDocument();
+    expect(screen.getByTestId("job-action-name")).toHaveTextContent("Action: Create order with shipment · Amazon Pro");
+    expect(screen.getByTestId("job-trigger")).toHaveAttribute("href", "/jobs/41");
+    expect(screen.queryByTestId("job-restart-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("job-download-report")).toBeInTheDocument();
+  });
+
   it("says the snapshot is unavailable instead of showing the current workflow as executed", async () => {
     primeApi(jobPayload({ status: "completed" }));
     mockedFetchJobDefinition.mockResolvedValue({

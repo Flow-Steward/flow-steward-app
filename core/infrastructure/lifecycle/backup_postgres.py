@@ -45,6 +45,15 @@ class BackupPostgresContext(Protocol):
 
 _REMEDIATION_RETAINED_RESTORE_LOG = "Keep maintenance enabled and inspect the retained restore log."
 
+# pg_dump, pg_restore and the archive listing take as long as the database is large:
+# a fixed limit failed a 14 GB installation after five minutes, every time, and
+# reported it as "could not be started". They run without a wall-clock limit. The
+# one way pg_dump can wait forever is a lock held by a writer, so that wait is
+# bounded by PostgreSQL itself. The short reset and finalize statements keep the
+# configured limit.
+_DATA_PROPORTIONAL_TIMEOUT = None
+_DUMP_LOCK_WAIT_TIMEOUT = "--lock-wait-timeout=300s"
+
 
 _AGE_RESTORE_CATALOG_REPAIR_SQL = r"""
 /* FLOW_STEWARD_AGE_RESTORE_REPAIR */
@@ -162,7 +171,12 @@ def dump_database(
 ) -> None:
     self._require_confined_temp(destination)
     if self._native_database:
-        command = ("pg_dump", *self._database_connection_args(), "-Fc")
+        command = (
+            "pg_dump",
+            *self._database_connection_args(),
+            "-Fc",
+            _DUMP_LOCK_WAIT_TIMEOUT,
+        )
     else:
         command = (
             *self._compose_prefix(),
@@ -175,6 +189,7 @@ def dump_database(
             "-d",
             self._database_name,
             "-Fc",
+            _DUMP_LOCK_WAIT_TIMEOUT,
         )
     log.write("Starting pg_dump custom-format export.")
     try:
@@ -186,7 +201,7 @@ def dump_database(
                 stdout=output,
                 stderr=subprocess.PIPE,
                 check=False,
-                timeout=self._timeout_seconds,
+                timeout=_DATA_PROPORTIONAL_TIMEOUT,
                 **self._native_process_environment(),
             )
     except (OSError, subprocess.SubprocessError) as exc:
@@ -234,7 +249,7 @@ def inspect_dump(self: BackupPostgresContext, source: Path, *, log: BackupLog) -
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 check=False,
-                timeout=self._timeout_seconds,
+                timeout=_DATA_PROPORTIONAL_TIMEOUT,
                 **self._native_process_environment(),
             )
     except (OSError, subprocess.SubprocessError) as exc:
@@ -365,6 +380,17 @@ def restore_database(
                 timeout=self._timeout_seconds,
                 **self._native_process_environment(),
             )
+        except subprocess.TimeoutExpired as exc:
+            raise BackupGatewayError(
+                code="backup_database_reset_failed",
+                cause=(
+                    "The confirmed recovery database replacement did not finish within "
+                    f"{self._timeout_seconds:.0f} s."
+                ),
+                remediation=_REMEDIATION_RETAINED_RESTORE_LOG,
+                step="database_reset",
+                retryable=False,
+            ) from exc
         except (OSError, subprocess.SubprocessError) as exc:
             raise BackupGatewayError(
                 code="backup_database_reset_failed",
@@ -390,7 +416,7 @@ def restore_database(
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 check=False,
-                timeout=self._timeout_seconds,
+                timeout=_DATA_PROPORTIONAL_TIMEOUT,
                 **self._native_process_environment(),
             )
     except (OSError, subprocess.SubprocessError) as exc:
@@ -419,6 +445,16 @@ def restore_database(
             timeout=self._timeout_seconds,
             **self._native_process_environment(),
         )
+    except subprocess.TimeoutExpired as exc:
+        raise BackupGatewayError(
+            code="backup_database_finalize_failed",
+            cause=(
+                f"PostgreSQL restore finalization did not finish within {self._timeout_seconds:.0f} s."
+            ),
+            remediation=_REMEDIATION_RETAINED_RESTORE_LOG,
+            step="database_finalize",
+            retryable=False,
+        ) from exc
     except (OSError, subprocess.SubprocessError) as exc:
         raise BackupGatewayError(
             code="backup_database_finalize_failed",

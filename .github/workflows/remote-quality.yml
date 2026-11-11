@@ -2,6 +2,8 @@ name: Remote quality pilot
 run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
 
 on:
+  push:
+    branches: ['**']
   workflow_dispatch:
     inputs:
       mode:

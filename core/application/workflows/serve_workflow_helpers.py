@@ -8,6 +8,9 @@ from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.project_policy_validation import project_policy_numbers_from_form
 from core.application.observability.job_trace_context import TRACE_LINK_KEY, retry_link
 from core.application.settings.timezone_service import resolve_effective_project_tz
+from core.application.workflows.workflow_action_contract import (
+    is_installed_action_implementation,
+)
 from core.application.workflows.workflow_hook_contract import is_hook_storage
 
 _MESSAGE_THIS_JOB_REQUIRES_A_SECRET_INPUT_PROVIDE_IT_AGAIN_IN_A_NEW_LAUNCH = (
@@ -191,7 +194,7 @@ def list_workflow_choices(
             if "visible_in_catalog" in row and not bool(row.get("visible_in_catalog")):
                 continue
             # A hook's storage workflow is a place inside another workflow (R2-11).
-            if is_hook_storage(row):
+            if is_hook_storage(row) or is_installed_action_implementation(row):
                 continue
             if (
                 "visible_in_catalog" not in row

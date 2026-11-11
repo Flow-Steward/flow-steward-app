@@ -30,7 +30,7 @@ export function archivedDefinitionCanvasGraph(definition: JobDefinitionPayload, 
     workflow: { id: workflowId, display_name: workflowId, revision: definition.revision, enabled: false, callable_by_parent: false },
     interface_contract: {}, output_contract: {}, groups: [], steps: [], edges: [], validation_issues: [], automation_rules: [],
   }, model, t);
-  // An archived card has no server summary; it names its kind in words (Extension tool, Transform), never by id.
+  // An archived card has no server summary; it names its kind in words (Extension action, Transform), never by id.
   const kinds = new Map(localizedSTEP_KIND_OPTIONS(t).map((option) => [option.value, option.label]));
   return {
     ...graph,
@@ -41,7 +41,7 @@ export function archivedDefinitionCanvasGraph(definition: JobDefinitionPayload, 
 }
 
 function toolKindLabel(category: ToolCategory | undefined, t: I18nContextValue["t"]): string {
-  if (category === "extension_tools") return t("react.jobs.kind_extension_tool", "Extension tool");
+  if (category === "extension_tools") return t("react.jobs.kind_extension_tool", "Extension action");
   if (category === "mcp_tools") return t("react.jobs.kind_mcp_tool", "MCP tool");
   return t("react.jobs.kind_system_tool", "System tool");
 }

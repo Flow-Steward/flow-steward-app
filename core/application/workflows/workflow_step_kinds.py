@@ -103,6 +103,39 @@ STEP_KIND_RUNTIME_ACTOR_LABELS: dict[str, str] = {
 }
 
 
+#: What a tool step calls, in the words a person meets in the builder: an
+#: extension, an MCP server or a system tool. "Connector" is never shown.
+TOOL_KIND_EXTENSION = "extension"
+TOOL_KIND_MCP = "mcp"
+TOOL_KIND_SYSTEM = "system"
+TOOL_KIND_LABELS: dict[str, str] = {
+    TOOL_KIND_EXTENSION: "Extension action",
+    TOOL_KIND_MCP: "MCP tool",
+    TOOL_KIND_SYSTEM: "System tool",
+}
+
+
+def connector_tool_kind(connector_id: object, extension_id: object = "") -> str:
+    """Which of the three a tool step calls, from the ids its run records."""
+    connector = str(connector_id or "").strip()
+    if str(extension_id or "").strip() or connector.startswith("extension."):
+        return TOOL_KIND_EXTENSION
+    if connector.startswith("connector.mcp."):
+        return TOOL_KIND_MCP
+    return TOOL_KIND_SYSTEM
+
+
+def connector_step_summary(
+    *, connector_id: object, extension_id: object = "", name: str = "", ok: bool, detail: str = ""
+) -> str:
+    """The line a run shows for a tool step: what was called and how it ended."""
+    label = TOOL_KIND_LABELS[connector_tool_kind(connector_id, extension_id)]
+    subject = f"{label} '{name}'" if name else label
+    if ok:
+        return f"{subject} completed"
+    return f"{subject} failed: {detail}" if detail else f"{subject} failed"
+
+
 def runtime_actor_for_step(step: Mapping[str, object] | None, *, default: str = "") -> str:
     """Resolve runtime message actor for a normalized workflow step payload."""
     if not isinstance(step, Mapping):

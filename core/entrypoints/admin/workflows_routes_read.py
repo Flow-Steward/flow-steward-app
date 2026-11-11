@@ -11,6 +11,9 @@ from core.entrypoints.admin.workflows_models import *  # NOSONAR
 from core.application.management.errors import ServiceNotFoundError
 from core.application.management.query_models_workflow_editor import AgentFileFormatsView
 from core.application.workflows.execution_graph import EXECUTION_GRAPH_SETTING
+from core.application.workflows.workflow_action_contract import (
+    is_installed_action_implementation,
+)
 from core.application.workflows.workflow_hook_contract import is_hook_storage
 from core.application.registry.boundary_contracts import (
     project_workflow_boundary_contracts,
@@ -587,6 +590,9 @@ def _callable_workflow_row(
         return None
     # A hook's steps are a place in another workflow, never an Invoke target (R2-11).
     if is_hook_storage(row):
+        return None
+    # An action implementation is offered as its action, never as a child workflow (ADR 0065).
+    if is_installed_action_implementation(row):
         return None
     if excluded and workflow_id == excluded:
         return None

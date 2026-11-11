@@ -12,6 +12,28 @@ from .command_context import ExtensionCommandContext
 from .extension_runtime import ExtensionRegistryProjectionRecord
 from .service_support import _normalize_text
 
+#: What an anchor row keeps when the install renames it (the fields a project link keeps).
+_ANCHOR_KEPT_FIELDS = (
+    "workflow_key",
+    "version",
+    "description",
+    "trigger",
+    "settings",
+    "tags",
+    "builder_metadata_jsonb",
+    "account_id",
+    "scope_kind",
+    "source_release_id",
+    "source_projection_id",
+    "derived_from_kind",
+    "derived_from_ref",
+    "sync_status",
+    "availability_status",
+    "availability_reason_code",
+    "availability_reason_text",
+    "new_runs_blocked",
+)
+
 
 def _denied_token(
     command: ExtensionRuntimeTokenInput,
@@ -67,6 +89,9 @@ class ExtensionInstallProjectionService:
         self._check_release_hooks(
             snapshots, install_record=install_record, release=release, account_id=account_id
         )
+        self._check_release_actions(
+            snapshots, install_record=install_record, release=release, account_id=account_id
+        )
         for snapshot in snapshots:
             if not bool(getattr(snapshot, "publish", True)):
                 continue
@@ -83,6 +108,7 @@ class ExtensionInstallProjectionService:
                     is_active=True,
                 )
             )
+        self._ensure_action_implementation_anchors(snapshots, install_record=install_record)
 
     def _check_release_hooks(
         self, snapshots: list[Any], *, install_record: Any, release: Any, account_id: str
@@ -115,6 +141,115 @@ class ExtensionInstallProjectionService:
             )
         except HookReleaseBlockedError as exc:
             raise ServiceConflictError(str(exc), payload={"hooks": exc.issues}) from exc
+
+    def _ensure_action_implementation_anchors(
+        self, snapshots: list[Any], *, install_record: Any
+    ) -> None:
+        """Give every action implementation the registry anchor a run pins (ADR 0065).
+
+        A job pins its workflow through a ``registry_workflows`` anchor. Ordinary
+        extension workflows get theirs when a project links them; an
+        implementation is never linked, so the install creates it. The anchor is
+        an identity only: hidden, and its definition stays in the projection.
+        """
+        from core.application.extensions.projected_dataset_bridge import projection_bridge_id
+        from core.application.workflows.workflow_action_contract import is_action_implementation
+
+        implementations = [
+            snapshot
+            for snapshot in snapshots
+            if _normalize_text(getattr(snapshot, "artifact_kind", "")) == "workflow"
+            and bool(getattr(snapshot, "publish", True))
+            and is_action_implementation(dict(getattr(snapshot, "snapshot", {}) or {}))
+        ]
+        if not implementations:
+            return
+        registry_store = self._registry_store(required_methods=("get_workflow", "save_workflow"))
+        if registry_store is None:
+            # In-memory lifecycle stores keep no registry rows and run no jobs.
+            return
+        install_id = _normalize_text(getattr(install_record, "install_id", ""))
+
+        def ensure() -> None:
+            for snapshot in implementations:
+                local_id = _normalize_text(getattr(snapshot, "artifact_id", ""))
+                workflow_id = projection_bridge_id(install_id, local_id)
+                body = dict(getattr(snapshot, "snapshot", {}) or {})
+                display_name = _normalize_text(body.get("display_name")) or local_id
+                existing = registry_store.get_workflow(workflow_id)
+                if isinstance(existing, dict) and existing.get("display_name") == display_name:
+                    continue
+                # The run of an action is titled by this name; a release may rename it.
+                registry_store.save_workflow(
+                    {
+                        **{
+                            key: existing[key]
+                            for key in _ANCHOR_KEPT_FIELDS
+                            if isinstance(existing, dict) and key in existing
+                        },
+                        "workflow_id": workflow_id,
+                        "display_name": display_name,
+                        "enabled": True,
+                        "source_install_id": install_id,
+                        "local_workflow_id": local_id,
+                        "projection_mode": "derived",
+                        "visible_in_catalog": False,
+                    },
+                    author="extension-install",
+                    **(
+                        {"expected_revision": int(existing["revision"])}
+                        if isinstance(existing, dict) and existing.get("revision") is not None
+                        else {"create_only": True}
+                    ),
+                )
+
+        if not self._run_with_lifecycle_connection(registry_store, ensure):
+            ensure()
+
+    def _check_release_actions(
+        self, snapshots: list[Any], *, install_record: Any, release: Any, account_id: str
+    ) -> None:
+        """A release never breaks a step that calls one of its composite actions (ADR 0065)."""
+        from core.application.extensions.composite_actions import (
+            composite_action_handlers,
+            required_dependency_ids,
+        )
+        from core.application.workflows.workflow_action_release import (
+            ActionReleaseBlockedError,
+            check_release_actions,
+        )
+
+        connection_provider = getattr(self._context, "persistence_connection", None)
+        connection = connection_provider() if callable(connection_provider) else None
+        if connection is None or not callable(getattr(connection, "cursor", None)):
+            # In-memory lifecycle stores keep no workflows that could call an action.
+            return
+        registry_store = self._registry_store(required_methods=("get_workflow",))
+        if registry_store is None:
+            return
+        descriptor = dict(getattr(release, "descriptor", {}) or {})
+        workflows = {
+            _normalize_text(getattr(snapshot, "artifact_id", "")): dict(
+                getattr(snapshot, "snapshot", {}) or {}
+            )
+            for snapshot in snapshots
+            if _normalize_text(getattr(snapshot, "artifact_kind", "")) == "workflow"
+            and bool(getattr(snapshot, "publish", True))
+        }
+        try:
+            with connection.cursor() as cur:
+                check_release_actions(
+                    registry_store,
+                    cur,
+                    account_id=account_id,
+                    install_id=install_record.install_id,
+                    extension_id=release.extension_id,
+                    workflows=workflows,
+                    action_handlers=composite_action_handlers(descriptor.get("action_definitions")),
+                    required_dependencies=frozenset(required_dependency_ids(descriptor)),
+                )
+        except ActionReleaseBlockedError as exc:
+            raise ServiceConflictError(str(exc), payload={"actions": exc.issues}) from exc
 
     def materialize_dataset_bridges(
         self,

@@ -403,7 +403,9 @@ def invoke_config_issues(config: Mapping[str, Any] | None) -> list[dict[str, str
                 "path": "override.invoke_workflow",
             }
         ]
-    if not has_direct and not has_hook:
+    # Inside a bundled implementation an action of another extension is named by
+    # the action alone; its workflow is resolved in the caller's install.
+    if not has_direct and not has_hook and "action" not in source:
         return [
             {
                 "code": "workflow.invoke.target_missing",
@@ -430,7 +432,10 @@ def invoke_config_issues(config: Mapping[str, Any] | None) -> list[dict[str, str
             issue = exc.issue()
             issue["path"] = f"override.invoke_workflow.{exc.path}"
             return [issue]
-    return []
+    from core.application.workflows.workflow_action_contract import action_config_issues
+
+    # An extension action annotates a direct target (ADR 0065); never a hook.
+    return action_config_issues(source)
 
 
 def select_hook_targets(

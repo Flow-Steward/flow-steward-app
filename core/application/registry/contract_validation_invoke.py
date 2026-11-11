@@ -2,10 +2,14 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+import logging
+
 from .state_selector_shape import StateSelectorShape
 from .workflow_lookup import get_workflow_row
 
 from .contract_validation_workflow import *  # noqa: F403,F401  # NOSONAR
+
+_logger = logging.getLogger(__name__)
 
 
 def validate_invoke_workflow_step(
@@ -96,7 +100,37 @@ def validate_invoke_workflow_step(
         if load_workflow
         else get_workflow_row(db, child_workflow_id)
     )
+    from core.application.workflows.workflow_action_validation import action_invoke_issues
+
+    # An extension action implemented by a workflow, or its refusal (ADR 0065).
+    parent_workflow = (
+        load_workflow(workflow_id) if load_workflow else get_workflow_row(db, workflow_id)
+    )
+    parent_row = parent_workflow if isinstance(parent_workflow, dict) else {}
+    child_row = child_workflow if isinstance(child_workflow, dict) else {}
+    action_issues = action_invoke_issues(
+        db,
+        spec=spec,
+        child_workflow=child_row or None,
+        parent_workflow=parent_row,
+        account_id=str(parent_row.get("account_id") or child_row.get("account_id") or ""),
+    )
+    errors.extend(
+        _issue(code=row["code"], message=row["message"], path=f"{path_prefix}.{row['path']}")
+        for row in action_issues
+    )
     if not isinstance(child_workflow, dict):
+        if "action" in spec:
+            # The workflow behind an action is never named: say the action is unavailable.
+            if not action_issues:
+                errors.append(
+                    _issue(
+                        code="workflow.extension_operation_unavailable",
+                        message="This extension action is not available. Choose the action again.",
+                        path=f"{path_prefix}.override.invoke_workflow.action",
+                    )
+                )
+            return {"valid": False, "errors": errors, "warnings": warnings}
         errors.append(
             _issue(
                 code="invoke.child_workflow_missing",
@@ -362,13 +396,18 @@ def validate_invoke_workflow_step(
         available_type_map = resolver_for_types.get_available_type_map_for_step(
             workflow_id, str(step.get("step_id") or "").strip()
         )
-    except Exception as resolver_err:
+    except Exception:
+        _logger.warning(
+            "invoke_workflow input mapping source validation skipped workflow_id=%s",
+            workflow_id,
+            exc_info=True,
+        )
         warnings.append(
             _issue(
                 code="invoke.input_mapping_source_validation_skipped",
                 message=(
-                    "Could not validate invoke_workflow input mapping sources against parent step variables: "
-                    f"{resolver_err}"
+                    "Could not validate invoke_workflow input mapping sources against "
+                    "parent step variables"
                 ),
                 path=f"{path_prefix}.override.invoke_workflow.input_mapping",
                 severity="warning",

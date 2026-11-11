@@ -17,6 +17,10 @@ from core.application.registry.catalog_categories import (
     DEFAULT_CATALOG_CATEGORY,
     known_catalog_category,
 )
+from core.application.workflows.workflow_action_contract import (
+    ACTION_IMPLEMENTATION_SETTING,
+    is_action_implementation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +251,17 @@ def projected_artifact_rows(
         elif artifact_kind == "workflow":
             steps = snapshot.get("steps")
             if isinstance(steps, list):
-                snapshot["steps"] = _projected_workflow_steps(steps, references, install_id)
+                snapshot["steps"] = _projected_workflow_steps(
+                    steps,
+                    references,
+                    install_id,
+                    extension_id=str(payload.get("extension_id") or "").strip(),
+                )
+            if is_action_implementation(snapshot):
+                # An installed implementation runs only under its action's Invoke
+                # (ADR 0065): never a workflow a person browses, links or launches.
+                snapshot["visible_in_catalog"] = False
+                snapshot[ACTION_IMPLEMENTATION_SETTING] = True
         elif artifact_kind == "saved_query" and snapshot.get("dataset_id"):
             snapshot["dataset_id"] = _scoped_reference(
                 snapshot["dataset_id"],
@@ -258,10 +272,44 @@ def projected_artifact_rows(
     return rows
 
 
+def _own_extension_step_install(
+    step: dict[str, Any], *, extension_id: str, install_id: str
+) -> dict[str, Any]:
+    """Point a step that names its own extension by package id at this install.
+
+    A bundle carries no install id. A connector step calling an action of the
+    bundle's extension, and an action Invoke of that extension, belong to the
+    install that projected the workflow; a reference to another extension stays
+    unresolved for the caller's choice (ADR 0065).
+    """
+    if not extension_id:
+        return step
+    kind = str(step.get("step_kind") or step.get("kind") or "").strip().lower()
+    override = step.get("override")
+    if kind == "invoke_workflow" and isinstance(override, dict):
+        invoke = override.get("invoke_workflow")
+        action = invoke.get("action") if isinstance(invoke, dict) else None
+        if isinstance(action, dict) and str(action.get("extension_id") or "") == extension_id:
+            invoke = {**invoke, "action": {**action, "install_id": install_id}}
+            return {**step, "override": {**override, "invoke_workflow": invoke}}
+        return step
+    if kind in {"", "connector"} and not step.get("connector_install_id"):
+        from core.application.workflows.extension_connection_validation import (
+            named_extension_without_install,
+        )
+
+        named = named_extension_without_install(step)
+        if named is not None and named.extension_id == extension_id:
+            return {**step, "connector_install_id": install_id}
+    return step
+
+
 def _projected_workflow_steps(
     steps: list[Any],
     references: dict[str, dict[str, str]],
     install_id: str,
+    *,
+    extension_id: str = "",
 ) -> list[dict[str, Any]]:
     """Namespace the install-local references of a projected workflow's own steps."""
     projected_steps: list[dict[str, Any]] = []
@@ -305,7 +353,11 @@ def _projected_workflow_steps(
                 projected_step["connector_install_id"] = install_id
         elif projected_step.get("connector_install_id"):
             projected_step["connector_install_id"] = install_id
-        projected_steps.append(projected_step)
+        projected_steps.append(
+            _own_extension_step_install(
+                projected_step, extension_id=extension_id, install_id=install_id
+            )
+        )
     return projected_steps
 
 

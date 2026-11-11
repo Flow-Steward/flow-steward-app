@@ -5832,7 +5832,7 @@ msgid "react.jobs.jobs_list_and_triage"
 msgstr "Užduočių sąrašas ir įvertinimas"
 
 msgid "react.jobs.kind_extension_tool"
-msgstr "Plėtinio įrankis"
+msgstr "Plėtinio veiksmas"
 
 msgid "react.jobs.kind_mcp_tool"
 msgstr "MCP įrankis"
@@ -5902,6 +5902,9 @@ msgstr "Atidaryti visą užduoties informaciją"
 
 msgid "react.jobs.open_the_current_workflow"
 msgstr "Atidaryti dabartinę darbo eigą"
+
+msgid "react.jobs.open_the_run_behind_this_step"
+msgstr "Atidaryti šio žingsnio vykdymą"
 
 msgid "react.jobs.operation_kind"
 msgstr "operacijos rūšis"
@@ -13881,6 +13884,12 @@ msgstr "Nė vienas katalogo laukas neatitinka paieškos."
 msgid "react.registry.no_data_contracts_match_search"
 msgstr "Nė viena duomenų sutartis neatitinka paieškos."
 
+msgid "react.workflows.action_invoke_connection"
+msgstr "Jungtis: {value0}"
+
+msgid "react.workflows.action_invoke_unavailable"
+msgstr "Šis plėtinio veiksmas nebepasiekiamas. Pasirinkite veiksmą iš naujo."
+
 msgid "react.workflows.all_projects"
 msgstr "Visi projektai"
 
@@ -14368,6 +14377,11 @@ msgstr "Paskutinis atnaujinimas"
 
 msgid "react.jobs.no_action_required"
 msgstr "Jokių veiksmų nereikia"
+
+msgid "react.jobs.completed_action_run_help"
+msgstr ""
+"Šis vykdymas baigtas sėkmingai. Tai vienas kito vykdymo žingsnis; norėdami "
+"jį pakartoti, iš naujo paleiskite tą vykdymą."
 
 msgid "react.jobs.completed_restart_help"
 msgstr ""

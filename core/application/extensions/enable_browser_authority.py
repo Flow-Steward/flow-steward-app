@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -20,7 +19,7 @@ from .browser_authority_approval import (
     resolve_browser_authority_manifest,
     with_browser_authority_approval,
 )
-from .identity import extension_folder_name
+from .identity import managed_extension_dir
 from .service_support import _normalize_text
 
 
@@ -38,7 +37,7 @@ def authorize_extension_enable_browser_authority(
     authority_release = release
     if authority_release is None:
         try:
-            bundle_root = Path(default_extensions_root()) / extension_folder_name(extension_id)
+            bundle_root = managed_extension_dir(default_extensions_root(), extension_id)
         except ValueError:
             bundle_root = None
         if bundle_root is not None and bundle_root.exists():

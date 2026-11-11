@@ -159,15 +159,29 @@ def preflight_database_upgrade(
         conn.close()
 
 
+class DatabaseUpgradeBlockedError(RuntimeError):
+    """The read-only preflight found what stops the upgrade; nothing was changed.
+
+    2026-11-11: this was a bare RuntimeError, and `database upgrade` printed only "An
+    unexpected internal error occurred" (internal_error, exit 9) while the previous
+    release's processes were still connected: the cause was in the log alone. The
+    service turns it into its own public error that lists every blocking issue.
+    """
+
+    def __init__(self, blocking: list[dict[str, Any]]) -> None:
+        self.blocking = [dict(issue) for issue in blocking]
+        first = self.blocking[0] if self.blocking else {}
+        super().__init__(
+            f"Database upgrade preflight is blocked ({len(self.blocking)} issue(s)); "
+            f"first: {first.get('code', '')}: {first.get('message', '')} "
+            "Run flow-steward database preflight for the full report."
+        )
+
+
 def _refuse_blocked_preflight(conn, *, allow_unlabeled_sessions: bool) -> None:
     report = upgrade_preflight.preflight(conn, allow_unlabeled_sessions=allow_unlabeled_sessions)
     if report["blocking"]:
-        first = report["blocking"][0]
-        raise RuntimeError(
-            f"Database upgrade preflight is blocked ({len(report['blocking'])} issue(s)); "
-            f"first: {first['code']}: {first['message']} "
-            "Run flow-steward database preflight for the full report."
-        )
+        raise DatabaseUpgradeBlockedError(list(report["blocking"]))
 
 
 def upgrade_database(

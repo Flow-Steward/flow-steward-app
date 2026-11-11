@@ -391,6 +391,18 @@ def enqueue_job(**kwargs) -> int:
     meta = safe_workflow_job_metadata(raw_meta) if isinstance(raw_meta, dict) else None
     if meta is not None:
         kwargs = {**kwargs, "meta": meta}
+    from core.application.workflows.workflow_action_launch_gate import (
+        refuse_direct_action_implementation,
+    )
+
+    extra_state = kwargs.get("extra_state")
+    project_config = kwargs.get("project_config")
+    refuse_direct_action_implementation(
+        workflow_id=(extra_state.get("workflow_id") if isinstance(extra_state, dict) else "")
+        or (meta or {}).get("selected_workflow_id"),
+        meta=meta,
+        account_id=project_config.get("account_id") if isinstance(project_config, dict) else "",
+    )
     with admit_public_submission(task_source=task_source, meta=meta):
         return _enqueue_job_unadmitted(**kwargs)
 

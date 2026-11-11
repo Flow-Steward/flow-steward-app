@@ -5738,7 +5738,7 @@ msgid "react.jobs.jobs_list_and_triage"
 msgstr "Jobs list and triage"
 
 msgid "react.jobs.kind_extension_tool"
-msgstr "Extension tool"
+msgstr "Extension action"
 
 msgid "react.jobs.kind_mcp_tool"
 msgstr "MCP tool"
@@ -5808,6 +5808,9 @@ msgstr "Open full Job Details"
 
 msgid "react.jobs.open_the_current_workflow"
 msgstr "Open the current workflow"
+
+msgid "react.jobs.open_the_run_behind_this_step"
+msgstr "Open the run behind this step"
 
 msgid "react.jobs.operation_kind"
 msgstr "operation kind"
@@ -13683,6 +13686,12 @@ msgstr "No catalog fields match your search."
 msgid "react.registry.no_data_contracts_match_search"
 msgstr "No data contracts match your search."
 
+msgid "react.workflows.action_invoke_connection"
+msgstr "Connection: {value0}"
+
+msgid "react.workflows.action_invoke_unavailable"
+msgstr "This extension action is no longer available. Choose the action again."
+
 msgid "react.workflows.all_projects"
 msgstr "All projects"
 
@@ -14170,6 +14179,11 @@ msgstr "Last update"
 
 msgid "react.jobs.no_action_required"
 msgstr "No action is required"
+
+msgid "react.jobs.completed_action_run_help"
+msgstr ""
+"This run finished successfully. It is one step of another run; restart "
+"that run to execute it again."
 
 msgid "react.jobs.completed_restart_help"
 msgstr ""

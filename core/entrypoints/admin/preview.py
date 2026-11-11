@@ -349,8 +349,19 @@ def preview_workflow(workflow_id: str, request: Request):
                     "user_prompt": preview["full_user_prompt"],
                 }
             )
-        except Exception as e:
-            steps_preview.append({**base, "skill": resolved_skill_id, "error": str(e)})
+        except Exception:
+            logger.exception(
+                "Workflow step prompt preview failed workflow_id=%s step_id=%s",
+                workflow_id,
+                step.step_id,
+            )
+            steps_preview.append(
+                {
+                    **base,
+                    "skill": resolved_skill_id,
+                    "error": "The prompt preview for this step could not be built",
+                }
+            )
 
     return {
         "workflow_id": wf.workflow_id,

@@ -115,7 +115,7 @@ it.each([true, false])("reconciles the focused issue from current saved validati
     boundary.release();
     view.unmount();
   }
-}, 15_000);
+});
 
 
 it("retires the focused issue across project A→B→A until Diagnostics is explicitly selected again", async () => {
@@ -140,7 +140,7 @@ it("retires the focused issue across project A→B→A until Diagnostics is expl
     boundary.release();
     view.unmount();
   }
-}, 15_000);
+});
 
 it("presents the three exact diagnostics with business targets, raw correlation and supported corrections", async () => {
   const switchRaw = "Step 'route' has no edge for its case 'c_email' outcome";
@@ -215,7 +215,7 @@ it("presents the three exact diagnostics with business targets, raw correlation 
     .getByRole("button", { name: /only terminal is stop_fail/ }));
   const settings = await screen.findByRole("dialog", { name: "Workflow settings" });
   expect.soft(within(settings).queryByRole("checkbox", { name: /Declare an expected failure/ })).toBeInTheDocument();
-}, 20_000);
+});
 
 
 it("opens and saves an expected-failure issue on the child workflow's own page", async () => {

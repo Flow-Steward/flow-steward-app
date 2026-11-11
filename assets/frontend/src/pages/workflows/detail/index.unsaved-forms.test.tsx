@@ -36,7 +36,7 @@ describe("unsaved builder forms", () => {
     fireEvent.click(screen.getByRole("link", { name: "Test Run" }));
     expect(await screen.findByTestId("workflow-test-run-blocked")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeDisabled();
-  }, 10_000);
+  });
   it("asks before discarding extra edits to a new step already in the structural batch", async () => {
     installWorkflow();
     renderPage({ surface: "builder" });

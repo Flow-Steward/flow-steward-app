@@ -412,6 +412,8 @@ class JobCommandService:
                 test_mode=bool(replay_snapshot.get("test_mode")),
                 replay_snapshot=replay_snapshot,
             )
+        except ServiceForbiddenError:  # an extension action's run restarts with its caller
+            raise
         except Exception as exc:
             logger.warning("restart_job(%s) failed: %s", job_id, exc)
             raise ServiceError("Failed to restart job") from exc

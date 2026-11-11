@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from urllib.parse import urlparse
 
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
@@ -10,6 +11,7 @@ from core.infrastructure.extension_runtime.python_requirement_contract import (
     PYTHON_REQUIREMENTS_FIELD,
     normalize_python_requirements,
 )
+from core.infrastructure.security.path_containment import contained_path
 
 from .extension_runtime_common import *  # NOSONAR
 from .extension_runtime_common import AUTHORING_MANIFEST_ALLOWED_FIELDS
@@ -244,11 +246,11 @@ def _resolve_ref_path(
     if raw_ref.startswith("/"):
         raise ValueError(f"Absolute ref '{raw_ref}' is not allowed")
 
-    candidate = (parent_path.parent / raw_ref).resolve()
-    bundle_root_resolved = bundle_root.resolve()
-    if bundle_root_resolved != candidate and bundle_root_resolved not in candidate.parents:
-        raise ValueError(f"Ref '{raw_ref}' escapes extension bundle root")
-    if not candidate.exists() or not candidate.is_file():
+    try:
+        candidate = contained_path(bundle_root, os.path.abspath(parent_path.parent), raw_ref)
+    except ValueError as exc:
+        raise ValueError(f"Ref '{raw_ref}' escapes extension bundle root") from exc
+    if not candidate.is_file():
         raise ValueError(f"Ref '{raw_ref}' does not exist")
     return candidate
 

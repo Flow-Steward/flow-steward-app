@@ -112,5 +112,5 @@ describe("canvas diagnostic repair navigation", () => {
     fireEvent.keyDown(operator, { key: "Escape" });
     expect(screen.queryByText("Unsupported raw IF condition")).not.toBeInTheDocument();
     expect(postedChangeSets()).toHaveLength(1);
-  }, 15_000);
+  });
 });

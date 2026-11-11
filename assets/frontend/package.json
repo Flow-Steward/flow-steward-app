@@ -1,7 +1,7 @@
 {
   "name": "@flow-steward/frontend",
   "private": true,
-  "version": "0.9.14",
+  "version": "0.9.15",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -68,6 +68,9 @@
     "vitest": "4.1.12"
   },
   "overrides": {
-    "brace-expansion": "file:vendor/brace-expansion-compat"
+    "brace-expansion": "file:vendor/brace-expansion-compat",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.7"
+    }
   }
 }

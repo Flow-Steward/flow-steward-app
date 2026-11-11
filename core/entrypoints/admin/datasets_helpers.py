@@ -12,6 +12,7 @@ from fastapi import HTTPException
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID
 from core.application.datasets.catalog_scope import _scope_matches_row
+from core.application.datasets.connection_actions import mark_project_state_update_failed
 from core.application.datasets.definition_values import (
     _apply_schema_defaults,
     _non_empty_secret_values,
@@ -354,13 +355,9 @@ def _process_connection_project_state_updates(
             connection_id=str(connection.get("connection_id") or "").strip() or None,
             actor_id=None,
         )
-    except Exception as exc:
-        invocation["status"] = "failed"
-        invocation["detail"] = "project_state_update_failed"
-        invocation["errors"] = [
-            *list(invocation.get("errors") or []),
-            {"code": "project_state_update_failed", "message": str(exc)},
-        ]
+    except Exception:
+        connection_id = str(connection.get("connection_id") or "").strip()
+        mark_project_state_update_failed(invocation, connection_id=connection_id)
 
 
 def _response_from_invocation(invocation: dict[str, Any]) -> dict:

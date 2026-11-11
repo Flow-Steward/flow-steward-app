@@ -3895,6 +3895,27 @@
     "variable_name": "FS_CLI_IMAGE"
   },
   {
+    "canonical_name": "FS_CLI_OPERATION_LOG_HOST_ROOT",
+    "code_read_locations": [
+      "core/entrypoints/cli/platform/operation_log.py"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Host directory that FS_CLI_OPERATION_LOG_ROOT is mounted from; set by the launcher so the CLI reports a log path the operator can open on the host.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "api",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_CLI_OPERATION_LOG_HOST_ROOT"
+  },
+  {
     "canonical_name": "FS_CLI_OPERATION_LOG_ROOT",
     "code_read_locations": [
       "core/entrypoints/cli/platform/operation_log.py"
@@ -15705,6 +15726,25 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "PYTHON_PLAYWRIGHT_VERSION"
+  },
+  {
+    "canonical_name": "QUALITY_MODE",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/hosted-quality.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "QUALITY_MODE"
   },
   {
     "canonical_name": "RABBITMQ_AMQP_HOST_PORT",

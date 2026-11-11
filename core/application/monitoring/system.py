@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -27,6 +28,8 @@ from core.infrastructure.monitoring.system_storage import (
     load_monitoring_counts,
 )
 from core.infrastructure.runtime_env import runtime_env
+
+logger = logging.getLogger(__name__)
 
 ORPHAN_STORAGE_CLEANUP_CONFIRM = "DELETE_ORPHAN_STORAGE"
 
@@ -80,8 +83,9 @@ def build_monitoring_meta(
     }
     try:
         meta["ready_queue_depth"] = int(get_ready_queue_depth())
-    except Exception as exc:
-        meta["ready_queue_depth_error"] = str(exc)
+    except Exception:
+        logger.exception("Ready queue depth query failed")
+        meta["ready_queue_depth_error"] = "Ready queue depth is unavailable"
 
     try:
         meta.update(load_monitoring_counts(bl))
@@ -90,8 +94,9 @@ def build_monitoring_meta(
             queue_delivery_counts,
             attention_jobs=load_queue_delivery_attention_jobs(bl),
         )
-    except Exception as exc:
-        meta["query_error"] = str(exc)
+    except Exception:
+        logger.exception("Monitoring count query failed")
+        meta["query_error"] = "Monitoring counts are unavailable"
     return meta
 
 
@@ -258,12 +263,14 @@ def build_storage_monitoring_payload(bl) -> dict[str, Any]:
             "graph": workflow_knowledge_status.get("graph") or {},
             "vector": workflow_knowledge_status.get("vector") or {},
         }
-    except Exception as exc:
+    except Exception:
+        logger.exception("Workflow knowledge storage status failed")
+        unavailable = "Workflow knowledge storage status is unavailable"
         workflow_knowledge_payload = {
             "available": False,
             "graph_name": "",
-            "graph": {"available": False, "error": str(exc)},
-            "vector": {"available": False, "error": str(exc)},
+            "graph": {"available": False, "error": unavailable},
+            "vector": {"available": False, "error": unavailable},
         }
 
     return {

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
@@ -33,6 +34,8 @@ from core.application.reports.job_detail_contract import (
 )
 from core.entrypoints.api import dashboard_metrics as dashboard_metrics_api
 from core.entrypoints.api import dependencies as api_dependencies
+
+logger = logging.getLogger(__name__)
 
 REQUEST_FAILED_VALUE = "Request failed"
 
@@ -132,7 +135,7 @@ def _service_error(
         if isinstance(candidate, str):
             message = candidate
     if not message:
-        message = str(getattr(exc, "message", exc) or REQUEST_FAILED_VALUE)
+        message = str(exc.message or REQUEST_FAILED_VALUE)
     return _error_envelope(
         status_code=status_code,
         kind=kind,
@@ -143,12 +146,14 @@ def _service_error(
 
 
 def _unexpected_error(exc: Exception, *, kind: str, resource: str) -> JSONResponse:
+    # The exception text stays in the server log: it can carry database, OS or
+    # library detail that is not the caller's to read.
+    logger.error("v2 %s %s request failed", kind, resource, exc_info=exc)
     return _error_envelope(
         status_code=500,
         kind=kind,
         resource=resource,
         message="Internal server error",
-        details={"exception": str(exc)},
     )
 
 

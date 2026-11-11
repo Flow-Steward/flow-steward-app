@@ -90,3 +90,29 @@ def test_job_detail_contract_exposes_the_trigger() -> None:
     from core.application.reports.job_detail_contract import _TOP_LEVEL_JOB_FIELDS
 
     assert "trigger" in _TOP_LEVEL_JOB_FIELDS
+
+
+def test_the_run_of_an_extension_action_names_its_action() -> None:
+    action = {
+        "extension_id": "acme.amazon-pro",
+        "action_id": "orders.create_full",
+        "extension_name": "Amazon Pro",
+    }
+    meta = {
+        "invoke_parent_job_id": "job-1",
+        "invoke_parent_workflow_id": "orders",
+        "composite_action": {**action, "install_id": "pi_addon", "connections": {"amazon": "c"}},
+    }
+
+    trigger = job_trigger({"task_source": "invoke_workflow", "meta": meta})
+
+    # Only what a reader needs: no install ids, no connections.
+    assert trigger == {
+        "kind": "parent_workflow",
+        "label": "Another workflow",
+        "detail": "workflow orders",
+        "link": "/jobs/job-1",
+        "action": action,
+    }
+    plain = job_trigger({"task_source": "invoke_workflow", "meta": {"invoke_parent_job_id": "j"}})
+    assert "action" not in plain

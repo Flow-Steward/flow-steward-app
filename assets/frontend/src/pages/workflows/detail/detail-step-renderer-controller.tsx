@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useRef } from "react";
 import { useI18n } from "@/lib/i18n/useI18n";
+import { ignoreAsyncResult } from "@/lib/utils/async";
 import { isToolCategory } from "./detail-tool-categories";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { WorkflowStepStructureSetup } from "@/pages/workflows/detail/detail-step-structure-setup";
@@ -120,6 +121,15 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
       override.connector = { connector_id: "", operation_id: "", extension_id: "", connector_install_id: "", input_mapping: {}, output_mapping: {}, connection_binding: {} };
     }
     setStepOverrideDraft(overrideDraftForStepKindChange(jsonText(override), normalized));
+  }
+
+  /** A composite action is saved as an Invoke of the workflow that implements it. */
+  function convertStepToActionInvoke(config: Record<string, unknown>) {
+    setStepToolCategoryDraft("");
+    setStepKindDraft("invoke_workflow");
+    const override = stepOverrideObjectFromDraft(stepOverrideDraft, t);
+    delete override.connector;
+    setStepOverrideDraft(jsonText({ ...override, invoke_workflow: config }));
   }
 
   function updateStepKindConfig(
@@ -324,6 +334,8 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
     stepToolCategory,
     onStepInputValidationChange: ctx.onStepInputValidationChange,
     hookDeclarationEditorKey: JSON.stringify([textOrEmpty(workflowId), textOrEmpty(selectedProjectId), textOrEmpty(selectedStep?.runtimeId)]),
+    convertStepToActionInvoke,
+    onChooseAnotherAction: () => ignoreAsyncResult(handleStepKindChange("extension_tools")),
     hookProjectId: ctx.hookProjectId,
     hookDeclarationIdentityLocked: ctx.hookDeclarationIdentityLocked,
     hookDeclarationReadOnly: ctx.hookDeclarationReadOnly,

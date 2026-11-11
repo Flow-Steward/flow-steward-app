@@ -17,6 +17,7 @@ from core.application.doctor.recovery import interrupted_journals
 from core.application.doctor.repairs import RetentionFacts
 from core.application.installer import InstallConfig, profile_switch
 from core.application.installer.redaction import redact_installer_text
+from core.application.lifecycle.contracts import journal_blocks_new_work
 from core.infrastructure.config.runtime_env import runtime_env
 from core.infrastructure.installer.doctor_probes import flock_held, narrow, wide_entries
 from core.infrastructure.installer.gateway import DockerInstallerGateway
@@ -60,7 +61,6 @@ for path in sorted(ops.glob("*.json")) if ops.is_dir() else ():
         out.append(journal)
 print(json.dumps({"held": held, "journals": out}))
 """
-_UNFINISHED = {"running", "cancelled", "recovery_required"}
 # Run in the runtime service, in the installed image's own code: which migrations of
 # that release are pending or drifted, and which the ledger holds that it does not know.
 _MIGRATIONS_SCRIPT = r"""
@@ -221,8 +221,11 @@ class InstallationDoctorProbe:
             journals = [
                 journal
                 for journal in facts.get("journals") or ()
-                if journal.get("status") in _UNFINISHED
-                or (journal.get("status") == "failed" and journal.get("retryable", True))
+                if journal_blocks_new_work(
+                    kind=journal.get("kind"),
+                    status=journal.get("status"),
+                    retryable=journal.get("retryable", True),
+                )
             ]
         else:
             if any(flock_held(path) for path in self.state.lifecycle_lock_paths):

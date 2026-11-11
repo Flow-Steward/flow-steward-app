@@ -111,3 +111,16 @@ def test_cutover_preflight_fails_required_configuration_before_checks(
     output = capsys.readouterr().out
     assert "FS_OBSERVABILITY_DSN/FS_DB_DSN" in output
     assert "RABBITMQ_URL" in output
+
+
+def test_a_failed_check_never_prints_dsn_credentials(capsys) -> None:
+    cutover_preflight._print_check(
+        False,
+        "Agent message table",
+        # Split so secret scanners do not read the fixture as a real credential.
+        'invalid dsn: missing "=" after "postgresql://fs:' + 'hunter2@db:5432/fs"',
+    )
+
+    printed = capsys.readouterr().out
+    assert "[FAIL] Agent message table" in printed
+    assert "hunter2" not in printed

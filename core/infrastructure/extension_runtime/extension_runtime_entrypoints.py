@@ -14,6 +14,7 @@ from .extension_runtime_invocation import (
     _declared_operation_row,
     _declared_operation_rows,
     _operation_handler_mode,
+    composite_action_direct_call_refusal,
     extension_runtime_availability_failure,
     run_extension_invocation,
 )
@@ -424,6 +425,9 @@ def run_extension_action(
             timeout_seconds=timeout_seconds,
             runtime_context=runtime_context,
         )
+    composite_refusal = composite_action_direct_call_refusal(extension, normalized_action_id)
+    if composite_refusal is not None:
+        return composite_refusal
     if handler_mode != "extension":
         return {
             "status": "failed",

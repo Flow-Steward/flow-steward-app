@@ -466,6 +466,39 @@ def _runtime_payload_operation_id(payload: dict) -> str:
     return str(action_payload.get("action_id") or action_payload.get("id") or "").strip()
 
 
+COMPOSITE_ACTION_DIRECT_CALL_CODE = "composite_action_direct_call_forbidden"
+
+
+def composite_action_direct_call_refusal(extension: dict, operation_id: str) -> dict | None:
+    """Refuse to run an action that a workflow implements (ADR 0065).
+
+    Such an action has no code handler: it runs only as a step of a workflow,
+    where the host calls the workflow that implements it. Every direct path —
+    the action endpoint, a command, a raw invoke, an agent tool — ends here.
+    """
+    if not operation_id:
+        return None
+    mode = _operation_handler_mode(extension, operation_type="action", operation_id=operation_id)
+    if mode != OPERATION_HANDLER_MODE_WORKFLOW:
+        return None
+    message = (
+        f"Action '{operation_id}' runs only as a step of a workflow; it cannot be called directly."
+    )
+    return {
+        "status": "failed",
+        "detail": f"{COMPOSITE_ACTION_DIRECT_CALL_CODE}: {message}",
+        "command": [],
+        "bundle_root": str(extension.get("bundle_root") or "").strip(),
+        "response": {
+            "ok": False,
+            "error_code": COMPOSITE_ACTION_DIRECT_CALL_CODE,
+            "error": message,
+            "errors": [{"code": COMPOSITE_ACTION_DIRECT_CALL_CODE, "message": message}],
+            "definitely_no_external_effect": True,
+        },
+    }
+
+
 def _external_effect_claim_missing(extension: dict, payload: dict, runtime_context: dict) -> bool:
     operation_id = _runtime_payload_operation_id(payload)
     if not operation_id:
@@ -516,6 +549,11 @@ def run_extension_invocation(
     availability_failure = extension_runtime_availability_failure(extension)
     if availability_failure is not None:
         return availability_failure
+    composite_refusal = composite_action_direct_call_refusal(
+        extension, _runtime_payload_operation_id(_as_dict(request_payload))
+    )
+    if composite_refusal is not None:
+        return composite_refusal
 
     try:
         from core.application.extensions.invocation_release import InvocationReleaseSelection
@@ -825,6 +863,8 @@ def _operation_handler_mode(
 
 
 __all__ = [
+    "COMPOSITE_ACTION_DIRECT_CALL_CODE",
+    "composite_action_direct_call_refusal",
     "extension_runtime_availability_failure",
     "run_extension_health",
     "run_extension_invocation",

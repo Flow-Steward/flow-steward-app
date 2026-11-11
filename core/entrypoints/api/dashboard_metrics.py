@@ -35,7 +35,8 @@ def _default_service_error_response(exc: Exception, request: Request | None = No
 
 
 def _default_api_error_response(exc: Exception, request: Request | None = None) -> JSONResponse:
-    return JSONResponse({"error": str(exc)}, status_code=500)
+    # The wired factory logs the exception; this fallback never echoes its text.
+    return JSONResponse({"error": "Request failed"}, status_code=500)
 
 
 _request_scope: Callable[..., Any] = _default_request_scope

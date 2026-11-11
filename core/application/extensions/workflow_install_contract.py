@@ -10,6 +10,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from core.application.extensions.composite_actions import (
+    HANDLER_MODE_WORKFLOW,
+    action_handler_mode,
+)
 from core.application.extensions.extension_contract_v2 import validate_extension_contract_v2
 from core.application.extensions.extension_locales import resolve_locale_text
 
@@ -147,6 +151,13 @@ def extension_action_operations(
                     for value in declared_scopes
                     if isinstance(value, str) and value.strip()
                 ],
+                # A composite action is saved as an Invoke of its workflow (ADR 0065);
+                # the install contract adds the workflow, installs and slots.
+                **(
+                    {"implementation": {"kind": "workflow"}}
+                    if action_handler_mode(action) == HANDLER_MODE_WORKFLOW
+                    else {}
+                ),
             }
         )
     return operations

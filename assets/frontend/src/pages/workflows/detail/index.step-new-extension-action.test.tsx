@@ -164,7 +164,7 @@ describe("authoring a new extension action step", () => {
       expect(body.override.connector).not.toHaveProperty("connector_id");
       expect(body.override.connector).not.toHaveProperty("connector_install_id");
     });
-  }, 15_000);
+  });
 
   it("does not call a never-selected action stale", async () => {
     mockCleanInstallStack();
@@ -523,7 +523,7 @@ it.each([
     expect(step.connector_install_id).toBe("");
   });
   expect(postedChangeSets()).toEqual([]);
-}, 15_000);
+});
 
 /** JSDOM has no hit-testing layout. Model only this dispatched card click's
  * known target stack, preserving the production secondary-action hit-test path. */
@@ -562,4 +562,4 @@ it.each(["MCP", "Extensions"])("retains an unfinished %s category after the real
   expect(within(drawer).getByRole("combobox", { name: label === "MCP" ? "MCP server" : "Action source" })).toHaveTextContent(/Choose/);
   expect(within(drawer).getByRole("combobox", { name: label === "MCP" ? "Tool" : "Action" })).toHaveTextContent(label === "MCP" ? "Choose tool" : "Choose action");
   expect(postedChangeSets()).toEqual([]);
-}, 15_000);
+});

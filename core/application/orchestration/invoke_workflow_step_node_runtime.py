@@ -385,6 +385,7 @@ def _append_agent_message(
     from core.application.orchestration.active_step import active_step
     from core.application.orchestration.agent_messages import build_agent_message
     from core.application.orchestration.agents.common import publish_agent_message
+    from core.application.orchestration.composite_action_runtime import action_invoke_report
 
     timestamp = _now_iso()
     safe_artifacts = dict(artifacts or {})
@@ -397,6 +398,9 @@ def _append_agent_message(
     if step_display_name:
         safe_artifacts.setdefault("step_display_name", step_display_name)
     safe_artifacts.setdefault("step_kind", step_kind or "invoke_workflow")
+    # An Invoke that calls an extension action reports as that action: the
+    # workflow behind it is never named to a person (ADR 0065).
+    summary = action_invoke_report(step, summary, safe_artifacts)
     message = build_agent_message(
         from_agent=from_agent or "invoke_workflow",
         to_agent="orchestrator",

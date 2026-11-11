@@ -99,6 +99,7 @@ def execute_step_node(
         STEP_KIND_TABULAR_FEED,
         STEP_KIND_TEMPLATE,
         STEP_KIND_TRANSFORM,
+        connector_step_summary,
         normalize_step_kind,
         runtime_actor_for_step,
     )
@@ -486,13 +487,8 @@ def execute_step_node(
         )
 
         guidance_errors = external_effect_guidance_errors(connector_result.get("external_effect"))
-        if ok:
-            summary = (
-                f"Connector step '{connector_label}' executed via {runtime_mode}"
-                if connector_label
-                else f"Connector step executed via {runtime_mode}"
-            )
-        elif detail in {
+        failure = ""
+        if not ok and detail in {
             "extension_disabled",
             "extension_unavailable",
             "external_effect_timeout_unknown",
@@ -502,30 +498,22 @@ def execute_step_node(
                 if detail == "external_effect_timeout_unknown"
                 else connector_result.get("errors")
             )
-            safe_message = ""
             if isinstance(errors, list) and errors and isinstance(errors[0], dict):
-                safe_message = str(errors[0].get("message") or "").strip()
-            summary = (
-                f"Connector step '{connector_label}' failed via {runtime_mode}: "
-                f"{safe_message or detail}"
-                if connector_label
-                else f"Connector step failed via {runtime_mode}: {safe_message or detail}"
-            )
-        elif detail:
+                failure = str(errors[0].get("message") or "").strip()
+            failure = failure or detail
+        elif not ok and detail:
             from core.application.extensions.url_safety import with_private_address_hint
 
-            detail = with_private_address_hint(detail, connector_result)
-            summary = (
-                f"Connector step '{connector_label}' failed via {runtime_mode}: {detail}"
-                if connector_label
-                else f"Connector step failed via {runtime_mode}: {detail}"
-            )
-        else:
-            summary = (
-                f"Connector step '{connector_label}' failed via {runtime_mode}"
-                if connector_label
-                else f"Connector step failed via {runtime_mode}"
-            )
+            failure = detail = with_private_address_hint(detail, connector_result)
+        # A person reads this line on the run page: it names an extension, an MCP
+        # server or a system tool, never a "connector" or a runtime mode.
+        summary = connector_step_summary(
+            connector_id=connector_id,
+            extension_id=connector_result.get("extension_id"),
+            name=connector_label,
+            ok=ok,
+            detail=failure,
+        )
         artifacts: dict[str, Any] = {
             "connector_id": connector_id,
             "_connector_step": {

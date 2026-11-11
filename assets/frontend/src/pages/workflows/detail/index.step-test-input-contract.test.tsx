@@ -23,7 +23,7 @@ it("runs a saved literal HTTP request without offering method/url as editable wo
   await user.type(summary, "Test the saved request");
   await user.click(screen.getByRole("button", { name: "Run step test run" }));
   await waitFor(() => expect(mockedTestRunWorkflowStep).toHaveBeenCalledWith(expect.objectContaining({ inputs: {}, inputBindings: [] })));
-}, 15_000);
+});
 
 const isolatedStepInputHelp = "Test values are optional. Only this step runs; earlier steps and loop context are not loaded. A saved mapping alone does not preload a value. Leaving a value blank may make the test fail.";
 
@@ -57,7 +57,7 @@ it("shows a mapped Batch contract requirement while allowing an intentional miss
   expect(await screen.findByText("batch source_path must resolve to a bounded array or dataset result")).toBeInTheDocument();
   expect(screen.getByText("This step has no inputs.")).toBeInTheDocument();
   expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
-}, 15_000);
+});
 
 it("keeps a mapped Batch sample typed and runs only the selected step", async () => {
   prepareMappedBatch();
@@ -80,4 +80,4 @@ it("keeps a mapped Batch sample typed and runs only the selected step", async ()
   expect(within(result).getByText("Batch size: 1")).toBeInTheDocument();
   expect(within(result).getByText("Batch count: 2")).toBeInTheDocument();
   expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
-}, 15_000);
+});

@@ -187,6 +187,11 @@ def _build_hero_summary(
     }
 
 
+def _is_action_run(job: dict[str, Any]) -> bool:
+    """The run of an extension action: one step of its parent run, never restarted alone."""
+    return bool(_normalize_dict(_normalize_dict(job.get("trigger")).get("action")))
+
+
 def _build_next_action(
     *,
     job: dict[str, Any],
@@ -219,6 +224,17 @@ def _build_next_action(
             body = "An operator or admin needs to retry the selected step."
         return {"kind": "retry_needed", "tone": "red", "title": title, "body": body}
     if status in {"failed", "max_iterations"}:
+        if _is_action_run(job):
+            return {
+                "kind": "restart_available",
+                "tone": "red",
+                "title": "Review the run that started this step",
+                "body": _truncate_text(
+                    failure_reason
+                    or "This run is one step of another run. Restart that run to try again.",
+                    limit=260,
+                ),
+            }
         return {
             "kind": "restart_available",
             "tone": "red",
@@ -228,6 +244,15 @@ def _build_next_action(
                 or "Review the failure details, then restart the run if you want Flow Steward to try again.",
                 limit=260,
             ),
+        }
+    if status == "completed" and _is_action_run(job):
+        return {
+            "kind": "complete",
+            "tone": "green",
+            "title": "No action is required",
+            "title_key": "react.jobs.no_action_required",
+            "body": "This run finished successfully. It is one step of another run; restart that run to execute it again.",
+            "body_key": "react.jobs.completed_action_run_help",
         }
     if status == "completed":
         return {
@@ -301,7 +326,9 @@ def _build_job_actions(
                     "confirm": confirm,
                 }
             )
-        elif status in {"completed", "failed", "cancelled", "max_iterations"}:
+        elif status in {"completed", "failed", "cancelled", "max_iterations"} and not (
+            _is_action_run(job)
+        ):
             page_actions.append(
                 {
                     "kind": "restart_job",

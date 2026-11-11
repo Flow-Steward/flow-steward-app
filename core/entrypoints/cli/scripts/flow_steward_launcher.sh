@@ -2011,6 +2011,46 @@ run_bootstrap_recovery_command() {
     fs-cli python -m core.entrypoints.cli.bootstrap_recovery "$@"
 }
 
+# 2026-11-11: an update whose release carries a migration stops with the previous
+# release's app, worker, control-plane and mcp still running, and `database upgrade`
+# refuses while they are connected (runtime_sessions; unlabeled_sessions before 0.9.14,
+# whose sessions carry no name). `stack stop` stops Postgres too, so the operator ran
+# `docker stop` by hand. With maintenance on and the upgrade confirmed, the upgrade stops
+# exactly those writers itself -- the same set db_restore.sh stops -- and leaves them
+# stopped: ./install.sh, or the release upgrade it was part of, starts the new release.
+database_upgrade_stops_writers() {
+  [ "$compact_mode" -ne 1 ] || return 1
+  [ "$top_level_command:$launcher_subcommand" = "database:upgrade" ] || return 1
+  writers_maintenance_confirmed=0
+  writers_confirmed=0
+  for writers_arg in "$@"; do
+    case "$writers_arg" in
+      --maintenance-confirmed) writers_maintenance_confirmed=1 ;;
+      --confirm) writers_confirmed=1 ;;
+      -h|--help) return 1 ;;
+    esac
+  done
+  [ "$writers_maintenance_confirmed" -eq 1 ] && [ "$writers_confirmed" -eq 1 ] || return 1
+  grep -Eq '"phase"[[:space:]]*:[[:space:]]*"enabled"' \
+    "$state_dir/runtime/maintenance-state.json" 2>/dev/null
+}
+
+stop_database_writers() {
+  writers_running=" $(compose_command ps --status running --services 2>/dev/null | tr '\n' ' ') "
+  writers_stopping=""
+  for writers_service in fs-app fs-worker control-plane fs-mcp fs-extension-installer; do
+    case "$writers_running" in
+      *" $writers_service "*) writers_stopping="$writers_stopping $writers_service" ;;
+    esac
+  done
+  [ -n "$writers_stopping" ] || return 0
+  printf '%s\n' "Maintenance is on: stopping the processes that write to the database:$writers_stopping." \
+    "Postgres, RabbitMQ and storage keep running. They stay stopped; ./install.sh or the release upgrade starts the new release." >&2
+  # shellcheck disable=SC2086 # one word per service name
+  compose_command stop $writers_stopping >&2 ||
+    fail "Could not stop$writers_stopping before the database upgrade; nothing was migrated. Check ./flow-steward stack status, then rerun." 7
+}
+
 run_product_command() {
   if [ -t 0 ] && [ -t 1 ]; then
     product_no_tty_flag=""
@@ -2023,8 +2063,23 @@ run_product_command() {
   # on Compact, where the service is `compact-runtime` -- which is why the Compact allowlist
   # had to gate them off in the first place. The code was always present and working.
   product_target_service="fs-app"
+  # 2026-11-11: the product CLI writes its log to /app/logs/cli in its container, and the
+  # error said `Log: /app/logs/cli/...`. On Scalable that directory is the host's logs
+  # directory (FS_LOGS_DIR, ../../logs from infra/docker); the CLI reports it there.
+  # Compact keeps it in its data volume, which has no host path to name.
+  product_log_host_root=""
   if [ "$compact_mode" -eq 1 ]; then
     product_target_service="compact-runtime"
+  else
+    product_logs_dir=${FS_LOGS_DIR:-}
+    if [ -z "$product_logs_dir" ]; then
+      product_logs_dir=$(normalize_absolute_path "${configured_logs_dir:-../../logs}" "$root_dir/infra/docker") ||
+        product_logs_dir=""
+    fi
+    [ -z "$product_logs_dir" ] || product_log_host_root="$product_logs_dir/cli"
+  fi
+  if database_upgrade_stops_writers "$@"; then
+    stop_database_writers
   fi
 
   # AC17-R160: an update whose release carries a migration stops at its schema check with
@@ -2040,6 +2095,7 @@ run_product_command() {
         -e "TERM=${TERM:-}" \
         -e "COLORTERM=${COLORTERM:-}" \
         -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
+        -e "FS_CLI_OPERATION_LOG_HOST_ROOT=$product_log_host_root" \
         -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
         --entrypoint python \
         fs-app -m core.entrypoints.cli.click_app "$@"
@@ -2048,6 +2104,7 @@ run_product_command() {
       -e "TERM=${TERM:-}" \
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
+      -e "FS_CLI_OPERATION_LOG_HOST_ROOT=$product_log_host_root" \
       -e "FS_CLI_HOST_NO_COLOR=" \
       --entrypoint python \
       fs-app -m core.entrypoints.cli.click_app "$@"
@@ -2059,6 +2116,7 @@ run_product_command() {
       -e "TERM=${TERM:-}" \
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
+      -e "FS_CLI_OPERATION_LOG_HOST_ROOT=$product_log_host_root" \
       -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
       "$product_target_service" python -m core.entrypoints.cli.click_app "$@"
   fi
@@ -2066,6 +2124,7 @@ run_product_command() {
     -e "TERM=${TERM:-}" \
     -e "COLORTERM=${COLORTERM:-}" \
     -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
+    -e "FS_CLI_OPERATION_LOG_HOST_ROOT=$product_log_host_root" \
     -e "FS_CLI_HOST_NO_COLOR=" \
     "$product_target_service" python -m core.entrypoints.cli.click_app "$@"
 }

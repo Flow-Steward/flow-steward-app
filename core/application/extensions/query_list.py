@@ -48,15 +48,13 @@ def extension_files_missing(record: Any) -> bool:
     state = _normalize_lower(getattr(state, "value", state))
     if state == "active":
         return False
-    from pathlib import Path
-
-    from core.application.extensions.identity import extension_folder_name
+    from core.application.extensions.identity import managed_extension_dir
     from core.infrastructure.extension_runtime.extension_runtime import default_extensions_root
     from core.infrastructure.extension_runtime.extension_runtime_common import MANIFEST_FILENAMES
 
     try:
-        folder = Path(default_extensions_root()) / extension_folder_name(
-            _normalize_text(getattr(record, "extension_id", ""))
+        folder = managed_extension_dir(
+            default_extensions_root(), _normalize_text(getattr(record, "extension_id", ""))
         )
     except (ValueError, OSError):
         return False

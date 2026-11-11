@@ -525,7 +525,7 @@ describe("RegistryMcpPage", () => {
     expect(mockedCreateMcpConnector.mock.calls[0]?.[0]).toMatchObject({
       oauth_config: { authorization_parameters: { authorization_details: "catalog.read" } },
     });
-  }, 15_000);
+  });
 
   it("only advertises the supported streamable_http transport", async () => {
     const user = userEvent.setup();
@@ -605,7 +605,7 @@ describe("RegistryMcpPage", () => {
     await user.type(endpoint, "https://fs.example/mcp");
     await user.click(screen.getByRole("button", { name: "Save MCP" }));
     expect(mockedCreateMcpConnector).toHaveBeenCalledTimes(1);
-  }, 15_000);
+  });
 
   it("previews connector delete impact and cancellation performs no mutation", async () => {
     const user = userEvent.setup();

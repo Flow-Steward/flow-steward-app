@@ -13,6 +13,7 @@ import sys
 import requests
 import urllib3
 
+from core.application.security.credential_redaction import redact_text
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 
@@ -21,7 +22,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def _print_check(ok: bool, title: str, detail: str = "") -> None:
     status = "PASS" if ok else "FAIL"
-    suffix = f" :: {detail}" if detail else ""
+    # A failed check reports its exception text; a driver can quote the DSN.
+    suffix = f" :: {redact_text(detail)}" if detail else ""
     print(f"[{status}] {title}{suffix}", flush=True)
 
 

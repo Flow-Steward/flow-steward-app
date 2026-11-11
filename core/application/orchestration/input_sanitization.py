@@ -22,6 +22,10 @@ _INJECTION_RE = re.compile(
     r"|<\|endoftext\|>",
     re.IGNORECASE,
 )
+# A scanner marker such as ``[INJECTION:<category>:REDACTED]``. It holds no
+# brackets, so no second marker can start inside the first: the text is
+# scanned once, not once per marker.
+_INJECTION_MARKER_RE = re.compile(r"\[INJECTION:[^\[\]]*REDACTED\]", re.IGNORECASE)
 _EXTERNAL_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
 _EXTERNAL_ERROR_MAX_CHUNKS = 64
 _EXTERNAL_ERROR_INSTRUCTION_RE = re.compile(
@@ -117,12 +121,7 @@ def sanitize_external_input(
                 len(decision.findings),
             )
         sanitized_result = _INJECTION_RE.sub(REDACTED_MARKER, result)
-        sanitized_result = re.sub(
-            r"\[INJECTION:[^\]]*REDACTED\]",
-            REDACTED_MARKER,
-            sanitized_result,
-            flags=re.IGNORECASE,
-        )
+        sanitized_result = _INJECTION_MARKER_RE.sub(REDACTED_MARKER, sanitized_result)
         if sanitized_result != result:
             logger.warning(
                 "Prompt injection pattern detected and redacted [context=%s]. "

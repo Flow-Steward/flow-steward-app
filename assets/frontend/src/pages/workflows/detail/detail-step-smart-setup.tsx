@@ -5,6 +5,8 @@ import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ConnectorStepSetup, DatasetQueryStepSetup, HttpRequestStepSetup } from "./detail-connection-step-setup";
 import { TabularFeedBuilder } from "./detail-tabular-feed-builder";
+import { actionInvokeRef } from "./detail-action-invoke";
+import { ActionInvokeSetup } from "./detail-action-invoke-setup";
 import { HookDeclarationEditor } from "./detail-hook-declaration-editor";
 import type { WorkflowHookContract } from "@/pages/workflows/shared/hook-api";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -399,6 +401,12 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
         issues={ctx.hookDeclarationIssues} renderVariableInput={renderWorkflowVariableInput}
         onChange={(next) => replaceStepKindConfigField("invoke_workflow", "hook", next)}
         onValidationChange={ctx.onStepInputValidationChange} />;
+      // An extension action implemented by a workflow reads and edits as that action.
+      if (actionInvokeRef(stepKindConfig)) return <ActionInvokeSetup ctx={{
+        stepKindConfig, selectedProjectId: ctx.selectedProjectId, availableWorkflowVariableSuggestions,
+        updateStepKindConfig, renderWorkflowContractMappingEditor,
+        onChooseAnotherAction: ctx.onChooseAnotherAction,
+      }} />;
       return (
         <div className="space-y-3 rounded-xl border border-[var(--fs-border-default)] bg-[var(--fs-bg-surface-muted)] p-3">
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--fs-text-tertiary)]">

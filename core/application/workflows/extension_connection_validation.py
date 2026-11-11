@@ -85,7 +85,13 @@ def step_extension_id(step: Mapping[str, Any]) -> str:
     """
     from core.application.extensions.identity import is_canonical_extension_id
 
-    if _text(step.get("step_kind") or step.get("kind")) not in {"", "connector"}:
+    step_kind = _text(step.get("step_kind") or step.get("kind"))
+    if step_kind == "invoke_workflow":
+        # An Invoke that calls an extension action reads as that extension's step (ADR 0065).
+        invoke = _mapping(_mapping(step.get("override")).get("invoke_workflow"))
+        extension_id = _text(_mapping(invoke.get("action")).get("extension_id"))
+        return extension_id if is_canonical_extension_id(extension_id) else ""
+    if step_kind not in {"", "connector"}:
         return ""
     extension_id = _text(_connector_config(step).get("extension_id"))
     if extension_id:

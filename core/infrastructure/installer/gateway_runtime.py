@@ -429,16 +429,23 @@ class RuntimeOperations:
             # migration stops, with the running application still on its old image
             # and its old schema. The old text sent the operator back to ./install.sh,
             # which stopped here again; it never named the command that resolves it.
+            # 2026-11-11: the text left out that the previous release's processes must
+            # stop first -- `database upgrade` refuses while they are connected -- and the
+            # operator stopped their containers with `docker stop` by hand.
             remediation=(
                 "When the output says migration history does not match this release, "
                 "this update carries a database migration the installer does not "
                 "apply. An application already running was not restarted and stays on "
                 "its previous version. Enable maintenance with ./flow-steward maintenance "
                 "enable --confirm, take a backup with ./flow-steward backup create, "
-                "apply the migration with ./flow-steward database upgrade "
-                "--maintenance-confirmed --confirm, then rerun ./install.sh and disable "
-                "maintenance. Otherwise run ./flow-steward database status and inspect "
-                "the output above."
+                "then apply the migration with ./flow-steward database upgrade "
+                "--maintenance-confirmed --confirm. The previous release's Flow Steward "
+                "processes must not be connected to the database while it runs: on "
+                "Scalable, with maintenance on, the upgrade stops them itself and keeps "
+                "Postgres, RabbitMQ and storage running. Then rerun the command that "
+                "stopped here (./install.sh, or the same ./flow-steward release upgrade), "
+                "which starts the new release, and disable maintenance. Otherwise run "
+                "./flow-steward database status and inspect the output above."
             ),
             exit_code=8,
         )

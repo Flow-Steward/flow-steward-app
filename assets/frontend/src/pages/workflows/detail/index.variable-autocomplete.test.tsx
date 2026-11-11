@@ -195,7 +195,7 @@ describe("WorkflowsDetailPage variable autocomplete", () => {
     }
 
     await expectItFilters(user, await screen.findByRole("combobox", { name }));
-  }, 15_000);
+  });
 
   it("Enter, Tab and the arrows take a match, and the focus stays", async () => {
     const user = userEvent.setup();
@@ -214,7 +214,7 @@ describe("WorkflowsDetailPage variable autocomplete", () => {
     await user.keyboard("{Tab}");
     expect(selector).toHaveValue("state.risk_level");
     expect(selector).toHaveFocus();
-  }, 15_000);
+  });
 
   it("a template field suggests after {{ and keeps the text around it", async () => {
     const user = userEvent.setup();
@@ -232,7 +232,7 @@ describe("WorkflowsDetailPage variable autocomplete", () => {
     await user.keyboard("{Enter}");
     expect(url).toHaveValue("https://api.example.test/{{ state.risk_level }}");
     expect(url).toHaveFocus();
-  }, 15_000);
+  });
 
   it("the connector's parameter and output fields filter the same way", async () => {
     const user = userEvent.setup();
@@ -263,7 +263,7 @@ describe("WorkflowsDetailPage variable autocomplete", () => {
     expect(shown(parameter)[0]).toMatch(/^state\.project_config/);
     expect(parameter).toHaveFocus();
     await expectItFilters(user, await screen.findByRole("combobox", { name: "Output target 1" }));
-  }, 15_000);
+  });
 
   it("the For each source filters the same way", async () => {
     const user = userEvent.setup();
@@ -279,7 +279,7 @@ describe("WorkflowsDetailPage variable autocomplete", () => {
     });
 
     await expectItFilters(user, await screen.findByRole("combobox", { name: "Loop source" }));
-  }, 15_000);
+  });
 });
 
 /* B7: a step added in the builder lives only in the unapplied change set until Apply.
@@ -324,7 +324,7 @@ describe("a new step that is not applied yet", () => {
       "position in the saved workflow is not known yet",
     );
     expect(variableRequests()).toContain("/api/workflows/weekly_report/available-variables");
-  }, 15_000);
+  });
 
   it("a new action step offers them in its parameter value and output target fields", async () => {
     const user = userEvent.setup();
@@ -343,7 +343,7 @@ describe("a new step that is not applied yet", () => {
 
     await expectGlobalVariables(user, await screen.findByRole("combobox", { name: /Parameter value 1/ }));
     await expectGlobalVariables(user, await screen.findByRole("combobox", { name: "Output target 1" }));
-  }, 15_000);
+  });
 
   it("a new step in a For each body is offered the For each's item", async () => {
     const user = userEvent.setup();
@@ -361,7 +361,7 @@ describe("a new step that is not applied yet", () => {
     await expectGlobalVariables(user, field);
     expect(panelOf(field)).toHaveTextContent("state.item");
     expect(within(panelOf(field)).getByTestId("workflow-variables-position-unknown")).not.toHaveTextContent("not connected");
-  }, 15_000);
+  });
 });
 
 it("keeps saved For each entry and sibling scopes, and distinguishes an unapplied first body step", () => {
@@ -404,7 +404,7 @@ it("shows saved For each entry item, index and prior outputs without a disconnec
   expect(panelOf(field)).toHaveTextContent("state.index");
   expect(panelOf(field)).toHaveTextContent("state.outline");
   expect(within(panelOf(field)).queryByTestId("workflow-variables-position-unknown")).not.toBeInTheDocument();
-}, 15_000);
+});
 
 /* B24: in an action step's Parameters row (and its Output mapping row) with no parameter
    chosen yet, the Value field showed the variables on click, but what was typed vanished
@@ -465,7 +465,7 @@ describe("an action's Value and Store in workflow state fields keep what is type
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: "Output target 1" }), "");
     fireEvent.change(screen.getByRole("combobox", { name: "Returned field 1" }), { target: { value: "issue" } });
     expect(await screen.findByRole("combobox", { name: "Output target 1" })).toHaveValue("state.current_step_id");
-  }, 20_000);
+  });
 
   it("a new unapplied step with its parameter chosen", async () => {
     const user = userEvent.setup();
@@ -473,7 +473,7 @@ describe("an action's Value and Store in workflow state fields keep what is type
     expect(await screen.findByRole("combobox", { name: "Parameter 1" })).toHaveValue("title");
 
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: /Parameter value 1/ }), "state.");
-  }, 20_000);
+  });
 
   it.each([
     ["no parameter chosen", {}, "Parameter value 1"],
@@ -498,7 +498,7 @@ describe("an action's Value and Store in workflow state fields keep what is type
 
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: new RegExp(name) }), "state.");
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: "Output target 1" }), "");
-  }, 20_000);
+  });
 });
 
 /* A new Set variable row keeps its destination draft while the value mode
@@ -525,7 +525,7 @@ describe("a Set variable assignment row added with + Add", () => {
     await user.clear(previous);
     expect(screen.getByRole("textbox", { name: "Assignment 2 target" })).toHaveValue("");
     expect(screen.getByRole("textbox", { name: "Assignment 1 target" })).toHaveValue("Plan");
-  }, 15_000);
+  });
 });
 
 
@@ -580,7 +580,7 @@ it("finds Client name by its business label and saves the exact source after key
   expect(postedChangeSets()[0]).toMatchObject({
     operations: [{ patch: { override: { transform: { input: { source: "state.inputs.customer.name" } } } } }],
   });
-}, 15_000);
+});
 
 it("writes a declared Text result through the destination picker and accepts a new variable name", async () => {
   const user = userEvent.setup();
@@ -630,7 +630,7 @@ it("types and saves a new destination exactly when no workflow outputs are decla
   expect(postedChangeSets()[0]).toMatchObject({
     operations: [{ patch: { override: { transform: { result_target: "state.audit_note" } } } }],
   });
-}, 15_000);
+});
 
 
 it("keeps engine globals out of search and keyboard choices until Advanced opens", async () => {
@@ -655,7 +655,7 @@ it("keeps engine globals out of search and keyboard choices until Advanced opens
   ]));
   await user.keyboard("{Enter}");
   expect(selector).toHaveValue("state.current_group_id");
-}, 15_000);
+});
 
 it("does not suggest a false nested path for a literal dotted schema property", async () => {
   serveVariables([{ step_id: "step_1", display_name: "Read input", step_kind: "transform",

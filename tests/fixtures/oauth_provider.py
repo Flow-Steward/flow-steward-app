@@ -268,6 +268,7 @@ def main() -> int:
         parser.error("--cert-file and --key-file must be supplied together")
     if args.cert_file and args.key_file:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(args.cert_file, args.key_file)
         server.socket = context.wrap_socket(server.socket, server_side=True)
     print(json.dumps({"host": args.host, "port": server.server_port}), flush=True)

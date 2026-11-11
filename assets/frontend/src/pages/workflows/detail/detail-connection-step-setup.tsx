@@ -21,6 +21,7 @@ import {
   workflowVariableSuggestionPanelId,
 } from "@/pages/workflows/detail/detail-helpers";
 import { useId, useState, type ReactNode } from "react";
+import { actionInvokeConfigForOperation } from "./detail-action-invoke";
 import { carryConnectorInputMapping } from "./detail-connector-input-carry";
 import { HttpMapField, HttpStatusesField, HttpValueField } from "./detail-http-request-value-fields";
 import { HttpAuthSecretField } from "./detail-http-auth-secret";
@@ -245,6 +246,17 @@ export function ConnectorStepSetup({ ctx }: Readonly<{ ctx: WorkflowStepSmartSet
                         row.operation_id || row.id || row.key || row.name,
                       ) === operationId,
                   );
+                  const actionInvoke = actionInvokeConfigForOperation(
+                    operation,
+                    textOrEmpty(stepKindConfig.extension_id) || textOrEmpty(selectedConnectorRow.extension_id),
+                    textOrEmpty(stepKindConfig.connector_install_id) || textOrEmpty(selectedConnectorRow.connector_install_id),
+                    objectOrEmpty(connectorDefaultOutputMappingForOperation(operation)),
+                  );
+                  if (actionInvoke && ctx.convertStepToActionInvoke) {
+                    // Implemented by a workflow: the step becomes an Invoke of it (ADR 0065).
+                    ctx.convertStepToActionInvoke(actionInvoke);
+                    return;
+                  }
                   const nextConnectorId = textOrEmpty(operation?.runtime_connector_id) || selectedConnectorId;
                   const carried = carryConnectorInputMapping(
                     stepKindConfig.input_mapping,

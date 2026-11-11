@@ -26,6 +26,10 @@ from core.application.orchestration.active_step import active_step
 from core.application.orchestration.child_execution_runtime import (
     current_child_execution_runtime,
 )
+from core.application.orchestration.composite_action_runtime import (
+    action_invoke_for_state,
+    write_action_context,
+)
 from core.application.orchestration.helpers import has_value as _has_value
 from core.application.orchestration.helpers import now_iso as _now_iso
 from core.application.orchestration.helpers import resolve_step_skill as _resolve_step_skill
@@ -227,6 +231,13 @@ def _invoke_workflow_step(
             }
         spec = hook_plan.direct_spec()
 
+    # An extension action implemented by a workflow, and its refusals (ADR 0065).
+    action_plan, spec, action_error = action_invoke_for_state(
+        state, spec, step_execution_id=step_execution_id, get_logger=_get_logger
+    )
+    if action_error is not None:
+        failure = {"_invoke_workflow_error": action_error.code}
+        return _fail(summary=str(action_error), artifacts=failure, errors=[action_error.code])
     child_workflow_id = str(spec.get("workflow_id") or "").strip()
     if not child_workflow_id:
         return _fail(
@@ -531,6 +542,7 @@ def _invoke_workflow_step(
     )
     if selected_revision is not None:
         child_meta["expected_workflow_revision"] = int(selected_revision)
+    write_action_context(child_meta, action_plan)
     if lane_placement:
         child_meta[INVOKE_LANE_PLACEMENT_KEY] = True
         lane_issue = (

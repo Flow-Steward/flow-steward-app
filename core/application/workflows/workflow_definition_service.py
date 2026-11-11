@@ -27,6 +27,7 @@ from core.application.workflows.execution_graph import (
     EXECUTION_GRAPH_SCHEMA_VERSION,
     EXECUTION_GRAPH_SETTING,
 )
+from core.application.workflows.workflow_action_contract import ACTION_IMPLEMENTATION_SETTING
 from core.application.workflows.workflow_canvas_annotation_contract import (
     ANNOTATION_IMPORT_ERROR,
     ANNOTATIONS_SETTING,
@@ -71,6 +72,7 @@ from core.application.workflows.workflow_hook_placement import HOOK_ROOT_ONLY_CO
 from core.application.workflows.workflow_reaction_scope_repository import (
     retained_reaction_scope_issues,
 )
+from core.infrastructure.config.installation_mode import installation_mode
 
 #: Settings keys owned by dedicated services. A metadata save restores the stored
 #: value instead of taking the caller's.
@@ -138,7 +140,11 @@ def preserve_service_owned_settings(payload: Mapping[str, Any], existing: Any = 
     settings = dict(settings)
     stored = existing.get("settings") if isinstance(existing, Mapping) else None
     stored = stored if isinstance(stored, Mapping) else {}
-    for key in SERVICE_OWNED_SETTINGS_KEYS:
+    owned = SERVICE_OWNED_SETTINGS_KEYS
+    if installation_mode() != "development":
+        # Outside Development nobody declares or edits an action implementation (ADR 0065).
+        owned = (*owned, ACTION_IMPLEMENTATION_SETTING)
+    for key in owned:
         if key in stored:
             settings[key] = stored[key]
         else:

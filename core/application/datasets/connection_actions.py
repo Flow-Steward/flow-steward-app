@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
@@ -10,6 +11,12 @@ from core.infrastructure.extension_runtime.extension_runtime import run_extensio
 from core.infrastructure.extension_runtime.extension_runtime_helpers import (
     resolve_extension_runtime_record,
     resolve_extension_runtime_record_by_install_id,
+)
+
+logger = logging.getLogger(__name__)
+
+PROJECT_STATE_UPDATE_FAILED_MESSAGE = (
+    "The extension result could not be applied to the project state."
 )
 
 
@@ -84,13 +91,27 @@ def _process_project_state_updates(
             actor_id=None,
             extension_install_id=_text(connection.get("extension_install_id")) or None,
         )
-    except Exception as exc:
-        invocation["status"] = "failed"
-        invocation["detail"] = "project_state_update_failed"
-        invocation["errors"] = [
-            *list(invocation.get("errors") or []),
-            {"code": "project_state_update_failed", "message": str(exc)},
-        ]
+    except Exception:
+        mark_project_state_update_failed(
+            invocation, connection_id=_text(connection.get("connection_id"))
+        )
+
+
+def mark_project_state_update_failed(
+    invocation: dict[str, Any], *, connection_id: str = ""
+) -> None:
+    """Log the failure and record it on the invocation without the exception text.
+
+    Call it from an ``except`` block: the traceback goes to the log, the caller
+    only ever sees the fixed message.
+    """
+    logger.exception("Applying project state updates failed connection_id=%s", connection_id)
+    invocation["status"] = "failed"
+    invocation["detail"] = "project_state_update_failed"
+    invocation["errors"] = [
+        *list(invocation.get("errors") or []),
+        {"code": "project_state_update_failed", "message": PROJECT_STATE_UPDATE_FAILED_MESSAGE},
+    ]
 
 
 def _resolve_extension(connection: Mapping[str, Any], db: Any) -> dict[str, Any] | None:

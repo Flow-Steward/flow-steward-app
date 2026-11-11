@@ -1,4 +1,4 @@
-import { stepExtensionId } from "@/pages/workflows/shared/workflow-step-extension";
+import { stepActionSummary, stepExtensionId } from "@/pages/workflows/shared/workflow-step-extension";
 import { connectorToolCategory } from "@/pages/workflows/detail/detail-tool-categories";
 import { ifConditionSummary } from "@/pages/workflows/builder/if-condition-summary";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
@@ -1049,7 +1049,7 @@ export function canvasGraphWithDefinition(
       node_type: kindNodeType(kind),
       config_summary: known?.kind === kind ? known.config_summary : kind === "if"
         ? ifConditionSummary(record(record(step.override).if), t)
-        : kind,
+        : stepActionSummary(step as Record<string, unknown>) || kind,
       display_name: text(step.display_name) || known?.display_name || id,
       group_id: stepGroupId(step) || null,
       for_each_id: stepForEachId(step) || null,

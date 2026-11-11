@@ -75,6 +75,7 @@ from core.entrypoints.cli.platform.operation_log import (
     OperationLog,
     OperationLogUnavailable,
     operation_log_root,
+    reported_log_path,
 )
 from core.entrypoints.cli.platform.redaction import RedactionContext, redact_text
 from core.entrypoints.cli.platform.renderers import renderer_for
@@ -408,7 +409,7 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
                     hint=mapped.remediation,
                     retryable=mapped.retryable,
                     operation_id=plan_log.operation_id if plan_log is not None else None,
-                    log_path=str(plan_log.path) if plan_log is not None else None,
+                    log_path=reported_log_path(plan_log.path) if plan_log is not None else None,
                 )
             if prepared.deferred_fields:
                 deferred = tuple(
@@ -548,7 +549,7 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
             result = _with_operation_metadata(result, operation_log)
             if operation_log is not None:
                 operation_log.write(f"exit_code={int(result.exit_code)}")
-                operation_log.write(f"log_path={operation_log.path}")
+                operation_log.write(f"log_path={reported_log_path(operation_log.path)}")
         except Exception as exc:
             result = _mapped_execution_failure(
                 exc,
@@ -802,7 +803,7 @@ def _with_operation_metadata(
     return result.model_copy(
         update={
             "operation_id": operation_log.operation_id,
-            "log_path": str(operation_log.path),
+            "log_path": reported_log_path(operation_log.path),
         }
     )
 

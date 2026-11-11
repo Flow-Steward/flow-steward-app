@@ -48,7 +48,7 @@ it("opens one existing interface editor from Start and both successful stops, pr
     expect(JSON.parse(String(saves[0][1]?.body)).settings.callable.expected_outputs).toEqual(expect.arrayContaining([expect.objectContaining({ name: "shared_result" })]));
   });
   expect(fetchSpy.mock.calls.filter(([url, init]) => String(url).includes("/steps/") && init?.method === "PUT")).toHaveLength(0);
-}, 10_000);
+});
 
 it("keeps successful Stop Edit separate from its global Outputs body action", async () => {
   mockedFetchWorkflowDetail.mockResolvedValue(workflowDetailFixture({ revision: 5, steps: [{ step_id: "done", step_kind: "stop_success", display_name: "Done" }] }));
@@ -70,7 +70,7 @@ it("keeps successful Stop Edit separate from its global Outputs body action", as
   fireEvent.click(stop);
   drawer = screen.getByRole("dialog", { name: "Workflow interface" });
   expect(await within(drawer).findByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true");
-}, 10_000);
+});
 
 
 it.each([
@@ -136,7 +136,7 @@ it.each([
   for (const other of ["expected_inputs", "expected_outputs"]) {
     if (other !== collection) expect(removed.settings.callable[other]).toEqual(repaired.settings.callable[other]);
   }
-}, 10_000);
+});
 
 
 it("lists returned files in Outputs from the steps and never writes them into the contract", async () => {
@@ -173,7 +173,7 @@ it("lists returned files in Outputs from the steps and never writes them into th
   expect(callable).not.toHaveProperty("output_mode");
   expect(callable.expected_artifacts).toEqual(legacy);
   expect(callable.expected_outputs).toEqual([expect.objectContaining({ name: "total" })]);
-}, 10_000);
+});
 
 
 it("keeps the disabled Interface warning after saving and reloading, with an explicit settings route", async () => {
@@ -217,7 +217,7 @@ it("keeps the disabled Interface warning after saving and reloading, with an exp
     expect(contract.enabled).toBe(false);
     expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(1);
   } finally { view.unmount(); view.router.dispose(); }
-}, 10_000);
+});
 
 it("routes the structured inactive Diagnostics warning to the existing activation controls", async () => {
   const message = "Workflow interface is off. Any declared outputs are not returned and required-output checks are inactive until it is enabled. Input forms may still validate declared inputs.";
@@ -356,7 +356,7 @@ it("refreshes the applied input picker after Interface Save on the same mounted 
   const panel = screen.getByTestId(String(source.getAttribute("aria-controls")));
   expect(await within(panel).findByRole("option", { name: /Customer.*Name/ })).toBeVisible();
   expect(mockedFetchWorkflowContract.mock.calls.length).toBeGreaterThan(1);
-}, 15_000);
+});
 
 it("authors and reopens a labeled Customer Name member through the ordinary Interface form", async () => {
   let contract = { enabled: true, trigger_channels: ["ui"], input_mode: "fields",

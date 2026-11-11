@@ -302,6 +302,7 @@ def list_jobs_for_attention(
                 rw.display_name AS selected_workflow_display_name,
                 COALESCE(rw.settings ? 'hook_storage', false) AS hook_storage,
                 aw.display_name AS hook_author_workflow_display_name,
+                j.meta -> 'composite_action' AS composite_action,
                 j.current_step_id,
                 j.current_group_id,
                 j.current_agent,

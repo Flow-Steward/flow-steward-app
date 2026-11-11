@@ -32,4 +32,4 @@ it.each([true, false])("uses the existing Step Test Run inputs for a mapped Wait
     inputs: mapped ? { duration_ms: 0 } : {},
     inputBindings: mapped ? [{ name: "duration_ms", source: "state.inputs.duration", type: "number" }] : [],
   })));
-}, 15_000);
+});

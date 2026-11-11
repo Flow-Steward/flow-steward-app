@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from core.application.extensions.projected_dataset_bridge import projection_bridge_id
+from core.application.workflows.workflow_action_contract import is_action_implementation
 
 from .command_services_common import *  # NOSONAR
 
@@ -125,6 +126,9 @@ class ProjectCommandServiceCoreMixin:
                 projection = {}
             snapshot = projection.get("projection")
             snapshot = dict(snapshot) if isinstance(snapshot, dict) else {}
+            if is_action_implementation(snapshot):
+                # It runs only as its action; it is never a workflow a project links (ADR 0065).
+                continue
             install_id = str(projection.get("install_id") or "").strip()
             workflow_id = str(
                 snapshot.get("local_workflow_id")

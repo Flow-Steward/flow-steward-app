@@ -26,8 +26,21 @@ case "${1:-}" in
     fi
     git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
     if ! git merge-base --is-ancestor refs/remotes/origin/main HEAD; then
-      echo 'Update this branch from origin/main, resolve conflicts and push a new candidate.' >&2
-      exit 1
+      main_sha="$(git rev-parse --short refs/remotes/origin/main)"
+      case "${QUALITY_MODE:-release}" in
+        release|release-sonar)
+          # Release evidence must describe the exact commit that will ship.
+          echo "::error::main is now ${main_sha} and ${GITHUB_SHA:0:7} does not include it (another pull request was merged). Release evidence must include main. Update this branch from origin/main, resolve conflicts and push a new candidate." >&2
+          exit 1
+          ;;
+        *)
+          # A branch or single-check result still describes this commit. Failing
+          # it whenever any other pull request lands threw away green runs; the
+          # pull request itself shows whether the branch is behind main.
+          echo "::warning::main is now ${main_sha} and ${GITHUB_SHA:0:7} does not include it. This ${QUALITY_MODE} result describes this branch only; update from main before a release run."
+          exit 0
+          ;;
+      esac
     fi
     printf 'Clean candidate %s includes main %s\n' "${GITHUB_SHA}" "$(git rev-parse origin/main)"
     ;;

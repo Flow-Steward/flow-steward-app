@@ -6,6 +6,9 @@ from __future__ import annotations
 from core.application.extensions.extension_catalog_install import install_option_rows
 from core.application.extensions.service_support import get_default_extension_install_store
 from core.application.management.errors import ServiceUnavailableError
+from core.application.workflows.workflow_action_contract import (
+    is_installed_action_implementation,
+)
 from core.application.workflows.workflow_hook_contract import is_hook_storage
 from core.application.registry.projected_artifact_rows import (
     projected_catalog_row_matches,
@@ -57,6 +60,8 @@ def list_workflows(
         account_id=scope.account_id,
         enabled_only=enabled_only,
     )
+    # An installed action implementation is never a workflow a person browses (ADR 0065).
+    catalog_rows = [row for row in catalog_rows if not is_installed_action_implementation(row)]
     if search:
         matching_ids = {
             workflow_id
