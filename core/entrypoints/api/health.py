@@ -134,8 +134,9 @@ async def health_deep(request: Request):
     }
     try:
         meta.update(health_counts_query.get_counts(bl))
-    except Exception as e:
-        meta["query_error"] = str(e)
+    except Exception:
+        logger.exception("Health count query failed")
+        meta["query_error"] = "Health counts are unavailable"
 
     payload = {
         "status": "ready" if bool(readiness.get("ready")) else "not_ready",

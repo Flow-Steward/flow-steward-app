@@ -411,7 +411,7 @@ async def events_stream(
             if exc.status_code in {401, 403}:
                 payload = {"error": _MESSAGE_ACCESS_DENIED}
             else:
-                payload = dict(exc.payload or {"error": str(exc)})
+                payload = dict(exc.payload or {"error": exc.message})
             return JSONResponse(payload, status_code=exc.status_code)
         except PermissionError:
             _release_lease()

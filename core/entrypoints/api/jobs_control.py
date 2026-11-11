@@ -297,7 +297,7 @@ def create_jobs_control_router(
         except ServiceError as e:
             status_code = int(getattr(e, "status_code", 500) or 500)
             if status_code in {400, 404, 503}:
-                return JSONResponse({"error": str(e)}, status_code=status_code)
+                return JSONResponse({"error": e.message}, status_code=status_code)
             return service_error_response(e)
         except Exception as e:
             return api_error_response(e)

@@ -19,6 +19,20 @@ def uses_compact_durable_state_transfer(config: DeploymentConfig) -> bool:
     return config.deployment_profile == "compact" and config.data_placement == "host_directories"
 
 
+def _postgres_identity_fingerprint(identity: bytes, *, installation_id: str) -> str:
+    """Fingerprint the database identity without a fast hash of its password.
+
+    The identity carries POSTGRES_PASSWORD, which an operator may have chosen, and
+    the fingerprint is printed in the clone plan: a plain SHA-256 of it could be
+    guessed offline. The same password-hashing KDF as user passwords keeps it
+    slow, and the installation salt keeps it deterministic for one target.
+    """
+    from core.application.auth.config import AUTH_PASSWORD_ITERATIONS
+
+    salt = b"flow-steward-clone-postgres-identity\0" + installation_id.encode("utf-8")
+    return hashlib.pbkdf2_hmac("sha256", identity, salt, AUTH_PASSWORD_ITERATIONS).hex()
+
+
 def build_clone_target_shell(
     *,
     config: DeploymentConfig,
@@ -48,7 +62,9 @@ def build_clone_target_shell(
         host_gid=host_gid,
         filesystem_roots=dict(filesystem_roots),
         postgres_roles=(postgres_user,),
-        postgres_identity_fingerprint=hashlib.sha256(postgres_identity).hexdigest(),
+        postgres_identity_fingerprint=_postgres_identity_fingerprint(
+            postgres_identity, installation_id=installation_id
+        ),
     )
 
 

@@ -2,10 +2,14 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+import logging
+
 from .state_selector_shape import StateSelectorShape
 from .workflow_lookup import get_workflow_row
 
 from .contract_validation_workflow import *  # noqa: F403,F401  # NOSONAR
+
+_logger = logging.getLogger(__name__)
 
 
 def validate_invoke_workflow_step(
@@ -362,13 +366,18 @@ def validate_invoke_workflow_step(
         available_type_map = resolver_for_types.get_available_type_map_for_step(
             workflow_id, str(step.get("step_id") or "").strip()
         )
-    except Exception as resolver_err:
+    except Exception:
+        _logger.warning(
+            "invoke_workflow input mapping source validation skipped workflow_id=%s",
+            workflow_id,
+            exc_info=True,
+        )
         warnings.append(
             _issue(
                 code="invoke.input_mapping_source_validation_skipped",
                 message=(
-                    "Could not validate invoke_workflow input mapping sources against parent step variables: "
-                    f"{resolver_err}"
+                    "Could not validate invoke_workflow input mapping sources against "
+                    "parent step variables"
                 ),
                 path=f"{path_prefix}.override.invoke_workflow.input_mapping",
                 severity="warning",

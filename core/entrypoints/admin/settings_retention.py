@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
@@ -16,6 +17,8 @@ from core.infrastructure.runtime.entrypoint_db_adapters import (
     MAX_RETENTION_DAYS,
     MAX_REVISIONS_KEEP,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _int_env(name: str, default: int, *, maximum: int = MAX_RETENTION_DAYS) -> int:
@@ -131,10 +134,9 @@ def create_settings_retention_router(
             return JSONResponse({"error": str(exc)}, status_code=400)
         except RuntimeError as exc:
             return JSONResponse({"error": str(exc)}, status_code=503)
-        except Exception as exc:
-            return JSONResponse(
-                {"error": f"Failed to save retention settings: {exc}"}, status_code=500
-            )
+        except Exception:
+            logger.exception("Saving retention settings failed")
+            return JSONResponse({"error": "Failed to save retention settings"}, status_code=500)
 
         return JSONResponse(
             _json_safe_retention_payload({"status": "saved", "settings": dict(saved)})

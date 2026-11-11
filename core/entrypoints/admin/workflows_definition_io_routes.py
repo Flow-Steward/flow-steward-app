@@ -1,6 +1,7 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any, Literal
 
 from core.entrypoints.admin.workflows_definition_common import (
@@ -14,6 +15,8 @@ from core.entrypoints.admin.workflows_definition_common import (
     WorkflowEditorOutputView,
     WorkflowEditorStepContractPreviewView,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _require_step(workflow: Any, step_id: str) -> None:
@@ -283,10 +286,11 @@ def register_io_routes(router, ctx) -> None:
         state = _preview_state_for_source(source_path, payload.sample_data)
         try:
             result = execute_transform_step(config=config, state=state)
-        except Exception as exc:
+        except Exception:
+            logger.exception("Transform preview failed workflow_id=%s", workflow_id)
             result = {
                 "ok": False,
-                "errors": [{"reason": "preview_failed", "detail": str(exc)}],
+                "errors": [{"reason": "preview_failed", "detail": "The transform preview failed."}],
                 "state_patch": {},
                 "detail": "runtime_failed",
             }

@@ -35,6 +35,7 @@ from core.application.extensions.system_email import (
 )
 from core.application.management.errors import (
     ServiceConflictError,
+    ServiceError,
     ServiceForbiddenError,
     ServiceNotFoundError,
     ServiceUnavailableError,
@@ -113,17 +114,20 @@ def create_auth_users_router(
         auth_login_clear_user_failures_fn=auth_login_clear_user_failures,
     )
 
+    service_error_statuses: tuple[tuple[type[ServiceError], int], ...] = (
+        (ServiceValidationError, 400),
+        (ServiceNotFoundError, 404),
+        (ServiceForbiddenError, 403),
+        (ServiceConflictError, 409),
+        (ServiceUnavailableError, 503),
+    )
+
     def _user_service_error(exc: Exception) -> JSONResponse:
-        if isinstance(exc, ServiceValidationError):
-            return JSONResponse({"error": str(exc)}, status_code=400)
-        if isinstance(exc, ServiceNotFoundError):
-            return JSONResponse({"error": str(exc)}, status_code=404)
-        if isinstance(exc, ServiceForbiddenError):
-            return JSONResponse({"error": str(exc)}, status_code=403)
-        if isinstance(exc, ServiceConflictError):
-            return JSONResponse({"error": str(exc)}, status_code=409)
-        if isinstance(exc, ServiceUnavailableError):
-            return JSONResponse({"error": str(exc)}, status_code=503)
+        # A service error's `message` is the text it was raised with for the
+        # user; anything else goes through the logging generic responder.
+        for error_type, status_code in service_error_statuses:
+            if isinstance(exc, error_type):
+                return JSONResponse({"error": exc.message}, status_code=status_code)
         return api_error_response(exc)
 
     def _user_input_error(exc: ValidationError) -> JSONResponse:
