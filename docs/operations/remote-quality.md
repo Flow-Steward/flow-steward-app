@@ -30,7 +30,11 @@ git push origin HEAD:refs/heads/codex/verify-sonar/my-task
 ```
 
 These refs preserve the candidate SHA; the workflow checks that SHA and current
-main before proceeding. Updating the same task ref cancels its obsolete run;
+main before proceeding. Only the `release` and `release-sonar` modes fail when the
+candidate does not include current main, at the start or because another pull
+request landed during the run; the error names both commits. Tier 2,
+`single-check` and the diagnostic modes keep their result and report a warning,
+because it still describes the branch commit. Updating the same task ref cancels its obsolete run;
 separate task refs run independently. No GitHub CLI token is needed for this
 route. The agent must read the resulting exact-SHA run and await its conclusion.
 Remove owned verification refs after merging while retaining the merged commit.
