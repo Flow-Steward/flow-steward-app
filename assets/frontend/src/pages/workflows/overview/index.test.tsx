@@ -1,5 +1,4 @@
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
 import { act, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -81,7 +80,6 @@ describe("WorkflowsOverviewPage", () => {
     vi.useFakeTimers();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = renderPage(undefined, undefined, queryClient);
-    const { unmount: unmountIndicator } = render(<RequestLoadingIndicator />);
     try {
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       const link = screen.getByRole("link", { name: "Linked projects" });
@@ -97,7 +95,6 @@ describe("WorkflowsOverviewPage", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(pending).toBeDefined();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-      expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Linked projects" })).toBe(link);
       expect(link).toHaveFocus();
       expect(screen.getByText("1 completed / 0 failed")).toBeInTheDocument();
@@ -105,7 +102,7 @@ describe("WorkflowsOverviewPage", () => {
       expect(screen.getByText("3 completed / 0 failed")).toBeInTheDocument();
       expect(link).toHaveFocus();
     } finally {
-      view.unmount(); unmountIndicator(); pending?.(new Response("{}"));
+      view.unmount(); pending?.(new Response("{}"));
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       vi.clearAllTimers(); vi.useRealTimers(); fetchMock.mockRestore();
     }

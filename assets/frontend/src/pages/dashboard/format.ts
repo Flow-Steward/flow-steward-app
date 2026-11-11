@@ -20,3 +20,14 @@ export function formatAge(ms: number | null, t: I18nContextValue["t"] = fallback
   }
   return `${Math.floor(hours / 24)}d`;
 }
+
+/** "4h ago" for a queue row; under a minute reads "just now". */
+export function formatAgeAgo(ms: number | null, t: I18nContextValue["t"] = fallbackContext.t): string {
+  if (ms === null || !Number.isFinite(ms)) {
+    return "";
+  }
+  if (ms < 60_000) {
+    return t("dashboard.time.just_now", "just now");
+  }
+  return t("react.dashboard.age_ago", "{age} ago", { age: formatAge(ms, t) });
+}

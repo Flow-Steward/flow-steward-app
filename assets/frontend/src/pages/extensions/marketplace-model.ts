@@ -32,6 +32,7 @@ import type {
   ExtensionCatalogInstallState,
   ExtensionCatalogListing,
 } from "@/pages/extensions/catalog-api";
+import { formatDate } from "@/lib/time/date-time-format";
 
 export type MarketplaceFacetKey = "category" | "capability" | "status";
 
@@ -320,16 +321,11 @@ export function sizeLabel(bytes: number, t: I18nContextValue["t"] = fallbackCont
   return t("react.extensions.value0_mb", "{value0} MB", { value0: (bytes / (1000 * 1000)).toFixed(1) });
 }
 
-/** `1 Oct 2026`. */
-export function dateLabel(value: string | undefined, locale = "en-GB"): string {
+/** `1 Oct 2026`, in the reader's own date format: the catalog's calendar day, read in UTC. */
+export function dateLabel(value: string | undefined, locale = "en"): string {
   const time = Date.parse(value ?? "");
   if (!Number.isFinite(time)) return "";
-  return new Date(time).toLocaleDateString(locale === "en" ? "en-GB" : locale, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return formatDate(time, { locale, timezone: "UTC" });
 }
 
 /** `Flow Steward 0.5.0 or later`, or "" when the entry names no range. */

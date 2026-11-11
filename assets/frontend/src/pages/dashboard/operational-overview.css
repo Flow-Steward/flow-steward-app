@@ -4,13 +4,15 @@
  * MetricCard for the tiles, Segmented control for the range switch. No raw
  * color, radius, spacing or font size is introduced here.
  *
- * Metric cards wrap in the responsive row.
+ * The five status cards sit in one row and step down by the panel's own width,
+ * never to four columns, where Completed used to wrap alone.
  *
  * Design System gap: metric-card.md leaves clickable MetricCards open (Next
  * Pass 4) and publishes no responsive rules for 4/2/1-column rows (Next Pass 2).
  */
 
 .fs-ov {
+  container: fs-ov / inline-size;
   min-width: 0;
   padding: var(--fs-card-padding);
   border: 1px solid var(--fs-card-border);
@@ -144,24 +146,32 @@
 
 .fs-ov__grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--fs-dashboard-grid-gap);
   min-width: 0;
 }
 
 /* MetricCard now lives in components/shared/design-system.css as .fs-metric*.
-   Only the row geometry stays here: the dashboard row is four columns wide,
+   Only the row geometry stays here: the dashboard row is five columns wide,
    which is a page composition decision rather than component anatomy. */
 
 /* ---------- responsive ---------- */
 
-@media (width <= 940px) {
+/* Below about 170px a card can no longer hold "Waiting for approval" on one
+   line, so the row drops to three columns, then two, then one. */
+@container fs-ov (width < 880px) {
+  .fs-ov__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container fs-ov (width < 600px) {
   .fs-ov__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (width <= 560px) {
+@container fs-ov (width < 380px) {
   .fs-ov__grid {
     grid-template-columns: minmax(0, 1fr);
   }

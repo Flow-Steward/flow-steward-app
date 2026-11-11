@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { DsAlert } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useI18n } from "@/lib/i18n/useI18n";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
@@ -56,6 +58,9 @@ export function WorkflowTestRunSurface({
   } = ctx;
   const controlled = ctx.selectedTestRunControlled === true;
   const evidence = ctx.testRunEvidence;
+  const selectedRunLoaderShown = useLoaderDelay(Boolean(controlled && !evidence?.verified && !ctx.selectedRunVerificationError && ctx.selectedRunLoading));
+  const approvalPending = Boolean(workflowTestRunApprovalMutation.isPending);
+  const approvalChoice = workflowTestRunApprovalMutation.variables?.approved;
   return (
     <>
           {drawerMode === "workflow-test-run" && drawerTab === "test-run" ? (
@@ -70,9 +75,11 @@ export function WorkflowTestRunSurface({
                 <WorkflowTestRunResults commentDraft={ctx.approvalCommentDraft} evidence={evidence} inspect={ctx.workflowRunInspectionRequest?.kind === "step" && ctx.workflowRunInspectionRequest.isCurrent()
                   ? { serial: ctx.workflowRunInspectionRequest.serial, jobId: ctx.workflowRunInspectionRequest.jobId, stepExecutionId: ctx.workflowRunInspectionRequest.stepExecutionId } : null} />
               ) : controlled ? (
-                <p role="status" className="text-sm text-[var(--fs-text-secondary)]">{ctx.selectedRunVerificationError || (ctx.selectedRunLoading
-                  ? t("react.workflows.run_bar_loading", "Loading Test Run…")
-                  : t("react.workflows.run_bar_unavailable", "Test Run could not be verified"))}</p>
+                ctx.selectedRunVerificationError || !(ctx.selectedRunLoading || selectedRunLoaderShown) ? (
+                  <p role="status" className="text-sm text-[var(--fs-text-secondary)]">{ctx.selectedRunVerificationError || t("react.workflows.run_bar_unavailable", "Test Run could not be verified")}</p>
+                ) : selectedRunLoaderShown ? (
+                  <p className="text-sm text-[var(--fs-text-secondary)]"><DsLoader variant="orbit-inline" label={t("react.workflows.run_bar_loading", "Loading Test Run…")} /></p>
+                ) : null
               ) : workflowTestRunPayload ? (
                 <div className="rounded-lg border border-[var(--fs-border-default)] bg-[var(--fs-bg-surface)] p-3 text-xs text-[var(--fs-text-primary)]">
                   {(() => {
@@ -129,22 +136,22 @@ export function WorkflowTestRunSurface({
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
                           variant="primary"
-                          disabled={workflowTestRunApprovalMutation.isPending}
-                          onClick={() =>
-                            workflowTestRunApprovalMutation.mutate({ approved: true })
-                          }
+                          busy={approvalPending && approvalChoice === true}
+                          busyLabel={t("react.workflows.continuing", "Continuing…")}
+                          onClick={() => {
+                            if (!approvalPending) workflowTestRunApprovalMutation.mutate({ approved: true });
+                          }}
                           type="button"
                         >
-                          {workflowTestRunApprovalMutation.isPending
-                            ? t("react.workflows.continuing", "Continuing...")
-                            : t("jobs.detail.review.approve_continue", "Approve and continue")}
+                          {t("jobs.detail.review.approve_continue", "Approve and continue")}
                         </Button>
                         <Button
                           variant="secondary"
-                          disabled={workflowTestRunApprovalMutation.isPending}
-                          onClick={() =>
-                            workflowTestRunApprovalMutation.mutate({ approved: false })
-                          }
+                          busy={approvalPending && approvalChoice === false}
+                          busyLabel={t("react.workflows.continuing", "Continuing…")}
+                          onClick={() => {
+                            if (!approvalPending) workflowTestRunApprovalMutation.mutate({ approved: false });
+                          }}
                           type="button"
                         >
                           {t("react.workflows.reject_and_continue", "Reject and continue")}</Button>

@@ -23,6 +23,8 @@ import type {
   WorkspaceOption,
 } from "@/components/layout/app-shell-helpers";
 import type { SidebarRailState } from "@/components/layout/app-shell-rail-state";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
 function useSidebarTooltip(enabled: boolean) {
@@ -193,6 +195,7 @@ function WorkspaceMenu({
   const selectedName = selected?.displayName || t("project_mode.workspace", "Workspace");
   const selectedKey = selected?.workspaceKey || t("react.shared.workspace_scope", "Workspace scope");
   const tooltip = useSidebarTooltip(railState === "collapsed" && !open);
+  const loaderShown = useLoaderDelay(loading);
 
   return (
     <AppShellMenu
@@ -233,7 +236,7 @@ function WorkspaceMenu({
       }
     >
       <p className="fs-shell-menu__label">{t("react.shared.workspaces", "Workspaces")}</p>
-      {loading ? <p className="fs-shell-menu__status">{t("react.shared.loading_workspaces", "Loading workspaces…")}</p> : null}
+      {loaderShown ? <p className="fs-shell-menu__status"><DsLoader label={t("react.shared.loading_workspaces", "Loading workspaces…")} variant="orbit-inline" /></p> : null}
       {error ? (
         <div className="fs-shell-menu__status">
           <p>{error}</p>
@@ -295,6 +298,7 @@ function AccountMenu({
   const { t } = useI18n();
   const tooltip = useSidebarTooltip(railState === "collapsed" && !open);
   const accountInitials = getInitials(userDisplayName);
+  const loggingOutShown = useLoaderDelay(loggingOut);
   return (
     <AppShellMenu
       label={t("react.shared.account_menu", "Account menu")}
@@ -394,15 +398,15 @@ function AccountMenu({
       <hr className="fs-shell-menu__separator" />
       <button
         className="fs-shell-menu__item fs-shell-menu__item--danger"
-        disabled={loggingOut}
+        aria-busy={loggingOut || undefined}
         onClick={() => {
-          ignoreAsyncResult(onLogout());
+          if (!loggingOut) ignoreAsyncResult(onLogout());
         }}
         role="menuitem"
         type="button"
       >
-        <LogOut aria-hidden="true" size={14} strokeWidth={1.5} />
-        {loggingOut ? t("react.shared.logging_out", "Logging out…") : t("react.shared.log_out", "Log out")}
+        {loggingOutShown ? <DsLoader variant="orbit-inline" /> : <LogOut aria-hidden="true" size={14} strokeWidth={1.5} />}
+        {loggingOutShown ? t("react.shared.logging_out", "Logging out…") : t("react.shared.log_out", "Log out")}
       </button>
     </AppShellMenu>
   );

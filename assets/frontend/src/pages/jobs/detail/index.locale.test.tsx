@@ -67,12 +67,13 @@ describe("Saved Switch runtime reason locale", () => {
       const row = await screen.findByRole("button", { name: /Owner route/ });
       expect(within(row).getByText(expected)).toBeInTheDocument();
       fireEvent.click(row);
-      expect(within(await screen.findByTestId("job-step-inspector-drawer")).getAllByText(expected)).toHaveLength(2);
+      // Once, under the step's title: the inspector no longer repeats it in a Summary block.
+      expect(within(await screen.findByTestId("job-step-inspector-drawer")).getAllByText(expected)).toHaveLength(1);
       view.unmount();
 
       renderPage({}, context);
       fireEvent.click(await screen.findByRole("button", { name: /Owner route/ }));
-      expect(within(await screen.findByTestId("job-step-inspector-drawer")).getAllByText(expected)).toHaveLength(2);
+      expect(within(await screen.findByTestId("job-step-inspector-drawer")).getAllByText(expected)).toHaveLength(1);
       expect(savedStep.raw.artifacts.selector).toBe(reason.value);
       expect(savedStep.raw.artifacts._outcome).toEqual(reason.outcome);
       expect(savedStep.inputs.value).toBe(reason.value);

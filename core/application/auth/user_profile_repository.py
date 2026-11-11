@@ -56,6 +56,50 @@ def load_user_locale(bl: Any, user_id: Any) -> str:
     return ""
 
 
+def load_user_date_time_format(bl: Any, user_id: Any) -> tuple[str, str]:
+    """The user's stored date pattern and clock, each ``""`` when unset."""
+    with bl.conn.cursor() as cur:
+        cur.execute(
+            "SELECT date_format, time_format FROM users WHERE id = %s LIMIT 1",
+            (str(user_id or "").strip(),),
+        )
+        row = cur.fetchone()
+    payload = _normalize_row(row, ("date_format", "time_format"))
+    return (
+        str(payload.get("date_format") or "").strip(),
+        str(payload.get("time_format") or "").strip(),
+    )
+
+
+def update_user_date_time_format(
+    bl: Any,
+    *,
+    user_id: Any,
+    date_format: str | None = None,
+    time_format: str | None = None,
+) -> None:
+    """Store the given choices; ``None`` keeps a column as it is, ``""`` clears it to the default."""
+    assignments = [
+        (column, value)
+        for column, value in (("date_format", date_format), ("time_format", time_format))
+        if value is not None
+    ]
+    if not assignments:
+        return
+    query = {
+        ("date_format",): "UPDATE users SET date_format = %s WHERE id = %s",
+        ("time_format",): "UPDATE users SET time_format = %s WHERE id = %s",
+        (
+            "date_format",
+            "time_format",
+        ): "UPDATE users SET date_format = %s, time_format = %s WHERE id = %s",
+    }[tuple(column for column, _ in assignments)]
+    params = tuple(str(value).strip() or None for _, value in assignments)
+    with bl.conn.cursor() as cur:
+        cur.execute(query, (*params, str(user_id or "").strip()))
+    _commit_if_possible(bl)
+
+
 def update_user_display_name(bl: Any, user_id: Any, display_name: str) -> None:
     with bl.conn.cursor() as cur:
         cur.execute(

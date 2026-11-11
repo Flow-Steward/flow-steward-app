@@ -64,6 +64,7 @@ function renderGuardrailDetail(entity: Record<string, unknown>, locale: "en" | "
     saving: false,
     setSaveStatus,
     toggleEntityEnabled: vi.fn(async () => undefined),
+    toggling: false,
   } as unknown as ReturnType<typeof useRegistryEntityDetail>);
 
   const messages: Record<string, string> = locale === "lt" ? { "react.registry.select_agent_before_saving": "Prieš išsaugodami pasirinkite bent vieną agentą." } : {};

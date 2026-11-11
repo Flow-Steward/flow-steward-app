@@ -2,6 +2,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import type { ExtensionRecord } from "@/pages/extensions/api";
 import { isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import type { DsBadgeTone } from "@/components/shared/design-system";
+import { formatDateTime } from "@/lib/time/date-time-format";
 
 export type ManifestAction = {
   actionId: string;
@@ -500,8 +501,7 @@ export function formatGridValue(value: unknown, column: Record<string, unknown>,
     if (!raw) {
       return "—";
     }
-    const parsed = new Date(raw);
-    return Number.isNaN(parsed.getTime()) ? raw : parsed.toLocaleString();
+    return formatDateTime(raw);
   }
   if (typeof value === "boolean") {
     return value ? t("extensions.repeater.yes", "Yes") : t("extensions.repeater.no", "No");

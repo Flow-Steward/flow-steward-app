@@ -152,7 +152,10 @@ export function GroupExtractionDialog({ workflowId, groupId, groupName, revision
   const stalePreview = stale || Boolean(reviewed && reviewed.key !== requestKey);
   const invalidName = !name.trim() || name.length > 200;
   const invalidChildId = !/^[a-z][a-z0-9_]*$/.test(childId);
-  const unavailable = Boolean(blockedReason || busy || completed || invalidName || invalidChildId || revision < 1);
+  // What blocks a request at rest; a request in flight only makes the other
+  // button ignore presses (requestConversion checks `unavailable`), never disables it.
+  const unavailableAtRest = Boolean(blockedReason || completed || invalidName || invalidChildId || revision < 1);
+  const unavailable = unavailableAtRest || busy;
   const blockedByIssues = Boolean(preview && !preview.can_convert);
   const createReason = busy ? t("react.workflows.convert_busy", "Wait for the current request to finish.")
     : revision < 1 ? t("react.workflows.convert_invalid_revision", "Reload the workflow before creating a child.")
@@ -314,8 +317,8 @@ export function GroupExtractionDialog({ workflowId, groupId, groupName, revision
       <div className="mt-5 flex flex-wrap justify-end gap-2">
         <Button disabled={busy} onClick={() => { void dismiss(); }} variant="secondary">{t("common.close", "Close")}</Button>
         {!completed ? <>
-          <Button disabled={unavailable} onClick={() => void requestConversion(false)} variant="secondary">{t("react.workflows.preview_conversion", "Preview conversion")}</Button>
-          <Button aria-describedby={createReason ? "conversion-create-reason" : undefined} disabled={unavailable || !preview?.can_convert} title={createReason || undefined} onClick={() => void requestConversion(true)}>{t("react.workflows.create_child_workflow", "Create child workflow")}</Button>
+          <Button busy={requestPhase === "preview"} busyLabel={t("react.workflows.convert_preview_pending", "Checking conversion…")} disabled={requestPhase !== "preview" && unavailableAtRest} onClick={() => void requestConversion(false)} variant="secondary">{t("react.workflows.preview_conversion", "Preview conversion")}</Button>
+          <Button aria-describedby={createReason ? "conversion-create-reason" : undefined} busy={requestPhase === "apply"} busyLabel={t("react.workflows.creating", "Creating…")} disabled={requestPhase !== "apply" && (unavailableAtRest || !preview?.can_convert)} title={createReason || undefined} onClick={() => void requestConversion(true)}>{t("react.workflows.create_child_workflow", "Create child workflow")}</Button>
         </> : null}
       </div>
       {!completed ? <p aria-live="polite" className="min-h-5 text-right text-sm text-[var(--fs-text-secondary)]" id="conversion-create-reason">{createReason}</p> : null}

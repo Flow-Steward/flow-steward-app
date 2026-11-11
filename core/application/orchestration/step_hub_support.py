@@ -358,9 +358,24 @@ def _boundary(owner: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def accepted_message(state: Mapping[str, Any], current: ActiveStep) -> dict[str, Any] | None:
-    """The latest result of exactly this execution and attempt, if any."""
-    from core.application.orchestration.agent_messages import get_state_messages
+    """The latest result of exactly this execution and attempt, if any.
 
+    The hub asks after every step, and the step it asks about has just put its
+    result into the run state. So the state is read first and only the matching
+    entries are validated; reading and validating the whole run history plus the
+    job's stored messages each time made every step slower than the one before.
+    The stored messages are read only when the state holds no result: a resume
+    whose checkpoint lost it. When both hold one, the state copy is the result,
+    as it always was for the same message (the stored copy is redacted).
+    """
+    from core.application.orchestration.agent_messages import (
+        get_state_messages,
+        latest_state_message,
+    )
+
+    found = latest_state_message(state, lambda message: message_matches_execution(message, current))
+    if found is not None:
+        return found
     for message in reversed(get_state_messages(state)):
         if message_matches_execution(message, current):
             return message

@@ -681,7 +681,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByText(/Finished: Apr 25, 2026, 12:05 PM/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Finished: 25 Apr 2026, 12:05/i)).toBeInTheDocument();
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -694,7 +694,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
       });
     });
 
-    expect(await screen.findByText(/Finished: Apr 25, 2026, 2:11 PM/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Finished: 25 Apr 2026, 14:11/i)).toBeInTheDocument();
   });
 
   it("falls back to sections.selected_step when the execution step list is absent", async () => {
@@ -808,7 +808,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
     );
 
     renderPage();
-    expect(await screen.findByText("Tokens: 12")).toBeInTheDocument();
+    expect(await screen.findByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 12")).toBeInTheDocument();
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -818,7 +818,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
         },
       });
     });
-    expect(await screen.findByText("Tokens: 900")).toBeInTheDocument();
+    expect(await screen.findByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 900")).toBeInTheDocument();
   });
 
   it("shows a warning when invocation snapshot was truncated", async () => {

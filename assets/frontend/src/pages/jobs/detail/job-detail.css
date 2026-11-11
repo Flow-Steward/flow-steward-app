@@ -1,0 +1,75 @@
+/* Job details: the run overview, the failure, the waterfall and the step drawer (design review 2026-11-08).
+   Design-system tokens only; component anatomy stays with the shared DS classes. */
+
+/* Links on this page read as links: underlined, the line quiet until hover. */
+.job-link { text-decoration: underline; text-decoration-color: var(--fs-border-default); text-underline-offset: 3px; }
+.job-link:hover { text-decoration-color: currentcolor; }
+
+/* The failed step: red stays on the icon, the border and the wash; the words keep their ink. */
+.job-step-failure .fs-alert.danger { color: var(--fs-text-primary); }
+.job-step-failure .fs-alert.danger .fs-alert-icon { color: var(--fs-status-danger); }
+.job-step-failure .fs-alert-body { display: grid; justify-items: start; gap: var(--fs-space-050); color: var(--fs-text-secondary); }
+.job-step-failure-text { display: flex; flex-wrap: wrap; align-items: center; gap: var(--fs-space-100); margin: 0; }
+
+/* Fact cards: a DS micro label over the value. */
+.job-facts { display: grid; gap: var(--fs-space-150); margin: 0; }
+.job-fact { display: flex; flex-direction: column; gap: var(--fs-space-075); min-width: 0; padding: var(--fs-space-150); border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-radius-md); background: var(--fs-bg-surface-muted); }
+.job-fact dt { color: var(--fs-text-tertiary); font-family: var(--ff-data); font-size: var(--fs-type-micro-size); font-weight: var(--fs-type-weight-medium); letter-spacing: var(--fs-type-micro-tracking); line-height: var(--fs-type-micro-line-height); text-transform: uppercase; }
+.job-fact dd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--fs-space-050); min-width: 0; min-height: 24px; margin: 0; overflow-wrap: anywhere; color: var(--fs-text-primary); font-size: var(--fs-type-body-size); line-height: 1.6; }
+.job-facts--overview .job-fact dd { font-size: 17px; font-weight: var(--fs-type-weight-medium); line-height: 1.35; }
+.job-fact dd.is-number, .job-number { font-family: var(--ff-data); font-variant-numeric: tabular-nums; }
+.job-fact dd.is-code, .job-code { font-family: var(--ff-code); font-size: var(--fs-type-code-size); overflow-wrap: anywhere; word-break: break-all; }
+.job-fact dd.is-empty { color: var(--fs-text-tertiary); font-weight: 400; }
+.job-fact .fs-badge { font-size: var(--fs-type-caption-size); }
+
+@media (width >= 768px) { .job-facts--three { grid-template-columns: repeat(3, minmax(0, 1fr)); } .job-facts--two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+@media (width >= 768px) { .job-facts--overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+@media (width >= 1280px) { .job-facts--overview { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+.job-definition-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--fs-space-050) var(--fs-space-100); margin: 0; color: var(--fs-text-secondary); font-size: var(--fs-type-body-size); }
+.job-definition-line code { color: var(--fs-text-primary); font-family: var(--ff-code); font-size: var(--fs-type-code-size); }
+
+/* The failure panel keeps its danger wash; the cards inside stand on the surface so their text reads. */
+.job-failure-card .job-fact { background: var(--fs-bg-surface); }
+.job-failure-message code { display: block; margin-top: var(--fs-space-025); overflow-wrap: anywhere; color: var(--fs-text-primary); font-family: var(--ff-code); font-size: var(--fs-type-code-size); }
+.job-diagnostic-ids { display: flex; flex-wrap: wrap; gap: var(--fs-space-100); }
+.job-diagnostic-ids .fs-badge { gap: var(--fs-space-075); max-width: 100%; color: var(--fs-text-secondary); white-space: normal; }
+.job-diagnostic-ids code { overflow-wrap: anywhere; color: var(--fs-text-primary); font-family: var(--ff-code); font-size: var(--fs-type-caption-size); }
+
+/* Execution waterfall: each step a plate that opens it, its result a badge, its time in one right-hand column. */
+.job-steps { display: grid; gap: var(--fs-space-100); margin: 0; padding: 0; list-style: none; }
+.job-step { display: flex; align-items: center; gap: var(--fs-space-200); width: 100%; min-width: 0; padding: var(--fs-space-150) var(--fs-space-150) var(--fs-space-150) var(--fs-space-200); border: 1px solid var(--fs-border-default); border-radius: var(--fs-radius-md); background: var(--fs-bg-surface); color: var(--fs-text-primary); text-align: left; cursor: pointer; }
+.job-step:hover { background: var(--fs-bg-surface-muted); }
+.job-step:focus-visible { outline: 0; box-shadow: var(--fs-focus-ring); }
+.job-step[aria-pressed="true"] { border-color: var(--fs-border-selected); background: linear-gradient(var(--fs-action-primary-wash), var(--fs-action-primary-wash)) var(--fs-bg-surface); box-shadow: 0 0 0 1px var(--fs-border-selected); }
+.job-step-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.job-step-title { overflow-wrap: anywhere; color: var(--fs-text-primary); font-size: var(--fs-type-body-size); font-weight: var(--fs-type-weight-medium); line-height: 20px; }
+.job-step-meta { overflow-wrap: anywhere; color: var(--fs-text-secondary); font-family: var(--ff-code); font-size: var(--fs-type-caption-size); line-height: 18px; }
+.job-step .fs-badge { flex: none; }
+.job-step-running { flex: none; display: inline-flex; align-items: center; gap: var(--fs-space-100); color: var(--fs-text-secondary); font-size: 13px; line-height: 20px; }
+.job-step-time { flex: none; min-width: 48px; color: var(--fs-text-secondary); font-family: var(--ff-data); font-size: 13px; font-weight: var(--fs-type-weight-medium); font-variant-numeric: tabular-nums; line-height: 20px; text-align: right; }
+.job-step-chevron { flex: none; width: 16px; height: 16px; color: var(--fs-text-tertiary); }
+
+/* Model usage */
+.job-usage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--fs-space-050); padding: var(--fs-space-150) var(--fs-space-200); border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-radius-md); background: var(--fs-bg-surface-muted); color: var(--fs-text-primary); font-size: var(--fs-type-body-size); }
+.job-usage--empty { color: var(--fs-text-tertiary); }
+.job-usage .job-number { font-weight: var(--fs-type-weight-medium); }
+
+/* Generated files over the preview limit say so at once, in plain secondary ink: a limit, not an error. */
+.job-file-note { display: flex; align-items: center; gap: var(--fs-space-075); margin: var(--fs-space-075) 0 0; color: var(--fs-text-secondary); font-size: 13px; line-height: 20px; }
+.job-file-note svg { flex: none; width: 14px; height: 14px; color: var(--fs-text-tertiary); }
+
+/* The read-only run canvas: zoom is one bordered group on the surface, the same in both themes. */
+.job-definition-canvas .react-flow__controls { overflow: hidden; border: 1px solid var(--fs-border-default); border-radius: var(--fs-radius-md); background: var(--fs-bg-surface); box-shadow: var(--fs-shadow-raised); }
+.job-definition-canvas .react-flow__controls-button { width: 32px; height: 32px; border: 0; border-bottom: 1px solid var(--fs-border-subtle); background: transparent; color: var(--fs-text-secondary); fill: currentcolor; }
+.job-definition-canvas .react-flow__controls-button:last-child { border-bottom: 0; }
+.job-definition-canvas .react-flow__controls-button:hover { background: var(--fs-bg-surface-muted); color: var(--fs-text-primary); }
+.job-definition-canvas .react-flow__controls-button svg { fill: currentcolor; }
+
+/* Steps the run never reached stand back; the run's own steps carry their marks. */
+.job-definition-canvas[data-run-marked="true"] [data-workflow-step-frame]:not([data-run]) { opacity: .55; }
+
+/* An archived card names its kind in words (If and Switch keep their condition, in code type). */
+.job-definition-canvas [data-workflow-step-frame]:not(:has(.workflow-card-outcomes)) .workflow-card-summary { color: var(--fs-text-tertiary); font-family: var(--ff-body); font-size: var(--fs-type-caption-size); }

@@ -74,6 +74,8 @@ export type RunBarTextInput = {
   timezone: string;
   /** The Approval step's Test Run tab is open: the decision is made there. */
   decisionPanelOpen?: boolean;
+  /** An ordinary run (live credentials, real changes), not a Test Run: the titles say so. */
+  liveRun?: boolean;
 };
 
 /** What the run bar says: names, never ids (TestRun board). */
@@ -90,10 +92,11 @@ export function runBarText(input: RunBarTextInput, t: T): RunBarText {
   const elapsed = formatRunDuration(elapsedMs, t);
   const all = executions(snapshot);
   if (group === "completed") {
+    if (input.liveRun) return { tone: "success", title: elapsed ? t("react.workflows.run_bar_live_finished_in", "Run finished in {duration}", { duration: elapsed }) : t("react.workflows.run_bar_live_finished", "Run finished"), sub: doneText };
     return { tone: "success", title: elapsed ? t("react.workflows.run_bar_finished_in", "Test Run finished in {duration}", { duration: elapsed }) : t("react.workflows.run_bar_finished", "Test Run finished"), sub: doneText };
   }
   if (group === "cancelled") {
-    return { tone: "neutral", title: t("react.workflows.run_bar_stopped", "Test Run stopped"), sub: [doneText, elapsed].filter(Boolean).join(" · ") };
+    return { tone: "neutral", title: input.liveRun ? t("react.workflows.run_bar_live_stopped", "Run stopped") : t("react.workflows.run_bar_stopped", "Test Run stopped"), sub: [doneText, elapsed].filter(Boolean).join(" · ") };
   }
   if (group === "failed" || group === "stuck" || (input.isTerminal && group !== null)) {
     const errorStepId = text(snapshot?.runError?.stepId);
@@ -101,7 +104,7 @@ export function runBarText(input: RunBarTextInput, t: T): RunBarText {
     const step = (snapshot?.runError?.stepExecutionId && all.find((row) => row.stepExecutionId === snapshot.runError?.stepExecutionId))
       || (errorStepId && [...all].reverse().find((row) => row.stepId === errorStepId)) || failed.at(-1);
     const reason = text(snapshot?.runError?.message) || text(record(record(detail).failure_summary).summary);
-    if (!step) return { tone: "danger", title: t("react.workflows.run_bar_failed", "Test Run failed"), sub: reason };
+    if (!step) return { tone: "danger", title: input.liveRun ? t("react.workflows.run_bar_live_failed", "Run failed") : t("react.workflows.run_bar_failed", "Test Run failed"), sub: reason };
     const place = stepPlace(step, snapshot, definition, t);
     return {
       tone: "danger",
@@ -124,7 +127,7 @@ export function runBarText(input: RunBarTextInput, t: T): RunBarText {
   if (group === "waiting") {
     const due = text(record(record(record(detail).runtime).workflow_wait).due_at);
     const step = waitingSteps.at(-1);
-    const time = due ? runClockTime(due, input.timezone, "locale") : "";
+    const time = due ? runClockTime(due, input.timezone) : "";
     return {
       tone: "attention",
       title: time ? t("react.workflows.run_bar_waiting_until", "Waiting until {time}", { time }) : t("react.workflows.test_run_waiting", "Waiting"),
@@ -139,7 +142,7 @@ export function runBarText(input: RunBarTextInput, t: T): RunBarText {
   });
   return {
     tone: "running",
-    title: t("react.workflows.run_bar_test_run_running", "Test Run running"),
+    title: input.liveRun ? t("react.workflows.run_bar_live_running", "Run in progress") : t("react.workflows.run_bar_test_run_running", "Test Run running"),
     sub: [names.join(" + "), doneText, elapsed].filter(Boolean).join(" · "),
   };
 }

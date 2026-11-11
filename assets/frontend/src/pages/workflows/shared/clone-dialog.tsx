@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { useEffect, useRef, useState } from "react";
 
 import { DsAlert, DsDialog } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { fetchJson } from "@/lib/http/client";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -83,14 +84,15 @@ export function WorkflowCloneDialog({
         <>
           <button className="fs-button" disabled={cloning} onClick={onClose} type="button">
             {t("extensions.repeater.cancel", "Cancel")}</button>
-          <button
-            className="fs-button primary"
-            disabled={cloning}
+          <Button
+            busy={cloning}
+            busyLabel={t("react.workflows.cloning", "Cloning…")}
             onClick={() => ignoreAsyncResult(submit( ))}
             type="button"
+            variant="primary"
           >
-            {cloning ? t("react.workflows.cloning", "Cloning…") : t("react.workflows.clone_workflow", "Clone workflow")}
-          </button>
+            {t("react.workflows.clone_workflow", "Clone workflow")}
+          </Button>
         </>
       }
       initialFocusRef={targetRef}

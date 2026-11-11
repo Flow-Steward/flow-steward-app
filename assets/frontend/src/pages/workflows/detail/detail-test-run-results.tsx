@@ -21,6 +21,7 @@ const BADGE_TONES: Record<WorkflowTestRunEvidence["statusTone"], DsBadgeTone> = 
 
 function PassTime({ pass }: Readonly<{ pass: RunPass }>) {
   const { t } = useI18n();
+  const runningLoader = useLoaderDelay(pass.state === "running");
   let label = formatRunDuration(pass.durationMs, t);
   if (pass.state === "failed") label = t("react.workflows.test_run_failed", "Failed");
   else if (pass.state === "running") label = t("react.workflows.run_bar_running", "Running");
@@ -28,12 +29,14 @@ function PassTime({ pass }: Readonly<{ pass: RunPass }>) {
   else if (pass.state === "skipped") label = t("react.workflows.test_run_skipped", "Skipped");
   else if (pass.state === "kept") label = t("react.workflows.run_mark_kept", "Kept");
   else if (pass.decision) label = pass.decision;
-  return <span className="workflow-run-pass-time" data-run={pass.state}>{label}</span>;
+  return <span className="workflow-run-pass-time" data-run={pass.state}>{pass.state === "running" && runningLoader ? <DsLoader variant="orbit-inline" /> : null}{label}</span>;
 }
 
 function PassRow({ pass, open, evidence, onToggle }: Readonly<{ pass: RunPass; open: boolean; evidence: WorkflowTestRunEvidence; onToggle: () => void }>) {
   const { t } = useI18n();
   const [keepNotice, setKeepNotice] = useState<{ tone: "danger" | "neutral"; text: string } | null>(null);
+  // This pass's own Keep is running; a keep from another pass only makes this one ignore presses.
+  const [keeping, setKeeping] = useState(false);
   const finished = pass.state === "done" || pass.state === "kept";
   const keepReason = !stepKindKeepsOutput(pass.stepKind) ? t("react.workflows.kept_output_always_runs", "This kind of step always runs in tests.")
     : !finished ? t("react.workflows.kept_output_needs_finished_pass", "Only a pass that finished can be kept.")
@@ -58,10 +61,16 @@ function PassRow({ pass, open, evidence, onToggle }: Readonly<{ pass: RunPass; o
         : <RunPassValues error={pass.state === "failed" ? pass.error : ""} inputs={pass.inputs} outputs={pass.outputs} />}
       <div className="workflow-run-pass-actions">
         <Button onClick={() => evidence.openStep(pass.stepId)} size="sm" type="button" variant="secondary">{t("react.workflows.run_bar_open_step", "Open step")}</Button>
-        <Button disabled={Boolean(keepReason) || evidence.keptPending} onClick={() => ignoreAsyncResult((async () => {
+        <Button busy={keeping} busyLabel={t("react.settings.saving", "Saving…")} disabled={Boolean(keepReason)} onClick={() => ignoreAsyncResult((async () => {
+          if (evidence.keptPending) return;
           setKeepNotice(null);
-          const error = await evidence.keepOutput(pass.stepId, keptOutputsFromPass(pass, []), { kind: "run", jobId: evidence.jobId });
-          setKeepNotice(error ? { tone: "danger", text: error } : { tone: "neutral", text: t("react.workflows.kept_output_kept", "Kept as test output. Test runs return it instead of running {step}.", { step: pass.label }) });
+          setKeeping(true);
+          try {
+            const error = await evidence.keepOutput(pass.stepId, keptOutputsFromPass(pass, []), { kind: "run", jobId: evidence.jobId });
+            setKeepNotice(error ? { tone: "danger", text: error } : { tone: "neutral", text: t("react.workflows.kept_output_kept", "Kept as test output. Test runs return it instead of running {step}.", { step: pass.label }) });
+          } finally {
+            setKeeping(false);
+          }
         })())} size="sm" title={keepReason || undefined} type="button" variant="secondary">{t("react.workflows.kept_output_keep", "Keep as test output")}</Button>
       </div>
       {keepReason && finished ? <p className="workflow-run-pass-meta">{keepReason}</p> : null}
@@ -145,18 +154,18 @@ export function WorkflowTestRunResults({ evidence, inspect, commentDraft }: Read
         {Object.entries(evidence.runArtifacts).map(([name, value]) => <RunValue key={`artifact:${name}`} name={name} value={value} />)}
       </div> : null}
       {evidence.error ? <DsAlert title={evidence.error} tone="danger" /> : null}
-      {loader && !evidence.passes.length ? <DsLoader variant="orbit-slot" label={t("react.workflows.run_bar_loading", "Loading Test Run…")} /> : null}
+      {loader && !evidence.passes.length ? <p className="workflow-run-pass-meta"><DsLoader variant="orbit-inline" label={t("react.workflows.run_bar_loading", "Loading Test Run…")} /></p> : null}
       {evidence.passes.length ? <ol className="workflow-run-timeline" aria-label={t("react.workflows.test_run_passes", "Steps in this run")}>
         {evidence.passes.map((pass) => <Fragment key={pass.key}>
           {pass.itemHeader ? <li className="workflow-run-pass-header" aria-hidden="true">{pass.itemHeader}</li> : null}
           <PassRow evidence={evidence} onToggle={() => toggle(pass)} open={openKey === pass.key} pass={pass} />
         </Fragment>)}
-      </ol> : !evidence.loading ? <p className="workflow-run-pass-meta">{t("react.workflows.test_run_no_passes", "No step has run yet.")}</p> : null}
+      </ol> : !evidence.loading && !loader ? <p className="workflow-run-pass-meta">{t("react.workflows.test_run_no_passes", "No step has run yet.")}</p> : null}
     </section>
     <div className="workflow-run-results-footer">
       <Link className="fs-button ghost sm mr-auto" to={`/jobs/${encodeURIComponent(evidence.jobId)}`}>{t("react.jobs.open_full_job_details", "Open full Job Details")}</Link>
       <Button onClick={evidence.changeInputs} size="sm" type="button" variant="secondary">{t("react.workflows.test_run_change_inputs", "Change inputs")}</Button>
-      {evidence.runAgain ? <Button disabled={evidence.runAgain.disabled || evidence.runAgain.busy} onClick={() => ignoreAsyncResult(Promise.resolve(evidence.runAgain?.onInvoke()))}
+      {evidence.runAgain ? <Button busy={Boolean(evidence.runAgain.busy)} busyLabel={t("react.extensions.starting", "Starting…")} disabled={!evidence.runAgain.busy && evidence.runAgain.disabled} onClick={() => ignoreAsyncResult(Promise.resolve(evidence.runAgain?.onInvoke()))}
         size="sm" title={evidence.runAgain.disabledReason || undefined} type="button" variant="primary">{t("react.workflows.run_bar_run_again", "Run again")}</Button> : null}
     </div>
   </div>;

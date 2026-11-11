@@ -9,7 +9,10 @@ import {
   type DsBadgeTone,
   type DsTableColumn,
 } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { Button } from "@/components/ui/button";
 import { LocalizedStatusBadge } from "@/components/shared/localized-status-badge";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { trimRepeatedEdges } from "@/lib/utils/string-normalization";
 
@@ -147,6 +150,8 @@ export function AssignmentSelector({
 }: Readonly<AssignmentSelectorProps>) {
   const { t } = useI18n();
   const loadingLabel = suppliedLoadingLabel ?? t("shell.search.loading_more", "Loading…");
+  const loadingShown = useLoaderDelay(loading);
+  const waiting = loading || loadingShown;
   const countLabels: Record<string, string> = {
     linked: t("react.shared.assignment_linked", "linked"),
     total: t("react.shared.assignment_total", "total"),
@@ -274,14 +279,16 @@ export function AssignmentSelector({
             {totalCount} {totalDisplayLabel}
           </span>
           {!readOnly && saveLabel && onSave ? (
-            <button
-              className="fs-button primary"
-              disabled={saving || saveDisabled}
+            <Button
+              busy={saving}
+              busyLabel={t("react.settings.saving", "Saving…")}
+              disabled={saveDisabled}
               onClick={() => onSave()}
               type="button"
+              variant="primary"
             >
-              {saving ? t("project_edit.security.saving", "Saving...") : saveLabel}
-            </button>
+              {saveLabel}
+            </Button>
           ) : null}
         </div>
       </div>
@@ -300,13 +307,13 @@ export function AssignmentSelector({
           {t("react.shared.the_rows_shown_by_the_current_search_or_filter_are_disabled", "The rows shown by the current search or filter are disabled.")} </DsAlert>
       ) : null}
 
-      {loading ? <p className="fs-empty-copy">{loadingLabel}</p> : null}
+      {loadingShown ? <p className="fs-empty-copy"><DsLoader label={loadingLabel} variant="orbit-inline" /></p> : null}
 
       {/* emptyState and message are arbitrary nodes — callers pass block markup,
           so these wrappers cannot be <p>. */}
-      {!loading && !rows.length ? <div className="fs-empty-copy">{emptyState}</div> : null}
+      {!waiting && !rows.length ? <div className="fs-empty-copy">{emptyState}</div> : null}
 
-      {!loading && rows.length && !visibleRows.length ? (
+      {!waiting && rows.length && !visibleRows.length ? (
         <p className="fs-empty-copy">{t("react.shared.no_results_match_the_current_search_or_filter", "No results match the current search or filter.")}</p>
       ) : null}
 

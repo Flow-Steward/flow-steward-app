@@ -390,3 +390,21 @@ def test_missing_if_outcome_edge_fails_in_hub_without_success_projection():
     )
     assert projection["hero_summary"]["summary"] == error
     assert not projection["hero_summary"].get("summary_key")
+
+
+def test_overview_times_carry_the_instant_for_the_readers_own_format():
+    projection = project_job_detail(
+        job={
+            "id": "job-at",
+            "status": "completed",
+            "started_at": "2026-11-08T16:13:05+02:00",
+            "finished_at": "2026-11-08T16:20:00Z",
+        },
+        include_sections=False,
+    )
+    facts = {fact["id"]: fact for fact in projection["hero_summary"]["facts"]}
+
+    assert facts["started"]["at"] == "2026-11-08T14:13:05+00:00"
+    assert facts["last_update"]["at"] == "2026-11-08T16:20:00+00:00"
+    assert facts["started"]["value"] == "2026-11-08 14:13 UTC"
+    assert "at" not in facts["duration"]

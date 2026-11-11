@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import {
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
   type SyntheticEvent,
   useCallback,
@@ -26,6 +27,9 @@ import {
   PageContainer,
   type DsTableColumn,
 } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { SettingsGeneralPage } from "@/pages/settings/general";
 import { SettingsNotificationsPage } from "@/pages/settings/notifications";
 import { SettingsProvidersPage } from "@/pages/settings/providers";
@@ -38,8 +42,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { trimRepeatedEdges, trimRepeatedEnd } from "@/lib/utils/string-normalization";
 import { replaceDelimitedTokens } from "@/lib/utils/template-tokens";
 
-function resourceSaveLabel(saving: boolean, editing: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (saving) return t("project_edit.security.saving", "Saving...");
+function resourceSaveLabel(editing: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return editing ? t("registry.common.save", "Save") : t("projects.modal.create", "Create");
 }
 
@@ -525,9 +528,9 @@ function ResourceForm({
         })}
       </div>
       <div className="fs-footer-actions">
-        <button className="fs-button primary" disabled={saving} type="submit">
-          {resourceSaveLabel(saving, Boolean(editingId), t)}
-        </button>
+        <Button busy={saving} busyLabel={t("react.settings.saving", "Saving…")} type="submit" variant="primary">
+          {resourceSaveLabel(Boolean(editingId), t)}
+        </Button>
         <button className="fs-button" onClick={onCancel} type="button">
           {t("common.cancel", "Cancel")} </button>
       </div>
@@ -595,6 +598,17 @@ function ResourceRecords({
 }>) {
   const { t } = useI18n();
   const columns = resourceRecordColumns({ onDelete, onEdit, resource, saving, t });
+  const loaderShown = useLoaderDelay(loading && !records.length);
+  let tableState: ReactNode = null;
+  if (loaderShown) {
+    tableState = <div className="fs-table-state"><DsLoader variant="wide-block" /></div>;
+  } else if (!loading && !records.length) {
+    tableState = (
+      <div className="fs-table-state">
+        <strong>{resource.emptyLabel ?? t("react.settings.no_records_configured", "No records are configured.")}</strong>
+      </div>
+    );
+  }
   return (
     <article className="fs-card fs-table-card">
       <DsTable
@@ -603,13 +617,7 @@ function ResourceRecords({
         columns={columns}
         rowKey={(record) => firstStringFromUnknownValue([record[resource.idField], ""]).trim()}
         rows={records}
-        state={
-          loading || records.length ? null : (
-            <div className="fs-table-state">
-              <strong>{resource.emptyLabel ?? t("react.settings.no_records_configured", "No records are configured.")}</strong>
-            </div>
-          )
-        }
+        state={tableState}
       />
     </article>
   );
@@ -744,14 +752,15 @@ function ResourceAdminPanel({
           <>
             <button className="fs-button" disabled={saving} onClick={() => setPendingDelete(null)} type="button">
               {t("common.cancel", "Cancel")} </button>
-            <button
-              className="fs-button danger"
-              disabled={saving}
+            <Button
+              busy={saving}
+              busyLabel={t("react.settings.deleting", "Deleting…")}
               onClick={() => ignoreAsyncResult(deleteResource())}
               type="button"
+              variant="danger"
             >
-              {saving ? t("react.settings.deleting", "Deleting...") : t("react.settings.delete_record", "Delete record")}
-            </button>
+              {t("react.settings.delete_record", "Delete record")}
+            </Button>
           </>
         }
         onClose={() => setPendingDelete(null)}
@@ -808,8 +817,8 @@ function RegisteredResourceAdminSurface({
       <DsCard description={surface.description || undefined} title={tab.title}>
         <div className="fs-panel-heading">
           <p className="fs-ink-secondary">{t("react.settings.records_count", "{count} records", { count: recordCount })}</p>
-          <button className="fs-button" disabled={loading} onClick={() => ignoreAsyncResult(loadSurface())} type="button">
-            {t("account.tokens.refresh", "Refresh")} </button>
+          <Button busy={loading} busyLabel={t("registry.index.reloading", "Reloading…")} onClick={() => ignoreAsyncResult(loadSurface())} type="button" variant="secondary">
+            {t("account.tokens.refresh", "Refresh")} </Button>
         </div>
         {message ? <DsAlert title={message} tone="warning" /> : null}
       </DsCard>

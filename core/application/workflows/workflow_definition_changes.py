@@ -45,6 +45,9 @@ from core.application.workflows.workflow_definition_validation import (
     step_outcomes,
 )
 from core.application.workflows.workflow_step_config_contracts import validate_step_config_keys
+from core.application.workflows.workflow_step_connection_binding import (
+    sync_step_connection_binding,
+)
 from core.application.workflows.workflow_step_kinds import STEP_KIND_FOR_EACH
 
 _STRUCTURE_IN_CONFIG_CODE = "workflow.change.structure_in_config"
@@ -435,6 +438,7 @@ class _ChangeSet:
                 "A new step needs its step_kind",
                 f"{path}.step.step_kind",
             )
+        sync_step_connection_binding(step, step)
         self._check_config_keys(step, f"{path}.step")
         self.definition.steps.append(step)
         if step.get("group_id") is None and step.get("for_each_id") is None:
@@ -508,6 +512,7 @@ class _ChangeSet:
                 f"{path}.patch",
             )
         step.update(copy.deepcopy(dict(patch)))
+        sync_step_connection_binding(step, patch)
         self._check_config_keys(step, f"{path}.patch")
 
     def _change_step_kind(self, operation: Mapping[str, Any], path: str) -> None:
@@ -552,6 +557,7 @@ class _ChangeSet:
         kept = {key: step[key] for key in _STEP_KIND_INDEPENDENT_FIELDS if key in step}
         step.clear()
         step.update({**kept, **copy.deepcopy(dict(payload)), "step_id": step_id})
+        sync_step_connection_binding(step, payload)
         self._check_config_keys(step, f"{path}.step")
         own = step_outcomes(kind, _mapping(_mapping(step.get("override")).get(kind)))
         ports = {(item.name, item.case_id) for item in own}

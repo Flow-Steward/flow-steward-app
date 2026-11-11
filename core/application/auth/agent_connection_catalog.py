@@ -124,6 +124,9 @@ class SetupStep:
     title: str
     description_key: str = ""
     description: str = ""
+    #: A note under the step's block: what to change in it, or how to update later.
+    hint_key: str = ""
+    hint: str = ""
     template: str = ""
     file_name: str = ""
     #: ``link`` steps: which URL the button opens (``release_url`` or ``readme_url``).
@@ -227,12 +230,9 @@ def _plugin_download(
         return SetupStep(
             **common,
             title_key="react.agent_access.step_personal_plugin",
-            title="Download your plugin",
+            title="Download the plugin",
             description_key="react.agent_access.step_personal_plugin_description",
-            description=(
-                "It holds the package's skills, this installation's address and your token, "
-                "so there is nothing to configure." + _TOKEN_IN_FILE
-            ),
+            description=_TOKEN_IN_FILE.strip(),
         )
     return SetupStep(
         **common,
@@ -261,10 +261,13 @@ def _install_marketplace(package_id: str, client_slug: str, cli: str, verb: str)
             description_key="react.agent_access.step_install_copied_plugin_description",
             description=(
                 "Unpack the archive and move the folder it makes to your home folder. Then run "
-                "this in a terminal (PowerShell on Windows) and start a new session. If the "
-                "folder has another name, change it in the command. To install a newer "
-                "download, run the same commands again. They need the {client} command-line "
-                "tool."
+                "this in a terminal (PowerShell on Windows) and start a new session. The "
+                "commands need the {client} command-line tool."
+            ),
+            hint_key="react.agent_access.step_install_copied_plugin_hint",
+            hint=(
+                "If the folder has another name, change it in the command. To install a newer "
+                "download, run the same commands again."
             ),
             template=template,
         )
@@ -276,11 +279,14 @@ def _install_marketplace(package_id: str, client_slug: str, cli: str, verb: str)
         title=_INSTALL_PLUGIN_TITLE,
         description_key="react.agent_access.step_install_kept_plugin_description",
         description=(
-            "Unpack the archive, move the folder it makes to your home folder and keep it "
-            "there: {client} loads the plugin from it. Then run this in a terminal "
-            "(PowerShell on Windows) and start a new session. If the folder has another name, "
-            "change it in the command. To install a newer download, first run: "
-            "claude plugin marketplace remove {package}"
+            "Unpack the archive and move its folder to your home folder: {client} loads the "
+            "plugin from there. Then run this in a terminal (PowerShell on Windows) and start "
+            "a new session."
+        ),
+        hint_key="react.agent_access.step_install_kept_plugin_hint",
+        hint=(
+            "If the folder has another name, change it in the command. To install a newer "
+            "download, first run `claude plugin marketplace remove {package}`."
         ),
         template=template,
     )

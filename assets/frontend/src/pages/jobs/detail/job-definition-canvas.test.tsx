@@ -1,5 +1,8 @@
 // eslint-disable-next-line testing-library/no-manual-cleanup -- Unmount before restoring SVG and global descriptors.
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+// The canvas reads the run's step history to mark the steps it reached; these tests give
+// the run evidence through props, so the history read answers "nothing recorded".
+vi.mock("./job-execution-snapshot", () => ({ useJobExecutionSnapshot: () => ({ snapshot: null }) }));
 import { JobDefinitionCanvas } from "./job-definition-canvas";
 import { archivedApprovalDestinations, archivedDefinitionCanvasGraph } from "./job-definition-graph";
 import type { JobDefinitionPayload } from "./api";

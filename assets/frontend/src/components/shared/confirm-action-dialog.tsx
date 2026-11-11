@@ -1,5 +1,6 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { DsDialog } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 
 import "@/components/shared/confirm-action-dialog.css";
 
@@ -13,9 +14,10 @@ const LISTED_OBJECTS = 5;
  *   fixed line "This cannot be undone." as its own sentence;
  * - up to five objects are named, the rest summarised as "and N more";
  * - the confirming action is verb plus object, never "Yes";
- * - while the request is in flight both actions disable, the label takes its
- *   progress form, the dialog refuses dismissal and the pending state is
- *   announced;
+ * - while the request is in flight Cancel disables, the confirming action is
+ *   busy (it ignores presses and, after the loader delay, shows the round
+ *   Loader with the progress label at one width), the dialog refuses
+ *   dismissal and the pending state is announced;
  * - on failure the dialog stays open with the reason beside the actions.
  *
  * Success, and where focus goes when the trigger did not survive, belong to the
@@ -69,9 +71,9 @@ export function ConfirmActionDialog({
         <>
           <button className="fs-button" disabled={pending} onClick={onCancel} type="button">
             {t("common.cancel", "Cancel")} </button>
-          <button className={`fs-button ${confirmTone}`} disabled={pending} onClick={onConfirm} type="button">
-            {pending ? pendingLabel : confirmLabel}
-          </button>
+          <Button busy={pending} busyLabel={pendingLabel} onClick={onConfirm} type="button" variant={confirmTone}>
+            {confirmLabel}
+          </Button>
         </>
       }
       onClose={onCancel}

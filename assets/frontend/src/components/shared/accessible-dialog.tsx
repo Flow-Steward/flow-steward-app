@@ -1,8 +1,6 @@
 import { useEffect, useRef, type PropsWithChildren, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
-import { resolveRequestLoadingOpener } from "@/components/shared/request-loading-focus";
-
 const FOCUSABLE_SELECTOR = [
   "button:not(:disabled)",
   "input:not(:disabled)",
@@ -30,7 +28,7 @@ function deepestActiveElement(): HTMLElement | null {
   while (activeElement?.shadowRoot?.activeElement) {
     activeElement = activeElement.shadowRoot.activeElement;
   }
-  return resolveRequestLoadingOpener(activeElement instanceof HTMLElement ? activeElement : null);
+  return activeElement instanceof HTMLElement ? activeElement : null;
 }
 
 export function AccessibleDialog({

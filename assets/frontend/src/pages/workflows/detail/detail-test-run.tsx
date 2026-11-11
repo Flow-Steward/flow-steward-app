@@ -299,7 +299,7 @@ export async function waitForWorkflowTestRunState(
     intervalMs?: number;
   } = {},
 ): Promise<WorkflowTestRunResult> {
-  let latest = await fetchWorkflowTestRunState(threadId, { presentation: "background" });
+  let latest = await fetchWorkflowTestRunState(threadId);
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const awaitingDecision = testRunStatus(
       latest.final_status || latest.status,
@@ -311,7 +311,7 @@ export async function waitForWorkflowTestRunState(
       return latest;
     }
     await new Promise((resolve) => globalThis.setTimeout(resolve, intervalMs));
-    latest = await fetchWorkflowTestRunState(threadId, { presentation: "background" });
+    latest = await fetchWorkflowTestRunState(threadId);
   }
   return latest;
 }

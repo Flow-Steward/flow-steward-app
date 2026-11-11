@@ -394,7 +394,7 @@ describe("WorkflowsImportPage", () => {
     await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenCalledTimes(2));
     await act(async () => { older.reject(new Error("Old check failed")); });
     expect(screen.queryByText("Old check failed")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /running preflight/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /run preflight/i })).toHaveAttribute("aria-busy", "true");
     await act(async () => { newer.resolve(readyPreflight("wf_new")); });
     expect(await screen.findByText("Ready")).toBeInTheDocument();
     expect(mockedPreflightWorkflowImport).toHaveBeenNthCalledWith(2, {

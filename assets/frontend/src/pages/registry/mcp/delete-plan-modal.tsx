@@ -98,8 +98,10 @@ export function McpConnectorDeletePlanModal({
         <Button disabled={busy} onClick={onClose} type="button" variant="secondary">
           {t("extensions.repeater.cancel", "Cancel")}</Button>
         <Button
+          busy={busy}
+          busyLabel={t("react.workflows.deleting_variant_43b5894c", "Deleting…")}
           className="border-rose-300/30 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25"
-          disabled={busy || !acknowledged}
+          disabled={!acknowledged}
           onClick={onConfirm}
           type="button"
           variant="secondary"

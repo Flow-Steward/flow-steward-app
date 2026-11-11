@@ -174,11 +174,11 @@ describe("the hook's Test Run", () => {
     </MemoryRouter></QueryClientProvider>;
     const view = render(panel("p-1"));
     fireEvent.click(await screen.findByRole("button", { name: "Run hook test run" }));
-    expect(screen.getByRole("button", { name: "Run hook test run" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run hook test run" })).toHaveAttribute("aria-busy", "true");
     view.rerender(panel("p-2"));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Run hook test run" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run hook test run" })).not.toHaveAttribute("aria-busy"));
     finish({ status: "completed", job_id: "old-project-job", needs_user_approval: false, workflow_id: "enrich_invoice" });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Run hook test run" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run hook test run" })).not.toHaveAttribute("aria-busy"));
     expect(onTestRunStarted).not.toHaveBeenCalled();
   });
 

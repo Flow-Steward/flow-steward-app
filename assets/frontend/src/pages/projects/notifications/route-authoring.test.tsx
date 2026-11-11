@@ -280,7 +280,7 @@ describe("notification route authoring", () => {
     const user = userEvent.setup();
     renderEditor();
     await user.click(await screen.findByRole("button", { name: "Create new" }));
-    await screen.findByText("Loading project workflows...");
+    await screen.findByText("Loading project workflows…");
     expect(screen.getByRole("button", { name: "Create route" })).toBeDisabled();
     await act(async () => { rejectCatalog(new Error("Owned catalog failure")); });
     await screen.findByText(/project workflow inventory is unavailable/i);
@@ -325,7 +325,7 @@ describe("notification route authoring", () => {
     const user = userEvent.setup();
     const view = renderEditor();
     await user.click(await screen.findByRole("button", { name: "Create new" }));
-    await screen.findByText("Loading project workflows...");
+    await screen.findByText("Loading project workflows…");
     view.changeProject("project-2");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Create new" })).toBeEnabled());

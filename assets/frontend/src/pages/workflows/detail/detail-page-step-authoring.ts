@@ -198,6 +198,8 @@ export function useWorkflowDetailStepAuthoring(state: ReturnType<typeof useWorkf
     changeSet: stepChangeSet,
     deletionGuard,
     connectorConnectionNeedsProjectLink: stepOptions.connectorConnectionNeedsProjectLink,
+    connectorConnectionIds: stepOptions.connectorConnectionRows.map((row: Record<string, unknown>) =>
+      textOrEmpty(row.connection_id || row.connector_install_id || row.extension_install_id)),
     connectorMissingRequiredInputNames: stepOptions.connectorMissingRequiredInputNames,
     connectorRequiredInputsMissing: stepOptions.connectorRequiredInputsMissing,
     createAsEntry,

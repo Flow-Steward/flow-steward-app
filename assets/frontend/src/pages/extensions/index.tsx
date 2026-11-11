@@ -16,6 +16,10 @@ import {
   type DsTableColumn,
 } from "@/components/shared/design-system";
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { CatalogIcon } from "@/components/shared/catalog-browse";
 import type { ExtensionRecord } from "@/pages/extensions/api";
 import {
@@ -107,16 +111,18 @@ function updateActionFor(entry: ExtensionCatalogEntry, updates: ExtensionUpdates
 function updateButton(entry: ExtensionCatalogEntry, updates: ExtensionUpdates, t: I18nContextValue["t"], primary: boolean): ReactNode {
   const phase = updates.installStateById[entry.extension_id]?.phase ?? "idle";
   return (
-    <button
-      aria-busy={phase === "installing" || undefined}
-      className={primary ? "fs-button primary sm" : "fs-button sm"}
+    <Button
+      busy={phase === "installing"}
+      busyLabel={updateLabel("installing", entry.version, t)}
       data-extension-update-action={entry.extension_id}
-      disabled={phase !== "idle"}
+      disabled={phase === "awaiting_approval"}
       onClick={() => updates.onUpdate(entry)}
+      size="sm"
       type="button"
+      variant={primary ? "primary" : "secondary"}
     >
-      {updateLabel(phase, entry.version, t)}
-    </button>
+      {updateLabel(phase === "installing" ? "idle" : phase, entry.version, t)}
+    </Button>
   );
 }
 
@@ -273,7 +279,7 @@ function createExtensionColumns({
       width: 152,
       cell: (extension) => {
         const extId = extension.extension_id;
-        const busy = Boolean(busyById[extId]);
+        const pending = busyById[extId];
         const toggleLabel = choose(Boolean(extension.active), t("react.extensions.display_disable", "Disable"), t("react.extensions.display_enable", "Enable"));
         return (
           <div className="fs-extensions-actions">
@@ -285,37 +291,28 @@ function createExtensionColumns({
             >
               <ExternalLink aria-hidden="true" />
             </Link>
-            <button
-              aria-label={toggleLabel}
-              className="fs-icon-button"
+            <IconButton
+              aria-busy={pending === "toggle" || undefined}
               data-ext-action-index={extId}
-              disabled={busy || Boolean(extension.broken && !extension.active)}
-              onClick={() => ignoreAsyncResult(handleToggle(extension))}
-              title={toggleLabel}
-              type="button"
-            >
-              <Power aria-hidden="true" />
-            </button>
-            <button
-              aria-label={t("react.extensions.extension_runtime_health", "Extension runtime health")}
-              className="fs-icon-button"
-              disabled={busy}
-              onClick={() => ignoreAsyncResult(handleHealthCheck(extension))}
-              title={t("react.extensions.extension_runtime_health", "Extension runtime health")}
-              type="button"
-            >
-              <Activity aria-hidden="true" />
-            </button>
-            <button
-              aria-label={t("react.extensions.uninstall", "Uninstall")}
-              className="fs-icon-button fs-extensions-uninstall"
-              disabled={anyTrue([busy, !archiveLifecycleAvailable])}
-              onClick={() => ignoreAsyncResult(handleUninstall(extension))}
-              title={t("react.extensions.uninstall", "Uninstall")}
-              type="button"
-            >
-              <Trash2 aria-hidden="true" />
-            </button>
+              disabled={Boolean(extension.broken && !extension.active)}
+              icon={Power}
+              label={toggleLabel}
+              onClick={() => { if (!pending) ignoreAsyncResult(handleToggle(extension)); }}
+            />
+            <IconButton
+              aria-busy={pending === "health" || undefined}
+              icon={Activity}
+              label={t("react.extensions.extension_runtime_health", "Extension runtime health")}
+              onClick={() => { if (!pending) ignoreAsyncResult(handleHealthCheck(extension)); }}
+            />
+            <IconButton
+              aria-busy={pending === "uninstall" || undefined}
+              className="fs-extensions-uninstall"
+              disabled={!archiveLifecycleAvailable}
+              icon={Trash2}
+              label={t("react.extensions.uninstall", "Uninstall")}
+              onClick={() => { if (!pending) ignoreAsyncResult(handleUninstall(extension)); }}
+            />
           </div>
         );
       },
@@ -480,6 +477,7 @@ export function ExtensionsHubPage() {
 
   // WordPress's update check: the server reuses the catalog's answer for an
   // hour, and a page that cannot reach it says so without blocking anything.
+  const extensionsLoaderShown = useLoaderDelay(extensionsQuery.isLoading);
   const updatesQuery = useQuery({
     queryKey: EXTENSION_UPDATES_QUERY_KEY,
     queryFn: () => fetchExtensionUpdates(),
@@ -506,13 +504,12 @@ export function ExtensionsHubPage() {
 
   const extensionColumns = createExtensionColumns(hubState, lifecycleActions, extensionUpdates, t);
   let tableState: ReactNode = null;
-  if (extensionsQuery.isLoading) {
-    tableState = (
+  if (extensionsQuery.isLoading || extensionsLoaderShown) {
+    tableState = extensionsLoaderShown ? (
       <div className="fs-table-state">
-        <strong>{t("react.extensions.loading_extensions", "Loading extensions")}</strong>
-        <span>{t("react.extensions.the_table_keeps_its_shape_while_the_list_loads", "The table keeps its shape while the list loads.")}</span>
+        <DsLoader label={t("react.extensions.loading_extensions", "Loading extensions")} variant="wide-block" />
       </div>
-    );
+    ) : null;
   } else if (!visibleExtensions.length) {
     tableState = (
       <div className="fs-table-state">

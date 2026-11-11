@@ -33,6 +33,8 @@ import { useHasCapability } from "@/lib/auth/capabilities";
 import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
 
 import { RowActionMenu, type DsTableColumn } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 import { columnsFromGridConfig, visibleRowActions } from "@/components/shared/data-grid-adapter";
 import {
@@ -521,12 +523,12 @@ export function useDatasetsState() {
     createMutation.mutate({ payload: draftToPayload(draft, resourceScopeJsonb), session: editorSessionRef.current });
   }
 
-  const tableState = datasetsQuery.isLoading ? (
+  const tableLoaderShown = useLoaderDelay(datasetsQuery.isLoading);
+  const tableState = tableLoaderShown ? (
     <div className="fs-table-state">
-      <strong>{t("react.registry.loading_datasets", "Loading datasets")}</strong>
-      <span>{t("react.registry.the_catalog_will_remain_in_this_table_layout", "The catalog will remain in this table layout.")}</span>
+      <DsLoader label={t("react.registry.loading_datasets", "Loading datasets")} variant="wide-block" />
     </div>
-  ) : visibleRows.length ? null : rows.length ? (
+  ) : datasetsQuery.isLoading ? null : visibleRows.length ? null : rows.length ? (
     <div className="fs-table-state">
       <strong>{t("react.registry.no_datasets_match_these_filters", "No datasets match these filters")}</strong>
       <span>{t("react.registry.clear_the_search_or_a_filter_to_see_the_rest_of_the_catalog", "Clear the search or a filter to see the rest of the catalog.")}</span>

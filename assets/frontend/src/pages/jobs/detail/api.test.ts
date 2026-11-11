@@ -138,5 +138,4 @@ describe("job detail api", () => {
       expect.objectContaining({ credentials: "same-origin" }),
     );
   });
-
 });

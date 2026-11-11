@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
 
 /** One hook a workflow declares, with its binding in the project (`GET …/hooks/{hook_id}`). */
@@ -106,10 +106,10 @@ function post<T>(url: string, body: unknown) {
 }
 
 /** Every hook a workflow declares, with its binding in the project (`GET …/hooks`). */
-export function fetchWorkflowHooks(projectId: string, workflowId: string, options?: FetchJsonOptions) {
+export function fetchWorkflowHooks(projectId: string, workflowId: string) {
   return fetchJson<{ project_id: string; workflow_id: string; hooks: WorkflowHook[] }>(hookPath(projectId, workflowId, "/hooks"), {
     cache: "no-store",
-  }, options);
+  });
 }
 
 /** The query key of a workflow's hook list in a project; a binding change invalidates it. */

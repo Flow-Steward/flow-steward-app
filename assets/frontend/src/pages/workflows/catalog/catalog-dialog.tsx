@@ -4,6 +4,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Search } from "lucide-react";
 import { DsDialog, DsTabs } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import { useCompactCatalog } from "@/lib/react/use-compact-catalog";
 import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -33,6 +34,7 @@ import type { CreateWorkflowForm } from "@/pages/workflows/list/create-workflow-
 
 import "@/pages/extensions/marketplace-catalog.css";
 import "./catalog-dialog.css";
+import { formatDate, toDate } from "@/lib/time/date-time-format";
 
 export type CatalogTab = "template" | "scratch";
 
@@ -51,10 +53,7 @@ const NO_LABELS: CatalogLabels = { categories: {}, integrations: {} };
 
 function formatDay(value: string | undefined): string {
   if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ""
-    : date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return toDate(value) ? formatDate(value) : "";
 }
 
 /**
@@ -352,14 +351,15 @@ export function WorkflowCatalogDialog({
       <>
         <button className="fs-button" disabled={scratchForm.creating} onClick={close} type="button">
           {t("extensions.repeater.cancel", "Cancel")}</button>
-        <button
-          className="fs-button primary"
-          disabled={scratchForm.creating}
+        <Button
+          busy={scratchForm.creating}
+          busyLabel={t("react.workflows.creating", "Creating…")}
           onClick={() => onScratchSubmit?.()}
           type="button"
+          variant="primary"
         >
-          {scratchForm.creating ? t("react.workflows.creating_variant_def70944", "Creating...") : t("projects.modal.create", "Create")}
-        </button>
+          {t("projects.modal.create", "Create")}
+        </Button>
       </>
     );
   } else if (stageKind === "browse") {
@@ -490,14 +490,16 @@ export function WorkflowCatalogDialog({
                 {t("react.workflows.back_to_templates", "Back to templates")}</button>
             </>
           ) : null}
-          <button
-            className="fs-button primary"
-            disabled={Boolean(setup.blocker) || setup.creating || setup.phase !== "ready"}
+          <Button
+            busy={setup.creating}
+            busyLabel={t("react.workflows.creating", "Creating…")}
+            disabled={!setup.creating && (Boolean(setup.blocker) || setup.phase !== "ready")}
             onClick={() => ignoreAsyncResult(createDraft())}
             type="button"
+            variant="primary"
           >
-            {setup.creating ? t("react.workflows.creating", "Creating…") : setup.draftCount > 1 ? t("react.workflows.create_value0_drafts", "Create {value0} drafts", { value0: setup.draftCount }) : t("react.workflows.create_draft", "Create draft")}
-          </button>
+            {setup.draftCount > 1 ? t("react.workflows.create_value0_drafts", "Create {value0} drafts", { value0: setup.draftCount }) : t("react.workflows.create_draft", "Create draft")}
+          </Button>
         </>
       );
     }

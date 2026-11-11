@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
 type JsonRecord = Record<string, unknown>;
@@ -48,6 +50,8 @@ export function JsonRecordWorkbench({
     queryKey,
     queryFn: fetchRecord,
   });
+
+  const refreshShown = useLoaderDelay(recordQuery.isFetching);
 
   useEffect(() => {
     if (recordQuery.data) {
@@ -95,12 +99,12 @@ export function JsonRecordWorkbench({
             <CardDescription>{t("react.shared.direct_contract_view_for_migration_safe_parity", "Direct contract view for migration-safe parity.")}</CardDescription>
           </div>
           <button
-            className="rounded-xl border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-300/40 disabled:opacity-50"
-            disabled={recordQuery.isFetching}
-            onClick={() => ignoreAsyncResult(handleRefresh())}
+            aria-busy={recordQuery.isFetching || undefined}
+            className="gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-300/40 disabled:opacity-50"
+            onClick={() => { if (!recordQuery.isFetching) ignoreAsyncResult(handleRefresh()); }}
             type="button"
           >
-            {recordQuery.isFetching ? t("react.shared.refreshing", "Refreshing...") : t("account.tokens.refresh", "Refresh")}
+            <ButtonBusyContent busyLabel={t("react.shared.refreshing", "Refreshing…")} shown={refreshShown}>{t("account.tokens.refresh", "Refresh")}</ButtonBusyContent>
           </button>
         </CardHeader>
         <CardContent className="space-y-3">

@@ -1,6 +1,8 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
-import { Loader2 } from "lucide-react";
+
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 
 import type { JobReportDownloadController } from "@/pages/jobs/detail/use-job-report-download";
 
@@ -12,9 +14,6 @@ type JobReportDownloadButtonProps = {
 };
 
 function downloadLabel(status: JobReportDownloadController["status"], idleLabel: string, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (status === "preparing") {
-    return t("react.jobs.preparing_report", "Preparing report…");
-  }
   if (status === "started") {
     return t("react.jobs.download_started", "Download started");
   }
@@ -30,6 +29,8 @@ export function JobReportDownloadButton({
   const { t } = useI18n();
   const idleLabel = suppliedIdleLabel ?? t("react.jobs.download_full_report", "Download full report");
   const label = downloadLabel(controller.status, idleLabel, t);
+  const preparing = controller.status === "preparing";
+  const busyShown = useLoaderDelay(preparing);
 
   if (!controller.available) {
     return null;
@@ -37,16 +38,14 @@ export function JobReportDownloadButton({
 
   return (
     <button
+      aria-busy={preparing || undefined}
       className={className}
       data-testid={testId}
-      disabled={controller.busy}
-      onClick={controller.start}
+      disabled={controller.busy && !preparing}
+      onClick={() => { if (!controller.busy) controller.start(); }}
       type="button"
     >
-      {controller.status === "preparing" ? (
-        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-      ) : null}
-      {label}
+      <ButtonBusyContent busyLabel={t("react.jobs.preparing_report", "Preparing report…")} shown={busyShown}>{label}</ButtonBusyContent>
     </button>
   );
 }

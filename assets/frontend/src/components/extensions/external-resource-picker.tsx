@@ -1,6 +1,9 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useRef, useState } from "react";
 
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
+
 export type ExternalResourcePickerBridge = {
   open: () => Promise<Array<Record<string, unknown>>>;
 };
@@ -87,6 +90,7 @@ export function ExternalResourcePicker({
   const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
+  const busyShown = useLoaderDelay(busy);
   const [error, setError] = useState("");
 
   async function open() {
@@ -116,13 +120,14 @@ export function ExternalResourcePicker({
   return (
     <div className="space-y-1">
       <button
-        className="rounded-lg border border-cyan-300/30 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={disabled || busy}
+        aria-busy={busy || undefined}
+        className="gap-2 rounded-lg border border-cyan-300/30 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
         onClick={() => void open()}
         ref={triggerRef}
         type="button"
       >
-        {busy ? declaration.busy_label || t("react.shared.opening", "Opening…") : declaration.button_label}
+        <ButtonBusyContent busyLabel={declaration.busy_label || t("react.shared.opening", "Opening…")} shown={busyShown}>{declaration.button_label}</ButtonBusyContent>
       </button>
       {error ? <p className="text-sm text-rose-100" role="alert">{error}</p> : null}
     </div>

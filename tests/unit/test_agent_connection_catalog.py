@@ -107,6 +107,8 @@ def test_every_text_has_a_translation_key() -> None:
     for step in [*steps, catalog.FIRST_REQUEST_STEP]:
         assert step.title_key.startswith("react.agent_access.")
         assert bool(step.description_key) == bool(step.description)
+        assert bool(step.hint_key) == bool(step.hint)
+        assert not step.hint_key or step.hint_key.startswith("react.agent_access.")
     for client in catalog.CLIENTS:
         assert client.description_key.startswith("react.agent_access.")
         for setup in client.packages:

@@ -1,4 +1,5 @@
 import { useI18n } from "@/lib/i18n/useI18n";
+import { Button } from "@/components/ui/button";
 import { JobReportDownloadButton } from "./job-report-download-button";
 import type { useJobReportDownload } from "./use-job-report-download";
 
@@ -34,12 +35,12 @@ export function JobPageActions({
     <div className="flex flex-wrap items-center justify-end gap-2">
       <JobReportDownloadButton className="fs-button secondary" controller={reportDownload} testId="job-download-report" />
       {canMutate && canAcknowledge ? (
-        <button className="fs-button secondary" data-testid="job-acknowledge-button" disabled={acknowledgePending} onClick={() => requestAcknowledgeJob(!acknowledged)} type="button">
+        <Button busy={acknowledgePending} busyLabel={t("react.settings.updating", "Updating…")} data-testid="job-acknowledge-button" onClick={() => requestAcknowledgeJob(!acknowledged)} type="button" variant="secondary">
           {acknowledged ? t("react.jobs.unacknowledge", "Unacknowledge") : t("react.jobs.acknowledge", "Acknowledge")}
-        </button>
+        </Button>
       ) : null}
-      {canMutate && isCancellable ? <button className="fs-button accent" data-testid="job-cancel-button" disabled={cancelPending} onClick={requestCancelJob} type="button">{cancelPending ? t("react.jobs.cancelling", "Cancelling…") : t("registry.workflow_detail.automation.action.cancel_job", "Cancel job")}</button> : null}
-      {canMutate && isTerminal ? <button className="fs-button primary" data-testid="job-restart-button" disabled={restartPending} onClick={requestRestartJob} type="button">{restartPending ? t("react.jobs.restarting", "Restarting…") : t("react.jobs.restart_job", "Restart job")}</button> : null}
+      {canMutate && isCancellable ? <Button busy={cancelPending} busyLabel={t("react.jobs.cancelling", "Cancelling…")} data-testid="job-cancel-button" onClick={requestCancelJob} type="button" variant="accent">{t("registry.workflow_detail.automation.action.cancel_job", "Cancel job")}</Button> : null}
+      {canMutate && isTerminal ? <Button busy={restartPending} busyLabel={t("react.jobs.restarting", "Restarting…")} data-testid="job-restart-button" onClick={requestRestartJob} type="button" variant="primary">{t("react.jobs.restart_job", "Restart job")}</Button> : null}
     </div>
   );
 }

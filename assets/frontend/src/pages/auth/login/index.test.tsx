@@ -232,7 +232,8 @@ describe("LoginPage", () => {
       },
     });
 
-    expect(screen.getByText("Loading sign-in providers…")).toBeInTheDocument();
+    // The line waits out the loader delay, then leads with the round mono Loader.
+    expect(await screen.findByText("Loading sign-in providers…")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email address$/i)).toBeInTheDocument();
     resolveProviders([{
       provider_key: "okta",
@@ -353,7 +354,11 @@ describe("LoginPage", () => {
 
     await waitFor(() => expect(submit).toHaveAttribute("aria-busy", "true"));
     expect(submit).toBeDisabled();
-    expect(screen.getByTestId("auth-submit-spinner")).toBeInTheDocument();
+    // Public Auth submit exception: after the loader delay the round mono Loader stands centred.
+    const loader = await screen.findByTestId("auth-submit-spinner");
+    expect(within(loader).getByTestId("loader-mark")).toHaveClass("fs-loader-orbit");
+    expect(within(loader).getByTestId("loader-mark")).not.toHaveClass("md");
+    expect(submit).toHaveAttribute("data-loading", "true");
     expect(within(submit).getByText("Sign in")).toBeInTheDocument();
   });
 
@@ -391,7 +396,7 @@ describe("LoginPage", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     expect(submit).toHaveAttribute("aria-busy", "true");
     expect(submit).toBeDisabled();
-    expect(screen.getByTestId("auth-submit-spinner")).toBeInTheDocument();
+    expect(await screen.findByTestId("auth-submit-spinner")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email address$/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Welcome back" })).not.toBeInTheDocument();
     expect(screen.queryByText("Taking you to your dashboard…")).not.toBeInTheDocument();

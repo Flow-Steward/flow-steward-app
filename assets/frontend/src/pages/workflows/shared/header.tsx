@@ -8,6 +8,9 @@ import { ChevronRight } from "lucide-react";
 import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsValueChip, RowActionMenu } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { Button } from "@/components/ui/button";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { findWorkflowLinkedProjectId } from "@/pages/workflows/shared/project-context";
 import {
@@ -433,9 +436,9 @@ function WorkflowHeaderActions({
   return (
     <div className="ml-auto flex flex-wrap items-center gap-2" id="workflow-header-actions">
       {showToggle ? (
-        <button aria-label={enabled ? t("react.workflows.disable_workflow", "Disable workflow") : t("react.workflows.enable_workflow", "Enable workflow")} className="fs-button" data-workflow-status-toggle="true" disabled={togglingEnabled} onClick={onToggleEnabled} type="button">
+        <Button aria-label={enabled ? t("react.workflows.disable_workflow", "Disable workflow") : t("react.workflows.enable_workflow", "Enable workflow")} busy={togglingEnabled} busyLabel={t("react.settings.updating", "Updating…")} data-workflow-status-toggle="true" onClick={onToggleEnabled} type="button" variant={null}>
           {enabled ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}
-        </button>
+        </Button>
       ) : null}
       {policy.showInternalStructureActions && canAuthor && contextReady ? <Link className="fs-button" data-workflow-header-action="builder" to={builderPath}>{t("react.workflows.open_builder", "Open builder")}</Link> : null}
       {showView ? (
@@ -486,13 +489,13 @@ export function WorkflowSummaryHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const exportPolicyQuery = useQuery({
     queryKey: ["workflows", "export-policy", workflowId],
-    queryFn: () => fetchWorkflowExportPolicy(workflowId, { presentation: "background" }),
+    queryFn: () => fetchWorkflowExportPolicy(workflowId),
     enabled: Boolean(workflowId) && !portability,
     retry: false,
   });
   const linkedProjectQuery = useQuery({
     queryKey: ["workflows", workflowId, "linked-project-id"],
-    queryFn: () => findWorkflowLinkedProjectId(workflowId, { presentation: "background" }),
+    queryFn: () => findWorkflowLinkedProjectId(workflowId),
     // Only admins can read project workflow bindings; running this for non-admins
     // fans out one GET /api/projects/{id}/workflows -> 403 per project (audit noise),
     // and the resolved id only builds authoring links a non-admin can't use anyway.
@@ -505,6 +508,7 @@ export function WorkflowSummaryHeader({
   const metadataError = (!portability && exportPolicyQuery.error) || (discoverProject && !projectId && linkedProjectQuery.error);
   const contextReady = Boolean(projectId || discoverProject && linkedProjectQuery.isSuccess);
   const metadataPending = (!portability && exportPolicyQuery.isPending) || (discoverProject && canAuthor && !projectId && linkedProjectQuery.isPending);
+  const metadataLoaderShown = useLoaderDelay(Boolean(metadataPending));
   const effectiveProjectId = projectId || (discoverProject ? linkedProjectQuery.data : "") || "";
   const overviewPath = workflowPathWithProject(workflowId, effectiveProjectId);
   const builderPath = workflowPathWithProject(workflowId, effectiveProjectId, "/builder");
@@ -593,7 +597,7 @@ export function WorkflowSummaryHeader({
           <WorkflowHeaderActions builderPath={builderPath} canAuthor={canAuthor} contextReady={contextReady} enabled={enabled} menuItems={menuItems} menuOpen={menuOpen} onToggleEnabled={onToggleEnabled} policy={policy} setMenuOpen={setMenuOpen} togglingEnabled={togglingEnabled} />
         </div>
         <WorkflowAvailabilityNotice exportPolicy={exportPolicy} policy={policy} />
-        {metadataPending ? <p className="text-sm fs-ink-secondary" role="status">{t("react.workflows.loading_workflow_data", "Loading workflow data...")}</p> : null}
+        {metadataLoaderShown ? <p className="text-sm fs-ink-secondary"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_workflow_data", "Loading workflow data…")} /></p> : null}
         {metadataError ? (
           <DsAlert title={t("react.workflows.workflow_unavailable", "Workflow unavailable")} tone="danger">
             {metadataError instanceof Error

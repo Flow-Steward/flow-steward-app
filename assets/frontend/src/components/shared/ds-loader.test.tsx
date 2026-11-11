@@ -1,11 +1,12 @@
 import { Search } from "lucide-react";
+import { useLayoutEffect } from "react";
 import { IconButton } from "@/components/ui/icon-button";
 import type * as LoaderAdapter from "./ds-loader";
 import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
 import { BrandLoader } from "@/components/shared/brand-loader";
-import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { LOADER_DELAY_MS, LOADER_MIN_SHOWN_MS, useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 const adapters = import.meta.glob<typeof LoaderAdapter>("./ds-loader.tsx");
 
@@ -25,6 +26,24 @@ describe("published loader lifecycle", () => {
     expect(result.current).toBe(true);
     act(() => { vi.advanceTimersByTime(1); });
     expect(result.current).toBe(false);
+  });
+
+  it("never swaps settled content for the loader when the delay timer comes due right after the commit", () => {
+    vi.useFakeTimers();
+    // The commit that ends the wait paints first; on a busy page the 400ms
+    // timer comes due before passive effects run. It must already be cleared.
+    function Probe({ pending, afterCommit }: Readonly<{ pending: boolean; afterCommit?: () => void }>) {
+      const shown = useLoaderDelay(pending);
+      useLayoutEffect(() => { afterCommit?.(); });
+      return <output data-testid="loader-shown">{String(shown)}</output>;
+    }
+    const { rerender } = render(<Probe pending />);
+    act(() => { vi.advanceTimersByTime(LOADER_DELAY_MS - 1); });
+    rerender(<Probe afterCommit={() => { vi.advanceTimersByTime(1); }} pending={false} />);
+    expect(screen.getByTestId("loader-shown")).toHaveTextContent("false");
+    rerender(<Probe pending={false} />);
+    act(() => { vi.advanceTimersByTime(LOADER_DELAY_MS + LOADER_MIN_SHOWN_MS); });
+    expect(screen.getByTestId("loader-shown")).toHaveTextContent("false");
   });
 
   it("never flashes for a request completing before the delay and resets for the next request", () => {

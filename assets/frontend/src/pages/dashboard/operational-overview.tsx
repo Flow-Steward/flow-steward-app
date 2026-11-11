@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Check } from "lucide-react";
 
-import { DsMetricCard } from "@/components/shared/design-system";
+import { DsMetricCard, type DsMetricCardLoading } from "@/components/shared/design-system";
 import "@/pages/dashboard/dashboard-segmented.css";
 import { formatAge } from "@/pages/dashboard/format";
 import { FAILED_OR_STUCK_GROUPS, jobsListHref } from "@/pages/dashboard/job-links";
@@ -39,6 +39,12 @@ export type OperationalOverviewProps = {
   successRate: string;
   successRateDeltaPp: number | null;
   generatedAt: string;
+  /**
+   * The numbers for this range have not arrived: every card shows its Loading
+   * state (labels real, figure and description on the Skeleton) and the
+   * all-clear notice waits, so no zero and no previous range's number shows.
+   */
+  loading?: DsMetricCardLoading;
 };
 
 function relativeAge(generatedAt: string, now: number, t: I18nContextValue["t"] = fallbackContext.t): string {
@@ -145,6 +151,7 @@ export function OperationalOverview({
   successRate,
   successRateDeltaPp,
   generatedAt,
+  loading,
 }: Readonly<OperationalOverviewProps>) {
   const { t } = useI18n();
   const deltaLabel = formatDeltaPp(successRateDeltaPp);
@@ -153,6 +160,18 @@ export function OperationalOverview({
   const longestRunningLabel = formatAge(longestRunningMs, t);
   const oldestWaitingLabel = formatAge(oldestWaitingMs, t);
   const oldestFailingLabel = formatAge(oldestFailingMs, t);
+  // The range control does not scope this count - it is a live queue snapshot -
+  // so the caption says "right now" and the oldest age cannot contradict 24h.
+  let failedMeta = t("react.dashboard.none_right_now", "None right now");
+  if (failedOrStuck > 0) {
+    failedMeta = oldestFailingLabel
+      ? t("react.dashboard.right_now_oldest_failing_age", "Right now · oldest failing {age}", { age: oldestFailingLabel })
+      : t("react.dashboard.right_now", "Right now");
+  }
+  const inProgressMeta = <InProgressMeta longestRunningLabel={longestRunningLabel} numberFormat={numberFormat} queued={queued} />;
+  const hasInProgressMeta = Boolean(longestRunningLabel) || (queued !== null && queued > 0);
+  const awaitingMeta = oldestWaitingLabel ? t("react.dashboard.oldest_waiting_age", "Oldest waiting {age}", { age: oldestWaitingLabel }) : null;
+  const completedMeta = hasRate(successRate) ? t("react.dashboard.success_rate", "{rate} success", { rate: successRate }) : null;
 
   return (
     <section aria-labelledby="fs-ov-title" className="fs-ov">
@@ -181,60 +200,75 @@ export function OperationalOverview({
         </fieldset>
       </header>
 
-      <HealthyQueueNotice needsAttention={needsAttention} />
+      {loading ? null : <HealthyQueueNotice needsAttention={needsAttention} />}
 
       <div className="fs-ov__grid">
         {/* One card per status group, with the group's label: red when the run
-            broke, orange when a human has to approve. Each card opens the job
-            list filtered to its groups. The job list has no time-range filter,
-            so the range control does not travel with it. */}
+            broke, orange when a human has to approve, calm at zero. The wave
+            marks a card whose figure carries an explanation; a bare number has
+            none. Each card opens the job list filtered to its groups. The job
+            list has no time-range filter, so the range control does not travel
+            with it. */}
         <DsMetricCard
           ariaLabel={t("react.dashboard.failed_or_stuck_count_show_jobs", "Failed / Stuck: {count}. Show failed and stuck jobs", { count: String(failedOrStuck) })}
+          clear={failedOrStuck === 0}
           danger={failedOrStuck > 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(failedOrStuck)}
           label={`${jobStatusGroupLabel("failed", t)} / ${jobStatusGroupLabel("stuck", t)}`}
-          // The range control does not scope this count - it is a live queue
-          // snapshot - so the empty copy says "now", not "in range".
-          meta={failedOrStuck > 0 && oldestFailingLabel ? t("react.dashboard.oldest_failing_age", "Oldest failing {age}", { age: oldestFailingLabel }) : t("react.dashboard.none_right_now", "None right now")}
+          meta={failedMeta}
           to={jobsListHref(FAILED_OR_STUCK_GROUPS, { hideAcknowledged: true })}
+          wave={failedOrStuck > 0}
         />
 
         <DsMetricCard
           ariaLabel={t("react.dashboard.in_progress_value1_open_the_job_queue_filtered_to_running_jobs", "In progress: {value1}. Open the job queue filtered to running jobs", { value1: String(inProgress) })}
+          clear={inProgress === 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(inProgress)}
           label={jobStatusGroupLabel("in_progress", t)}
-          meta={<InProgressMeta longestRunningLabel={longestRunningLabel} numberFormat={numberFormat} queued={queued} />}
+          meta={hasInProgressMeta ? inProgressMeta : null}
           to={jobsListHref(["in_progress"])}
+          wave={inProgress > 0 && hasInProgressMeta}
         />
 
         <DsMetricCard
           ariaLabel={t("react.dashboard.waiting_for_approval_count_show_jobs", "Waiting for approval: {count}. Show jobs waiting for approval", { count: String(awaitingApproval) })}
           attention={awaitingApproval > 0}
+          clear={awaitingApproval === 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(awaitingApproval)}
           label={jobStatusGroupLabel("awaiting_approval", t)}
-          meta={oldestWaitingLabel ? t("react.dashboard.oldest_waiting_age", "Oldest waiting {age}", { age: oldestWaitingLabel }) : null}
+          meta={awaitingMeta}
           to={jobsListHref(["awaiting_approval"])}
+          wave={awaitingApproval > 0 && Boolean(awaitingMeta)}
         />
 
         <DsMetricCard
           ariaLabel={t("react.dashboard.waiting_count_show_jobs", "Waiting: {count}. Show waiting jobs", { count: String(waiting) })}
+          clear={waiting === 0}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(waiting)}
           label={jobStatusGroupLabel("waiting", t)}
           to={jobsListHref(["waiting"])}
+          wave={false}
         />
 
         <DsMetricCard
           ariaLabel={t("react.dashboard.completed_value1_open_the_job_queue_filtered_to_completed_jobs", "Completed: {value1}. Open the job queue filtered to completed jobs", { value1: String(completed) })}
+          clear={completed === 0}
           delta={deltaLabel && hasRate(successRate) ? { label: deltaLabel, tone: deltaTone } : undefined}
           density="hero"
+          loading={loading}
           figure={numberFormat.format(completed)}
           label={jobStatusGroupLabel("completed", t)}
-          meta={hasRate(successRate) ? t("react.dashboard.success_rate", "{rate} success", { rate: successRate }) : null}
+          meta={completedMeta}
           to={jobsListHref(["completed"])}
+          wave={completed > 0 && Boolean(completedMeta)}
         />
       </div>
     </section>

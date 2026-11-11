@@ -28,6 +28,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
 import {
   type AccountDrawerMode,
+  type ServiceAccountAction,
   type TokenDrawerMode,
   type TokenExpiryMode,
   tokenId,
@@ -57,7 +58,7 @@ export function SettingsServiceAccountsPage() {
     useState("");
   const [selectedTokenId, setSelectedTokenId] = useState("");
   const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [pending, setPending] = useState<ServiceAccountAction | null>(null);
   const [accountDrawerMode, setAccountDrawerMode] =
     useState<AccountDrawerMode>("closed");
   const [tokenDrawerMode, setTokenDrawerMode] =
@@ -226,6 +227,7 @@ export function SettingsServiceAccountsPage() {
   }
 
   function openCreateAccountDrawer() {
+    if (pending) return;
     setMessage("");
     closeTokenDrawer();
     // Every field, not just the mode. Without this, opening New after viewing
@@ -278,6 +280,7 @@ export function SettingsServiceAccountsPage() {
   }
 
   function openCreateTokenDrawer() {
+    if (pending) return;
     if (!selectedServiceAccountKey) {
       setMessage(t("react.settings.select_a_service_account_first", "Select a service account first."));
       return;
@@ -302,6 +305,7 @@ export function SettingsServiceAccountsPage() {
   }
 
   async function handleCreateServiceAccount() {
+    if (pending) return;
     setMessage("");
     setNewTokenSecret("");
     setNewTokenLabel("");
@@ -325,7 +329,7 @@ export function SettingsServiceAccountsPage() {
       return;
     }
     setAccountFieldErrors({ key: "", scopes: "" });
-    setSaving(true);
+    setPending("create-account");
     try {
       const duplicate = (serviceAccountsQuery.data || []).some(
         (account) =>
@@ -349,7 +353,7 @@ export function SettingsServiceAccountsPage() {
           : t("react.settings.failed_to_create_service_account", "Failed to create service account."),
       );
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
@@ -357,7 +361,7 @@ export function SettingsServiceAccountsPage() {
     nextActive = accountActiveInput,
     validateAuthority = true,
   ) {
-    if (!selectedServiceAccountKey) {
+    if (pending || !selectedServiceAccountKey) {
       return;
     }
     if (validateAuthority && !accountScopesInput.length) {
@@ -367,7 +371,7 @@ export function SettingsServiceAccountsPage() {
     }
     setAccountFieldErrors({ key: "", scopes: "" });
     setMessage("");
-    setSaving(true);
+    setPending(validateAuthority ? "update-account" : "toggle-account");
     try {
       setAccountActiveInput(nextActive);
       await updateServiceAccount(selectedServiceAccountKey, {
@@ -387,28 +391,29 @@ export function SettingsServiceAccountsPage() {
           : t("react.settings.failed_to_update_service_account", "Failed to update service account."),
       );
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
   function requestConfirmation(next: NonNullable<typeof confirmation>) {
+    if (pending) return;
     setConfirmationError("");
     setConfirmation(next);
   }
 
   function cancelConfirmation() {
-    if (saving) return;
+    if (pending) return;
     setConfirmation(null);
     setConfirmationError("");
   }
 
   async function confirmPendingAction() {
-    if (!confirmation || !selectedServiceAccountKey) {
+    if (pending || !confirmation || !selectedServiceAccountKey) {
       return;
     }
     setConfirmationError("");
     setMessage("");
-    setSaving(true);
+    setPending("confirm");
     try {
       if (confirmation.kind === "delete-account") {
         const accountKeys = (serviceAccountsQuery.data || []).map((account) =>
@@ -449,11 +454,12 @@ export function SettingsServiceAccountsPage() {
     } catch (error) {
       setConfirmationError(error instanceof Error ? error.message : t("react.settings.the_action_did_not_complete_try_again", "The action did not complete. Try again."));
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
   async function handleCreateToken() {
+    if (pending) return;
     if (!selectedServiceAccountKey) {
       setMessage(t("react.settings.select_a_service_account_first", "Select a service account first."));
       return;
@@ -477,7 +483,7 @@ export function SettingsServiceAccountsPage() {
     }
     setTokenExpiresError("");
     setMessage("");
-    setSaving(true);
+    setPending("create-token");
     try {
       const payload: Record<string, unknown> = {
         label: tokenLabelInput.trim(),
@@ -509,16 +515,16 @@ export function SettingsServiceAccountsPage() {
           : t("react.settings.failed_to_create_machine_token", "Failed to create machine token."),
       );
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
   async function handleUpdateToken() {
-    if (!selectedServiceAccountKey || !selectedTokenId) {
+    if (pending || !selectedServiceAccountKey || !selectedTokenId) {
       return;
     }
     setMessage("");
-    setSaving(true);
+    setPending("update-token");
     try {
       await updateServiceAccountToken(
         selectedServiceAccountKey,
@@ -535,7 +541,7 @@ export function SettingsServiceAccountsPage() {
         error instanceof Error ? error.message : t("react.settings.failed_to_update_token", "Failed to update token."),
       );
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
@@ -625,7 +631,7 @@ export function SettingsServiceAccountsPage() {
         isLoading={serviceAccountsQuery.isLoading}
         onCreate={openCreateAccountDrawer}
         onSelect={openAccountDetailDrawer}
-        saving={saving}
+        pending={pending}
         selectedKey={selectedServiceAccountKey}
       />
 
@@ -647,7 +653,7 @@ export function SettingsServiceAccountsPage() {
             isLoading={tokensQuery.isLoading}
             onCreate={openCreateTokenDrawer}
             onSelect={openEditTokenDrawer}
-            saving={saving}
+            pending={pending}
             timezone={userTimezone}
             tokens={tokensQuery.data || []}
           />
@@ -671,7 +677,7 @@ export function SettingsServiceAccountsPage() {
             handleUpdateServiceAccount(!accountActiveInput, false),
           )
         }
-        saving={saving}
+        pending={pending}
         suspended={Boolean(confirmation)}
       />
 
@@ -701,7 +707,7 @@ export function SettingsServiceAccountsPage() {
           })
         }
         revoked={selectedTokenRevoked}
-        saving={saving}
+        pending={pending}
         selectedToken={selectedToken}
         selectedTokenId={selectedTokenId}
         suspended={Boolean(confirmation)}
@@ -718,7 +724,7 @@ export function SettingsServiceAccountsPage() {
         onCancel={cancelConfirmation}
         onConfirm={() => ignoreAsyncResult(confirmPendingAction())}
         open={Boolean(confirmation)}
-        pending={saving && Boolean(confirmation)}
+        pending={pending === "confirm" && Boolean(confirmation)}
         pendingLabel={confirmationCopy?.pendingLabel || ""}
         title={confirmationCopy?.title || ""}
       />

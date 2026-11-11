@@ -2,10 +2,21 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { objectOrEmpty, stringFrom } from "@/pages/extensions/extension-manifest-utils";
 
 import { InlineConfirm } from "@/components/shared/inline-confirm";
+import { Button } from "@/components/ui/button";
 import "@/pages/extensions/extension-manifest.css";
 
 import { ConnectionSecretApprovalStatus } from "./extension-connection-secret-catalog";
-import { type ManifestRenderContext } from "./extension-manifest-render-model";
+import {
+  manifestActionBusy,
+  manifestActionKey,
+  pressManifestAction,
+  type ManifestRenderContext,
+} from "./extension-manifest-render-model";
+
+/** One connection row's control, so only the pressed one shows busy. */
+function connectionActionKey(component: Record<string, unknown>, row: Record<string, unknown>, action: string) {
+  return manifestActionKey("connection", component.component_id || component.id || component.key, row.connection_id, action);
+}
 type ConnectionStatus = {
   label: string;
   guidance: string;
@@ -113,24 +124,28 @@ function renderOauthConnectionActions({
   return (
     <>
       {oauthIntent ? (
-        <button
+        <Button
           aria-label={`${oauthRetry ? t("settings.watchdog.retry", "Retry") : t("react.extensions.reconnect", "Reconnect")} ${accountLabel}`}
-          className="fs-button sm primary"
-          disabled={context.busy}
-          onClick={() => context.onConnectionOAuth(component, row, oauthIntent)}
+          busy={manifestActionBusy(context, connectionActionKey(component, row, "oauth"))}
+          busyLabel={t("react.extensions.oauth_import_connecting", "Connecting…")}
+          onClick={() => pressManifestAction(context, connectionActionKey(component, row, "oauth"), () => context.onConnectionOAuth(component, row, oauthIntent))}
+          size="sm"
           type="button"
+          variant="primary"
         >
           {oauthRetry ? t("settings.watchdog.retry", "Retry") : t("react.extensions.reconnect", "Reconnect")}
-        </button>
+        </Button>
       ) : null}
       {lifecycle === "connected" ? (
-        <button
+        <Button
           aria-label={t("react.extensions.disconnect_value0", "Disconnect {value0}", { value0: accountLabel })}
-          className="fs-button sm"
-          disabled={context.busy}
-          onClick={() => context.onConnectionOAuthDisconnect(component, row)}
+          busy={manifestActionBusy(context, connectionActionKey(component, row, "disconnect"))}
+          busyLabel={t("react.extensions.disconnecting", "Disconnecting…")}
+          onClick={() => pressManifestAction(context, connectionActionKey(component, row, "disconnect"), () => context.onConnectionOAuthDisconnect(component, row))}
+          size="sm"
           type="button"
-        >{t("react.registry.disconnect", "Disconnect")}</button>
+          variant="secondary"
+        >{t("react.registry.disconnect", "Disconnect")}</Button>
       ) : null}
     </>
   );
@@ -215,15 +230,15 @@ export function renderConnectionRow({
         aria-label={t("react.extensions.value0_actions", "{value0} actions", { value0: accountLabel })}
         className="fs-manifest-actions"
       >
-        <button
+        <Button
           aria-label={oauthConnection ? t("react.extensions.edit_value0", "Edit {value0}", { value0: accountLabel }) : undefined}
-          className="fs-button sm"
-          disabled={context.busy}
-          onClick={() => context.onConnectionSelect(component, row)}
+          onClick={() => pressManifestAction(context, connectionActionKey(component, row, "select"), () => context.onConnectionSelect(component, row))}
+          size="sm"
           type="button"
+          variant="secondary"
         >
           {selected ? t("react.extensions.selected", "Selected") : t("extensions.repeater.edit", "Edit")}
-        </button>
+        </Button>
         {renderOauthConnectionActions({
           accountLabel,
           component,
@@ -234,15 +249,17 @@ export function renderConnectionRow({
           oauthRetry,
           row,
         }, t)}
-        <button
+        <Button
           aria-label={oauthConnection ? t("react.extensions.remove_value0", "Remove {value0}", { value0: accountLabel }) : undefined}
-          className="fs-button sm ghost-danger"
-          disabled={context.busy}
-          onClick={() => context.onConnectionDelete(component, row)}
+          busy={manifestActionBusy(context, connectionActionKey(component, row, "delete"))}
+          busyLabel={oauthConnection ? t("react.extensions.removing_account", "Removing account…") : t("react.projects.deleting", "Deleting…")}
+          onClick={() => pressManifestAction(context, connectionActionKey(component, row, "delete"), () => context.onConnectionDelete(component, row))}
+          size="sm"
           type="button"
+          variant="ghost-danger"
         >
           {oauthConnection ? t("extensions.repeater.remove", "Remove") : t("settings.model_providers.delete", "Delete")}
-        </button>
+        </Button>
       </fieldset>
     </div>
   );

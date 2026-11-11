@@ -9136,6 +9136,26 @@
     "variable_name": "FS_RABBITMQ_HEARTBEAT_SECONDS"
   },
   {
+    "canonical_name": "FS_RABBITMQ_PRIVATE_HOST",
+    "code_read_locations": [
+      "core/infrastructure/config/rabbitmq_transport.py"
+    ],
+    "conditional_groups": [
+      "compact_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production"
+    ],
+    "notes": "Exact provider private-network broker host name (no IP literals) allowed for plaintext amqp on port 5672 when FS_RABBITMQ_TRANSPORT_MODE=platform-private. Ignored in every other mode.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "core/infrastructure/config/rabbitmq_transport.py",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_RABBITMQ_PRIVATE_HOST"
+  },
+  {
     "canonical_name": "FS_RABBITMQ_TRANSPORT_MODE",
     "code_read_locations": [
       "core/infrastructure/config/rabbitmq_transport.py"
@@ -9145,14 +9165,14 @@
     ],
     "default_example_value": "compose-local",
     "documented_sources": [
-      ".env.example:156",
-      ".env.example.prod:146"
+      ".env.example:158",
+      ".env.example.prod:148"
     ],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "tls (default), compose-local, audit-local, or loopback-local. Local modes require exact owned endpoints; remote brokers always require verified TLS.",
+    "notes": "tls (default), compose-local, audit-local, loopback-local, or platform-private. Local and platform-private modes require exact declared endpoints; any other broker requires verified TLS.",
     "owning_subsystem": "core/infrastructure/config/rabbitmq_transport.py",
     "required": false,
     "retired_alias_names": [],
@@ -10819,15 +10839,16 @@
     "code_read_locations": [
       "core/application/tooling/anonymous_installer_acceptance.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "audit_tools"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
-      "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Internal task owner supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "audit",
     "required": false,
     "retired_alias_names": [],
     "secret": false,
@@ -10838,18 +10859,19 @@
     "code_read_locations": [
       "core/application/tooling/anonymous_installer_acceptance.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "audit_tools"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
-      "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
-    "owning_subsystem": "runtime",
+    "notes": "Internal resource token supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "audit",
     "required": false,
     "retired_alias_names": [],
-    "secret": true,
+    "secret": false,
     "variable_name": "FS_TASK_RESOURCE_TOKEN"
   },
   {

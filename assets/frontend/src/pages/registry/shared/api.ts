@@ -1,4 +1,4 @@
-import { fetchJson, type FetchJsonOptions } from "@/lib/http/client";
+import { fetchJson } from "@/lib/http/client";
 
 export type RegistryEntity = Record<string, unknown>;
 
@@ -16,8 +16,8 @@ function listFromPayload(payload: unknown): RegistryEntity[] {
   return [];
 }
 
-export async function fetchRegistryList(endpoint: string, options?: FetchJsonOptions) {
-  const payload = await fetchJson<unknown>(endpoint, {}, options);
+export async function fetchRegistryList(endpoint: string) {
+  const payload = await fetchJson<unknown>(endpoint);
   return listFromPayload(payload);
 }
 

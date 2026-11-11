@@ -6,7 +6,7 @@ import { interpolate } from "@/lib/i18n/interpolate";
 import { OperationalOverview, type OperationalOverviewProps } from "@/pages/dashboard/operational-overview";
 
 const messages: Record<string, string> = {
-  "react.dashboard.oldest_failing_age": "Seniausia nepavykusi: {age}",
+  "react.dashboard.right_now_oldest_failing_age": "Šiuo metu · seniausia nepavykusi: {age}",
   "react.dashboard.none_right_now": "Šiuo metu nėra",
   "react.dashboard.oldest_waiting_age": "Ilgiausiai laukianti: {age}",
   "react.dashboard.success_rate": "Sėkminga: {rate}",
@@ -20,7 +20,7 @@ function overview(overrides: Partial<OperationalOverviewProps> = {}) {
 describe("Lithuanian dashboard metric context", () => {
   it("localizes dynamic failure waiting and success context without changing metric values", () => {
     render(overview());
-    expect(screen.getByText("Seniausia nepavykusi: 1m")).toBeInTheDocument();
+    expect(screen.getByText("Šiuo metu · seniausia nepavykusi: 1m")).toBeInTheDocument();
     expect(screen.getByText("Ilgiausiai laukianti: 2m")).toBeInTheDocument();
     expect(screen.getByText("Sėkminga: 80%")).toBeInTheDocument();
     expect(screen.queryByText(/Oldest failing|Oldest waiting|80% success/)).not.toBeInTheDocument();

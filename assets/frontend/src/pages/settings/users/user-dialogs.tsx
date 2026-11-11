@@ -2,20 +2,15 @@ import type { Dispatch, SetStateAction } from "react";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { DsAlert, DsCheckbox, DsDialog, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import type { UserRecord } from "@/pages/settings/shared/types";
 import { ROLE_OPTIONS, userLabel, type EditorState, type EditorMode, type ConfirmActionKind } from "./user-form-model";
 
-function userEditorSubmitLabel(saving: boolean, addingUser: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (saving) {
-    return t("react.settings.saving", "Saving…");
-  }
+function userEditorSubmitLabel(addingUser: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return addingUser ? t("react.settings.add_user", "Add user") : t("react.settings.save_changes", "Save changes");
 }
 
-function confirmUserActionLabel(saving: boolean, kind: ConfirmActionKind, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (saving) {
-    return t("react.settings.updating", "Updating…");
-  }
+function confirmUserActionLabel(kind: ConfirmActionKind, t: I18nContextValue["t"] = fallbackContext.t): string {
   if (kind === "reset") return t("react.settings.require_reset", "Require reset");
   return kind === "delete" ? t("react.settings.delete_user", "Delete user") : t("react.settings.deactivate_user", "Deactivate user");
 }
@@ -145,14 +140,15 @@ export function UserEditorDialog({
             type="button"
           >
             {t("common.cancel", "Cancel")} </button>
-          <button
-            className="fs-button primary"
-            disabled={saving}
+          <Button
+            busy={saving}
+            busyLabel={t("react.settings.saving", "Saving…")}
             form="user-editor"
             type="submit"
+            variant="primary"
           >
-            {userEditorSubmitLabel(saving, addingUser, t)}
-          </button>
+            {userEditorSubmitLabel(addingUser, t)}
+          </Button>
         </>
       }
       onClose={onClose}
@@ -268,14 +264,15 @@ export function TemporaryPasswordDialog({
             type="button"
           >
             {t("common.cancel", "Cancel")} </button>
-          <button
-            className="fs-button primary"
-            disabled={saving}
+          <Button
+            busy={saving}
+            busyLabel={t("react.settings.saving", "Saving…")}
             form="temporary-password-form"
             type="submit"
+            variant="primary"
           >
-            {saving ? t("react.settings.saving", "Saving…") : t("react.settings.set_password", "Set password")}
-          </button>
+            {t("react.settings.set_password", "Set password")}
+          </Button>
         </>
       }
       onClose={onClose}
@@ -357,14 +354,15 @@ export function ConfirmUserActionDialog({
             type="button"
           >
             {t("common.cancel", "Cancel")} </button>
-          <button
-            className={`fs-button ${reset ? "primary" : "danger"}`}
-            disabled={saving}
+          <Button
+            busy={saving}
+            busyLabel={t("react.settings.updating", "Updating…")}
             onClick={onConfirm}
             type="button"
+            variant={reset ? "primary" : "danger"}
           >
-            {confirmUserActionLabel(saving, confirmAction?.kind || "deactivate", t)}
-          </button>
+            {confirmUserActionLabel(confirmAction?.kind || "deactivate", t)}
+          </Button>
         </>
       }
       onClose={onClose}

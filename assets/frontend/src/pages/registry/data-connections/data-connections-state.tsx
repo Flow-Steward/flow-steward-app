@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RowActionMenu, type DsFilterField } from "@/components/shared/design-system";
 
 import { columnsFromGridConfig } from "@/components/shared/data-grid-adapter";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 import { normalizeWorkspaceId } from "@/lib/utils/workspace-selection";
 
@@ -614,8 +616,7 @@ export function useDataConnectionsState() {
     !draft.workspace_id ||
     !draft.connector_option_id ||
     !draft.display_name.trim() ||
-    Boolean(blockingField) ||
-    saving;
+    Boolean(blockingField);
 
   const gridConfig = dataConnectionGridConfig(!canAdministerPlatform, t);
   const filterFields: DsFilterField[] = [
@@ -772,7 +773,10 @@ export function useDataConnectionsState() {
       : column,
   );
 
-  const tableState = connectionsQuery.isError ? (
+  const tableLoaderShown = useLoaderDelay(connectionsQuery.isLoading);
+  const tableState = tableLoaderShown ? (
+    <div className="fs-table-state"><DsLoader variant="wide-block" /></div>
+  ) : connectionsQuery.isLoading ? null : connectionsQuery.isError ? (
     <div className="fs-table-state">
       <strong>{t("react.registry.unable_to_load_data_connections", "Unable to load data connections.")}</strong>
       <span>{t("react.registry.refresh_to_try_again", "Refresh to try again.")}</span>

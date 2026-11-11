@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { type DsFilterField, type DsTableSort } from "@/components/shared/design-system";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 import {
   checkMcpConnectorHealth,
@@ -35,6 +36,7 @@ import { type McpJsonServer } from "./mcp-json-import";
 import {
   type FormSubmitEvent,
   type McpDraft,
+  type McpRowBusy,
   type Outcome,
   EMPTY_DRAFT,
   buildConnectorColumns,
@@ -67,7 +69,7 @@ export function useMcpListState() {
     "project" | "name" | "endpoint" | "headers" | "requested_scopes" | "authorization_parameters" | "refresh_token_required" | ""
   >("");
   const [search, setSearch] = useState("");
-  const [busyConnectorId, setBusyConnectorId] = useState("");
+  const [busyConnector, setBusyConnector] = useState<McpRowBusy | null>(null);
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   /* Deleting needs the revision the plan reports, so a connector that changed
      under the operator cannot be removed on stale information. */
@@ -238,7 +240,7 @@ export function useMcpListState() {
 
   const syncMutation = useMutation({
     mutationFn: async (connectorId: string) => {
-      setBusyConnectorId(connectorId);
+      setBusyConnector({ action: "sync", connectorId });
       return syncMcpConnector(connectorId, connectorProject(connectorId));
     },
     onSuccess: async () => {
@@ -250,13 +252,13 @@ export function useMcpListState() {
       await refresh();
     },
     onSettled: () => {
-      setBusyConnectorId("");
+      setBusyConnector(null);
     },
   });
 
   const healthMutation = useMutation({
     mutationFn: async (connectorId: string) => {
-      setBusyConnectorId(connectorId);
+      setBusyConnector({ action: "health", connectorId });
       return checkMcpConnectorHealth(connectorId, connectorProject(connectorId));
     },
     onSuccess: async (result) => {
@@ -272,13 +274,13 @@ export function useMcpListState() {
       report(error instanceof Error ? error.message : t("react.registry.mcp_final_health_check_failed", "Health check failed."), "danger");
     },
     onSettled: () => {
-      setBusyConnectorId("");
+      setBusyConnector(null);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (request: { connectorId: string; revision: string }) => {
-      setBusyConnectorId(request.connectorId);
+      setBusyConnector({ action: "delete", connectorId: request.connectorId });
       return deleteMcpConnector(request.connectorId, request.revision, connectorProject(request.connectorId));
     },
     onSuccess: async () => {
@@ -291,7 +293,7 @@ export function useMcpListState() {
       setDeleteError(error instanceof Error ? error.message : t("react.registry.failed_to_delete_mcp_connector", "Failed to delete MCP connector."));
     },
     onSettled: () => {
-      setBusyConnectorId("");
+      setBusyConnector(null);
     },
   });
 
@@ -424,7 +426,7 @@ export function useMcpListState() {
 
   const openDeletePlan = useCallback(async (connectorId: string, rowLabel: string) => {
     deleteTriggerLabelRef.current = t("react.registry.actions_for_value0", "Actions for {value0}", { value0: rowLabel });
-    setBusyConnectorId(connectorId);
+    setBusyConnector({ action: "delete-plan", connectorId });
     setDeleteError("");
     try {
       setDeletePlan(await fetchMcpConnectorDeletePlan(connectorId, connectorProject(connectorId)));
@@ -434,12 +436,12 @@ export function useMcpListState() {
         "danger",
       );
     } finally {
-      setBusyConnectorId("");
+      setBusyConnector(null);
     }
   }, [connectorProject, report, t]);
 
   const connectorColumns = buildConnectorColumns({
-    busyConnectorId,
+    busyConnector,
     canManageProject,
     projectName,
     onDelete: (connectorId, displayName) => {
@@ -456,8 +458,10 @@ export function useMcpListState() {
     rowMenu,
   }, t);
 
+  const tableLoaderShown = useLoaderDelay(connectorsQuery.isLoading);
   const tableState = mcpTableState({
     loading: connectorsQuery.isLoading,
+    loaderShown: tableLoaderShown,
     loadError,
     total,
     filtered: Boolean(search.trim() || projectId || healthFilter || credentialsFilter),

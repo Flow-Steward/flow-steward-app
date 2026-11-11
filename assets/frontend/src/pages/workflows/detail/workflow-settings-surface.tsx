@@ -4,6 +4,8 @@ import { useSearchParams } from "react-router";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DsAlert } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { queryKeys } from "@/lib/query/keys";
@@ -116,9 +118,10 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
   };
   const loadError = detail.error || contract.error;
   const ready = detail.isSuccess && contract.isSuccess;
+  const settingsLoaderShown = useLoaderDelay(!loadError && !ready);
   return <>
     <div hidden={!active} inert={!active}>
-      {loadError ? <DsAlert title={t("react.workflows.workflow_unavailable", "Workflow unavailable")} tone="danger">{loadError.message}</DsAlert> : !ready ? <p>{t("registry.workflow_detail.loading", "Loading...")}</p> : <div className="flex flex-col gap-3">
+      {loadError ? <DsAlert title={t("react.workflows.workflow_unavailable", "Workflow unavailable")} tone="danger">{loadError.message}</DsAlert> : !ready || settingsLoaderShown ? (settingsLoaderShown ? <DsLoader variant="wide-block" label={t("registry.workflow_detail.loading", "Loading…")} /> : null) : <div className="flex flex-col gap-3">
         {/* A save that landed says so inside its button; only a failure stays on screen. */}
         {saveError && saveConflict ? (
           <SaveErrorAlert

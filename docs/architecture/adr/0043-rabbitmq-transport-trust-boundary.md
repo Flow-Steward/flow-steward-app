@@ -84,6 +84,8 @@ or a deployed candidate.
 
 ## Related decisions
 
+- [ADR 0064: RabbitMQ on a provider private network](0064-rabbitmq-platform-private-transport.md)
+  adds the `platform-private` mode for one declared provider private-network host.
 - [ADR 0029: Compact and Scalable deployment](0029-compact-and-scalable-deployment.md)
 - [ADR 0031: Runtime heartbeat monitoring](0031-runtime-heartbeat-monitoring.md)
 - [Configuration standard](../../standards/configuration-standard.md)

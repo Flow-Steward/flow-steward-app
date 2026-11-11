@@ -6,7 +6,9 @@ import { ArrowRight } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router";
 
 import { DsAlert, DsBadge, DsMetricCard, DsSelect, DsTable, PageContainer } from "@/components/shared/design-system";
+import { DsLoader } from "@/components/shared/ds-loader";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useCanReadWorkflowRegistry, useIsAdmin } from "@/lib/auth/use-is-admin";
 import { isHttpError } from "@/lib/http/errors";
 import { queryKeys } from "@/lib/query/keys";
@@ -135,6 +137,7 @@ function WorkflowStatsPanel({
   userTimezone: string;
 }>) {
   const { t } = useI18n();
+  const statsLoaderShown = useLoaderDelay(isLoading);
   const lastRunDisplay = stats?.last_run_at
     ? formatUserDateTime(stats.last_run_at, userTimezone)
     : "—";
@@ -151,10 +154,9 @@ function WorkflowStatsPanel({
         </Link>
       </header>
       <div className="fs-card-body">
-        {isLoading ? (
+        {statsLoaderShown ? (
           <div className="fs-table-state">
-            <strong>{t("react.workflows.loading_stats", "Loading stats")}</strong>
-            <span>{t("react.workflows.the_statistics_will_remain_in_this_layout", "The statistics will remain in this layout.")}</span>
+            <DsLoader variant="wide-block" label={t("react.workflows.loading_stats", "Loading stats")} />
           </div>
         ) : null}
         {isError ? (
@@ -162,7 +164,7 @@ function WorkflowStatsPanel({
             {error instanceof Error ? error.message : t("react.workflows.failed_to_load_workflow_stats", "Failed to load workflow stats.")}
           </DsAlert>
         ) : null}
-        {!isLoading && !isError && stats ? (
+        {!isLoading && !statsLoaderShown && !isError && stats ? (
           <div className="fs-metric-grid" data-columns="4">
             <DsMetricCard density="standard" figure={formatNumber(stats.total_runs)} label={t("react.workflows.total_runs", "Total runs")} meta={stats.active_count ? t("react.workflows.active_now_count", "{count} active now", { count: formatNumber(stats.active_count) }) : null} unavailable={formatNumber(stats.total_runs) === NO_VALUE} wave={false} />
             <DsMetricCard attention={Number(stats.total_runs) > 0 && stats.success_rate !== null && stats.success_rate !== undefined && stats.success_rate < 0.6} density="standard" figure={formatPercent(stats.success_rate)} label={t("react.workflows.success_rate", "Success rate")} meta={t("react.workflows.completed_failed_counts", "{completed} completed / {failed} failed", { completed: formatNumber(stats.completed_count), failed: formatNumber(stats.failed_count) })} unavailable={formatPercent(stats.success_rate) === NO_VALUE} wave={false} />
@@ -275,7 +277,8 @@ function WorkflowHooksPanel({
   workflowId,
 }: Readonly<{ canAuthor: boolean; projectId: string; projects: ProjectListItem[]; projectsPending: boolean; projectsError: Error | null; onProjectChange: (id: string) => void; steps: unknown; workflowId: string }>) {
   const { t } = useI18n();
-  const { hooks, error } = useWorkflowHookStates({ enabled: canAuthor, options: { presentation: "background" }, projectId, steps, workflowId });
+  const { hooks, error } = useWorkflowHookStates({ enabled: canAuthor, projectId, steps, workflowId });
+  const projectsLoaderShown = useLoaderDelay(Boolean(canAuthor && !projectsError && projectsPending));
   if (!hooks.length) return null;
   const projectName = firstStringFromUnknownValue([
     projects.find((project) => project.id === projectId)?.name,
@@ -296,8 +299,8 @@ function WorkflowHooksPanel({
       <div className="fs-card-body">
         {canAuthor ? projectsError ? (
           <DsAlert title={t("react.workflows.linked_projects_could_not_be_loaded", "Linked projects could not be loaded")} tone="danger">{projectsError.message}</DsAlert>
-        ) : projectsPending ? (
-          <p className="fs-empty-copy">{t("react.workflows.loading_linked_projects", "Loading linked projects…")}</p>
+        ) : projectsPending || projectsLoaderShown ? (
+          projectsLoaderShown ? <p className="fs-empty-copy"><DsLoader variant="orbit-inline" label={t("react.workflows.loading_linked_projects", "Loading linked projects…")} /></p> : null
         ) : projects.length ? (
           <DsSelect ariaLabel={t("react.workflows.hook_project", "Project for hooks")} value={projectId}
             onChange={onProjectChange} placeholder={t("react.workflows.choose_a_linked_project", "Choose a linked project")}
@@ -365,7 +368,7 @@ export function WorkflowsOverviewPage() {
   });
   const statsQuery = useQuery({
     queryKey: queryKeys.workflowStats(workflowId),
-    queryFn: () => fetchWorkflowStats(workflowId, { presentation: "background" }),
+    queryFn: () => fetchWorkflowStats(workflowId),
     enabled: canReadRegistry && Boolean(workflowId),
   });
 
@@ -376,7 +379,7 @@ export function WorkflowsOverviewPage() {
   else if (canAuthor && isWorkflowSettingsTab(requestedTab)) activeTab = requestedTab;
   const hookProjectsQuery = useQuery({
     queryKey: ["workflows", workflowId, "hook-projects"],
-    queryFn: () => fetchWorkflowLinkedProjects(workflowId, { presentation: "background" }),
+    queryFn: () => fetchWorkflowLinkedProjects(workflowId),
     enabled: canReadRegistry && canAuthor && activeTab === "hooks" && Boolean(workflowId),
     retry: false,
   });

@@ -2,8 +2,6 @@ import { fetchDatasets, fetchDataset, fetchDatasetQueryTemplates, previewDataset
 import { fetchRegistryList } from "@/pages/registry/shared/api";
 import { fetchWorkflows, fetchWorkflowStats } from "@/pages/workflows/shared/api";
 import { fetchWorkflowTestRunState } from "@/pages/workflows/shared/simulate-api";
-import { hasPendingRequests } from "@/lib/http/request-activity";
-import type { FetchJsonOptions } from "@/lib/http/client";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -28,33 +26,19 @@ it.each(["preview", "validate"])("preserves the fixed-connection %s request when
   expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ params: {}, ...(action === "preview" ? { row_limit: 100 } : {}) });
 });
 
-const presentationReaders: Array<{ name: string; path: string; payload: unknown; read: (options?: FetchJsonOptions) => Promise<unknown> }> = [
-  { name: "workflow catalog", path: "/api/workflows?enabled_only=true&search=business+name", payload: [], read: (options) => fetchWorkflows({ enabledOnly: true, search: "business name" }, options) },
-  { name: "overview stats", path: "/api/workflows/workflow%20one/stats", payload: { workflow_id: "workflow one", total_runs: 2 }, read: (options) => fetchWorkflowStats("workflow one", options) },
-  { name: "agent registry", path: "/api/agents", payload: [], read: (options) => fetchRegistryList("/api/agents", options) },
-  { name: "project query catalog", path: "/api/datasets/query-templates?project_id=project+one", payload: { query_templates: [] }, read: (options) => fetchDatasetQueryTemplates({ projectId: "project one" }, options) },
-  { name: "test-run state", path: "/api/workflows/test-runs/thread%20one", payload: { workflow_id: "workflow one", status: "completed", needs_user_approval: false }, read: (options) => fetchWorkflowTestRunState("thread one", options) },
+const endpointReaders: Array<{ name: string; path: string; payload: unknown; read: () => Promise<unknown> }> = [
+  { name: "workflow catalog", path: "/api/workflows?enabled_only=true&search=business+name", payload: [], read: () => fetchWorkflows({ enabledOnly: true, search: "business name" }) },
+  { name: "overview stats", path: "/api/workflows/workflow%20one/stats", payload: { workflow_id: "workflow one", total_runs: 2 }, read: () => fetchWorkflowStats("workflow one") },
+  { name: "agent registry", path: "/api/agents", payload: [], read: () => fetchRegistryList("/api/agents") },
+  { name: "project query catalog", path: "/api/datasets/query-templates?project_id=project+one", payload: { query_templates: [] }, read: () => fetchDatasetQueryTemplates({ projectId: "project one" }) },
+  { name: "test-run state", path: "/api/workflows/test-runs/thread%20one", payload: { workflow_id: "workflow one", status: "completed", needs_user_approval: false }, read: () => fetchWorkflowTestRunState("thread one") },
 ];
 
-it.each(presentationReaders)("keeps $name foreground by default and opts in locally without changing its endpoint", async ({ read, path, payload }) => {
-  for (const options of [undefined, { presentation: "background" } as const]) {
-    let resolve!: (response: Response) => void;
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise((finish) => { resolve = finish; }));
-    const request = read(options);
-    try {
-      expect(hasPendingRequests()).toBe(options === undefined);
-      expect(fetchMock.mock.calls[0][0]).toBe(path);
-      expect(fetchMock.mock.calls[0][1]).not.toHaveProperty("presentation");
-      expect(fetchMock.mock.calls[0][1]?.credentials).toBe("same-origin");
-      resolve(new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } }));
-      await request;
-    } finally {
-      resolve(new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } }));
-      await request;
-      fetchMock.mockRestore();
-    }
-    expect(hasPendingRequests()).toBe(false);
-  }
+it.each(endpointReaders)("reads $name from its endpoint with same-origin credentials", async ({ read, path, payload }) => {
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } }));
+  await read();
+  expect(fetchMock.mock.calls[0][0]).toBe(path);
+  expect(fetchMock.mock.calls[0][1]?.credentials).toBe("same-origin");
 });
 
 

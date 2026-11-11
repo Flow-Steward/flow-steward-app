@@ -198,6 +198,7 @@ _INTERNAL_OPENAPI_SUCCESS_MODEL_OVERRIDES: dict[tuple[str, str], Any] = {
     ("GET", "/api/users/me/email-change-status"): UserEmailChangeStatusView,
     ("POST", "/api/users/me/email-change/request"): UserEmailChangeRequestResultView,
     ("PATCH", "/api/users/me/locale"): UserLocaleResultView,
+    ("PATCH", "/api/users/me/date-time-format"): UserDateTimeFormatResultView,
     ("PATCH", "/api/users/me/timezone"): UserTimezoneResultView,
     ("POST", "/api/users/me/detect-timezone"): UserTimezoneResultView,
     ("GET", "/api/datasets"): DatasetsListView,

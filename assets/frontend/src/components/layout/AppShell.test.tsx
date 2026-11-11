@@ -6,9 +6,7 @@ import { act, configure, fireEvent, getConfig, render, screen, waitFor, within }
 import { MemoryRouter } from "react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
-import { RequestLoadingIndicator } from "@/components/shared/request-loading-indicator";
 import { AuthContext } from "@/lib/auth/context";
-import { hasPendingRequests } from "@/lib/http/request-activity";
 import { ProjectsListPage } from "@/pages/projects/list";
 import { RegistryWorkspacesPage } from "@/pages/registry/workspaces";
 import {
@@ -357,7 +355,6 @@ describe("AppShell", () => {
         <QueryClientProvider client={client}>
           <MemoryRouter initialEntries={["/projects"]}>
             <AppShell><ProjectFormProbe /></AppShell>
-            <RequestLoadingIndicator />
           </MemoryRouter>
         </QueryClientProvider>
       </AuthContext.Provider>,
@@ -372,9 +369,8 @@ describe("AppShell", () => {
           return result;
         },
       });
-      // Finish initial foreground loads before testing the independent idle polls.
+      // Finish initial loads before testing the independent idle polls.
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-      expect(hasPendingRequests()).toBe(false);
       const user = userEvent.setup({ pointerEventsCheck: 0, advanceTimers: (delay) => { vi.advanceTimersByTime(delay); } });
       await user.click(screen.getByRole("button", { name: "New project" }));
       const form = screen.getByRole("dialog", { name: "Create project" });
@@ -383,8 +379,6 @@ describe("AppShell", () => {
       await user.type(name, draft);
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       function expectUninterrupted() {
-        expect(screen.queryByRole("dialog", { name: "Loading requests" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("status", { name: "Loading requests" })).not.toBeInTheDocument();
         expect(within(screen.getByRole("dialog", { name: "Create project" })).getByRole("textbox", { name: "Name" })).toBe(name);
         expect(name).toHaveValue(draft);
         expect(name).toHaveFocus();
@@ -406,7 +400,6 @@ describe("AppShell", () => {
       // Maintenance re-checks every five minutes; approvals refresh every 30 s.
       await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
       expect(pending.map((request) => request.path)).toEqual(["/api/jobs/awaiting-approval"]);
-      // The interaction lock must be absent even before its 400ms visible delay.
       expectUninterrupted();
       await act(async () => { await vi.advanceTimersByTimeAsync(400); });
       expectUninterrupted();

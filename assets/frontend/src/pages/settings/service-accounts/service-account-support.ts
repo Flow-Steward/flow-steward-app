@@ -52,6 +52,8 @@ export function tokenId(value: unknown): string {
 
 export type TokenDrawerMode = "closed" | "create" | "edit";
 export type AccountDrawerMode = "closed" | "create" | "detail";
+/** The service-account action that is running; only its button shows busy. */
+export type ServiceAccountAction = "create-account" | "update-account" | "toggle-account" | "create-token" | "update-token" | "confirm";
 
 export function toggleStringSelection(values: string[], value: string): string[] {
   return values.includes(value)

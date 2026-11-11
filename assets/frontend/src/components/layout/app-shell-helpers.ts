@@ -538,7 +538,7 @@ export async function requestAwaitingApprovalJobs(): Promise<AwaitingApprovalJob
     return [];
   }
   return normalizeAwaitingApprovalJobs(
-    await fetchJson<unknown>("/api/jobs/awaiting-approval", {}, { presentation: "background" }),
+    await fetchJson<unknown>("/api/jobs/awaiting-approval"),
   );
 }
 

@@ -890,7 +890,7 @@ export function AutomationRuleEditor({
           <DsLoader variant="orbit-inline" />
           {t("react.workflows.loading_automation_rules", "Loading automation rules...")}</div>
       ) : null}
-      {renderWhen(!reactionsQuery.isLoading && !currentDrafts.length, (
+      {renderWhen(!reactionsQuery.isLoading && !rulesLoaderVisible && !currentDrafts.length, (
         <div className="space-y-2" data-testid="automation-empty">
           <p className="text-xs fs-ink-secondary">
             {t("react.workflows.automation_no_rules_yet", "No rules yet. Start from a common one or a blank rule:")}</p>

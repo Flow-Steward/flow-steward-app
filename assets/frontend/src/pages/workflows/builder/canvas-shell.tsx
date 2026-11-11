@@ -572,6 +572,7 @@ export function WorkflowCanvasShell({
   const applyingLoader = useLoaderDelay(changeSet.status === "applying");
   const clipboardBusyShown = useLoaderDelay(clipboardBusy);
   const runningLoader = useLoaderDelay(Boolean(canvasTestRunAction));
+  const changeCheckLoaderShown = useLoaderDelay(Boolean(changeSet.hasChanges && changeSet.checkState === "checking"));
   // A refused Apply names its reasons in the error itself; they are not listed twice.
   const issueMessages = changeSet.applyRefused
     ? []
@@ -580,7 +581,7 @@ export function WorkflowCanvasShell({
   const blockingIssueMessages = changeSet.blockingIssueMessages;
   const keptIssueMessages = changeSet.keptIssueMessages;
   let changeCheckNote = "";
-  if (changeSet.hasChanges && changeSet.checkState === "checking") {
+  if (changeCheckLoaderShown) {
     changeCheckNote = t("react.workflows.change_check_running", "Checking the changes against the server…");
   } else if (changeSet.hasChanges && changeSet.checkState === "unavailable") {
     changeCheckNote = t("react.workflows.change_check_unavailable", "The server check is unavailable; these issues are a local estimate.");
@@ -762,7 +763,7 @@ export function WorkflowCanvasShell({
               <p className="text-[var(--fs-status-attention-ink)]" key={`${message}:${index}`}>{message}</p>
             ))}
             {renderWhen(Boolean(changeCheckNote), (
-              <p className="text-[var(--fs-text-tertiary)]" data-testid="change-check-status">{changeCheckNote}</p>
+              <p className="text-[var(--fs-text-tertiary)]" data-testid="change-check-status">{changeCheckLoaderShown ? <DsLoader variant="orbit-inline" label={changeCheckNote} /> : changeCheckNote}</p>
             ))}
             {renderWhen(blockingIssueMessages.length > 0, (
               <div data-testid="change-check-blocking">
@@ -790,7 +791,7 @@ export function WorkflowCanvasShell({
         {deleteGuardNotice.state === "unknown" && onRetryGraphDelete ? <Button size="sm" variant="secondary" onClick={onRetryGraphDelete}>{t("react.workflows.retry", "Retry")}</Button> : null}
         {deleteGuardNotice.canOpenAutomation && onOpenDeleteAutomation ? <Button size="sm" variant="secondary" onClick={onOpenDeleteAutomation}>{t("react.workflows.open_automation", "Open Automation")}</Button> : null}
       </div> : null}
-      {clipboardBusyShown ? <DsAlert title={t("react.workflows.clipboard_working", "Copying selection…")} /> : null}
+      {clipboardBusyShown ? <p className="border-b border-[var(--fs-border-default)] px-4 py-2 text-xs text-[var(--fs-text-tertiary)]"><DsLoader variant="orbit-inline" label={t("react.workflows.clipboard_working", "Copying selection…")} /></p> : null}
       {clipboardNotice ? <DsAlert title={clipboardNotice.title} tone={clipboardNotice.tone} /> : null}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

@@ -94,6 +94,7 @@ MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
     "job_approval_decide": _JOBS_WRITE,
     # --- projects ----------------------------------------------------------
     "project_list": _PROJECTS_READ,
+    "project_connections": _PROJECTS_READ,
     # --- workflow authoring: registry creation differs from launch ----------
     "capability_search": _WORKFLOWS_READ,
     "capability_describe": _WORKFLOWS_READ,

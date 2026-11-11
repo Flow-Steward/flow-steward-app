@@ -424,7 +424,7 @@ test("Update runs the catalog install call, says Updated to the version, and the
 
   await pressUpdate();
 
-  expect(await screen.findByRole("button", { name: "Updating…" })).toBeDisabled();
+  expect(await screen.findByRole("button", { name: "Updating…" })).toHaveAttribute("aria-busy", "true");
   release();
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
   // The Installed tab's row reports the same outcome; this is the Catalog page's.

@@ -906,7 +906,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-app:0.9.13",
+      "default": "flow-steward-app:0.9.14",
       "owner": "images"
     },
     {
@@ -2243,7 +2243,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-control:0.9.13",
+      "default": "flow-steward-control:0.9.14",
       "owner": "images"
     },
     {
@@ -3376,7 +3376,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-frontend:0.9.13",
+      "default": "flow-steward-frontend:0.9.14",
       "owner": "images",
       "notes": "Optional development frontend image; production application images already contain the built frontend shell."
     },
@@ -6578,7 +6578,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-worker:0.9.13",
+      "default": "flow-steward-worker:0.9.14",
       "owner": "images"
     },
     {
@@ -6973,7 +6973,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-mcp:0.9.13",
+      "default": "flow-steward-mcp:0.9.14",
       "owner": "images"
     },
     {
@@ -7101,7 +7101,22 @@
       "preserve_existing": false,
       "default": "tls",
       "owner": "core/infrastructure/config/rabbitmq_transport.py",
-      "notes": "tls (default), compose-local, audit-local, or loopback-local. Local modes require exact owned endpoints; remote brokers always require verified TLS."
+      "notes": "tls (default), compose-local, audit-local, loopback-local, or platform-private. Local and platform-private modes require exact declared endpoints; any other broker requires verified TLS."
+    },
+    {
+      "name": "FS_RABBITMQ_PRIVATE_HOST",
+      "groups": [
+        "compact_runtime"
+      ],
+      "environments": [
+        "production"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "owner": "core/infrastructure/config/rabbitmq_transport.py",
+      "notes": "Exact provider private-network broker host name (no IP literals) allowed for plaintext amqp on port 5672 when FS_RABBITMQ_TRANSPORT_MODE=platform-private. Ignored in every other mode."
     },
     {
       "name": "RABBITMQ_URL",
@@ -8696,6 +8711,40 @@
       "default": "10",
       "owner": "core/infrastructure/config/runtime_config.py",
       "notes": "Queue-depth workload throttle threshold; minimum 1."
+    },
+    {
+      "name": "FS_TASK_RESOURCE_OWNER",
+      "groups": [
+        "audit_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "audit",
+      "notes": "Internal task owner supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it."
+    },
+    {
+      "name": "FS_TASK_RESOURCE_TOKEN",
+      "groups": [
+        "audit_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "audit",
+      "notes": "Internal resource token supplied by the managed resource guard; release acceptance labels its disposable Docker daemon with it so the guard's cleanup finds it."
     }
   ]
 }

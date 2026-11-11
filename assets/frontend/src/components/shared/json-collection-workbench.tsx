@@ -6,10 +6,13 @@ import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { ButtonBusyContent } from "@/components/ui/button";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
 export type JsonEntity = Record<string, unknown>;
+type WorkbenchAction = "create" | "save" | "toggle" | "delete";
 
 type JsonCollectionWorkbenchProps = {
   eyebrow: string;
@@ -85,13 +88,20 @@ export function JsonCollectionWorkbench({
   const [selectedId, setSelectedId] = useState("");
   const [editorValue, setEditorValue] = useState("{\n\n}");
   const [feedback, setFeedback] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  // The running action: only its button is busy; the others ignore presses.
+  const [pending, setPending] = useState<WorkbenchAction | null>(null);
+  const createShown = useLoaderDelay(pending === "create");
+  const saveShown = useLoaderDelay(pending === "save");
+  const toggleShown = useLoaderDelay(pending === "toggle");
+  const deleteShown = useLoaderDelay(pending === "delete");
   const selectedFromQuery = firstStringFromUnknownValue([searchParams.get(selectionQueryParam), ""]).trim();
 
   const listQuery = useQuery({
     queryKey: listQueryKey,
     queryFn: fetchList,
   });
+
+  const refreshShown = useLoaderDelay(listQuery.isFetching);
 
   const selectedListRow =
     listQuery.data?.find((row) => readId(row, idKey, idAliases) === selectedId) || null;
@@ -129,11 +139,12 @@ export function JsonCollectionWorkbench({
   }
 
   async function handleCreate() {
+    if (pending) return;
     if (!createItem) {
       return;
     }
     setFeedback("");
-    setIsSaving(true);
+    setPending("create");
     try {
       const payload = parseJsonEditor(editorValue, t);
       await createItem(payload);
@@ -142,16 +153,17 @@ export function JsonCollectionWorkbench({
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : t("react.shared.create_failed", "Create failed."));
     } finally {
-      setIsSaving(false);
+      setPending(null);
     }
   }
 
   async function handleSave() {
+    if (pending) return;
     if (!updateItem || !selectedId) {
       return;
     }
     setFeedback("");
-    setIsSaving(true);
+    setPending("save");
     try {
       const payload = parseJsonEditor(editorValue, t);
       await updateItem(selectedId, payload);
@@ -163,16 +175,17 @@ export function JsonCollectionWorkbench({
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : t("react.shared.save_failed", "Save failed."));
     } finally {
-      setIsSaving(false);
+      setPending(null);
     }
   }
 
   async function handleToggle() {
+    if (pending) return;
     if (!toggleItem || !selectedId) {
       return;
     }
     setFeedback("");
-    setIsSaving(true);
+    setPending("toggle");
     try {
       await toggleItem(selectedId);
       setFeedback(t("react.shared.toggled_successfully", "Toggled successfully."));
@@ -183,11 +196,12 @@ export function JsonCollectionWorkbench({
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : t("react.shared.toggle_failed", "Toggle failed."));
     } finally {
-      setIsSaving(false);
+      setPending(null);
     }
   }
 
   async function handleDelete() {
+    if (pending) return;
     if (!deleteItem || !selectedId) {
       return;
     }
@@ -195,7 +209,7 @@ export function JsonCollectionWorkbench({
       return;
     }
     setFeedback("");
-    setIsSaving(true);
+    setPending("delete");
     try {
       await deleteItem(selectedId);
       setFeedback(t("react.shared.deleted_successfully", "Deleted successfully."));
@@ -204,7 +218,7 @@ export function JsonCollectionWorkbench({
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : t("react.shared.delete_failed", "Delete failed."));
     } finally {
-      setIsSaving(false);
+      setPending(null);
     }
   }
 
@@ -225,12 +239,12 @@ export function JsonCollectionWorkbench({
             <CardDescription>{t("react.shared.select_a_row_to_inspect_and_edit_its_json_payload", "Select a row to inspect and edit its JSON payload.")}</CardDescription>
           </div>
           <button
-            className="rounded-xl border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-300/40 disabled:opacity-50"
-            disabled={listQuery.isFetching}
-            onClick={() => ignoreAsyncResult(refreshList())}
+            aria-busy={listQuery.isFetching || undefined}
+            className="gap-2 rounded-xl border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:border-cyan-300/40 disabled:opacity-50"
+            onClick={() => { if (!listQuery.isFetching) ignoreAsyncResult(refreshList()); }}
             type="button"
           >
-            {listQuery.isFetching ? t("react.shared.refreshing", "Refreshing...") : t("account.tokens.refresh", "Refresh")}
+            <ButtonBusyContent busyLabel={t("react.shared.refreshing", "Refreshing…")} shown={refreshShown}>{t("account.tokens.refresh", "Refresh")}</ButtonBusyContent>
           </button>
         </CardHeader>
         <CardContent>
@@ -302,41 +316,44 @@ export function JsonCollectionWorkbench({
             {createItem ? (
               <button
                 className="rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-1.5 text-sm text-emerald-100 hover:border-emerald-300/50 disabled:opacity-50"
-                disabled={isSaving}
+                aria-busy={pending === "create" || undefined}
                 onClick={() => ignoreAsyncResult(handleCreate())}
                 type="button"
               >
-                {t("projects.modal.create", "Create")} </button>
+                <ButtonBusyContent busyLabel={t("react.settings.creating", "Creating…")} shown={createShown}>{t("projects.modal.create", "Create")}</ButtonBusyContent></button>
             ) : null}
 
             {updateItem ? (
               <button
                 className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-1.5 text-sm text-cyan-100 hover:border-cyan-300/50 disabled:opacity-50"
-                disabled={isSaving || !selectedId}
+                aria-busy={pending === "save" || undefined}
+                disabled={!selectedId}
                 onClick={() => ignoreAsyncResult(handleSave())}
                 type="button"
               >
-                {t("react.shared.save_selected", "Save selected")} </button>
+                <ButtonBusyContent busyLabel={t("react.settings.saving", "Saving…")} shown={saveShown}>{t("react.shared.save_selected", "Save selected")}</ButtonBusyContent></button>
             ) : null}
 
             {toggleItem ? (
               <button
                 className="rounded-xl border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-sm text-amber-100 hover:border-amber-300/50 disabled:opacity-50"
-                disabled={isSaving || !selectedId}
+                aria-busy={pending === "toggle" || undefined}
+                disabled={!selectedId}
                 onClick={() => ignoreAsyncResult(handleToggle())}
                 type="button"
               >
-                {t("react.shared.toggle_selected", "Toggle selected")} </button>
+                <ButtonBusyContent busyLabel={t("react.settings.updating", "Updating…")} shown={toggleShown}>{t("react.shared.toggle_selected", "Toggle selected")}</ButtonBusyContent></button>
             ) : null}
 
             {deleteItem ? (
               <button
                 className="rounded-xl border border-rose-300/30 bg-rose-500/10 px-3 py-1.5 text-sm text-rose-100 hover:border-rose-300/50 disabled:opacity-50"
-                disabled={isSaving || !selectedId}
+                aria-busy={pending === "delete" || undefined}
+                disabled={!selectedId}
                 onClick={() => ignoreAsyncResult(handleDelete())}
                 type="button"
               >
-                {t("react.shared.delete_selected", "Delete selected")} </button>
+                <ButtonBusyContent busyLabel={t("react.settings.deleting", "Deleting…")} shown={deleteShown}>{t("react.shared.delete_selected", "Delete selected")}</ButtonBusyContent></button>
             ) : null}
           </div>
         </CardContent>

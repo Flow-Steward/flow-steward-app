@@ -354,7 +354,7 @@ describe("LlmProviderPanel", () => {
     const user = userEvent.setup();
     renderPanel();
 
-    expect(screen.getByText("Loading provider models…")).toBeInTheDocument();
+    expect(await screen.findByText("Loading provider models…")).toBeInTheDocument();
     rejectLoad?.(new Error("source service unavailable"));
     expect(await screen.findByText("Could not load provider models.")).toBeInTheDocument();
     expect(screen.queryByText("No models discovered yet.")).not.toBeInTheDocument();
@@ -843,9 +843,18 @@ describe("LlmProviderPanel", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveTextContent("Saving connection…");
-    expect(screen.getByRole("button", { name: "Save connection" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Discover models" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Add owner/model" })).toHaveAttribute("aria-disabled", "true");
+    // Only the pressed button is busy (focus kept, presses ignored); its siblings keep
+    // their resting look and ignore presses until the running action ends.
+    expect(screen.getByRole("button", { name: "Save connection" })).toHaveAttribute("aria-busy", "true");
+    for (const name of ["Discover models", "Add owner/model"]) {
+      const sibling = screen.getByRole("button", { name });
+      expect(sibling).toBeEnabled();
+      expect(sibling).not.toHaveAttribute("aria-busy");
+      expect(sibling).not.toHaveAttribute("aria-disabled");
+      await user.click(sibling);
+    }
+    expect(mockedRefreshModels).not.toHaveBeenCalled();
+    expect(mockedSetModelEnabled).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Save connection" }));
     expect(mockedSaveCredentials).toHaveBeenCalledTimes(1);

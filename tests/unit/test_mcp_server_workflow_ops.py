@@ -14,7 +14,7 @@ from core.entrypoints.mcp.server_api_client import MCP_TOOL_ROUTES, AppApiClient
 
 def test_all_registered_tools_have_descriptions_and_api_routes() -> None:
     tools = mcp._tool_manager._tools
-    assert len(tools) == 73
+    assert len(tools) == 74
     assert set(tools) == set(MCP_TOOL_ROUTES)
     for name, tool in tools.items():
         assert str(tool.description or "").strip(), name

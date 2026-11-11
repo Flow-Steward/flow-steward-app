@@ -3,6 +3,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useEffect, useRef, useState } from "react";
 
 import { DsAlert, DsCheckbox, DsDialog } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
 import type { ExtensionUninstallPlan, ExtensionUninstallPlanRow } from "@/pages/extensions/api";
 
 import "@/components/shared/extension-plan-dialog.css";
@@ -81,14 +82,16 @@ export function ExtensionUninstallPlanModal({
         <>
           <button className="fs-button" disabled={busy} onClick={onClose} type="button">
             {t("common.cancel", "Cancel")} </button>
-          <button
-            className="fs-button danger"
-            disabled={busy || confirmDisabled || !confirmed}
+          <Button
+            busy={busy}
+            busyLabel={t("react.shared.uninstalling", "Uninstalling…")}
+            disabled={confirmDisabled || !confirmed}
             onClick={onConfirm}
             type="button"
+            variant="danger"
           >
-            {busy ? t("react.shared.uninstalling", "Uninstalling…") : t("react.shared.uninstall_extension", "Uninstall extension")}
-          </button>
+            {t("react.shared.uninstall_extension", "Uninstall extension")}
+          </Button>
         </>
       }
       onClose={onClose}
