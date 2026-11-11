@@ -30,6 +30,7 @@ from core.application.tooling.ops.retention_repository import (
     _delete_or_count_inbound_oauth,
     _delete_or_count_project_settings_revisions,
     _delete_or_count_registry_changelog,
+    _compact_or_count_terminal_job_checkpoint_history,
     _delete_or_count_terminal_job_checkpoints,
     _delete_or_count_unreferenced_definition_snapshots,
     _delete_trashed_row,
@@ -494,6 +495,7 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
         "events": 0,
         "retry_queue": 0,
         "terminal_job_checkpoints": 0,
+        "checkpoint_history": 0,
         "idempotency_tombstones": 0,
         "registry_changelog": 0,
         "project_settings_revisions": 0,
@@ -549,6 +551,14 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
                     account_id=policy.account_id,
                     days=policy.terminal_job_checkpoints_days,
                     dry_run=cfg.dry_run,
+                )
+                stats["checkpoint_history"] += (
+                    _compact_or_count_terminal_job_checkpoint_history(
+                        cur,
+                        cache=table_exists_cache,
+                        account_id=policy.account_id,
+                        dry_run=cfg.dry_run,
+                    )
                 )
                 stats["registry_changelog"] += _delete_or_count_registry_changelog(
                     cur,
