@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { actionInvokeRef } from "@/pages/workflows/detail/detail-action-invoke";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
@@ -23,7 +23,8 @@ import { canvasPlacement, hookMemberId, parseHookNodeId } from "@/pages/workflow
 import { useWorkflowGroupActions } from "@/pages/workflows/detail/detail-group-actions";
 import { useWorkflowStepRendererController } from "@/pages/workflows/detail/detail-step-renderer-controller";
 import { useWorkflowDrawerController, type StepCreateContext } from "@/pages/workflows/detail/detail-drawer-controller";
-import { WorkflowDetailPageShell } from "@/pages/workflows/detail/detail-page-shell";
+import { holdForLoader } from "@/components/shared/loader-clock";
+import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { useWorkflowBuilderDrawerResize } from "@/pages/workflows/detail/detail-builder-drawer-resize";
 import { objectOrEmpty, textOrEmpty, workflowContractIssueSection } from "@/pages/workflows/detail/detail-helpers";
 import { workflowCanvasNodeIdForExecutedLocation, type WorkflowRuntimeLocation } from "@/pages/workflows/detail/workflow-runtime-location";
@@ -32,6 +33,10 @@ import { useStepDraftSession } from "./detail-step-draft-session";
 import { stableJson, useWorkflowDetailStepAuthoring } from "./detail-page-step-authoring";
 import { liveIssueResolved, withLiveValidation, type LiveStepDraft } from "./detail-live-validation";
 import type { WorkflowTestRunResult } from "@/pages/workflows/shared/simulate-api";
+
+const WorkflowDetailPageShell = lazy(async () => ({
+  default: (await holdForLoader(import("./detail-page-shell"))).WorkflowDetailPageShell,
+}));
 
 type WorkflowsDetailPageProps = Readonly<{
   embedded?: boolean;
@@ -718,6 +723,8 @@ function WorkflowDetailPageContent({
 
   return (
     <KeptTestOutputStepsContext.Provider value={keptTestOutputSteps}>
+    {/* Commit query effects while the editor presentation chunk loads. */}
+    <Suspense fallback={<PageLoadingState label={t("react.workflows.preparing_workflow", "Preparing the workflow")} />}>
     <WorkflowDetailPageShell
       ctx={{
         ...data,
@@ -905,6 +912,7 @@ function WorkflowDetailPageContent({
         },
       }}
     />
+    </Suspense>
     </KeptTestOutputStepsContext.Provider>
   );
 }
