@@ -23,7 +23,8 @@ uncertainty rather than inventing a functioning step. The user may request an ad
 its behavioral differences; no claim of exact source execution is implied.
 Adaptations must be explicit; unsupported behavior cannot be hidden as a setup requirement.
 
-Read [native composition recipes](native-composition.md) for schedules + polling,
+Read [runtime contracts](runtime-contracts.md) before graph construction, then
+[native composition recipes](native-composition.md) for schedules + polling,
 database-backed memory, approval/rework, typed data and native tool reuse. Resolve
 source constructs by composition before declaring them unrepresentable.
 
@@ -85,8 +86,10 @@ source constructs by composition before declaring them unrepresentable.
 Use target draft validation or the authorized browser preview when available.
 For offline-only requests, perform local bundle/graph checks using available
 version-matched validators; exercise mappings and branches with synthetic data
-and network disabled. Capture the proposed HTTP/MCP payloads instead of executing
-provider dispatch. Do not execute source Code nodes to obtain a fixture.
+and network disabled. Execute actual target nodes and known released operation
+handlers against fixture provider transports; capture payloads and effects. Replace
+only documented IO/host boundaries, keeping validators, mapping and business
+handlers real. Unknown operation schemas stay unbound, not mocked into success. Do not execute source Code nodes to obtain a fixture.
 
 Check success shape, wrong response shape, missing required fields, provider
 failure routing and unbound setup. Verify that record arrays remain typed and

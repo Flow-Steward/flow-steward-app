@@ -1,0 +1,37 @@
+{
+  "fixture_only": true,
+  "workflow_id": "n8n_6294_monthly_finance",
+  "tools": {
+    "std.date": {
+      "implementation": "pinned native standard_date_actions; preserve real dispatch"
+    },
+    "connector.finance_sheet_read": {
+      "implementation": "published Workspace0.3.3 read_google_sheet",
+      "function_name": "read_google_sheet",
+      "inputs": "exact connector override mapping",
+      "outputs": "Released Workspace response envelope (ok/result/error_code) through actual connector normalization; do not add a synthetic extra result wrapper.",
+      "mock_boundaries": [
+        "Google Sheets transport metadata and values from case.sheet_metadata/sheet_values",
+        "dataset grant signature/access host boundary",
+        "dataset writer must consume and store real NDJSON bytes and return correct size/handle"
+      ]
+    },
+    "connector.finance_smtp_send": {
+      "implementation": "published SMTP0.3.1 send_email",
+      "function_name": "send_email",
+      "outputs": "flat real handler result; do not wrap in result",
+      "mock_boundaries": [
+        "connection lookup to synthetic approved custom_smtp",
+        "SMTP transport only, track calls and selected failure mode"
+      ]
+    }
+  },
+  "agent": {
+    "definitions": "definitions.yaml",
+    "agent_id": "migration_6294_finance",
+    "skill_id": "migration_6294_finance_skill",
+    "mock_boundary": "model transport only returns JSON-serialized case.model_response, real PromptAgent and contract normalization required"
+  },
+  "project_connections": "synthetic IDs only; never copied into production dependency resolutions",
+  "status_note": "Expected status success/failed are semantic terminal expectations; translate to executor native status in harness."
+}

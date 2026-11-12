@@ -1,0 +1,456 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-11-03",
+  "method": "official_documentation_review_only",
+  "live_provider_api_calls": 0,
+  "fixture_provenance": "Synthetic documentation-derived fixtures, never live provider responses.",
+  "scope": "Documentation review of baseline drafts; synthetic fixtures for unpublished corrected candidates.",
+  "local_policy_not_provider_guarantee": [
+    "query maximum 2000 characters",
+    "HTTP timeout 45 seconds",
+    "response byte cap 1048576",
+    "single synchronous response with no pagination; safe GET retries follow the runtime policy"
+  ],
+  "providers": {
+    "serpapi": {
+      "sources": [
+        "https://serpapi.com/search-api",
+        "https://serpapi.com/api-status-and-error-codes",
+        "https://serpapi.com/organic-results"
+      ],
+      "request": {
+        "method": "GET",
+        "url": "https://serpapi.com/search.json",
+        "authentication": "query.api_key",
+        "required_query": [
+          "q",
+          "api_key"
+        ],
+        "draft_engine": "google",
+        "body": null,
+        "response_format": "JSON"
+      },
+      "execution": {
+        "default_async": false,
+        "async_true_requires": "Searches Archive API retrieval",
+        "draft": "single synchronous response"
+      },
+      "pagination": {
+        "parameter": "start",
+        "default": 0,
+        "draft_followup_pages": 0,
+        "current_engine_docs_num_parameter": false,
+        "fixed_result_count_guarantee": false
+      },
+      "response": {
+        "root": "object",
+        "status_path": "search_metadata.status",
+        "terminal_success": "Success",
+        "nonterminal": [
+          "Processing",
+          "Queued"
+        ],
+        "failure": "Error",
+        "results_path": "organic_results",
+        "results_type_when_present": "array of objects",
+        "item_example_types": {
+          "position": "integer",
+          "title": "string",
+          "link": "string",
+          "snippet": "string"
+        },
+        "mandatory_item_fields_not_established": true
+      },
+      "empty": {
+        "success_can_include_top_level_error": true,
+        "documented_marker": "search_information.organic_results_state = Fully empty",
+        "missing_versus_empty_array_guarantee": "Not specified; preserve provider response; do not turn arbitrary missing data into empty success."
+      },
+      "errors": {
+        "statuses": [
+          400,
+          401,
+          403,
+          404,
+          410,
+          429,
+          500,
+          503
+        ],
+        "body": {
+          "error": "string"
+        },
+        "note": "410 concerns archive expiry; 429 covers quota or throughput."
+      },
+      "fixtures": {
+        "success": {
+          "search_metadata": {
+            "status": "Success"
+          },
+          "organic_results": [
+            {
+              "position": 1,
+              "title": "Synthetic result",
+              "link": "https://example.com/"
+            }
+          ]
+        },
+        "empty_success": {
+          "search_metadata": {
+            "status": "Success"
+          },
+          "search_information": {
+            "organic_results_state": "Fully empty"
+          },
+          "error": "Google hasn't returned any results for this query."
+        },
+        "provider_failure": {
+          "search_metadata": {
+            "status": "Error"
+          },
+          "error": "Synthetic provider failure"
+        },
+        "nonterminal": {
+          "search_metadata": {
+            "status": "Processing"
+          }
+        }
+      },
+      "findings": [
+        {
+          "id": "SERP-EMPTY",
+          "kind": "contract_mismatch",
+          "step": "provider_error",
+          "detail": "Truthy error rejects documented HTTP 200 successful-empty response."
+        },
+        {
+          "id": "SERP-ENVELOPE",
+          "kind": "validation_gap",
+          "step": "check_response_shape",
+          "detail": "Mapping-only accepts missing metadata or nonterminal status as completed."
+        }
+      ],
+      "request_comparison": "Endpoint, method, authentication placement and body/query values conform to inspected official documentation.",
+      "inspected_baseline": {
+        "path": "catalog_search_serpapi.yaml",
+        "sha256": "8df4def45ecaedaa74d2c502ffb95ededc0410f9a4b26fea3c12c0d34ee884d7",
+        "http_request": {
+          "url": "https://serpapi.com/search.json",
+          "method": "GET",
+          "headers": {
+            "Accept": "application/json"
+          },
+          "auth_ref": "",
+          "auth_mode": "none",
+          "query_params": {
+            "q": "{{ state.inputs.query }}",
+            "engine": "google",
+            "api_key": "{{ state.inputs.provider_credential }}"
+          },
+          "body_template": "",
+          "response_mode": "inline",
+          "response_target": "state.search",
+          "timeout_seconds": 45,
+          "expected_statuses": [
+            200
+          ],
+          "max_response_bytes": 1048576
+        }
+      }
+    },
+    "tavily": {
+      "sources": [
+        "https://docs.tavily.com/documentation/api-reference/endpoint/search"
+      ],
+      "request": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "authentication": "Authorization: Bearer <key>",
+        "content_type": "application/json",
+        "required_body": [
+          "query"
+        ],
+        "draft_body": {
+          "max_results": 5,
+          "search_depth": "basic",
+          "include_answer": false,
+          "include_raw_content": false
+        }
+      },
+      "execution": {
+        "semantics": "HTTP 200 returns search results directly; no polling required by this endpoint.",
+        "response_content_type": "application/json"
+      },
+      "pagination": {
+        "documented_cursor_or_offset": false,
+        "max_results_range": [
+          0,
+          20
+        ],
+        "default_max_results": 10,
+        "draft_max_results": 5,
+        "exact_count_guarantee": false
+      },
+      "response": {
+        "root": "object",
+        "documented_unconditional_fields": {
+          "query": "string",
+          "images": "object[]",
+          "results": "object[]",
+          "response_time": "number<float>"
+        },
+        "conditional_answer": "Only when requested; do not require with include_answer=false.",
+        "response_time_documentation_conflict": "Schema says number; example is string.",
+        "item_example_types": {
+          "title": "string",
+          "url": "string",
+          "content": "string",
+          "score": "number",
+          "raw_content": "null when omitted in example"
+        },
+        "item_required_fields_not_established": true
+      },
+      "empty": {
+        "results_empty_array": "Permitted array; no minimum length documented.",
+        "missing_or_null_results": "Does not satisfy documented required array."
+      },
+      "errors": {
+        "statuses": [
+          400,
+          401,
+          422,
+          429,
+          432,
+          433,
+          434,
+          500
+        ],
+        "usual_body": {
+          "detail": {
+            "error": "string"
+          }
+        },
+        "validation_422_body": "detail array",
+        "quota_statuses": [
+          432,
+          433
+        ]
+      },
+      "fixtures": {
+        "success": {
+          "query": "Synthetic query",
+          "images": [],
+          "results": [
+            {
+              "title": "Synthetic result",
+              "url": "https://example.com/",
+              "content": "Synthetic snippet",
+              "score": 0.8,
+              "raw_content": null
+            }
+          ],
+          "response_time": 0.1
+        },
+        "empty_success": {
+          "query": "Synthetic query",
+          "images": [],
+          "results": [],
+          "response_time": 0.1
+        },
+        "provider_failure": {
+          "detail": {
+            "error": "Synthetic provider failure"
+          }
+        }
+      },
+      "findings": [
+        {
+          "id": "TAVILY-ENVELOPE",
+          "kind": "validation_gap",
+          "step": "check_response_shape",
+          "detail": "Mapping-only accepts missing/nonarray results."
+        },
+        {
+          "id": "TAVILY-ERROR-PATH",
+          "kind": "provider_specific_path",
+          "step": "provider_error",
+          "detail": "Documented errors use detail.error, not top-level error; expected_statuses=200 already routes documented non-200 errors."
+        }
+      ],
+      "request_comparison": "Endpoint, method, authentication placement and body/query values conform to inspected official documentation.",
+      "inspected_baseline": {
+        "path": "catalog_search_tavily.yaml",
+        "sha256": "22151c9285c3fba8b2fbb643724ceecb93292c59a7fe55a414c0dedf52398e09",
+        "http_request": {
+          "url": "https://api.tavily.com/search",
+          "method": "POST",
+          "headers": {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": "Bearer {{ state.inputs.provider_credential }}"
+          },
+          "auth_ref": "",
+          "auth_mode": "none",
+          "query_params": {},
+          "body_template": {
+            "query": "{{ state.inputs.query }}",
+            "max_results": 5,
+            "search_depth": "basic",
+            "include_answer": false,
+            "include_raw_content": false
+          },
+          "response_mode": "inline",
+          "response_target": "state.search",
+          "timeout_seconds": 45,
+          "expected_statuses": [
+            200
+          ],
+          "max_response_bytes": 1048576
+        }
+      }
+    },
+    "exa": {
+      "sources": [
+        "https://exa.ai/docs/reference/search",
+        "https://exa.ai/docs/exa-spec.json",
+        "https://exa.ai/docs/admin/error-codes"
+      ],
+      "request": {
+        "method": "POST",
+        "url": "https://api.exa.ai/search",
+        "authentication": "x-api-key header",
+        "alternative_authentication": "Authorization: Bearer <key>",
+        "content_type": "application/json",
+        "required_body": [
+          "query"
+        ],
+        "draft_body": {
+          "type": "auto",
+          "numResults": 5
+        }
+      },
+      "execution": {
+        "semantics": "Direct JSON response; no job polling for this request.",
+        "default_stream": false,
+        "response_content_type": "application/json",
+        "streaming_requires": "stream=true with outputSchema"
+      },
+      "pagination": {
+        "documented_cursor_or_offset": false,
+        "numResults_range": [
+          1,
+          100
+        ],
+        "default_numResults": 10,
+        "draft_numResults": 5,
+        "exact_count_guarantee": false
+      },
+      "response": {
+        "root": "object",
+        "schema": "SearchResultsResponse",
+        "required_fields": {
+          "results": "array"
+        },
+        "required_item_fields": {
+          "title": "string",
+          "url": "string(uri)"
+        },
+        "optional_item_fields": [
+          "id",
+          "author",
+          "publishedDate",
+          "text",
+          "highlights",
+          "summary"
+        ],
+        "author_nullable": true,
+        "no_contents_requested": "Do not require text, highlights, summary or synthesized output."
+      },
+      "empty": {
+        "minimal_valid": {
+          "results": []
+        },
+        "missing_or_null_results": "Invalid; required array has no minItems."
+      },
+      "errors": {
+        "search_statuses": [
+          400,
+          401,
+          402,
+          403,
+          429,
+          500,
+          503
+        ],
+        "general_also_documents": [
+          404,
+          409,
+          422,
+          504
+        ],
+        "body": {
+          "requestId": "string",
+          "error": "string",
+          "tag": "string"
+        },
+        "quota_status": 402,
+        "rate_status": 429
+      },
+      "fixtures": {
+        "success": {
+          "results": [
+            {
+              "title": "Synthetic result",
+              "url": "https://example.com/"
+            }
+          ]
+        },
+        "empty_success": {
+          "results": []
+        },
+        "provider_failure": {
+          "requestId": "synthetic-request",
+          "error": "Synthetic provider failure",
+          "tag": "INVALID_REQUEST_BODY"
+        }
+      },
+      "findings": [
+        {
+          "id": "EXA-ENVELOPE",
+          "kind": "validation_gap",
+          "step": "check_response_shape",
+          "detail": "Mapping-only accepts missing/nonarray results and invalid item shapes."
+        }
+      ],
+      "request_comparison": "Endpoint, method, authentication placement and body/query values conform to inspected official documentation.",
+      "inspected_baseline": {
+        "path": "catalog_search_exa.yaml",
+        "sha256": "52c02a7bccd601ed85611aa790d647eeeee3e569a6f73a811d57b3973c1fc573",
+        "http_request": {
+          "url": "https://api.exa.ai/search",
+          "method": "POST",
+          "headers": {
+            "Accept": "application/json",
+            "x-api-key": "{{ state.inputs.provider_credential }}",
+            "Content-Type": "application/json"
+          },
+          "auth_ref": "",
+          "auth_mode": "none",
+          "query_params": {},
+          "body_template": {
+            "type": "auto",
+            "query": "{{ state.inputs.query }}",
+            "numResults": 5
+          },
+          "response_mode": "inline",
+          "response_target": "state.search",
+          "timeout_seconds": 45,
+          "expected_statuses": [
+            200
+          ],
+          "max_response_bytes": 1048576
+        }
+      }
+    }
+  }
+}
