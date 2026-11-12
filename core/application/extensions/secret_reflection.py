@@ -143,6 +143,7 @@ def collect_secret_values(value: Any) -> tuple[frozenset[str], bool]:
 def _check_incomplete(
     limit: SecretCheckLimit, observed: int, maximum: int
 ) -> SecretExposureFinding:
+    # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- logs a closed limit name and two counts, never a secret.
     logger.warning(
         "secret reflection check incomplete: limit=%s observed=%d maximum=%d",
         limit,
