@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 import yaml
 
+from core.application.extensions import secret_reflection
 from core.application.extensions.oauth_callback import (
     OAuthCallbackResult,
     OAuthCallbackService,
@@ -1048,7 +1049,12 @@ def test_post_connect_accepts_non_reflecting_verified_identity() -> None:
     )
 
 
-def test_post_connect_scan_budget_exhaustion_uses_the_safe_reflection_failure() -> None:
+def test_post_connect_scan_budget_exhaustion_uses_the_safe_reflection_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The real budget covers any output within the extension output cap, so the
+    # test lowers it instead of building a payload larger than 64 Mi codepoints.
+    monkeypatch.setattr(secret_reflection, "_MAX_COMPARISON_CODEPOINTS", 1024)
     repository = _Repository()
     invocation = {
         "status": "succeeded",
@@ -1056,7 +1062,7 @@ def test_post_connect_scan_budget_exhaustion_uses_the_safe_reflection_failure() 
             "result": {
                 "subject": "safe-subject",
                 "health": "ok",
-                "oversized_provider_output": "z" * (9 * 1024 * 1024),
+                "oversized_provider_output": "z" * 4096,
             }
         },
     }
