@@ -185,7 +185,7 @@ describe("RegistryMcpPage", () => {
     renderPage();
 
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByRole("table", { name: "MCP connectors" })).toHaveAttribute("aria-busy", "false"), { timeout: 5_000 });
+    await waitFor(() => expect(screen.getByRole("table", { name: "MCP connectors" })).toHaveAttribute("aria-busy", "false"));
     await user.click(await screen.findByRole("button", { name: /^Actions for / }));
 
     expect(screen.queryByText("Read only")).not.toBeInTheDocument();
@@ -500,7 +500,7 @@ describe("RegistryMcpPage", () => {
     await user.type(within(dialog).getByRole("textbox", { name: "Authorization parameters value" }), "must-not-leak");
     await user.click(within(dialog).getByRole("button", { name: "Save MCP" }));
 
-    expect(await within(dialog).findByText("Authorization parameters key is reserved and cannot be overridden.")).toBeVisible();
+    await waitFor(() => expect(within(dialog).getByText("Authorization parameters key is reserved and cannot be overridden.")).toBeVisible());
     expect(key).toHaveAttribute("aria-invalid", "true");
     expect(key).toHaveFocus();
     expect(mockedCreateMcpConnector).not.toHaveBeenCalled();
@@ -589,16 +589,16 @@ describe("RegistryMcpPage", () => {
     expect(screen.getByText("Endpoint", { selector: "label" })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Save MCP" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Name is required.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Name is required."));
     expect(name).toHaveFocus();
     expect(mockedCreateMcpConnector).not.toHaveBeenCalled();
 
     await user.type(name, "Flow Steward MCP");
     await user.type(endpoint, "not-a-url");
     await user.click(screen.getByRole("button", { name: "Save MCP" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "Enter a valid HTTP(S) endpoint URL.",
-    );
+    ));
     expect(endpoint).toHaveFocus();
 
     await user.clear(endpoint);
@@ -650,9 +650,9 @@ describe("RegistryMcpPage", () => {
     await waitFor(() => {
       expect(mockedDeleteMcpConnector).toHaveBeenCalledWith("mcp_fs", "revision-1", "project-1");
     });
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Delete impact changed.",
-    );
+    ));
     expect(screen.getByRole("dialog", { name: "Delete MCP connector" })).toBeInTheDocument();
   });
 });

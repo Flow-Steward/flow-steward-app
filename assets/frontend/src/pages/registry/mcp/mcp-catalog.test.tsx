@@ -814,7 +814,7 @@ describe("RegistryMcpPage catalog tab", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("tab", { name: "Catalog" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Catalog" })).toHaveAttribute("aria-selected", "true"));
     await user.click(within(await screen.findByRole("article", { name: "Notion" })).getByRole("button", { name: "Connect" }));
     await user.click(within(screen.getByRole("dialog", { name: "Notion" })).getByRole("button", { name: "Install" }));
 

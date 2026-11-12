@@ -683,9 +683,9 @@ describe("LlmProviderPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Save connection" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
       "No changes. The saved key and settings are the same. Discovery complete. Add the models you want to use.",
-    );
+    ));
     expect(mockedRefreshModels).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/stale until re-verified/)).not.toBeInTheDocument();
   });
@@ -889,7 +889,7 @@ describe("LlmProviderPanel", () => {
     expect(baseUrl).toHaveAccessibleDescription("The server address only, without /api or /v1.");
     expect(screen.getByText("The server address only, without /api or /v1.")).toHaveClass("fs-field-helper");
     // A secret the extension describes is one it needs: say none is saved yet.
-    expect(await screen.findByText("No API key saved")).toHaveClass("fs-field-helper");
+    await waitFor(() => expect(screen.getByText("No API key saved")).toHaveClass("fs-field-helper"));
     expect(screen.getByLabelText("API key (optional)")).toHaveAccessibleName("API key (optional)");
     expect(screen.getByLabelText("API key (optional)")).toHaveAccessibleDescription(
       "No API key saved Copy the whole key; it has two parts joined by a dot.",
@@ -945,7 +945,7 @@ describe("LlmProviderPanel", () => {
     });
     renderPanel({ required_provider_secrets: ["api_key"] }, { runtimeMode: "subprocess" });
 
-    expect(await screen.findByText("API key saved")).toHaveClass("fs-field-helper");
+    await waitFor(() => expect(screen.getByText("API key saved")).toHaveClass("fs-field-helper"));
     const key = screen.getByLabelText("API key");
     expect(key).toHaveAttribute("placeholder", "Saved. Enter a new key to replace it");
     expect(key).toHaveValue("");
@@ -956,7 +956,7 @@ describe("LlmProviderPanel", () => {
     mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: null });
     renderPanel({ required_provider_secrets: ["api_key"] }, { runtimeMode: "subprocess" });
 
-    expect(await screen.findByText("No API key saved")).toHaveClass("fs-field-helper", "error");
+    await waitFor(() => expect(screen.getByText("No API key saved")).toHaveClass("fs-field-helper", "error"));
     expect(screen.getByLabelText("API key")).toHaveAttribute("placeholder", "API key");
   });
 
@@ -1047,7 +1047,7 @@ describe("LlmProviderPanel", () => {
     expect(mockedSetModelEnabled).toHaveBeenCalledWith("m2", true);
 
     resolveVerification?.();
-    expect(await screen.findByRole("status")).toHaveTextContent(/added: it passed the checks\./);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/added: it passed the checks\./));
   });
 
   it("shows an added model as Added and removes it with Remove", async () => {

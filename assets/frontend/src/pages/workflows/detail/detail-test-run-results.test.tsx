@@ -73,7 +73,7 @@ it("opens a row in place to its input and output, lights the step and keeps its 
   fireEvent.click(within(row).getByRole("button", { name: "Keep as test output" }));
   await waitFor(() => expect(value.keepOutput).toHaveBeenCalled());
   expect(value.keepOutput).toHaveBeenCalledWith("fetch", { "state.order": { id: "A-1001", total: 128.4 } }, { kind: "run", jobId: "run-2" });
-  expect(await within(row).findByText(/Kept as test output/)).toBeVisible();
+  await waitFor(() => expect(within(row).getByText(/Kept as test output/)).toBeVisible());
   fireEvent.click(within(row).getByRole("button", { name: /Fetch order/ }));
   expect(value.lightStep).toHaveBeenLastCalledWith(null);
 });
@@ -108,7 +108,7 @@ it("the step's Test Run tab shows the latest pass and offers a kept test output"
   expect(json).toHaveValue(JSON.stringify({ "state.order": null }, null, 2));
   fireEvent.change(json, { target: { value: "{" } });
   fireEvent.click(within(kept).getByRole("button", { name: "Save" }));
-  expect(await within(kept).findByRole("alert")).toHaveTextContent("This is not valid JSON.");
+  await waitFor(() => expect(within(kept).getByRole("alert")).toHaveTextContent("This is not valid JSON."));
   fireEvent.change(json, { target: { value: "{\"state.order\": {\"id\": \"A-2\"}}" } });
   fireEvent.click(within(kept).getByRole("button", { name: "Save" }));
   await waitFor(() => expect(value.keepOutput).toHaveBeenCalledTimes(2));

@@ -422,9 +422,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     }));
 
     expect(fetchSpy.mock.calls.some(([url]) => String(url).endsWith("/run"))).toBe(false);
-    expect(
-      await screen.findByRole("link", { name: "Open full Job Details" }),
-    ).toHaveAttribute("href", "/jobs/job-exact-test-run-123");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", "/jobs/job-exact-test-run-123"));
     expect(
       screen.getByTestId("workflow-test-run-results"),
     ).toHaveAttribute("data-job-id", "job-exact-test-run-123");
@@ -505,9 +503,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     await waitFor(() => expect(runBar).toHaveAttribute("data-job-id", "job-restored-789"));
     fireEvent.click(within(runBar).getByRole("button", { name: "Results" }));
 
-    expect(
-      await screen.findByRole("link", { name: "Open full Job Details" }),
-    ).toHaveAttribute("href", "/jobs/job-restored-789");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", "/jobs/job-restored-789"));
     expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute(
       "data-job-id",
       "job-restored-789",
@@ -677,10 +673,10 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     // Export is a secondary command, so it lives in the header's action menu
     // rather than as one more button in the row; the href is what matters here.
     fireEvent.click(await screen.findByRole("button", { name: "Workflow actions" }));
-    expect(await screen.findByRole("menuitem", { name: "Export YAML" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Export YAML" })).toHaveAttribute(
       "href",
       "/api/workflows/weekly_report/export.yaml",
-    );
+    ));
   });
 
   it("exposes the canvas builder from the workflow detail page", async () => {
@@ -753,7 +749,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     renderPage({ embedded: false });
 
     // The badge names the extension and links to it; the install id is not a name.
-    expect(await screen.findByRole("link", { name: "Acme Reports 2.1.0" })).toHaveAttribute("href", "/extensions/acme.reports");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Acme Reports 2.1.0" })).toHaveAttribute("href", "/extensions/acme.reports"));
     expect(screen.queryByText(/inst-ext/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
@@ -823,7 +819,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     expect(screen.getByText(/provided by an extension and protected/i)).toBeInTheDocument();
     expect(screen.queryByText("Workflow detail load failed")).not.toBeInTheDocument();
     // Read-only: no Add, no structure status or Apply; the lock is said once.
-    expect(await screen.findByTestId("structure-locked")).toHaveTextContent("Read-only");
+    await waitFor(() => expect(screen.getByTestId("structure-locked")).toHaveTextContent("Read-only"));
     expect(screen.queryByRole("button", { name: "Add step" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply changes" })).not.toBeInTheDocument();
   });

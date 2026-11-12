@@ -382,7 +382,7 @@ describe("RegistryCatalogSurface", () => {
     expect(screen.queryByLabelText(/^ID/)).not.toBeInTheDocument();
 
     fireEvent.submit(form);
-    expect(await screen.findAllByText("Display name is required.")).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Display name is required.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/^Display Name/), {
@@ -394,7 +394,7 @@ describe("RegistryCatalogSurface", () => {
     fireEvent.change(screen.getByLabelText("Pattern 1"), { target: { value: "secret|password" } });
     fireEvent.submit(form);
 
-    expect(await screen.findAllByText("Select at least one agent.")).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Select at least one agent.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select visible rows" }));
@@ -455,11 +455,7 @@ describe("RegistryCatalogSurface", () => {
     });
     fireEvent.submit(form);
 
-    expect(
-      await screen.findAllByText(
-        "Agent ID must start with a lowercase letter and use only lowercase letters, numbers, and underscores.",
-      ),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Agent ID must start with a lowercase letter and use only lowercase letters, numbers, and underscores.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
   });
 
@@ -515,32 +511,28 @@ describe("RegistryCatalogSurface", () => {
     const form = screen.getByTestId("registry-create-form");
 
     fireEvent.submit(form);
-    expect(await screen.findAllByText("Tool ID is required.")).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Tool ID is required.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/^TOOL_ID/), {
       target: { value: "BAD TEST bad id!@#" },
     });
     fireEvent.submit(form);
-    expect(
-      await screen.findAllByText(
-        "Tool ID must start with a lowercase letter and use only lowercase letters, numbers, underscores, and dots between segments.",
-      ),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Tool ID must start with a lowercase letter and use only lowercase letters, numbers, underscores, and dots between segments.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/^TOOL_ID/), {
       target: { value: "std.review_tool" },
     });
     fireEvent.submit(form);
-    expect(await screen.findAllByText("Display name is required.")).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Display name is required.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/^Display Name/), {
       target: { value: "Review Tool" },
     });
     fireEvent.submit(form);
-    expect(await screen.findAllByText("Category is required.")).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Category is required.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
     await chooseOption("Category", "Data");
@@ -676,7 +668,7 @@ describe("RegistryCatalogSurface", () => {
     const form = screen.getByTestId("registry-create-form");
     fireEvent.submit(form);
 
-    expect(await screen.findAllByText("Skill ID is required.")).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Skill ID is required.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/^SKILL_ID/), {
@@ -684,11 +676,7 @@ describe("RegistryCatalogSurface", () => {
     });
     fireEvent.submit(form);
 
-    expect(
-      await screen.findAllByText(
-        "Skill ID must start with a lowercase letter and use only lowercase letters, numbers, underscores, and dots between segments.",
-      ),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Skill ID must start with a lowercase letter and use only lowercase letters, numbers, underscores, and dots between segments.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
   });
   it("narrows the catalog to the rows matching the search", async () => {

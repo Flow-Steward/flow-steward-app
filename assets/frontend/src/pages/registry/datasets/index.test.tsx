@@ -290,7 +290,7 @@ describe("RegistryDatasetsPage", () => {
     await user.click(await screen.findByRole("option", { name: /Warehouse A \(healthy\)/ }));
     await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The selected extension connection is unavailable.");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("The selected extension connection is unavailable."));
     await user.click(within(dialog).getByRole("combobox", { name: "Data Connection" }));
     await user.click(await screen.findByRole("option", { name: /Warehouse B \(healthy\)/ }));
 
@@ -352,7 +352,7 @@ describe("RegistryDatasetsPage", () => {
     await user.click(within(dialog).getByRole("combobox", { name: "Data Connection" }));
     await user.click(await screen.findByRole("option", { name: /Warehouse B \(healthy\)/ }));
 
-    expect(await within(dialog).findByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true"));
     finishIntrospection({
       ok: false,
       result: {},
@@ -384,7 +384,7 @@ describe("RegistryDatasetsPage", () => {
     await user.type(within(dialog).getByLabelText("Display Name"), "Second session draft");
     expect(within(dialog).getByLabelText("Display Name")).toHaveValue("Second session draft");
 
-    expect(await within(dialog).findByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true"));
     rejectIntrospection(new Error("Old session transport failure."));
 
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "Introspect schema" })).toBeEnabled());

@@ -133,7 +133,7 @@ describe("JobsListPage", () => {
     fireEvent.change(screen.getByLabelText("Custom range, first day"), { target: { value: "2026-03-01" } });
     fireEvent.change(screen.getByLabelText("Custom range, last day"), { target: { value: "2026-03-01" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(await screen.findByRole("checkbox", { name: "Select new-scope" })).not.toBeChecked();
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Select new-scope" })).not.toBeChecked());
     rejectDelete(new Error("Job is active"));
     expect(await screen.findByText(/Job is active/)).toBeInTheDocument();
     expect(jobsRequests().at(-1)?.get("from_date")).toBe("2026-03-01");
@@ -598,7 +598,7 @@ describe("JobsListPage", () => {
   it("restores Hide acknowledged from the URL", async () => {
     mockFilteredJobsServer();
     renderJobsListPage("/jobs?status=failed&hide_acknowledged=1");
-    expect(await screen.findByRole("checkbox", { name: "Hide acknowledged" })).toBeChecked();
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Hide acknowledged" })).toBeChecked());
     await waitFor(() => {
       const request = jobsRequests().at(-1);
       expect(request?.get("hide_acknowledged")).toBe("true");

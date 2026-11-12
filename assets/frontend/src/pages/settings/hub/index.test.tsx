@@ -561,7 +561,7 @@ describe("SettingsHubPage", () => {
     const config = await editJsonResource();
     fireEvent.change(config, { target: { value: "{" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("alert")).not.toBeEmptyDOMElement();
+    await waitFor(() => expect(screen.getByRole("alert")).not.toBeEmptyDOMElement());
     expect(state.writes).toEqual([]);
     expect(state.reads).toBe(1);
     expect(state.record.config).toEqual(originalConfig);

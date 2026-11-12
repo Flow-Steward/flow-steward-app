@@ -274,7 +274,7 @@ test("the count is announced after typing settles", async () => {
   // The heading changes at once; its live copy waits for typing to settle.
   expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
   expect(screen.getAllByText("1 extension")).toHaveLength(1);
-  await waitFor(() => expect(screen.getAllByText("1 extension")).toHaveLength(2), { timeout: 1500 });
+  await waitFor(() => expect(screen.getAllByText("1 extension")).toHaveLength(2));
 });
 
 test("one extension has nothing to sort, and keeps the filter rail", async () => {
@@ -728,7 +728,7 @@ test.each<[ExtensionCatalogInstallState["phase"], string]>([
 
   // Installing is busy (focus kept, presses ignored, label after the loader delay);
   // awaiting approval is not this button's own pending action, so it rests disabled.
-  const button = await screen.findByRole("button", { name: label }, { timeout: 2000 });
+  const button = await screen.findByRole("button", { name: label });
   if (phase === "installing") expect(button).toHaveAttribute("aria-busy", "true");
   else expect(button).toBeDisabled();
   fireEvent.click(button);

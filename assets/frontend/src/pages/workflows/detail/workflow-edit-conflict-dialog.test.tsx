@@ -63,7 +63,7 @@ afterEach(() => vi.restoreAllMocks());
 it("compares the copy three ways from its own base, and Decide later writes nothing", async () => {
   const requests = server([{ url: "/edit-session/compare", body: compared(13) }]);
   const { onClose } = show();
-  expect(await screen.findByRole("region", { name: "My changes" })).toHaveTextContent("description");
+  await waitFor(() => expect(screen.getByRole("region", { name: "My changes" })).toHaveTextContent("description"));
   expect(screen.getByRole("region", { name: "Changes on the server" })).toHaveTextContent("Theirs 13");
   expect(screen.getByRole("region", { name: "My copy compared with the server" })).toHaveTextContent("display_name");
   // recovery_does_not_require_retained_server_history_entry: the base travels with the session.

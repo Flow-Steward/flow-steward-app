@@ -30,7 +30,7 @@ it("posts only the saved ordinary request after acknowledgement and follows its 
   expect(screen.getByRole("button", { name: "Run workflow" })).toBeDisabled();
   fireEvent.click(screen.getByRole("checkbox"));
   fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
-  expect(await screen.findByRole("link", { name: "Job Details" })).toHaveAttribute("href", "/jobs/normal-91");
+  await waitFor(() => expect(screen.getByRole("link", { name: "Job Details" })).toHaveAttribute("href", "/jobs/normal-91"));
   expect(fetchSpy).toHaveBeenCalledTimes(1);
   const [url, init] = fetchSpy.mock.calls[0];
   expect(url).toBe("/api/workflows/stock/run");

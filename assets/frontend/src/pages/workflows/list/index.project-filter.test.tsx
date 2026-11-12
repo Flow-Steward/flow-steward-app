@@ -309,7 +309,7 @@ it.each([
     fireEvent.click(screen.getByRole("button", { name: "Actions for shared" }));
     fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: action }));
   }
-  expect(await screen.findByTestId("workflow-navigation-destination")).toHaveTextContent(destination);
+  await waitFor(() => expect(screen.getByTestId("workflow-navigation-destination")).toHaveTextContent(destination));
   expect(`${view.router.state.location.pathname}${view.router.state.location.search}`).toBe(destination);
   await act(async () => { await view.router.navigate(-1); });
   await table().findByRole("link", { name: "Shared workflow" });

@@ -91,7 +91,7 @@ describe("SettingsRetentionPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save retention settings" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Saugojimo nustatymai išsaugoti.");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saugojimo nustatymai išsaugoti."));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

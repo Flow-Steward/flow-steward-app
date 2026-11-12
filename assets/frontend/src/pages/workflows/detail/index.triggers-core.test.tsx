@@ -1179,12 +1179,8 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     );
     // The header preview above the form and the saved cURL example both render
     // the same placeholders from the generic config.
-    expect(
-      await screen.findAllByText(/X-Slack-Signature: v0=<hex-digest>/),
-    ).toHaveLength(2);
-    expect(
-      await screen.findAllByText(/X-Slack-Request-Timestamp: <unix-timestamp>/),
-    ).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByText(/X-Slack-Signature: v0=<hex-digest>/)).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(/X-Slack-Request-Timestamp: <unix-timestamp>/)).toHaveLength(2));
   });
 
   it("renders a read-only advanced view for a config the builder cannot represent", async () => {

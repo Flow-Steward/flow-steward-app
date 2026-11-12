@@ -264,9 +264,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
       await screen.findByRole("textbox", { name: "Comment for rejection" }),
     ).toBeInTheDocument();
     // Rendered both in the banner and in the review-decision panel.
-    expect(
-      await screen.findAllByText(/Step 'analysis' is waiting for human approval\./),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText(/Step 'analysis' is waiting for human approval\./)).not.toHaveLength(0));
   });
 
   it("preserves an approval comment and pending run through pending toolbar Results and the public launcher route", async () => {
@@ -278,7 +276,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
     await reopenLaunchDialog(view.router);
     expect(screen.getByLabelText("Run workflow test run")).toBeDisabled();
     await openRememberedResults();
-    expect(await screen.findByRole("textbox", { name: "Comment for rejection" })).toHaveValue("Checked the report");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Comment for rejection" })).toHaveValue("Checked the report"));
   });
 
   it("keeps a second workflow test run disabled while the durable run is pending", async () => {
@@ -329,10 +327,10 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
     expect(await mockedFetchWorkflowTestRunState.mock.results.at(-1)?.value).toMatchObject({ status: "queued", final_status: "queued" });
     fixture.setRun(FAILED_RUN);
     await reopenLaunchDialog(view.router);
-    await waitFor(() => expect(screen.getByLabelText("Run workflow test run")).toBeEnabled(), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByLabelText("Run workflow test run")).toBeEnabled());
     expect(mockedFetchWorkflowTestRunState).toHaveBeenCalledWith(THREAD_ID);
     await openRememberedResults();
-    await waitFor(async () => expect(await runHeading()).toHaveTextContent("Failed"), { timeout: 3000 });
+    await waitFor(async () => expect(await runHeading()).toHaveTextContent("Failed"));
     await reopenLaunchDialog(view.router);
     expect(screen.getByLabelText("Run workflow test run")).toBeEnabled();
   });
@@ -462,7 +460,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
       })).toBe(true));
       await act(async () => { await view.router.navigate("/registry/workflows/weekly_report/builder?drawer=workflow-test-run&project_id=project_alpha"); });
       results = await openRememberedResults();
-      expect(await within(results).findByRole("textbox", { name: "Comment for rejection" })).toHaveValue("");
+      await waitFor(() => expect(within(results).getByRole("textbox", { name: "Comment for rejection" })).toHaveValue(""));
       expect(within(results).getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", fixture.jobId);
       expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
       expect(fetchSpy.mock.calls.filter(([, init]) => init?.method && init.method !== "GET")).toEqual([]);

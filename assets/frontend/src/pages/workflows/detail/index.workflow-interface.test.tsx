@@ -57,19 +57,19 @@ it("keeps successful Stop Edit separate from its global Outputs body action", as
   const stop = await screen.findByRole("group", { name: "Open step Done" });
   fireEvent.click(stop);
   let drawer = screen.getByRole("dialog", { name: "Workflow interface" });
-  expect(await within(drawer).findByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true");
+  await waitFor(() => expect(within(drawer).getByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true"));
   fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
   // Right-click › Open is the step itself; the card opens Workflow interface › Outputs.
   fireEvent.contextMenu(stop);
   fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
   drawer = screen.getByRole("dialog", { name: "Step editor" });
-  expect(await within(drawer).findByRole("combobox", { name: "Step kind" })).toHaveValue("stop_success");
+  await waitFor(() => expect(within(drawer).getByRole("combobox", { name: "Step kind" })).toHaveValue("stop_success"));
   expect(within(drawer).getByRole("textbox", { name: "Step label" })).toHaveValue("Done");
   expect(within(drawer).queryByRole("tab", { name: "Outputs" })).not.toBeInTheDocument();
   fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
   fireEvent.click(stop);
   drawer = screen.getByRole("dialog", { name: "Workflow interface" });
-  expect(await within(drawer).findByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true");
+  await waitFor(() => expect(within(drawer).getByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true"));
 });
 
 
@@ -195,7 +195,7 @@ it("keeps the disabled Interface warning after saving and reloading, with an exp
   try {
     fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
     let drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
-    expect(await within(drawer).findByText("Workflow interface is off")).toBeVisible();
+    await waitFor(() => expect(within(drawer).getByText("Workflow interface is off")).toBeVisible());
     expect(within(drawer).getByText(/required-output checks are inactive/)).toHaveTextContent(/Input forms may still validate declared inputs/);
     fireEvent.click(within(drawer).getByRole("tab", { name: "Outputs" }));
     openContractRow(drawer, "summary");
@@ -209,11 +209,11 @@ it("keeps the disabled Interface warning after saving and reloading, with an exp
     view = renderPage({ surface: "builder" });
     fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
     drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
-    expect(await within(drawer).findByText("Workflow interface is off")).toBeVisible();
+    await waitFor(() => expect(within(drawer).getByText("Workflow interface is off")).toBeVisible());
     const settings = within(drawer).getByRole("button", { name: "Open workflow settings" });
     expect(settings).toBeEnabled();
     fireEvent.click(settings);
-    expect(await screen.findByRole("switch", { name: "Enable workflow interface" })).not.toBeChecked();
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Enable workflow interface" })).not.toBeChecked());
     expect(contract.enabled).toBe(false);
     expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(1);
   } finally { view.unmount(); view.router.dispose(); }
@@ -232,7 +232,7 @@ it("routes the structured inactive Diagnostics warning to the existing activatio
   const diagnostics = await screen.findByRole("region", { name: "Validation issues" });
   fireEvent.click(within(diagnostics).getByRole("button", { name: /Workflow interface is off/ }));
   const settings = await screen.findByRole("dialog", { name: "Workflow settings" });
-  expect(await within(settings).findByText("Workflow interface is off")).toBeVisible();
+  await waitFor(() => expect(within(settings).getByText("Workflow interface is off")).toBeVisible());
   expect(within(settings).getByRole("switch", { name: "Enable workflow interface" })).not.toBeChecked();
   expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(0);
 });
@@ -354,7 +354,7 @@ it("refreshes the applied input picker after Interface Save on the same mounted 
   source = await screen.findByRole("combobox", { name: "Transform source" });
   fireEvent.click(source);
   const panel = screen.getByTestId(String(source.getAttribute("aria-controls")));
-  expect(await within(panel).findByRole("option", { name: /Customer.*Name/ })).toBeVisible();
+  await waitFor(() => expect(within(panel).getByRole("option", { name: /Customer.*Name/ })).toBeVisible());
   expect(mockedFetchWorkflowContract.mock.calls.length).toBeGreaterThan(1);
 });
 

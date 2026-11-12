@@ -32,12 +32,12 @@ it("preserves transform source and destination through local update and reopenin
   fireEvent.click(screen.getByRole("button", { name: "Update new step" }));
   // The button says the update landed (✓ Updated) for a moment, then reads Update new step again.
   await waitFor(() => expect(screen.getByRole("button", { name: "Updated" })).toBeDisabled());
-  fireEvent.click(await screen.findByRole("button", { name: "Update new step" }, { timeout: 3000 }));
+  fireEvent.click(await screen.findByRole("button", { name: "Update new step" }));
   expect(screen.getByLabelText("From")).toHaveValue("audit_input");
   expect(screen.getByLabelText("To")).toHaveValue("result");
   fireEvent.click(within(screen.getByRole("dialog", { name: "Step editor" })).getByRole("button", { name: "Close" }));
   fireEvent.click(await screen.findByRole("group", { name: "Open step Normalize audit" }));
-  expect(await screen.findByLabelText("From")).toHaveValue("audit_input");
+  await waitFor(() => expect(screen.getByLabelText("From")).toHaveValue("audit_input"));
   expect(screen.getByLabelText("To")).toHaveValue("result");
   await waitFor(() => {
     const operations = dryRunChangeSets().flatMap((request) => request.operations);

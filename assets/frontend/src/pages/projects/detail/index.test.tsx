@@ -205,9 +205,9 @@ describe("ProjectsDetailPage", () => {
       }
       renderProjectPage("/projects/project-123");
 
-      expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("Audit Project");
+      await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Audit Project"));
       if (state === "failed") {
-        expect(await screen.findByText("Workflow links unavailable")).toBeVisible();
+        await waitFor(() => expect(screen.getByText("Workflow links unavailable")).toBeVisible());
       }
       const save = screen.getByRole("button", { name: "Save Project" });
       expect(save).toBeDisabled();
@@ -227,9 +227,9 @@ describe("ProjectsDetailPage", () => {
       }
       renderProjectPage("/projects/project-123");
 
-      expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("Audit Project");
+      await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Audit Project"));
       if (state === "failed") {
-        expect(await screen.findByText("Workflow catalog unavailable")).toBeVisible();
+        await waitFor(() => expect(screen.getByText("Workflow catalog unavailable")).toBeVisible());
       }
       const save = screen.getByRole("button", { name: "Save Project" });
       expect(save).toBeDisabled();
@@ -260,7 +260,7 @@ describe("ProjectsDetailPage", () => {
     mockedFetchWorkflows.mockResolvedValue(projectWorkflows as never);
     renderProjectPage("/projects/project-123");
 
-    expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("Audit Project");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Audit Project"));
     const save = screen.getByRole("button", { name: "Save Project" });
     expect(save).toBeDisabled();
     await act(async () => { resolveLinks(links); });
@@ -307,7 +307,7 @@ describe("ProjectsDetailPage", () => {
     renderProjectPage("/projects/project-123?tab=workflows");
 
     expect(await screen.findByText("Workflow secrets")).toBeInTheDocument();
-    expect(await screen.findByTestId("project-workflow-secrets-orders_sync")).toHaveTextContent("orders-sync");
+    await waitFor(() => expect(screen.getByTestId("project-workflow-secrets-orders_sync")).toHaveTextContent("orders-sync"));
     expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("project-123");
     // The admin-only workflow links are not asked for, so nothing claims they failed
     // or that every workflow is merely "available".
@@ -681,7 +681,7 @@ describe("ProjectsDetailPage", () => {
     expect(screen.getByRole("combobox", { name: "Operator default workflow" })).toHaveTextContent("No operator default");
     expect(screen.getByRole("checkbox", { name: "Toggle Disabled B" })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Save Project" }));
-    expect(await screen.findByText("Project updated successfully.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Project updated successfully.")).toBeVisible());
     expect(mockedUpdateProject.mock.calls[0]?.[1]).toMatchObject({
       workflow_ids: ["disabled-b"], operator_default_workflow_id: "",
     });
@@ -703,7 +703,7 @@ describe("ProjectsDetailPage", () => {
     await user.click(unrelated);
     expect(screen.getByRole("combobox", { name: "Operator default workflow" })).toHaveTextContent("Enabled A");
     await user.click(screen.getByRole("button", { name: "Save Project" }));
-    expect(await screen.findByText("Project updated successfully.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Project updated successfully.")).toBeVisible());
     expect(mockedUpdateProject.mock.calls[0]?.[1]).toMatchObject({
       workflow_ids: ["enabled-a"], operator_default_workflow_id: "enabled-a",
     });
@@ -725,7 +725,7 @@ describe("ProjectsDetailPage", () => {
     expect(screen.getByRole("checkbox", { name: "Toggle Enabled A" })).toBeChecked();
     expect(screen.getByRole("combobox", { name: "Operator default workflow" })).toHaveTextContent("No operator default");
     await user.click(screen.getByRole("button", { name: "Save Project" }));
-    expect(await screen.findByText("Project updated successfully.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Project updated successfully.")).toBeVisible());
     expect(mockedUpdateProject.mock.calls[0]?.[1]).toMatchObject({
       workflow_ids: ["enabled-a"], operator_default_workflow_id: "",
     });
@@ -825,11 +825,9 @@ describe("ProjectsDetailPage", () => {
       renderProjectPage("/projects/project-123?tab=workflows");
 
       for (let index = 0; index < workflowIds.length; index += 1) {
-        expect(
-          await screen.findByRole("checkbox", {
+        await waitFor(() => expect(screen.getByRole("checkbox", {
             name: `Toggle Acme Showcase ${index}`,
-          }),
-        ).toBeChecked();
+          })).toBeChecked());
       }
     },
   );
@@ -1022,7 +1020,7 @@ describe("ProjectsDetailPage", () => {
   ])("selects the %s tab from ?tab=", async (tab, label) => {
     renderProjectPage(`/projects/project-123?tab=${tab}`);
 
-    expect(await screen.findByRole("tab", { name: label })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: label })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "false");
   });
 
@@ -1066,7 +1064,7 @@ describe("ProjectsDetailPage", () => {
     await user.type(name, "Renamed project");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("Audit Project");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Audit Project"));
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
     expect(mockedUpdateProject).not.toHaveBeenCalled();
   });
@@ -1169,7 +1167,7 @@ describe("ProjectsDetailPage", () => {
     renderProjectPage("/projects/project-123?tab=data-connections", "lt");
 
     const toggle = await screen.findByRole("checkbox", { name: "Toggle Warehouse primary" });
-    expect(await screen.findByText("Priskirta: 1")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Priskirta: 1")).toBeVisible());
     expect(toggle).toBeChecked();
     await user.click(toggle);
     expect(screen.getByText("Priskirta: 0")).toBeVisible();

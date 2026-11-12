@@ -578,9 +578,7 @@ describe("JobsDetailPage live updates", () => {
       () => {
         expect(mockedFetchJobDetail.mock.calls.length).toBeGreaterThanOrEqual(3);
         expect(mockJobStream.latestOptions?.enabled).toBe(false);
-      },
-      { timeout: 2_000 },
-    );
+      });
   });
 
 it("prefers nested job payload over stale top-level job metadata", async () => {
@@ -847,9 +845,9 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByTestId("job-workflow-missing")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("job-workflow-missing")).toHaveTextContent(
       "Workflow not recorded",
-    );
+    ));
     expect(screen.queryByTestId("job-workflow-link")).not.toBeInTheDocument();
   });
 

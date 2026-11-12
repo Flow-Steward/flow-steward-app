@@ -62,7 +62,7 @@ it.each<AutomationScopeKind>(["workflow", "group", "step"])(
     await screen.findByText("Rule turned off.");
     unmount();
     const view = mount();
-    expect(await screen.findByRole("switch", { name: /^Enable rule:/ })).not.toBeChecked();
+    await waitFor(() => expect(screen.getByRole("switch", { name: /^Enable rule:/ })).not.toBeChecked());
     await user.click(screen.getByRole("button", { name: /^When / }));
     await user.clear(screen.getByRole("textbox", { name: "Message" }));
     await user.type(screen.getByRole("textbox", { name: "Message" }), "After fresh read");

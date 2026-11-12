@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { isAgentFileStatePath } from "./detail-agent-file-path";
 import { AgentFiles } from "./detail-agent-files";
@@ -34,17 +34,17 @@ it.each([
   { name: "custom", extensions: [".custom"] },
 ])("displays $name server formats without an agent", async ({ extensions }) => {
   formats(extensions); renderFiles();
-  expect(await screen.findByText(new RegExp(extensions.map((value) => value.replace(".", "\\.")).join(".*")))).toBeVisible();
+  await waitFor(() => expect(screen.getByText(new RegExp(extensions.map((value) => value.replace(".", "\\.")).join(".*")))).toBeVisible());
   expect(screen.getByText(/UTF-8.*RTF.*source/i)).toBeVisible();
   expect(globalThis.fetch).toHaveBeenCalledWith("/api/workflows/meta/agent-file-formats", expect.anything());
 });
 it("reports an explicitly empty text format policy", async () => {
   formats([]); renderFiles();
-  expect(await screen.findByText("Text file reading is disabled.")).toBeVisible();
+  await waitFor(() => expect(screen.getByText("Text file reading is disabled.")).toBeVisible());
 });
 it("reports unavailable formats without inventing defaults", async () => {
   vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline")); renderFiles();
-  expect(await screen.findByText("Text file formats are unavailable.")).toBeVisible();
+  await waitFor(() => expect(screen.getByText("Text file formats are unavailable.")).toBeVisible());
   expect(screen.queryByText(/\.txt/)).not.toBeInTheDocument();
 });
 it("offers only file-typed state paths, including nested file members", () => {

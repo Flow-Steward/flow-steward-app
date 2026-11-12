@@ -117,6 +117,6 @@ it.each(["connectors", "dataset", "failed-catalog"] as const)("waits for verifie
     else utils.release();
     await waitFor(() => expect(add).toBeEnabled());
     await userEvent.click(add);
-    expect(await screen.findByLabelText("JSON query definition")).toHaveValue("{}");
+    await waitFor(() => expect(screen.getByLabelText("JSON query definition")).toHaveValue("{}"));
   } finally { utils.release(); utils.cleanup(); }
 });

@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 import { mockedUseIsAdmin, mockedUseAuth, renderPage } from "./index.test-helpers";
 
 // Simulate a preceding viewer consumer without depending on test-file order.
@@ -17,6 +17,6 @@ it("restores authoring permissions at the shared fixture boundary after a viewer
   renderPage({ surface: "builder" });
   fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
   const drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
-  expect(await within(drawer).findByRole("combobox", { name: "Input mode" })).toBeEnabled();
+  await waitFor(() => expect(within(drawer).getByRole("combobox", { name: "Input mode" })).toBeEnabled());
   expect(within(drawer).getByRole("button", { name: "Save workflow settings" })).toBeInTheDocument();
 });

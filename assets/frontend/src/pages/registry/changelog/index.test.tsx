@@ -392,7 +392,7 @@ describe("RegistryChangelogPage validation issues", () => {
     expect(selected).toHaveTextContent("Entry #numbered-new");
     await user.click(selected);
 
-    expect(await screen.findByText("Comparing Revision 1 to Revision 2")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Comparing Revision 1 to Revision 2")).toBeVisible());
     // The main list and the history card both retain the numbered saved revision.
     expect(screen.getAllByText("Revision 2").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Revision 1").length).toBeGreaterThanOrEqual(2);
@@ -436,7 +436,7 @@ describe("RegistryChangelogPage validation issues", () => {
     renderPage();
     await openWorkflowRevision(user);
 
-    expect(await screen.findByText(label)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(label)).toBeVisible());
     expect(screen.getByText(path)).toBeInTheDocument();
     expect(screen.getByText(/from:\s*Before\s*• to:\s*After/u)).toBeVisible();
   });
@@ -479,7 +479,7 @@ describe("RegistryChangelogPage validation issues", () => {
     expect(restoreChangelogEntry).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Restore" }));
 
-    expect(await screen.findByText("Restored Revision 2 as a new revision.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Restored Revision 2 as a new revision.")).toBeVisible());
     expect(restoreChangelogEntry).toHaveBeenCalledTimes(1);
     expect(restoreChangelogEntry).toHaveBeenCalledWith({
       entityType: "workflow", entityId: "owned-workflow", entryId: "restore-entry", expectedRevision: 7,
@@ -508,7 +508,7 @@ describe("RegistryChangelogPage validation issues", () => {
     expect(confirmation).toHaveTextContent("Entry #legacy-ref");
     expect(confirmation).not.toHaveTextContent("Historical title only");
     await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(await screen.findByText("Restored this saved revision.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Restored this saved revision.")).toBeVisible());
     expect(restoreChangelogEntry).toHaveBeenCalledWith({ entityType: "tool", entityId: "t1", entryId: "legacy-ref" });
     expect(fetchWorkflowCurrentRevision).not.toHaveBeenCalled();
   });
@@ -523,7 +523,7 @@ describe("RegistryChangelogPage validation issues", () => {
     renderPage();
     await openWorkflowRevision(user);
 
-    expect(await screen.findByText("settings.vendor_x.custom[3].token")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("settings.vendor_x.custom[3].token")).toBeVisible());
     expect(screen.getByText("provider_delta")).toBeVisible();
     expect(screen.getByText(/from:\s*old\s*• to:\s*new/u)).toBeVisible();
   });
@@ -542,7 +542,7 @@ describe("RegistryChangelogPage validation issues", () => {
     renderPage();
     await user.click(await screen.findByRole("button", { name: /Entry #tool-path-new/iu }));
 
-    expect(await screen.findByText("settings.callable.expected_outputs[0].label")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("settings.callable.expected_outputs[0].label")).toBeVisible());
     expect(screen.queryByText("Outputs · Output 1 · Label")).not.toBeInTheDocument();
   });
 
@@ -561,7 +561,7 @@ describe("RegistryChangelogPage validation issues", () => {
     renderPage();
     await openWorkflowRevision(user);
 
-    expect(await screen.findByText(expected)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(expected)).toBeVisible());
   });
 
   it("keeps numeric revision labels scoped to workflow content on the registry page", async () => {

@@ -153,7 +153,7 @@ describe("RegistryGuardrailsDetailPage", () => {
       },
     });
 
-    expect(await screen.findByLabelText("Pattern 1")).toHaveValue("DROP TABLE");
+    await waitFor(() => expect(screen.getByLabelText("Pattern 1")).toHaveValue("DROP TABLE"));
 
     fireEvent.click(screen.getByRole("button", { name: /Add pattern/i }));
 
@@ -405,9 +405,9 @@ describe("RegistryGuardrailsDetailPage", () => {
       config: { custom_key: "preserved" },
     });
 
-    expect(await screen.findByRole("combobox", { name: "Rule Type" })).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Rule Type" })).toHaveTextContent(
       "Custom semantic rule",
-    );
+    ));
     expect(screen.getByLabelText("AI condition")).toHaveValue(
       "Confirm the response follows the customer policy.",
     );

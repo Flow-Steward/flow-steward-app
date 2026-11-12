@@ -126,7 +126,7 @@ it("retires the focused issue across project A→B→A until Diagnostics is expl
     fireEvent.click(await screen.findByRole("button", { name: /^Diagnostics/ }));
     const diagnostics = await screen.findByRole("region", { name: "Validation issues" });
     fireEvent.click(within(diagnostics).getByRole("button", { name: new RegExp("missing override.dataset_query.query_template_id") }));
-    expect(await screen.findByText("Validation issue")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Validation issue")).toBeVisible());
     await act(async () => { await view.router.navigate(route("project_beta")); });
     expect(screen.queryByText("Validation issue")).not.toBeInTheDocument();
     await act(async () => { await view.router.navigate(route("project_alpha")); });
@@ -134,7 +134,7 @@ it("retires the focused issue across project A→B→A until Diagnostics is expl
     fireEvent.click(screen.getByRole("button", { name: /^Diagnostics/ }));
     const currentDiagnostics = await screen.findByRole("region", { name: "Validation issues" });
     fireEvent.click(within(currentDiagnostics).getByRole("button", { name: new RegExp("missing override.dataset_query.query_template_id") }));
-    expect(await screen.findByText("Validation issue")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Validation issue")).toBeVisible());
     expect(boundary.writes).toEqual([]);
   } finally {
     boundary.release();

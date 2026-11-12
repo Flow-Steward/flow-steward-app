@@ -152,7 +152,7 @@ it("says when the action is gone", async () => {
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("This extension action is no longer available.");
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("This extension action is no longer available."));
 });
 
 it("names a slot's connection by its extension, and by the slot when two share one", async () => {

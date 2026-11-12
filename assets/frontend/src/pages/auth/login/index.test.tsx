@@ -241,10 +241,10 @@ describe("LoginPage", () => {
       login_path: "/external-sign-in/okta/login",
     }]);
 
-    expect(await screen.findByRole("link", { name: "Continue with Okta" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("link", { name: "Continue with Okta" })).toHaveAttribute(
       "href",
       "/external-sign-in/okta/login?next=%2Fsettings%2Fsecurity",
-    );
+    ));
     expect(screen.queryByText("You’ll return to the page you were viewing.")).not.toBeInTheDocument();
   });
 
@@ -331,7 +331,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Security destination", {}, { timeout: 3_600 })).toBeInTheDocument();
+    expect(await screen.findByText("Security destination")).toBeInTheDocument();
     expect(mockedFetchJson).toHaveBeenCalledWith("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
@@ -413,7 +413,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Dashboard destination", {}, { timeout: 3_600 })).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
   });
 
   it("requests account selection, retains credentials, validates it, and then completes sign-in", async () => {
@@ -444,7 +444,7 @@ describe("LoginPage", () => {
     fireEvent.change(accountSelect, { target: { value: "platform" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Dashboard destination", {}, { timeout: 3_600 })).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
     expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({

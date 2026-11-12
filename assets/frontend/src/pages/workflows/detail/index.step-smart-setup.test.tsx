@@ -23,7 +23,6 @@ import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 // Full-page edit/save/reopen journeys perform several async renders. Measured
 // journey wall time exceeded the default 5s budget while the host was under load.
 // Keep other cases and shared/component checks on their existing limits.
-const SMART_SETUP_JOURNEY_TIMEOUT = 15_000;
 
 function chooseSetupOption(control: HTMLElement, label: string) {
   if (control.getAttribute("aria-expanded") !== "true") {
@@ -51,7 +50,7 @@ function editStepLabel(value = "Edited step label") {
 // Query notifications and jsdom rendering may take more than the default second.
 async function renderTabularStepButton() {
   renderPage();
-  return screen.findByRole("button", { name: /Feed rows/i }, { timeout: 5_000 });
+  return screen.findByRole("button", { name: /Feed rows/i });
 }
 
 describe("WorkflowsDetailPage step smart setup", () => {
@@ -67,7 +66,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add step to changes" })).not.toBeInTheDocument();
     expect(boundary.writes).toEqual([]);
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("asks before discarding invalid input and preserves it when Close is cancelled", async () => {
     const user = userEvent.setup();
@@ -102,7 +101,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     expect(boundary.storedConfig()).toMatchObject({
       rows: [{ sku: "A1" }], result_target: "state.reopened_dataset",
     });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
 
   it("distinguishes an omitted boolean runtime default from explicit false through save and reopen", async () => {
@@ -115,7 +114,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await user.click(await renderTabularStepButton());
     // Query the active editor rather than repeatedly scanning the full workflow page.
     let editor = await screen.findByRole("dialog", { name: "Step editor" });
-    expect(await within(editor).findByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("Runtime default (not set)");
+    await waitFor(() => expect(within(editor).getByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("Runtime default (not set)"));
     fireEvent.change(within(editor).getByRole("textbox", { name: "Result target" }), {
       target: { value: "state.changed_dataset" },
     });
@@ -143,8 +142,8 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await user.click(within(editor).getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
     editor = await screen.findByRole("dialog", { name: "Step editor" });
-    expect(await within(editor).findByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("false");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+    await waitFor(() => expect(within(editor).getByRole("combobox", { name: "keep_unmapped" })).toHaveTextContent("false"));
+  });
 
   // Only API I/O is replaced. Readback stores the actual request, not a
   // prearranged expected response; the page, draft and save handler stay real.
@@ -237,7 +236,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
     expect(screen.getByRole("textbox", { name: "Rows" })).toHaveValue("state.revised_rows");
     expect(boundary.storedConfig().rows).toBe("state.revised_rows");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("preserves a stored rows selector when only another field is edited", async () => {
     const user = userEvent.setup();
@@ -285,7 +284,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
     expect(JSON.parse((await screen.findByRole("textbox", { name: label }) as HTMLTextAreaElement).value)).toEqual(JSON.parse(corrected));
     expect(boundary.storedConfig()).toMatchObject(expected);
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("persists the displayed empty dataset rows default without requiring an edit to Rows", async () => {
     const user = userEvent.setup();
@@ -310,7 +309,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
     expect(screen.getByRole("textbox", { name: "Rows" })).toHaveValue("[]");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("keeps an intentionally empty rows array distinct from invalid JSON", async () => {
     const user = userEvent.setup();
@@ -355,9 +354,9 @@ describe("WorkflowsDetailPage step smart setup", () => {
     ]);
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
-    expect(await screen.findAllByRole("textbox", { name: "mapping" })).toHaveLength(1);
+    await waitFor(() => expect(screen.getAllByRole("textbox", { name: "mapping" })).toHaveLength(1));
     expect(JSON.parse((screen.getByRole("textbox", { name: "mapping" }) as HTMLTextAreaElement).value)).toEqual({ EU: "Europe" });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("accepts a valid Advanced replacement after an invalid rows draft", async () => {
     const user = userEvent.setup();
@@ -387,7 +386,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Feed rows/i }));
     expect(JSON.parse((screen.getByRole("textbox", { name: "Rows" }) as HTMLTextAreaElement).value)).toEqual([{ sku: "B2" }]);
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it.each(["A1", "B2"])("does not carry a rows error into another step whose source contains %s", async (otherSku) => {
     const user = userEvent.setup();
@@ -416,7 +415,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       operation: "create_dataset", rows: [{ sku: "A1" }], result_target: "state.feed_dataset",
     });
     expect(boundary.otherStoredConfig()).toMatchObject({ rows: [{ sku: otherSku }], result_target: "state.other_saved" });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("creates a new write step with the visible CSV default", async () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ revision: 1,
@@ -426,7 +425,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     mockedFetchWorkflowDag.mockResolvedValue({ nodes: [], edges: [] } as never);
     mockedFetchWorkflowValidation.mockResolvedValue({ validation: { valid: true, errors: [], warnings: [] } } as never);
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "+ Add Step" }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Step" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Step kind" }), { target: { value: "tabular_feed" } });
     chooseSetupOption(screen.getByRole("combobox", { name: "Operation" }), "write");
     fireEvent.change(screen.getByLabelText("Dataset handle"), { target: { value: "state.feed_dataset" } });
@@ -435,7 +434,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Apply changes" }));
     await waitFor(() => expect(savedStepBodies().length).toBeGreaterThan(0));
     expect((savedStepBodies()[0].override as Record<string, unknown>).tabular_feed).toMatchObject({ operation: "write", format: "csv", input: { dataset_handle: "state.feed_dataset" } });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("shows a failed step save as an alert, and a saved one as a plain note", async () => {
     const stepId = "11111111-1111-1111-1111-111111111052";
@@ -451,7 +450,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     mockedFetchWorkflowDag.mockResolvedValue({ nodes: [], edges: [] } as never);
     mockedFetchWorkflowValidation.mockResolvedValue({ validation: { valid: true, errors: [], warnings: [] } } as never);
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: /Feed export/i }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: /Feed export/i }));
     const pageFetch = fetchSpy.getMockImplementation();
     let failNextSave = true;
     fetchSpy.mockImplementation(async (input, init) => {
@@ -482,7 +481,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await screen.findByText("Parameters saved");
     expect(screen.queryAllByRole("alert").some((element) => element.textContent?.includes("Step parameters saved."))).toBe(false);
     expect(screen.queryByText(/violates check constraint/)).not.toBeInTheDocument();
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it.each(["read", "write"])("saves and reopens the visible CSV default from a %s draft without touching the format selector", async (operation) => {
     const stepId = "11111111-1111-1111-1111-111111111051";
@@ -500,7 +499,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     mockedFetchWorkflowDag.mockResolvedValue({ nodes: [], edges: [] } as never);
     mockedFetchWorkflowValidation.mockResolvedValue({ validation: { valid: true, errors: [], warnings: [] } } as never);
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: /Feed export/i }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: /Feed export/i }));
     if (operation === "read") {
       chooseSetupOption(screen.getByRole("combobox", { name: "Operation" }), "write");
       fireEvent.change(screen.getByLabelText("Dataset handle"), { target: { value: "state.feed_dataset" } });
@@ -527,7 +526,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: /Feed export/i }));
     expect(screen.getByRole("combobox", { name: "Output format" })).toHaveTextContent("csv");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("saves a manual TSV choice after saving and reopening the same CSV step", async () => {
     const stepId = "11111111-1111-1111-1111-111111111051";
@@ -543,7 +542,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     mockedFetchWorkflowDag.mockResolvedValue({ nodes: [], edges: [] } as never);
     mockedFetchWorkflowValidation.mockResolvedValue({ validation: { valid: true, errors: [], warnings: [] } } as never);
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: /Feed export/i }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: /Feed export/i }));
     expect(screen.getByRole("combobox", { name: "Output format" })).toHaveTextContent("csv");
     const pageFetch = fetchSpy.getMockImplementation();
     fetchSpy.mockImplementation(async (input, init) => {
@@ -579,7 +578,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     expect(stepBodyFromCall(tsvSaveCall).override.tabular_feed).toMatchObject({
       operation: "write", format: "tsv", input: { dataset_handle: "state.feed_dataset" },
     });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("saves read to transform without the hidden artifact input", async () => {
     const stepId = "11111111-1111-1111-1111-111111111050";
@@ -633,7 +632,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       relational: [{ op: "filter", when: { column: "status", equals: "active" } }],
     });
     expect(payload.override.tabular_feed.input).toEqual({ dataset_handle: "state.previous_dataset.dataset_handle" });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("marks a generic OAuth connection ineligible when an operation scope is absent", () => {
     expect(extensionConnectionEligibility({
@@ -673,7 +672,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
 
     // A saved step keeps its kind; every kind is chosen when a step is added.
     fireEvent.click(
-      await screen.findByRole("button", { name: "+ Add Step" }, { timeout: 5_000 }),
+      await screen.findByRole("button", { name: "+ Add Step" }),
     );
     expect(
       await screen.findByRole("heading", { name: "Step editor" }),
@@ -819,7 +818,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       );
     });
     expect((await screen.findAllByText(/Ada Lovelace/)).length).toBeGreaterThan(0);
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("keeps transform field focus while typing multi-character output paths", async () => {
     const user = userEvent.setup();
@@ -910,7 +909,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       expect(screen.getAllByRole("combobox", { name: "Action" })).toHaveLength(2);
     });
     expect(screen.getAllByRole("combobox", { name: "Action" })[1]).toHaveValue("text.append");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("defaults the first transform action from the declared field type", async () => {
     mockedFetchWorkflowTransformActions.mockResolvedValue({
@@ -1086,7 +1085,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: /Normalize customer/i }));
-    expect(await screen.findAllByRole("option", { name: "json / Stringify" })).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByRole("option", { name: "json / Stringify" })).toHaveLength(2));
 
     const [, secondActionSelect] = screen.getAllByRole("combobox", { name: "Action" });
     const secondOptions = within(secondActionSelect).getAllByRole("option").map((option) => option.textContent);
@@ -1220,7 +1219,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
         | undefined;
       expect(config?.row_filter).toEqual({ operator: "equals", selector: "status" });
     });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("shows a list-mode preview output, which is an array", async () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ revision: 1,
@@ -1360,9 +1359,9 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Action source" })).toHaveTextContent("GitHub"));
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Action" })).toHaveTextContent("Create issue"));
     // The action contract is reference material: closed under Action details, no source chip.
-    expect(await screen.findByText("Action details")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Action details")).toBeVisible());
     expect(screen.queryByText("Tool registry")).not.toBeInTheDocument();
-    expect(await screen.findByText("Action inputs")).not.toBeVisible();
+    await waitFor(() => expect(screen.getByText("Action inputs")).not.toBeVisible());
     expect(await screen.findByText("Action returns")).toBeInTheDocument();
     expect(await screen.findByDisplayValue("title")).toBeInTheDocument();
     expect(
@@ -1461,10 +1460,10 @@ describe("WorkflowsDetailPage step smart setup", () => {
       screen.getByRole("combobox", { name: "Tool" }),
     ).toHaveTextContent("Demo Content Tools"));
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Action" })).toHaveTextContent("Compose content brief"));
-    expect(await screen.findByText("Open tool")).toHaveAttribute(
+    await waitFor(() => expect(screen.getByText("Open tool")).toHaveAttribute(
       "href",
       "/registry/tools/sample_content_tools",
-    );
+    ));
     expect(
       screen.getByRole("combobox", { name: "Parameter source 1" }),
     ).toHaveValue("literal");
@@ -1867,7 +1866,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.click(within(imported).getByRole("button", { name: "Clear connection settings" }));
     await waitFor(() => expect(screen.queryByTestId("connector-imported-binding")).not.toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: "Connection" })).toHaveTextContent("Primary");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   function mockIfAndSwitchWorkflow() {
     fetchSpy.mockImplementation(async (input) => {
@@ -1967,9 +1966,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     // The saved selector filters suggestions to its own token. Clearing the
     // search exposes other available workflow paths without changing the wire.
     fireEvent.change(switchSelectorInput, { target: { value: "" } });
-    expect(
-      await screen.findByTestId("workflow-variable-suggestions-root-switch-selector"),
-    ).toHaveTextContent("state.project_config.stack.language");
+    await waitFor(() => expect(screen.getByTestId("workflow-variable-suggestions-root-switch-selector")).toHaveTextContent("state.project_config.stack.language"));
     fireEvent.change(switchSelectorInput, { target: { value: "state.inputs.city" } });
     expect(await screen.findByDisplayValue("Berlin")).toBeInTheDocument();
     expect(screen.getByText("case_id: berlin")).toBeInTheDocument();
@@ -1989,7 +1986,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
         cases: [{ case_id: "berlin", when: "Vilnius" }],
       },
     });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
 
   it("keeps the If selector's variable suggestions, and its focus, while typing", async () => {
@@ -2010,9 +2007,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
         "aria-controls",
         "workflow-variable-suggestions-root-if-selector",
       );
-      expect(
-        await screen.findByTestId("workflow-variable-suggestions-root-if-selector"),
-      ).toHaveTextContent("Previous steps");
+      await waitFor(() => expect(screen.getByTestId("workflow-variable-suggestions-root-if-selector")).toHaveTextContent("Previous steps"));
 
       await user.type(selector, ".x");
 
@@ -2140,7 +2135,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     // textbox with this select. Allow both requests to settle under parallel load.
     const valueSelect = await screen.findByRole("combobox", {
       name: "Parameter value 1",
-    }, { timeout: 5_000 });
+    });
     expect(valueSelect).toHaveValue("fast");
     expect(within(valueSelect).getByRole("option", { name: "Accurate" })).toHaveValue(
       "accurate",
@@ -2158,7 +2153,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       "/api/workflows/meta/extension-form-schema?install_id=pi_acme_docs&operation_id=convert_document&locale=en",
       expect.objectContaining({ method: "GET" }),
     );
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("binds connector operations and connections to the persisted extension install", async () => {
     fetchSpy.mockImplementation(async (input) => {
@@ -2378,11 +2373,9 @@ describe("WorkflowsDetailPage step smart setup", () => {
     );
 
     const connectionSelect = await screen.findByRole("combobox", { name: "Connection" });
-    expect(
-      await setupOptions(connectionSelect).findByRole("option", {
+    await waitFor(() => expect(setupOptions(connectionSelect).getByRole("option", {
         name: "Mail account (invoices@example.test)",
-      }),
-    ).toBeEnabled();
+      })).toBeEnabled());
     expect(
       await screen.findByText("The saved mail account was removed. Choose another one for this action."),
     ).toBeInTheDocument();
@@ -2420,10 +2413,8 @@ describe("WorkflowsDetailPage step smart setup", () => {
     });
 
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-    expect(
-      await screen.findByRole("button", { name: "Run step test run" }),
-    ).toBeEnabled();
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run step test run" })).toBeEnabled());
+  });
 
   it.each([
     {
@@ -2526,9 +2517,9 @@ describe("WorkflowsDetailPage step smart setup", () => {
         name: new RegExp(operationLabel, "i"),
       }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
         `Required action inputs are missing: ${parameterName}.`,
-      );
+      ));
       const requiredInput = screen.getByRole("textbox", {
         name: `${parameterName} (required)`,
       });
@@ -2538,9 +2529,9 @@ describe("WorkflowsDetailPage step smart setup", () => {
       expect(screen.getByRole("button", { name: "Save parameters" })).toBeDisabled();
 
       fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-      expect(await screen.findByRole("button", {
+      await waitFor(() => expect(screen.getByRole("button", {
         name: "Run step test run",
-      })).toBeDisabled();
+      })).toBeDisabled());
     },
   );
 
@@ -2657,9 +2648,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       expect(screen.getByRole("button", { name: "Save parameters" })).toBeDisabled();
 
       fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-      expect(
-        await screen.findByRole("button", { name: "Run step test run" }),
-      ).toBeDisabled();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled());
     },
   );
 
@@ -2750,15 +2739,13 @@ describe("WorkflowsDetailPage step smart setup", () => {
         name: "Connection",
       });
       await waitFor(() => expect(connectionSelect).toHaveTextContent("Stock account (stock@example.test)"));
-      expect(
-        await setupOptions(connectionSelect).findByRole("option", {
+      await waitFor(() => expect(setupOptions(connectionSelect).getByRole("option", {
           name: "Stock account (stock@example.test)",
-        }),
-      ).toBeEnabled();
+        })).toBeEnabled());
       expect(screen.queryByText(/Reconnect this account and approve/i)).not.toBeInTheDocument();
       // Runnable as saved: an unsaved edit would hold the step test run back on its own.
       fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-      expect(await screen.findByRole("button", { name: "Run step test run" })).toBeEnabled();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Run step test run" })).toBeEnabled());
       fireEvent.click(screen.getByRole("tab", { name: "Smart setup" }));
       editStepLabel(); // With a change waiting, only readiness decides whether Save is live.
       expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
@@ -2927,7 +2914,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     expect(option).toBeEnabled();
     // Runnable as saved: an unsaved edit would hold the step test run back on its own.
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-    expect(await screen.findByRole("button", { name: "Run step test run" })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run step test run" })).toBeEnabled());
     fireEvent.click(screen.getByRole("tab", { name: "Smart setup" }));
     editStepLabel(); // With a change waiting, only readiness decides whether Save is live.
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
@@ -3605,7 +3592,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Publish required record/i }));
 
     const connectionSelect = await screen.findByRole("combobox", { name: "Connection" });
-    expect(await setupOptions(connectionSelect).findByRole("option", { name: "Authorized resource account — Additional access required" })).toBeDisabled();
+    await waitFor(() => expect(setupOptions(connectionSelect).getByRole("option", { name: "Authorized resource account — Additional access required" })).toBeDisabled());
     expect(setupOptions(screen.getByRole("combobox", { name: "Action" })).getByRole("option", { name: "Unnamed action" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Reconnect this account and approve the access required by this action.")).toBeInTheDocument();
     await expectStepIsNotSaved();
@@ -3625,7 +3612,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Publish required record/i }));
     const editor = within(await screen.findByRole("dialog", { name: "Step editor" }));
-    expect(await editor.findByRole("button", { name: "Use Authorized resource account" })).toBeEnabled();
+    await waitFor(() => expect(editor.getByRole("button", { name: "Use Authorized resource account" })).toBeEnabled());
     const actionSelect = editor.getByRole("combobox", { name: "Action" });
     expect(setupOptions(actionSelect).getByRole("option", { name: "Unnamed action" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText(/Create or repair it on the extension's connection page/i)).not.toBeInTheDocument();
@@ -3663,7 +3650,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       const payload = stepBodyFromCall(saved);
       expect(payload.override.connector).toMatchObject({ operation_id: "publish", connection_binding: { connection_id: "connected_account" } });
     });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it.each([
     { operation: "read", config: { operation: "read", input: { artifact_handle: "state.feed_artifact" }, options: { delimiter: ";" }, result_target: "state.feed_dataset" } },
@@ -3759,8 +3746,8 @@ describe("business values save and reopen through the workflow page", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(await screen.findByRole("button", { name: /Business step/i }));
-    expect(await screen.findByRole("combobox", { name: "Assignment 1 previous value" })).toHaveValue("Customer → Name");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Assignment 1 previous value" })).toHaveValue("Customer → Name"));
+  });
 
   it("removes a legacy Set value through Save and does not restore it on reopen", async () => {
     const boundary = prepareBusinessStepRoundtrip("set_variable", {
@@ -3768,7 +3755,7 @@ describe("business values save and reopen through the workflow page", () => {
     });
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Business step/i }));
-    expect(await screen.findByRole("textbox", { name: "Assignment 1 target" })).toHaveValue("Legacy");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Assignment 1 target" })).toHaveValue("Legacy"));
     fireEvent.click(screen.getByRole("button", { name: "Remove assignment" }));
     fireEvent.click(screen.getByRole("button", { name: "Save parameters" }));
     await screen.findByText("Parameters saved");
@@ -3776,8 +3763,8 @@ describe("business values save and reopen through the workflow page", () => {
     expect(boundary.stored()).toEqual({ assignments: {}, opaque: { keep: true } });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(await screen.findByRole("button", { name: /Business step/i }));
-    expect(await screen.findByRole("textbox", { name: "Assignment 1 target" })).toHaveValue("");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Assignment 1 target" })).toHaveValue(""));
+  });
 
   it("blocks Save while a single retained Set destination is cleared", async () => {
     const boundary = prepareBusinessStepRoundtrip("set_variable", {
@@ -3791,7 +3778,7 @@ describe("business values save and reopen through the workflow page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save parameters" }));
     expect(boundary.writes).toHaveLength(0);
     expect(boundary.stored()).toEqual({ assignments: { "state.keep": "hello" }, opaque: { keep: true } });
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+  });
 
   it("retains untouched whitespace Approval outputs through Save and reopen", async () => {
     const boundary = prepareBusinessStepRoundtrip("approval", {
@@ -3809,8 +3796,8 @@ describe("business values save and reopen through the workflow page", () => {
       show_outputs: [" ", "state.keep", "state.inputs.customer.name"], opaque: { keep: true } });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(await screen.findByRole("button", { name: /Business step/i }));
-    expect(await screen.findByRole("textbox", { name: "Reviewer output 1" })).toHaveValue(" ");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Reviewer output 1" })).toHaveValue(" "));
+  });
 
   it("saves and reopens ordered Approval outputs without rebuilding retained custom paths", async () => {
     const boundary = prepareBusinessStepRoundtrip("approval", {
@@ -3830,6 +3817,6 @@ describe("business values save and reopen through the workflow page", () => {
       opaque: { keep: true } });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(await screen.findByRole("button", { name: /Business step/i }));
-    expect(await screen.findByRole("textbox", { name: "Reviewer output 4" })).toHaveValue("state.inputs.customer.name");
-  }, SMART_SETUP_JOURNEY_TIMEOUT);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Reviewer output 4" })).toHaveValue("state.inputs.customer.name"));
+  });
 });

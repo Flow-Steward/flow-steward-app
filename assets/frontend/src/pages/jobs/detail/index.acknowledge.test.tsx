@@ -44,7 +44,7 @@ describe("JobsDetailPage acknowledge", () => {
     primeApi(terminalJob("failed", { job: { id: 42, status: "failed", acknowledged_at: "2026-04-25T11:00:00Z" } }));
     renderPage();
 
-    expect(await screen.findByTestId("job-acknowledged-badge")).toHaveTextContent("Acknowledged");
+    await waitFor(() => expect(screen.getByTestId("job-acknowledged-badge")).toHaveTextContent("Acknowledged"));
     const button = screen.getByTestId("job-acknowledge-button");
     expect(button).toHaveTextContent("Unacknowledge");
     fireEvent.click(button);
@@ -61,7 +61,7 @@ describe("JobsDetailPage acknowledge", () => {
     renderPage();
 
     fireEvent.click(await screen.findByTestId("job-acknowledge-button"));
-    expect(await screen.findByText("The acknowledgment could not be saved")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("The acknowledgment could not be saved")).toBeVisible());
     expect(screen.getByTestId("job-acknowledge-button")).toBeEnabled();
     expect(screen.getByTestId("job-acknowledge-button")).toHaveTextContent(acknowledged ? "Unacknowledge" : "Acknowledge");
     expect(Boolean(screen.queryByTestId("job-acknowledged-badge"))).toBe(acknowledged);
@@ -107,12 +107,12 @@ describe("JobsDetailPage acknowledge", () => {
     );
     await waitFor(() => expect(view.queryClient.getQueryData(queryKeys.dashboardSummary("24h"))).toMatchObject({
       groups: { needs_attention: initiallyAcknowledged ? [] : [{ id: "42", status: "failed" }] },
-    }), { timeout: 3_000 });
-    await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 0 : 1}. Show failed and stuck jobs` }, { timeout: 3_000 });
+    }));
+    await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 0 : 1}. Show failed and stuck jobs` });
 
     fireEvent.click(await screen.findByTestId("job-acknowledge-button"));
 
-    expect(await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 1 : 0}. Show failed and stuck jobs` }, { timeout: 3_000 })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 1 : 0}. Show failed and stuck jobs` })).toBeInTheDocument();
     await waitFor(() => expect(Boolean(screen.queryByTestId("job-acknowledged-badge"))).toBe(!initiallyAcknowledged));
   });
 

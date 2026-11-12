@@ -168,10 +168,10 @@ describe("RegistrySecretsPage", () => {
     renderPage();
     await openRowAction(user, "Shop token", "Delete");
     const dialog = await screen.findByRole("alertdialog", { name: "Delete Shop token?" });
-    expect(await within(dialog).findByRole("link", { name: "Connection Shop · api_token" })).toHaveAttribute(
+    await waitFor(() => expect(within(dialog).getByRole("link", { name: "Connection Shop · api_token" })).toHaveAttribute(
       "href",
       "/projects/p1?tab=connections",
-    );
+    ));
     expect(within(dialog).getByRole("link", { name: "Workflow Send order · api_key" })).toHaveAttribute(
       "href",
       "/projects/p1?tab=workflows",

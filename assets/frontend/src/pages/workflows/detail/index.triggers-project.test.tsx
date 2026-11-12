@@ -873,6 +873,6 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     expect(await screen.findByText("Incoming webhooks")).toBeInTheDocument();
     expect(await screen.findByText("No incoming webhooks yet.")).toBeInTheDocument();
     expect(await screen.findByText(/Resolving project context for provider triggers/i)).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "New provider trigger" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "New provider trigger" })).toBeDisabled());
   });
 });

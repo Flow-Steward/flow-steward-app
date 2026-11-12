@@ -187,7 +187,7 @@ describe("ProjectsListPage", () => {
     view.rerenderRole("admin");
     expect(screen.queryByRole("dialog", { name: "Create project" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "New project" }));
-    expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(""));
   });
 
   it("ignores the admin workspace response after role loss without clearing persisted project scope", async () => {

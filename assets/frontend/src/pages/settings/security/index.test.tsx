@@ -293,7 +293,7 @@ describe("SettingsSecurityPage", () => {
     });
     renderPage();
 
-    expect(await screen.findByRole("combobox", { name: "Level" })).toHaveTextContent("Strict");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Level" })).toHaveTextContent("Strict"));
     fireEvent.click(screen.getByRole("button", { name: "Inherit Level" }));
     expect(screen.getByRole("combobox", { name: "Level" })).toHaveTextContent("Standard");
     expect(screen.getByText("Pending override changes: level")).toBeInTheDocument();
@@ -331,7 +331,7 @@ describe("SettingsSecurityPage", () => {
   it("edits scanner settings, scan surfaces, and custom rules before saving", async () => {
     renderPage("/settings/security");
 
-    expect(await screen.findByLabelText("Secrets enabled")).toBeChecked();
+    await waitFor(() => expect(screen.getByLabelText("Secrets enabled")).toBeChecked());
     const removeExistingRule = screen.getByRole("button", { name: "Remove" });
     fireEvent.click(screen.getByLabelText("Secrets enabled"));
     expect(screen.getByRole("button", { name: "Remove" })).toBe(removeExistingRule);

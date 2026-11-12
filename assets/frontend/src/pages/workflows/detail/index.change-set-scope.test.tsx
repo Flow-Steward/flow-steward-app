@@ -89,13 +89,13 @@ it.each(["Apply changes", "Discard changes"])("retires the owned new-step parame
   await prepareStopFromCanvas("Local Stop");
   fireEvent.click(await screen.findByRole("button", { name: "Update new step" }));
   const stale = "The new step's parameters are kept with the unapplied structure.";
-  expect(await screen.findAllByText(stale)).not.toHaveLength(0);
+  await waitFor(() => expect(screen.getAllByText(stale)).not.toHaveLength(0));
   const button = await screen.findByRole("button", { name: action });
   await waitFor(() => expect(button).toBeEnabled());
   fireEvent.click(button);
   await waitFor(() => expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied"));
   // The drawer shows no persistent notice; the Save button's ✓ Updated announcement lasts a moment.
-  await waitFor(() => expect(screen.queryByText(stale)).not.toBeInTheDocument(), { timeout: 3_000 });
+  await waitFor(() => expect(screen.queryByText(stale)).not.toBeInTheDocument());
   if (action === "Apply changes") {
     expect(applied).toBe(true);
     expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Local Stop");

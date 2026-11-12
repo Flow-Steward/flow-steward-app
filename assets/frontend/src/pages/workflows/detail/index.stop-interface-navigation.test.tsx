@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 import {
   canvasGraphFixture,
   fetchSpy,
@@ -56,7 +56,7 @@ it("opens Interface › Outputs from a Stop card that lists a returned file with
 
   fireEvent.click(within(stop).getByRole("button", { name: /Outputs/i }));
   const drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
-  expect(await within(drawer).findByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true");
+  await waitFor(() => expect(within(drawer).getByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true"));
   expect(within(drawer).getByTestId("workflow-contract-returned-files")).toHaveTextContent("Render report → file");
   expect(fetchSpy.mock.calls.filter(([url, init]) => String(url) === "/api/workflows/weekly_report" && init?.method === "PATCH")).toHaveLength(0);
   expect(fetchSpy.mock.calls.filter(([url, init]) => String(url).endsWith("/changes") && init?.method === "POST")).toHaveLength(0);

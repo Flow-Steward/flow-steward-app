@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
@@ -115,7 +115,7 @@ describe("text file preview", () => {
     render(<JobFileItem file={textFile({ filename: "big.json", content_type: "application/json" })} />);
     fireEvent.click(screen.getByRole("button", { name: "View" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(reason);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(reason));
     expect(screen.getByRole("link", { name: "Download" })).toBeInTheDocument();
   });
 

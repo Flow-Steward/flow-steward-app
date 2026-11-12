@@ -454,16 +454,16 @@ describe("SettingsServiceAccountsPage", () => {
     expect(within(dialog).getByRole("group", { name: "Allowed workflows (optional)" })).toBeVisible();
 
     await user.click(within(dialog).getByRole("button", { name: "Create service account" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Account key is required.",
-    );
+    ));
     expect(accountKey).toHaveFocus();
 
     await user.type(accountKey, "scopeless-bot");
     await user.click(within(dialog).getByRole("button", { name: "Create service account" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Select at least one scope.",
-    );
+    ));
     expect(within(dialog).getByLabelText("jobs.read")).toHaveFocus();
     expect(mockedCreateServiceAccount).not.toHaveBeenCalled();
   });
@@ -474,7 +474,7 @@ describe("SettingsServiceAccountsPage", () => {
     await user.click(await screen.findByRole("button", { name: "New service account" }));
     const dialog = screen.getByRole("dialog", { name: "Service account drawer" });
     await user.click(within(dialog).getByRole("button", { name: "Create service account" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Paskyros raktas privalomas.");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Paskyros raktas privalomas."));
     expect(within(dialog).queryByText("Account key is required.")).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("Account key")).toHaveFocus();
     expect(mockedCreateServiceAccount).not.toHaveBeenCalled();
@@ -503,7 +503,7 @@ describe("SettingsServiceAccountsPage", () => {
     await user.click(within(expiry).getByRole("radio", { name: "Custom" }));
     const expiresOn = within(dialog).getByLabelText("Expires on");
     await user.click(within(dialog).getByRole("button", { name: "Create machine token" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Choose the date the token expires.");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Choose the date the token expires."));
     expect(expiresOn).toHaveFocus();
     expect(mockedCreateServiceAccountToken).not.toHaveBeenCalled();
   });
@@ -582,7 +582,7 @@ describe("SettingsServiceAccountsPage", () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderPage("/app");
     await user.click(await screen.findByRole("button", { name: "New service account" }));
-    expect(await screen.findByRole("link", { name: "Inspect workflow: Build" })).toHaveAttribute("href", "/app/registry/workflows/wf-build");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Inspect workflow: Build" })).toHaveAttribute("href", "/app/registry/workflows/wf-build"));
     expect(screen.getByRole("link", { name: "Inspect project: Platform" })).toHaveAttribute("href", "/app/projects/7");
   });
 
@@ -620,7 +620,7 @@ describe("SettingsServiceAccountsPage", () => {
     await user.click(screen.getByRole("button", { name: "New machine token" }));
     await user.click(screen.getByRole("button", { name: "Create machine token" }));
 
-    expect(await screen.findByText("Connect an MCP client")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Connect an MCP client")).toBeVisible());
     expect(screen.getByText(`${globalThis.location.origin}/mcp`)).toBeVisible();
     expect(screen.getByText("Authorization: Bearer fs_svc_test.secret")).toBeVisible();
     expect(screen.getByRole("button", { name: "Copy MCP endpoint" })).toBeEnabled();
@@ -756,7 +756,7 @@ describe("SettingsServiceAccountsPage", () => {
     await user.click(within(confirmation).getByRole("button", { name: "Delete token" }));
 
     // Canon: on failure the dialog stays open, restores its actions and says why.
-    expect(await within(confirmation).findByRole("alert")).toHaveTextContent("Token is referenced by a running job.");
+    await waitFor(() => expect(within(confirmation).getByRole("alert")).toHaveTextContent("Token is referenced by a running job."));
     expect(within(confirmation).getByRole("button", { name: "Delete token" })).toBeEnabled();
     expect(screen.getByRole("dialog", { name: "Machine token drawer", hidden: true })).toBeInTheDocument();
 
@@ -850,7 +850,7 @@ describe("SettingsServiceAccountsPage", () => {
 
     await user.click(await screen.findByRole("button", { name: /CI Bot/i }));
 
-    expect(await screen.findByText("scopes: jobs.read")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("scopes: jobs.read")).toBeVisible());
     expect(screen.getByText("scopes: none (no access)")).toBeVisible();
   });
 });

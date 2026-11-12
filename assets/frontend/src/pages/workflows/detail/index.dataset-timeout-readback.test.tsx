@@ -176,11 +176,11 @@ async function saveAndReadFresh(
     fresh = renderPage();
     await waitFor(() => expect(boundary.readStarted).toContain("fresh"));
     expect(boundary.parsedReads.filter((read) => read.phase === "fresh")).toEqual([]);
-    expect(await screen.findByText("Preparing the workflow")).toBeVisible(); // the page loader paints after its 400 ms delay
+    await waitFor(() => expect(screen.getByText("Preparing the workflow")).toBeVisible()); // the page loader paints after its 400 ms delay
     expect(screen.queryByRole("textbox", { name: "Step label" })).not.toBeInTheDocument();
     await act(async () => { boundary.releaseFreshRead(); });
     fireEvent.click(await screen.findByRole("button", { name: new RegExp(serverLabel) }));
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue(serverLabel);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue(serverLabel));
     expect(screen.getByLabelText("Result target")).toHaveValue("state.server_rows");
     if (typeof expected.timeout_seconds === "number" || expected.timeout_seconds === "") {
       expect(screen.getByLabelText("Timeout seconds")).toHaveDisplayValue(String(expected.timeout_seconds));
@@ -261,7 +261,7 @@ describe("Dataset timeout through public fields, Save and fresh HTTP readback", 
       fireEvent.click(await screen.findByRole("button", { name: /^\+ Add Step$/ }));
       fireEvent.change(await screen.findByRole("textbox", { name: "Step label" }), { target: { value: "New Dataset" } });
       fireEvent.change(screen.getByRole("combobox", { name: "Step kind" }), { target: { value: "dataset_query" } });
-      expect(await screen.findByLabelText("Timeout seconds")).toHaveDisplayValue("30");
+      await waitFor(() => expect(screen.getByLabelText("Timeout seconds")).toHaveDisplayValue("30"));
       fireEvent.click(screen.getByRole("button", { name: "Add step to changes" }));
       await waitFor(() => expect(dryRunChangeSets().flatMap((body) => Array.isArray(body.operations) ? body.operations : [])).toEqual(expect.arrayContaining([
         expect.objectContaining({ op: "create_step", step: expect.objectContaining({

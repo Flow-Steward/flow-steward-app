@@ -545,7 +545,7 @@ it("retains the executed archive canvas and provenance on standalone Job Details
   const view = renderPage();
   try {
     const page = await screen.findByTestId("job-detail-page");
-    expect(await within(page).findByTestId("job-definition-canvas")).toBeVisible();
+    await waitFor(() => expect(within(page).getByTestId("job-definition-canvas")).toBeVisible());
     expect(within(page).getByTestId("job-run-definition-revision")).toHaveTextContent("Executed definition: revision 7 · digest-7");
     expect(within(page).getByTestId("job-execution-waterfall")).toBeInTheDocument();
   } finally { view.unmount(); view.queryClient.clear(); }

@@ -168,7 +168,7 @@ describe("RegistryWorkspacesPage", () => {
     expect(mockedCreateWorkspace.mock.calls[0]?.[0]).toEqual({
       workspace_key: "", display_name: "Name without description", description: "",
     });
-    expect(await screen.findByText("Workspace created.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Workspace created.")).toBeVisible());
   });
 
   it("submits workspace creation without the unsupported status field", async () => {
@@ -205,9 +205,9 @@ describe("RegistryWorkspacesPage", () => {
     await user.type(nameInput, "Release");
     await user.click(screen.getByRole("button", { name: /^Create$/ }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "workspace_key 'release' already exists",
-    );
+    ));
     expect(nameInput).toHaveAttribute("aria-invalid", "true");
     expect(nameInput).toHaveAttribute("aria-describedby", "workspace-name-error");
   });

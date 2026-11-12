@@ -133,7 +133,7 @@ describe("refresh-token import connections", () => {
     const user = userEvent.setup();
     const { onConnectionsChanged } = renderImport();
 
-    expect(await screen.findByRole("heading", { name: "Connect an account" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Connect an account" })).toBeVisible());
     expect(screen.queryByLabelText("OAuth Redirect URI")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Authorization intent")).not.toBeInTheDocument();
     await user.type(screen.getByLabelText(/Connection name/u), "Primary account");
@@ -152,7 +152,7 @@ describe("refresh-token import connections", () => {
         connection_config: { account_ref: "acct-1" },
       },
     );
-    expect(await screen.findByRole("status")).toHaveTextContent("Account connected.");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Account connected."));
     expect(refreshTokenInput().value).toBe("");
     expect(onConnectionsChanged).toHaveBeenCalled();
     expect(mockedRedirect).not.toHaveBeenCalled();
@@ -167,7 +167,7 @@ describe("refresh-token import connections", () => {
     await user.type(screen.getByLabelText(/Connection name/u), "Primary account");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(await screen.findByText("Refresh token is required.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Refresh token is required.")).toBeVisible());
     expect(screen.getByText("Account reference is required.")).toBeVisible();
     expect(mockedImport).not.toHaveBeenCalled();
   });
@@ -189,9 +189,7 @@ describe("refresh-token import connections", () => {
     await user.type(screen.getByLabelText(/Account reference/u), "acct-1");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(
-      await screen.findByText("The provider did not accept this refresh token. Check it and try again."),
-    ).toBeVisible();
+    await waitFor(() => expect(screen.getByText("The provider did not accept this refresh token. Check it and try again.")).toBeVisible());
     expect(document.body).not.toHaveTextContent(new RegExp(PASTED));
     // A refused token is of no further use, so it leaves the page.
     expect(refreshTokenInput().value).toBe("");
@@ -415,7 +413,7 @@ describe("the Connection page renders the manifest shapes Core actually emits", 
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Connect an account" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Connect an account" })).toBeVisible());
     expect(screen.getAllByLabelText("Refresh token")[0]).toBeInTheDocument();
     expect(screen.getByLabelText(/Account reference/u)).toBeInTheDocument();
     expect(mockedRedirect).not.toHaveBeenCalled();

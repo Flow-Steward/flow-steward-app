@@ -262,9 +262,9 @@ describe("the hook's Test Run", () => {
     api.fetchWorkflowHook.mockResolvedValue(hook());
     mountTestRun();
 
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent(
       "This hook is empty. Add a step to it before testing it.",
-    );
+    ));
     expect(screen.queryByRole("button", { name: "Run hook test run" })).not.toBeInTheDocument();
   });
 
@@ -380,6 +380,6 @@ describe("Hook Test Run input required semantics", () => {
       child_outputs: { company: "" },
     });
     expect(screen.getByRole("textbox", { name: "Test value for fallback" })).toHaveValue("");
-    expect(await screen.findByTestId("hook-test-result")).toHaveTextContent("The hook would publish");
+    await waitFor(() => expect(screen.getByTestId("hook-test-result")).toHaveTextContent("The hook would publish"));
   });
 });

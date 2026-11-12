@@ -125,7 +125,7 @@ async function openStep(kind = "agent") {
     { step_id: "step_1", display_name: "Step one", step_kind: kind, agent_id: kind === "agent" ? "planner" : "", override: {} },
   ]);
   renderPage();
-  fireEvent.click(await screen.findByRole("button", { name: /Step one/i }, { timeout: 5_000 }));
+  fireEvent.click(await screen.findByRole("button", { name: /Step one/i }));
   return screen.findByRole("combobox", { name: "Step kind" });
 }
 
@@ -295,7 +295,7 @@ describe("a new step that is not applied yet", () => {
   async function addNewStep(kind: string) {
     serveVariables();
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "+ Add Step" }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Step" }));
     fireEvent.change(await screen.findByRole("combobox", { name: "Step kind" }), { target: { value: kind } });
   }
 
@@ -447,7 +447,7 @@ describe("an action's Value and Store in workflow state fields keep what is type
     serveVariables();
     if (optionalOnly) serveOptionalOnlyAction();
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "+ Add Step" }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Step" }));
     fireEvent.change(await screen.findByRole("combobox", { name: "Step kind" }), { target: { value: "connector" } });
     await chooseAction(user, optionalOnly ? /Look up issue/ : /Create issue/);
   }
@@ -455,22 +455,22 @@ describe("an action's Value and Store in workflow state fields keep what is type
   it("a new unapplied step with no parameter chosen", async () => {
     const user = userEvent.setup();
     await addNewActionStep(user, true);
-    expect(await screen.findByRole("combobox", { name: "Parameter 1" })).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Parameter 1" })).toHaveValue(""));
 
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: /Parameter value 1/ }), "state.");
     // Choosing the parameter afterwards keeps the value.
     fireEvent.change(screen.getByRole("combobox", { name: "Parameter 1" }), { target: { value: "query" } });
-    expect(await screen.findByRole("combobox", { name: /Parameter value 1/ })).toHaveValue("state.current_step_id");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Parameter value 1/ })).toHaveValue("state.current_step_id"));
 
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: "Output target 1" }), "");
     fireEvent.change(screen.getByRole("combobox", { name: "Returned field 1" }), { target: { value: "issue" } });
-    expect(await screen.findByRole("combobox", { name: "Output target 1" })).toHaveValue("state.current_step_id");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Output target 1" })).toHaveValue("state.current_step_id"));
   });
 
   it("a new unapplied step with its parameter chosen", async () => {
     const user = userEvent.setup();
     await addNewActionStep(user, false);
-    expect(await screen.findByRole("combobox", { name: "Parameter 1" })).toHaveValue("title");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Parameter 1" })).toHaveValue("title"));
 
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: /Parameter value 1/ }), "state.");
   });
@@ -494,7 +494,7 @@ describe("an action's Value and Store in workflow state fields keep what is type
     ]);
     serveOptionalOnlyAction();
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: /Look up/i }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: /Look up/i }));
 
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: new RegExp(name) }), "state.");
     await typeAndExpectCurrent(user, await screen.findByRole("combobox", { name: "Output target 1" }), "");
@@ -509,7 +509,7 @@ describe("a Set variable assignment row added with + Add", () => {
     serveVariables([{ step_id: "step_1", display_name: "Step one", step_kind: "set_variable",
       override: { set_variable: { assignments: { "state.plan": true } } } }]);
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: /Step one/i }, { timeout: 5_000 }));
+    fireEvent.click(await screen.findByRole("button", { name: /Step one/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Add assignment" }));
     const target = await screen.findByRole("textbox", { name: "Assignment 2 target" });
     expect(target).toHaveValue("");
@@ -724,7 +724,7 @@ it("offers known copied input and literal object members from reachable Set vari
   const source = await screen.findByRole("combobox", { name: "Transform source" });
   fireEvent.click(source);
   const panel = panelOf(source);
-  expect(await within(panel).findByRole("option", { name: /Copy customer.*Name/ })).toBeVisible();
+  await waitFor(() => expect(within(panel).getByRole("option", { name: /Copy customer.*Name/ })).toBeVisible());
   expect(within(panel).queryByRole("option", { name: /Copy customer.*Source/ })).not.toBeInTheDocument();
   const status = within(panel).getByRole("option", { name: /Save details.*Status/ });
   expect(within(panel).getByRole("option", { name: /Save details.*Count/ })).toBeVisible();

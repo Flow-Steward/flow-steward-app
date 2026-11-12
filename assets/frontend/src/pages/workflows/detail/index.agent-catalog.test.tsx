@@ -175,7 +175,7 @@ describe("WorkflowsDetailPage agent catalog (AUDIT-033)", () => {
     await waitFor(() => expect(agentSelect).toBeEnabled());
     await user.click(agentSelect);
     const agentOptions = screen.getByRole("listbox", { name: "Agent options" });
-    await user.click(await within(agentOptions).findByRole("option", { name: "Release Writer" }, { timeout: 4000 }));
+    await user.click(await within(agentOptions).findByRole("option", { name: "Release Writer" }));
     expect(agentSelect).toHaveTextContent("Release Writer");
     await user.click(agentSelect);
     expect(within(screen.getByRole("listbox", { name: "Agent options" }))

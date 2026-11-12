@@ -289,7 +289,7 @@ describe("AppShell", () => {
         expect(search).toHaveValue("Created");
         expect(search).toHaveFocus();
       } else {
-        expect(await screen.findByRole("alert")).toHaveTextContent("Workspace creation refused");
+        await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Workspace creation refused"));
         await user.click(screen.getByRole("button", { name: "Cancel" }));
       }
       expect(mounts).toBe(1);
@@ -298,7 +298,7 @@ describe("AppShell", () => {
       await user.click(screen.getByRole("button", { name: "Workspace" }));
       expect(screen.getByRole("menuitemradio", { name: "Default workspace" })).toBeChecked();
       if (createSucceeds) {
-        expect(await screen.findByRole("menuitemradio", { name: "Created workspace" })).not.toBeChecked();
+        await waitFor(() => expect(screen.getByRole("menuitemradio", { name: "Created workspace" })).not.toBeChecked());
       } else {
         expect(screen.queryByRole("menuitemradio", { name: "Created workspace" })).not.toBeInTheDocument();
       }
@@ -974,7 +974,7 @@ describe("AppShell", () => {
     });
     await waitFor(() => expect(workspaceRequests).toBe(2));
     fireEvent.click(screen.getByRole("button", { name: "Workspace" }));
-    expect(await screen.findByText("Unable to load workspaces.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Unable to load workspaces.")).toBeVisible());
 
     await act(async () => {
       firstWorkspaceRequest.resolve(

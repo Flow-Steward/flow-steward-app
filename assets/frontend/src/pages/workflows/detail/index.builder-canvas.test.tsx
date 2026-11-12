@@ -120,7 +120,7 @@ const UPDATE_NEW_STEP = /^(Update new step|Updated)$/;
 
 async function addRootStepFromCanvas(label: string, kind: string, discardParameters = false) {
   // The first journey of the file renders the page cold; under gate load that outlasts 1 s.
-  fireEvent.click(await screen.findByRole("button", { name: "Add step" }, { timeout: 5_000 }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add step" }));
   const palette = await screen.findByRole("dialog", { name: "Add step" });
   fireEvent.click(within(palette).getByRole("option", { name: "Set variable" }));
 
@@ -204,7 +204,7 @@ function expectedRoutingStep(kind: RoutingKind, label: string, stepId: string, f
   };
 }
 
-describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
+describe("WorkflowsDetailPage canvas builder", () => {
   it("closes a discarded new step editor instead of treating its stale fields as another creation", async () => {
     installLinearWorkflow();
     renderPage({ surface: "builder" });
@@ -432,16 +432,16 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     fireEvent.change(label, { target: { value: "Plan the work" } });
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent(
       "Save the step parameters before running a test.",
-    );
+    ));
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled();
 
     await addRootStepFromCanvas("Review draft", "set_variable", true);
     fireEvent.click(await screen.findByRole("tab", { name: "Test Run" }));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent(
       "This step exists only in the unapplied changes. Apply them before testing it.",
-    );
+    ));
   });
 
   it("routes each named outcome explicitly and replaces a taken one only after confirmation", async () => {
@@ -781,7 +781,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Case value 2" }), { target: { value: "silver" } });
     fireEvent.click(screen.getByRole("button", { name: "Save parameters" }));
 
-    expect(await screen.findByTestId("workflow-change-set-bar")).toHaveTextContent("Structure not applied: 1 change(s)");
+    await waitFor(() => expect(screen.getByTestId("workflow-change-set-bar")).toHaveTextContent("Structure not applied: 1 change(s)"));
     expect(postedChangeSets()).toEqual([]);
     // The new case is a port to route, named by its stable id.
     expect(await screen.findByRole("combobox", { name: "Next step for silver" })).toBeInTheDocument();
@@ -907,7 +907,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     const childMapping = screen.getByRole("group", { name: "Child input is not mapped: item_summary" });
     fireEvent.click(within(childMapping).getByRole("button", { name: "Open step mapping" }));
     // The affected step's editor opens itself; no notice stays on screen (Panels › Save buttons).
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Process items");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Process items"));
     expect(screen.getByText("process_items", { exact: true })).toBeVisible();
   });
 
@@ -1157,7 +1157,7 @@ it("keeps actual ordinary-step marks updating with Results closed and resets the
     const mark = within(doneBeforeRun).getByTestId("workflow-runtime-mark");
     expect(mark).toHaveAttribute("data-run", "done");
     expect(within(mark).getByText("< 0.1 s", { exact: true })).toBeVisible();
-  }, { timeout: 5_000 });
+  });
   const terminalDoneMark = within(doneBeforeRun).getByTestId("workflow-runtime-mark");
   expect(terminalDoneMark).toHaveAttribute("data-job-id", firstJob);
   expect(within(terminalDoneMark).getByText("< 0.1 s", { exact: true })).toBeVisible();
@@ -1168,7 +1168,7 @@ it("keeps actual ordinary-step marks updating with Results closed and resets the
   fireEvent.click(within(await selectedRunBar(firstJob)).getByRole("button", { name: "Results" }));
   const completedResults = await screen.findByTestId("workflow-test-run-results");
   expect(completedResults).toHaveAttribute("data-job-id", firstJob);
-  expect(await within(completedResults).findByRole("heading", { name: /^Latest test run/ })).toHaveTextContent("Finished");
+  await waitFor(() => expect(within(completedResults).getByRole("heading", { name: /^Latest test run/ })).toHaveTextContent("Finished"));
   expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1);
   fireEvent.click(within(screen.getByRole("dialog", { name: "Test Run results" })).getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument());
@@ -1285,7 +1285,7 @@ describe("contextual Play uses the existing isolated Step Test Run", () => {
     clickCanvasCard(await screen.findByRole("group", { name: "Open step Plan work" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Step label" }), { target: { value: "Unfinished plan label" } });
     await user.click(await playFor("Plan work"));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent("Save the step parameters before running a test.");
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent("Save the step parameters before running a test."));
     expect(screen.getByRole("tab", { name: "Test Run" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled();
     await user.click(screen.getByRole("tab", { name: "Smart setup" }));
@@ -1301,7 +1301,7 @@ describe("contextual Play uses the existing isolated Step Test Run", () => {
     renderPage({ surface: "builder" });
     await addRootStepFromCanvas("Unapplied draft", "set_variable");
     fireEvent.click(await playFor("Unapplied draft"));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent("This step exists only in the unapplied changes. Apply them before testing it.");
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent("This step exists only in the unapplied changes. Apply them before testing it."));
     expect(screen.getByRole("tab", { name: "Test Run" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled();
     expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
@@ -1964,7 +1964,7 @@ it("refuses the whole selected set when one member has a saved disabled Automati
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
   await selectBulkCards("Plan work", "Review work");
   bulkDelete();
-  expect(await screen.findByText(/Guard review/)).toBeVisible();
+  await waitFor(() => expect(screen.getByText(/Guard review/)).toBeVisible());
   expect(gets.map((url) => url.searchParams.get("scope_id"))).toEqual(expect.arrayContaining(["plan", "review"]));
   expect(dryRunChangeSets().filter((body) => JSON.stringify(body.operations).includes('"delete_step"'))).toEqual([]);
   expect(screen.getByRole("group", { name: "Open step Plan work" })).toBeInTheDocument();
@@ -2160,7 +2160,7 @@ async function selectRunBarHistory(id: string) {
 }
 async function openSelectedRunBarResults(id: string) {
   fireEvent.click(within(await selectedRunBar(id)).getByRole("button", { name: "Results" }));
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", id);
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", id));
   expect(screen.getByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", `/jobs/${id}`);
 }
 function expectRunBarReadOnly() {
@@ -2294,7 +2294,7 @@ describe("09A persistent selected Test Run identity (SOURCE proposal)", () => {
     await openSelectedRunBarResults("bar-latest");
     fireEvent.click(within(screen.getByRole("dialog", { name: "Test Run results" })).getByRole("button", { name: "Close" }));
     openStep("plan");
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved plan label");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved plan label"));
     expectRunBarReadOnly();
   });
   // Earlier runs are chosen in Results › Test runs, which a step editor with invalid input
@@ -2317,7 +2317,7 @@ it.each(["Results", "Back to latest"] as const)("preserves invalid input and sel
     const confirmation = await screen.findByRole("dialog", { name: "Discard invalid input?" });
     fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(initiatingControl).toHaveFocus());
-    expect(await screen.findByRole("textbox", { name: "Rows" })).toBe(rows);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Rows" })).toBe(rows));
     expect(rows).toHaveValue("[{");
     expect(rows).toHaveAttribute("aria-invalid", "true");
     await selectedRunBar("bar-older");
@@ -2558,7 +2558,7 @@ it("offers a plain Group and Parallel lanes under the toolbar's Group", async ()
   const group = within(toolbar).getByRole("menuitem", { name: "Parallel lanes" });
   expect(group).toBeEnabled();
   fireEvent.click(group);
-  expect(await screen.findByRole("dialog", { name: "Group editor" })).toBeVisible();
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "Group editor" })).toBeVisible());
   expect(screen.queryByRole("dialog", { name: "For each editor" })).not.toBeInTheDocument();
   expect(postedChangeSets()).toEqual([]);
 });

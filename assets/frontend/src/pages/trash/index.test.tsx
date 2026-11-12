@@ -342,7 +342,7 @@ describe("TrashPage", () => {
     const dialog = screen.getByRole("alertdialog", { name: "Purge tool “Tool One”?" });
     await user.click(within(dialog).getByRole("button", { name: "Purge tool" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("purge blocked by a reference");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("purge blocked by a reference"));
     expect(within(dialog).getByRole("button", { name: "Purge tool" })).toBeEnabled();
   });
 

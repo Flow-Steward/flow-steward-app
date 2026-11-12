@@ -259,10 +259,10 @@ describe("WorkflowsImportPage", () => {
         ],
       });
     });
-    expect(await screen.findByText("Open imported workflow")).toHaveAttribute(
+    await waitFor(() => expect(screen.getByText("Open imported workflow")).toHaveAttribute(
       "href",
       "/registry/workflows/wf_existing_copy/builder",
-    );
+    ));
   });
 
   it("accepts a checked fresh explicit root target without a redundant row rename", async () => {
@@ -829,9 +829,7 @@ describe("WorkflowsImportPage", () => {
     expect(
       screen.getByText(/imports as a draft and can be finished in the editor/i),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByRole("button", { name: /import workflow/i }),
-    ).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: /import workflow/i })).toBeEnabled());
   });
 
   // The page asked which project to import into, used the answer to look up
@@ -1034,8 +1032,8 @@ describe("WorkflowsImportPage", () => {
     fireEvent.change(screen.getByLabelText("Workflow bundle YAML"), { target: { value: "bundle" } });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
 
-    expect(await screen.findByLabelText("Resolution for writer")).toHaveValue("use_existing");
-    await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenCalledTimes(2), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByLabelText("Resolution for writer")).toHaveValue("use_existing"));
+    await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenCalledTimes(2));
     expect(mockedPreflightWorkflowImport).toHaveBeenLastCalledWith(
       expect.objectContaining({
         resolutions: [expect.objectContaining({ dependency_key: "agent:writer", action: "use_existing" })],

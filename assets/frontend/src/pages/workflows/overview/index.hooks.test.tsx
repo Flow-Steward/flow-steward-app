@@ -1,7 +1,7 @@
 import { LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
 import type * as ProjectContext from "@/pages/workflows/shared/project-context";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryRouter, RouterProvider } from "react-router";
 
@@ -150,7 +150,7 @@ describe("Workflow overview Hooks section", () => {
     mockedLinkedProject.mockResolvedValue("");
     mockedLinkedProjects.mockResolvedValue([]);
     renderPage("/registry/workflows/wf?tab=hooks");
-    expect(await screen.findByRole("link", { name: "Link a project" })).toHaveAttribute("href", "/registry/workflows/wf/projects");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Link a project" })).toHaveAttribute("href", "/registry/workflows/wf/projects"));
     expect(screen.queryByRole("link", { name: /Edit the steps of hook/ })).not.toBeInTheDocument();
     expect(mockedHooks).not.toHaveBeenCalled();
   });
@@ -158,7 +158,7 @@ describe("Workflow overview Hooks section", () => {
   it.each(["deleted-project", "not-linked"])("rejects stale URL context %s without reading a different project's Hooks", async (projectId) => {
     mockedLinkedProjects.mockResolvedValue([{ id: "p-1", name: "Orders demo" }] as never);
     renderPage(`/registry/workflows/wf?tab=hooks&project_id=${projectId}`);
-    expect(await screen.findByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Choose a linked project");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Choose a linked project"));
     expect(screen.queryByRole("link", { name: /Edit the steps of hook/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
     expect(mockedHooks).not.toHaveBeenCalled();
@@ -303,7 +303,7 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
     vi.useRealTimers();
     const { unmount: unmountReload } = renderPage(reloadEntry);
     try {
-      expect(await screen.findByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Second project");
+      await waitFor(() => expect(screen.getByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Second project"));
       await screen.findByRole("link", { name: "Edit the steps of hook Before the order is finished" });
       expect(reloadedRequests).toContain("/api/projects/p-2/workflows/wf/hooks");
       expect(reloadedRequests).not.toContain("/api/projects/p-1/workflows/wf/hooks");
