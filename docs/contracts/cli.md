@@ -14,7 +14,7 @@ runtime or product container. Command specifications declare Compact support;
 unsupported operations must not be advertised as interchangeable between profiles.
 Provider-console operations are documented separately in the deployment runbook.
 
-Click owns parsing, Textual guided forms, Rich execution rendering and Pydantic
+Click owns parsing, prompt-toolkit the guided questions, Rich execution rendering and Pydantic
 input/result validation. Dependency versions come from the repository dependency
 locks, not a second manually maintained version table.
 
@@ -39,23 +39,24 @@ renderers must not create competing domain validation or bespoke command forms.
 
 ## Invocation and parameters
 
-Plain line-oriented interaction is the default. `--plain` overrides `--tui`.
-Explicit `--tui` selects eligible Textual forms only with capable interactive
-stdin/stdout. JSON and non-interactive modes never prompt. `CI` alone does not
-change semantics; actual TTY state and explicit flags do.
+Line-oriented interaction with coloured, human-readable output is the default
+for a terminal. Missing input is asked one question at a time; a choice is picked
+with the arrow keys and Enter in a terminal and by number elsewhere. `--plain`
+prints the same output without colour or animation. JSON and non-interactive
+modes never prompt.
+`CI` alone does not change semantics; actual TTY state and explicit flags do.
 
-`--json` selects JSON output without color or prompts. `--no-color`, `NO_COLOR`
-and `TERM=dumb` disable color; plain output is understandable without animation.
-Doctor remains line-oriented. Full-screen forms support `80x24`; smaller terminals
-offer resize/plain fallback, and below `60x20` full-screen mode is refused with
-the minimum and a `--plain` alternative.
+`--json` selects JSON output without color or prompts; it is the only mode that
+prints JSON. `--no-color`, `NO_COLOR`, `TERM=dumb` and redirected stdout disable
+color; plain output is understandable without animation.
+Doctor remains line-oriented. Questions and output work at any terminal size.
 
 Parameter availability is level-specific:
 
 | CLI level | Available parameters |
 | --- | --- |
-| Root (`flow-steward`) | `-h`, `--help`, `--version`; `--json`, `--plain`, `--tui`, `--no-color`, `--verbose`, `--non-interactive` |
-| Command group (`flow-steward users`) | `-h`, `--help`; `--json`, `--plain`, `--tui`, `--no-color`, `--verbose`, `--non-interactive` |
+| Root (`flow-steward`) | `-h`, `--help`, `--version`; `--json`, `--plain`, `--no-color`, `--verbose`, `--non-interactive` |
+| Command group (`flow-steward users`) | `-h`, `--help`; `--json`, `--plain`, `--no-color`, `--verbose`, `--non-interactive` |
 | Leaf command (`flow-steward users create`) | `-h`, `--help`; presentation/runtime flags and declared command inputs; `--input-json PATH` where supported by the command specification |
 
 `--version` is root-only. `--input-json PATH` is leaf-only and supplies non-secret
@@ -70,12 +71,12 @@ persisted non-secret configuration, specification default, then interactive inpu
 Review identifies inherited/default values. Validation completes before mutation;
 conditional visibility never bypasses the normalized input model.
 
-## Forms, review and secrets
+## Questions, review and secrets
 
-Shared forms show purpose, required/optional fields, advanced fields, field help,
-validation errors and review/cancel actions. Keyboard navigation, visible focus,
-retained input after validation failure and text-based status are required.
-Selectors expose choices rather than demanding users memorize enum keys.
+Shared questions show the field label, its help and its default; required fields
+are asked, optional ones only where the command asks for them. Choices are picked
+from a list (arrow keys and Enter in a terminal, a number elsewhere) rather than
+typed as enum keys. Keyboard only; nothing needs the mouse.
 
 Review describes changes, unchanged/default values, effects, preservation steps
 and warnings. The command's confirmation policy controls mutation; destructive
@@ -93,6 +94,13 @@ command and is never repeated in logs.
 Shared execution rendering shows step state, elapsed time, quiet-work heartbeat,
 safe technical output, remediation and log location. Redirected output is stable
 line-oriented output; terminal animation is not an automation protocol.
+
+Human results share one layout: a change starts with `✓`, `!` or `✗` and its
+outcome, then aligned facts; lists of records are borderless tables; nested
+values are indented sections; next steps and warnings come last. A command shown
+to the operator (hints, next steps, help examples) is rewritten to the name the
+launcher was run as, so it runs when pasted: `./flow-steward` or a path to it on
+a host, `flow-steward` in the Compact image on a platform.
 
 JSON mode emits one UTF-8 document on stdout with schema `flow-steward.cli.v1`,
 `ok`, `command`, `operation_id` and `log_path`. Success adds `result` and `warnings`
@@ -125,7 +133,7 @@ Read-only diagnostics remain available where the transition can be observed
 safely. CLI presentation changes never reset durable data, secrets or volumes.
 
 Specification/Click tests own registry uniqueness, level-specific flags, generated
-help, aggregate validation and exit mapping. Textual tests own keyboard behavior,
-form review, small terminals and secret-safe rendering. Renderer/launcher tests
+help, aggregate validation and exit mapping. Prompt tests own choice selection,
+review and secret-safe rendering. Renderer/launcher tests
 own JSON/plain/TTY behavior, signals, progress, logs and lock handling. Verification
 follows the [testing standard](../standards/testing-standard.md), inside Docker.

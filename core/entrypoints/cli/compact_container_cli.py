@@ -53,36 +53,44 @@ def _command_path(arguments: list[str]) -> tuple[str, str]:
     return words[0], words[1] if len(words) > 1 and not words[1].startswith("-") else ""
 
 
+def _refuse(message: str, fix: str = "") -> int:
+    """Refuse in the shared CLI style: what is wrong, then what to do."""
+    click.secho(f"✗ {message}", fg="red", bold=True, err=True)
+    if fix:
+        click.echo(f"  Fix: {fix}", err=True)
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if runtime_env.get("FS_DEPLOYMENT_PROFILE") != "compact":
-        print("This management command requires the Compact runtime container.", file=sys.stderr)
-        return 2
+        return _refuse("This management command requires the Compact runtime container.")
 
     top, subcommand = _command_path(arguments)
     if top in _HOST_ONLY_DOMAINS:
-        print(
-            f"{top} is not available in Compact container: it requires host Docker "
-            "or installer tooling. Use the host ./flow-steward on a VPS.",
-            file=sys.stderr,
+        code = _refuse(
+            f"{top} is not available in Compact containers: it requires host Docker or "
+            "installer tooling.",
+            "run it with ./flow-steward on a server installed with ./install.sh.",
         )
         if top == "config":
-            print(_COMPACT_HOST_SETTINGS_PATH, file=sys.stderr)
-        return 2
+            click.echo(f"  {_COMPACT_HOST_SETTINGS_PATH}", err=True)
+        return code
     if subcommand in _UNAVAILABLE_COMMANDS.get(top, ()):
-        print(
-            f"{top} {subcommand} is not available in Compact container; "
+        return _refuse(
+            f"{top} {subcommand} is not available in Compact containers.",
             "use the installation procedure for this operation.",
-            file=sys.stderr,
         )
-        return 2
 
     data_root = Path(runtime_env.get("FS_COMPACT_DATA_ROOT") or "/data")
     try:
         restore_runtime_secrets(data_root / "state" / "runtime-secrets.json", runtime_env)
     except RuntimeError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
+        return _refuse(
+            f"{exc}.",
+            "the runtime writes this state on its first start; start the service once "
+            "(check its logs if it does not stay up), then run the command again.",
+        )
 
     runtime_env.setdefault("FS_DOCKER_HOST_PROJECT_ROOT", str(data_root / "state"))
     from core.entrypoints.cli.click_app import _runtime, click_app

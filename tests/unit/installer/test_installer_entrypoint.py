@@ -165,35 +165,8 @@ def test_default_installer_uses_plain_questions_and_cancels_without_install(
     assert "Environment" in result.output
     assert f"How to run Flow Steward: {profile.capitalize()}" in result.output
     assert "Apply this change?" in result.output
-    assert "\x1b[" not in result.output
-    assert service.configs == []
-
-
-def test_installer_full_screen_form_requires_explicit_tui_and_cancels_safely(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from core.entrypoints.cli.platform.modes import TerminalFacts
-    from core.entrypoints.cli.tui import form_app
-
-    service = FakeService()
-    forms: list[dict[str, object]] = []
-
-    class CancelledForm:
-        def __init__(self, **kwargs: object) -> None:
-            forms.append(kwargs)
-
-        def run(self) -> form_app.FormOutcome:
-            return form_app.FormOutcome(status="cancelled")
-
-    monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
-    monkeypatch.setattr(
-        installer, "_terminal_facts", lambda: TerminalFacts(True, True, 120, 40, "xterm", False)
-    )
-    monkeypatch.setattr(form_app, "CommandFormApp", CancelledForm)
-    result = CliRunner().invoke(installer.installer_command, ["--tui"])
-    assert result.exit_code == 10, result.output
-    assert len(forms) == 1
-    assert forms[0]["color_enabled"] is True
+    # Questions are plain lines; colour marks only the outcome (a terminal default).
+    assert "\x1b[" not in result.output.split("Apply this change?")[0]
     assert service.configs == []
 
 

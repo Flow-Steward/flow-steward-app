@@ -93,6 +93,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/__init__.py \
     core/entrypoints/cli/platform/click_adapter.py \
     core/entrypoints/cli/platform/command_help.py \
+    core/entrypoints/cli/platform/command_names.py \
     core/entrypoints/cli/platform/command_parameters.py \
     core/entrypoints/cli/platform/confirmation.py \
     core/entrypoints/cli/platform/errors.py \
@@ -102,10 +103,13 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/interrupts.py \
     core/entrypoints/cli/platform/modes.py \
     core/entrypoints/cli/platform/operation_log.py \
+    core/entrypoints/cli/platform/prompts.py \
     core/entrypoints/cli/platform/redaction.py \
     core/entrypoints/cli/platform/renderers.py \
     core/entrypoints/cli/platform/result_presentation.py \
+    core/entrypoints/cli/platform/result_view.py \
     core/entrypoints/cli/platform/service_registry.py \
+    core/entrypoints/cli/platform/step_progress.py \
     core/entrypoints/cli/platform/theme.py \
     core/entrypoints/cli/platform/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
@@ -121,12 +125,6 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/service_bindings/release.py \
     core/entrypoints/cli/platform/service_bindings/stack.py \
     core/entrypoints/cli/platform/service_bindings/
-COPY --chmod=u=rwX,go=rX --chown=fs:fs \
-    core/entrypoints/cli/tui/__init__.py \
-    core/entrypoints/cli/tui/form_app.py \
-    core/entrypoints/cli/tui/theme.tcss \
-    core/entrypoints/cli/tui/theme_monochrome.tcss \
-    core/entrypoints/cli/tui/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/__init__.py core/application/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/config.py core/application/auth/email.py core/application/auth/secrets.py core/application/auth/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/bootstrap_tokens.py core/application/auth/bootstrap_recovery.py core/application/auth/bootstrap_recovery_gateway.py core/application/auth/
@@ -589,7 +587,9 @@ COPY --from=frontend-build /app/assets/platform-kit assets/platform-kit
 COPY --from=frontend-build /app/assets/platform-components.css assets/platform-components.css
 COPY --chmod=u=rwX,go=rX VERSION VERSION
 COPY --chmod=0755 infra/docker/compact/flow-steward /usr/local/bin/flow-steward
-RUN touch assets/frontend/dist/.vite/manifest.json \
+# A provider console (Railway, Render) opens bash here: Tab completes flow-steward.
+RUN printf '%s\n' '[ -r /app/core/entrypoints/cli/completion/flow-steward.bash ] && . /app/core/entrypoints/cli/completion/flow-steward.bash' >> /etc/bash.bashrc \
+    && touch assets/frontend/dist/.vite/manifest.json \
     && pip install --no-cache-dir --no-deps ./core/infrastructure/extension_sdk/public \
     && ln -s /data/state/.flow-steward /app/.flow-steward \
     && ln -s /data/state/.flow-steward/runtime /run/flow-steward-runtime \

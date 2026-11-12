@@ -3895,6 +3895,27 @@
     "variable_name": "FS_CLI_IMAGE"
   },
   {
+    "canonical_name": "FS_CLI_INVOCATION",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/flow_steward_launcher.sh"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Launcher-injected name the operator ran (./flow-steward or a path to it); commands shown in hints are rewritten to it. Unset in the Compact image, where the command is flow-steward.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "api",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_CLI_INVOCATION"
+  },
+  {
     "canonical_name": "FS_CLI_OPERATION_LOG_HOST_ROOT",
     "code_read_locations": [
       "core/entrypoints/cli/platform/operation_log.py"
@@ -12672,6 +12693,7 @@
     "canonical_name": "HOME",
     "code_read_locations": [
       "tests/unit/test_docker_compose_env.py",
+      "core/entrypoints/cli/scripts/flow_steward_launcher.sh",
       "infra/docker/docker-compose.oauth-browser.yaml"
     ],
     "conditional_groups": [],

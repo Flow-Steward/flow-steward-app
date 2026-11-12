@@ -5,4 +5,4 @@ cryptography==50.0.0
 psycopg[binary]==3.3.3
 pydantic==2.12.5
 rich==15.0.0
-textual==8.2.8
+prompt-toolkit==3.0.52

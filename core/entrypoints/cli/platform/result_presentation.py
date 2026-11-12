@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable
 from typing import Any
 
 import click
@@ -21,31 +19,6 @@ def _data(value: ExecutionResult | BaseModel | None) -> dict[str, Any]:
             return dict(value.public_result)
         value = value.result
     return value.model_dump(mode="json") if value is not None else {}
-
-
-def _render_users_list_plain(payload: dict[str, Any]) -> None:
-    users = payload.get("users") or []
-    if not users:
-        click.echo("No users found.")
-        return
-    for row in users:
-        if hasattr(row, "model_dump"):
-            row = row.model_dump(mode="json")
-        if not isinstance(row, dict):
-            continue
-        roles = ",".join(str(role) for role in row.get("roles", []) if str(role))
-        email = str(row.get("email") or row.get("username") or "")
-        click.echo(
-            " ".join(
-                (
-                    f"id={row.get('id', '')}",
-                    f"email={email}",
-                    f"roles={roles}",
-                    f"active={str(bool(row.get('is_active', False))).lower()}",
-                    f"reset={str(bool(row.get('must_change_password', False))).lower()}",
-                )
-            )
-        )
 
 
 def _readiness_rows(payload: dict[str, Any], area: str) -> list[dict[str, Any]]:
@@ -157,95 +130,6 @@ def _render_readiness_rich(console: Any, payload: dict[str, Any]) -> None:
             console.print(f"  {escape(status)}: {escape(str(row.get('title') or ''))}")
             if row.get("remediation"):
                 console.print(f"    [dim]Next: {escape(str(row['remediation']))}[/dim]")
-
-
-def _render_extensions_create_plain(payload: dict[str, Any]) -> None:
-    click.echo(
-        " ".join(
-            (
-                f"status={payload.get('status', '')}",
-                f"extension_id={payload.get('extension_id', '')}",
-                f"path={payload.get('path', '')}",
-                f"files_created={payload.get('files_created', 0)}",
-            )
-        )
-    )
-
-
-def _render_users_list_rich(console: Any, payload: dict[str, Any]) -> None:
-    from rich.table import Table
-    from rich.text import Text
-
-    users = payload.get("users") or []
-    if not users:
-        console.print("[dim]No users found.[/dim]")
-        return
-    table = Table(title="Users", show_lines=False)
-    for column in ("ID", "Email", "Name", "Roles", "Active", "Reset", "Account"):
-        table.add_column(column)
-    for row in users:
-        if hasattr(row, "model_dump"):
-            row = row.model_dump(mode="json")
-        if not isinstance(row, dict):
-            continue
-        roles = ", ".join(str(role) for role in row.get("roles", []) if str(role))
-        email = str(row.get("email") or row.get("username") or "")
-        table.add_row(
-            Text(str(row.get("id") or "")),
-            Text(email),
-            Text(str(row.get("display_name") or "")),
-            Text(roles),
-            Text("yes" if bool(row.get("is_active", False)) else "no"),
-            Text("yes" if bool(row.get("must_change_password", False)) else "no"),
-            Text(str(row.get("account_id") or "")),
-        )
-    console.print(table)
-    total = int(payload.get("total") or len(users))
-    limit = int(payload.get("limit") or len(users) or 1)
-    offset = int(payload.get("offset") or 0)
-    shown = len(users)
-    console.print(f"Showing {shown} of {total} users (offset {offset}, limit {limit}).")
-    if bool(payload.get("has_more")):
-        console.print(
-            f"Next page: flow-steward users list --offset {offset + shown} --limit {limit}"
-        )
-
-
-def _render_rich_payload(
-    console: Any, payload: dict[str, Any], *, escape: Callable[[str], str]
-) -> None:
-    operation_payload = bool(payload.get("operation"))
-    for key, value in payload.items():
-        if key == "command" or (operation_payload and key in {"operation", "status"}):
-            continue
-        if value in (None, "", [], {}):
-            continue
-        escaped_key = escape(str(key))
-        if key == "stdout":
-            console.print("[bold]stdout[/bold]")
-            console.print(escape(str(value)), highlight=False, soft_wrap=True)
-        elif key == "stderr":
-            console.print("[bold yellow]stderr[/bold yellow]")
-            console.print(escape(str(value)), highlight=False, soft_wrap=True)
-        elif key == "artifacts" and isinstance(value, list):
-            console.print("[bold]artifacts[/bold]")
-            for artifact in value:
-                console.print(f"- {escape(str(artifact))}")
-        elif isinstance(value, (dict, list)):
-            console.print(f"[bold]{escaped_key}[/bold]")
-            console.print(
-                escape(
-                    json.dumps(value, ensure_ascii=False, default=str, sort_keys=True, indent=2)
-                ),
-                highlight=False,
-                soft_wrap=True,
-            )
-        else:
-            console.print(
-                f"[cyan]{escaped_key}[/cyan]: {escape(str(value))}",
-                highlight=False,
-                soft_wrap=True,
-            )
 
 
 def _progress_line(event: OperationProgressEvent) -> str:

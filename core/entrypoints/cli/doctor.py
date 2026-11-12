@@ -209,7 +209,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--fix", action="store_true")
     parser.add_argument("--confirm", action="store_true")
     parser.add_argument("--json", action="store_true")
-    for ignored in ("--plain", "--tui", "--no-color", "--verbose", "--non-interactive"):
+    for ignored in ("--plain", "--no-color", "--verbose", "--non-interactive"):
         parser.add_argument(ignored, action="store_true")
     parser.add_argument("ids", nargs="*")
     return parser

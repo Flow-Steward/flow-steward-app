@@ -88,7 +88,6 @@ def test_generated_tree_and_help_are_public_and_structured() -> None:
     for expected in (
         "--json",
         "--plain",
-        "--tui",
         "--no-color",
         "--non-interactive",
         "--input-json",
@@ -124,9 +123,8 @@ def test_global_options_are_accepted_at_each_supported_depth() -> None:
         ["users", "--json", "list"],
         ["users", "list", "--json"],
         ["--plain", "users", "list"],
-        ["--tui", "users", "list"],
-        ["users", "--tui", "list"],
-        ["users", "list", "--tui"],
+        ["users", "--plain", "list"],
+        ["users", "list", "--plain"],
         ["users", "--no-color", "list"],
         ["users", "list", "--verbose"],
         ["--non-interactive", "users", "list"],
@@ -190,119 +188,7 @@ def test_approved_cli_spec_documents_flag_availability_by_level() -> None:
     assert "presentation/runtime flags behave identically at every command depth" in text
 
 
-def test_textual_form_receives_color_and_animation_mode_decision(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("textual")
-
-    from core.application.management.command_specs.users import USERS_CREATE_SPEC
-    from core.entrypoints.cli.platform import click_adapter
-    from core.entrypoints.cli.tui import form_app
-
-    captured: dict[str, object] = {}
-
-    class FakeRegistry:
-        async def choices(self, _provider: str) -> tuple[object, ...]:
-            return ()
-
-    class FakeCommandFormApp:
-        def __init__(self, **kwargs: object) -> None:
-            captured.update(kwargs)
-
-        def run(self) -> form_app.FormOutcome:
-            return form_app.FormOutcome(status="cancelled")
-
-    monkeypatch.setattr(form_app, "CommandFormApp", FakeCommandFormApp)
-
-    outcome = click_adapter._run_textual_form(
-        spec=USERS_CREATE_SPEC,
-        initial_values={},
-        registry=FakeRegistry(),
-        terminal_size=(80, 24),
-        color_enabled=False,
-        animation_enabled=False,
-    )
-
-    assert outcome == form_app.FormOutcome(status="cancelled")
-    assert captured["color_enabled"] is False
-    assert captured["animation_enabled"] is False
-
-
-def test_valid_always_review_command_uses_textual_review_when_available(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from core.entrypoints.cli.platform import click_adapter
-    from core.entrypoints.cli.platform.modes import TerminalFacts
-
-    app, registry = _app()
-    textual_calls: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        click_adapter,
-        "_terminal_facts",
-        lambda: TerminalFacts(
-            stdin_isatty=True,
-            stdout_isatty=True,
-            columns=100,
-            rows=30,
-            term="xterm-256color",
-            no_color_env=False,
-        ),
-    )
-
-    def _fake_textual_form(**kwargs: object) -> object:
-        textual_calls.append(dict(kwargs))
-        return SimpleNamespace(status="confirmed", values={})
-
-    monkeypatch.setattr(click_adapter, "_run_textual_form", _fake_textual_form)
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "--tui",
-            "users",
-            "create",
-            "--email",
-            "operator@example.com",
-            "--role",
-            "viewer",
-            "--password-stdin",
-        ],
-        input="StrongPass_123!\n",
-    )
-
-    assert result.exit_code == 0, result.output
-    assert textual_calls
-    assert registry.calls[0][0] == "users.create"
-
-
-def test_small_textual_terminal_announces_plain_wizard_before_missing_fields(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from core.entrypoints.cli.platform import click_adapter
-    from core.entrypoints.cli.platform.modes import TerminalFacts
-
-    app, registry = _app()
-    monkeypatch.setattr(
-        click_adapter,
-        "_terminal_facts",
-        lambda: TerminalFacts(
-            stdin_isatty=True,
-            stdout_isatty=True,
-            columns=70,
-            rows=22,
-            term="xterm-256color",
-            no_color_env=False,
-        ),
-    )
-
-    result = CliRunner().invoke(app, ["users", "create", "--tui"])
-
-    assert result.exit_code != 0
-    assert "using the plain interactive wizard" in result.output
-    assert registry.calls == []
-
-
-def test_default_interactive_command_uses_plain_input_and_refuses_cancelled_review(
+def test_default_interactive_command_asks_line_by_line_and_refuses_cancelled_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from core.entrypoints.cli.platform import click_adapter
@@ -313,14 +199,9 @@ def test_default_interactive_command_uses_plain_input_and_refuses_cancelled_revi
         click_adapter, "_terminal_facts", lambda: TerminalFacts(True, True, 100, 30, "xterm", False)
     )
 
-    def forbidden_form(**_kwargs: object) -> None:
-        pytest.fail("Default CLI must not open a full-screen form")
-
-    monkeypatch.setattr(click_adapter, "_run_textual_form", forbidden_form)
     result = CliRunner().invoke(app, ["users", "create"], input="")
     assert result.exit_code != 0, result.output
     assert "Email" in result.output
-    assert "\x1b[" not in result.output
     assert registry.calls == []
 
 

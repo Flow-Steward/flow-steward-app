@@ -367,7 +367,7 @@ def test_projects_dispatch_no_color_passes_mode_decision_to_renderer(
     monkeypatch.setattr(click_adapter, "renderer_for", fake_renderer_for)
     app, _query, command = _app()
 
-    result = CliRunner().invoke(app, [*_DISPATCH_ARGS, "--tui", "--no-color", "--confirm"])
+    result = CliRunner().invoke(app, [*_DISPATCH_ARGS, "--no-color", "--confirm"])
 
     assert result.exit_code == 0, result.output
     assert command.calls[0][0] == "proj_1"

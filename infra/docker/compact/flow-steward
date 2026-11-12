@@ -3,4 +3,25 @@ set -eu
 
 # Inside the Compact container, call the packaged management CLI directly.
 # The repository-root launcher is for hosts and would try to start Docker.
+completion_dir=/app/core/entrypoints/cli/completion
+case "${1:-}" in
+  completion)
+    # Tab completion needs no Python: print the generated script.
+    case "${2:-}" in
+      bash|zsh|fish) exec cat "$completion_dir/flow-steward.$2" ;;
+      *)
+        printf '%s\n' "Usage: flow-steward completion bash|zsh|fish" \
+          "Bash in this container loads it already; elsewhere: eval \"\$(flow-steward completion bash)\"" >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  shell)
+    FS_SHELL_PROGRAM=/usr/local/bin/flow-steward
+    FS_SHELL_COMPLETION_DIR=$completion_dir
+    FS_SHELL_HISTORY="${HOME:-/tmp}/.flow_steward_history"
+    export FS_SHELL_PROGRAM FS_SHELL_COMPLETION_DIR FS_SHELL_HISTORY
+    exec bash --noprofile --rcfile "$completion_dir/flow-steward-shell.bash" -i
+    ;;
+esac
 exec python -m core.entrypoints.cli.compact_container_cli "$@"

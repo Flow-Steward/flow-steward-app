@@ -60,7 +60,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-seconds", type=int)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--plain", action="store_true")
-    parser.add_argument("--tui", action="store_true")
     parser.add_argument("--no-color", action="store_true")
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -215,8 +214,6 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         command.append("--json")
     if args.plain:
         command.append("--plain")
-    if args.tui:
-        command.append("--tui")
     if args.no_color:
         command.append("--no-color")
     if args.non_interactive:
@@ -236,7 +233,7 @@ def _configuration_argv(operation: str, arguments: list[str]) -> list[str]:
     if not str(_runtime_env.get("FS_CONFIGURATION_STATE_ROOT") or "").strip():
         raise ValueError("Configuration commands require the installed host management runtime.")
     words = list(arguments)
-    global_flags = {"--json", "--plain", "--tui", "--no-color", "--non-interactive", "--verbose"}
+    global_flags = {"--json", "--plain", "--no-color", "--non-interactive", "--verbose"}
     while words and words[0] in global_flags:
         words.pop(0)
     expected = operation.removeprefix("config-")

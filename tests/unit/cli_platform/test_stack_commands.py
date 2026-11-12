@@ -238,9 +238,9 @@ def test_stack_mutations_require_review_and_delegate_in_every_presentation_mode(
         "rebuild",
     ]
     assert plain.exit_code == 0, plain.output
-    assert "Impact plan for stack.restart" in plain.output
-    assert "preservation_gates" in plain.output
-    assert "rollback_policy" in plain.output
+    assert "Impact plan: stack restart" in plain.output
+    assert "Preservation gates:" in plain.output
+    assert "Rollback policy" in plain.output
     assert "fs-app" in plain.output
     assert "completed" in plain.output
     payload = json.loads(machine.output)
@@ -362,7 +362,7 @@ def test_stack_logs_reports_zero_only_when_no_lines_were_rendered() -> None:
     machine = runner.invoke(app, ["stack", "logs", "--tail", "5", "--json"])
 
     assert plain.exit_code == 0, plain.output
-    assert '"lines_streamed": 0' in plain.output
+    assert "Lines streamed: 0" in plain.output
     payload = json.loads(machine.output)
     assert payload["result"]["lines"] == []
     assert payload["result"]["lines_streamed"] == 0

@@ -1,4 +1,4 @@
-"""Single source of installer fields for Click, Textual, and plain modes."""
+"""Single source of installer fields for Click options and the guided questions."""
 
 from __future__ import annotations
 

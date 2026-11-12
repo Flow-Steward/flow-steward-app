@@ -53,10 +53,6 @@ _ACCEPTANCE_PORT_STOP = 30_000
 _ACCEPTANCE_PORT_ATTEMPTS = 1_000
 _PROOF = b"installer-proof"
 _PTY_WINDOW = struct.pack("HHHH", 30, 100, 0, 0)
-_PLAIN_FALLBACK_BANNER = b"Terminal is smaller than 80x24; using the plain interactive wizard."
-_ALTERNATE_SCREEN_MARKERS = (b"\x1b[?1049h", b"\x1b[?1047h", b"\x1b[?47h")
-_TEXTUAL_FORM_MARKER = b"Install or safely resume Flow Steward."
-_TEXTUAL_REVIEW_MARKER = b"Review: Install or safely resume Flow Steward."
 _PLAIN_OPTIONAL_PROMPT_MARKERS = (
     b"Development tools: ",
     b"Allow insecure S3 HTTP [y/N]: ",
@@ -2076,7 +2072,9 @@ class DisposableInstallerProject:
             args.extend(("--plain", "--confirm"))
         elif renderer == "non_interactive":
             args.extend(("--non-interactive", "--plain", "--confirm"))
-        elif renderer != "textual":
+        elif renderer == "default":
+            args.append("--confirm")
+        else:
             raise ValueError(f"unsupported renderer: {renderer}")
         return args
 
@@ -2089,12 +2087,11 @@ class DisposableInstallerProject:
     ) -> InstallerProcessResult:
         command = [str(self.distribution_directory / "install.sh"), *args]
         launcher_environment = environment or self._launcher_environment()
-        if renderer in {"textual", "plain"}:
+        if renderer in {"default", "plain"}:
             return _run_in_pty(
                 command,
                 cwd=self.distribution_directory,
                 env=launcher_environment,
-                textual=renderer == "textual",
             )
         process = subprocess.Popen(
             command,
@@ -2776,24 +2773,17 @@ def _run_in_pty(
     *,
     cwd: Path,
     env: dict[str, str],
-    textual: bool,
     timeout_seconds: float = _INSTALL_TIMEOUT_SECONDS,
 ) -> InstallerProcessResult:
+    """Run the installer in a terminal and accept the default of each optional question."""
     pid, master_fd = pty.fork()
     if pid == 0:
         fcntl.ioctl(0, termios.TIOCSWINSZ, _PTY_WINDOW)
         os.chdir(cwd)
         os.execve(command[0], command, env)
     output = bytearray()
-    requested_review = False
-    sent_review = False
-    saw_any_review = False
-    saw_form = False
-    saw_review = False
-    saw_textual_terminal = False
     reached_eof = False
     child_reaped = False
-    form_ready_at: float | None = None
     answered_plain_prompts: set[bytes] = set()
     deadline = time.monotonic() + timeout_seconds
     try:
@@ -2813,69 +2803,18 @@ def _run_in_pty(
                     reached_eof = True
                 else:
                     output.extend(chunk)
-                    saw_any_review = b"Review" in output
-                    saw_form = _TEXTUAL_FORM_MARKER in output
-                    saw_review = _TEXTUAL_REVIEW_MARKER in output
-                    saw_textual_terminal = any(
-                        marker in output for marker in _ALTERNATE_SCREEN_MARKERS
-                    )
-                    if textual and _PLAIN_FALLBACK_BANNER in output:
-                        status = _terminate_process_group(pid)
-                        if status is None:
-                            _, status = os.waitpid(pid, 0)
-                        return InstallerProcessResult(
-                            args=tuple(command),
-                            returncode=os.waitstatus_to_exitcode(status) or 1,
-                            stdout=output.decode(errors="replace"),
-                            stderr="installer Textual path entered the plain fallback wizard",
-                        )
-                    if not textual:
-                        for marker in _PLAIN_OPTIONAL_PROMPT_MARKERS:
-                            if marker in output and marker not in answered_plain_prompts:
-                                os.write(master_fd, b"\r")
-                                answered_plain_prompts.add(marker)
-                    if (
-                        textual
-                        and not requested_review
-                        and saw_textual_terminal
-                        and saw_form
-                        and form_ready_at is None
-                    ):
-                        form_ready_at = time.monotonic() + 2.0
-            if (
-                textual
-                and not requested_review
-                and form_ready_at is not None
-                and time.monotonic() >= form_ready_at
-            ):
-                os.write(master_fd, b"\x1b[Z\x1b[Z\r")
-                requested_review = True
-            if textual and requested_review and not sent_review and saw_review:
-                time.sleep(0.25)
-                os.write(master_fd, b"\r")
-                sent_review = True
+                    for marker in _PLAIN_OPTIONAL_PROMPT_MARKERS:
+                        if marker in output and marker not in answered_plain_prompts:
+                            os.write(master_fd, b"\r")
+                            answered_plain_prompts.add(marker)
             waited, status = os.waitpid(pid, os.WNOHANG)
             if waited == pid:
                 child_reaped = True
-                returncode = os.waitstatus_to_exitcode(status)
-                stderr = ""
-                if textual and not saw_any_review:
-                    returncode = returncode or 1
-                    stderr = "installer Textual interaction marker was not observed"
-                elif textual and not saw_textual_terminal:
-                    returncode = returncode or 1
-                    stderr = "installer Textual terminal evidence was not observed"
-                elif textual and not saw_review:
-                    returncode = returncode or 1
-                    stderr = "installer Textual interaction marker was not observed"
-                elif textual and not sent_review:
-                    returncode = returncode or 1
-                    stderr = "installer Textual Review interaction was not completed"
                 return InstallerProcessResult(
                     args=tuple(command),
-                    returncode=returncode,
+                    returncode=os.waitstatus_to_exitcode(status),
                     stdout=output.decode(errors="replace"),
-                    stderr=stderr,
+                    stderr="",
                 )
             if reached_eof:
                 time.sleep(0.01)
