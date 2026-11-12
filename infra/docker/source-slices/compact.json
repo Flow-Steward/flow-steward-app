@@ -562,6 +562,7 @@
     "core/application/monitoring/ingestion.py",
     "core/application/monitoring/processes.py",
     "core/application/monitoring/queries.py",
+    "core/application/monitoring/readiness_projection.py",
     "core/application/monitoring/repository.py",
     "core/application/monitoring/runs.py",
     "core/application/monitoring/runtime_composition.py",
