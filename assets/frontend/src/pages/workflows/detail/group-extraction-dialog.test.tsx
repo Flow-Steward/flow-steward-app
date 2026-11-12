@@ -30,7 +30,7 @@ it("previews typed mappings before applying the exact reviewed plan and linking 
   expect(await screen.findByText("state.items")).toBeInTheDocument();
   expect(screen.getByText("array")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Create child workflow" }));
-  expect(await screen.findByRole("link", { name: "Open child workflow" })).toHaveAttribute("href", "/registry/workflows/source_process/builder");
+  await waitFor(() => expect(screen.getByRole("link", { name: "Open child workflow" })).toHaveAttribute("href", "/registry/workflows/source_process/builder"));
   expect(onApplied).toHaveBeenCalledOnce();
   const body = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
   expect(body).toMatchObject({ expected_revision: 7, preview_digest: "verified-plan", dry_run: false });
@@ -78,7 +78,7 @@ it("clears a conflicting preview and reloads before allowing a new one", async (
   const { onReload } = setup();
   await waitFor(() => expect(screen.getByRole("button", { name: "Create child workflow" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Create child workflow" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Preview the conversion again");
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Preview the conversion again"));
   expect(onReload).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "Create child workflow" })).toBeDisabled();
 });

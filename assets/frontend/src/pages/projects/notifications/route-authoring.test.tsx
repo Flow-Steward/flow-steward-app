@@ -166,7 +166,7 @@ describe("notification route authoring", () => {
     await user.type(screen.getByRole("textbox", { name: "Display name" }), "Owned retry route");
     await fillTarget(user);
     await user.click(screen.getByRole("button", { name: "Create route" }));
-    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent("Owned retry refusal");
+    await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent("Owned retry refusal"));
     expect(screen.getByRole("textbox", { name: /route key/i })).toHaveValue(key);
     await user.click(screen.getByRole("button", { name: "Create route" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

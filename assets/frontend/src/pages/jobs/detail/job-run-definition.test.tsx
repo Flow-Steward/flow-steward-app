@@ -77,7 +77,7 @@ describe("JobsDetailPage executed definition", () => {
       }),
     );
     const view = renderPage();
-    expect(await screen.findByTestId("job-wait-due-at")).toHaveTextContent("Waiting until");
+    await waitFor(() => expect(screen.getByTestId("job-wait-due-at")).toHaveTextContent("Waiting until"));
     view.unmount();
 
     primeApi(
@@ -87,7 +87,7 @@ describe("JobsDetailPage executed definition", () => {
       }),
     );
     renderPage();
-    expect(await screen.findByTestId("job-wait-child-link")).toHaveAttribute("href", "/jobs/77");
+    await waitFor(() => expect(screen.getByTestId("job-wait-child-link")).toHaveAttribute("href", "/jobs/77"));
   });
 
   it("names the For each and the item a paused step is at", async () => {
@@ -120,7 +120,7 @@ describe("JobsDetailPage executed definition", () => {
     renderPage();
 
     // The executed definition's name, not the internal id.
-    expect(await screen.findByTestId("job-for-each-progress")).toHaveTextContent("For each Each paid order: item 3 of 4");
+    await waitFor(() => expect(screen.getByTestId("job-for-each-progress")).toHaveTextContent("For each Each paid order: item 3 of 4"));
   });
 
   it("lists the active lanes of a parallel group", async () => {

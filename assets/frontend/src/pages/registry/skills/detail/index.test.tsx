@@ -95,9 +95,9 @@ describe("RegistrySkillsDetailPage", () => {
     fireEvent.change(name, { target: { value: "summarize" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Config" }));
 
-    expect(await screen.findByTestId("registry-conflict-matches")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("registry-conflict-matches")).toHaveTextContent(
       "Summarize summarize · Enabled · Used by: Writer",
-    );
+    ));
     expect(screen.getByText("Changes were not saved")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Use the name “Summarize 2”" }));

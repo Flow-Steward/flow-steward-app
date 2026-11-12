@@ -35,7 +35,7 @@ it.each([false, true])("saves JSON exactly, recovers malformed input and preview
   fireEvent.change(within(dialog).getByLabelText("Query name"), { target: { value: "JSON query" } });
   fireEvent.change(editor, { target: { value: "{" } });
   await userEvent.click(within(dialog).getByRole("button", { name: "Save query" }));
-  expect(await within(dialog).findByRole("alert")).toBeVisible();
+  await waitFor(() => expect(within(dialog).getByRole("alert")).toBeVisible());
   expect(writes).toHaveLength(0);
   fireEvent.change(editor, { target: { value: JSON.stringify(definition) } });
   expect(within(dialog).queryByText(":ignored")).not.toBeInTheDocument();
@@ -90,10 +90,10 @@ it.each(["connectors", "data-connections", "failed-connectors"])("waits for inst
   await userEvent.click(add);
   expect(screen.queryByRole("dialog", { name: "Add query" })).not.toBeInTheDocument();
   if (delayed === "failed-connectors") await userEvent.click(await screen.findByRole("button", { name: "Retry connection details" }));
-  else { expect(await screen.findByText("Loading connection details…")).toBeVisible(); release(); }
+  else { await waitFor(() => expect(screen.getByText("Loading connection details…")).toBeVisible()); release(); }
   await waitFor(() => expect(add).toBeEnabled());
   await userEvent.click(add);
-  expect(await screen.findByLabelText("JSON query definition")).toBeVisible();
+  await waitFor(() => expect(screen.getByLabelText("JSON query definition")).toBeVisible());
   view.unmount(); client.clear(); vi.restoreAllMocks();
 });
 

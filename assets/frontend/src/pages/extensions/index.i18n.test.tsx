@@ -202,20 +202,20 @@ describe("extension pages in the user's language", () => {
     const user = userEvent.setup();
     const { switchTo } = renderIn("en");
 
-    expect(await screen.findByRole("tab", { name: "Setup" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Setup" })).toBeVisible());
     expect(screen.getByText("Client setup")).toBeVisible();
     expect(screen.getByLabelText("Client")).toBeVisible();
     await user.type(screen.getByLabelText("Client"), "ACME-UAB");
 
     switchTo("lt");
-    expect(await screen.findByRole("tab", { name: "Nustatymai" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Nustatymai" })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByText("Kliento nustatymai")).toBeVisible();
     // The value typed before the switch is still there.
     expect(screen.getByLabelText("Klientas")).toHaveValue("ACME-UAB");
     expect(screen.getByRole("heading", { name: "Pavyzdinė integracija" })).toBeVisible();
 
     switchTo("en");
-    expect(await screen.findByRole("tab", { name: "Setup" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Setup" })).toBeVisible());
     expect(screen.getByLabelText("Client")).toHaveValue("ACME-UAB");
   });
 
@@ -230,7 +230,7 @@ describe("extension pages in the user's language", () => {
   it("uses a dictionary for a further language with no renderer change", async () => {
     renderIn("de");
 
-    expect(await screen.findByRole("tab", { name: "Einrichtung" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Einrichtung" })).toBeVisible());
     // Keys de does not have come from English.
     expect(screen.getByText("Client setup")).toBeVisible();
   });

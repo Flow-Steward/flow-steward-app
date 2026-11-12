@@ -320,7 +320,7 @@ describe("WorkflowsProjectsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("checkbox", { name: "Toggle Stale Project" })).not.toBeChecked();
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Toggle Stale Project" })).not.toBeChecked());
     expect(screen.getByText("0 linked")).toBeInTheDocument();
     expect(screen.getByText("0 selected")).toBeInTheDocument();
   });

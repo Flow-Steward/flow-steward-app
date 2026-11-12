@@ -327,10 +327,10 @@ describe("RegistryToolsDetailPage", () => {
     expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Agents Using" }));
 
-    expect(await screen.findByRole("link", { name: "Open" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute(
       "href",
       "/registry/agents/team%2Freviewer%20agent",
-    );
+    ));
   });
 
   it("keeps contract chip text on the badge's own foreground", async () => {
@@ -441,9 +441,9 @@ describe("RegistryToolsDetailPage", () => {
 
     // The description is real content, not a title attribute nobody can reach by
     // touch or keyboard.
-    expect(await screen.findByText("Subject to search for.")).toHaveClass(
+    await waitFor(() => expect(screen.getByText("Subject to search for.")).toHaveClass(
       "fs-signature-description",
-    );
+    ));
     // A default is prose too, and it belongs in the same column.
     expect(screen.getByText(/Defaults to/)).toHaveClass("fs-signature-description");
     // The whole group switched: the name is now a row cell, not a chip segment.

@@ -349,7 +349,7 @@ test("cancelling writes the message once, not onto the installed row too", async
   await screen.findByText("Waiting for browser authority approval.");
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
-  expect(await screen.findAllByText(CANCEL_MESSAGE)).toHaveLength(1);
+  await waitFor(() => expect(screen.getAllByText(CANCEL_MESSAGE)).toHaveLength(1));
   const installedRows = screen.getByRole("table", { name: "Installed extensions" });
   expect(within(installedRows).queryByText(CANCEL_MESSAGE)).not.toBeInTheDocument();
 });
@@ -424,7 +424,7 @@ test("Update runs the catalog install call, says Updated to the version, and the
 
   await pressUpdate();
 
-  expect(await screen.findByRole("button", { name: "Updating…" })).toHaveAttribute("aria-busy", "true");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Updating…" })).toHaveAttribute("aria-busy", "true"));
   release();
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
   // The Installed tab's row reports the same outcome; this is the Catalog page's.
@@ -532,10 +532,8 @@ async function quickUpdate(version: string) {
   // before clicking, including when the full suite delays their notifications.
   const button = await screen.findByRole(
     "button",
-    { name: `Update to v${version}: Acme CRM` },
-    { timeout: 5_000 },
-  );
-  await waitFor(() => expect(button).toBeEnabled(), { timeout: 5_000 });
+    { name: `Update to v${version}: Acme CRM` });
+  await waitFor(() => expect(button).toBeEnabled());
   return button;
 }
 
@@ -623,7 +621,7 @@ test("the extension's page follows a superseded release to the new version", asy
 
   await pressUpdate();
 
-  expect(await screen.findByRole("button", { name: "Update to v1.11.0" })).toBeEnabled();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Update to v1.11.0" })).toBeEnabled());
   expect(screen.getByText("A newer version 1.11.0 was published.")).toBeInTheDocument();
   expect(screen.queryByText("The extension was not updated")).not.toBeInTheDocument();
   expect(mockedInstall).toHaveBeenCalledTimes(1);

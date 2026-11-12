@@ -221,7 +221,7 @@ describe("RegistryMcpDetailPage", () => {
   ])("shows and consumes the safe callback outcome for $suffix", async ({ suffix, message }) => {
     renderPage(`/registry/mcp/mcp_fs?project_id=project-1&${suffix}`);
 
-    expect(await screen.findByText(message)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(message)).toBeVisible());
     await waitFor(() => {
       expect(screen.getByTestId("location-search")).toHaveTextContent("?project_id=project-1");
     });
@@ -232,7 +232,7 @@ describe("RegistryMcpDetailPage", () => {
   it("shows backend callback sync success without calling the sync API", async () => {
     renderPage("/registry/mcp/mcp_fs?project_id=project-1&oauth=success&sync=success");
 
-    expect(await screen.findByText("OAuth authorization completed and remote tools synchronized.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("OAuth authorization completed and remote tools synchronized.")).toBeVisible());
     expect(mockedSyncMcpConnector).not.toHaveBeenCalled();
     expect(screen.getByTestId("location-search")).toHaveTextContent("?project_id=project-1");
   });
@@ -258,9 +258,7 @@ describe("RegistryMcpDetailPage", () => {
 
     renderPage("/registry/mcp/mcp_fs?project_id=project-1&oauth=success&sync=failed");
 
-    expect(
-      await screen.findByText("OAuth connected, but tools could not be synced. Use Sync to retry."),
-    ).toBeVisible();
+    await waitFor(() => expect(screen.getByText("OAuth connected, but tools could not be synced. Use Sync to retry.")).toBeVisible());
     expect(screen.getByRole("button", { name: "Sync" })).toBeEnabled();
     expect((await screen.findAllByText("connected")).length).toBeGreaterThan(0);
     expect(mockedSyncMcpConnector).not.toHaveBeenCalled();
@@ -270,7 +268,7 @@ describe("RegistryMcpDetailPage", () => {
   it("does not sync for a bare or forged OAuth success marker", async () => {
     renderPage("/registry/mcp/mcp_fs?project_id=project-1&oauth=success");
 
-    expect(await screen.findByText("OAuth authorization completed successfully.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("OAuth authorization completed successfully.")).toBeVisible());
     expect(mockedSyncMcpConnector).not.toHaveBeenCalled();
     expect(screen.getByTestId("location-search")).toHaveTextContent("?project_id=project-1");
   });
@@ -287,7 +285,7 @@ describe("RegistryMcpDetailPage", () => {
     await user.click(screen.getByRole("button", { name: "Sync" }));
 
     expect(screen.getByRole("button", { name: "Sync" })).toHaveAttribute("aria-busy", "true");
-    expect(await screen.findByRole("button", { name: "Syncing…" })).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Syncing…" })).toHaveAttribute("aria-busy", "true"));
     resolveSync(connectorFixture({
       discovered_tools_jsonb: [
         {
@@ -301,8 +299,8 @@ describe("RegistryMcpDetailPage", () => {
         },
       ],
     }));
-    expect(await screen.findByText("Gmail Labels List")).toBeVisible();
-    expect(await screen.findByText("MCP sync completed.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Gmail Labels List")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("MCP sync completed.")).toBeVisible());
   });
 
   it("keeps details readable but hides every connector mutation from viewers", async () => {
@@ -387,7 +385,7 @@ describe("RegistryMcpDetailPage", () => {
     );
     renderPage();
 
-    expect(await screen.findByText("Sync completed with warnings")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Sync completed with warnings")).toBeVisible());
     expect(
       screen.getByText("Catalog Read is in Trash. Restore or purge it before syncing again."),
     ).toBeVisible();
@@ -777,7 +775,7 @@ describe("RegistryMcpDetailPage", () => {
 
     await user.clear(name);
     await user.click(within(dialog).getByRole("button", { name: "Save settings" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Name is required.");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Name is required."));
     expect(name).toHaveFocus();
     expect(mockedUpdateMcpConnector).not.toHaveBeenCalled();
 
@@ -785,9 +783,9 @@ describe("RegistryMcpDetailPage", () => {
     await user.clear(endpoint);
     await user.type(endpoint, "not-a-url");
     await user.click(within(dialog).getByRole("button", { name: "Save settings" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Enter a valid HTTP(S) endpoint URL.",
-    );
+    ));
     expect(endpoint).toHaveFocus();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(mockedUpdateMcpConnector).not.toHaveBeenCalled();
@@ -805,9 +803,9 @@ describe("RegistryMcpDetailPage", () => {
     await user.type(headers, "X-Api-Key");
     await user.click(within(dialog).getByRole("button", { name: "Save settings" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Replacement header rows require both a key and value.",
-    );
+    ));
     expect(headers).toHaveFocus();
     expect(headers).toHaveAttribute("aria-invalid", "true");
     expect(mockedUpdateMcpConnector).not.toHaveBeenCalled();
@@ -830,9 +828,9 @@ describe("RegistryMcpDetailPage", () => {
     await user.type(headerKey, "X-Api-Key");
     await user.click(within(dialog).getByRole("button", { name: "Save settings" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Replacement header rows require both a key and value.",
-    );
+    ));
     expect(headerKey).toHaveFocus();
     expect(headerKey).toHaveAttribute("aria-invalid", "true");
     expect(within(dialog).getByRole("textbox", { name: "Authorization parameter key" }))
@@ -843,9 +841,9 @@ describe("RegistryMcpDetailPage", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save settings" }));
 
     const authorizationKey = within(dialog).getByRole("textbox", { name: "Authorization parameter key" });
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Authorization parameter rows require both a key and value.",
-    );
+    ));
     expect(authorizationKey).toHaveFocus();
     expect(authorizationKey).toHaveAttribute("aria-invalid", "true");
     expect(mockedUpdateMcpConnector).not.toHaveBeenCalled();
@@ -864,7 +862,7 @@ describe("RegistryMcpDetailPage", () => {
     await user.type(within(dialog).getByLabelText("Authorization parameter value"), "must-not-leak");
     await user.click(within(dialog).getByRole("button", { name: "Save settings" }));
 
-    expect(await within(dialog).findByText("Authorization parameters key is reserved and cannot be overridden.")).toBeVisible();
+    await waitFor(() => expect(within(dialog).getByText("Authorization parameters key is reserved and cannot be overridden.")).toBeVisible());
     expect(key).toHaveAttribute("aria-invalid", "true");
     expect(key).toHaveFocus();
     expect(mockedUpdateMcpConnector).not.toHaveBeenCalled();
@@ -938,7 +936,7 @@ describe("RegistryMcpDetailPage", () => {
     await user.type(clientSecret, "  opaque secret  ");
     expect(save).toBeEnabled();
     await user.click(save);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Client ID is required.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Client ID is required."));
     expect(clientId).toHaveFocus();
     expect(clientId).toHaveAttribute("aria-invalid", "true");
 
@@ -1009,7 +1007,7 @@ describe("RegistryMcpDetailPage", () => {
     expect(await screen.findByRole("heading", { name: "OAuth" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Start Authorization" }));
     const oauthCard = await screen.findByTestId("mcp-oauth-card");
-    expect(await within(oauthCard).findByText(/requires client credentials/u)).toBeVisible();
+    await waitFor(() => expect(within(oauthCard).getByText(/requires client credentials/u)).toBeVisible());
     expect(within(oauthCard).getByTestId("mcp-oauth-credentials-guidance")).toHaveClass("fs-field", "full");
     expect(within(oauthCard).getByRole("button", { name: "Save credentials" })).toBeVisible();
     expect(within(oauthCard).queryByRole("button", { name: "Start Authorization" })).not.toBeInTheDocument();
@@ -1060,8 +1058,8 @@ describe("RegistryMcpDetailPage", () => {
     renderPage();
 
     const oauthCard = await screen.findByTestId("mcp-oauth-card");
-    expect(await within(oauthCard).findByRole("button", { name: "Reconnect Authorization" })).toBeVisible();
-    expect(await within(oauthCard).findByRole("button", { name: "Disconnect" })).toBeVisible();
+    await waitFor(() => expect(within(oauthCard).getByRole("button", { name: "Reconnect Authorization" })).toBeVisible());
+    await waitFor(() => expect(within(oauthCard).getByRole("button", { name: "Disconnect" })).toBeVisible());
     expect(within(oauthCard).getByRole("button", { name: "Replace credentials" })).toBeVisible();
     expect(within(oauthCard).queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   });
@@ -1085,9 +1083,7 @@ describe("RegistryMcpDetailPage", () => {
     renderPage();
 
     const oauthCard = await screen.findByTestId("mcp-oauth-card");
-    expect(
-      await within(oauthCard).findByText(/did not grant all configured scopes/u),
-    ).toBeVisible();
+    await waitFor(() => expect(within(oauthCard).getByText(/did not grant all configured scopes/u)).toBeVisible());
     expect(
       within(oauthCard).getByRole("button", { name: "Reconnect Authorization" }),
     ).toBeVisible();
@@ -1110,9 +1106,7 @@ describe("RegistryMcpDetailPage", () => {
     renderPage();
 
     const oauthCard = await screen.findByTestId("mcp-oauth-card");
-    expect(
-      await within(oauthCard).findByRole("button", { name: "Reconnect Authorization" }),
-    ).toBeVisible();
+    await waitFor(() => expect(within(oauthCard).getByRole("button", { name: "Reconnect Authorization" })).toBeVisible());
     expect(within(oauthCard).getByRole("button", { name: "Disconnect" })).toBeVisible();
     expect(within(oauthCard).getByRole("button", { name: "Replace credentials" })).toBeVisible();
   });
@@ -1132,9 +1126,7 @@ describe("RegistryMcpDetailPage", () => {
     renderPage();
 
     const oauthCard = await screen.findByTestId("mcp-oauth-card");
-    expect(
-      await within(oauthCard).findByRole("button", { name: "Reconnect Authorization" }),
-    ).toBeVisible();
+    await waitFor(() => expect(within(oauthCard).getByRole("button", { name: "Reconnect Authorization" })).toBeVisible());
     expect(within(oauthCard).getByRole("button", { name: "Disconnect" })).toBeVisible();
   });
 
@@ -1148,7 +1140,7 @@ describe("RegistryMcpDetailPage", () => {
     renderPage();
 
     const oauthCard = await screen.findByTestId("mcp-oauth-card");
-    expect(await within(oauthCard).findByRole("button", { name: "Disconnect" })).toBeVisible();
+    await waitFor(() => expect(within(oauthCard).getByRole("button", { name: "Disconnect" })).toBeVisible());
     expect(within(oauthCard).queryByRole("button", { name: "Start Authorization" })).not.toBeInTheDocument();
     expect(within(oauthCard).queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   });

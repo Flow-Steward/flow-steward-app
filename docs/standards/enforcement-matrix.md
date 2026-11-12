@@ -65,6 +65,7 @@ but also enforced through automation, review, or architecture governance.
 | Generated artifacts use canonical supporting directories | `configuration-standard.md` | `Planned` | review only today; no artifact-placement gate yet | backend/platform | planned |
 | New architectural exceptions require ADR | `architecture-standard.md` | `Current` | ADR + review | architecture | PR |
 | UI-critical JS paths free of console/page errors | `frontend-standard.md`, `testing-standard.md` | `Current` | UI tests that fail on console/page errors for key flows | frontend | PR + local |
+| Frontend tests fail on defects, never on machine speed: no hard-coded wait limits or own test timeouts; an element and its state are read in one `waitFor` | `testing-standard.md` | `Current` | ESLint `no-restricted-syntax` for test files in `assets/frontend/eslint.config.js`; `assets/frontend/src/test/test-timeout-policy.test.ts` | frontend | PR + local |
 | Reusable UI behavior uses shared primitives | `frontend-standard.md` | `Current` | review | frontend | PR |
 | Preserve unrelated dirty worktree changes | `agent-workflow-standard.md` | `Current` | workflow rule + review | contributors/agents | local |
 | Destructive operations require explicit approval | `agent-workflow-standard.md` | `Current` | workflow rule | contributors/agents | local |

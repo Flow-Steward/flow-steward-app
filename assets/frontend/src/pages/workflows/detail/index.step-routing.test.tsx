@@ -231,9 +231,7 @@ it("opens the requested step drawer from builder URL search params", async () =>
     fireEvent.click(
       await screen.findByRole("button", { name: /Set Berlin coordinates/i }),
     );
-    expect(
-      await screen.findByRole("textbox", { name: "Assignment 1 target" }),
-    ).toHaveValue("Weather Query");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Assignment 1 target" })).toHaveValue("Weather Query"));
     const value = await screen.findByRole("textbox", { name: "Assignment 1 value" }) as HTMLInputElement;
     expect(JSON.parse(value.value)).toEqual({ city: "Berlin", latitude: 52.52, longitude: 13.41 });
     fireEvent.click(screen.getByRole("button", { name: "Advanced mode" }));

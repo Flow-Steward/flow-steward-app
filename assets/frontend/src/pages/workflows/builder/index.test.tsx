@@ -472,7 +472,7 @@ describe("WorkflowsBuilderPage", () => {
     expect(await screen.findByRole("group", { name: "Open step Wait" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Add step" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("structure-status")).toHaveTextContent(/Structure not applied/));
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Wait");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Wait"));
   });
 
   it("uses the physical A shortcut inside the canvas while keeping search input editing native", async () => {
@@ -910,7 +910,7 @@ describe("WorkflowsBuilderPage", () => {
     const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
     expect(within(toolbar).getByRole("button", { name: "Add note" })).toBeVisible();
     fireEvent.click(within(moreMenu).getByRole("button", { name: "History" }));
-    expect(await screen.findByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true"));
   });
 
   it("preserves separate note persistence from the canvas toolbar", async () => {

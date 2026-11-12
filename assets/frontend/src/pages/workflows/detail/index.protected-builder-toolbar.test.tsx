@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 
 import {
   canvasGraphFixture,
@@ -11,8 +11,6 @@ import {
   renderPage,
   workflowDetailFixture,
 } from "./index.test-helpers";
-
-vi.setConfig({ testTimeout: 15_000 });
 
 const PROTECTED = {
   extension_owned: true,
@@ -97,7 +95,7 @@ describe("the licensed read-only builder of an installed workflow", () => {
     installProtectedWorkflow(LICENSED);
     renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
 
-    expect(await screen.findByTestId("structure-locked")).toHaveTextContent("Read-only");
+    await waitFor(() => expect(screen.getByTestId("structure-locked")).toHaveTextContent("Read-only"));
     expect(screen.getByRole("note", { name: "Structure read-only (extension)" })).toHaveTextContent(/cannot be edited/i);
     fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
     const drawer = await screen.findByRole("dialog", { name: "Workflow interface" });

@@ -162,7 +162,7 @@ describe("ProcessesControlPanel", () => {
     const confirmation = screen.getByRole("alertdialog", { name: "Cancel job #11?" });
     fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel job" }));
 
-    expect(await within(confirmation).findByRole("alert")).toHaveTextContent("Job already finished.");
+    await waitFor(() => expect(within(confirmation).getByRole("alert")).toHaveTextContent("Job already finished."));
     expect(within(confirmation).getByRole("button", { name: "Cancel job" })).toBeEnabled();
   });
 

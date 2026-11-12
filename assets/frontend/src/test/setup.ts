@@ -1,7 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 
+import { configure } from "@testing-library/react";
 import { beforeEach } from "vitest";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { asyncWaitMs } from "./time-budget";
 
 function createTestStorage(): Storage {
   const values = new Map<string, string>();
@@ -27,6 +29,10 @@ function createTestStorage(): Storage {
     },
   };
 }
+
+// Every findBy*/waitFor ends as soon as its condition holds; this limit only calls a wait hung.
+// The default (1 s) failed tests on busy or slower machines, never on a defect.
+configure({ asyncUtilTimeout: asyncWaitMs() });
 
 const testLocalStorage = createTestStorage();
 

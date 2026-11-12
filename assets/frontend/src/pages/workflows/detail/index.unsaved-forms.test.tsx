@@ -28,7 +28,7 @@ describe("unsaved builder forms", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Step label" }), { target: { value: "Unsaved wait" } });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     act(() => window.editStep?.("wait"));
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved wait");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved wait"));
     act(() => window.editStep?.("done"));
     const discard = await screen.findByRole("dialog", { name: "Discard unsaved parameters?" });
     fireEvent.click(within(discard).getByRole("button", { name: "Cancel" }));

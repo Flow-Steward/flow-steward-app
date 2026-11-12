@@ -721,9 +721,7 @@ test("a taken workflow id offers a free one and checks it", async () => {
       expect(mockedPreflight).toHaveBeenLastCalledWith("synthetic_template_0000", {
         projectId: undefined,
         targetWorkflowId: "synthetic_template_0000_2",
-      }),
-    { timeout: 2000 },
-  );
+      }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Create draft" })).toBeEnabled());
 });
 
@@ -1043,10 +1041,10 @@ test("Marketplace is linked under the app's base path", async () => {
 
   await openTemplate(/Synthetic template 0000/);
   fireEvent.click(screen.getByRole("button", { name: "Use template" }));
-  expect(await screen.findByRole("link", { name: /Open in Catalog/ })).toHaveAttribute(
+  await waitFor(() => expect(screen.getByRole("link", { name: /Open in Catalog/ })).toHaveAttribute(
     "href",
     "/app/extensions?find=synthetic_gmail#marketplace",
-  );
+  ));
 });
 
 test("a missing extension is one card by its name, not also a raw dependency row", async () => {

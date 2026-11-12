@@ -204,8 +204,8 @@ describe("ExtensionOAuthSetup", () => {
   it("renders only account authorization controls on an extension-declared connection page", async () => {
     renderSetup({ mode: "connections" });
 
-    expect(await screen.findByRole("heading", { name: "Example Identity" })).toBeVisible();
-    expect(await screen.findByRole("heading", { name: "Connect an account" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Example Identity" })).toBeVisible());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Connect an account" })).toBeVisible());
     expect(screen.queryByRole("form", { name: "OAuth configuration" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("OAuth Redirect URI")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Configuration for new connection" }))
@@ -257,8 +257,7 @@ describe("ExtensionOAuthSetup", () => {
 
     renderSetup({ mode: "connections", onNavigatePage });
 
-    expect(await screen.findByRole("heading", { name: "Provider setup required" }))
-      .toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Provider setup required" })).toBeVisible());
     expect(screen.queryByRole("combobox", { name: "Configuration for new connection" }))
       .not.toBeInTheDocument();
     expect(screen.queryByRole("form", { name: "Connect an account" }))
@@ -270,9 +269,7 @@ describe("ExtensionOAuthSetup", () => {
   it("keeps fresh connection controls hidden until callback registration is ready", async () => {
     renderSetup({ mode: "connections", providerSetupReady: false });
 
-    expect(await screen.findByText(
-      "OAuth callback registration must be ready before connecting another account.",
-    )).toBeVisible();
+    await waitFor(() => expect(screen.getByText("OAuth callback registration must be ready before connecting another account.")).toBeVisible());
     expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open provider setup" })).toBeVisible();
   });
@@ -286,8 +283,7 @@ describe("ExtensionOAuthSetup", () => {
 
       renderSetup({ mode: "connections", onNavigatePage });
 
-      expect(await screen.findByText("No OAuth configuration is ready to connect."))
-        .toBeVisible();
+      await waitFor(() => expect(screen.getByText("No OAuth configuration is ready to connect.")).toBeVisible());
       expect(screen.queryByRole("combobox", { name: "Configuration for new connection" }))
         .not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Connect" }))
@@ -322,9 +318,9 @@ describe("ExtensionOAuthSetup", () => {
     expect(alert).toHaveTextContent("./flow-steward config apply");
     expect(screen.queryByText(/private-token-must-not-render/u)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry redirect registration" }));
-    expect(await screen.findByLabelText("OAuth Redirect URI")).toHaveValue(
+    await waitFor(() => expect(screen.getByLabelText("OAuth Redirect URI")).toHaveValue(
       "https://localhost:8099/webhook/extensions/example/oauth/stable",
-    );
+    ));
   });
 
   it.each(["unresolvable", "disallowed"])(
@@ -379,9 +375,9 @@ describe("ExtensionOAuthSetup", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByLabelText("OAuth Redirect URI")).toHaveValue(
+    await waitFor(() => expect(screen.getByLabelText("OAuth Redirect URI")).toHaveValue(
       "https://app.example.test/callback/exact",
-    );
+    ));
     resolveStaleStatus?.({ callback_registration_ready: false });
     await staleRequest;
     expect(queryClient.getQueryData(statusKey)).toEqual({ callback_registration_ready: true });
@@ -394,7 +390,7 @@ describe("ExtensionOAuthSetup", () => {
 
       renderSetup({ mode });
 
-      expect(await screen.findByText("Loading configurations…")).toBeVisible();
+      await waitFor(() => expect(screen.getByText("Loading configurations…")).toBeVisible());
       expect(screen.queryByRole("form", { name: "OAuth configuration" })).not.toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: "OAuth configuration" })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Connect an account" })).not.toBeInTheDocument();
@@ -409,15 +405,15 @@ describe("ExtensionOAuthSetup", () => {
 
     renderSetup();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "Configurations could not be loaded.",
-    );
+    ));
     expect(screen.queryByRole("form", { name: "OAuth configuration" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "OAuth configuration" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Retry loading configurations" }));
 
-    expect(await screen.findByRole("form", { name: "OAuth configuration" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("form", { name: "OAuth configuration" })).toBeVisible());
     expect(mockedConfigurations).toHaveBeenCalledTimes(2);
   });
 
@@ -431,7 +427,7 @@ describe("ExtensionOAuthSetup", () => {
   ])("fails closed without at least one exact type and one exact intent", async (declaration) => {
     renderSetup({ mode: "connections", ...declaration });
 
-    expect(await screen.findByRole("heading", { name: "Example Identity" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Example Identity" })).toBeVisible());
     expect(screen.queryByRole("heading", { name: "Connect an account" })).not.toBeInTheDocument();
   });
 
@@ -439,9 +435,9 @@ describe("ExtensionOAuthSetup", () => {
     const user = userEvent.setup();
     renderSetup();
 
-    expect(await screen.findByRole("heading", { name: "Example Identity" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Example Identity" })).toBeVisible());
     expect(screen.getByText("Connect an Example account.")).toBeVisible();
-    expect(await screen.findByDisplayValue("https://app.example.test/callback/exact")).toHaveAttribute("readonly");
+    await waitFor(() => expect(screen.getByDisplayValue("https://app.example.test/callback/exact")).toHaveAttribute("readonly"));
     const applicationId = screen.getByLabelText(/Application ID/);
     const applicationSecret = screen.getByLabelText(/Application secret/);
     expect(applicationId).toBeRequired();
@@ -477,7 +473,7 @@ describe("ExtensionOAuthSetup", () => {
       returnPageId: "setup-guide",
     });
 
-    expect(await screen.findByRole("heading", { name: "Example Identity" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Example Identity" })).toBeVisible());
     expect(screen.queryByRole("button", { name: "Open provider help" })).not.toBeInTheDocument();
   });
 
@@ -495,9 +491,9 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(secret, "abc");
     expect(screen.getByRole("button", { name: "Save configuration" })).toBeEnabled();
     await user.tab();
-    expect(await screen.findByText("Application secret must be at least 4 characters.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Application secret must be at least 4 characters.")).toHaveAttribute("role", "alert"));
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
-    expect(await screen.findByText("Application secret must be at least 4 characters.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Application secret must be at least 4 characters.")).toHaveAttribute("role", "alert"));
     expect(secret).toHaveAttribute("aria-invalid", "true");
     expect(secret).toHaveFocus();
 
@@ -585,7 +581,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
 
     const applicationId = screen.getByLabelText(/Application ID/);
-    expect(await screen.findByText("Application ID is invalid. Check this field and try again.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Application ID is invalid. Check this field and try again.")).toHaveAttribute("role", "alert"));
     expect(applicationId).toHaveAttribute("aria-invalid", "true");
     expect(applicationId).toHaveFocus();
     expect(screen.queryByText(/secret-value/)).not.toBeInTheDocument();
@@ -608,7 +604,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(screen.getByLabelText(/Application ID/), "changed-client");
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Configuration could not be saved. Check the fields and try again.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Configuration could not be saved. Check the fields and try again."));
     expect(screen.queryByText(/secret-value/)).not.toBeInTheDocument();
   });
 
@@ -1005,7 +1001,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.click(connect);
 
     const connectionName = screen.getByLabelText(/Connection name/);
-    expect(await screen.findByText("Connection name is required.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Connection name is required.")).toHaveAttribute("role", "alert"));
     expect(connectionName).toHaveAttribute("aria-invalid", "true");
     expect(connectionName).toHaveFocus();
   });
@@ -1020,7 +1016,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
     const emailHint = screen.getByRole("textbox", { name: "Email hint" });
-    expect(await screen.findByText("Email hint must be a valid email address.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Email hint must be a valid email address.")).toHaveAttribute("role", "alert"));
     expect(emailHint).toHaveAttribute("aria-invalid", "true");
     expect(emailHint).toHaveClass("fs-input");
     expect(emailHint).toHaveFocus();
@@ -1045,7 +1041,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(emailHint, "person@example.test");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(await screen.findByText("Email hint is invalid. Check this field and try again.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Email hint is invalid. Check this field and try again.")).toHaveAttribute("role", "alert"));
     expect(emailHint).toHaveAttribute("aria-invalid", "true");
     expect(emailHint).toHaveAttribute("aria-describedby", expect.stringContaining("error"));
     expect(emailHint).toHaveClass("fs-input");
@@ -1071,9 +1067,9 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(emailHint, "person@example.test");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "Authorization could not be started. Check the configuration and try again.",
-    );
+    ));
     expect(emailHint).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByText(/secret-value|redirect_uri/)).not.toBeInTheDocument();
   });
@@ -1117,9 +1113,9 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(screen.getByRole("textbox", { name: "Email hint" }), "person@example.test");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "This extension update changed how it signs in.",
-    );
+    ));
   });
 
   it("explains an invalid compiled OAuth connection definition without exposing internals", async () => {
@@ -1137,9 +1133,9 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(await screen.findByLabelText(/Connection name/), "Mailbox");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "This extension's OAuth connection setup is invalid. Update or reinstall the extension, then try again.",
-    );
+    ));
     expect(screen.queryByText(/secret-value|descriptor_path/)).not.toBeInTheDocument();
   });
 
@@ -1165,9 +1161,9 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(await screen.findByLabelText(/Connection name/), "Mailbox");
     await user.click(screen.getByRole("button", { name: "Connect" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "Authorization could not be started. Check the configuration and try again.",
-    );
+    ));
     expect(screen.queryByText(/secret-value|undeclared_input/)).not.toBeInTheDocument();
   });
 
@@ -1383,7 +1379,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText(label)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(label)).toBeVisible());
     expect(screen.queryByText("Pending")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save configuration" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument();
@@ -1413,7 +1409,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText(guidance)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(guidance)).toBeVisible());
     expect(screen.queryByRole("button", { name: /Test Viewer recovery account/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reconnect/ })).not.toBeInTheDocument();
@@ -1435,7 +1431,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText("Disconnect was interrupted. Resume it to finish revocation and local cleanup.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Disconnect was interrupted. Resume it to finish revocation and local cleanup.")).toBeVisible());
     expect(screen.getByRole("button", { name: "Resume disconnect Disconnecting mailbox" })).toBeVisible();
     expect(screen.queryByRole("button", { name: /Test Disconnecting mailbox/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
@@ -1463,7 +1459,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText("Disconnect was interrupted. Resume it to finish revocation and local cleanup.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Disconnect was interrupted. Resume it to finish revocation and local cleanup.")).toBeVisible());
     expect(screen.getByRole("button", { name: "Resume disconnect Malformed lease mailbox" })).toBeVisible();
     expect(screen.queryByText(/private-malformed-operation/)).not.toBeInTheDocument();
   });
@@ -1490,7 +1486,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText("Disconnect in progress. This connection is temporarily read-only.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Disconnect in progress. This connection is temporarily read-only.")).toBeVisible());
     expect(screen.queryByRole("button", { name: /Resume disconnect/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Test Live disconnect mailbox/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
@@ -1519,7 +1515,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText("Disconnect was interrupted. Resume it to finish revocation and local cleanup.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Disconnect was interrupted. Resume it to finish revocation and local cleanup.")).toBeVisible());
     fireEvent.click(screen.getByRole("button", { name: "Resume disconnect Interrupted mailbox" }));
 
     await waitFor(() => expect(mockedDisconnect).toHaveBeenCalledWith(
@@ -1552,7 +1548,7 @@ describe("ExtensionOAuthSetup", () => {
     const liveGuidance = await screen.findByText("Disconnect in progress. This connection is temporarily read-only.");
     expect(liveGuidance).toBeVisible();
     expect(liveGuidance).toHaveAttribute("aria-live", "polite");
-    expect(await screen.findByRole("button", { name: "Resume disconnect Clock transition mailbox" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resume disconnect Clock transition mailbox" })).toBeVisible());
   });
 
   it("announces a busy recovery without exposing private metadata", async () => {
@@ -1578,7 +1574,7 @@ describe("ExtensionOAuthSetup", () => {
     const resume = await screen.findByRole("button", { name: "Resume disconnect Busy recovery mailbox" });
     fireEvent.click(resume);
 
-    expect(await screen.findByRole("button", { name: "Resume disconnect Busy recovery mailbox" })).toHaveTextContent("Resuming…");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resume disconnect Busy recovery mailbox" })).toHaveTextContent("Resuming…"));
     expect(screen.getByRole("button", { name: "Resume disconnect Busy recovery mailbox" })).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByText(/private-busy-operation/)).not.toBeInTheDocument();
   });
@@ -1613,7 +1609,7 @@ describe("ExtensionOAuthSetup", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Resume disconnect Conflicted mailbox" }));
 
-    expect(await screen.findByText("Disconnect is still in progress. Try again after the recovery lease expires.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Disconnect is still in progress. Try again after the recovery lease expires.")).toHaveAttribute("role", "alert"));
     expect(onConnectionsChanged).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Resume disconnect Conflicted mailbox" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Resume disconnect Conflicted mailbox" })).not.toHaveAttribute("aria-busy");
@@ -1642,7 +1638,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText("Disconnecting")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Disconnecting")).toBeVisible());
     expect(screen.queryByRole("button", { name: /Resume disconnect/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/private-viewer-operation/)).not.toBeInTheDocument();
   });
@@ -1720,7 +1716,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText(guidance)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(guidance)).toBeVisible());
     expect(screen.queryByText("Verification needs attention. Retry when the provider is available.")).not.toBeInTheDocument();
     expect(screen.queryByText("Repair and save this connection's configuration in Setup before trying again.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
@@ -1834,7 +1830,7 @@ describe("ExtensionOAuthSetup", () => {
     renderSetup();
 
     await user.click(await screen.findByRole("button", { name: "Delete configuration" }));
-    expect(await screen.findByRole("alertdialog")).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("alertdialog")).toBeVisible());
     await user.click(screen.getByRole("combobox", { name: "OAuth configuration" }));
     await user.click(await screen.findByRole("option", { name: secondary.display_name }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -1867,8 +1863,7 @@ describe("ExtensionOAuthSetup", () => {
     });
 
     expect((await screen.findAllByText(/Needs attention — review the fields/))[0]).toBeVisible();
-    expect(await screen.findByText("Redirect URI could not be registered. Try again."))
-      .toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Redirect URI could not be registered. Try again.")).toHaveAttribute("role", "alert"));
     expect(screen.getByRole("button", { name: "Retry redirect registration" })).toBeVisible();
     expect(screen.queryByText(/token=secret/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open provider help" }));
@@ -1893,7 +1888,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.click(screen.getByRole("button", { name: "Replace" }));
     await user.type(screen.getByLabelText(/Application secret/), "replacement-secret");
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
-    expect(await screen.findByText("Configuration saved. Runtime credentials will be revalidated on the next use.")).toHaveAttribute("role", "status");
+    await waitFor(() => expect(screen.getByText("Configuration saved. Runtime credentials will be revalidated on the next use.")).toHaveAttribute("role", "status"));
     await waitFor(() => expect(mockedConfigurations).toHaveBeenCalledTimes(2));
     expect(screen.getByText("Configuration saved. Runtime credentials will be revalidated on the next use.")).toBeVisible();
     await user.clear(screen.getByLabelText(/Configuration name/));
@@ -1919,9 +1914,9 @@ describe("ExtensionOAuthSetup", () => {
     await screen.findByRole("form", { name: "Connect an account" });
     await user.type(await screen.findByLabelText(/Connection name/), "New mailbox");
     await user.click(screen.getByRole("button", { name: "Connect" }));
-    expect(await screen.findByText("Authorization could not be started. Check the configuration and try again.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Authorization could not be started. Check the configuration and try again.")).toHaveAttribute("role", "alert"));
     await user.click(screen.getByRole("button", { name: "Reconnect Mailbox" }));
-    expect(await screen.findByText("Reauthorization could not be started. Check the configuration and try again.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Reauthorization could not be started. Check the configuration and try again.")).toHaveAttribute("role", "alert"));
     expect(screen.queryByText(/token=secret/)).not.toBeInTheDocument();
   });
 
@@ -1966,9 +1961,9 @@ describe("ExtensionOAuthSetup", () => {
         existing_connection_id: "connection-a",
       },
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "This connection cannot be safely reauthorized. Create a new connection for this account instead.",
-    );
+    ));
     expect(screen.queryByText(/must-not-render|tenant_domain/)).not.toBeInTheDocument();
     expect(onAuthorization).not.toHaveBeenCalled();
   });
@@ -2306,9 +2301,9 @@ describe("ExtensionOAuthSetup", () => {
     };
     await act(async () => resolveRetry?.(retryResponse));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "Connection verification still needs attention. Review the provider troubleshooting guidance and try again.",
-    );
+    ));
     expect(screen.queryByText(/raw-token=must-not-render/u)).not.toBeInTheDocument();
     expect(onConnectionsChanged).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "Open retry help" }));
@@ -2336,10 +2331,10 @@ describe("ExtensionOAuthSetup", () => {
     }] });
 
     await user.click(await screen.findByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("Connection verification could not be retried. Try again.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Connection verification could not be retried. Try again.")).toHaveAttribute("role", "alert"));
     await user.click(screen.getByRole("button", { name: "Disconnect" }));
     await user.click(screen.getByRole("button", { name: "Disconnect account" }));
-    expect(await screen.findByText("Connection could not be disconnected. Try again.")).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(screen.getByText("Connection could not be disconnected. Try again.")).toHaveAttribute("role", "alert"));
     expect(screen.queryByText(/token=secret/)).not.toBeInTheDocument();
     confirm.mockRestore();
   });
@@ -2365,7 +2360,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.click(await screen.findByRole("button", { name: "Disconnect" }));
     await user.click(screen.getByRole("button", { name: "Disconnect account" }));
 
-    expect(await screen.findByText("This connection no longer exists. The list was refreshed.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("This connection no longer exists. The list was refreshed.")).toBeVisible());
     expect(onConnectionsChanged).toHaveBeenCalled();
     expect(screen.queryByText("Connection could not be disconnected. Try again.")).not.toBeInTheDocument();
   });
@@ -2389,9 +2384,7 @@ describe("ExtensionOAuthSetup", () => {
       }],
     });
 
-    expect(await screen.findByText(
-      "Repair and save this connection's configuration in Setup before trying again.",
-    )).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Repair and save this connection's configuration in Setup before trying again.")).toBeVisible());
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     expect(mockedRetry).not.toHaveBeenCalled();
   });
@@ -2404,7 +2397,7 @@ describe("ExtensionOAuthSetup", () => {
     await user.type(screen.getByLabelText(/Configuration name/), "Changed");
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Configuration could not be saved. Check the fields and try again.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Configuration could not be saved. Check the fields and try again."));
     expect(screen.queryByText(/must-not-render/)).not.toBeInTheDocument();
   });
 });

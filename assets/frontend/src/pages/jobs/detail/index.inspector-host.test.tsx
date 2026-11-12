@@ -87,7 +87,7 @@ describe("embedded Jobs step inspector host", () => {
       expect(screen.queryByTestId("job-step-inspector-drawer")).not.toBeInTheDocument();
       expect(screen.getByRole("dialog", { name: "Test Run results" })).toBeInTheDocument();
       await user.click(step);
-      expect(await screen.findByTestId("job-step-inspector-drawer")).toHaveStyle({ width: "537px" });
+      await waitFor(() => expect(screen.getByTestId("job-step-inspector-drawer")).toHaveStyle({ width: "537px" }));
       fireEvent.click(within(screen.getByRole("dialog", { name: "Test Run results" })).getByRole("button", { name: "Close" }));
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(observers.size).toBe(0);

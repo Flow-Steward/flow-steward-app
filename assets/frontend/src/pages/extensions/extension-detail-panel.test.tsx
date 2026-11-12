@@ -1,7 +1,7 @@
 import { useState, type ComponentProps } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AuthContext } from "@/lib/auth/context";
@@ -584,7 +584,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     );
 
     expect(screen.getByRole("tab", { name: "Mail" })).toBeEnabled();
-    expect(await screen.findByText("Existing mailbox")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Existing mailbox")).toBeVisible());
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeVisible();
     expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
     expect(screen.getByText(
@@ -653,9 +653,9 @@ describe("ExtensionDetailPanel marketplace links", () => {
       </AuthContext.Provider>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Example Identity" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Example Identity" })).toBeVisible());
     expect(screen.getByText("Provider setup instructions.")).toBeVisible();
-    expect(await screen.findByDisplayValue("https://app.example.test/exact-callback")).toBeVisible();
+    await waitFor(() => expect(screen.getByDisplayValue("https://app.example.test/exact-callback")).toBeVisible());
     expect(screen.getByLabelText(/Client ID/)).toBeVisible();
     expect(screen.getByLabelText(/Client secret/)).toBeVisible();
   });
@@ -1025,8 +1025,8 @@ describe("ExtensionDetailPanel marketplace links", () => {
       </AuthContext.Provider>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Primary Identity" })).toBeVisible();
-    expect(await screen.findByRole("heading", { name: "Secondary Identity" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Primary Identity" })).toBeVisible());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Secondary Identity" })).toBeVisible());
   });
 
   it("switches to declared help and focuses its exact safe anchor", async () => {
@@ -1129,7 +1129,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "Open troubleshooting help" }));
-    expect(await screen.findByText("Safe provider-owned troubleshooting.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Safe provider-owned troubleshooting.")).toBeVisible());
     const anchor = screen.getByRole("region", { name: "provider-status" });
     expect(anchor).toHaveAttribute("id", "extension-anchor-oauth_help-provider-status");
     expect(anchor).toHaveAttribute("tabindex", "-1");
@@ -1237,11 +1237,11 @@ describe("ExtensionDetailPanel marketplace links", () => {
         <QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>
       </AuthContext.Provider>,
     );
-    expect(await screen.findByText("Read account")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Read account")).toBeVisible());
     expect(screen.queryByText("Write account")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reconnect|Disconnect|Test|Retry|Connect/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Write items" }));
-    expect(await screen.findByText("Write account")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Write account")).toBeVisible());
     expect(screen.queryByText("Read account")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reconnect|Disconnect|Test|Retry|Connect/ })).not.toBeInTheDocument();
   });
@@ -1321,7 +1321,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
         </QueryClientProvider>
       </AuthContext.Provider>,
     );
-    expect(await screen.findByText("Legacy message account")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Legacy message account")).toBeVisible());
   });
 
   describe("an OAuth provider's setup page", () => {
@@ -1403,9 +1403,9 @@ describe("ExtensionDetailPanel marketplace links", () => {
         connection_types: [{ connection_type_id: "files_account", auth: { type: "oauth2", provider_id: "files_oauth" } }],
       });
 
-      expect(await screen.findByLabelText(/App key/)).toBeVisible();
+      await waitFor(() => expect(screen.getByLabelText(/App key/)).toBeVisible());
       expect(screen.getByText("Create the app, then connect an account.")).toBeVisible();
-      expect(await screen.findByText("No OAuth configuration is ready to connect.")).toBeVisible();
+      await waitFor(() => expect(screen.getByText("No OAuth configuration is ready to connect.")).toBeVisible());
       expect(screen.queryByRole("button", { name: "Open provider setup" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Open provider help" })).not.toBeInTheDocument();
       expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
@@ -1467,7 +1467,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
         ],
       });
 
-      expect(await screen.findByLabelText(/App key/)).toBeVisible();
+      await waitFor(() => expect(screen.getByLabelText(/App key/)).toBeVisible());
       expect(screen.getByText("One app for every service.")).toBeVisible();
       expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
 

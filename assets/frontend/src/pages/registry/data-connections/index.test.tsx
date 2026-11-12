@@ -459,9 +459,7 @@ describe("RegistryDataConnectionsPage", () => {
       within(dialog).getByRole("button", { name: "Create connection" }),
     ).toBeDisabled();
 
-    expect(
-      await screen.findAllByText(/Certificate is required\./),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText(/Certificate is required\./)).not.toHaveLength(0));
     expect(
       screen.getByText(/It is under Additional settings\./),
     ).toBeInTheDocument();
@@ -659,9 +657,7 @@ describe("RegistryDataConnectionsPage", () => {
     renderPage();
 
     await waitFor(
-      () => expect(screen.getByRole("table", { name: "Connection registry" })).toHaveAttribute("aria-busy", "false"),
-      { timeout: 5_000 },
-    );
+      () => expect(screen.getByRole("table", { name: "Connection registry" })).toHaveAttribute("aria-busy", "false"));
     await clickRowAction("MariaDB reporting", "Edit");
     const dialog = screen.getByRole("dialog");
     await waitFor(() => {
@@ -930,9 +926,7 @@ describe("RegistryDataConnectionsPage", () => {
   it("keeps actions reachable and opens editing from the connection name", async () => {
     renderPage();
 
-    expect(
-      await screen.findByRole("table", { name: "Connection registry" }),
-    ).toHaveClass("fs-table");
+    await waitFor(() => expect(screen.getByRole("table", { name: "Connection registry" })).toHaveClass("fs-table"));
 
     await openRowMenu("Flow Steward App Database");
     for (const action of ["Edit", "Test", "Introspect", "Disable", "Delete"]) {
@@ -997,9 +991,7 @@ describe("RegistryDataConnectionsPage", () => {
       within(dialog).getByRole("button", { name: "Create connection" }),
     );
 
-    expect(
-      await screen.findAllByText("Port must be at most 65535."),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Port must be at most 65535.")).not.toHaveLength(0));
     expect(mockedCreateDataConnection).not.toHaveBeenCalled();
   });
 

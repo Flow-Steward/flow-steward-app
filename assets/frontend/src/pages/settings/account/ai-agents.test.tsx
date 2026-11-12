@@ -179,7 +179,7 @@ describe("AiAgentsSection", () => {
 
   it("groups the clients the server describes and opens one step at a time", async () => {
     renderSection();
-    expect(await screen.findByRole("group", { name: "On your computer" })).toHaveTextContent("Local agent");
+    await waitFor(() => expect(screen.getByRole("group", { name: "On your computer" })).toHaveTextContent("Local agent"));
     expect(screen.getByRole("group", { name: "In the cloud" })).toHaveTextContent("ChatGPT");
     expect(within(currentStep()).getByRole("heading", { name: "Step 1. AI client" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Step 4. Set up the client" })).toBeInTheDocument();
@@ -231,7 +231,7 @@ describe("AiAgentsSection", () => {
     expect(mockedIssue).toHaveBeenCalledTimes(1);
     expect(button).toHaveAttribute("aria-busy", "true");
     resolve(created());
-    expect(await screen.findByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`);
+    await waitFor(() => expect(screen.getByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`));
     const [key, request] = mockedIssue.mock.calls[0];
     expect(key).toMatch(/^[\w-]{16,}$/);
     expect(request).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator", preset: "operational", expiry_days: 30, project_ids: [] });
@@ -285,7 +285,7 @@ describe("AiAgentsSection", () => {
       expect(await within(block).findByRole("button", { name: "Copied" })).toBeInTheDocument();
       expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`Bearer ${SECRET}`));
       expect(screen.queryByText("Copied.")).not.toBeInTheDocument();
-      await waitFor(() => expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument(), { timeout: 3000 });
+      await waitFor(() => expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument());
     } finally {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
     }
@@ -296,7 +296,7 @@ describe("AiAgentsSection", () => {
     await createLocalToken();
     const block = screen.getByRole("group", { name: "Add the server" });
     fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
-    expect(await within(block).findByRole("alert")).toHaveTextContent("Couldn't copy. Select the text and copy it manually.");
+    await waitFor(() => expect(within(block).getByRole("alert")).toHaveTextContent("Couldn't copy. Select the text and copy it manually."));
     expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument();
   });
 

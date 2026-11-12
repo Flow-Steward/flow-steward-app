@@ -230,7 +230,7 @@ it("opens real Settings from Overview without initializing the Builder or losing
     expect(destination.searchParams.get("tab")).toBe("smart-setup");
 
     await user.click(settings);
-    await screen.findByRole("textbox", { name: "Display name" }, { timeout: 5_000 });
+    await screen.findByRole("textbox", { name: "Display name" });
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Display name" }))
       .toHaveValue("Shipping status workflow"));
     expect(screen.getByRole("textbox", { name: "Description" })).toHaveValue("Owned Settings fixture");
@@ -387,7 +387,7 @@ it("keeps dirty drafts through detail refetch and a change of tab, blocks pathna
     expect(new URLSearchParams(view.router.state.location.search).get("retained")).toBeNull();
     expect(new URLSearchParams(view.router.state.location.search).get("tab")).toBeNull();
     await user.click(screen.getByRole("link", { name: "Smart setup" }));
-    expect(await screen.findByRole("textbox", { name: "Display name" })).toHaveValue("Unsaved shipping name");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue("Unsaved shipping name"));
     await act(async () => { await view.router.navigate("/elsewhere"); });
     const dialog = await screen.findByRole("dialog", { name: "Unsaved changes" });
     await user.click(within(dialog).getByRole("button", { name: "Stay" }));
@@ -620,7 +620,7 @@ it("keeps an inactive declaration visible through saved Settings reload until ex
   const user = userEvent.setup();
   let view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`);
   try {
-    expect(await screen.findByText("Workflow interface is off")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Workflow interface is off")).toBeVisible());
     await user.type(screen.getByRole("textbox", { name: "Description" }), " updated");
     await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await waitFor(() => expect(state.requested.filter(({ method }) => method === "PATCH")).toHaveLength(1));
@@ -629,7 +629,7 @@ it("keeps an inactive declaration visible through saved Settings reload until ex
     await waitFor(() => expect(screen.getByRole("button", { name: "Saved" })).toBeDisabled());
     view.dispose();
     view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`);
-    expect(await screen.findByText("Workflow interface is off")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Workflow interface is off")).toBeVisible());
     const activation = screen.getByRole("switch", { name: "Enable workflow interface" });
     expect(activation).not.toBeChecked();
     await user.click(activation);
@@ -665,7 +665,7 @@ it.each([
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`);
   try {
     await screen.findByRole("switch", { name: "Enable workflow interface" });
-    if (warned) expect(await screen.findByText("Workflow interface is off")).toBeVisible();
+    if (warned) await waitFor(() => expect(screen.getByText("Workflow interface is off")).toBeVisible());
     else expect(screen.queryByText("Workflow interface is off")).not.toBeInTheDocument();
     // Changing an unrelated field must not turn a synthesized schema into an authored declaration.
     await user.type(screen.getByRole("textbox", { name: "Description" }), " changed");
@@ -690,7 +690,7 @@ it.each([
     await screen.findByRole("textbox", { name: "Input JSON schema" });
     if (edit) fireEvent.change(screen.getByRole("textbox", { name: "Input JSON schema" }), { target: { value: JSON.stringify(edit) } });
     await user.type(screen.getAllByRole("textbox", { name: "Description" })[0], " changed");
-    if (warned) expect(await screen.findByText("Workflow interface is off")).toBeVisible();
+    if (warned) await waitFor(() => expect(screen.getByText("Workflow interface is off")).toBeVisible());
     else expect(screen.queryByText("Workflow interface is off")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await waitFor(() => expect(state.detail.revision).toBe(8));
@@ -711,7 +711,7 @@ it.each([
     expect(JSON.parse((schema as HTMLTextAreaElement).value)).toEqual(edit || stored);
     expect(screen.getByRole("switch", { name: "Enable workflow interface" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "UI" })).toBeChecked();
-    if (warned) expect(await screen.findByText("Workflow interface is off")).toBeVisible();
+    if (warned) await waitFor(() => expect(screen.getByText("Workflow interface is off")).toBeVisible());
     else expect(screen.queryByText("Workflow interface is off")).not.toBeInTheDocument();
     expect(state.unexpected).toEqual([]);
   } finally { view.dispose(); }
@@ -745,7 +745,7 @@ it("retains imported schema-mode rows and unsupported rules through description-
   const user = userEvent.setup();
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`);
   try {
-    expect(await screen.findByText(/This schema uses advanced rules/)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(/This schema uses advanced rules/)).toBeVisible());
     await user.type(screen.getByRole("textbox", { name: "Description" }), " changed");
     await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await waitFor(() => expect(state.requested.filter(({ method }) => method === "PATCH")).toHaveLength(1));
@@ -767,7 +767,7 @@ it.each([
   const user = userEvent.setup();
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`);
   try {
-    expect(await screen.findByText(/This schema uses advanced rules/)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(/This schema uses advanced rules/)).toBeVisible());
     expect(screen.queryByRole("group", { name: "Structured input 1" })).not.toBeInTheDocument();
     await user.type(screen.getAllByRole("textbox", { name: "Description" })[0], " changed");
     await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
@@ -818,7 +818,7 @@ it("retains a literal dotted JSON Schema property in Advanced through an unrelat
   const user = userEvent.setup();
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`);
   try {
-    expect(await screen.findByText(/This schema uses advanced rules/)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(/This schema uses advanced rules/)).toBeVisible());
     await user.type(screen.getAllByRole("textbox", { name: "Description" })[0], " changed");
     await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
     await waitFor(() => expect(state.requested.filter(({ method }) => method === "PATCH")).toHaveLength(1));

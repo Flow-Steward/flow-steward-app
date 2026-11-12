@@ -110,7 +110,7 @@ describe("SettingsAccountPage", () => {
 
   it("renders the connected account tabs without legacy security controls", async () => {
     renderPage();
-    expect(await screen.findByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByRole("tab", { name: "Sign-in" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Personal tokens" })).toBeInTheDocument();
     expect(screen.queryByText("platform-grid")).not.toBeInTheDocument();
@@ -392,7 +392,7 @@ describe("SettingsAccountPage", () => {
     expect(copyButton).not.toHaveClass("fs-icon-button");
     await user.click(copyButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("fs_pat_test_secret"));
-    expect(await screen.findByText("Token copied to clipboard.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Token copied to clipboard.")).toBeVisible());
     expect(within(secretDialog).getByRole("button", { name: "I've saved it" })).toBeVisible();
   });
 
@@ -408,7 +408,7 @@ describe("SettingsAccountPage", () => {
     await user.click(within(createDialog).getByRole("button", { name: "Create token" }));
     const secretDialog = await screen.findByRole("dialog", { name: "Save your personal token" });
     await user.click(within(secretDialog).getByRole("button", { name: "Copy token" }));
-    expect(await screen.findByText("Token could not be copied. Select the value and copy it manually.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Token could not be copied. Select the value and copy it manually.")).toBeVisible());
   });
 
   describe("personal token expiry", () => {

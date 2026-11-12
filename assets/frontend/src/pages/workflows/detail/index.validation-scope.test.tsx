@@ -73,7 +73,7 @@ it("keeps a past owned result available after explicit history selection when th
   const pastRun = await screen.findByTestId(`workflow-test-run-row:${jobId}`);
   fireEvent.click(pastRun);
   expect(pastRun).toHaveAttribute("aria-current", "true");
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId);
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId));
   expect(await screen.findByText("\"Prior successful report\"")).toBeInTheDocument();
   fireEvent.click(within(screen.getByRole("dialog", { name: "Test Run results" })).getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Test Run results" })).not.toBeInTheDocument());
@@ -90,7 +90,7 @@ it("keeps a past owned result available after explicit history selection when th
   const selected = await screen.findByTestId("workflow-run-bar");
   await waitFor(() => expect(selected).toHaveAttribute("data-job-id", jobId));
   fireEvent.click(within(selected).getByRole("button", { name: "Results" }));
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId);
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId));
   expect(await screen.findByText("\"Prior successful report\"")).toBeInTheDocument();
   expect(localStorage.getItem("fs.workflow-run-job.weekly_report")).toBe(jobId);
 });

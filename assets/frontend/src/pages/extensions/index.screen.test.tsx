@@ -592,7 +592,7 @@ describe("ExtensionsHubPage", () => {
     try {
       await waitFor(() => expect(requestedScopes).toEqual(["ws-other"]));
       await user.click(await screen.findByRole("combobox", { name: "Project scope" }));
-      expect(await screen.findByText("No options available")).toBeVisible();
+      await waitFor(() => expect(screen.getByText("No options available")).toBeVisible());
       await user.keyboard("{Escape}");
       await user.click(screen.getByRole("button", { name: "New workspace" }));
       const draft = screen.getByRole("textbox", { name: "Workspace name" });
@@ -611,7 +611,7 @@ describe("ExtensionsHubPage", () => {
       expect(draft).toHaveFocus();
       await user.click(screen.getByRole("button", { name: "Cancel" }));
       await user.click(screen.getByRole("combobox", { name: "Project scope" }));
-      expect(await screen.findByRole("option", { name: "Project in Default" })).toBeVisible();
+      await waitFor(() => expect(screen.getByRole("option", { name: "Project in Default" })).toBeVisible());
       expect(screen.queryByText("No options available")).not.toBeInTheDocument();
     } finally {
       view.unmount();
@@ -650,7 +650,7 @@ describe("ExtensionsHubPage", () => {
         projects: [{ id: "project-default", name: "Project in Default" }], page: 1, per_page: 200, total: 1, total_pages: 1,
       }); });
       await user.click(screen.getByRole("combobox", { name: "Project scope" }));
-      expect(await screen.findByRole("option", { name: "Project in Default" })).toBeVisible();
+      await waitFor(() => expect(screen.getByRole("option", { name: "Project in Default" })).toBeVisible());
       await act(async () => {
         if (oldOutcome === "failure") older.reject(new Error("Old workspace unavailable"));
         else older.resolve({ projects: [{ id: "project-1", name: "Project from Other" }], page: 1, per_page: 200, total: 1, total_pages: 1 });
@@ -696,7 +696,7 @@ describe("ExtensionsHubPage", () => {
   it("restores the existing result card from scoped host projection after reload without sending an action", async () => {
     configureRecovery();
     renderPage("/extensions/smoke.guardrail.enforcement?project_id=project-1");
-    expect(await screen.findByRole("button", { name: "Operation completed — continue" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Operation completed — continue" })).toBeVisible());
     expect(mockedFetchExtensionExternalEffects).toHaveBeenCalledWith("project-1", "pi_smoke");
     const card = screen.getByRole("region", { name: "Test Connection result" });
     expect(card).toBeVisible();
@@ -731,7 +731,7 @@ describe("ExtensionsHubPage", () => {
       "project-1", "pi_smoke", effectId,
       { observed_version: 1, action: "reject", comment: "Verified no provider record" },
     ));
-    expect(await screen.findByRole("button", { name: "Retry original action" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry original action" })).toBeDisabled());
     expect(mockedExecuteExtensionAction).not.toHaveBeenCalled();
   });
 
@@ -749,11 +749,11 @@ describe("ExtensionsHubPage", () => {
     await user.type(await screen.findByRole("textbox", { name: "Comment" }), "Checked");
     await user.click(screen.getByRole("button", { name: "Operation not completed — retry" }));
     if (status === 409) {
-      expect(await screen.findByText("The authorized retry is already in progress.")).toBeVisible();
+      await waitFor(() => expect(screen.getByText("The authorized retry is already in progress.")).toBeVisible());
       expect(mockedFetchExtensionExternalEffects).toHaveBeenCalledTimes(2);
       expect(screen.getByRole("button", { name: "Retry original action" })).toBeDisabled();
     } else {
-      expect(await screen.findByText("You do not have permission to resolve this effect.")).toBeVisible();
+      await waitFor(() => expect(screen.getByText("You do not have permission to resolve this effect.")).toBeVisible());
     }
     expect(mockedExecuteExtensionAction).not.toHaveBeenCalled();
   });
@@ -847,7 +847,7 @@ describe("ExtensionsHubPage", () => {
       ]);
       expect(mockedExecuteExtensionAction.mock.calls[0]?.[2]).not.toHaveProperty("resolution_ref");
     } else {
-      expect(await screen.findByRole("button", { name: "Retry original action" })).toBeDisabled();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Retry original action" })).toBeDisabled());
       expect(screen.getByText("The original request for this effect is unavailable. Retry is unavailable.")).toBeVisible();
       expect(mockedExecuteExtensionAction).toHaveBeenCalledOnce();
     }
@@ -889,7 +889,7 @@ describe("ExtensionsHubPage", () => {
     if (newerFieldError) {
       await user.clear(screen.getByLabelText("IMAP host"));
       await user.click(screen.getByRole("button", { name: "Save connection" }));
-      expect(await screen.findByText("IMAP host is required.")).toBeVisible();
+      await waitFor(() => expect(screen.getByText("IMAP host is required.")).toBeVisible());
     }
     effects = [olderEffect];
     finishRetry({ action: { status: "succeeded", response: { ok: true } } });
@@ -1104,17 +1104,17 @@ describe("ExtensionsHubPage", () => {
       installId: "pi_smoke",
       providerId: "example",
     }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Loading connections");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Loading connections"));
     expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument();
     rejectConnections?.(new Error("private transport detail"));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "Connections could not be loaded. Try again.",
-    );
+    ));
     expect(screen.queryByText(/private transport detail/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Retry loading connections" }));
-    expect(await screen.findByLabelText("Connection Primary mailbox")).toBeVisible();
+    await waitFor(() => expect(screen.getByLabelText("Connection Primary mailbox")).toBeVisible());
   });
 
   it("keeps fresh OAuth service pages locked when credentials are ready but callback setup is not", async () => {
@@ -1182,7 +1182,7 @@ describe("ExtensionsHubPage", () => {
       "operator",
     );
 
-    expect(await screen.findByRole("tab", { name: "Connections" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Connections" })).toBeDisabled());
     expect(screen.getByText("Finish provider setup")).toBeVisible();
     expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
     await waitFor(() => expect(mockedFetchExtensionOAuthSetupStatus).toHaveBeenCalledWith({
@@ -1481,7 +1481,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/smoke.guardrail.enforcement?extension_page=about");
 
-    expect(await screen.findByText("Neutral extension documentation.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Neutral extension documentation.")).toBeVisible());
     expect(screen.queryByRole("combobox", { name: "Project scope" })).not.toBeInTheDocument();
     expect(mockedFetchProjectConnectionsList).not.toHaveBeenCalled();
   });
@@ -1503,7 +1503,7 @@ describe("ExtensionsHubPage", () => {
     renderPage("/extensions/smoke.guardrail.enforcement");
     await chooseProject(user, "project-1");
 
-    expect(await screen.findByText("IMAP mailbox connection")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("IMAP mailbox connection")).toBeVisible());
     expect(screen.getByLabelText("IMAP host")).toBeVisible();
     expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
   });
@@ -1895,7 +1895,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/smoke.guardrail.enforcement");
     await chooseProject(user, "project-1");
-    expect(await screen.findByLabelText("Bot Token")).toHaveValue("");
+    await waitFor(() => expect(screen.getByLabelText("Bot Token")).toHaveValue(""));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(mockedExecuteExtensionAction).toHaveBeenCalledWith(
@@ -1940,7 +1940,7 @@ describe("ExtensionsHubPage", () => {
     renderPage("/extensions/smoke.guardrail.enforcement");
     await user.click(await screen.findByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("Required Label is required.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Required Label is required.")).toBeVisible());
     expect(mockedExecuteExtensionAction).not.toHaveBeenCalled();
   });
 
@@ -2064,8 +2064,7 @@ describe("ExtensionsHubPage", () => {
     renderPage("/extensions/smoke.guardrail.enforcement");
     await user.click(await screen.findByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText(`Polling Interval Seconds must be a valid ${type}.`))
-      .toBeVisible();
+    await waitFor(() => expect(screen.getByText(`Polling Interval Seconds must be a valid ${type}.`)).toBeVisible());
     expect(mockedExecuteExtensionAction).not.toHaveBeenCalled();
   });
 
@@ -2612,9 +2611,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    expect(
-      await screen.findByText("Extension archive is missing extension.yaml."),
-    ).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Extension archive is missing extension.yaml.")).toBeVisible());
     expect(
       within(screen.getByRole("tabpanel", { name: "Installed" }))
         .queryByTestId("extension-install-notice"),
@@ -2635,7 +2632,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    expect(await screen.findByText("Installed Retry Extension 1.0.0.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Installed Retry Extension 1.0.0.")).toBeVisible());
     expect(mockedInstallExtensionFromFile).toHaveBeenCalledTimes(2);
   });
 
@@ -2864,7 +2861,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/audit.extension");
 
-    expect(await screen.findAllByText("Audit Extension")).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Audit Extension")).not.toHaveLength(0));
     expect(mockedFetchExtension).toHaveBeenCalledWith("audit.extension");
     expect(mockedFetchExtensions).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Disable" })).toBeEnabled();
@@ -3248,9 +3245,7 @@ describe("ExtensionsHubPage", () => {
     await user.click(within(dialog).getByText("I understand this can't be undone."));
     await user.click(within(dialog).getByRole("button", { name: "Uninstall extension" }));
 
-    expect(
-      await within(dialog).findByRole("alert"),
-    ).toHaveTextContent("Installed extension active release path is invalid");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Installed extension active release path is invalid"));
     expect(screen.queryByText("Uninstalling extension...")).not.toBeInTheDocument();
     expect(await screen.findByText("Uninstall failed.")).toBeInTheDocument();
   });
@@ -3595,7 +3590,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&oauth_provider_id=example",
     );
 
-    expect(await screen.findByText("Provider setup page.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Provider setup page.")).toBeVisible());
     expect(screen.queryByText("Default mail page.")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "OAuth Setup" })).toHaveAttribute(
       "aria-selected",
@@ -3606,7 +3601,7 @@ describe("ExtensionsHubPage", () => {
     });
 
     await user.click(screen.getByRole("tab", { name: "Mail" }));
-    expect(await screen.findByText("Default mail page.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Default mail page.")).toBeVisible());
     expect(screen.getByTestId("location-probe")).not.toHaveTextContent("oauth_provider_id");
   });
 
@@ -3644,7 +3639,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?oauth_provider_id=foreign&extension_page=oauth_setup",
     );
 
-    expect(await screen.findByText("Neutral extension overview.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Neutral extension overview.")).toBeVisible());
     expect(screen.queryByText("Sensitive provider setup.")).not.toBeInTheDocument();
   });
 
@@ -3880,9 +3875,9 @@ describe("ExtensionsHubPage", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Selected service page.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Selected service page.")).toBeVisible());
     await user.click(screen.getByRole("button", { name: "Remove extension page" }));
-    expect(await screen.findByText("Default setup page.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Default setup page.")).toBeVisible());
     expect(screen.queryByText("Selected service page.")).not.toBeInTheDocument();
   });
 
@@ -5586,9 +5581,7 @@ describe("ExtensionsHubPage", () => {
     const actionButton = screen.getByRole("button", { name: "Score Records" });
 
     await user.click(actionButton);
-    expect(await screen.findByText(
-      "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
-    )).toBeVisible();
+    await waitFor(() => expect(screen.getByText("The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.")).toBeVisible());
 
     await user.click(actionButton);
     await waitFor(() => expect(mockedExecuteExtensionAction).toHaveBeenCalledTimes(2));
@@ -5643,9 +5636,7 @@ describe("ExtensionsHubPage", () => {
 
       const actionButton = screen.getByRole("button", { name: "Score Records" });
       await user.click(actionButton);
-      expect(await screen.findByText(
-        "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
-      )).toBeVisible();
+      await waitFor(() => expect(screen.getByText("The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.")).toBeVisible());
       await user.click(actionButton);
       await waitFor(() => expect(mockedExecuteExtensionAction).toHaveBeenCalledTimes(2));
 
@@ -5704,9 +5695,7 @@ describe("ExtensionsHubPage", () => {
     const actionButton = screen.getByRole("button", { name: "Verify" });
     await user.click(actionButton);
 
-    expect(
-      await screen.findByText("Save a bot token on the Setup page before verifying."),
-    ).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Save a bot token on the Setup page before verifying.")).toBeVisible());
     expect(screen.queryByText(
       "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
     )).not.toBeInTheDocument();
@@ -5844,7 +5833,7 @@ describe("ExtensionsHubPage", () => {
     });
     await user.click(actionButton);
 
-    expect(await screen.findByText(providerMessage)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(providerMessage)).toBeVisible());
     expect(screen.queryByText(
       "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
     )).not.toBeInTheDocument();
@@ -5896,9 +5885,7 @@ describe("ExtensionsHubPage", () => {
 
       const actionButton = screen.getByRole("button", { name: "Save Settings" });
       await user.click(actionButton);
-      expect(await screen.findByText(
-        "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.",
-      )).toBeVisible();
+      await waitFor(() => expect(screen.getByText("The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.")).toBeVisible());
 
       await user.click(actionButton);
       await waitFor(() => expect(mockedExecuteExtensionAction).toHaveBeenCalledTimes(2));
@@ -5957,9 +5944,7 @@ describe("ExtensionsHubPage", () => {
     await user.clear(record);
     await user.type(record, "changed");
     await user.click(actionButton);
-    expect(await screen.findByText(
-      "This action changed after an uncertain result. It was not sent again. Check the provider status, then submit the changed request as a new action.",
-    )).toBeVisible();
+    await waitFor(() => expect(screen.getByText("This action changed after an uncertain result. It was not sent again. Check the provider status, then submit the changed request as a new action.")).toBeVisible());
     expect(mockedExecuteExtensionAction).toHaveBeenCalledTimes(2);
 
     await user.click(actionButton);

@@ -9,8 +9,6 @@ const hitTestDescriptor = Object.getOwnPropertyDescriptor(document, "elementsFro
 beforeAll(() => Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [] }));
 afterAll(() => { if (hitTestDescriptor) Object.defineProperty(document, "elementsFromPoint", hitTestDescriptor); else Reflect.deleteProperty(document, "elementsFromPoint"); });
 
-const AGENT_JOURNEY_TIMEOUT = 15_000; // Source allowance only; no duration measured.
-const BUILDER_AGENT_JOURNEY_TIMEOUT = 30_000; // Three real Builder journeys take up to ~13s solo; the four-worker gate adds contention.
 async function open(surface: "detail" | "builder" = "detail") { const view = renderPage({ surface }); if (surface === "builder") fireEvent.click(await screen.findByRole("group", { name: "Open step Agent A" })); else await userEvent.click(await screen.findByRole("button", { name: /Agent A/i })); if (surface === "builder") await within(await screen.findByRole("dialog", { name: "Step editor" })).findByRole("button", { name: "Save parameters" }); else await screen.findByRole("button", { name: "Save parameters" }); return view; }
 async function advanced() { await userEvent.click(screen.getByRole("button", { name: "Advanced mode" })); await userEvent.click(await screen.findByRole("tab", { name: "Advanced" })); }
 async function choose(label: string, name: string) { await userEvent.click(screen.getByRole("combobox", { name: label })); await userEvent.click(await within(screen.getByRole("listbox", { name: `${label} options` })).findByRole("option", { name })); }
@@ -46,7 +44,7 @@ it("edits complete canonical Agent maps without coercing typed siblings and read
     expect(JSON.parse((screen.getByRole("textbox", { name: "Agent output mapping JSON" }) as HTMLTextAreaElement).value)).toEqual(boundary.row().output_mapping_jsonb);
     expect(postedChangeSets()).toHaveLength(1);
   } finally { boundary.release(); fresh?.unmount(); view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});
 it("preserves untouched canonical maps and aliases, and explicit canonical empty stays empty", async () => {
   const boundary = install(); const view = await open();
   try {
@@ -59,7 +57,7 @@ it("preserves untouched canonical maps and aliases, and explicit canonical empty
     expect(lastPatch().input_mapping_jsonb).toEqual({});
     expect((lastPatch().override as { agent: unknown }).agent).toEqual({ input_mapping: { request: "state.shadowed" } });
   } finally { view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});
 it("retains invalid map text without a hidden-last-valid Save and honors tab Cancel", async () => {
   install(); const view = await open();
   try {
@@ -71,7 +69,7 @@ it("retains invalid map text without a hidden-last-valid Save and honors tab Can
     expect(screen.getByRole("tab", { name: "Advanced" })).toHaveAttribute("aria-selected", "true");
     expect(map).toHaveValue('{"request":'); expect(postedChangeSets()).toEqual([]);
   } finally { view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});
 it("binds effective block aliases and explicit Auto instead of the legacy preview column", async () => {
   const boundary = install({ block_key: "legacy-preview", override: { published_block_key: "block.a", block_key: "fallback", extra_prompt: "Keep me" } }); const view = await open(); let fresh: ReturnType<typeof renderPage> | undefined;
   try {
@@ -85,7 +83,7 @@ it("binds effective block aliases and explicit Auto instead of the legacy previe
     expect(screen.getByRole("combobox", { name: "Agent contract" })).toHaveTextContent("Auto from selected agent");
     expect(boundary.row().override).toEqual({ extra_prompt: "Keep me" }); expect(postedChangeSets()).toHaveLength(2);
   } finally { boundary.release(); fresh?.unmount(); view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});
 it("preserves untouched orphan participant but explicit Direct clears and explicit Participant supplies its compatible agent", async () => {
   const boundary = install({ participant_key: "orphan", agent_id: "writer" }); const view = await open(); let fresh: ReturnType<typeof renderPage> | undefined;
   try {
@@ -104,7 +102,7 @@ it("preserves untouched orphan participant but explicit Direct clears and explic
     expect(screen.getByRole("combobox", { name: "Agent" })).toBeDisabled(); expect(screen.getByRole("combobox", { name: "Agent" })).toHaveTextContent("Reviewer");
     expect(boundary.row()).toMatchObject({ participant_key: "reviewer", agent_id: "reviewer" }); expect(postedChangeSets()).toHaveLength(3);
   } finally { boundary.release(); fresh?.unmount(); view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});
 
 it("keeps a newer raw map and Step label when its real held Agent Save commits", async () => {
   const boundary = install(); boundary.holdSave(); const view = await open();
@@ -125,7 +123,7 @@ it("keeps a newer raw map and Step label when its real held Agent Save commits",
     expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Newer local label");
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled(); expect(postedChangeSets()).toHaveLength(1);
   } finally { await act(async () => boundary.acceptSave()); view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});
 
 it.each(["acknowledged", "newer valid edit", "newer malformed edit"])("keeps local Agent values and guards only genuine edits after Update: %s", async (scenario) => {
   install(); const view = await open("builder");
@@ -207,4 +205,4 @@ it.each(["acknowledged", "newer valid edit", "newer malformed edit"])("keeps loc
     }
     expect(postedChangeSets()).toHaveLength(1);
   } finally { view.unmount(); }
-}, BUILDER_AGENT_JOURNEY_TIMEOUT);
+});

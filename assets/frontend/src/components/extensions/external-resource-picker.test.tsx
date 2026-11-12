@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -597,7 +597,7 @@ describe("ExternalResourcePicker", () => {
 
     const trigger = screen.getByRole("button", { name: "Choose resource" });
     await user.click(trigger);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Selection could not be applied. Try again.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Selection could not be applied. Try again."));
     expect(trigger).toHaveFocus();
   });
 });

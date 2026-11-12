@@ -773,7 +773,7 @@ describe("RegistryAgentsDetailPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
 
     // Inherited fields are shown with their source and cannot be edited here.
-    expect(await screen.findByText("request")).toHaveClass("fs-signature-name");
+    await waitFor(() => expect(screen.getByText("request")).toHaveClass("fs-signature-name"));
     expect(screen.getByText("summary")).toHaveClass("fs-signature-name");
     expect(screen.getAllByText("From skill").length).toBe(2);
     expect(screen.queryByDisplayValue("request")).not.toBeInTheDocument();

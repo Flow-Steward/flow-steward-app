@@ -103,9 +103,9 @@ describe("OAuthConsentPage", () => {
   it("sends an unauthenticated request to login with the consent path as next", async () => {
     mockedUseAuth.mockReturnValue(authState(false));
     mountConsent("/oauth/consent?request=req-1");
-    expect(await screen.findByText(/login page/)).toHaveTextContent(
+    await waitFor(() => expect(screen.getByText(/login page/)).toHaveTextContent(
       `?next=${encodeURIComponent("/oauth/consent?request=req-1")}`,
-    );
+    ));
     expect(mockedFetchConsent).not.toHaveBeenCalled();
   });
 

@@ -274,9 +274,9 @@ it("reports protected paste refusal without reading the clipboard or staging a g
     canvas.focus();
     fireEvent.keyDown(canvas, { key: "v", code: "KeyV", ctrlKey: true });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "This workflow's structure is read-only. Paste into a workflow you can edit.",
-    );
+    ));
     expect(readText).not.toHaveBeenCalled();
     expect(writeText).not.toHaveBeenCalled();
     expect(canvasIds()).toEqual(before);
@@ -301,7 +301,7 @@ it("reports a clipboard read denial as a paste failure without staging a change"
     clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
     pressCanvasKey("KeyV");
     await waitFor(() => expect(readText).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not read from clipboard.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Could not read from clipboard."));
     expect(postedChangeSets()).toEqual([]);
     expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(1);
   } finally {
@@ -356,7 +356,7 @@ it("reports a clipboard write failure in the canvas without staging a change", a
     renderPage({ surface: "builder" });
     clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
     pressCanvasKey("KeyC");
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not copy to clipboard.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Could not copy to clipboard."));
     expect(postedChangeSets()).toEqual([]);
     expect(screen.getByRole("group", { name: "Open step Plan work" })).toBeVisible();
   } finally {
@@ -387,10 +387,10 @@ it("handles Copy and Duplicate keys only from canvas focus, preserving native te
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     // `writeText` is invoked before the asynchronous copy command acknowledges
     // and clears its busy guard. Duplicate must wait for that acknowledgement.
-    expect(await screen.findByText("Plan work copied.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Plan work copied.")).toBeVisible());
     canvas.focus();
     fireEvent.keyDown(canvas, { key: "d", code: "KeyD", ctrlKey: true });
-    expect(await screen.findByRole("group", { name: "Open step Plan work copy" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Open step Plan work copy" })).toBeVisible());
     expect(postedChangeSets()).toEqual([]);
   } finally {
     if (original) Object.defineProperty(navigator, "clipboard", original);
@@ -408,14 +408,14 @@ it("shows a busy status during a held clipboard write and retires it after ackno
     renderPage({ surface: "builder" });
     clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
     pressCanvasKey("KeyC");
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1), { timeout: 5_000 });
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     // The busy status is a delayed loader: a write under 400ms paints nothing.
     expect(screen.queryByText("Copying selection…")).not.toBeInTheDocument();
-    expect(await screen.findByText("Copying selection…", undefined, { timeout: 2_000 })).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Copying selection…")).toBeVisible());
     pressCanvasKey("KeyC");
     expect(writeText).toHaveBeenCalledTimes(1);
     finishWrite?.();
-    await waitFor(() => expect(screen.queryByText("Copying selection…")).not.toBeInTheDocument(), { timeout: 2_000 });
+    await waitFor(() => expect(screen.queryByText("Copying selection…")).not.toBeInTheDocument());
     expect(postedChangeSets()).toEqual([]);
   } finally {
     if (original) Object.defineProperty(navigator, "clipboard", original);
@@ -490,7 +490,7 @@ it("duplicates a selected Group and its child from the one canonical Group desti
   fireEvent.click(duplicate);
   // One journal intent contains create_group, create_step and their internal connect.
   await waitFor(() => expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure not applied: 3 change(s)"));
-  expect(await graph.findByRole("button", { name: /^Checks copy\b/ })).toBeVisible();
+  await waitFor(() => expect(graph.getByRole("button", { name: /^Checks copy\b/ })).toBeVisible());
   expect(graph.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(2);
   expect(screen.queryByRole("group", { name: "Open step Plan work copy" })).not.toBeInTheDocument();
   // The copy is offset in world space; its child retains the exact parent-local offset.

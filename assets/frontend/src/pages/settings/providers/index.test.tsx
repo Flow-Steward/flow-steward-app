@@ -106,9 +106,9 @@ describe("SettingsProvidersPage", () => {
     await user.type(screen.getByLabelText("Default model"), "claude-sonnet-5");
     await user.click(screen.getByRole("button", { name: "Create provider" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
       "Provider saved, but model verification failed: The provider account has insufficient quota or credit.",
-    );
+    ));
     expect(
       screen.getByRole("heading", { name: "Edit provider" }),
     ).toBeInTheDocument();

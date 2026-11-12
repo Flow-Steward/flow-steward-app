@@ -69,7 +69,7 @@ describe("ReportChart", () => {
   it("shows a notice and opens the values table when the engine fails to load", async () => {
     vi.mocked(loadReportChartEngine).mockRejectedValue(new Error("chunk failed"));
     renderChart();
-    expect(await screen.findByRole("status")).toHaveTextContent(defaultReportLabels.chartUnavailable);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(defaultReportLabels.chartUnavailable));
     expect(screen.getByRole("table", { name: "Data: Sales" })).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
@@ -81,7 +81,7 @@ describe("ReportChart", () => {
       }),
     );
     renderChart();
-    expect(await screen.findByRole("status")).toHaveTextContent(defaultReportLabels.chartUnavailable);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(defaultReportLabels.chartUnavailable));
     expect(screen.getByRole("table", { name: "Data: Sales" })).toBeInTheDocument();
   });
 
