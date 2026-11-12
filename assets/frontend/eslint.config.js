@@ -89,16 +89,20 @@ export default tseslint.config(
     // docs/standards/testing-standard.md (speed-independent frontend tests).
     files: testFiles,
     rules: {
+      // `await waitFor(() => expect(getBy…).toBeInTheDocument())` is the required form: an
+      // element found by findBy* can be replaced before the next line reads it.
+      "testing-library/prefer-find-by": "off",
       "no-restricted-syntax": [
         "error",
         {
-          // A found element and its state must be read together: under load the state can change
-          // between `await findBy*` and the matcher. One waitFor retries until both hold.
-          selector: "CallExpression[callee.property.name=/^(?!toBeInTheDocument$)(not|to[A-Z]\\w*)$/] > MemberExpression > CallExpression[callee.name='expect'] > AwaitExpression > CallExpression[callee.property.name=/^find(All)?By/]",
+          // A found element and its state must be read together: under load the state can change,
+          // or the element be replaced, between `await findBy*` and the matcher. One waitFor
+          // retries until both hold; presence (`toBeInTheDocument`) is no exception.
+          selector: "CallExpression[callee.property.name=/^(not|to[A-Z]\\w*)$/] > MemberExpression > CallExpression[callee.name='expect'] > AwaitExpression > CallExpression[callee.property.name=/^find(All)?By/]",
           message: "Read the element and its state together: await waitFor(() => expect(screen.getBy…(…)).toHave…(…)). See docs/standards/testing-standard.md (speed-independent frontend tests).",
         },
         {
-          selector: "CallExpression[callee.property.name=/^to[A-Z]/][callee.property.name!='toBeInTheDocument'] > MemberExpression[property.name=/^to/] > MemberExpression[property.name='not'] > CallExpression[callee.name='expect'] > AwaitExpression > CallExpression[callee.property.name=/^find(All)?By/]",
+          selector: "CallExpression[callee.property.name=/^to[A-Z]/] > MemberExpression[property.name=/^to/] > MemberExpression[property.name='not'] > CallExpression[callee.name='expect'] > AwaitExpression > CallExpression[callee.property.name=/^find(All)?By/]",
           message: "Read the element and its state together: await waitFor(() => expect(screen.getBy…(…)).not.toHave…(…)). See docs/standards/testing-standard.md (speed-independent frontend tests).",
         },
         {

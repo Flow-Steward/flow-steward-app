@@ -27,9 +27,10 @@ function readScaleFromEnvironment(): string | undefined {
 export const ASYNC_WAIT_BASE_MS = 10_000;
 /**
  * The longest a whole test may take before it is called hung: the one test timeout every
- * test runs on (30 s since 448e96d3fb; no test sets its own).
+ * test runs on; no test sets its own. The longest Builder flows take about 9 s alone and
+ * four times that while the whole suite shares the machine, so 30 s was a speed check.
  */
-export const TEST_TIMEOUT_BASE_MS = 30_000;
+export const TEST_TIMEOUT_BASE_MS = 60_000;
 
 export function asyncWaitMs(scale = testTimeScale()): number {
   return ASYNC_WAIT_BASE_MS * scale;
@@ -41,15 +42,18 @@ export function testTimeoutMs(scale = testTimeScale()): number {
 
 /**
  * Measures how much slower this machine is right now than a free reference machine:
- * busy cores (load per core) and raw speed (a fixed piece of work). Never below 1.
+ * busy cores and raw speed (a fixed piece of work). Never below 1. The load is read before
+ * the run starts, so the run's own workers are added to it: they are about to busy the cores.
  */
-export function measureTestTimeScale({ cores, loadPerMinute, workMs, referenceWorkMs = 25 }: {
+export function measureTestTimeScale({ cores, loadPerMinute, workMs, workers = 0, referenceWorkMs = 25 }: {
   cores: number;
   loadPerMinute: number;
   workMs: number;
+  workers?: number;
   referenceWorkMs?: number;
 }): number {
-  const busy = cores > 0 && Number.isFinite(loadPerMinute) ? 1 + Math.max(0, loadPerMinute) / cores : 1;
+  const ownLoad = Number.isFinite(workers) ? Math.max(0, workers) : 0;
+  const busy = cores > 0 && Number.isFinite(loadPerMinute) ? 1 + (Math.max(0, loadPerMinute) + ownLoad) / cores : 1;
   const slow = workMs > 0 && Number.isFinite(workMs) ? workMs / referenceWorkMs : 1;
   return testTimeScale(String(Math.max(busy, slow)));
 }

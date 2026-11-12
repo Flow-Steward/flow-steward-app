@@ -418,9 +418,7 @@ describe("authoring a new extension action step", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Send the email/i }));
 
-    expect(
-      await screen.findByText("Saved action is no longer available for this installed release."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Saved action is no longer available for this installed release.")).toBeInTheDocument());
     const action = await screen.findByRole("combobox", { name: "Action" });
     expect(action).toHaveTextContent(/Unavailable action/i);
     expect(action).not.toHaveTextContent("send_email");

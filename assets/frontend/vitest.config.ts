@@ -11,11 +11,11 @@ import { measureTestTimeScale, testTimeoutMs, testTimeScale, testWorkerCount, ti
 // condition holds, so the limits below only stop a hung test; they stretch with how busy
 // and how fast this machine is right now, measured once here and handed to every worker.
 const cores = os.availableParallelism();
+const workers = testWorkerCount(cores, process.env.FS_TEST_WORKERS);
 const timeScale = process.env.FS_TEST_TIME_SCALE
   ? testTimeScale(process.env.FS_TEST_TIME_SCALE)
-  : measureTestTimeScale({ cores, loadPerMinute: os.loadavg()[0], workMs: timeReferenceWork() });
+  : measureTestTimeScale({ cores, loadPerMinute: os.loadavg()[0], workMs: timeReferenceWork(), workers });
 process.env.FS_TEST_TIME_SCALE = String(timeScale);
-const workers = testWorkerCount(cores, process.env.FS_TEST_WORKERS);
 console.info(
   `[vitest] ${cores} cores, load ${os.loadavg()[0].toFixed(1)}: time scale x${timeScale}, ` +
     `${workers} workers, test timeout ${testTimeoutMs(timeScale)} ms (FS_TEST_TIME_SCALE / FS_TEST_WORKERS override)`,
@@ -78,7 +78,7 @@ export default defineConfig({
     maxWorkers: workers,
     // Heavy page suites share the gate host with other stands and gates; 15 s still
     // failed them on load alone, and contributors' machines can be slower still.
-    // 30 s on a free machine, stretched by the measured time scale: a hang guard,
+    // 60 s on a free machine, stretched by the measured time scale: a hang guard,
     // not a speed check, and the one timeout every test runs on.
     testTimeout: testTimeoutMs(timeScale),
     hookTimeout: testTimeoutMs(timeScale),

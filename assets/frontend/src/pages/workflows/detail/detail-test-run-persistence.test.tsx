@@ -260,9 +260,7 @@ describe("Workflow Test Run survives a reload (AUDIT-038 symptom c)", () => {
     await openRememberedResults();
     // The decision control itself — the thing the refresh used to take away —
     // not merely a network call.
-    expect(
-      await screen.findByRole("textbox", { name: "Comment for rejection" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Comment for rejection" })).toBeInTheDocument());
     // Rendered both in the banner and in the review-decision panel.
     await waitFor(() => expect(screen.getAllByText(/Step 'analysis' is waiting for human approval\./)).not.toHaveLength(0));
   });

@@ -36,6 +36,12 @@ describe("test time budget", () => {
     expect(measureTestTimeScale({ cores: 0, loadPerMinute: Number.NaN, workMs: Number.NaN })).toBe(1);
   });
 
+  it("counts the run's own workers as load, since they start after the measurement", () => {
+    expect(measureTestTimeScale({ cores: 10, loadPerMinute: 2, workMs: 10, workers: 4 })).toBe(1.6);
+    expect(measureTestTimeScale({ cores: 4, loadPerMinute: 0, workMs: 10, workers: 4 })).toBe(2);
+    expect(measureTestTimeScale({ cores: 10, loadPerMinute: 2, workMs: 10, workers: Number.NaN })).toBe(1.2);
+  });
+
   it("times a fixed piece of work with the given clock", () => {
     const ticks = [100, 142];
     expect(timeReferenceWork(() => ticks.shift() ?? 0)).toBe(42);

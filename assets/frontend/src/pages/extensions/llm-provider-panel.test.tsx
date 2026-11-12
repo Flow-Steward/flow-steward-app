@@ -622,9 +622,11 @@ describe("LlmProviderPanel", () => {
     ] as never);
     renderPanel({ required_provider_secrets: ["api_key"], supplier_label: "Ollama" });
 
-    expect(
-      await screen.findByText(/^Ollama refused this model: your plan doesn't include it, or the account is out of credit\. Choose another model, or upgrade or top up your Ollama account\. \(checked .+\)$/),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText(/^Ollama refused this model: your plan doesn't include it, or the account is out of credit\. Choose another model, or upgrade or top up your Ollama account\. \(checked .+\)$/),
+      ).toBeInTheDocument(),
+    );
     expect(screen.getByText("not available")).toBeInTheDocument();
     // An error, not a hint: the reason carries the error style.
     expect(screen.getByText(/^Ollama refused this model/)).toHaveClass("is-error");
@@ -918,11 +920,11 @@ describe("LlmProviderPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Discover models" }));
 
-    expect(
-      await screen.findByText(
-        /^The provider rejected the API key\. Check that you copied the whole key, then save it again\. \(checked/,
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText(/^The provider rejected the API key\. Check that you copied the whole key, then save it again\. \(checked/),
+      ).toBeInTheDocument(),
+    );
     expect(screen.getByText("Check failed")).toBeInTheDocument();
     expect(screen.queryByText("authentication_error")).not.toBeInTheDocument();
     expect(screen.queryByText("Discovery failed.")).not.toBeInTheDocument();

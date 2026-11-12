@@ -373,7 +373,7 @@ describe("summary graph counts and metadata isolation", () => {
     else mockedLinkedProject.mockRejectedValue(new Error("Project context unavailable"));
     const view = renderHeader(true, undefined, { onWorkflowSettings: undefined, onWorkflowTestRun: undefined });
     if (state === "pending") await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Loading workflow data"));
-    else expect(await screen.findByText("Project context unavailable")).toBeInTheDocument();
+    else await waitFor(() => expect(screen.getByText("Project context unavailable")).toBeInTheDocument());
     await screen.findByRole("button", { name: "Disable workflow" });
     expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
