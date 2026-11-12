@@ -24,12 +24,12 @@ it("loads workflow data while the editor presentation is suspended", async () =>
   try {
     // A slow presentation chunk must not postpone the parent's query effects.
     await waitFor(() => expect(mockedFetchWorkflowDetail).toHaveBeenCalledWith("weekly_report"));
-    expect(await screen.findByText("Preparing the workflow")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Preparing the workflow")).toBeVisible());
     await act(async () => {
       shellLoad.ready = true;
       shellLoad.release();
     });
-    expect(await screen.findByRole("button", { name: "Add step" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add step" })).toBeVisible());
   } finally {
     await act(async () => {
       shellLoad.ready = true;

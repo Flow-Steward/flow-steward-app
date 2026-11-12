@@ -720,13 +720,13 @@ describe("update notices (WordPress's update check)", () => {
     fireEvent.click(await within(table).findByRole("button", { name: "Update to v1.10.0" }));
     fireEvent.click(within(table).getByRole("button", { name: "Update to v2.1.0" }));
 
-    expect(await within(table).findByRole("button", { name: "Queued" })).toBeDisabled();
+    await waitFor(() => expect(within(table).getByRole("button", { name: "Queued" })).toBeDisabled());
     await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(1));
     expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "");
 
     finishFirst();
     await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("beta_mail", "2.1.0", DIGEST, ""));
-    expect(await within(table).findByText("Updated to 2.1.0.")).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("Updated to 2.1.0.")).toBeInTheDocument());
     expect(within(table).getByText("Updated to 1.10.0.")).toBeInTheDocument();
   });
 
