@@ -84,8 +84,8 @@ Inspect the version-matched exporter/importer and canonical export dependencies.
 In the audited core0.9.9, a native logical reference can use
 `connector_id: extension.<discovered-extension-id>` with the actual operation in
 `override.connector.operation_id`. For example, the discovered native packages
-used `extension.flowsteward.google-workspace` and
-`extension.flowsteward.outgoing-email`; these are examples, not a permanent
+used `extension.<Google Workspace extension_id>` and
+`extension.<outgoing email extension_id>`; these are examples, not a permanent
 integration inventory. The exporter records the extension dependency and import
 resolves the selected installation. MCP projected tool identities follow their
 own discovered contract; do not convert every tool ID to this native form.

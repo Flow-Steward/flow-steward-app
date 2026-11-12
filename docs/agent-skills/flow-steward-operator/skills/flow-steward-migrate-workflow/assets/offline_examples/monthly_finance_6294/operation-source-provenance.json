@@ -1,15 +1,15 @@
 [
   {
-    "extension_id": "flowsteward.google-workspace",
+    "extension_id": "<the discovered Google Workspace extension_id>",
     "version": "0.3.3",
-    "url": "https://github.com/Flow-Steward/ext-google-workspace/releases/download/v0.3.3/flowsteward.google-workspace-0.3.3.zip",
+    "url": "<the catalog release asset of that extension, version 0.3.3>",
     "sha256": "093888349e06ba95d696a1d46b144918ad73b9ac677fb5bf65549fe2be871862",
     "catalog_revision": "2026-11-03.84850c1f"
   },
   {
-    "extension_id": "flowsteward.outgoing-email",
+    "extension_id": "<the discovered outgoing email extension_id>",
     "version": "0.3.1",
-    "url": "https://github.com/Flow-Steward/ext-email-smtp/releases/download/v0.3.1/flowsteward.outgoing-email-0.3.1.zip",
+    "url": "<the catalog release asset of that extension, version 0.3.1>",
     "sha256": "857c0b38da3f598cf4f2628b7b54ee9de9c8da03d80a5b57cba1f4d2a0375413",
     "catalog_revision": "2026-11-03.84850c1f"
   }
