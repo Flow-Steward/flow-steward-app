@@ -272,7 +272,7 @@ def test_untrusted_or_invalid_input_fails_without_echoing_source(tmp_path, raw, 
 
 
 def test_diagnostics_do_not_echo_attacker_controlled_values(tmp_path):
-    secret = "SOURCE_SECRET_CANARY"
+    secret = "SOURCE_SECRET_CANARY"  # pragma: allowlist secret -- test canary
     bundle = bundle_with(
         {"step_kind": "connector", "output_mapping_jsonb": {f"{secret}.0.id": "state.id"}}
     )

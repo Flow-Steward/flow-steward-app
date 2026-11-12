@@ -25,7 +25,7 @@ SECRET_EXPOSURE_CODE = "extension_secret_exposure_blocked"
 SECRET_EXPOSURE_MESSAGE = (
     "The extension returned protected credential material. Contact the extension author."
 )
-SECRET_CHECK_INCOMPLETE_CODE = "extension_secret_check_incomplete"
+SECRET_CHECK_INCOMPLETE_CODE = "extension_secret_check_incomplete"  # pragma: allowlist secret -- an error code, not a credential
 SECRET_CHECK_INCOMPLETE_MESSAGE = (
     "The extension output exceeds the limits of the protected-credential check, so it was "
     "blocked unchecked. Request less data per call, for example a smaller page size."
