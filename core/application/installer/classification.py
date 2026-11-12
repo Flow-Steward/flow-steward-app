@@ -7,6 +7,7 @@ from core.application.installer.contracts import (
     InstallationEvidence,
     InstallationKind,
 )
+from core.application.installer.errors import InstallerFailure
 
 
 def classify_installation(evidence: InstallationEvidence) -> InstallationClassification:
@@ -60,3 +61,41 @@ def classify_installation(evidence: InstallationEvidence) -> InstallationClassif
     if evidence.journal_completed:
         return InstallationClassification(kind=InstallationKind.INSTALLED, resources=resources)
     return InstallationClassification(kind=InstallationKind.RESUMABLE, resources=resources)
+
+
+def require_unambiguous_installation(classification: InstallationClassification) -> None:
+    """Refuse an unsafe observed state before image policy or any installation change."""
+    if classification.kind is not InstallationKind.AMBIGUOUS:
+        return
+    detail = " ".join(classification.reasons)
+    if classification.resources:
+        detail += " Detected resources: " + ", ".join(classification.resources) + "."
+    if any("no Phase 3 installer journal" in reason for reason in classification.reasons):
+        remediation = (
+            "The existing pre-Phase3 stack was preserved. Do not delete its volumes or "
+            "configuration; continue managing it with ./flow-steward. Automatic adoption "
+            "is intentionally unsupported in Phase 3, so use a clean checkout and distinct "
+            "Compose project identity for a new installation."
+        )
+    elif any(
+        "without matching installation configuration" in reason for reason in classification.reasons
+    ):
+        remediation = (
+            "The detected Docker resources were preserved. Removing the checkout does not "
+            "remove its containers or volumes. Restore their matching installation "
+            "configuration, or use a distinct Compose project identity for a separate "
+            "installation. Inspect the listed resources before any explicit cleanup."
+        )
+    else:
+        remediation = (
+            "The detected resources were preserved. Run ./flow-steward doctor and "
+            "resolve the reported identity or secret mismatch without deleting volumes."
+        )
+    raise InstallerFailure(
+        code="ambiguous_installation_state",
+        cause=detail,
+        remediation=remediation,
+        exit_code=9,
+        retryable=False,
+        step="classification",
+    )

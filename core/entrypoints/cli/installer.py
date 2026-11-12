@@ -22,6 +22,7 @@ from core.application.installer import (
     InstallRunResult,
     ReleaseIdentity,
 )
+from core.application.installer.classification import require_unambiguous_installation
 from core.application.installer.errors import InstallerFailure
 from core.application.installer.redaction import redact_installer_text
 from core.application.installer.service import InstallerService
@@ -146,6 +147,18 @@ def _callback(**values: Any) -> None:
     try:
         service = _create_service(stream_output=verbose)
         classification = service.inspect()
+        # Before image policy: an orphaned or unreadable state must not surface as an image error.
+        require_unambiguous_installation(classification)
+    except InstallerFailure as exc:
+        _render_failure(
+            renderer,
+            exc.code,
+            exc.cause,
+            ExitCode(exc.exit_code),
+            hint=exc.remediation,
+            retryable=exc.retryable,
+            log_path=exc.log_path,
+        )
     except Exception as exc:
         log_path = _write_emergency_log(exc)
         _render_failure(
