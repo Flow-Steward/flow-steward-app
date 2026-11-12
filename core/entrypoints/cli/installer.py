@@ -147,17 +147,10 @@ def _callback(**values: Any) -> None:
     try:
         service = _create_service(stream_output=verbose)
         classification = service.inspect()
-        # Before image policy: an orphaned or unreadable state must not surface as an image error.
-        require_unambiguous_installation(classification)
+        require_unambiguous_installation(classification)  # before any image-policy refusal
     except InstallerFailure as exc:
         _render_failure(
-            renderer,
-            exc.code,
-            exc.cause,
-            ExitCode(exc.exit_code),
-            hint=exc.remediation,
-            retryable=exc.retryable,
-            log_path=exc.log_path,
+            renderer, exc.code, exc.cause, ExitCode(exc.exit_code), hint=exc.remediation
         )
     except Exception as exc:
         log_path = _write_emergency_log(exc)
@@ -479,17 +472,11 @@ installer_command = click.Command(
 
 
 def _recorded_installation_values(root: Path) -> dict[str, Any]:
-    """Recover the configuration an existing installation was installed with.
+    """Recover the configuration an existing installation was installed with (AC17-R93).
 
-    AC17-R93: on a non-fresh installation the installer skipped the review form and
-    fell straight through to the spec defaults, so a bare rerun silently proposed
-    `scalable`/`development` for an installation recorded as `compact`/`production`
-    and then refused its own combination as invalid. That made the R88 remediation
-    ("Run ./install.sh instead") impossible to follow literally.
-
-    Prefer the canonical active deployment record so a bare rerun cannot reset ports,
-    ingress, storage, or TLS to installer defaults. Anything supplied on the command
-    line still wins over the recorded values.
+    A bare rerun must not fall back to spec defaults (scalable/development) for an
+    installation recorded as compact/production, nor reset ports, ingress, storage or TLS.
+    Prefer the active deployment record; command-line values still win.
     """
     try:
         active = LifecycleConfigurationStore(
