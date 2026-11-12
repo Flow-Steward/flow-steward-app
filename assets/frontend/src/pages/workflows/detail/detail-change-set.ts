@@ -259,6 +259,7 @@ export function useWorkflowChangeSet({
   const committedCheckRef = useRef(check);
   useLayoutEffect(() => { committedCheckRef.current = check; }, [check]);
   const checkSequenceRef = useRef(0);
+  const sentCheckRef = useRef<{ key: string; sequence: number } | null>(null);
   // Revisions this controller wrote (Apply, own one-step saves, a kept own copy).
   const ownRevisionsRef = useRef(new Set<number>());
   const expectOwnRevisionRef = useRef(false);
@@ -372,16 +373,26 @@ export function useWorkflowChangeSet({
   // Judge the current local set exactly as Apply would, without writing:
   // debounced after each structural edit, and only the latest answer counts.
   useEffect(() => {
-    checkSequenceRef.current += 1;
-    const sequence = checkSequenceRef.current;
     if (!enabled || !operations.length || conflict || !checkRevision || !workflowId) {
+      checkSequenceRef.current += 1;
+      sentCheckRef.current = null;
       // An idle reset must not repeatedly interrupt a pending journal transition.
       if (committedCheckRef.current !== IDLE_CHECK) setCheck(IDLE_CHECK);
       return undefined;
     }
+    const key = JSON.stringify([workflowId, checkRevision, operations]);
+    const sent = sentCheckRef.current;
+    // This exact set already went out and nothing has retired its answer since: a
+    // re-render with equal values (a new array, a new callback) must not send a second
+    // identical dry run. On a loaded machine the timer fired before that re-render
+    // and the same check was sent twice (2026-11-12).
+    if (sent?.key === key && sent.sequence === checkSequenceRef.current) return undefined;
+    checkSequenceRef.current += 1;
+    const sequence = checkSequenceRef.current;
     setCheck((current) => ({ ...current, state: "checking" }));
     const timer = globalThis.setTimeout(() => {
       if (!authorityCurrent()) return;
+      sentCheckRef.current = { key, sequence };
       applyWorkflowChanges(workflowId, {
         expected_revision: checkRevision,
         operations,
