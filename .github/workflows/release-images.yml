@@ -66,7 +66,7 @@ jobs:
           fi
       - name: Validate product release notes before native builds
         id: release-notes
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         env:
           RELEASE_TAG: ${{ steps.identity.outputs.tag }}
         with:
@@ -102,7 +102,7 @@ jobs:
         id: previous-quality
         if: inputs.require_full_quality == true && needs.resolve.outputs.tag != 'v0.9.9' && needs.resolve.outputs.tag != 'v0.9.10'
         continue-on-error: true
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         env:
           RELEASE_REVISION: ${{ needs.resolve.outputs.revision }}
         with:
@@ -138,7 +138,7 @@ jobs:
         if: needs.resolve.outputs.tag == 'v0.9.9'
       - name: Build the canonical disposable PostgreSQL image
         if: needs.resolve.outputs.tag == 'v0.9.9'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0 (Node 24)
         with:
           context: .
           file: infra/docker/postgres-extended/Dockerfile
@@ -255,7 +255,7 @@ jobs:
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain quality evidence even on failure
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: release-quality-${{ github.run_attempt }}
           path: |
@@ -283,7 +283,7 @@ jobs:
           ref: ${{ needs.resolve.outputs.revision }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1 (Node 24)
         with:
           driver: docker-container
           endpoint: default
@@ -294,7 +294,7 @@ jobs:
           FS_RELEASE_PLATFORM: linux/${{ matrix.architecture }}
           FS_RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/native
         run: ./scripts/release/official-release-build.sh
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: native-${{ matrix.architecture }}
           path: ${{ runner.temp }}/native/
@@ -341,7 +341,7 @@ jobs:
           printf 'FS_RELEASE_EVIDENCE=%s/release-verification.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'REGISTRY_AUTH_FILE=%s/registry-auth.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Validate retained archive run provenance
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         env:
           ARTIFACT_RUN_ID: ${{ needs.resolve.outputs.artifact_run_id }}
         with:
@@ -355,27 +355,27 @@ jobs:
                 !['push', 'workflow_dispatch'].includes(run.event)) {
               throw new Error('Archive run does not match this public source and release workflow');
             }
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
           pattern: native-*
           merge-multiple: true
           path: ${{ runner.temp }}/native
           github-token: ${{ github.token }}
           run-id: ${{ needs.resolve.outputs.artifact_run_id }}
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1 (Node 24)
         with:
           endpoint: default
       - name: Install publication tooling
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y skopeo
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0 (Node 24)
         continue-on-error: true
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0 (Node 24)
         continue-on-error: true
         with:
           registry: docker.io
@@ -422,7 +422,7 @@ jobs:
         run: python3 -m core.entrypoints.cli.agent_resources --registry "$RUNNER_TEMP/release-resources" --owner "anonymous-installer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" cleanup --apply
       - name: Retain registry verification evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: release-verification-${{ github.run_attempt }}
           path: |
@@ -432,7 +432,7 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
       - name: Publish stable GitHub Release after a complete registry verifies
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         env:
           FS_RELEASE_NOTES_SHA256: ${{ needs.resolve.outputs.notes_sha256 }}
           FS_RELEASE_PREVIOUS_TAG: ${{ needs.resolve.outputs.previous_tag }}

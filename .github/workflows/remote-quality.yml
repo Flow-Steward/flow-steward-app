@@ -52,7 +52,7 @@ jobs:
     outputs:
       evidence_imported: ${{ steps.copy-restored-evidence.outcome == 'success' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -61,7 +61,7 @@ jobs:
       - name: Resolve the diagnostic smoke source without bypassing provenance validation
         id: smoke-source
         if: env.QUALITY_MODE == 'reuse-smoke'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         env:
           REQUESTED_RUN_ID: ${{ inputs.reuse_run_id }}
         with:
@@ -81,7 +81,7 @@ jobs:
       - name: Validate explicitly requested source run and exact evidence artifact
         id: validate-reuse-source
         if: (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '') || (env.QUALITY_MODE == 'reuse-smoke' && steps.smoke-source.outputs.run_id != '')
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         env:
           REUSE_RUN_ID: ${{ inputs.reuse_run_id || steps.smoke-source.outputs.run_id }}
         with:
@@ -125,7 +125,7 @@ jobs:
       - name: Download explicitly requested source evidence and coverage
         id: restore-source-evidence
         if: steps.validate-reuse-source.outcome == 'success'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
           name: ${{ steps.validate-reuse-source.outputs.artifact_name }}
           path: ${{ runner.temp }}/source-quality
@@ -140,7 +140,7 @@ jobs:
         id: restore-prior-evidence
         if: fromJSON(github.run_attempt) > 1
         continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
           name: quality-${{ github.sha }}-${{ steps.previous-attempt.outputs.number }}
           path: ${{ runner.temp }}/previous-quality
@@ -185,7 +185,7 @@ jobs:
         id: scanner-cache-source
         if: github.event_name == 'push' && env.QUALITY_MODE != 'reuse-smoke' && steps.restore-source-evidence.outcome != 'success'
         continue-on-error: true
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         with:
           script: |
             const select = require(`${process.env.GITHUB_WORKSPACE}/core/application/tooling/quality/hosted_cache_source.cjs`);
@@ -207,7 +207,7 @@ jobs:
         id: restore-scanner-cache
         if: steps.scanner-cache-source.outputs.run_id != ''
         continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
           name: ${{ steps.scanner-cache-source.outputs.artifact_name }}
           path: ${{ runner.temp }}/scanner-cache
@@ -274,7 +274,7 @@ jobs:
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Build the canonical disposable PostgreSQL image
         if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'single-check'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0 (Node 24)
         with:
           context: .
           file: infra/docker/postgres-extended/Dockerfile
@@ -333,7 +333,7 @@ jobs:
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain evidence and this run's coverage
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: quality-${{ github.sha }}-${{ github.run_attempt }}
           path: |
@@ -345,7 +345,7 @@ jobs:
           if-no-files-found: warn
       - name: Retain only current per-file scanner proofs for later pushes
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: secret-scan-files-${{ github.sha }}-${{ github.run_attempt }}
           path: logs/quality/file-results/detect-secrets.json
@@ -364,7 +364,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -373,7 +373,7 @@ jobs:
       - name: Validate the explicitly requested scanner source
         id: scanner-source
         if: inputs.reuse_run_id != ''
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         env:
           SCANNER_SOURCE_RUN_ID: ${{ inputs.reuse_run_id }}
         with:
@@ -393,7 +393,7 @@ jobs:
             core.info(`Importing only per-file scanner proofs from official run ${source.run_id}.`);
       - name: Download only the validated scanner manifest
         if: steps.scanner-source.outcome == 'success'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
           name: ${{ steps.scanner-source.outputs.artifact_name }}
           path: ${{ runner.temp }}/scanner-source
@@ -460,7 +460,7 @@ jobs:
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain this scanner measurement
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: secret-scan-measurement-${{ github.sha }}-${{ github.run_attempt }}
           path: logs/quality/hosted
@@ -468,7 +468,7 @@ jobs:
           if-no-files-found: warn
       - name: Retain current per-file scanner proofs
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: secret-scan-files-${{ github.sha }}-${{ github.run_attempt }}
           path: logs/quality/file-results/detect-secrets.json
@@ -486,7 +486,7 @@ jobs:
       matrix:
         check: [frontend-tests, backend-tests]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -495,7 +495,7 @@ jobs:
       - uses: ./.github/actions/prepare-quality
       - name: Build the canonical disposable PostgreSQL image
         if: matrix.check == 'backend-tests'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0 (Node 24)
         with:
           context: .
           file: infra/docker/postgres-extended/Dockerfile
@@ -533,7 +533,7 @@ jobs:
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain runtime diagnostics
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: parallel-${{ matrix.check }}-${{ github.sha }}-${{ github.run_attempt }}
           path: |
@@ -557,14 +557,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Recheck candidate before expensive analysis
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - uses: ./.github/actions/prepare-quality
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
           name: quality-${{ github.sha }}-${{ github.run_attempt }}
           path: logs
@@ -626,7 +626,7 @@ jobs:
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
       - name: Retain pilot diagnostics
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
           name: sonar-pilot-${{ github.sha }}-${{ github.run_attempt }}
           path: |

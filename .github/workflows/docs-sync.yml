@@ -13,15 +13,15 @@ jobs:
     steps:
       - name: Mint documentation dispatch token
         id: app
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0 (Node 24)
         with:
-          app-id: ${{ vars.DOCS_SYNC_APP_ID }}
+          client-id: ${{ vars.DOCS_SYNC_APP_ID }}
           private-key: ${{ secrets.DOCS_SYNC_APP_PRIVATE_KEY }}
           owner: Flow-Steward
           repositories: documentation-site
           permission-contents: write
       - name: Request cumulative documentation reconciliation
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         with:
           github-token: ${{ steps.app.outputs.token }}
           script: |
