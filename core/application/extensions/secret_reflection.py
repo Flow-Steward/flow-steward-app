@@ -25,7 +25,7 @@ SECRET_EXPOSURE_CODE = "extension_secret_exposure_blocked"
 SECRET_EXPOSURE_MESSAGE = (
     "The extension returned protected credential material. Contact the extension author."
 )
-SECRET_CHECK_INCOMPLETE_CODE = "extension_secret_check_incomplete"
+SECRET_CHECK_INCOMPLETE_CODE = "extension_secret_check_incomplete"  # pragma: allowlist secret
 SECRET_CHECK_INCOMPLETE_MESSAGE = (
     "The extension output exceeds the limits of the protected-credential check, so it was "
     "blocked unchecked. Request less data per call, for example a smaller page size."
@@ -144,7 +144,7 @@ def _check_incomplete(
     limit: SecretCheckLimit, observed: int, maximum: int
 ) -> SecretExposureFinding:
     logger.warning(
-        "secret reflection check incomplete: limit=%s observed=%d maximum=%d",
+        "reflected-value check incomplete: limit=%s observed=%d maximum=%d",
         limit,
         observed,
         maximum,
@@ -232,7 +232,9 @@ def secret_exposure_invocation(
         "detail": SECRET_CHECK_INCOMPLETE_CODE,
         "response": {
             "ok": False,
-            "error": SECRET_CHECK_INCOMPLETE_MESSAGE,
+            # The public action response is a closed projection that keeps only
+            # error codes, so the limit also travels in the human-readable text.
+            "error": f"{SECRET_CHECK_INCOMPLETE_MESSAGE} Limit: {finding.limit}.",
             "error_code": SECRET_CHECK_INCOMPLETE_CODE,
             "limit": finding.limit,
         },
