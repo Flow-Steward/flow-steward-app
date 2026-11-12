@@ -5124,6 +5124,9 @@ msgstr "Provider unavailable"
 msgid "react.extensions.publisher"
 msgstr "Publisher"
 
+msgid "react.extensions.queued"
+msgstr "Queued"
+
 msgid "react.extensions.recently_added"
 msgstr "Recently added"
 
@@ -17854,15 +17857,6 @@ msgstr "Inline assignment value {value0}"
 msgid "react.workflows.inline_item_steps"
 msgstr "Inline item steps"
 
-msgid "react.workflows.inline_loop_concurrency"
-msgstr "concurrency {count}"
-
-msgid "react.workflows.inline_loop_refused"
-msgstr "An inline loop lists a few simple steps in sequence."
-
-msgid "react.workflows.inline_loop_source"
-msgstr "{over} as {item}"
-
 msgid "react.workflows.inline_step_kind_value0"
 msgstr "Inline step kind {value0}"
 
@@ -18340,9 +18334,6 @@ msgstr "Loading workflows"
 msgid "react.workflows.loop"
 msgstr "loop"
 
-msgid "react.workflows.loop_body"
-msgstr "Loop body"
-
 msgid "react.workflows.loop_body_kind"
 msgstr "Loop body"
 
@@ -18351,12 +18342,6 @@ msgstr "Parallel lanes per item"
 
 msgid "react.workflows.loop_body_sequence"
 msgstr "Steps in sequence"
-
-msgid "react.workflows.loop_body_step_one"
-msgstr "{count} step"
-
-msgid "react.workflows.loop_body_steps"
-msgstr "{count} steps"
 
 msgid "react.workflows.loop_body_subgraph"
 msgstr "Loop body subgraph"
@@ -19791,12 +19776,6 @@ msgstr "Shopify-style"
 
 msgid "react.workflows.show"
 msgstr "Show"
-
-msgid "react.workflows.show_as_group"
-msgstr "Show as a group"
-
-msgid "react.workflows.show_as_inline_loop"
-msgstr "Show as an inline loop"
 
 msgid "react.workflows.show_as_text"
 msgstr "show as text."
@@ -26476,9 +26455,6 @@ msgstr "Open child workflow"
 msgid "react.workflows.open_interface"
 msgstr "Open interface"
 
-msgid "react.workflows.open_loop_value0"
-msgstr "Open loop {value0}"
-
 msgid "react.workflows.outputs"
 msgstr "Outputs"
 
@@ -26929,9 +26905,6 @@ msgstr "Call an HTTP endpoint and keep the response."
 msgid "react.workflows.palette_desc_if"
 msgstr "Branch on a condition: True or False."
 
-msgid "react.workflows.palette_desc_inline_loop"
-msgstr "Repeat a few simple steps for each item, inside its card."
-
 msgid "react.workflows.palette_desc_invoke_workflow"
 msgstr "Run another workflow and use its outputs."
 
@@ -27009,9 +26982,6 @@ msgstr "In {group} · lane {lane}"
 
 msgid "react.workflows.palette_in_lane_ordinal"
 msgstr "In {group} · {lane}"
-
-msgid "react.workflows.palette_inline_loop"
-msgstr "Inline loop"
 
 msgid "react.workflows.palette_insert_title"
 msgstr "Insert on {source} · {outcome} → {target}"

@@ -509,12 +509,14 @@ export function installLabel(phase: ExtensionCatalogInstallState["phase"], t: I1
   if (phase === "installing") return t("react.extensions.installing", "Installing…");
   // Not "Installing…": nothing is being installed until the operator approves.
   if (phase === "awaiting_approval") return t("react.extensions.awaiting_approval", "Awaiting approval");
+  if (phase === "queued") return t("react.extensions.queued", "Queued");
   return t("react.extensions.install", "Install");
 }
 
 export function updateLabel(phase: ExtensionCatalogInstallState["phase"], version: string, t: I18nContextValue["t"] = fallbackContext.t): string {
   if (phase === "installing") return t("react.extensions.updating", "Updating…");
   if (phase === "awaiting_approval") return t("react.extensions.awaiting_approval", "Awaiting approval");
+  if (phase === "queued") return t("react.extensions.queued", "Queued");
   return t("react.extensions.update_to_version", "Update to v{value0}", { value0: version });
 }
 

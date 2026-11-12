@@ -11,7 +11,6 @@ import type { GroupNodeData } from "@/pages/workflows/builder/layout";
 import { CanvasAddMenu } from "@/pages/workflows/builder/canvas-add-menu";
 import { ContainerCard } from "@/pages/workflows/builder/canvas-container-card";
 import { ForEachNode } from "@/pages/workflows/builder/canvas-for-each-node";
-import { InlineLoopNode } from "@/pages/workflows/builder/canvas-inline-loop";
 import {
   CanvasEditableEdge,
   GenericStepNode,
@@ -116,7 +115,6 @@ export const stepNodeTypes = {
   batch: memo(GenericStepNode),
   end: memo(TerminalStepNode),
   forEachContainer: memo(ForEachNode),
-  inlineLoop: memo(InlineLoopNode),
   groupContainer: memo(GroupNode),
   ifStep: memo(IfStepNode),
   start: memo(GenericStepNode),

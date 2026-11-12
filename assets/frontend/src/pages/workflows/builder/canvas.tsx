@@ -14,7 +14,6 @@ import { CanvasPortProvider } from "./canvas-port-control";
 import { canvasConnectionDefinition, connectionPlacement, connectionRefusal } from "./canvas-connection-policy";
 import type { CanvasCreationIntent, CanvasPlacementPoint } from "./canvas-types";
 import { arrangeSnapshot, useCanvasArrangeMode, useSavedCanvasLayout } from "./canvas-layout-menu";
-import { useInlineLoopIds } from "./canvas-inline-loop-layout";
 import { useStableCanvasNodes } from "./canvas-node-identity";
 import type { CanvasShellExtras } from "./canvas-context-menus";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -571,7 +570,6 @@ export function WorkflowCanvasBuilderSurface({
     [changeSet.operations],
   );
 
-  const inlineLoopIds = useInlineLoopIds(workflowId);
   const { nodes, edges, totalWidth, rootRows } = useMemo(
     () =>
       buildCanvasLayout({
@@ -599,7 +597,6 @@ export function WorkflowCanvasBuilderSurface({
         onOpenStepAutomation: openStepAutomationFromCanvas,
         onOpenInputs: openWorkflowInterfaceFromCanvas,
         projectHint: scheduleProjectHint,
-        inlineLoopIds,
       }, t),
     [
       closeTransientSurfaces,
@@ -630,7 +627,6 @@ export function WorkflowCanvasBuilderSurface({
       openWorkflowInterfaceFromCanvas,
       onOpenWorkflowInterface,
       scheduleProjectHint,
-      inlineLoopIds,
       t,
     ],
   );

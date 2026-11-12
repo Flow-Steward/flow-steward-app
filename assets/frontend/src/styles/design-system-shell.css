@@ -907,6 +907,18 @@
   flex: none;
 }
 
+/* The bell is the header's last control: its tooltip opens leftwards so it
+   never widens the page, and gives way to the open approvals menu. */
+.fs-app-header__approvals .fs-icon-button-wrap > .fs-shell-tooltip {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.fs-app-header__approvals:has(.fs-app-header__approval-menu) .fs-shell-tooltip {
+  display: none;
+}
+
 .fs-app-header__approval-count {
   position: absolute;
   top: -4px;

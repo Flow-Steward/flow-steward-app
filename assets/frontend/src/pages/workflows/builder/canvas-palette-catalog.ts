@@ -3,7 +3,7 @@ import { localizedSTEP_KIND_OPTIONS, objectOrEmpty } from "@/pages/workflows/det
 import { defaultOverrideForStepKind } from "@/pages/workflows/detail/detail-step-editing";
 import type { ToolCategory } from "@/pages/workflows/detail/detail-tool-categories";
 import { stepInsertableBetween } from "./change-set";
-import type { LocalContainerChoice, LocalStepChoice, PaletteChoice } from "./canvas-types";
+import type { LocalStepChoice, PaletteChoice } from "./canvas-types";
 
 type Translate = I18nContextValue["t"];
 
@@ -51,7 +51,7 @@ export type PaletteScope = {
 
 const ACTION_ORDER = ["agent", "tool:connector", "tool:extension_tools", "tool:mcp_tools", "http_request", "invoke_workflow"];
 const DATA_ORDER = ["set_variable", "transform", "tabular_feed", "dataset_query", "file_from_base64", "template", "collect"];
-const FLOW_ORDER = ["if", "switch", "approval", "wait", "container:for_each", "container:inline_loop", "batch", "break", "continue"];
+const FLOW_ORDER = ["if", "switch", "approval", "wait", "container:for_each", "batch", "break", "continue"];
 const FINISH_ORDER = ["stop_success", "stop_fail"];
 const FOR_EACH_ONLY = new Set(["collect", "break", "continue"]);
 // Mirror the server's LANE_STEP_KINDS. Unknown future palette kinds stay
@@ -147,11 +147,9 @@ export function paletteEntries(scope: PaletteScope, t: Translate = fallbackConte
     entries.push([option.value, { family: familyOf(option.value), iconKind: option.value, description: stepDescription(option.value, t), choice: base, ...(refused ? { disabledReason: refused } : {}) }]);
   }
   if (scope.allowForEach || scope.laneId) {
-    // For each is a loop, not a kind of group: it sits in Flow, before Inline loop.
+    // For each is a loop, not a kind of group: it sits in Flow.
     const containerRefusal = scope.laneId ? laneRefusal : scope.inserting ? groupOnConnection : undefined;
     entries.push(["container:for_each", { family: "Flow", iconKind: "for_each", description: t("react.workflows.palette_desc_for_each", "Run the steps inside once for each item."), choice: { nodeKind: "for_each", catalogKey: "container:for_each", displayName: t("react.workflows.for_each", "For each"), family: "Flow", containerDefaults: { containerKind: "for_each" } }, ...(containerRefusal ? { disabledReason: containerRefusal } : {}) }]);
-    const inline: LocalContainerChoice = { nodeKind: "for_each", catalogKey: "container:inline_loop", displayName: t("react.workflows.palette_inline_loop", "Inline loop"), family: "Flow", presentation: "inline", containerDefaults: { containerKind: "for_each" } };
-    entries.push(["container:inline_loop", { family: "Flow", iconKind: "for_each", description: t("react.workflows.palette_desc_inline_loop", "Repeat a few simple steps for each item, inside its card."), choice: inline, ...(containerRefusal ? { disabledReason: containerRefusal } : {}) }]);
   }
   const groups: PaletteEntry[] = [];
   if (scope.allowGroup) {

@@ -86,7 +86,7 @@ function QuickInstall({ entry, context }: Readonly<{ entry: ExtensionCatalogEntr
       busy={phase === "installing"}
       busyLabel={kind === "update" ? updateLabel("installing", entry.version, t) : installLabel("installing", t)}
       data-marketplace-quick-install={entry.extension_id}
-      disabled={phase === "awaiting_approval"}
+      disabled={phase === "awaiting_approval" || phase === "queued"}
       onClick={(event) => {
         event.stopPropagation();
         install.onInstall(entry);

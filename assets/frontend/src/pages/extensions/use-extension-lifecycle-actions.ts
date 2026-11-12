@@ -25,6 +25,7 @@ import {
 } from "@/pages/extensions/catalog-api";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { MARKETPLACE_ENTRY_PARAM, withoutMarketplaceParams } from "@/pages/extensions/marketplace-model";
+import { catalogLifecycleBusy, runCatalogLifecycle } from "./catalog-lifecycle-queue";
 import { type DragEvent } from "react";
 import {
   type ExtensionsViewFilter,
@@ -327,6 +328,11 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
     status: "Waiting for browser authority approval.",
   };
 
+  const QUEUED: ExtensionCatalogInstallState = {
+    phase: "queued",
+    status: "Queued behind another install or update.",
+  };
+
   /**
    * After the server refused a release the catalog no longer lists, reload the
    * listing so the card and the page show what is published now, and say so.
@@ -431,7 +437,8 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
               status: cancelledText,
               outcome: "cancelled",
             }),
-          retry: async (impactHash: string) => {
+          // The approved retry queues like a click: the approval dialog left the queue.
+          retry: (impactHash: string) => runCatalogLifecycle(async () => {
             try {
               await submit(impactHash);
             } catch (retryError) {
@@ -451,12 +458,17 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
               setCatalogInstall(extensionId, AWAITING_APPROVAL);
               throw retryError;
             }
-          },
+          }),
         });
       }
     };
 
-    ignoreAsyncResult(start());
+    // One lifecycle operation at a time: a second click waits its turn instead
+    // of being refused by the server's lifecycle lock.
+    // The click itself shows Queued or Installing…, as before the queue: a fast
+    // answer must not batch the whole install into one render.
+    setCatalogInstall(extensionId, catalogLifecycleBusy() ? QUEUED : { phase: "installing", status: updating ? "Updating..." : "Installing..." });
+    ignoreAsyncResult(runCatalogLifecycle(start));
   }
 
   async function confirmBrowserAuthorityApproval() {

@@ -188,7 +188,7 @@ export function applyCanvasNodeState({
         },
       } : startNode;
     }
-    if (node.type === "groupContainer" || node.type === "forEachContainer" || node.type === "inlineLoop") {
+    if (node.type === "groupContainer" || node.type === "forEachContainer") {
       const groupNode = node as Node<GroupNodeData>;
       return {
         ...groupNode,
