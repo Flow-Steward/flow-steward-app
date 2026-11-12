@@ -1046,9 +1046,13 @@ def test_oversized_hydrated_secret_map_stops_early_and_blocks_action(
         )
 
     assert captured.value.payload["action"]["detail"] == "extension_secret_check_incomplete"
+    # The public projection keeps codes only; the limit is named in the error text.
     assert captured.value.payload["action"]["errors"] == [
-        {"code": "extension_secret_check_incomplete", "limit": "secret_inventory"}
+        {"code": "extension_secret_check_incomplete"}
     ]
+    assert captured.value.payload["action"]["response"]["error"].endswith(
+        "Limit: secret_inventory."
+    )
     assert collection_visits
     assert collection_visits[0] <= 257
     assert external_effects == []
