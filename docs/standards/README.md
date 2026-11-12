@@ -26,7 +26,8 @@ Rules are written once here and referenced from `AGENTS.md`.
 7. `frontend-standard.md`
 8. `agent-workflow-standard.md`
 9. `extension-manifest-standard.yaml`
-10. `enforcement-matrix.md`
+10. `extension-publication-standard.md`
+11. `enforcement-matrix.md`
 
 ## Change Control
 

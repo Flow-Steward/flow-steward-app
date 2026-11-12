@@ -11,6 +11,10 @@ Steward reads its `index.json` and lists the entries under
 repository; the extension's code and releases live there. The catalog README
 (`README.md`, section "Share an extension") is the source of truth: read the
 current copy before you start and follow it where it differs from this skill.
+Also locate the target Flow Steward application checkout and read its canonical
+`docs/standards/extension-publication-standard.md` for official artwork,
+bundled provenance, and publication review. Catalog acceptance alone does not
+establish that a logo is official or visually faithful.
 
 Build the extension first with the `flow-steward-extension-authoring` skill.
 Publishing does not install anything; never install, enable or publish without
@@ -55,6 +59,8 @@ In `extension.yaml`:
 Next to `extension.yaml`, `icon.png`: PNG only, square, 32–512 px (128×128
 recommended), at most 100 KB. A release without a valid icon is refused by the
 catalog and by Flow Steward's installer.
+Complete the canonical publication standard's branding review before the first
+release, then verify every target archive and the generated Marketplace card.
 
 Never commit secrets: the check refuses `.env` and key files and any value
 under keys such as `password` or `api_key`.

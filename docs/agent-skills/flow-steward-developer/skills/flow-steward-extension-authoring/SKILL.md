@@ -18,8 +18,9 @@ as ready.
 ## Locate the contracts
 
 Find the target Flow Steward application checkout. Read `AGENTS.md`, applicable
-`docs/standards/*`, `docs/standards/extension-manifest-standard.yaml`, and
-`docs/extension-authoring-agent-playbook.md`. Locate its version-matched
+`docs/standards/*`, `docs/standards/extension-manifest-standard.yaml`,
+`docs/standards/extension-publication-standard.md` (official artwork and release
+review), and `docs/extension-authoring-agent-playbook.md`. Locate its version-matched
 documentation checkout for `docs/integrations/build-an-extension.md`,
 `docs/developer/extensions.md` and `docs/reference/cli.md`; the playbook identifies
 fallbacks when supporting docs are unavailable. Report gaps instead of inventing
@@ -59,8 +60,10 @@ Flow Steward 1.0 runs; the scaffold writes it. Build runtime code on the public
 `flowsteward-extension-sdk` (0.4.0 or later), never on private Core modules.
 The bundle's logo is a file named `icon.png` next to `extension.yaml`: a square
 PNG of 32–512 px (128×128 recommended), at most 100 KB. There is no manifest
-field for it. The scaffold writes a neutral default icon; replace it before
-publishing. The archive installer validates the icon.
+field for it. Before publishing, apply the target checkout's canonical
+`docs/standards/extension-publication-standard.md`; it distinguishes branded
+integrations from generic extensions and defines provenance and visual review.
+The archive installer validates the technical PNG contract only.
 
 Declare the extension's outbound network access under `egress` (an extension
 that makes no outbound calls declares `egress: {}`); without it, installation

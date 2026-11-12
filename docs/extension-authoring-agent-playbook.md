@@ -41,6 +41,8 @@ Before creating or changing an extension, read these files in this order:
    - Allowed callback auth types.
    - `extension_id` package identity rules.
    - Runtime Contract v2 shape.
+   - Read [the extension publication standard](standards/extension-publication-standard.md)
+     for official artwork, bundled provenance, and publication review.
 
 5. Documentation site extension docs, relative to the separate
    `flow-steward-doc` checkout (locate it; do not assume a machine-specific path):
@@ -173,8 +175,10 @@ The file name is the contract; the manifest has no icon field.
 - Square, 32-512 px on a side; 128x128 is the recommended size.
 - At most 100 KB.
 
-`extensions create` writes a default package glyph. Replace the file with the
-extension's own logo, keeping the name. `extensions validate`, `extensions
+`extensions create` writes a default package glyph. For branded integrations it
+is a development placeholder; follow the
+[extension publication standard](standards/extension-publication-standard.md)
+before the first release. `extensions validate`, `extensions
 bundle` and install refuse a bundle without a valid `icon.png`
 (`extension_icon_missing` / `extension_icon_invalid`, field `icon.png`).
 
