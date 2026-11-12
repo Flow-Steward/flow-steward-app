@@ -563,6 +563,7 @@
     "core/infrastructure/extension_sdk/public/flowsteward_extension_sdk/testing.py",
     "core/infrastructure/installer/__init__.py",
     "core/infrastructure/installer/secret_values.py",
+    "core/infrastructure/observability/exception_logging.py",
     "core/infrastructure/observability/observability_metrics.py",
     "core/infrastructure/observability/otel_bootstrap.py",
     "core/infrastructure/observability/otel_config.py",

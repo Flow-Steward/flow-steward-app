@@ -53,17 +53,48 @@ def _resolved_secret_refs(db: Any, connection: Mapping[str, Any]) -> dict[str, A
     return _object(resolve(db, dict(connection)))
 
 
+def invocation_failure_response(
+    invocation: Any, *, include_envelope_fields: bool = False
+) -> dict[str, Any]:
+    """Keep extension business errors public and host diagnostics private."""
+    payload = _object(invocation)
+    response = _object(payload.get("response"))
+    response_errors = response.get("errors")
+    errors = list(response_errors) if isinstance(response_errors, list) else []
+    errors.extend(item for item in payload.get("errors") or [] if isinstance(item, Mapping))
+    is_envelope = type(response.get("ok")) is bool
+    # Legacy explicit ok=false envelopes used error/error_code instead of errors[].
+    if not errors and response.get("ok") is False:
+        message = _text(response.get("error"))
+        if message:
+            errors.append(
+                {"code": _text(response.get("error_code")) or "extension_error", "message": message}
+            )
+    if not errors:
+        # stderr, raw_stdout, exception detail and partial diagnostic results are
+        # not an extension error envelope, even when a child process produced them.
+        return _failed(
+            "extension_invocation_failed",
+            "The extension operation failed. Check its diagnostics or contact an administrator.",
+        )
+    result = {
+        "ok": False,
+        "result": _object(response.get("result")) if is_envelope else {},
+        "errors": errors,
+    }
+    if include_envelope_fields and is_envelope:
+        for name in ("commands", "events", "reload"):
+            if isinstance(response.get(name), list):
+                result[name] = response[name]
+    return result
+
+
 def _response_from_invocation(invocation: Any) -> dict[str, Any]:
     payload = _object(invocation)
     response = _object(payload.get("response"))
     if payload.get("status") == "succeeded":
         return response or {"ok": True, "result": {}, "errors": []}
-    errors = list(response.get("errors") or [])
-    errors.extend(item for item in payload.get("errors") or [] if isinstance(item, Mapping))
-    detail = _text(payload.get("detail"))
-    if detail and not errors:
-        errors.append({"code": detail, "message": detail})
-    return {"ok": False, "result": _object(response.get("result")), "errors": errors}
+    return invocation_failure_response(payload)
 
 
 def _process_project_state_updates(

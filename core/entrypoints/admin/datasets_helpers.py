@@ -12,7 +12,10 @@ from fastapi import HTTPException
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID
 from core.application.datasets.catalog_scope import _scope_matches_row
-from core.application.datasets.connection_actions import mark_project_state_update_failed
+from core.application.datasets.connection_actions import (
+    invocation_failure_response,
+    mark_project_state_update_failed,
+)
 from core.application.datasets.definition_values import (
     _apply_schema_defaults,
     _non_empty_secret_values,
@@ -364,16 +367,7 @@ def _response_from_invocation(invocation: dict[str, Any]) -> dict:
     response = _response_envelope(invocation)
     if invocation.get("status") == "succeeded":
         return response
-    errors = list(response.get("errors") or []) if isinstance(response.get("errors"), list) else []
-    errors.extend(list(invocation.get("errors") or []))
-    detail = str(invocation.get("detail") or "").strip()
-    if detail and not errors:
-        errors.append({"code": detail, "message": detail})
-    return {
-        **response,
-        "ok": False,
-        "errors": errors,
-    }
+    return invocation_failure_response(invocation, include_envelope_fields=True)
 
 
 def _invoke_connection_action(db, connection: dict, action_id: str) -> dict:
