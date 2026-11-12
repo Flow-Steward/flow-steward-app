@@ -207,7 +207,9 @@ describe("RegistryMcpPage", () => {
     await waitFor(() => expect(mockedSyncMcpConnector).toHaveBeenCalledTimes(1));
 
     await user.click(opener);
-    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Sync" })).toHaveAttribute("aria-busy", "true"));
+    // After the loader delay the running item reads "Syncing…"; on a busy machine that
+    // delay has passed by now, so the item is found under either name.
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: /^Sync(ing…)?$/ })).toHaveAttribute("aria-busy", "true"));
     const health = screen.getByRole("menuitem", { name: "Health" });
     const remove = screen.getByRole("menuitem", { name: "Delete" });
     for (const item of [health, remove]) {
