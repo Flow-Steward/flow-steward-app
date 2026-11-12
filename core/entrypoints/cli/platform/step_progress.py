@@ -92,6 +92,22 @@ def finished_line(event: OperationProgressEvent, elapsed: float) -> str:
     return f"{mark} {step_text(event)}{suffix}"
 
 
+def still_working_lines(
+    running: dict[str, OperationProgressEvent], started: dict[str, float], now: float
+) -> list[str]:
+    """One note per step that has itself been quiet for a whole heartbeat interval.
+
+    The tick is global, so a step that began just before it is skipped (a live update
+    printed "still working ... (4s)", 2026-11-12).
+    """
+    lines: list[str] = []
+    for step_id, event in running.items():
+        running_for = now - started.get(step_id, now)
+        if running_for >= REDIRECTED_HEARTBEAT_SECONDS:
+            lines.append(f"  still working: {step_text(event)} ({format_duration(running_for)})")
+    return lines
+
+
 @contextmanager
 def redirected_steps(
     *, technical_sink: Callable[[str], None] | None, log_line: Callable[[Any], str]
@@ -119,12 +135,8 @@ def redirected_steps(
     def heartbeat() -> None:
         while not stop.wait(REDIRECTED_HEARTBEAT_SECONDS):
             with lock:
-                for step_id, event in running.items():
-                    started = clock.started.get(step_id, time.monotonic())
-                    click.echo(
-                        f"  still working: {step_text(event)} "
-                        f"({format_duration(time.monotonic() - started)})"
-                    )
+                for line in still_working_lines(running, clock.started, time.monotonic()):
+                    click.echo(line)
 
     thread = threading.Thread(target=heartbeat, daemon=True)
     thread.start()

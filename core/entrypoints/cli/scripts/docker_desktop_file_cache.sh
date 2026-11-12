@@ -70,6 +70,10 @@ if [[ -z "${probe_dir}" ]]; then
 fi
 
 probe_dir="$(cd -- "${probe_dir}" && pwd -P)"
+# The probe directory can be an installation's state directory, where every file is
+# owner-only and doctor's secrets_modes check fails on anything wider (found on a
+# Docker Desktop install, 2026-11-12). The probe container reads as root.
+umask 077
 kept_name=".docker-desktop-mount-probe"
 # Another refresh on the same folder (parallel gate checks, parallel tests) can
 # replace the kept file between our write and the container's read. That run's

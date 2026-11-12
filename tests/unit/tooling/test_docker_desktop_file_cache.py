@@ -153,6 +153,9 @@ def test_a_current_view_passes_the_probe_and_leaves_only_the_kept_probe_file(
     assert probe[probe.index("--network") + 1] == "none"
     assert f"{probe_dir.resolve()}:/probe:ro" in probe
     assert [path.name for path in probe_dir.iterdir()] == [".docker-desktop-mount-probe"]
+    # It lives in the installation's owner-only state directory (doctor secrets_modes).
+    kept = probe_dir / ".docker-desktop-mount-probe"
+    assert stat.S_IMODE(kept.stat().st_mode) == 0o600
 
 
 def test_a_stale_view_stops_the_caller_with_what_to_do(tmp_path: Path) -> None:

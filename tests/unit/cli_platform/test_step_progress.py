@@ -66,3 +66,15 @@ def test_plain_output_prints_each_step_once_when_it_starts_and_when_it_ends(caps
         "✓ Prepare core images  42s",
     ]
     assert len(logs) == 3
+
+
+def test_still_working_waits_until_the_step_itself_has_been_quiet() -> None:
+    """Live update 2026-11-12: the global tick printed "still working ... (4s)"."""
+    from core.entrypoints.cli.platform.step_progress import still_working_lines
+
+    running = {"prepare": _event(OperationStepStatus.RUNNING)}
+
+    assert still_working_lines(running, {"prepare": 100.0}, now=104.0) == []
+    assert still_working_lines(running, {"prepare": 100.0}, now=131.0) == [
+        "  still working: Prepare core images (31s)"
+    ]
