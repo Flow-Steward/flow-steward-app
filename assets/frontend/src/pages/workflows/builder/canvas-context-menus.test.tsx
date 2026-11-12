@@ -30,7 +30,7 @@ function host(overrides: Partial<CanvasMenuHost> = {}) {
   const owner = { status: "pending", stageGraphIntent, undoGraphIntent, preview: canvasConnectionDefinition(graph) } as unknown as WorkflowChangeSetController;
   const { nodes } = buildCanvasLayout({ canvasGraph: graph, onOpenGroup: vi.fn(), onOpenGroupAutomation: vi.fn(), onOpenStep: vi.fn(), onOpenStepAutomation: vi.fn(), onEditStep: vi.fn() });
   const value: CanvasMenuHost = {
-    t: fallbackContext.t, workflowId: "orders", nodes, canvasGraph: graph, structureLocked: false, selectedIds: [],
+    t: fallbackContext.t, nodes, canvasGraph: graph, structureLocked: false, selectedIds: [],
     select: vi.fn(), owner: () => owner, clipboard: vi.fn(async () => {}), remove: vi.fn(), openNewStepAt: vi.fn(), addNoteAt: vi.fn(),
     selectAll: vi.fn(), fitView: vi.fn(), screenToFlow: (point) => ({ x: point.x * 2, y: point.y * 2 }), notice: vi.fn(), forgetPlacements: vi.fn(),
     ...overrides,

@@ -9,6 +9,11 @@ import { WorkflowsBuilderPage } from "@/pages/workflows/builder";
 vi.mock("@/lib/auth/use-is-admin", () => ({ useIsAdmin: () => true, useCanReadWorkflowRegistry: () => true }));
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: () => ({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"], timezone: "UTC" } } }) }));
 
+// Keep first-import compilation outside these interaction assertions.
+beforeAll(async () => {
+  await import("@/pages/workflows/detail/detail-page-shell");
+});
+
 const workflowId = "context-refresh-fixture";
 const rootPath = `/registry/workflows/${workflowId}`;
 const contextKey = ["workflows", workflowId, "linked-project-id"];

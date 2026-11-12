@@ -58,6 +58,11 @@ const mockedFetchWorkflowDetail = vi.mocked(fetchWorkflowDetail);
 const mockedFetchWorkflowExportPolicy = vi.mocked(fetchWorkflowExportPolicy);
 const mockedFetchWorkflowValidation = vi.mocked(fetchWorkflowValidation);
 
+// Keep first-import compilation outside these interaction assertions.
+beforeAll(async () => {
+  await import("@/pages/workflows/detail/detail-page-shell");
+});
+
 const emptySummary = { rule_count: 0, enabled_count: 0, issue_count: 0, error_count: 0, warning_count: 0 };
 
 function graph(partial: Partial<WorkflowCanvasGraph>): WorkflowCanvasGraph {

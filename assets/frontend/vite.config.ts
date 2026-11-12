@@ -138,6 +138,10 @@ export default defineConfig({
           if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
             return "react-vendor";
           }
+          // Keep the report engine's heavy dependencies behind its dynamic import.
+          if (id.includes("/echarts/") || id.includes("/zrender/")) {
+            return "charts-vendor";
+          }
           if (id.includes("/@tanstack/")) {
             return "query-vendor";
           }

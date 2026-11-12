@@ -7,7 +7,6 @@ import { hookGroupId, parseHookNodeId, withHookFrames } from "./hook-frames";
 import { nodeIdForRef } from "./layout";
 import { portEdge } from "./change-set";
 import { outcomeHandleId } from "./api";
-import { setInlineLoop } from "./canvas-inline-loop-layout";
 import { usePaletteDrag, type PaletteDropTarget } from "./canvas-palette-drag";
 import type { PaletteEntry } from "./canvas-palette-catalog";
 import type { BuilderSurfaceProps, CanvasCreationIntent, CanvasCreationSelection, CanvasPlacementCommand, CanvasPlacementPoint, CreateLocalStepRequest, LocalCanvasChoice, NewContainerDefaults, PaletteChoice } from "./canvas-types";
@@ -54,7 +53,7 @@ function laneIds(body: Record<string, unknown> | undefined): string[] {
  * the detail-owned command is the sole creation authority. */
 export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps>) {
   const { t } = useI18n();
-  const { onCanvasReady, onCreateStep, workflowId } = props;
+  const { onCanvasReady, onCreateStep } = props;
   const root = useRef<HTMLDivElement>(null);
   const [instance, setInstance] = useState<ReactFlowInstance | null>(null);
   const [request, setRequest] = useState<PaletteRequest | null>(null);
@@ -136,7 +135,6 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
       if (controller.signal.aborted || activeRequest.current !== selection.requestId) return;
       if (result.status === "created") {
         const nodeId = "canvasStepId" in result ? result.canvasNodeId || result.canvasStepId : result.canvasNodeId;
-        if (choice.nodeKind === "for_each" && choice.presentation === "inline" && "nodeId" in result) setInlineLoop(workflowId, result.nodeId, true);
         setCreationSelection({ nodeId, nonce: ++creationSerial.current, selectionGeneration: selection.intent?.selectionGeneration });
         setRequest(null);
         setCreationIntentRetireNonce((current) => current + 1);
@@ -148,7 +146,7 @@ export function WorkflowCanvasPaletteSurface(props: Readonly<BuilderSurfaceProps
     } finally {
       if (activeRequest.current === selection.requestId) { activeRequest.current = ""; pending.current = null; setBusy(false); }
     }
-  }, [dismiss, onCreateStep, placeNextAt, request, t, workflowId]);
+  }, [dismiss, onCreateStep, placeNextAt, request, t]);
   const chooseFromPalette = useCallback((choice: PaletteChoice, selection: PaletteRequest | null = request) => {
     if (choice.nodeKind === "note") {
       setPlacementCommand({ kind: "add-note", ...(selection?.at ? { point: selection.at.point } : {}), nonce: ++placementSerial.current });

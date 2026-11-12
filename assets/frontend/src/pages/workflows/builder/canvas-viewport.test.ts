@@ -174,6 +174,15 @@ it("fits a short graph using both viewport dimensions instead of a width thresho
   expect(instance.setViewport).toHaveBeenCalledWith({ x: -16, y: -8, zoom: 0.5 }, { duration: 0 });
 });
 
+it("opens a small workflow at 100%, while Fit view may still zoom in", async () => {
+  const nodes: Node[] = [{ id: "visual:start", position: { x: 80, y: 64 }, width: 224, height: 144, data: {} }];
+  const instance = { getNodes: () => nodes, getNodesBounds, fitBounds: vi.fn(async () => true), setViewport: vi.fn(async () => true) };
+  await fitCanvasToNodes(instance, 0, { width: 1200, height: 700 }, "initial");
+  expect(instance.setViewport).toHaveBeenLastCalledWith({ x: (1200 - 224) / 2 - 80, y: (700 - 144) / 2 - 64, zoom: 1 }, { duration: 0 });
+  await fitCanvasToNodes(instance, 0, { width: 1200, height: 700 }, "fit");
+  expect(instance.setViewport).toHaveBeenLastCalledWith(expect.objectContaining({ zoom: 2 }), { duration: 0 });
+});
+
 
 function actualSlotTemplate(): Node {
   const layout = buildCanvasLayout({ canvasGraph: { ...appendedIf, entry: { kind: "step", id: "slot-preview" }, steps: [{ id: "slot-preview", step_id: "slot-preview", kind: "wait", display_name: "Add next", config_summary: "", ports: [{ outcome: { name: "success" }, label: "Next" }] }], edges: [] }, onOpenGroup: vi.fn(), onOpenGroupAutomation: vi.fn(), onOpenStep: vi.fn(), onOpenStepAutomation: vi.fn() });

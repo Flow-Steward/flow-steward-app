@@ -694,6 +694,42 @@ describe("update notices (WordPress's update check)", () => {
     expect(mockedFetchUpdates.mock.calls.length).toBeGreaterThan(1);
   });
 
+  test("a second Update waits in a queue instead of being refused, then runs when the first ends", async () => {
+    const BETA_RECORD = { ...INSTALLED_RECORD, extension_id: "beta_mail", display_name: "Beta Mail", version: "2.0.0" };
+    const BETA_ENTRY = catalogEntry({
+      ...UPDATE_ENTRY, extension_id: "beta_mail", name: "Beta Mail", version: "2.1.0", installed_version: "2.0.0", installed_install_id: "inst_beta",
+      release_zip_url: "https://catalog.example.test/beta_mail-2.1.0.zip", icon_url: "/api/extensions/catalog/beta_mail/icon?v=abc",
+    });
+    let finishFirst!: () => void;
+    let records = [OLDER_RECORD, BETA_RECORD];
+    let pendingUpdates = [UPDATE_ENTRY, BETA_ENTRY];
+    mockedFetchExtensions.mockImplementation(async () => records as never);
+    mockedFetchUpdates.mockImplementation(async () => updateCheck(pendingUpdates));
+    // An update installs the new version: its row stops offering one.
+    const updated = (extensionId: string, version: string) => {
+      records = records.map((record) => record.extension_id === extensionId ? { ...record, version } : record);
+      pendingUpdates = pendingUpdates.filter((entry) => entry.extension_id !== extensionId);
+      return { status: "updated" } as never;
+    };
+    mockedInstall.mockImplementation((extensionId: string, version: string) => extensionId === "acme_crm"
+      ? new Promise((resolve) => { finishFirst = () => resolve(updated(extensionId, version)); })
+      : Promise.resolve(updated(extensionId, version)));
+    renderHub("/extensions#installed");
+
+    const table = await screen.findByRole("table", { name: "Installed extensions" });
+    fireEvent.click(await within(table).findByRole("button", { name: "Update to v1.10.0" }));
+    fireEvent.click(within(table).getByRole("button", { name: "Update to v2.1.0" }));
+
+    expect(await within(table).findByRole("button", { name: "Queued" })).toBeDisabled();
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(1));
+    expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "");
+
+    finishFirst();
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("beta_mail", "2.1.0", DIGEST, ""));
+    expect(await within(table).findByText("Updated to 2.1.0.")).toBeInTheDocument();
+    expect(within(table).getByText("Updated to 1.10.0.")).toBeInTheDocument();
+  });
+
   test("a release this server cannot run is announced without an Update button", async () => {
     mockedFetchExtensions.mockResolvedValue([OLDER_RECORD] as never);
     mockedFetchUpdates.mockResolvedValue(updateCheck([

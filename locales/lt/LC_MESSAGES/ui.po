@@ -5212,6 +5212,9 @@ msgstr "Teikėjas nepasiekiamas"
 msgid "react.extensions.publisher"
 msgstr "Leidėjas"
 
+msgid "react.extensions.queued"
+msgstr "Eilėje"
+
 msgid "react.extensions.recently_added"
 msgstr "Neseniai pridėti"
 
@@ -18110,15 +18113,6 @@ msgstr "Įterpto priskyrimo {value0} reikšmė"
 msgid "react.workflows.inline_item_steps"
 msgstr "Įterpti elementų žingsniai"
 
-msgid "react.workflows.inline_loop_concurrency"
-msgstr "lygiagretumas {count}"
-
-msgid "react.workflows.inline_loop_refused"
-msgstr "Įterptinis ciklas išvardija kelis paprastus nuoseklius žingsnius."
-
-msgid "react.workflows.inline_loop_source"
-msgstr "{over} kaip {item}"
-
 msgid "react.workflows.inline_step_kind_value0"
 msgstr "Įterpto žingsnio {value0} tipas"
 
@@ -18606,9 +18600,6 @@ msgstr "Įkeliamos darbo eigos"
 msgid "react.workflows.loop"
 msgstr "ciklas"
 
-msgid "react.workflows.loop_body"
-msgstr "Ciklo turinys"
-
 msgid "react.workflows.loop_body_kind"
 msgstr "Ciklo turinys"
 
@@ -18617,12 +18608,6 @@ msgstr "Lygiagrečios juostos kiekvienam elementui"
 
 msgid "react.workflows.loop_body_sequence"
 msgstr "Žingsniai iš eilės"
-
-msgid "react.workflows.loop_body_step_one"
-msgstr "{count} žingsnis"
-
-msgid "react.workflows.loop_body_steps"
-msgstr "{count} žingsniai"
 
 msgid "react.workflows.loop_body_subgraph"
 msgstr "Ciklo vidinis pografis"
@@ -20070,12 +20055,6 @@ msgstr "Shopify stiliaus"
 
 msgid "react.workflows.show"
 msgstr "Rodyti"
-
-msgid "react.workflows.show_as_group"
-msgstr "Rodyti kaip grupę"
-
-msgid "react.workflows.show_as_inline_loop"
-msgstr "Rodyti kaip įterptinį ciklą"
 
 msgid "react.workflows.show_as_text"
 msgstr "rodomas kaip tekstas."
@@ -26892,9 +26871,6 @@ msgstr "Atidaryti antrinę darbo eigą"
 msgid "react.workflows.open_interface"
 msgstr "Atidaryti sąsają"
 
-msgid "react.workflows.open_loop_value0"
-msgstr "Atidaryti ciklą {value0}"
-
 msgid "react.workflows.outputs"
 msgstr "Išvestys"
 
@@ -27346,9 +27322,6 @@ msgstr "Iškviesti HTTP galinį tašką ir išsaugoti atsakymą."
 msgid "react.workflows.palette_desc_if"
 msgstr "Šakoti pagal sąlygą: Taip arba Ne."
 
-msgid "react.workflows.palette_desc_inline_loop"
-msgstr "Pakartoti kelis paprastus žingsnius kiekvienam elementui, kortelės viduje."
-
 msgid "react.workflows.palette_desc_invoke_workflow"
 msgstr "Paleisti kitą darbo eigą ir naudoti jos išvestis."
 
@@ -27426,9 +27399,6 @@ msgstr "Grupėje {group} · juosta {lane}"
 
 msgid "react.workflows.palette_in_lane_ordinal"
 msgstr "Grupėje {group} · {lane}"
-
-msgid "react.workflows.palette_inline_loop"
-msgstr "Įterptinis ciklas"
 
 msgid "react.workflows.palette_insert_title"
 msgstr "Įterpti į {source} · {outcome} → {target}"

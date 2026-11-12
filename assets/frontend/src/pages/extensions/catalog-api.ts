@@ -139,7 +139,7 @@ export function catalogErrorCode(error: unknown): string {
 }
 
 /** What a Marketplace install or update is doing right now. Owned by the page. */
-export type ExtensionCatalogInstallPhase = "idle" | "installing" | "awaiting_approval";
+export type ExtensionCatalogInstallPhase = "idle" | "queued" | "installing" | "awaiting_approval";
 
 /**
  * How the last attempt ended, so the extension's page and its card can frame

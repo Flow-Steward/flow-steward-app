@@ -32,8 +32,10 @@ export async function fitCanvasToNodes(
   }
   const padding = 24;
   const minimum = mode === "initial" ? 0.5 : 0.25;
+  // Opening a workflow never zooms in past 100%: a short graph sits centred at its real size.
+  const maximum = mode === "initial" ? 1 : 2;
   const fitted = Math.min((size.width - padding * 2) / Math.max(bounds.width, 1), (size.height - padding * 2) / Math.max(bounds.height, 1));
-  const zoom = Math.max(minimum, Math.min(2, fitted));
+  const zoom = Math.max(minimum, Math.min(maximum, fitted));
   if (fitted < minimum) {
     const start = mode !== "selection" ? visibleNodes.find((node) => node.type === "workflowStart" || node.id === "visual:start") : undefined;
     const anchor = start ? instance.getNodesBounds([start]) : bounds;

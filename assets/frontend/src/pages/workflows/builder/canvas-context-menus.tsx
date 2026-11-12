@@ -10,7 +10,6 @@ import { stepCanBeDisabled, type WorkflowDefinitionModel } from "./change-set";
 import { canvasConnectionDefinition, connectionPlacement } from "./canvas-connection-policy";
 import { isStepNode, summaryBadge, type GraphEditNotice } from "./canvas-core";
 import { planSelectionGroup, selectionGroupRefusal, selectionLanesRefusal, type SelectionGroupKind } from "./canvas-group-selection";
-import { inlineLoopEligible, inlineLoopIds, setInlineLoop } from "./canvas-inline-loop-layout";
 import { CanvasMenuSurface, type CanvasMenuItem, type CanvasMenuLevel } from "./canvas-menu-surface";
 import { parseHookNodeId } from "./hook-frames";
 import type { ForEachNodeData, GroupNodeData, StepNodeData } from "./layout";
@@ -22,7 +21,6 @@ type Point = { x: number; y: number };
 /** What the canvas lends its menus: selection, commands and the change set owner. */
 export type CanvasMenuHost = {
   t: Translate;
-  workflowId: string;
   nodes: readonly Node[];
   canvasGraph: WorkflowCanvasGraph;
   structureLocked: boolean;
@@ -50,7 +48,7 @@ export type CanvasMenuHost = {
   convertGroupBlockedReason?: string;
 };
 
-const isContainerNode = (node: Node | undefined) => node?.type === "groupContainer" || node?.type === "forEachContainer" || node?.type === "inlineLoop";
+const isContainerNode = (node: Node | undefined) => node?.type === "groupContainer" || node?.type === "forEachContainer";
 
 function stepRefId(node: Node<StepNodeData>) { return node.data.step.step_id || node.data.step.id; }
 
@@ -237,7 +235,7 @@ export function stepMenuLevel(host: CanvasMenuHost, nodeId: string): CanvasMenuL
   return { items };
 }
 
-/** Right-click a group, a For each or an inline loop. */
+/** Right-click a group or a For each. */
 export function containerMenuLevel(host: CanvasMenuHost, nodeId: string): CanvasMenuLevel {
   const { t } = host;
   const node = host.nodes.find((candidate) => candidate.id === nodeId);
@@ -255,23 +253,14 @@ export function containerMenuLevel(host: CanvasMenuHost, nodeId: string): Canvas
     key: "edit", label: forEach ? t("react.workflows.edit_loop", "Edit loop") : t("react.workflows.edit_group", "Edit group"),
     onSelect: () => (forEach ? forEachData.onOpenForEach(containerId) : groupData.onOpenGroup(containerId)),
   }];
-  if (!readOnly && !hook && node.type !== "inlineLoop") {
+  if (!readOnly && !hook) {
     const lanes = (node.data as { lanes: string[] }).lanes;
     if (lanes.length) lanes.forEach((laneId) => items.push({ key: `lane:${laneId}`, label: t("react.workflows.add_step_to_lane", "Add step to lane {lane}", { lane: laneId }), onSelect: () => host.openNewStepAt(forEach ? { forEachId: containerId, laneId } : { groupId: containerId, laneId }) }));
     else items.push({ key: "add", label: t("react.workflows.add_step_title", "Add step"), onSelect: () => host.openNewStepAt(forEach ? { forEachId: containerId } : { groupId: containerId }) });
   }
   if (!readOnly && !hook) {
-    // Entry and the inline presentation address the author definition by its own ids; a hook child keeps them in its hook.
+    // Entry addresses the author definition by its own ids; a hook child keeps it in its hook.
     if (!hookChild) items.push(entryItem(host, node, { kind: forEach ? "for_each" : "group", id: containerId }, Boolean((node.data as { isEntry?: boolean }).isEntry)));
-    if (forEach && !hookChild) {
-      const inline = inlineLoopIds(host.workflowId).has(containerId);
-      const eligible = inlineLoopEligible(forEachData.forEach, host.canvasGraph.steps, host.canvasGraph.for_each || []);
-      items.push({
-        key: "inline", label: inline ? t("react.workflows.show_as_group", "Show as a group") : t("react.workflows.show_as_inline_loop", "Show as an inline loop"),
-        ...(!inline && !eligible ? { disabledReason: t("react.workflows.inline_loop_refused", "An inline loop lists a few simple steps in sequence.") } : {}),
-        onSelect: () => setInlineLoop(host.workflowId, containerId, !inline),
-      });
-    }
     if (!forEach && !hookChild && host.convertGroup) {
       const convert = host.convertGroup;
       items.push({

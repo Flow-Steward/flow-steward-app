@@ -55,7 +55,6 @@ import {
 } from "@/pages/workflows/builder/layout-constants";
 
 import { declaredSignatures, schemaSignatures, orderedStepPorts, outcomePortBottom, hasOutcomeRows, type ContractSignature } from "./canvas-card-presentation";
-import { INLINE_LOOP_WIDTH, inlineLoopBody, inlineLoopEligible, inlineLoopHeight, type InlineLoopBodyStep } from "./canvas-inline-loop-layout";
 
 /**
  * The builder canvas layout.
@@ -116,9 +115,6 @@ export type ForEachNodeData = {
   validationIssues: WorkflowCanvasIssue[];
   onOpenForEach: (forEachId: string, defaultTab?: string) => void;
   onOpenNewStep?: (context: { groupId: string; laneId: string; forEachId?: string }) => void;
-  /** Set when the For each is drawn as an inline loop card: its body, in walk order. */
-  bodySteps?: InlineLoopBodyStep[];
-  onOpenStep?: (stepId: string) => void;
 };
 
 /** A step that ends its group's body: the end circle beside the port it leaves from. */
@@ -316,19 +312,6 @@ function stepNodeHandles(step: WorkflowCanvasStep, height: number): CanvasNodeHa
   ];
 }
 
-/** An inline loop card has a step's ports: input and Next 24 below the top, On error at the bottom. */
-function inlineLoopHandles(width: number, height: number, ports: WorkflowCanvasPort[]): CanvasNodeHandle[] {
-  const handles: CanvasNodeHandle[] = [
-    { id: "entry", position: Position.Left, type: "target", width: 10, height: 10, x: -5, y: 19 },
-    { id: "exit", position: Position.Bottom, type: "target", width: 10, height: 10, x: width / 2 - 5, y: height - 5 },
-    { id: "success", position: Position.Right, type: "source", width: 10, height: 10, x: width - 5, y: 19 },
-  ];
-  if (ports.some((port) => port.outcome.name === "error")) {
-    handles.push({ id: "error", position: Position.Bottom, type: "source", width: 10, height: 10, x: width * 0.88 - 5, y: height - 5 });
-  }
-  return handles;
-}
-
 function groupNodeHandles(width: number, height: number, ports: WorkflowCanvasPort[]): CanvasNodeHandle[] {
   const handles: CanvasNodeHandle[] = [
     { id: "entry", position: Position.Left, type: "target", width: 10, height: 10, x: -5, y: CONTAINER_PORT_CENTER_Y - 5 },
@@ -467,7 +450,6 @@ export function buildCanvasLayout(
     onOpenStepAutomation,
     onOpenInputs,
     projectHint,
-    inlineLoopIds,
   }: {
     canvasGraph: WorkflowCanvasGraph;
     actionScopeKey?: string;
@@ -500,8 +482,6 @@ export function buildCanvasLayout(
     onOpenStepAutomation: (stepId: string) => void;
     onOpenInputs?: () => void;
     projectHint?: string;
-    /** For each ids drawn as inline loop cards (canvas presentation only). */
-    inlineLoopIds?: ReadonlySet<string>;
   },
   t: I18nContextValue["t"] = fallbackContext.t,
 ) {
@@ -643,11 +623,6 @@ export function buildCanvasLayout(
   ]);
   const laneOfNode = (id: string) => laneById.get(id) || "";
   const containerLayouts = new Map<string, ContainerLayout>();
-  // Inline loops: a For each drawn as one step-sized card; its body is listed inside, not drawn.
-  const inlineBodies = new Map<string, InlineLoopBodyStep[]>();
-  forEachItems.forEach((item) => {
-    if (inlineLoopIds?.has(item.id) && inlineLoopEligible(item, steps, forEachItems)) inlineBodies.set(`for_each:${item.id}`, inlineLoopBody(item, steps, edges));
-  });
   const stepSizes = new Map(steps.map((step) => [step.id, sizeOfStep(step)]));
   const childrenByParent = new Map<string, string[]>();
   parentByNode.forEach((parent, id) => childrenByParent.set(parent, [...(childrenByParent.get(parent) || []), id]));
@@ -657,11 +632,6 @@ export function buildCanvasLayout(
     const stepSize = stepSizes.get(id);
     if (stepSize) return stepSize;
     let layout = containerLayouts.get(id);
-    const inlineBody = inlineBodies.get(id);
-    if (!layout && inlineBody) {
-      layout = { width: INLINE_LOOP_WIDTH, height: inlineLoopHeight(inlineBody.length, measuredStepHeights?.[id]), positions: new Map(), reached: new Set(childrenByParent.get(id) || []), laneFrames: [] };
-      containerLayouts.set(id, layout);
-    }
     if (!layout) {
       layout = layoutContainer(containers.get(id)!, (childrenByParent.get(id) || []).map(sizeOfNode), laneOfNode);
       containerLayouts.set(id, layout);
@@ -765,10 +735,9 @@ export function buildCanvasLayout(
     const forEachReadOnly = containerReadonly(item.id);
     const parent = parentByNode.get(nodeId);
     const ports = groupPorts(item, t);
-    const inlineBody = inlineBodies.get(nodeId);
     nodes.push({
       id: nodeId,
-      type: inlineBody ? "inlineLoop" : "forEachContainer",
+      type: "forEachContainer",
       data: {
         readOnly: forEachReadOnly,
         ...(runtimeMarks[nodeId] ? { runtimeMark: runtimeMarks[nodeId] } : {}),
@@ -789,13 +758,12 @@ export function buildCanvasLayout(
         validationIssues: validationIssuesByScope.get(`for_each:${item.id}`) || [],
         onOpenForEach,
         onOpenNewStep,
-        ...(inlineBody ? { bodySteps: inlineBody, onOpenStep } : {}),
       },
-      ...(inlineBody ? {} : { dragHandle: ".group-drag-handle" }),
+      dragHandle: ".group-drag-handle",
       draggable: !forEachReadOnly,
       ...(structureLocked && !forEachReadOnly ? { connectable: true } : {}),
       ...parentProps(nodeId),
-      handles: inlineBody ? inlineLoopHandles(layout.width, layout.height, ports) : groupNodeHandles(layout.width, layout.height, ports),
+      handles: groupNodeHandles(layout.width, layout.height, ports),
       height: layout.height,
       position: absolutePosition(nodeId),
       style: { width: layout.width, height: layout.height },
@@ -881,7 +849,6 @@ export function buildCanvasLayout(
         onDeleteStep,
         ...(bodyEnds.length ? { bodyEnds } : {}),
       },
-      ...(parent && inlineBodies.has(parent) ? { hidden: true } : {}),
       draggable: !stepReadOnly,
       ...(hookMember && structureLocked ? { connectable: !stepReadOnly } : {}),
       ...parentProps(step.id),
@@ -928,13 +895,12 @@ export function buildCanvasLayout(
     const sourceColumn = sameScope ? routingColumns.get(sourceId) : undefined;
     const targetColumn = sameScope ? routingColumns.get(targetId) : undefined;
     const routing = { sameScope, sourceColumn, targetColumn, longJump: sourceColumn !== undefined && targetColumn !== undefined && targetColumn > sourceColumn + 1 };
-    // A body's end is the end circle beside its step; an inline loop's body is listed in its card.
+    // A body's end is the end circle beside its step.
     const endsBody = !ordinaryTarget && edge.source.kind === "step" && edge.outcome.name !== "error";
-    const insideInline = [sourceId, targetId].some((id) => { const parent = parentByNode.get(id); return Boolean(parent && inlineBodies.has(parent)); }) || (!ordinaryTarget && inlineBodies.has(targetId));
     return {
       id: `edge:${key}`,
       animated: false,
-      ...(endsBody || insideInline ? { hidden: true } : {}),
+      ...(endsBody ? { hidden: true } : {}),
       data: {
         routing,
         taken,

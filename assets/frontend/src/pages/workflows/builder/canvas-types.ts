@@ -59,8 +59,6 @@ export type LocalContainerChoice = {
   stepKind?: never;
   override?: never;
   containerDefaults?: NewContainerDefaults;
-  /** Canvas-only presentation: a For each drawn as one card that lists its body. */
-  presentation?: "inline";
 };
 export type LocalCanvasChoice = LocalStepChoice | LocalContainerChoice;
 /** Canvas › Note in Add step: a note is not structure, so it never reaches the creation command. */

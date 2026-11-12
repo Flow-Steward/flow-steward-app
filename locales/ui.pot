@@ -4980,6 +4980,9 @@ msgstr ""
 msgid "react.extensions.publisher"
 msgstr ""
 
+msgid "react.extensions.queued"
+msgstr ""
+
 msgid "react.extensions.recently_added"
 msgstr ""
 
@@ -17413,15 +17416,6 @@ msgstr ""
 msgid "react.workflows.inline_item_steps"
 msgstr ""
 
-msgid "react.workflows.inline_loop_concurrency"
-msgstr ""
-
-msgid "react.workflows.inline_loop_refused"
-msgstr ""
-
-msgid "react.workflows.inline_loop_source"
-msgstr ""
-
 msgid "react.workflows.inline_step_kind_value0"
 msgstr ""
 
@@ -17947,9 +17941,6 @@ msgstr ""
 msgid "react.workflows.loop"
 msgstr ""
 
-msgid "react.workflows.loop_body"
-msgstr ""
-
 msgid "react.workflows.loop_body_kind"
 msgstr ""
 
@@ -17957,12 +17948,6 @@ msgid "react.workflows.loop_body_lanes"
 msgstr ""
 
 msgid "react.workflows.loop_body_sequence"
-msgstr ""
-
-msgid "react.workflows.loop_body_step_one"
-msgstr ""
-
-msgid "react.workflows.loop_body_steps"
 msgstr ""
 
 msgid "react.workflows.loop_body_subgraph"
@@ -18512,9 +18497,6 @@ msgid "react.workflows.open_in_marketplace"
 msgstr ""
 
 msgid "react.workflows.open_interface"
-msgstr ""
-
-msgid "react.workflows.open_loop_value0"
 msgstr ""
 
 msgid "react.workflows.open_project"
@@ -19619,12 +19601,6 @@ msgid "react.workflows.shopify_style"
 msgstr ""
 
 msgid "react.workflows.show"
-msgstr ""
-
-msgid "react.workflows.show_as_group"
-msgstr ""
-
-msgid "react.workflows.show_as_inline_loop"
 msgstr ""
 
 msgid "react.workflows.show_as_text"
@@ -25966,9 +25942,6 @@ msgstr ""
 msgid "react.workflows.palette_desc_if"
 msgstr ""
 
-msgid "react.workflows.palette_desc_inline_loop"
-msgstr ""
-
 msgid "react.workflows.palette_desc_invoke_workflow"
 msgstr ""
 
@@ -26045,9 +26018,6 @@ msgid "react.workflows.palette_in_lane"
 msgstr ""
 
 msgid "react.workflows.palette_in_lane_ordinal"
-msgstr ""
-
-msgid "react.workflows.palette_inline_loop"
 msgstr ""
 
 msgid "react.workflows.palette_insert_title"
