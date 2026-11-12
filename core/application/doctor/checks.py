@@ -201,7 +201,7 @@ def _maintenance_left_enabled(probe: DoctorProbe) -> DoctorFinding:
         )
     if facts.owner_kind == "manual":
         # Switched on by hand (`maintenance enable`), usually for an upgrade window that
-        # is still open. A warning keeps `doctor` at exit 0, so a chained
+        # is still open. A warning keeps `doctor` at exit 0 (doctor.py), so a chained
         # `... && doctor && maintenance disable` still reaches the disable.
         return DoctorFinding(
             "maintenance_left_enabled",

@@ -42,6 +42,8 @@ from core.infrastructure.installer.state_store import InstallerStateStore
 _ROOT = Path(
     str(runtime_env.get("FS_DOCKER_HOST_PROJECT_ROOT") or Path(__file__).resolve().parents[3])
 )
+# A warning is reported but exits 0, so `... && doctor && maintenance disable` goes on;
+# only a failure or a configuration problem exits 4.
 _EXIT_CLEAN, _EXIT_USAGE, _EXIT_FINDINGS, _EXIT_BUSY = 0, 2, 4, 6
 _EXIT_NOT_CHECKED = 5  # D4: nothing could be checked here
 _DOCTOR_SCHEMA = "flow-steward.doctor.v1"
@@ -350,7 +352,7 @@ def _diagnose(service: DoctorService, probe: InstallationDoctorProbe, *, as_json
     section = _configuration_section()
     configuration = _configuration_findings(section)
     problems = _problems(report, configuration)
-    code = _EXIT_FINDINGS if problems else _EXIT_CLEAN
+    code = _EXIT_FINDINGS if (configuration or not report.clean) else _EXIT_CLEAN
     if as_json:
         json.dump(
             {
@@ -413,7 +415,7 @@ def _fix(
     finally:
         log.close()
     final = result.final
-    code = _EXIT_FINDINGS if final is not None and final.failing else _EXIT_CLEAN
+    code = _EXIT_FINDINGS if final is not None and not final.clean else _EXIT_CLEAN
     if args.json:
         json.dump(
             {

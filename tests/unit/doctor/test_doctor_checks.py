@@ -262,7 +262,7 @@ _MANUAL = MaintenanceFacts(
 
 def test_maintenance_switched_on_by_hand_is_a_warning_not_a_failure() -> None:
     """Demo upgrade 2026-11-12: `maintenance enable && release upgrade && doctor &&
-    maintenance disable` stopped at doctor (exit 1 on this FAIL), so maintenance stayed on."""
+    maintenance disable` stopped at doctor (exit 4 on this FAIL), so maintenance stayed on."""
     probe = _Probe(maintenance_facts=_MANUAL)
     finding = _diagnose("maintenance_left_enabled", probe)
 
@@ -270,7 +270,7 @@ def test_maintenance_switched_on_by_hand_is_a_warning_not_a_failure() -> None:
     assert finding.needs_attention
     assert "2026-11-12T10:24:23Z" in finding.cause
     assert finding.next_step == "./flow-steward maintenance disable --confirm"
-    assert DoctorService(checks.p1_checks(), profile="scalable").diagnose(probe).ok
+    assert DoctorService(checks.p1_checks(), profile="scalable").diagnose(probe).clean
 
 
 def test_maintenance_during_a_running_operation_is_only_information() -> None:
