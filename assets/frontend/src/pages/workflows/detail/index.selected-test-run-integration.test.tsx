@@ -519,6 +519,8 @@ it("stops the verified active selected job only after the actual confirmation an
   fireEvent.click(within(row).getByRole("button", { name: "Stop" }));
   const confirmation = await screen.findByRole("dialog", { name: "Stop Test Run?" });
   expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith("/cancel"))).toEqual([]);
+  // Nothing is being cancelled yet, so the Stop behind the confirmation is not busy.
+  expect(within(await bar()).getByRole("button", { name: "Stop", hidden: true })).not.toHaveAttribute("aria-busy");
   fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
   expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith("/cancel"))).toEqual([]);
   fireEvent.click(within(await bar()).getByRole("button", { name: "Stop" }));

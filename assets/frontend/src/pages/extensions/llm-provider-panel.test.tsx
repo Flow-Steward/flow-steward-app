@@ -837,7 +837,8 @@ describe("LlmProviderPanel", () => {
     expect(status).toHaveTextContent("Saving connection…");
     // Only the pressed button is busy (focus kept, presses ignored); its siblings keep
     // their resting look and ignore presses until the running action ends.
-    expect(screen.getByRole("button", { name: "Save connection" })).toHaveAttribute("aria-busy", "true");
+    // The busy label replaces "Save connection" after the loader delay, which a busy machine reaches.
+    expect(screen.getByRole("button", { name: /^(Save connection|Saving…)$/ })).toHaveAttribute("aria-busy", "true");
     for (const name of ["Discover models", "Add owner/model"]) {
       const sibling = screen.getByRole("button", { name });
       expect(sibling).toBeEnabled();
@@ -848,7 +849,7 @@ describe("LlmProviderPanel", () => {
     expect(mockedRefreshModels).not.toHaveBeenCalled();
     expect(mockedSetModelEnabled).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await user.click(screen.getByRole("button", { name: /^(Save connection|Saving…)$/ }));
     expect(mockedSaveCredentials).toHaveBeenCalledTimes(1);
 
     resolveSave?.();
