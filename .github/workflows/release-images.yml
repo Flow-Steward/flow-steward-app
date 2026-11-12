@@ -38,7 +38,7 @@ jobs:
       notes_sha256: ${{ steps.release-notes.outputs.notes_sha256 }}
       previous_tag: ${{ steps.release-notes.outputs.previous_tag }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5.0.0 (Node 24)
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -93,7 +93,7 @@ jobs:
       FS_STACK_ENV_FILE: /dev/null
       DOCKER_BUILD_RECORD_UPLOAD: 'false'
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5.0.0 (Node 24)
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           fetch-depth: 0
@@ -278,7 +278,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5.0.0 (Node 24)
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           fetch-depth: 0
@@ -320,14 +320,14 @@ jobs:
       FS_RELEASE_DOCKERHUB_NAMESPACE: ${{ vars.RELEASE_DOCKERHUB_NAMESPACE || 'docker.io/flowsteward' }}
       RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5.0.0 (Node 24)
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           path: source
           fetch-depth: 0
           persist-credentials: false
       - name: Check out the workflow's immutable publication tooling
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 (Node 24)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5.0.0 (Node 24)
         with:
           ref: ${{ github.sha }}
           path: tooling
