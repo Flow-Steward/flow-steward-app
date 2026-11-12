@@ -809,13 +809,110 @@ def test_empty_candidate_comparisons_still_consume_work_budget(
     from core.application.extensions import secret_reflection
 
     monkeypatch.setattr(secret_reflection, "_MAX_COMPARISON_CODEPOINTS", 8)
+    secrets = frozenset({"runtime-token", "another-token"})
 
-    assert (
-        secret_reflection.value_exposes_secret(
-            ["", "", "", "", ""], frozenset({"runtime-token", "another-token"})
-        )
-        is True
+    assert secret_reflection.find_secret_exposure(["", "a", "b", "c"], secrets) is None
+    assert secret_reflection.find_secret_exposure(
+        ["", "a", "b", "c", "d"], secrets
+    ) == secret_reflection.SecretExposureFinding.check_incomplete("comparison_codepoints")
+
+
+def test_repeated_strings_are_compared_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dict keys repeat in every record of a list response; they must not exhaust the budget."""
+    from core.application.extensions import secret_reflection
+
+    calls = 0
+    original = secret_reflection.candidate_exposes_secret
+
+    def count_scan(candidate: str, secret: str) -> bool:
+        nonlocal calls
+        calls += 1
+        return original(candidate, secret)
+
+    monkeypatch.setattr(secret_reflection, "candidate_exposes_secret", count_scan)
+    records = [{"id": index, "key": "_price", "value": "9.99"} for index in range(1_000)]
+
+    assert secret_reflection.find_secret_exposure(records, frozenset({"runtime-token"})) is None
+    # Distinct strings: "id", "key", "value", "_price", "9.99".
+    assert calls == 5
+
+
+def test_large_paginated_list_response_is_checkable() -> None:
+    """A 100-row WooCommerce-shaped page used to trip the 16 384-string budget unchecked."""
+    from core.application.extensions.secret_reflection import find_secret_exposure
+
+    def product(index: int) -> dict:
+        return {
+            "id": index,
+            "name": f"LED lamp {index}",
+            "sku": f"SKU-{index}",
+            "description": "<p>" + f"Product {index} description. " * 100 + "</p>",
+            "categories": [{"id": 1, "name": "Lamps", "slug": "lamps"}] * 2,
+            "images": [{"id": index, "src": f"https://shop.test/{index}.jpg", "alt": ""}] * 4,
+            "meta_data": [
+                {"id": meta, "key": f"_meta_{meta}", "value": f"{index}-{meta}"}
+                for meta in range(200)
+            ],
+        }
+
+    response = {"ok": True, "result": {"items": [product(index) for index in range(100)]}}
+    invocation = {"status": "succeeded", "response": response, "stdout": "", "stderr": ""}
+    secrets = frozenset({"ck_" + "a" * 40, "cs_" + "b" * 40, "abcd efgh ijkl mnop qrst uvwx"})
+
+    assert find_secret_exposure(invocation, secrets) is None
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "limit_value", "value", "expected_limit"),
+    [
+        ("_MAX_TRAVERSAL_NODES", 8, list(range(100)), "traversal_nodes"),
+        ("_MAX_NESTING_DEPTH", 2, [[["safe"]]], "nesting_depth"),
+        ("_MAX_COMPARISON_CODEPOINTS", 8, ["0123456789"], "comparison_codepoints"),
+    ],
+)
+def test_incomplete_check_names_the_exceeded_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    limit_name: str,
+    limit_value: int,
+    value: object,
+    expected_limit: str,
+) -> None:
+    from core.application.extensions import secret_reflection
+
+    monkeypatch.setattr(secret_reflection, limit_name, limit_value)
+
+    with caplog.at_level("WARNING", logger=secret_reflection.__name__):
+        finding = secret_reflection.find_secret_exposure(value, frozenset({"runtime-token"}))
+
+    assert finding == secret_reflection.SecretExposureFinding.check_incomplete(expected_limit)
+    assert f"limit={expected_limit}" in caplog.text
+    assert secret_reflection.value_exposes_secret(value, frozenset({"runtime-token"})) is True
+
+
+def test_secret_match_and_incomplete_check_produce_distinct_invocations() -> None:
+    from core.application.extensions.secret_reflection import (
+        SecretExposureFinding,
+        find_secret_exposure,
+        secret_exposure_invocation,
     )
+
+    match = find_secret_exposure({"text": "Bearer runtime-token"}, frozenset({"runtime-token"}))
+
+    assert match == SecretExposureFinding.match()
+    assert secret_exposure_invocation(match)["errors"] == [
+        {"code": "extension_secret_exposure_blocked"}
+    ]
+    incomplete = secret_exposure_invocation(
+        SecretExposureFinding.check_incomplete("traversal_nodes")
+    )
+    assert incomplete["status"] == "failed"
+    assert incomplete["detail"] == "extension_secret_check_incomplete"
+    assert incomplete["response"]["error_code"] == "extension_secret_check_incomplete"
+    assert incomplete["response"]["limit"] == "traversal_nodes"
+    assert incomplete["errors"] == [
+        {"code": "extension_secret_check_incomplete", "limit": "traversal_nodes"}
+    ]
 
 
 def test_excessive_secret_scan_nesting_fails_closed_without_recursion_error(
@@ -948,7 +1045,10 @@ def test_oversized_hydrated_secret_map_stops_early_and_blocks_action(
             "fixture.mail", "send_message", _raises_input_951_1, scope=_raises_input_951_2
         )
 
-    assert captured.value.payload["action"]["detail"] == "extension_secret_exposure_blocked"
+    assert captured.value.payload["action"]["detail"] == "extension_secret_check_incomplete"
+    assert captured.value.payload["action"]["errors"] == [
+        {"code": "extension_secret_check_incomplete", "limit": "secret_inventory"}
+    ]
     assert collection_visits
     assert collection_visits[0] <= 257
     assert external_effects == []

@@ -6,6 +6,8 @@ import logging
 from typing import Any
 
 from core.application.extensions.secret_reflection import (
+    SecretExposureFinding,
+    find_secret_exposure,
     secret_exposure_invocation,
     value_exposes_secret,
 )
@@ -101,6 +103,7 @@ def _dispatch_tool_runtime(
             return _secret_exposure_tool_result(
                 tool_id=tool_id,
                 function_name=selected_function,
+                finding=SecretExposureFinding.check_incomplete("secret_inventory"),
             )
         implementation = getattr(manifest, "implementation", None)
         implementation_payload = (
@@ -217,10 +220,12 @@ def _dispatch_tool_runtime(
                 arguments=dict(input_payload or {}),
                 runtime_context=runtime_context,
             )
-            if value_exposes_secret(result, protected_input_secrets):
+            secret_finding = find_secret_exposure(result, protected_input_secrets)
+            if secret_finding is not None:
                 blocked = _secret_exposure_tool_result(
                     tool_id=tool_id,
                     function_name=selected_function,
+                    finding=secret_finding,
                 )
                 _emit_connector_tool_event(
                     bl,
@@ -230,7 +235,7 @@ def _dispatch_tool_runtime(
                     tool_id=tool_id,
                     function_name=selected_function,
                     event_type="tool_result",
-                    excerpt=str(secret_exposure_invocation()),
+                    excerpt=str(secret_exposure_invocation(secret_finding)),
                     is_error=True,
                     include_excerpt=not is_mcp_manifest,
                 )
@@ -348,8 +353,13 @@ def _suppressed_tool_manifest_result(*, tool_id: str, function_name: str) -> dic
     }
 
 
-def _secret_exposure_tool_result(*, tool_id: str, function_name: str) -> dict[str, Any]:
-    blocked = secret_exposure_invocation()
+def _secret_exposure_tool_result(
+    *,
+    tool_id: str,
+    function_name: str,
+    finding: SecretExposureFinding | None = None,
+) -> dict[str, Any]:
+    blocked = secret_exposure_invocation(finding)
     return {
         "handled": True,
         "ok": False,
